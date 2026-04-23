@@ -1,8 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   SYSTEM DIRECTOR — Master Stylesheet v2
-   Design tokens → Reset → Layout → Components → Sheets → Items →
-   Builder → Toolbox → Chat → Config → Utilities
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ══════ */
 
 /* ── 1. Design Tokens ───────────────────────────────────────────────────── */
 :root {
@@ -69,9 +65,6 @@
   color: var(--sd-text);
 }
 
-/* ── 2a. Window chrome — intentionally left unstyled ────────────────────── */
-/* Header buttons (close, minimize, controls) are rendered entirely by
-   Foundry's own CSS. We touch nothing here so icons never break.            */
 
 /* Apply font to sheet body elements — NOT to window chrome */
 .sd .window-content input,

@@ -1,20 +1,8 @@
 /* ==========================================================================
-   sd-native-ui.css  —  PR12 (v2.4)
 
-   Neutralises the saturated dark-purple palette that every sd-generated chat
-   card and roll dialog was rendering with.  The card / dialog markup still
-   carries a pile of inline `style="background:#1a1a2e; color:#fff …"` declarations
-   (thousands of lines, hand-written across every action type), so rewriting
-   the inline HTML would be enormous and testing-blind; instead we layer
-   class-scoped overrides using Foundry's own CSS custom properties.
-
-   Rules use `!important` because they must beat inline styles.  All selectors
-   are scoped to sd-specific classes so they never touch core / module UI.
-   ========================================================================== */
-
-/* ──────────────────────────────────────────────────────────────────────────
+/* ─────────────
    Chat cards — damage / heal / save / check / AoE / generic.
-   ────────────────────────────────────────────────────────────────────────── */
+   ──────── */
 .sd-chat-card,
 .sd-save-card,
 .sd-damage-card,
@@ -75,10 +63,7 @@
   background: transparent !important;
 }
 
-/* Neutralise any remaining dark purple/violet inline backgrounds on child
-   elements — these would otherwise render "black text on dark bg" once the
-   color override above forces text to near-black.  We strip the inline dark
-   colour and let the card's own light background bleed through. */
+/*  */
 .sd-chat-card [style*="#1a1a2e"],
 .sd-chat-card [style*="#0d0d1a"],
 .sd-chat-card [style*="#14142a"],
@@ -150,11 +135,8 @@
   border-color: #7a7971 !important;
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Roll dialogue (adv / normal / dis) — hosted inside core Dialog markup.
-   We only override the inner .sd-rdlg-* elements; the outer window keeps
-   Foundry's own theme.
-   ────────────────────────────────────────────────────────────────────────── */
+/* ───────────────────────────────────────────────
+  ─────────────────────────────── */
 .dialog .sd-rdlg-mode {
   background: #e0dcd4 !important;
   border: 1px solid #7a7971 !important;
@@ -175,9 +157,9 @@
   font-family: monospace !important;
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────
    Chat AoE card — native Foundry look, controlled here not inline.
-   ────────────────────────────────────────────────────────────────────────── */
+   ──────────────────────── */
 .sd-chat-aoe-card {
   padding: 8px 10px !important;
   border-radius: 4px !important;
@@ -237,9 +219,9 @@
   cursor: not-allowed !important;
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────
    Local save dialog + check dialog + any other sd-scoped dialog bodies.
-   ────────────────────────────────────────────────────────────────────────── */
+   ──────────────────── */
 .dialog .sd-dialog-body,
 .dialog .sd-local-save,
 .dialog .sd-check-body {
@@ -251,12 +233,7 @@
   color: inherit !important;
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Card backgrounds are always light — do not honour OS / Foundry dark
-   theme here.  Users found the cards unreadable (black text on near-black
-   gradient) when their OS reported prefers-color-scheme: dark, so we force
-   the light palette in every context.
-   ────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────── */
 .sd-chat-card,
 .sd-save-card,
 .sd-damage-card,
