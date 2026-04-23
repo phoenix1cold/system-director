@@ -2512,6 +2512,10 @@ export class ButtonExecutor {
           chatMode:          action.chatMode ?? "auto",
           // v6: explicit auto/card toggle -- when undefined falls back to chatMode.
           applyMode:         action.applyMode ?? "auto",
+          // Shared-roll toggle for damage/heal sweeps: "per_target" (default)
+          // rolls the formula separately for each token; "once" rolls one
+          // number and applies it to every token the sweep hits.
+          rollApplyMode:     action.rollApplyMode ?? "per_target",
           visibility:        action.visibility ?? "everyone",
           deactivateOnLeave: action.deactivateOnLeave !== false,
           conditionEffect:   action.conditionEffect ?? "",
@@ -2604,6 +2608,7 @@ export class ButtonExecutor {
           chatMode:          action.chatMode ?? "auto",
           // v6: explicit auto/card toggle -- when undefined falls back to chatMode.
           applyMode:         action.applyMode ?? "auto",
+          rollApplyMode:     action.rollApplyMode ?? "per_target",
           visibility:        action.visibility ?? "everyone",
           deactivateOnLeave: action.deactivateOnLeave !== false,
           conditionEffect:   action.conditionEffect ?? "",

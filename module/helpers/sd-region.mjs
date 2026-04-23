@@ -381,22 +381,29 @@ async function _applyHpChange(actor, amount, cfg, kind /* "damage" | "heal" */) 
   return { cur, next, delta: Math.abs(next - cur) };
 }
 
-/** Resolve a damage/heal formula, honouring resistance for damage. */
-async function _rollAmount(formula, actor, cfg, kind) {
-  const rollData = actor?.getRollData?.() ?? {};
-  const bonus = String(cfg?.bonusFormula ?? "").trim();
-  const full = bonus ? `(${formula || "0"}) + (${bonus})` : String(formula || "0");
+// Resolve a damage/heal formula, honouring resistance for damage.
+// When `preRaw` is provided, skip the roll and treat it as the raw pre-roll
+// (resistance is still applied per-actor).  Used by the "once" rollApplyMode
+// so a single roll can be shared across every token the sweep hits.
+async function _rollAmount(formula, actor, cfg, kind, preRaw = null) {
   let amount = 0;
-  try {
-    const r = new Roll(full, rollData);
-    await r.evaluate();
-    amount = r.total;
-  } catch (e) {
-    console.warn("SD | region roll failed:", full, e);
-    return { amount: 0, roll: null, resisted: false };
+  if (preRaw !== null && preRaw !== undefined) {
+    amount = Number(preRaw) || 0;
+  } else {
+    const rollData = actor?.getRollData?.() ?? {};
+    const bonus = String(cfg?.bonusFormula ?? "").trim();
+    const full = bonus ? `(${formula || "0"}) + (${bonus})` : String(formula || "0");
+    try {
+      const r = new Roll(full, rollData);
+      await r.evaluate();
+      amount = r.total;
+    } catch (e) {
+      console.warn("SD | region roll failed:", full, e);
+      return { amount: 0, roll: null, resisted: false };
+    }
   }
   let resisted = false;
-  if (kind === "damage" && cfg.damageType) {
+  if (kind === "damage" && cfg.damageType && actor) {
     const resPath = `system.resistances.${cfg.damageType}`;
     const res = foundry.utils.getProperty(actor, resPath);
     if (res === "immune") { amount = 0; resisted = true; }
@@ -404,6 +411,23 @@ async function _rollAmount(formula, actor, cfg, kind) {
     else if (res === "vulnerable") { amount = amount * 2; resisted = true; }
   }
   return { amount, roll: null, resisted };
+}
+
+// Roll the bare damage/heal formula once with no actor-specific bonus so the
+// result can be shared across a sweep (rollApplyMode = "once").  Resistances
+// are NOT applied here -- they're still evaluated per-actor downstream.
+async function _rollSharedAmount(cfg) {
+  const bonus   = String(cfg?.bonusFormula ?? "").trim();
+  const formula = String(cfg?.formula ?? "0");
+  const full    = bonus ? `(${formula}) + (${bonus})` : formula;
+  try {
+    const r = new Roll(full, {});
+    await r.evaluate();
+    return Number(r.total) || 0;
+  } catch (e) {
+    console.warn("SD | region shared roll failed:", full, e);
+    return 0;
+  }
 }
 
 /**
@@ -685,7 +709,7 @@ async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
     case "damage":
     case "heal": {
       if (when === "eachTurn") return false; // no immediate tick
-      const { amount } = await _rollAmount(cfg.formula || "0", actor, cfg, mode);
+      const { amount } = await _rollAmount(cfg.formula || "0", actor, cfg, mode, opts.sharedAmount ?? null);
       if (amount) {
         const applied = autoApply
           ? await _applyHpChange(actor, amount, cfg, mode)
@@ -770,6 +794,9 @@ async function _tickTokenInRegion(regionDoc, tokenDoc) {
   if (mode === "effect") {
     await _applyNamedEffect(regionDoc, tokenDoc);
   } else if (mode === "damage" || mode === "heal") {
+    // Per-turn ticks only ever touch one token, so rollApplyMode="once"
+    // collapses to the same behaviour as per-target here.  The shared-roll
+    // semantic applies to the initial placement sweep (_resyncRegionTokens).
     const { amount } = await _rollAmount(cfg.formula || "0", actor, cfg, mode);
     if (!amount) return;
     const applied = autoApply
@@ -840,6 +867,18 @@ async function _resyncRegionTokens(regionDoc) {
   const scene = regionDoc?.parent;
   if (!scene) return;
 
+  // Shared-roll mode: roll the formula once for the whole sweep so every
+  // token inside takes the same base amount (resistances still apply per
+  // actor inside _rollAmount).
+  let sharedAmount = null;
+  if (
+    (cfg.rollApplyMode === "once") &&
+    (cfg.mode === "damage" || cfg.mode === "heal") &&
+    cfg.formula
+  ) {
+    sharedAmount = await _rollSharedAmount(cfg);
+  }
+
   let anyApplied = false;
   for (const token of (scene.tokens ?? [])) {
     const inside = _tokenInside(regionDoc, token);
@@ -850,7 +889,10 @@ async function _resyncRegionTokens(regionDoc) {
       // Suppress per-token self-delete so every token inside the region
       // receives the effect before the region tears itself down (see
       // `_enterRegion` + Bug #2 in the patch notes).
-      const applied = await _enterRegion(regionDoc, token, { suppressAutoDelete: true });
+      const applied = await _enterRegion(regionDoc, token, {
+        suppressAutoDelete: true,
+        sharedAmount
+      });
       if (applied) anyApplied = true;
     } else if (!inside && was) {
       _membershipCache.delete(cacheKey);

@@ -1473,7 +1473,7 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Damage Aura — periodic damage to tokens inside. */
+  // Damage Aura -- periodic damage to tokens inside.
   act_place_aura_damage: {
     title:"Place Aura — Damage", color:"#7a2a1a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; rolls damage against tokens inside (onEnter / eachTurn / both). Respects system.resistances[damageType]. Chat card + visibility configurable.",
@@ -1481,7 +1481,7 @@ export const NODE_DEFS = {
       {id:"exec",    label:"",            type:"exec"},
       {id:"owner",   label:"Owner",       type:"value"},
       {id:"size",    label:"Size (ft)",   type:"value"},
-      {id:"formula", label:"Formula",     type:"value"},
+      {id:"formula", label:"Formula",     type:"value.string"},
       {id:"rounds",  label:"Lifetime",    type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1502,6 +1502,7 @@ export const NODE_DEFS = {
       {key:"bonusFormula",     label:"Bonus formula (+)",  type:"text",   default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",         label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",       label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode",   label:"Roll mode",          type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility",       label:"Visibility",         type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"rounds",           label:"Lifetime (rounds, 0=∞)", type:"number", default:0},
       {key:"conditionEffect",  label:"Suppress when owner has effect", type:"text", default:""}
@@ -1525,13 +1526,14 @@ export const NODE_DEFS = {
       showInChat:      (n.data.showInChat ?? "yes") !== "no",
       chatMode:        n.data.chatMode   ?? "card",
       applyMode:        n.data.applyMode   ?? "auto",
+      rollApplyMode:   n.data.rollApplyMode ?? "per_target",
       visibility:      n.data.visibility ?? "everyone",
       rounds:          Number(inp.rounds ?? n.data.rounds ?? 0) || 0,
       conditionEffect: n.data.conditionEffect ?? ""
     })
   },
 
-  /** Heal Aura — periodic healing to tokens inside. */
+  // Heal Aura -- periodic healing to tokens inside.
   act_place_aura_heal: {
     title:"Place Aura — Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; heals tokens inside (onEnter / eachTurn / both). HP path configurable. Chat card + visibility configurable.",
@@ -1539,7 +1541,7 @@ export const NODE_DEFS = {
       {id:"exec",    label:"",          type:"exec"},
       {id:"owner",   label:"Owner",     type:"value"},
       {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value"},
+      {id:"formula", label:"Formula",   type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1559,6 +1561,7 @@ export const NODE_DEFS = {
       {key:"bonusFormula",    label:"Bonus formula (+)", type:"text",  default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",        label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",      label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode",  label:"Roll mode",          type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility",      label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"rounds",          label:"Lifetime (rounds, 0=∞)", type:"number", default:0},
       {key:"conditionEffect", label:"Suppress when owner has effect", type:"text", default:""}
@@ -1581,12 +1584,14 @@ export const NODE_DEFS = {
       showInChat:      (n.data.showInChat ?? "yes") !== "no",
       chatMode:        n.data.chatMode   ?? "card",
       applyMode:        n.data.applyMode   ?? "auto",
+      rollApplyMode:   n.data.rollApplyMode ?? "per_target",
       visibility:      n.data.visibility ?? "everyone",
       rounds:          Number(inp.rounds ?? n.data.rounds ?? 0) || 0,
       conditionEffect: n.data.conditionEffect ?? ""
     })
   },
 
+  // Save Aura w/ Effect -- each tick rolls a save, fail -> effect.
   /** Save Aura w/ Effect — each tick rolls a save, fail → effect. */
   act_place_aura_save_effect: {
     title:"Place Aura — Save → Effect", color:"#6a4a1a", cat:"Effects", wideNode:true,
@@ -1691,14 +1696,14 @@ export const NODE_DEFS = {
     })
   },
 
-  /** AoE Damage — chat card, place, damages tokens inside. */
+  // AoE Damage -- chat card, place, damages tokens inside.
   act_place_aoe_damage: {
     title:"Chat AoE — Damage", color:"#7a3a1a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, rolls damage against tokens inside (onEnter / eachTurn / both). Respects resistances.",
     inputs:[
       {id:"exec",    label:"",          type:"exec"},
       {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value"},
+      {id:"formula", label:"Formula",   type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1717,6 +1722,7 @@ export const NODE_DEFS = {
       {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",   label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode", label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode", label:"Roll mode", type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility", label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"persist",    label:"Keep template on map", type:"select", options:["yes","no"], default:"no"},
       {key:"rounds",     label:"Lifetime (rounds, 0=∞)", type:"number", default:0}
@@ -1738,20 +1744,21 @@ export const NODE_DEFS = {
       showInChat:   (n.data.showInChat ?? "yes") !== "no",
       chatMode:     n.data.chatMode   ?? "card",
       applyMode:     n.data.applyMode   ?? "auto",
+      rollApplyMode: n.data.rollApplyMode ?? "per_target",
       visibility:   n.data.visibility ?? "everyone",
       persist:      (n.data.persist ?? "no") === "yes",
       rounds:       Number(inp.rounds ?? n.data.rounds ?? 0) || 0
     })
   },
 
-  /** AoE Heal — chat card, place, heals tokens inside. */
+  // AoE Heal -- chat card, place, heals tokens inside.
   act_place_aoe_heal: {
     title:"Chat AoE — Heal", color:"#1a6a3a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, heals tokens inside (onEnter / eachTurn / both).",
     inputs:[
       {id:"exec",    label:"",          type:"exec"},
       {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value"},
+      {id:"formula", label:"Formula",   type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1769,6 +1776,7 @@ export const NODE_DEFS = {
       {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",   label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode", label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode", label:"Roll mode", type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility", label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"persist",    label:"Keep template on map", type:"select", options:["yes","no"], default:"no"},
       {key:"rounds",     label:"Lifetime (rounds, 0=∞)", type:"number", default:0}
@@ -1789,13 +1797,14 @@ export const NODE_DEFS = {
       showInChat:   (n.data.showInChat ?? "yes") !== "no",
       chatMode:     n.data.chatMode   ?? "card",
       applyMode:     n.data.applyMode   ?? "auto",
+      rollApplyMode: n.data.rollApplyMode ?? "per_target",
       visibility:   n.data.visibility ?? "everyone",
       persist:      (n.data.persist ?? "no") === "yes",
       rounds:       Number(inp.rounds ?? n.data.rounds ?? 0) || 0
     })
   },
 
-  /** AoE Save → Effect — chat card, place, save each tick, fail → effect. */
+  // AoE Save -> Effect -- chat card, place, save each tick, fail -> effect.
   act_place_aoe_save_effect: {
     title:"Chat AoE — Save → Effect", color:"#6a2a8a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside roll a save (onEnter / eachTurn / both); on failure, the named Active Effect is applied. On leave the effect is removed (configurable).",
