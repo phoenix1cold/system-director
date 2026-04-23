@@ -532,7 +532,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     });
   });
 
-  // 2. "→ Selected" -- открывает превью выбранных токенов в карточке
+  // 2. "→ Selected" -- opens the selected-tokens preview on the card
   html.querySelectorAll(".sd-apply-selected-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const card     = btn.closest(".sd-chat-card");
@@ -560,12 +560,12 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
 
       const previewArea = card?.querySelector(".sd-selected-preview");
       if (!previewArea) {
-        // Нет панели превью -- старое поведение (применить сразу)
+        // No preview panel -- legacy behaviour (apply immediately)
         _applyDelta(actors[0], hpPath, delta, label, card);
         return;
       }
 
-      // Наполнить список актёров в превью
+      // Populate the actor list in the preview
       const actorsList = previewArea.querySelector(".sd-selected-actors-list");
       if (actorsList) {
         actorsList.innerHTML = actors.map(a => {
@@ -599,7 +599,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         }).join("");
       }
 
-      // Передать данные на кнопку подтверждения
+      // Forward data to the confirm button
       const confirmBtn = previewArea.querySelector(".sd-selected-confirm-btn");
       if (confirmBtn) {
         confirmBtn.dataset.actorIds = actors.map(a => a.id).join(",");
@@ -607,14 +607,14 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         confirmBtn.dataset.hpPath   = hpPath;
       }
 
-      // Показать превью, заблокировать кнопку «→ Selected»
+      // Show preview, lock the '→ Selected' button
       previewArea.style.display = "block";
       btn.disabled     = true;
       btn.style.opacity = "0.5";
     });
   });
 
-  // 2a. Confirm Apply (из панели превью)
+  // 2a. Confirm Apply (from preview panel)
   html.querySelectorAll(".sd-selected-confirm-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const card     = btn.closest(".sd-chat-card");
@@ -670,7 +670,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       const totalEl = card?.querySelector(".sd-card-total");
       if (totalEl) totalEl.textContent = scaledAmt;
 
-      // Sync «→ Selected» button data + скрыть устаревшее превью
+      // Sync '→ Selected' button data + hide stale preview
       card?.querySelectorAll(".sd-apply-selected-btn").forEach(b => {
         b.dataset.baseAmount = scaledAmt;
         b.disabled     = false;
@@ -729,7 +729,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       if (totalEl) totalEl.textContent = amount;
       if (card) {
         card.dataset.baseAmount = amount;
-        // Sync «→ Selected» button + скрыть устаревшее превью
+        // Sync '→ Selected' button + hide stale preview
         card.querySelectorAll(".sd-apply-selected-btn").forEach(b => {
           b.dataset.baseAmount = amount;
           b.disabled     = false;
@@ -1002,7 +1002,7 @@ html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
 });
 
 // 8. Save / Check interactive button
-// Event delegation -- работает и для динамически добавленных строк (→ Selected).
+// Event delegation -- works for dynamically added rows too ('→ Selected').
 html.addEventListener("click", async (e) => {
   const btn = e.target.closest(".sd-save-roll-btn");
   if (!btn || btn.disabled) return;
@@ -1147,7 +1147,7 @@ html.querySelectorAll(".sd-save-selected-btn").forEach(btn => {
     const checkType    = btn.dataset.saveType          ?? card?.dataset.saveType    ?? "save";
     const buttonLabel  = btn.dataset.buttonLabel       ?? "Roll Save";
 
-    // Актёры уже в карточке -- не дублировать
+    // Actors already in the card -- skip duplicates
     const existingIds = new Set(
       [...(card?.querySelectorAll(".sd-save-actor-row[data-actor-id]") ?? [])]
         .map(r => r.dataset.actorId)

@@ -319,7 +319,7 @@ export const NODE_DEFS = {
   // Actions
   act_roll_value: {
     title:"Roll → Value", color:"#8a4400", cat:"Actions",
-    desc:"Катает кубики и передаёт числовой результат как value-выход. Если включён Диалог броска — перед броском открывается окно выбора Помеха/Обычный/Преимущество с формулой из соответствующего пина.",
+    desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin.",
     inputs:[
       {id:"exec",       label:"",              type:"exec"},
       {id:"formula",    label:"Formula",        type:"value"},
@@ -328,12 +328,12 @@ export const NODE_DEFS = {
     ],
     outputs:[{id:"exec",label:"",type:"exec"},{id:"result",label:"Result",type:"value"}],
     fields:[
-      {key:"formula",      label:"Формула",              type:"text",   default:"1d6"},
-      {key:"flavor",       label:"Ярлык",                type:"text",   default:"Roll"},
-      {key:"toChat",       label:"В чат",                type:"select", default:"yes", options:["yes","no"]},
-      {key:"rollDialogue", label:"Диалог броска",        type:"select", default:"no",  options:["no","yes"]},
-      {key:"advFormula",   label:"Adv-формула (пин>поле)", type:"text", default:"",   placeholder:"напр. 2d20kh1 + @mod"},
-      {key:"disFormula",   label:"Dis-формула (пин>поле)", type:"text", default:"",   placeholder:"напр. 2d20kl1 + @mod"}
+      {key:"formula",      label:"Formula",              type:"text",   default:"1d6"},
+      {key:"flavor",       label:"Label",                type:"text",   default:"Roll"},
+      {key:"toChat",       label:"To chat",              type:"select", default:"yes", options:["yes","no"]},
+      {key:"rollDialogue", label:"Roll dialog",          type:"select", default:"no",  options:["no","yes"]},
+      {key:"advFormula",   label:"Adv formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kh1 + @mod"},
+      {key:"disFormula",   label:"Dis formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kl1 + @mod"}
     ],
     isAction:true,
     toAction:(n,inp)=>{
@@ -862,7 +862,7 @@ export const NODE_DEFS = {
   // value outputs so downstream math/damage nodes can consume them.
   act_roll_check: {
     title:"Roll Check", color:"#8a4400", cat:"Actions",
-    desc:"Универсальный бросок с выбором правила сравнения: roll_over (выпало ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, равенство = провал), troika (успех если больше цели ИЛИ меньше цели — зависит от targetRule), custom (своё условие через {roll}/{dc}/{margin}). Выходит в pass/fail и отдаёт Roll / Margin. opposed:yes — после броска инициатора в чате появляются N кнопок «Roll as Opponent»; выигрывает более высокий total (ничья — инициатор).",
+    desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator).",
     inputs:[
       {id:"exec",           label:"",           type:"exec"},
       {id:"formula",        label:"Formula",    type:"value"},
@@ -891,8 +891,8 @@ export const NODE_DEFS = {
       {key:"custom",         label:"Custom cond (mode=custom)", type:"text", default:"{roll} >= {dc}",
         placeholder:"e.g. {roll} > {dc} && {roll} < 20"},
       {key:"flavor",         label:"Label",     type:"text",   default:"Check"},
-      {key:"toChat",         label:"В чат",     type:"select", default:"yes", options:["yes","no"]},
-      {key:"rollDialogue",   label:"Диалог броска", type:"select", default:"no", options:["no","yes"]},
+      {key:"toChat",         label:"To chat",   type:"select", default:"yes", options:["yes","no"]},
+      {key:"rollDialogue",   label:"Roll dialog",   type:"select", default:"no", options:["no","yes"]},
       {key:"opposed",        label:"Opposed",   type:"select", default:"no", options:["no","yes"]},
       {key:"opposedCount",   label:"Opposed N", type:"text",   default:"1"},
       {key:"opposedFormula", label:"Opposed Formula", type:"text", default:"1d20"}
@@ -919,7 +919,7 @@ export const NODE_DEFS = {
   // Tiered Roll (PbtA / Blades-style threshold branches)
   act_tiered_roll: {
     title:"Tiered Roll", color:"#8a4400", cat:"Actions",
-    desc:"Бросок кубиков, который направляет exec в одну из 4 ветвей по порогам. Пример PbtA 2d6: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Пример Blades: T1 crit fail, T2 partial, T3 full, T4 crit. Пороговые значения произвольные; формат — нижняя граница (включительно). Если результат ≥ threshold текущего уровня, идёт в этот уровень (сверху вниз). Raw результат отдаётся на Roll.",
+    desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result ≥ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll.",
     wideNode:true,
     inputs:[
       {id:"exec",    label:"",         type:"exec"},
@@ -943,7 +943,7 @@ export const NODE_DEFS = {
       {key:"t4Label",  label:"Tier 4 label",  type:"text",   default:"Crit"},
       {key:"t4Min",    label:"Tier 4 ≥",      type:"text",   default:"12"},
       {key:"flavor",   label:"Label",         type:"text",   default:"Roll"},
-      {key:"toChat",   label:"В чат",         type:"select", default:"yes", options:["yes","no"]}
+      {key:"toChat",   label:"To chat",       type:"select", default:"yes", options:["yes","no"]}
     ],
     isTieredBranch:true,
     toAction:(n,inp)=>({
@@ -963,7 +963,7 @@ export const NODE_DEFS = {
   // Dice Pool (count dice, count successes ≥ target)
   act_dice_pool: {
     title:"Dice Pool", color:"#8a4400", cat:"Actions",
-    desc:"Кидает N кубов одной грани и считает успехи по правилу сравнения с целью. Выходы: pass/fail в зависимости от required, Successes, Botches, Raw. Пример WoD: count=5, die=10, target=8, compare=ge → считаем сколько d10 выпало ≥8. Ботчи — сколько d10 выпало = botchFace.",
+    desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace.",
     inputs:[
       {id:"exec",   label:"",         type:"exec"},
       {id:"count",  label:"Count",    type:"value"},
@@ -984,7 +984,7 @@ export const NODE_DEFS = {
       {key:"required",  label:"Pass if ≥",    type:"number", default:1},
       {key:"botchFace", label:"Botch on face",type:"number", default:1},
       {key:"flavor",    label:"Label",       type:"text",   default:"Dice Pool"},
-      {key:"toChat",    label:"В чат",       type:"select", default:"yes", options:["yes","no"]}
+      {key:"toChat",    label:"To chat",     type:"select", default:"yes", options:["yes","no"]}
     ],
     isSaveBranch:true,
     toAction:(n,inp)=>({
@@ -1003,7 +1003,7 @@ export const NODE_DEFS = {
   // Token-based resolution (diceless systems, metacurrency)
   act_spend_token: {
     title:"Spend Token", color:"#4a2a6a", cat:"Actions",
-    desc:"Тратит N токенов с указанного ресурса. Если токенов недостаточно — exec идёт в ветку Empty. Работает как Consume Resource, но с ветвлением.",
+    desc:"Spends N tokens from the given resource. If there aren't enough tokens, exec takes the Empty branch. Works like Consume Resource but with branching.",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
       {id:"amount", label:"Amount", type:"value"}
@@ -1031,7 +1031,7 @@ export const NODE_DEFS = {
 
   act_gain_token: {
     title:"Gain Token", color:"#2a5a4a", cat:"Actions",
-    desc:"Добавляет N токенов к ресурсу. Удобно для FATE-points / Drama dice / stress.",
+    desc:"Adds N tokens to the resource. Handy for FATE points / Drama dice / stress.",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
       {id:"amount", label:"Amount", type:"value"}
@@ -1055,7 +1055,7 @@ export const NODE_DEFS = {
 
   get_token_count: {
     title:"Get Token Count", color:"#1a4060", cat:"Sources",
-    desc:"Чистая нода: читает число токенов на указанном пути ресурса.",
+    desc:"Pure source node: reads the current token count at the given resource path.",
     inputs:[], outputs:[{id:"v",label:"Count",type:"value"}],
     fields:[
       {key:"where",label:"Where",    type:"select",default:"self",options:["self","actor","token_target"]},
@@ -1104,7 +1104,7 @@ export const NODE_DEFS = {
   // Throw dice (visual scatter on canvas / sheet)
   act_throw_on_canvas: {
     title:"Throw on Canvas", color:"#8a4400", cat:"Actions",
-    desc:"Кидает N кубов и визуально раскидывает их на канвасе (PIXI-оверлей на активной сцене). Результаты доступны как successes/total и через {__lastSuccesses}/{__lastRoll}.",
+    desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}.",
     inputs:[
       {id:"exec",   label:"",        type:"exec"},
       {id:"count",  label:"Count",   type:"value"},
@@ -1125,7 +1125,7 @@ export const NODE_DEFS = {
       {key:"area",     label:"Area (px)",  type:"number", default:300},
       {key:"duration", label:"Duration (s)",type:"number", default:6},
       {key:"flavor",   label:"Label",      type:"text",   default:"Throw"},
-      {key:"toChat",   label:"В чат",      type:"select", default:"yes", options:["yes","no"]}
+      {key:"toChat",   label:"To chat",      type:"select", default:"yes", options:["yes","no"]}
     ],
     isSaveBranch:true,
     toAction:(n,inp)=>({
@@ -1144,7 +1144,7 @@ export const NODE_DEFS = {
 
   act_throw_on_sheet: {
     title:"Throw on Sheet", color:"#8a4400", cat:"Actions",
-    desc:"Кидает N кубов и визуально раскидывает их поверх DOM текущего листа актёра. Результаты доступны как successes/total и через {__lastSuccesses}/{__lastRoll}.",
+    desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}.",
     inputs:[
       {id:"exec",   label:"",        type:"exec"},
       {id:"count",  label:"Count",   type:"value"},
@@ -1164,7 +1164,7 @@ export const NODE_DEFS = {
       {key:"required", label:"Pass if ≥",   type:"number", default:1},
       {key:"duration", label:"Duration (s)",type:"number", default:6},
       {key:"flavor",   label:"Label",      type:"text",   default:"Throw"},
-      {key:"toChat",   label:"В чат",      type:"select", default:"yes", options:["yes","no"]}
+      {key:"toChat",   label:"To chat",      type:"select", default:"yes", options:["yes","no"]}
     ],
     isSaveBranch:true,
     toAction:(n,inp)=>({
@@ -2225,10 +2225,10 @@ export const NODE_DEFS = {
       {key:"buttonLabel",   label:"Button text",   type:"text",   default:"Roll Save", placeholder:"Roll Save / Roll Check"},
       {key:"target",        label:"Prompt who",    type:"select", default:"token_target", options:["actor","token_target","selected_token","all_targets","selected_tokens"]},
       {key:"rollMode",      label:"Roll mode",     type:"select", default:"publicroll", options:["publicroll","gmroll","blindroll","selfroll"]},
-      {key:"rollFormula",   label:"Формула броска",  type:"text",   default:"", placeholder:"напр. 1d20, 2d6, d20 (пусто = 1d20)"},
-      {key:"rollDialogue",  label:"Диалог броска", type:"select", default:"no", options:["no","yes"]},
-      {key:"advFormula",    label:"Adv-формула (пин>поле)", type:"text", default:"", placeholder:"напр. 2d20kh1 + @mod"},
-      {key:"disFormula",    label:"Dis-формула (пин>поле)", type:"text", default:"", placeholder:"напр. 2d20kl1 + @mod"},
+      {key:"rollFormula",   label:"Roll formula",  type:"text",   default:"", placeholder:"e.g. 1d20, 2d6, d20 (empty = 1d20)"},
+      {key:"rollDialogue",  label:"Roll dialog", type:"select", default:"no", options:["no","yes"]},
+      {key:"advFormula",    label:"Adv formula (pin>field)", type:"text", default:"", placeholder:"e.g. 2d20kh1 + @mod"},
+      {key:"disFormula",    label:"Dis formula (pin>field)", type:"text", default:"", placeholder:"e.g. 2d20kl1 + @mod"},
       {key:"timeout",       label:"Timeout (sec, 0=∞)", type:"number", default:0}
     ],
     isSaveBranch: true,
@@ -2463,7 +2463,7 @@ export const NODE_DEFS = {
   // Delay (wait N ms before continuing exec chain)
   act_delay: {
     title:"Delay", color:"#2a5a8a", cat:"Flow",
-    desc:"Ждёт указанное количество миллисекунд, затем продолжает exec-цепочку.",
+    desc:"Waits the given number of milliseconds, then continues the exec chain.",
     inputs:[
       {id:"exec",     label:"",        type:"exec"},
       {id:"duration", label:"ms",      type:"value"}
@@ -2479,7 +2479,7 @@ export const NODE_DEFS = {
   // Loop (run downstream exec N times, with optional delay between)
   act_loop: {
     title:"For Loop", color:"#2a5a8a", cat:"Flow",
-    desc:"Выполняет Body N раз. Индекс текущей итерации доступен как {__loopIndex}. После всех итераций идёт Done.",
+    desc:"Runs Body N times. Current iteration index is available as {__loopIndex}. After all iterations, exec goes to Done.",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
       {id:"count", label:"Count",  type:"value"},
@@ -2505,7 +2505,7 @@ export const NODE_DEFS = {
   // Wait for Foundry hook (one-shot)
   act_wait_for_event: {
     title:"Wait For Event", color:"#2a5a8a", cat:"Flow",
-    desc:"Останавливает exec-цепочку до первого срабатывания Foundry hook. Timeout в миллисекундах (0 = без таймаута). После наступления события продолжает exec.",
+    desc:"Pauses the exec chain until the first fire of a Foundry hook. Timeout is in milliseconds (0 = no timeout). Continues exec once the event fires.",
     inputs:[
       {id:"exec",    label:"",        type:"exec"},
       {id:"timeout", label:"Timeout", type:"value"}
@@ -2531,7 +2531,7 @@ export const NODE_DEFS = {
   /** Random Pick — outputs one of up to 5 value inputs chosen uniformly. */
   random_pick: {
     title:"Random Pick", color:"#2a4a6a", cat:"Sources",
-    desc:"Случайно возвращает одно из подключённых value-значений (до 5). Пустые входы пропускаются. Даёт равновероятное распределение.",
+    desc:"Randomly returns one of the connected value inputs (up to 5). Empty inputs are skipped. Gives a uniform distribution.",
     inputs:[
       {id:"a", label:"A", type:"value.any"},
       {id:"b", label:"B", type:"value.any"},
@@ -2560,7 +2560,7 @@ export const NODE_DEFS = {
   /** Resource Tier — maps a numeric value to a tier label via thresholds. */
   resource_tier: {
     title:"Resource Tier", color:"#2a4a6a", cat:"Sources",
-    desc:"Преобразует число в тир (например, HP → 'critical / bloodied / healthy'). Пороги задаются как список значений, тиры — как список меток на одну больше.",
+    desc:"Maps a number to a tier (e.g. HP → 'critical / bloodied / healthy'). Thresholds are a list of values; tier labels are a list one longer.",
     inputs:[{id:"v", label:"Value", type:"value.number"}],
     outputs:[{id:"tier", label:"Tier", type:"value.string"}],
     fields:[
@@ -2585,7 +2585,7 @@ export const NODE_DEFS = {
   /** Get Combat State — pure value source reading game.combat. */
   get_combat_state: {
     title:"Get Combat State", color:"#2a4a6a", cat:"Sources",
-    desc:"Value-выходы про текущий энкаунтер: активен ли бой (0/1), текущий раунд, индекс активного участника.",
+    desc:"Value outputs about the current encounter: is combat active (0/1), current round, active combatant index.",
     inputs:[],
     outputs:[
       {id:"active",      label:"Active?",       type:"value.bool"},
@@ -2610,7 +2610,7 @@ export const NODE_DEFS = {
   // Legacy nodes remain in the palette so old graphs keep working unchanged.
   var_read: {
     title:"Read Variable", color:"#2a6a9a", cat:"Variables",
-    desc:"Чтение переменной по области. Local — в пределах одного нажатия. Actor — на актёре (persist). World — в настройках системы.",
+    desc:"Reads a variable by scope. Local — within a single press. Actor — on the actor (persists). World — in system settings.",
     inputs:[],
     outputs:[{id:"v", label:"Value", type:"value.any"}],
     fields:[
@@ -2630,7 +2630,7 @@ export const NODE_DEFS = {
 
   var_write: {
     title:"Write Variable", color:"#2a6a9a", cat:"Variables",
-    desc:"Запись переменной по области. Local сохраняется до конца текущего прохода графа. Actor пишется в actor.flags.sd.vars. World — в game.settings.",
+    desc:"Writes a variable by scope. Local lasts until the end of the current graph pass. Actor is stored in actor.flags.sd.vars. World goes into game.settings.",
     inputs:[
       {id:"exec",  label:"",      type:"exec"},
       {id:"value", label:"Value", type:"value.any"}
@@ -2652,7 +2652,7 @@ export const NODE_DEFS = {
   // Variables (legacy -- kept for back-compat)
   var_get: {
     title:"Get Variable", color:"#2a6a9a", cat:"Sources",
-    desc:"Читает значение локальной переменной графа. Переменные определяются в панели Variables редактора графа.",
+    desc:"Reads the value of a local graph variable. Variables are defined in the Variables panel of the graph editor.",
     inputs:[],
     outputs:[{id:"v", label:"Value", type:"value"}],
     fields:[
@@ -2664,7 +2664,7 @@ export const NODE_DEFS = {
 
   var_set: {
     title:"Set Variable", color:"#2a6a9a", cat:"Sources",
-    desc:"Присваивает значение локальной переменной графа. Переменные живут в рамках одного нажатия кнопки (per-run).",
+    desc:"Assigns a value to a local graph variable. Variables live within a single button press (per-run).",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
       {id:"value", label:"Value",type:"value"}
@@ -2684,7 +2684,7 @@ export const NODE_DEFS = {
   // Cast / Type check
   cast_to_actor: {
     title:"Cast to Actor", color:"#6a2a6a", cat:"Flow",
-    desc:"Пытается привести Value (UUID строка) к актёру. Если успешно — Cast Success с ActorId; иначе Cast Failed.",
+    desc:"Attempts to cast Value (UUID string) to an Actor. On success, emits Cast Success with ActorId; otherwise Cast Failed.",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
       {id:"value", label:"Value",type:"value"}
@@ -2701,7 +2701,7 @@ export const NODE_DEFS = {
 
   cast_to_item: {
     title:"Cast to Item", color:"#6a2a6a", cat:"Flow",
-    desc:"Пытается привести Value (UUID строка) к предмету. Если успешно — Cast Success с ItemId; иначе Cast Failed.",
+    desc:"Attempts to cast Value (UUID string) to an Item. On success, emits Cast Success with ItemId; otherwise Cast Failed.",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
       {id:"value", label:"Value",type:"value"}
@@ -2719,7 +2719,7 @@ export const NODE_DEFS = {
   // Macro (subgraph)
   macro_input: {
     title:"Macro Input", color:"#1a8a4a", cat:"Macros",
-    desc:"Точка входа для вложенного графа (макроса). Macro ID должен совпадать с ID в macro_call. Exec и до 4 value-пинов пробрасываются из macro_call.",
+    desc:"Entry point for a nested graph (macro). Macro ID must match the ID in macro_call. Exec and up to 4 value pins are forwarded from macro_call.",
     inputs:[],
     outputs:[
       {id:"exec", label:"→",     type:"exec"},
@@ -2736,7 +2736,7 @@ export const NODE_DEFS = {
 
   macro_output: {
     title:"Macro Output", color:"#1a8a4a", cat:"Macros",
-    desc:"Точка выхода вложенного графа. Помещается ВНУТРИ макро-графа. Exec и до 2 value-пинов возвращаются наружу в macro_call.",
+    desc:"Exit point of a nested graph. Placed INSIDE the macro graph. Exec and up to 2 value pins are returned out to macro_call.",
     inputs:[
       {id:"exec", label:"",         type:"exec"},
       {id:"a",    label:"Return 1", type:"value"},
@@ -2750,7 +2750,7 @@ export const NODE_DEFS = {
 
   macro_call: {
     title:"Call Macro", color:"#1a8a4a", cat:"Macros",
-    desc:"Вызывает вложенный граф-макрос по ID. Макрос должен быть определён в Macros-панели редактора графа. Возвращаемые значения доступны через value-пины.",
+    desc:"Calls a nested macro graph by ID. The macro must be defined in the Macros panel of the graph editor. Return values are available via value pins.",
     wideNode:true,
     inputs:[
       {id:"exec", label:"",  type:"exec"},
@@ -4458,12 +4458,12 @@ export class FormulaGraph {
       badge.style.display = "block";
       badge.style.color   = "#5ae07a";
       badge.style.borderColor = "#1a5c2a";
-      badge.textContent   = "✓ Exec-граф (On Click) — нода Output не нужна";
+      badge.textContent   = "✓ Exec graph (On Click) — Output node not required";
     } else if (hasOutput) {
       badge.style.display = "block";
       badge.style.color   = "#9d8fff";
       badge.style.borderColor = "#534AB7";
-      badge.textContent   = "✓ Формульный граф — соедини ноду с Output";
+      badge.textContent   = "✓ Formula graph — connect a node to Output";
     } else {
       badge.style.display = "none";
     }

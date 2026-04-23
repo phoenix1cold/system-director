@@ -18,7 +18,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot  = resolve(__dirname, "..");
 
-// Stub
+// Stub the Foundry-specific globals that formula-graph.mjs may touch at
 // import time.  We only need the module's exports, not its side effects.
 globalThis.foundry     = globalThis.foundry     ?? { utils: { randomID: () => "xxx" } };
 globalThis.game        = globalThis.game        ?? {};

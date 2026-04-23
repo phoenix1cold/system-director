@@ -1469,8 +1469,8 @@ export class ButtonExecutor {
         const firstDie = roll.dice?.[0]?.results?.[0]?.result;
         const isCrit   = critFace > 0 && firstDie === critFace;
 
-        const outcomeLabel = isCrit ? "🌟 Крит!" : hit === null ? "" : hit ? "✅ Попадание!" : "❌ Промах";
-        const acLabel      = ac !== null ? `КБ цели: <strong>${ac}</strong>` : "(нет цели)";
+        const outcomeLabel = isCrit ? "🌟 Crit!" : hit === null ? "" : hit ? "✅ Hit!" : "❌ Miss";
+        const acLabel      = ac !== null ? `Target AC: <strong>${ac}</strong>` : "(no target)";
 
         if (buttonDef) {
           buttonDef.__lastRoll   = roll.total;
@@ -1479,7 +1479,7 @@ export class ButtonExecutor {
 
         await roll.toMessage({
           speaker: ChatMessage.getSpeaker({ actor }),
-          flavor: `${action.flavor ?? "Атака"} — ${outcomeLabel} ${ac !== null ? `(${acLabel})` : ""}`,
+          flavor: `${action.flavor ?? "Attack"} — ${outcomeLabel} ${ac !== null ? `(${acLabel})` : ""}`,
           rollMode: _sdMsgMode()
         });
 
@@ -1597,7 +1597,7 @@ export class ButtonExecutor {
               </div>
               <div style="padding:4px 10px 10px;">${rows}</div>
               <div class="sd-opposed-status" style="padding:6px 12px;font-size:11px;">
-                Ожидание ${n} противник${n===1?"а":"ов"}…
+                Waiting for ${n} opponent${n===1?"":"s"}…
               </div>
             </div>`;
           const msg = await ChatMessage.create({
@@ -2807,7 +2807,7 @@ export class ButtonExecutor {
       }
 
       if (!saveActors.length) {
-        ui.notifications.warn("SD | Save/Check Button: нет целей. Нацельтесь или выберите токены.");
+        ui.notifications.warn("SD | Save/Check Button: no targets. Target or select tokens first.");
         break;
       }
 
@@ -2917,7 +2917,7 @@ export class ButtonExecutor {
             ${actorRows}
           </div>
 
-          <!-- → Selected: динамически добавляет выбранных актёров -->
+          <!-- → Selected: dynamically adds selected actors -->
           <div style="padding:0 12px 10px;border-top:1px solid #e0dcd4;padding-top:8px;">
             <button type="button" class="sd-save-selected-btn"
                     data-save-modifier-path="${modifierPath.replace(/"/g,"&quot;")}"
@@ -2934,16 +2934,16 @@ export class ButtonExecutor {
                     style="width:100%;background:#e0dcd4;border:1px solid #b5b3a4;border-radius:5px;
                            color:#191813;cursor:pointer;font-size:11px;font-weight:600;padding:5px 8px;
                            display:flex;align-items:center;justify-content:center;gap:6px;transition:.12s"
-                    title="Подтянуть выбранные / нацеленные токены в карточку">
+                    title="Pull selected / targeted tokens into this card">
               <i class="fas fa-bullseye"></i> → Selected
             </button>
 
-            <!-- Скрытая панель превью выбранных -->
+            <!-- Hidden preview panel for selected tokens -->
             <div class="sd-save-selected-preview" style="display:none;margin-top:8px;">
               <div style="font-size:10px;color:#555555;margin-bottom:5px;
                           display:flex;align-items:center;gap:4px;">
                 <i class="fas fa-bullseye" style="color:#7a3a00"></i>
-                <span>Выбранные:</span>
+                <span>Selected:</span>
               </div>
               <div class="sd-save-selected-actors-list"></div>
               <button type="button" class="sd-save-selected-cancel-btn"
@@ -2952,7 +2952,7 @@ export class ButtonExecutor {
                              color:#6868a0;cursor:pointer;font-size:11px;padding:4px;
                              display:flex;align-items:center;justify-content:center;gap:5px;
                              transition:.12s">
-                ✗ Отмена
+                ✗ Cancel
               </button>
             </div>
           </div>
@@ -3059,7 +3059,7 @@ export class ButtonExecutor {
         <div style="margin-bottom:12px;background:#f0ebe4;border:1px solid #b5b3a4;
                     border-radius:6px;padding:10px 14px;">
           <div style="font-size:9px;color:#555555;text-transform:uppercase;
-                      letter-spacing:.6px;margin-bottom:4px;">Формула броска</div>
+                      letter-spacing:.6px;margin-bottom:4px;">Roll formula</div>
           <div class="sd-rdlg-formula" style="font-size:15px;font-weight:700;color:#c8a0ff;
                                               font-family:monospace;word-break:break-all;">${baseFormula}</div>
         </div>
@@ -3070,7 +3070,7 @@ export class ButtonExecutor {
                    color:#8060b0;cursor:pointer;padding:8px 4px;transition:all .15s;
                    display:flex;flex-direction:column;align-items:center;gap:3px;">
             <span style="font-size:18px;">⬇️</span>
-            <span style="font-size:11px;font-weight:700;">Помеха</span>
+            <span style="font-size:11px;font-weight:700;">Disadvantage</span>
             <span style="font-size:9px;opacity:.65;font-family:monospace;">${fmtShort(disFormula)}</span>
           </button>
           <button type="button" class="sd-rdlg-mode" data-mode="normal"
@@ -3078,7 +3078,7 @@ export class ButtonExecutor {
                    color:#5ae07a;cursor:pointer;padding:8px 4px;transition:all .15s;
                    display:flex;flex-direction:column;align-items:center;gap:3px;">
             <span style="font-size:18px;">🎲</span>
-            <span style="font-size:11px;font-weight:700;">Обычный</span>
+            <span style="font-size:11px;font-weight:700;">Normal</span>
             <span style="font-size:9px;opacity:.65;font-family:monospace;">${fmtShort(baseFormula)}</span>
           </button>
           <button type="button" class="sd-rdlg-mode" data-mode="advantage"
@@ -3086,7 +3086,7 @@ export class ButtonExecutor {
                    color:#8060b0;cursor:pointer;padding:8px 4px;transition:all .15s;
                    display:flex;flex-direction:column;align-items:center;gap:3px;">
             <span style="font-size:18px;">⬆️</span>
-            <span style="font-size:11px;font-weight:700;">Преимущество</span>
+            <span style="font-size:11px;font-weight:700;">Advantage</span>
             <span style="font-size:9px;opacity:.65;font-family:monospace;">${fmtShort(advFormula)}</span>
           </button>
         </div>
@@ -3094,7 +3094,7 @@ export class ButtonExecutor {
         <div style="display:flex;align-items:center;gap:8px;background:#f0ebe4;
                     border:1px solid #b5b3a4;border-radius:6px;padding:9px 12px;">
           <span style="font-size:13px;color:#555555;white-space:nowrap;flex-shrink:0;">
-            <i class="fas fa-plus" style="font-size:10px;"></i> Бонус
+            <i class="fas fa-plus" style="font-size:10px;"></i> Bonus
           </span>
           <input type="text" class="sd-rdlg-bonus" name="sdRdlgBonus" placeholder="1d4, +2, ..."
             style="flex:1;background:transparent;border:none;border-bottom:1px solid #b5b3a4;
@@ -3162,7 +3162,7 @@ export class ButtonExecutor {
           {
             action:  "roll",
             icon:    "fas fa-dice-d20",
-            label:   "Бросить",
+            label:   "Roll",
             default: true,
             callback: (event, button, dialog) => {
               const bonus = extractBonus(dialog);
@@ -3174,7 +3174,7 @@ export class ButtonExecutor {
           {
             action: "cancel",
             icon:   "fas fa-times",
-            label:  "Отмена",
+            label:  "Cancel",
             callback: () => ({ cancelled: true })
           }
         ],
@@ -3333,17 +3333,17 @@ export class ButtonExecutor {
           style="flex:${targetId ? 1 : 3};background:#e0dcd4;border:1px solid #b5b3a4;border-radius:5px;
                  color:#191813;cursor:pointer;font-size:11px;font-weight:600;padding:5px 4px;
                  display:flex;align-items:center;justify-content:center;gap:5px;transition:.12s"
-          title="Предпросмотр: выбранные / нацеленные токены">
+          title="Preview: selected / targeted tokens">
           <i class="fas fa-bullseye"></i> → Selected
         </button>
       </div>
-      <!-- ── Live-selection preview (скрыта до клика «→ Selected») ── -->
+      <!-- Live-selection preview (hidden until '→ Selected' is clicked) -->
       <div class="sd-selected-preview" style="display:none;margin-top:8px;
            border:1px solid #b5b3a4;border-radius:5px;background:#f0ebe4;padding:8px;">
         <div style="font-size:10px;color:#555555;margin-bottom:5px;
                     display:flex;align-items:center;gap:4px;">
           <i class="fas fa-bullseye" style="color:${accentColor}"></i>
-          <span>Применить к выбранным:</span>
+          <span>Apply to selected:</span>
         </div>
         <div class="sd-selected-actors-list" style="margin-bottom:6px;"></div>
         <div style="display:flex;gap:5px;">
