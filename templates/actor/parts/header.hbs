@@ -1,0 +1,55 @@
+<header class="sheet-header">
+  <div class="actor-portrait">
+    <img src="{{actor.img}}" alt="{{actor.name}}"
+         data-action="editImage"
+         class="portrait-img {{#unless isEditable}}readonly{{/unless}}" />
+    {{#if system.isDead}}<div class="death-overlay"><i class="fas fa-skull"></i></div>{{/if}}
+  </div>
+
+  <div class="actor-identity">
+    <input class="actor-name" type="text"
+           name="name"
+           value="{{actor.name}}"
+           placeholder="{{localize 'SD.ActorName'}}"
+           {{#unless isEditable}}disabled{{/unless}} />
+
+    <div class="actor-meta">
+      <span class="actor-type badge">{{localize (concat 'ACTOR.Type' (capitalize actor.type))}}</span>
+    </div>
+
+    {{!-- Resources row --}}
+    <div class="resources-row">
+      {{#each resources as |res|}}
+      <div class="resource-group" data-resource="{{res.key}}">
+        <label class="resource-label">{{res.label}}</label>
+        <div class="resource-inputs">
+          <input type="number" name="{{res.pathValue}}"
+                 value="{{res.value}}" min="{{res.min}}"
+                 {{#unless isEditable}}disabled{{/unless}} />
+          <span class="resource-sep">/</span>
+          <input type="number" name="{{res.pathMax}}"
+                 value="{{res.max}}" min="0"
+                 {{#unless isEditable}}disabled{{/unless}} />
+        </div>
+        <div class="resource-bar">
+          <div class="resource-fill" style="width: {{res.percent}}%;"></div>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+
+
+  <div class="actor-actions" style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+    <button type="button" class="sd-progression-btn" data-action="openProgression"
+            title="{{localize 'SD.Progression.OpenBtn'}}">
+      <i class="fas fa-star-half-alt"></i>
+      <span class="sd-prog-btn-level">{{system.advancement.level}}</span>
+    </button>
+    <button type="button" class="edit-mode-btn {{#if editMode}}active{{/if}}"
+            title="Toggle Edit Mode">
+      <i class="fas fa-pen-ruler"></i>
+    </button>
+  </div>
+</header>

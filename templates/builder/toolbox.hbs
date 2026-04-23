@@ -1,0 +1,153 @@
+<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;background:#1a1a24;color:#e0e0ee;font-family:'Signika',sans-serif">
+
+  {{!-- Tab bar ─────────────────────────────────────────────────────────────── --}}
+  <div style="display:flex;gap:0;background:#13131d;border-bottom:1px solid #2a2a38;flex-shrink:0">
+    <button id="tb-tab-widgets" class="tb-tab active"
+      style="flex:1;padding:7px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:none;background:#1a1a24;color:#7b68ee;cursor:pointer;border-bottom:2px solid #7b68ee">
+      <i class="fas fa-toolbox" style="margin-right:4px"></i>Widgets
+    </button>
+
+    <button id="tb-tab-paths" class="tb-tab"
+      style="flex:1;padding:7px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:none;background:#13131d;color:#555;cursor:pointer;border-bottom:2px solid transparent">
+      <i class="fas fa-database" style="margin-right:4px"></i>Paths
+    </button>
+  </div>
+
+  <div style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:12px">
+
+    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
+    {{!-- WIDGETS PANEL ───────────────────────────────────────────────────── --}}
+    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
+    <div id="tb-panel-widgets">
+
+      {{!-- New Tab ──────────────────────────────────────────────────────── --}}
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#666;padding:4px 2px;border-bottom:1px solid #3a3a52;margin-bottom:6px">Tabs</div>
+      <div data-drag-type="newTab"
+           style="display:flex;align-items:center;gap:10px;padding:10px;background:#2a2a38;border:1px solid #7b68ee;border-radius:5px;cursor:grab;user-select:none;transition:background .15s;margin-bottom:10px"
+           title="Drag onto sheet to add a new custom tab">
+        <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:rgba(123,104,238,.3);border-radius:6px;color:#7b68ee;font-size:15px;flex-shrink:0">
+          <i class="fas fa-plus-circle"></i>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600">New Tab</div>
+          <div style="font-size:10px;color:#666">Drag onto sheet navigation bar</div>
+        </div>
+      </div>
+
+      {{!-- Widget palette ──────────────────────────────────────────────── --}}
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#666;padding:4px 2px;border-bottom:1px solid #3a3a52;margin-bottom:6px">Widgets — drag onto a tab</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">
+        {{#each widgets as |w|}}
+        <div data-drag-type="widget" data-widget-type="{{w.id}}"
+             style="display:flex;align-items:center;gap:7px;padding:8px 9px;background:#2a2a38;border:1px solid #3a3a52;border-radius:5px;cursor:grab;user-select:none;transition:background .15s"
+             title="{{w.desc}}">
+          <div style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:rgba(123,104,238,.2);border-radius:5px;color:#7b68ee;font-size:13px;flex-shrink:0">
+            <i class="{{w.icon}}"></i>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600">{{w.label}}</div>
+            <div style="font-size:9px;color:#555">{{w.desc}}</div>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+
+      {{!-- Custom Fields ──────────────────────────────────────────────── --}}
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#666;padding:4px 2px;border-bottom:1px solid #3a3a52;margin-bottom:6px">
+        <span>Custom Fields</span>
+        <button data-action="addCustomField" style="background:transparent;border:1px solid #3a3a52;border-radius:4px;color:#7b68ee;cursor:pointer;font-size:10px;padding:1px 6px">+ Add</button>
+      </div>
+      {{#if customFields.length}}
+      <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px">
+        {{#each customFields as |cf cfIdx|}}
+        <div data-drag-type="path" data-path="system.flags.{{cf.name}}"
+             style="display:flex;align-items:center;gap:6px;padding:5px 7px;background:#2a2a38;border:1px solid #3a3a52;border-radius:4px;font-size:11px;cursor:grab">
+          <span style="flex:1;font-family:monospace;color:#7b68ee">{{cf.name}}</span>
+          <span style="color:#444;font-size:10px">{{cf.type}}</span>
+          <button data-action="removeCustomField" data-index="{{cfIdx}}" style="background:transparent;border:none;color:#444;cursor:pointer;font-size:11px;padding:0 3px">×</button>
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <p style="font-size:11px;color:#444;font-style:italic;margin:0 0 10px">No custom fields. Click + Add to create one.</p>
+      {{/if}}
+
+      {{!-- Sheet Templates ─────────────────────────────────────────────── --}}
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#666;padding:4px 2px;border-bottom:1px solid #3a3a52;margin-bottom:6px">
+        <span>Sheet Templates</span>
+        <span style="display:flex;gap:4px">
+          <button data-action="importTemplates" title="Import sheet template(s) from a JSON file"
+            style="background:transparent;border:1px solid #3a3a52;border-radius:4px;color:#7b68ee;cursor:pointer;font-size:10px;padding:1px 6px"><i class="fas fa-file-import"></i></button>
+          <button data-action="exportAllTemplates" title="Export all sheet templates as one JSON bundle"
+            style="background:transparent;border:1px solid #3a3a52;border-radius:4px;color:#7b68ee;cursor:pointer;font-size:10px;padding:1px 6px"{{#unless templates.length}} disabled{{/unless}}><i class="fas fa-file-export"></i></button>
+          {{!-- Save-template button hidden per user request — saveTemplate
+               action is still wired via character-sheet / item-sheet "Save as
+               Template" entry points. --}}
+        </span>
+      </div>
+      {{#if templates.length}}
+      <div style="display:flex;flex-direction:column;gap:3px">
+        {{#each templates as |tmpl|}}
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#2a2a38;border:1px solid #3a3a52;border-radius:4px">
+          <i class="fas fa-file-code" style="color:#7b68ee;flex-shrink:0"></i>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{tmpl.name}}</div>
+            <div style="font-size:9px;color:#555">{{tmpl.docType}}{{#if tmpl.itemType}} · {{tmpl.itemType}}{{/if}}</div>
+          </div>
+          <button data-action="createFromTemplate" data-name="{{tmpl.name}}" style="background:#1a4a2a;border:1px solid #2a7a3a;border-radius:3px;color:#5ae07a;cursor:pointer;font-size:10px;padding:1px 6px" title="Create a new {{tmpl.docType}} from this template">Create</button>
+          <button data-action="exportTemplate" data-name="{{tmpl.name}}" style="background:transparent;border:1px solid #3a3a52;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:1px 6px" title="Export this template as JSON"><i class="fas fa-file-export"></i></button>
+          <button data-action="deleteTemplate" data-name="{{tmpl.name}}" style="background:transparent;border:none;color:#444;cursor:pointer;font-size:12px;padding:0 2px" title="Delete template">×</button>
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <p style="font-size:11px;color:#444;font-style:italic;margin:0">No templates saved yet. Open a sheet and click "+ Save", or use Import to load a JSON bundle.</p>
+      {{/if}}
+
+    </div>{{!-- end #tb-panel-widgets --}}
+
+    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
+    {{!-- BLUEPRINTS PANEL ────────────────────────────────────────────────── --}}
+    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
+    {{!-- end #tb-panel-blueprints --}}
+
+    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
+    {{!-- PATHS PANEL ─────────────────────────────────────────────────────── --}}
+    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
+    <div id="tb-panel-paths" style="display:none">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <p style="font-size:11px;color:#666;margin:0;flex:1;line-height:1.5">
+          {{#if knownPaths.length}}Paths from active sheet — drag into any path or formula field.{{else}}No sheet open — open a sheet to see its paths.{{/if}}
+        </p>
+        <button data-action="refreshPaths" type="button"
+          style="flex-shrink:0;background:none;border:1px solid #3a3a52;border-radius:4px;color:#888;cursor:pointer;font-size:10px;padding:2px 7px"
+          title="Re-scan the currently focused sheet">↺ Refresh</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        {{#each knownPaths as |path|}}
+        <div data-drag-type="path" data-path="{{path.path}}" data-action="copyPath"
+             style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#2a2a38;border:1px solid #3a3a52;border-radius:4px;cursor:pointer;user-select:none;transition:background .15s"
+             title="Click to copy path to clipboard — drag to insert into a field">
+          <i class="fas fa-code" style="color:#5a8ae0;font-size:10px;flex-shrink:0"></i>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10px;color:#a0a0c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{path.label}}</div>
+            <div style="font-size:9px;font-family:'Courier New',monospace;color:#7b68ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{path.path}}</div>
+          </div>
+        </div>
+        {{/each}}
+        {{#unless knownPaths.length}}
+        <div style="font-size:11px;color:#444;text-align:center;padding:16px 0">
+          <i class="fas fa-file-alt" style="display:block;font-size:24px;margin-bottom:8px;opacity:.3"></i>
+          Open an actor or item sheet, then click ↺ Refresh
+        </div>
+        {{/unless}}
+      </div>
+    </div>{{!-- end #tb-panel-paths --}}
+
+  </div>
+
+  {{!-- Footer ─────────────────────────────────────────────────────────────── --}}
+  <div style="padding:8px 10px;border-top:1px solid #3a3a52;font-size:10px;color:#444;text-align:center;flex-shrink:0">
+    System Director — drag widgets & blueprints onto open sheets
+  </div>
+</div>

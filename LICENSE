@@ -1,0 +1,216 @@
+System Director — Source-Available Non-Commercial License
+==========================================================
+
+Copyright (c) 2024–2025 phoenix1cold (the "Author").  All rights reserved.
+
+This license governs the software contained in this repository, including
+all source files, data files, templates, language files, compiled artefacts,
+and accompanying documentation (together, the "Software").  The Software is
+made available under the terms set out below.  Any use of the Software
+outside these terms is prohibited and infringes the Author's copyright.
+
+1.  Definitions
+----------------
+
+    1.1. "Author" means phoenix1cold and any successor in title to the
+         copyright in the Software.
+
+    1.2. "You" means the individual or legal entity exercising permissions
+         granted by this License.
+
+    1.3. "Personal Use" means use of the Software by a natural person, for
+         that person's own private games, campaigns, or study, where no
+         fee, payment, subscription, advertising revenue, sponsorship,
+         donation, token, patronage tier, in-game currency, or any other
+         form of monetary or in-kind consideration is charged, received, or
+         solicited in connection with that use or with access to it.
+
+    1.4. "Commercial Use" means any use that is not Personal Use.  Without
+         limiting the foregoing, Commercial Use includes (a) bundling the
+         Software with any product or service offered for sale; (b) hosting
+         the Software for paying users; (c) offering paid game services,
+         paid subscriptions, or paid tiers whose subscribers receive any
+         benefit that depends on the Software; (d) accepting donations,
+         sponsorships, or patronage tied to the Software's availability,
+         features, or support; (e) using the Software, in whole or in part,
+         inside a product that is itself sold, licensed for a fee, or
+         monetised in any way; (f) using the Software as part of a business
+         or professional service offered to third parties.
+
+    1.5. "Derivative Work" means any work that is based on, adapts, or
+         incorporates any portion of the Software, including forks,
+         modifications, translations, ports, compilations, and any
+         redistribution of modified versions.
+
+2.  Permitted Use Without Prior Permission
+------------------------------------------
+
+    Subject to Sections 3 and 4, You may, without the Author's prior
+    written permission:
+
+    (a) download, install, and run the Software locally for Personal Use;
+
+    (b) make private backup copies of the Software for Personal Use;
+
+    (c) modify the Software privately on Your own machines, provided such
+        modifications are used only for Personal Use and are not
+        distributed to any third party.
+
+    No other rights are granted by default.  All rights not expressly
+    granted in this Section are reserved by the Author.
+
+3.  Uses Requiring Prior Written Permission
+-------------------------------------------
+
+    You MUST obtain the Author's prior, explicit, written permission before
+    doing any of the following:
+
+    (a) copying, distributing, publishing, mirroring, re-uploading, or
+        otherwise making the Software or any portion of it available to any
+        third party, in whole or in part, in source or compiled form;
+
+    (b) creating, distributing, or publishing a Derivative Work;
+
+    (c) incorporating the Software, in whole or in part, into another
+        software package, system, module, plug-in, asset pack, or game
+        system;
+
+    (d) using the name "System Director", the repository name, the author's
+        name, or any related trademarks to endorse or promote any product
+        or service.
+
+    Written permission may be granted, refused, or revoked at the Author's
+    sole discretion, and may be conditioned on any terms the Author thinks
+    fit (including, without limitation, attribution, scope of use, time
+    limits, and a requirement that Derivative Works be licensed back to the
+    Author).  Permission is personal to the grantee and is not
+    transferable unless the grant expressly says otherwise.
+
+    Permission requests should be sent to the Author through the project's
+    issue tracker or any contact method listed in the repository's README.
+
+4.  Prohibition of Commercial Use
+---------------------------------
+
+    Commercial Use of the Software is strictly prohibited, regardless of
+    whether permission under Section 3 has been granted, UNLESS the Author
+    has additionally granted a separate, explicit, written commercial
+    licence covering the specific Commercial Use.  A permission granted
+    under Section 3 is not, by itself, a commercial licence.
+
+    For the avoidance of doubt, running the Software on a Foundry VTT
+    server for Your own non-paying players is Personal Use and is
+    permitted.  Running it for paying players, paying subscribers, or as
+    part of a paid "game-master-for-hire" service is Commercial Use and
+    requires a separate commercial licence from the Author.
+
+5.  Attribution and Notices
+---------------------------
+
+    Wherever the Software, or any permitted Derivative Work, is
+    distributed, the following must be preserved and made reasonably
+    visible to the end user:
+
+    (a) this LICENSE file, unmodified;
+
+    (b) the copyright notice in Section 0 (at the top of this file);
+
+    (c) a clear indication of any modifications You have made.
+
+    Removing, altering, or obscuring copyright notices or this License is
+    prohibited.
+
+6.  Patents
+-----------
+
+    No patent rights are granted under this License.  If You make a claim
+    of patent infringement against the Author or against any other
+    recipient of the Software, based on the Software or any Derivative
+    Work, any permissions granted to You under this License terminate
+    automatically and immediately.
+
+7.  Warranty Disclaimer
+-----------------------
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+8.  Limitation of Liability
+---------------------------
+
+    IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
+    FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+9.  Termination
+---------------
+
+    Any breach of this License terminates Your permissions under it
+    automatically and immediately.  Upon termination You must cease all
+    use of the Software and destroy all copies in Your possession or
+    control, except that a court of competent jurisdiction may order
+    otherwise.  Sections 4, 6, 7, 8, 9, and 10 survive termination.
+
+10. Governing Law and Entire Agreement
+--------------------------------------
+
+    This License constitutes the entire agreement between You and the
+    Author concerning the Software and supersedes any prior agreements.
+    If any provision of this License is held unenforceable, the remaining
+    provisions remain in full force.  Any separate written permission
+    granted under Section 3 or Section 4 takes precedence over this
+    License only to the extent the separate grant expressly says so.
+
+
+===========================================================================
+РУССКОЕ РЕЗЮМЕ (неофициальный перевод; в случае расхождений — юридическую
+силу имеет английский текст выше).
+===========================================================================
+
+System Director — лицензия «исходники доступны, только с разрешения,
+без коммерции».
+
+© 2024–2025 phoenix1cold («Автор»). Все права защищены.
+
+Что можно без отдельного разрешения:
+  • Скачать, установить и запускать у себя для личной игры.
+  • Делать резервные копии для себя.
+  • Править код у себя на машине для личного использования — но НЕ
+    распространять эти правки.
+
+Что требует ПИСЬМЕННОГО разрешения Автора (заранее):
+  • Копирование, перезалив, публикация, раздача, зеркалирование ПО или
+    его частей — в исходниках или в сборке.
+  • Создание и распространение производных работ (форков, переводов,
+    переделок, портов).
+  • Встраивание этого кода (полностью или частично) в другой модуль,
+    систему, плагин, набор ассетов и т. п.
+  • Использование имени «System Director», имени автора или связанных
+    обозначений в рекламе.
+
+  Разрешение выдаётся на усмотрение Автора, может быть с условиями
+  (например, с указанием авторства, на срок, только для конкретного
+  проекта) и не передаётся дальше без отдельного согласия.
+
+Коммерческое использование ЗАПРЕЩЕНО:
+  Нельзя продавать это ПО или что-либо, что его содержит; нельзя брать
+  деньги (в т. ч. подписки, патроны, платные тиры, пожертвования за
+  доступ/фичи) за работу, которая опирается на это ПО; нельзя включать
+  код в платные продукты или коммерческие услуги. Обычное разрешение из
+  предыдущего пункта коммерческого использования НЕ покрывает — нужна
+  отдельная коммерческая лицензия от Автора.
+
+  Играть у себя дома с друзьями бесплатно — можно.
+  Водить за деньги, сдавать сервер платным подписчикам, продавать сборку —
+  нельзя без коммерческой лицензии.
+
+Куда писать за разрешением:
+  через issue tracker репозитория или контакт, указанный в README.
+
+Гарантии и ответственность:
+  ПО предоставляется «КАК ЕСТЬ», без каких-либо гарантий. Автор не несёт
+  ответственности за ущерб, связанный с использованием ПО.
+
+Нарушение условий автоматически прекращает все ваши права по этой лицензии.

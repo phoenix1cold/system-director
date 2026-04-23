@@ -1,0 +1,214 @@
+/**
+ * module/builder/attr-ref.mjs
+ *
+ * Hidden Fields & Attribute Reference System.
+ *
+ * Each item/actor carries system.hiddenFields: Record<string, string|number|boolean>
+ * These are GM-visible key/value pairs that can be:
+ *   1. Displayed as a widget on the sheet (type "text", "number" etc pointing to system.hiddenFields.key)
+ *   2. Used as slot filters: drop an item → pick its hidden field → slot only accepts matching items
+ *   3. Referenced in button conditions: field value comparisons
+ *
+ * The "declared attrs" concept: any field path on a doc can be named for easy reference.
+ * hiddenFields ARE the primary storage for custom per-item attributes.
+ */
+
+export const FILTER_OPERATORS = [
+  { value: "==",         label: "= equals" },
+  { value: "!=",         label: "≠ not equals" },
+  { value: ">",          label: "> greater than" },
+  { value: "<",          label: "< less than" },
+  { value: ">=",         label: "≥ greater or equal" },
+  { value: "<=",         label: "≤ less or equal" },
+  { value: "contains",   label: "contains" },
+  { value: "startsWith", label: "starts with" }
+];
+
+// Read hidden fields from a document
+
+export class HiddenFields {
+
+  /** Get all hidden fields as { key, value } pairs */
+  static getAll(doc) {
+    const hf = doc?.system?.hiddenFields ?? {};
+    return Object.entries(hf).map(([key, value]) => ({ key, value, path: `system.hiddenFields.${key}` }));
+  }
+
+  /** Get a single value */
+  static get(doc, key) {
+    return doc?.system?.hiddenFields?.[key];
+  }
+
+  /** Add or update a hidden field */
+  static async set(doc, key, value) {
+    await doc.update({ [`system.hiddenFields.${key}`]: value });
+  }
+
+  /** Rename a key */
+  static async rename(doc, oldKey, newKey) {
+    const hf  = foundry.utils.deepClone(doc.system.hiddenFields ?? {});
+    const val = hf[oldKey];
+    delete hf[oldKey];
+    hf[newKey] = val;
+    await doc.update({ "system.hiddenFields": hf });
+  }
+
+  /** Remove a key */
+  static async remove(doc, key) {
+    const hf = foundry.utils.deepClone(doc.system.hiddenFields ?? {});
+    delete hf[key];
+    await doc.update({ "system.hiddenFields": hf });
+  }
+}
+
+// Filter evaluation
+
+export class AttrFilter {
+
+  /**
+   * Check all attrFilters on a slot definition against a dropped item.
+   * @param {object}   itemData   - plain item data object (from toObject())
+   * @param {object}   slotDef    - slot definition with attrFilters array
+   * @returns {{ pass: boolean, failed: string[] }}
+   */
+  static check(itemData, slotDef) {
+    const filters = slotDef.attrFilters ?? [];
+    if (!filters.length) return { pass: true, failed: [] };
+
+    const failed = [];
+    for (const f of filters) {
+      const actual = this._resolveValue(itemData, f.fieldPath);
+      if (!this._compare(actual, f.operator, f.expectedValue)) {
+        failed.push(`${f.fieldPath} ${f.operator} "${f.expectedValue}" (got: "${actual ?? "—"}")`);
+      }
+    }
+    return { pass: failed.length === 0, failed };
+  }
+
+  static _resolveValue(itemData, path) {
+    return foundry.utils.getProperty(itemData, path);
+  }
+
+  static _compare(actual, op, expected) {
+    const a = isNaN(actual)   ? String(actual ?? "")   : Number(actual);
+    const e = isNaN(expected) ? String(expected ?? "")  : Number(expected);
+    switch (op) {
+      case "==":         return a == e;
+      case "!=":         return a != e;
+      case ">":          return Number(a) > Number(e);
+      case "<":          return Number(a) < Number(e);
+      case ">=":         return Number(a) >= Number(e);
+      case "<=":         return Number(a) <= Number(e);
+      case "contains":   return String(a).includes(String(e));
+      case "startsWith": return String(a).startsWith(String(e));
+      default:           return true;
+    }
+  }
+
+  /**
+   * Show a dialog to build a filter by inspecting a dropped item's hidden fields.
+   * @param {Item}   droppedItem
+   * @param {object} slotDef      - existing slot def for context
+   * @returns {Promise<{fieldPath, operator, expectedValue}|null>}
+   */
+  static async buildFromDrop(droppedItem, slotDef) {
+    const fields = HiddenFields.getAll(droppedItem);
+
+    if (!fields.length) {
+      ui.notifications.warn(`"${droppedItem.name}" has no hidden fields. Add hidden fields to an item in its Attributes tab.`);
+      return null;
+    }
+
+    const fieldOptions = fields.map((f, i) =>
+      `<option value="${i}">${f.key} = "${f.value}"</option>`
+    ).join("");
+
+    const opOptions = FILTER_OPERATORS.map(o =>
+      `<option value="${o.value}"${o.value === "==" ? " selected" : ""}>${o.label}</option>`
+    ).join("");
+
+    const style = `
+      background:#22222e;border:1px solid #3a3a52;border-radius:4px;
+      color:#e0e0ee;font-size:12px;padding:4px 8px;width:100%;box-sizing:border-box
+    `;
+
+    const content = `
+      <div style="display:flex;flex-direction:column;gap:10px;padding:6px 0">
+        <p style="font-size:11px;color:#888;margin:0">
+          Fields from <strong style="color:#7b68ee">${droppedItem.name}</strong>:
+        </p>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center">
+          <select name="fieldIdx" style="${style}">${fieldOptions}</select>
+          <select name="operator" style="${style};width:auto">${opOptions}</select>
+          <input type="text" name="expectedValue" placeholder="expected value"
+            value="${fields[0]?.value ?? ""}" style="${style}">
+        </div>
+        <p style="font-size:10px;color:#555;margin:0">
+          The slot will only accept items where this field matches.
+        </p>
+      </div>`;
+
+    return new Promise(resolve => {
+      new foundry.applications.api.DialogV2({
+        window: { title: "Add Attribute Filter" },
+        content,
+        buttons: [
+          {
+            label: "Add Filter", icon: "fas fa-filter",
+            callback: (ev, btn) => {
+              // btn.form may be null in some v13 builds -- query directly
+              const dlgRoot      = btn.closest?.("[data-application]") ?? document;
+              const idxEl        = dlgRoot.querySelector("select[name='fieldIdx']");
+              const opEl         = dlgRoot.querySelector("select[name='operator']");
+              const valEl        = dlgRoot.querySelector("input[name='expectedValue']");
+              const idx          = parseInt(idxEl?.value ?? "0");
+              const field        = fields[idx];
+              resolve({
+                id:            foundry.utils.randomID(8),
+                fieldPath:     field?.path     ?? "",
+                fieldLabel:    field?.key      ?? "",
+                operator:      opEl?.value     ?? "==",
+                expectedValue: valEl?.value?.trim() ?? ""
+              });
+            }
+          },
+          { label: "Cancel", callback: () => resolve(null) }
+        ]
+      }).render(true);
+    });
+  }
+}
+
+// AttrRef -- declared attribute CRUD helper
+// Provides: addAttr, removeAttr, updateAttr -- used by SDItemSheet action handlers.
+
+export class AttrRef {
+
+  /** Add a new declared attribute (auto-named) */
+  static async addAttr(doc) {
+    const attrs = foundry.utils.deepClone(doc.system.declaredAttrs ?? []);
+    attrs.push({
+      id:    foundry.utils.randomID(8),
+      name:  `attr${attrs.length + 1}`,
+      label: "",
+      path:  ""
+    });
+    await doc.update({ "system.declaredAttrs": attrs });
+  }
+
+  /** Remove a declared attribute by id */
+  static async removeAttr(doc, attrId) {
+    const attrs = (doc.system.declaredAttrs ?? []).filter(a => a.id !== attrId);
+    await doc.update({ "system.declaredAttrs": attrs });
+  }
+
+  /** Update fields of a declared attribute */
+  static async updateAttr(doc, attrId, changes) {
+    const attrs = foundry.utils.deepClone(doc.system.declaredAttrs ?? []);
+    const attr  = attrs.find(a => a.id === attrId);
+    if (attr) {
+      Object.assign(attr, changes);
+      await doc.update({ "system.declaredAttrs": attrs });
+    }
+  }
+}

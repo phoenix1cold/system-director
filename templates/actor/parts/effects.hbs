@@ -1,0 +1,57 @@
+<section class="tab-content" data-group="sheet" data-tab="effects">
+
+  <div class="section-controls">
+    <button type="button" class="create-btn" data-action="createEffect">
+      <i class="fas fa-plus"></i> {{localize "SD.AddEffect"}}
+    </button>
+  </div>
+
+  {{#if effects.length}}
+  <ul class="effects-list">
+    {{#each effects as |effect|}}
+    <li class="effect-row {{#if effect.disabled}}disabled{{/if}} {{#if effect.isTemporary}}temporary{{/if}}"
+        data-effect-id="{{effect.id}}">
+
+      <img src="{{effect.img}}" class="item-img" alt="{{effect.name}}" />
+
+      <div class="effect-info">
+        <span class="effect-name">{{effect.name}}</span>
+        {{#if effect.isTemporary}}
+        <span class="effect-duration badge">
+          {{effect.duration.label}}
+        </span>
+        {{/if}}
+        {{#if effect.sourceName}}
+        <span class="effect-source">{{effect.sourceName}}</span>
+        {{/if}}
+      </div>
+
+      {{#if effect.changes.length}}
+      <ul class="effect-changes">
+        {{#each effect.changes as |change|}}
+        <li class="effect-change">
+          <span class="change-key">{{change.key}}</span>
+          <span class="change-mode">{{change.mode}}</span>
+          <span class="change-value">{{change.value}}</span>
+        </li>
+        {{/each}}
+      </ul>
+      {{/if}}
+
+      <div class="item-controls">
+        <button type="button" class="item-btn toggle-btn" data-action="toggleEffect"
+                title="{{#if effect.disabled}}{{localize 'SD.EnableEffect'}}{{else}}{{localize 'SD.DisableEffect'}}{{/if}}">
+          <i class="fa {{#if effect.disabled}}fa-toggle-off{{else}}fa-toggle-on{{/if}}"></i>
+        </button>
+        <button type="button" class="item-btn delete-btn" data-action="deleteEffect"
+                title="{{localize 'SD.DeleteEffect'}}">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </li>
+    {{/each}}
+  </ul>
+  {{else}}
+  <div class="empty-list"><i class="fas fa-bolt"></i> {{localize "SD.NoEffects"}}</div>
+  {{/if}}
+</section>

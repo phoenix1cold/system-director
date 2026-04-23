@@ -1,0 +1,17 @@
+<header class="sheet-header" style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#22222e;border-bottom:2px solid #3a3a52;flex-shrink:0">
+  <img src="{{actor.img}}" alt="{{actor.name}}"
+       data-action="editImage"
+       style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:2px solid #3a3a52;cursor:pointer;flex-shrink:0"/>
+  <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0">
+    <input class="actor-name" type="text" name="name" value="{{actor.name}}"
+           placeholder="Actor name"
+           style="font-size:18px;font-weight:700;background:transparent;border:none;border-bottom:1px solid #3a3a52;color:#e0e0ee;padding:2px 0;width:100%;font-family:inherit"
+           {{#unless isEditable}}disabled{{/unless}} />
+    <span style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#555">{{actor.type}}</span>
+  </div>
+  <button type="button" data-action="openProgression" title="{{localize 'SD.Progression.OpenBtn'}}"
+          style="position:relative;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#2a1f4a 0%,#1e1e2e 100%);border:2px solid #7b68ee;color:#7b68ee;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 8px rgba(123,104,238,.25);transition:background .15s,transform .1s,box-shadow .15s">
+    <i class="fas fa-star-half-alt"></i>
+    <span style="position:absolute;bottom:-4px;right:-4px;min-width:16px;height:16px;background:#7b68ee;color:#fff;font-size:9px;font-weight:700;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;border:1px solid #1e1e2e">{{system.advancement.level}}</span>
+  </button>
+</header>

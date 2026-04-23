@@ -1,0 +1,30 @@
+<section class="tab-content" data-group="sheet" data-tab="description">
+
+  <div class="section-block">
+    {{editor system.description
+             target="system.description"
+             button=true
+             editable=isEditable
+             owner=true}}
+  </div>
+
+  <div class="section-block">
+    <div class="section-title"><i class="fas fa-tags"></i> {{localize "SD.Tags"}}</div>
+    {{!-- Tags editor: wired by TagsEditor.wireAll() in _onRender --}}
+    <div data-tags-editor="system.tags" style="cursor:text">
+      {{#each system.tags as |tag|}}
+      <span class="tag-chip">{{tag}}</span>
+      {{/each}}
+    </div>
+    <p class="section-hint-text" style="margin-top:5px">Press Enter or comma to add. Backspace to remove last.</p>
+  </div>
+
+  <div class="section-block">
+    <div class="section-title"><i class="fas fa-book"></i> Source</div>
+    <div class="field-row">
+      <label>{{localize "SD.Source"}}</label>
+      <input type="text" name="system.source" value="{{system.source}}"
+             {{#unless isEditable}}disabled{{/unless}} />
+    </div>
+  </div>
+</section>

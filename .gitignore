@@ -1,0 +1,22 @@
+## OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+## Build / release artefacts (the workflow emits these on release)
+system.zip
+*.zip
+
+## Local node tooling (not used by the system, but in case anyone adds linters)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+## Foundry-side scratch (just in case the repo is ever symlinked into a userdata folder)
+*.bak
+*.log

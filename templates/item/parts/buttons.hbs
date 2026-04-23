@@ -1,0 +1,279 @@
+<section class="tab-content" data-group="sheet" data-tab="buttons">
+
+  <div class="section-controls">
+    <p class="section-hint-text">{{localize "SD.Buttons.Hint"}}</p>
+    {{#if isEditable}}
+    <button type="button" class="create-btn" data-action="addButton">
+      <i class="fas fa-plus"></i> {{localize "SD.Buttons.Add"}}
+    </button>
+    {{/if}}
+  </div>
+
+  {{#if buttons.length}}
+  <div class="buttons-editor-list">
+
+    {{#each buttons as |btn btnIdx|}}
+    <div class="button-editor-card" data-btn-index="{{btnIdx}}">
+
+      {{!-- Header --}}
+      <div class="btn-card-header">
+        <i class="fas {{btn.icon}}" style="color:{{btn.color}}"></i>
+
+        <input type="text" class="btn-label-input"
+               data-action="updateButton" data-index="{{btnIdx}}" data-field="label"
+               value="{{btn.label}}" placeholder="Button Label"
+               {{#unless ../isEditable}}disabled{{/unless}} />
+
+        <input type="text" class="btn-icon-input"
+               data-action="updateButton" data-index="{{btnIdx}}" data-field="icon"
+               value="{{btn.icon}}" placeholder="fa-dice"
+               title="FontAwesome class (e.g. fa-gun fa-bolt fa-dice)"
+               {{#unless ../isEditable}}disabled{{/unless}} />
+
+        <input type="color" class="color-picker"
+               data-action="updateButton" data-index="{{btnIdx}}" data-field="color"
+               value="{{btn.color}}"
+               {{#unless ../isEditable}}disabled{{/unless}} />
+
+        <select data-action="updateButton" data-index="{{btnIdx}}" data-field="showIn"
+                {{#unless ../isEditable}}disabled{{/unless}}>
+          <option value="inline" {{#if (eq btn.showIn "inline")}}selected{{/if}}>Item row</option>
+          <option value="sheet"  {{#if (eq btn.showIn "sheet")}}selected{{/if}}>Sheet header</option>
+          <option value="both"   {{#if (eq btn.showIn "both")}}selected{{/if}}>Both</option>
+        </select>
+
+        {{#if ../isEditable}}
+        <button type="button" class="item-btn delete-btn"
+                data-action="removeButton" data-index="{{btnIdx}}">
+          <i class="fas fa-trash"></i>
+        </button>
+        {{/if}}
+      </div>
+
+      {{!-- Tooltip --}}
+      <div class="btn-tooltip-row">
+        <label>{{localize "SD.Buttons.Tooltip"}}</label>
+        <input type="text"
+               data-action="updateButton" data-index="{{btnIdx}}" data-field="tooltip"
+               value="{{btn.tooltip}}" placeholder="Hover text…"
+               {{#unless ../isEditable}}disabled{{/unless}} />
+      </div>
+
+      {{!-- Conditions --}}
+      <div class="btn-section">
+        <div class="btn-section-header">
+          <span><i class="fas fa-shield-check"></i> {{localize "SD.Buttons.Conditions"}}</span>
+          {{#if ../isEditable}}
+          <button type="button" class="config-add-btn"
+                  data-action="addCondition" data-btn-index="{{btnIdx}}">
+            <i class="fas fa-plus"></i>
+          </button>
+          {{/if}}
+        </div>
+
+        {{#if btn.conditions.length}}
+        {{#each btn.conditions as |cond condIdx|}}
+        <div class="condition-row" data-cond-index="{{condIdx}}">
+
+          <select data-action="updateCondition"
+                  data-btn-index="{{../btnIdx}}" data-cond-index="{{condIdx}}" data-field="type"
+                  {{#unless ../../isEditable}}disabled{{/unless}}>
+            <option value="always"       {{#if (eq cond.type "always")}}selected{{/if}}>Always</option>
+            <option value="field"        {{#if (eq cond.type "field")}}selected{{/if}}>Field value (self)</option>
+            <option value="actorField"   {{#if (eq cond.type "actorField")}}selected{{/if}}>Actor field</option>
+            <option value="slotHasItems" {{#if (eq cond.type "slotHasItems")}}selected{{/if}}>Slot has items</option>
+            <option value="slotNotFull"  {{#if (eq cond.type "slotNotFull")}}selected{{/if}}>Slot not full</option>
+          </select>
+
+          {{#if (or (eq cond.type "field") (eq cond.type "actorField"))}}
+          <input type="text" class="cond-field-input"
+                 data-action="updateCondition"
+                 data-btn-index="{{../btnIdx}}" data-cond-index="{{condIdx}}" data-field="field"
+                 value="{{cond.field}}"
+                 placeholder="slots.mag.0.system.uses.value"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          <select data-action="updateCondition"
+                  data-btn-index="{{../btnIdx}}" data-cond-index="{{condIdx}}" data-field="operator"
+                  {{#unless ../../isEditable}}disabled{{/unless}}>
+            <option value=">"  {{#if (eq cond.operator ">")}}selected{{/if}}>&gt;</option>
+            <option value="<"  {{#if (eq cond.operator "<")}}selected{{/if}}>&lt;</option>
+            <option value=">=" {{#if (eq cond.operator ">=")}}selected{{/if}}>&gt;=</option>
+            <option value="<=" {{#if (eq cond.operator "<=")}}selected{{/if}}>&lt;=</option>
+            <option value="==" {{#if (eq cond.operator "==")}}selected{{/if}}>=</option>
+            <option value="!=" {{#if (eq cond.operator "!=")}}selected{{/if}}>≠</option>
+          </select>
+          <input type="text" class="cond-value-input"
+                 data-action="updateCondition"
+                 data-btn-index="{{../btnIdx}}" data-cond-index="{{condIdx}}" data-field="value"
+                 value="{{cond.value}}" placeholder="0"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          {{/if}}
+
+          {{#if (or (eq cond.type "slotHasItems") (eq cond.type "slotNotFull"))}}
+          <input type="text" class="cond-field-input"
+                 data-action="updateCondition"
+                 data-btn-index="{{../btnIdx}}" data-cond-index="{{condIdx}}" data-field="slotId"
+                 value="{{cond.slotId}}" placeholder="slot id (e.g. ammo)"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          {{/if}}
+
+          <label class="toggle-wrap" title="Invert condition">
+            <input type="checkbox"
+                   data-action="updateCondition"
+                   data-btn-index="{{../btnIdx}}" data-cond-index="{{condIdx}}" data-field="negate"
+                   {{#if cond.negate}}checked{{/if}}
+                   {{#unless ../../isEditable}}disabled{{/unless}} />
+            NOT
+          </label>
+
+          {{#if ../../isEditable}}
+          <button type="button" class="item-btn delete-btn"
+                  data-action="removeCondition"
+                  data-btn-index="{{../btnIdx}}" data-cond-index="{{condIdx}}">
+            <i class="fas fa-times"></i>
+          </button>
+          {{/if}}
+
+        </div>
+        {{/each}}
+        {{else}}
+        <p class="cond-empty">No conditions — button always fires.</p>
+        {{/if}}
+      </div>
+
+      {{!-- Actions --}}
+      <div class="btn-section">
+        <div class="btn-section-header">
+          <span><i class="fas fa-bolt"></i> {{localize "SD.Buttons.Actions"}}</span>
+          {{#if ../isEditable}}
+          <button type="button" class="config-add-btn"
+                  data-action="addAction" data-btn-index="{{btnIdx}}">
+            <i class="fas fa-plus"></i>
+          </button>
+          {{/if}}
+        </div>
+
+        {{#each btn.actions as |act actIdx|}}
+        <div class="action-row" data-act-index="{{actIdx}}">
+          <span class="action-num">{{add actIdx 1}}</span>
+
+          <select data-action="updateAction"
+                  data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="type"
+                  {{#unless ../../isEditable}}disabled{{/unless}}>
+            <option value="roll"        {{#if (eq act.type "roll")}}selected{{/if}}>🎲 Roll</option>
+            <option value="modifyField" {{#if (eq act.type "modifyField")}}selected{{/if}}>✏️ Modify Field</option>
+            <option value="createItem"  {{#if (eq act.type "createItem")}}selected{{/if}}>📦 Create Item</option>
+            <option value="removeItem"  {{#if (eq act.type "removeItem")}}selected{{/if}}>🗑️ Remove Item</option>
+            <option value="playSound"   {{#if (eq act.type "playSound")}}selected{{/if}}>🔊 Sound</option>
+            <option value="message"     {{#if (eq act.type "message")}}selected{{/if}}>💬 Message</option>
+            <option value="runMacro"    {{#if (eq act.type "runMacro")}}selected{{/if}}>⚙️ Macro</option>
+          </select>
+
+          {{!-- roll --}}
+          {{#if (eq act.type "roll")}}
+          <input type="text" class="action-formula"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="formula"
+                 value="{{act.formula}}" placeholder="1d6"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          <input type="text"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="flavor"
+                 value="{{act.flavor}}" placeholder="Flavor text"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          {{/if}}
+
+          {{!-- modifyField --}}
+          {{#if (eq act.type "modifyField")}}
+          <input type="text" class="action-target"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="target"
+                 value="{{act.target}}" placeholder="slots.mag.0.system.uses.value"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          <input type="number"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="delta"
+                 value="{{act.delta}}" placeholder="±delta"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          {{/if}}
+
+          {{!-- createItem --}}
+          {{#if (eq act.type "createItem")}}
+          <input type="text"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="itemName"
+                 value="{{act.itemName}}" placeholder="Item name"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          <input type="text"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="itemCategory"
+                 value="{{act.itemCategory}}" placeholder="Category"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          {{/if}}
+
+          {{!-- removeItem --}}
+          {{#if (eq act.type "removeItem")}}
+          <input type="text"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="itemCategory"
+                 value="{{act.itemCategory}}" placeholder="Category to remove"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          {{/if}}
+
+          {{!-- sound --}}
+          {{#if (eq act.type "playSound")}}
+          <input type="text"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="soundPath"
+                 value="{{act.soundPath}}" placeholder="sounds/shot.ogg"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          {{/if}}
+
+          {{!-- message --}}
+          {{#if (eq act.type "message")}}
+          <input type="text"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="messageText"
+                 value="{{act.messageText}}" placeholder="Chat message text"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          {{/if}}
+
+          {{!-- macro --}}
+          {{#if (eq act.type "runMacro")}}
+          <input type="text"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="macroName"
+                 value="{{act.macroName}}" placeholder="Macro name"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+          {{/if}}
+
+          <input type="number" class="action-delay"
+                 data-action="updateAction"
+                 data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}" data-field="delay"
+                 value="{{act.delay}}" placeholder="ms delay"
+                 title="Delay before this action fires (ms)"
+                 {{#unless ../../isEditable}}disabled{{/unless}} />
+
+          {{#if ../../isEditable}}
+          <button type="button" class="item-btn delete-btn"
+                  data-action="removeAction"
+                  data-btn-index="{{../btnIdx}}" data-act-index="{{actIdx}}">
+            <i class="fas fa-times"></i>
+          </button>
+          {{/if}}
+        </div>
+        {{/each}}
+
+      </div>{{!-- /.btn-section actions --}}
+
+    </div>{{!-- /.button-editor-card --}}
+    {{/each}}
+
+  </div>
+  {{else}}
+  <div class="empty-list">
+    <i class="fas fa-mouse-pointer"></i>
+    {{localize "SD.Buttons.Empty"}}
+  </div>
+  {{/if}}
+</section>

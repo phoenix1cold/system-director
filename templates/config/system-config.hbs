@@ -1,0 +1,181 @@
+<div class="sd system-config-window">
+<form class="config-form" autocomplete="off">
+
+  <div class="config-body">
+
+    {{!-- ══ ATTRIBUTES ════════════════════════════════════════════════════════ --}}
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-chart-bar"></i> Attributes
+        <span class="section-hint">Character attributes - add, rename, or remove</span>
+        <button type="button" class="config-add-btn" data-action="addAttribute">
+          <i class="fas fa-plus"></i> Add
+        </button>
+      </h3>
+      <div class="attr-config-grid">
+        {{#each attrEntries as |attr|}}
+        <div class="attr-config-row">
+          <span class="attr-key-badge">{{attr.key}}</span>
+          <input type="text"
+                 name="attr_label_{{attr.key}}"
+                 value="{{attr.label}}"
+                 placeholder="Attribute name" />
+          <label class="toggle-wrap">
+            <input type="checkbox"
+                   name="attr_enabled_{{attr.key}}"
+                   {{#if attr.enabled}}checked{{/if}} />
+            On
+          </label>
+          <button type="button" class="config-remove-btn"
+                  data-action="removeAttribute" data-key="{{attr.key}}"
+                  title="Remove attribute">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+    {{!-- ══ RESOURCES ═════════════════════════════════════════════════════════ --}}
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-heart-pulse"></i> Resource Bars
+        <span class="section-hint">HP, MP, Stamina and custom bars</span>
+        <button type="button" class="config-add-btn" data-action="addResource">
+          <i class="fas fa-plus"></i> Add
+        </button>
+      </h3>
+      <div class="resource-config-table">
+        <div class="resource-config-header">
+          <span>Key</span>
+          <span>Display Name</span>
+          <span>Color</span>
+          <span>Enabled</span>
+          <span></span>
+        </div>
+        {{#each resourceEntries as |res|}}
+        <div class="resource-config-row">
+          <span class="attr-key-badge">{{res.key}}</span>
+          <input type="text"
+                 name="res_label_{{res.key}}"
+                 value="{{res.label}}"
+                 placeholder="Resource name" />
+          <input type="color"
+                 name="res_color_{{res.key}}"
+                 value="{{res.color}}"
+                 class="color-picker" />
+          <label class="toggle-wrap">
+            <input type="checkbox"
+                   name="res_enabled_{{res.key}}"
+                   {{#if res.enabled}}checked{{/if}} />
+            On
+          </label>
+          <button type="button" class="config-remove-btn"
+                  data-action="removeResource" data-key="{{res.key}}"
+                  title="Remove resource">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+    {{!-- ══ CURRENCY ══════════════════════════════════════════════════════════ --}}
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-coins"></i> Currency
+      </h3>
+      <div class="currency-config-grid">
+        <div class="config-field-row">
+          <label>Primary</label>
+          <input type="text" name="currency_primary"
+                 value="{{cfg.currency.primary}}" placeholder="Gold" />
+        </div>
+        <div class="config-field-row">
+          <label>Secondary</label>
+          <input type="text" name="currency_secondary"
+                 value="{{cfg.currency.secondary}}" placeholder="Silver" />
+        </div>
+        <div class="config-field-row">
+          <label>Tertiary</label>
+          <input type="text" name="currency_tertiary"
+                 value="{{cfg.currency.tertiary}}" placeholder="Copper" />
+        </div>
+      </div>
+    </div>
+
+    {{!-- ══ MECHANICS ═════════════════════════════════════════════════════════ --}}
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-calculator"></i> Mechanics
+      </h3>
+      <div class="config-field-row">
+        <label>Attribute Modifier Formula</label>
+        <select name="modifierFormula">
+          <option value="halved" {{#if (eq cfg.modifierFormula "halved")}}selected{{/if}}>
+            Halved — floor((score − 10) / 2) — D&D style
+          </option>
+          <option value="direct" {{#if (eq cfg.modifierFormula "direct")}}selected{{/if}}>
+            Direct — score is used directly as modifier
+          </option>
+          <option value="none" {{#if (eq cfg.modifierFormula "none")}}selected{{/if}}>
+            None — modifier is always 0
+          </option>
+        </select>
+      </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        Rolls are configured directly on character/item sheets using the Dice Button widget.
+        Drag items onto formula fields to reference their attributes.
+      </p>
+    </div>
+
+    {{!-- ══ UI APPEARANCE ═════════════════════════════════════════════════════ --}}
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-expand-arrows-alt"></i> UI Appearance
+      </h3>
+
+      <div class="config-field-row" style="align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="flex-shrink:0;min-width:160px;">Interface Scale</label>
+
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:220px;">
+          <span style="font-size:11px;color:#777;white-space:nowrap;">50%</span>
+          <input
+            type="range"
+            id="uiScaleSlider"
+            name="uiScale"
+            value="{{cfg.uiScale}}"
+            min="50" max="200" step="5"
+            style="flex:1;accent-color:var(--sd-accent,#9a50ff);cursor:pointer;" />
+          <span style="font-size:11px;color:#777;white-space:nowrap;">200%</span>
+        </div>
+
+        <span
+          id="uiScaleOutput"
+          style="min-width:48px;text-align:center;font-size:13px;font-weight:700;
+                 color:var(--sd-accent,#9a50ff);font-family:monospace;">
+          {{cfg.uiScale}}%
+        </span>
+      </div>
+
+      <p class="section-hint-text" style="margin-top:6px;">
+        <i class="fas fa-info-circle"></i>
+        Scales all sheet elements: text, inputs, buttons, borders and layout. 100% = default.
+      </p>
+    </div>
+
+  </div>{{!-- /.config-body --}}
+
+  <footer class="config-footer">
+    <button type="button" class="config-btn danger" data-action="resetDefaults">
+      <i class="fas fa-rotate-left"></i> Reset to Defaults
+    </button>
+    <div class="spacer"></div>
+    <button type="button" class="config-btn primary" data-action="saveAndClose">
+      <i class="fas fa-save"></i> Save & Close
+    </button>
+  </footer>
+
+</form>
+</div>

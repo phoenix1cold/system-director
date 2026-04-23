@@ -1,0 +1,70 @@
+<div class="sd chat-card item-card">
+
+  <div class="card-header">
+    <img src="{{item.img}}" class="card-img" alt="{{item.name}}" />
+    <div class="card-title">
+      <h3 class="item-name">{{item.name}}</h3>
+      {{#if actor}}
+      <div class="card-subtitle">{{actor.name}}</div>
+      {{/if}}
+    </div>
+  </div>
+
+  {{#if system.description}}
+  <div class="card-description">
+    {{{system.description}}}
+  </div>
+  {{/if}}
+
+  {{!-- Range / Area / Duration badges --}}
+  {{#if system.range.type}}
+  <div class="card-badges">
+    {{#if system.activation.type}}
+    <span class="badge activation-badge">{{system.activation.type}}</span>
+    {{/if}}
+    {{#if system.range.type}}
+    <span class="badge range-badge">
+      <i class="fas fa-bullseye"></i>
+      {{system.range.type}}
+      {{#if system.range.value}}{{system.range.value}} {{system.range.units}}{{/if}}
+    </span>
+    {{/if}}
+    {{#if system.duration.units}}
+    <span class="badge duration-badge">
+      <i class="fas fa-clock"></i>
+      {{system.duration.value}} {{system.duration.units}}
+    </span>
+    {{/if}}
+    {{#if system.duration.concentration}}
+    <span class="badge conc-badge"><i class="fas fa-brain"></i> C</span>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{!-- Roll results --}}
+  {{#if rolls.length}}
+  <div class="card-rolls">
+    {{#each rolls as |rollResult|}}
+    <div class="roll-result">
+      <span class="roll-label">{{rollResult.label}}</span>
+      <span class="roll-formula">{{rollResult.roll.formula}}</span>
+      <span class="roll-total {{#if (eq rollResult.roll.total 20)}}critical{{/if}}
+                              {{#if (eq rollResult.roll.total 1)}}fumble{{/if}}">
+        {{rollResult.roll.total}}
+      </span>
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{!-- Uses remaining --}}
+  {{#if system.uses.enabled}}
+  <div class="card-uses">
+    <span class="uses-label">{{localize "SD.Uses"}}</span>
+    <span class="uses-value">{{system.uses.value}} / {{system.uses.max}}</span>
+    <div class="uses-bar">
+      <div class="uses-fill" style="width: {{percent system.uses.value system.uses.max}}%;"></div>
+    </div>
+  </div>
+  {{/if}}
+</div>

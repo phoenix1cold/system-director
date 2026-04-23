@@ -1,0 +1,181 @@
+<section class="tab-content" data-group="sheet" data-tab="slots">
+
+  {{!-- ── Slot Definitions ─────────────────────────────────────────────── --}}
+  <div class="section-block">
+    <div class="section-title">
+      <i class="fas fa-layer-group"></i> Slot Definitions
+      {{#if isEditable}}
+      <button type="button" class="create-btn" data-action="addSlot" style="margin-left:auto">
+        <i class="fas fa-plus"></i> Add Slot
+      </button>
+      {{/if}}
+    </div>
+
+    {{#if slots.length}}
+    <div style="display:flex;flex-direction:column;gap:8px">
+      {{#each slots as |slot slotIdx|}}
+      <div class="slot-def-row" data-slot-index="{{slotIdx}}">
+
+        {{!-- Header row --}}
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
+          <span class="attr-key-badge" style="font-size:10px;min-width:auto;padding:2px 7px">{{slot.def.id}}</span>
+          <input type="text" class="slot-def-label"
+                 data-action="updateSlotDef" data-index="{{slotIdx}}" data-field="label"
+                 value="{{slot.def.label}}" placeholder="Slot name"
+                 style="flex:1;font-size:13px;font-weight:600" />
+          <input type="number" class="slot-def-max"
+                 data-action="updateSlotDef" data-index="{{slotIdx}}" data-field="maxCount"
+                 value="{{slot.def.maxCount}}" min="1"
+                 style="width:52px;text-align:center" title="Max items" />
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;text-transform:none;color:#a0a0c0;cursor:pointer">
+            <input type="checkbox" data-action="updateSlotDef" data-index="{{slotIdx}}" data-field="removable"
+                   {{#if slot.def.removable}}checked{{/if}} />
+            Removable
+          </label>
+          {{#if ../isEditable}}
+          <button type="button" class="item-btn delete-btn"
+                  data-action="removeSlot" data-index="{{slotIdx}}">
+            <i class="fas fa-trash"></i>
+          </button>
+          {{/if}}
+        </div>
+
+        {{!-- Restrictions --}}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <div>
+            <label>Allowed Types</label>
+            <input type="text" data-action="updateSlotDef" data-index="{{slotIdx}}" data-field="allowedTypes"
+                   value="{{join slot.def.allowedTypes ','}}"
+                   placeholder="inventory, ability (empty=any)"
+                   style="font-size:11px;font-family:monospace" />
+          </div>
+          <div>
+            <label>Allowed Categories</label>
+            <input type="text" data-action="updateSlotDef" data-index="{{slotIdx}}" data-field="allowedCategories"
+                   value="{{join slot.def.allowedCategories ','}}"
+                   placeholder="ammo, magazine (empty=any)"
+                   style="font-size:11px;font-family:monospace" />
+          </div>
+        </div>
+
+        {{!-- Attribute Filters ──────────────────────────────────────────── --}}
+        <div class="attr-filter-block">
+          <div class="attr-filter-header">
+            <span><i class="fas fa-filter"></i> Attribute Filters</span>
+            <button type="button" class="config-add-btn"
+                    data-action="addAttrFilter" data-slot-index="{{slotIdx}}">
+              <i class="fas fa-plus"></i> Add
+            </button>
+          </div>
+
+          {{!-- Drag-to-inspect zone --}}
+          <div class="attr-filter-drop"
+               data-drop-type="attrfilter"
+               data-slot-index="{{slotIdx}}">
+            <i class="fas fa-arrow-down-to-line"></i>
+            <strong>Drag an item here</strong> to add a filter from its hidden fields
+          </div>
+
+          {{#if slot.def.attrFilters.length}}
+          <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
+            {{#each slot.def.attrFilters as |f fIdx|}}
+            <div class="attr-filter-row">
+              <span style="font-size:10px;color:#7b68ee;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px" title="{{f.fieldPath}}">
+                {{#if f.fieldLabel}}{{f.fieldLabel}}{{else}}{{f.fieldPath}}{{/if}}
+              </span>
+              <select data-action="updateAttrFilter"
+                      data-slot-index="{{../slotIdx}}" data-filter-index="{{fIdx}}" data-field="operator"
+                      style="font-size:11px">
+                <option value="==" {{#if (eq f.operator "==")}}selected{{/if}}>= equals</option>
+                <option value="!=" {{#if (eq f.operator "!=")}}selected{{/if}}>≠ not equals</option>
+                <option value=">"  {{#if (eq f.operator ">")}}selected{{/if}}>&gt;</option>
+                <option value="<"  {{#if (eq f.operator "<")}}selected{{/if}}>&lt;</option>
+                <option value=">=" {{#if (eq f.operator ">=")}}selected{{/if}}>&gt;=</option>
+                <option value="<=" {{#if (eq f.operator "<=")}}selected{{/if}}>&lt;=</option>
+                <option value="contains" {{#if (eq f.operator "contains")}}selected{{/if}}>contains</option>
+              </select>
+              <input type="text" class="af-value"
+                     data-action="updateAttrFilter"
+                     data-slot-index="{{../slotIdx}}" data-filter-index="{{fIdx}}" data-field="expectedValue"
+                     value="{{f.expectedValue}}" placeholder="9x18" />
+              {{#if ../../isEditable}}
+              <button type="button" class="item-btn delete-btn"
+                      data-action="removeAttrFilter"
+                      data-slot-index="{{../slotIdx}}" data-filter-index="{{fIdx}}">
+                <i class="fas fa-times"></i>
+              </button>
+              {{/if}}
+            </div>
+            {{/each}}
+          </div>
+          {{else}}
+          <p style="font-size:11px;color:#444;font-style:italic;margin:4px 0 0">
+            No filters — accepts any item matching type/category.
+          </p>
+          {{/if}}
+        </div>
+
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="empty-list"><i class="fas fa-layer-group"></i> No slots. Click «Add Slot».</div>
+    {{/if}}
+  </div>
+
+  {{!-- ── Slot Contents ─────────────────────────────────────────────────── --}}
+  {{#if slots.length}}
+  <div class="section-block">
+    <div class="section-title"><i class="fas fa-inbox"></i> Contents</div>
+    {{#each slots as |slot|}}
+    <div class="slot-contents-block"
+         data-slot-id="{{slot.def.id}}"
+         data-drop-zone="slot"
+         data-drop-slot="{{slot.def.id}}">
+      <div class="slot-contents-header">
+        <span class="slot-label">{{slot.def.label}}</span>
+        <span class="slot-count {{#if slot.isFull}}full{{/if}}">{{slot.count}}/{{slot.def.maxCount}}</span>
+        {{#unless slot.isFull}}
+        <span class="slot-drop-hint">
+          <i class="fas fa-arrow-down-to-line"></i>
+          {{#if slot.def.attrFilters.length}}
+            Filtered ({{slot.def.attrFilters.length}} rules)
+          {{else if slot.def.allowedCategories.length}}
+            {{join slot.def.allowedCategories ', '}}
+          {{else}}
+            Drop any item
+          {{/if}}
+        </span>
+        {{/unless}}
+      </div>
+      {{#if slot.contents.length}}
+      <ul class="slot-item-list">
+        {{#each slot.contents as |si|}}
+        <li class="slot-item-row" data-slot-id="{{si._slotId}}" data-slot-index="{{si._slotIndex}}">
+          <img src="{{si.img}}" class="item-img" alt="{{si.name}}" />
+          <span class="item-name">{{si.name}}</span>
+          {{#each (hiddenFieldPairs si.system.hiddenFields) as |pair|}}
+          <span class="slotted-hidden-field" title="{{pair.key}}">{{pair.key}}: {{pair.value}}</span>
+          {{/each}}
+          {{#if ../../../isEditable}}{{#if ../../def.removable}}
+          <button type="button" class="item-btn delete-btn"
+                  data-action="removeFromSlot"
+                  data-slot-id="{{si._slotId}}"
+                  data-slot-index="{{si._slotIndex}}">
+            <i class="fas fa-eject"></i>
+          </button>
+          {{/if}}{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+      {{else}}
+      <div class="slot-empty-hint">
+        <i class="fas fa-arrow-down-to-line"></i> Drop an item here
+      </div>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+</section>

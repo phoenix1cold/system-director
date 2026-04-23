@@ -1,0 +1,185 @@
+/**
+ * module/data/actor-npc.mjs
+ *
+ * TypeDataModel for Actor subtype: "npc"
+ * Simpler than character: no advancement, no skills, has CR/threat/role.
+ */
+
+import {
+  ResourceField, AttributeField,
+  RollConfigField, BiographyField
+} from "./common.mjs";
+import { SlotDefinitionField } from "./item-slots.mjs";
+
+const {
+  StringField, NumberField, BooleanField,
+  SchemaField, ArrayField, ObjectField
+} = foundry.data.fields;
+
+export class NPCData extends foundry.abstract.TypeDataModel {
+
+  static defineSchema() {
+    return {
+
+      // Core Attributes
+      attributes: new SchemaField({
+        attr1: AttributeField({ initial: 10, label: "Attribute 1" }),
+        attr2: AttributeField({ initial: 10, label: "Attribute 2" }),
+        attr3: AttributeField({ initial: 10, label: "Attribute 3" }),
+        attr4: AttributeField({ initial: 10, label: "Attribute 4" }),
+        attr5: AttributeField({ initial: 10, label: "Attribute 5" }),
+        attr6: AttributeField({ initial: 10, label: "Attribute 6" })
+      }),
+
+      // Resources
+      resources: new SchemaField({
+        hp: ResourceField({ initial: 10, label: "HP" }),
+        mp: ResourceField({ initial: 0,  label: "MP" })
+      }),
+
+      // Combat
+      defense: new SchemaField({
+        armor: new NumberField({ required: true, integer: true, initial: 10, nullable: false }),
+        bonus: new NumberField({ required: true, integer: true, initial: 0,  nullable: false }),
+        total: new NumberField({ required: true, integer: true, initial: 10, nullable: false })
+      }),
+
+      movement: new SchemaField({
+        walk: new NumberField({ required: true, integer: true, initial: 30, nullable: false }),
+        fly:  new NumberField({ required: true, integer: true, initial: 0,  nullable: false }),
+        swim: new NumberField({ required: true, integer: true, initial: 0,  nullable: false })
+      }),
+
+      initiative: new SchemaField({
+        bonus: new NumberField({ required: true, integer: true, initial: 0, nullable: false }),
+        total: new NumberField({ required: true, integer: true, initial: 0, nullable: false })
+      }),
+
+      // NPC Classification
+      classification: new SchemaField({
+        cr:        new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
+        xpReward:  new NumberField({ required: true, integer: true,  initial: 0, min: 0, nullable: false }),
+        size:      new StringField({ initial: "medium", choices: ["tiny","small","medium","large","huge","gargantuan"], blank: false }),
+        type:      new StringField({ initial: "humanoid", blank: true }),
+        alignment: new StringField({ initial: "neutral",  blank: true }),
+        role:      new StringField({ initial: "minion",   choices: ["minion","elite","boss","legendary"], blank: false }),
+        legendary: new BooleanField({ initial: false }),
+        isSwarm:   new BooleanField({ initial: false })
+      }),
+
+      // Attacks (inline, for quick NPC blocks)
+      attacks: new ArrayField(
+        new SchemaField({
+          name:     new StringField({ initial: "Attack", blank: false }),
+          formula:  new StringField({ initial: "1d6",   blank: false }),
+          bonus:    new NumberField({ required: true, integer: true, initial: 0, nullable: false }),
+          damageType: new StringField({ initial: "physical", blank: true }),
+          reach:    new StringField({ initial: "5 ft",  blank: true })
+        })
+      ),
+
+      // Resistances / Immunities
+      traits: new SchemaField({
+        resistances:  new ArrayField(new StringField({ blank: false })),
+        immunities:   new ArrayField(new StringField({ blank: false })),
+        vulnerabilities: new ArrayField(new StringField({ blank: false })),
+        conditionImmunities: new ArrayField(new StringField({ blank: false })),
+        languages:    new ArrayField(new StringField({ blank: false })),
+        senses:       new StringField({ initial: "", blank: true })
+      }),
+
+      // Default Roll Config
+      rollConfig: RollConfigField({ label: "Default Roll" }),
+
+      // Declared Attributes (for attribute reference system)
+      declaredAttrs: new ArrayField(new ObjectField()),
+
+      // Custom Tabs
+      customTabs: new ArrayField(new ObjectField()),
+
+      // Sheet-level Trigger Graph
+      // Event-node-only graph scanned by event-bus alongside widget graphs.
+      sdTriggerGraph: new ObjectField({ initial: {} }),
+
+      // Damage Resistances (structured map)
+      // Map of damageType → "immune" | "resist" | "normal" | "vulnerable"
+      // | numeric factor.  Complements the free-form `traits.resistances`
+      // string list above; both are read by act_damage.
+      resistances: new ObjectField({ initial: {} }),
+
+      // Flags / Custom Fields
+      flags: new ObjectField({ initial: {} }),
+
+      // Slot System (Sheet Builder slot widgets)
+      slotDefinitions: new ArrayField(SlotDefinitionField()),
+      slotContents:    new ObjectField({ initial: {} }),
+
+      // Hidden Fields (GM-only key/value pairs)
+      hiddenFields: new ObjectField({ initial: {} }),
+
+      // Biography / Notes
+      biography: BiographyField()
+    };
+  }
+
+  // Migrations
+
+  static migrateData(source) {
+    return super.migrateData(source);
+  }
+
+  // Derived Data
+
+  prepareDerivedData() {
+    super.prepareDerivedData();
+    this._prepareAttributes();
+    this._prepareResources();
+    this._prepareDefense();
+    this._prepareInitiative();
+    this._prepareXPFromCR();
+  }
+
+  _prepareAttributes() {
+    for (const attr of Object.values(this.attributes)) {
+      attr.mod = Math.floor((attr.value - 10) / 2);
+    }
+  }
+
+  _prepareResources() {
+    for (const res of Object.values(this.resources)) {
+      res.value = Math.clamp(res.value, res.min, res.max);
+    }
+  }
+
+  _prepareDefense() {
+    this.defense.total = this.defense.armor + this.defense.bonus;
+  }
+
+  _prepareInitiative() {
+    this.initiative.total = this.attributes.attr1.mod + this.initiative.bonus;
+  }
+
+  /** Auto-calculate XP reward from CR if not set manually. */
+  _prepareXPFromCR() {
+    const cr = this.classification.cr;
+    if (this.classification.xpReward === 0) {
+      this.classification.xpReward = CONFIG.SD?._crToXP?.[cr] ?? 0;
+    }
+  }
+
+  get isDead() {
+    return this.resources.hp.value <= this.resources.hp.min;
+  }
+
+  get hpPercent() {
+    const range = this.resources.hp.max - this.resources.hp.min;
+    if (range <= 0) return 0;
+    return Math.round(((this.resources.hp.value - this.resources.hp.min) / range) * 100);
+  }
+
+  get rollFormula() {
+    const { quantity, die, bonus } = this.rollConfig;
+    const b = bonus !== 0 ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : "";
+    return `${quantity}${die}${b}`;
+  }
+}
