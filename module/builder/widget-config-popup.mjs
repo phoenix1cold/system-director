@@ -1,21 +1,6 @@
-/**
- * module/builder/widget-config-popup.mjs  -- System Director
- *
- * Shared widget config popup used by both CharacterSheet and SDItemSheet.
- * Features:
- *   - All widget fields editable inline
- *   - valueFormula field for text/number (formula overrides path for display)
- *   - Blueprint panel: draggable/clickable nodes insert formula syntax
- *   - Autocomplete for path/formula fields
- *   - Drag-drop from Toolbox or inventory to insert references
- */
-
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { FormulaGraph }  from "./formula-graph.mjs";
 
-// Field definitions per widget type
-// [label, key, type]
-// type: "text" | "path" | "formula" | "number" | "color" | "array"
 const FIELD_DEFS = {
   text:      [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Placeholder","placeholder"],["Read Only","readOnly","boolean"]],
   number:    [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Min","min","number"],["Max","max","number"],["Step","step","number"]],
@@ -73,9 +58,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   document.querySelector(".sd-wcfg-popup")?.remove();
 
   const _typeFields = FIELD_DEFS[w.type] ?? [["Label","label"]];
-  // Common fields appended to every widget type
-  // NB: "Extra CSS class(es)" hidden per user request -- stored values are
-  // preserved on save (whatever is already on w.cssClass remains untouched).
   const _commonFields = [
     // ["Extra CSS class(es)", "cssClass", "text"]
   ];
@@ -326,9 +308,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     inp.addEventListener("input",  () => _refreshSug(inp));
   });
 
-  // showIf live validation
-  // Show a red border + error hint if the user types a formula that fails to
-  // evaluate, so they get instant feedback instead of silent misbehaviour.
   const _showIfInp = popup.querySelector("input[data-field='showIf']");
   if (_showIfInp) {
     const _errEl = document.createElement("div");
@@ -612,9 +591,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     if (widget) {
       Object.assign(widget, changes);
 
-      // Slot widget: sync maxCount (and label) into slotDefinitions
-      // slotDefinitions is the authoritative source for SlotManager capacity checks.
-      // The widget config popup only writes to customTabs, so we must keep both in sync.
       if (widget.type === "slot" && widget.slotId != null) {
         const sid   = String(widget.slotId);
         const defs  = foundry.utils.deepClone(doc.system.slotDefinitions ?? []);

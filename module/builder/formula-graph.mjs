@@ -1,17 +1,3 @@
-/**
- * module/builder/formula-graph.mjs -- System Director
- * Visual node-graph editor, Unreal Engine Blueprint style.
- *
- * KEY FIXES:
- * - Edges rendered in a SEPARATE fixed SVG layer (no transform conflicts)
- * - Nodes use min-width, labels wrap properly
- * - Branch node (bool → True exec / False exec)
- * - Items referenced by UUID (drag item from sidebar to UUID fields)
- * - Button widget action (not Roll) -- just a label + action chain
- * - Output node is just a sink for exec chains OR formula value
- * - Graph serialised into widget.graphData and restored
- */
-
 import { migrateGraph } from "./node-migration.mjs";
 import { pinSubtype, subtypeColor, arePinsCompatible } from "./pin-types.mjs";
 import { lintGraph, lintSummary } from "./graph-linter.mjs";
@@ -19,11 +5,6 @@ import { lintGraph, lintSummary } from "./graph-linter.mjs";
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
 
-/**
- * Slug an arbitrary node-label string into a stable localization key.
- * Must stay in sync with `scripts/gen-i18n.mjs` so that every label present
- * in `lang/en.json` and `lang/ru.json` resolves correctly.
- */
 function _slugLabel(s) {
   const map = {
     "→":"Arrow", "←":"ArrowL", "↑":"ArrowU", "↓":"ArrowD",
@@ -45,19 +26,12 @@ function _slugLabel(s) {
   return out.replace(/^_+|_+$/g, "").replace(/__+/g, "_") || "_";
 }
 
-/**
- * Localize a node label through `SD.Graph.<slug>`.  If the i18n module isn't
- * ready yet (early init), or the key is missing, returns the original text
- * so the editor remains usable.
- */
 function _NL(text) {
   if (!text) return text;
   try {
     const key  = `SD.Graph.${_slugLabel(text)}`;
     const i18n = globalThis.game?.i18n;
     if (i18n?.has?.(key)) return i18n.localize(key);
-    // Fallback: try `.localize` even without `has` (older versions) -- if it
-    // returns the key unchanged, assume missing and fall back to `text`.
     if (i18n?.localize) {
       const s = i18n.localize(key);
       if (s && s !== key) return s;
@@ -250,8 +224,6 @@ export const NODE_DEFS = {
     compile:(n)=>`{target.${n.data.path??""}}`
   },
 
-  // Attribute
-  // (attr_score removed -- auto-migrated to attr_score_val; see node-migration.mjs)
   attr_mod: {
     title:"Attr Modifier", color:"#7a4a1a", cat:"Attribute",
     desc:"Calculates the modifier from an attribute score. Default formula: floor((score − 10) / 2). Connect Attr Score → score pin.",
@@ -385,9 +357,6 @@ export const NODE_DEFS = {
       const halfOnSave = n.data.halfOnSave === "yes";
       const savePassed = inp.savePassed ?? null;
       // Always emit chatDamage so resistance/halfOnSave/savePassed scaling
-      // runs on every path.  `silent:true` skips the chat card and forces
-      // autoApply (direct HP write) -- preserves the old "postToChat:no"
-      // behaviour while respecting resistances/immunities.
       const silent    = n.data.postToChat === "no";
       return {type:"chatDamage", amount:scaled, label:n.data.label??"Damage",
         target:targetMode, hpPath:n.data.hpPath??"system.resources.hp.value",
@@ -451,9 +420,6 @@ export const NODE_DEFS = {
       toggleMode:  n.data.toggleMode ?? "create"
     })
   },
-
-  /** Legacy act_remove_effect moved to Effects category (line ~1537).
-   *  This slot intentionally left empty so the key is not duplicated. */
 
   act_effect_uuid: {
     title:"Apply Effect (UUID)", color:"#1a2a8a", cat:"Actions",
@@ -572,8 +538,6 @@ export const NODE_DEFS = {
       };
     }
   },
-
-  // (act_set_field removed -- auto-migrated to act_modify op="set"; see node-migration.mjs)
 
   act_message: {
     title:"Message", color:"#4a4a1a", cat:"Actions",
@@ -857,9 +821,6 @@ export const NODE_DEFS = {
   },
 
   // Generic Roll Check (roll-over / roll-under / meet-and-beat / troika / custom)
-  // Replaces the dnd-centric attack_check for systems that use different compare
-  // rules. Emits pass / fail exec branches and carries roll result + margin as
-  // value outputs so downstream math/damage nodes can consume them.
   act_roll_check: {
     title:"Roll Check", color:"#8a4400", cat:"Actions",
     desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator).",
@@ -1180,10 +1141,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // act_chat_damage and act_chat_heal removed -- use act_damage / act_heal
-  // with postToChat:"yes" + autoApply:"yes"/"no" instead.
-  // NEW NODES -- System Director patch
-
   // Flow additions
 
   /** Switch — routes exec to one of N labeled branches based on a value match */
@@ -1214,11 +1171,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /**
-   * Dialog Switch -- shows a popup dialog listing N named choices (2-8).
-   * The user clicks one; that exec branch fires.
-   * Output count is controlled by the "count" field on the node.
-   */
   dialog_switch: {
     title:"Dialog Switch", color:"#c05a20", cat:"Flow",
     desc:"Show a dialog with 2-8 named options. The player picks one and that exec branch fires. Outputs are named via fields.",
@@ -1270,8 +1222,6 @@ export const NODE_DEFS = {
     }
   },
 
-  // (for_loop removed -- auto-migrated to act_loop; see node-migration.mjs)
-
   /** While Loop — runs loop body while Condition is truthy */
   while_loop: {
     title:"While Loop", color:"#1a5a7a", cat:"Flow",
@@ -1298,10 +1248,6 @@ export const NODE_DEFS = {
 
   // Effect creation nodes
 
-  /**
-   * Create Effect -- programmatically creates an ActiveEffect on a target actor.
-   * Fully configurable from fields + input pins: name, icon, duration, changes.
-   */
   act_create_effect: {
     title:"Create Effect", color:"#1a4a8a", cat:"Effects", wideNode:true,
     desc:"Creates an ActiveEffect on the target actor. Configure name, icon, duration, and attribute changes. Target resolves from pin or falls back to selected tokens / self.",
@@ -1349,9 +1295,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /**
-   * Remove Effect -- removes an ActiveEffect by name from a target actor.
-   */
   act_remove_effect: {
     title:"Remove Effect", color:"#8a1a2a", cat:"Effects",
     desc:"Removes all ActiveEffects matching the given name from the target actor.",
@@ -1373,9 +1316,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /**
-   * Toggle Effect -- enables/disables an ActiveEffect by name on the target.
-   */
   act_toggle_effect: {
     title:"Toggle Effect", color:"#4a4a8a", cat:"Effects",
     desc:"Toggles the disabled state of an ActiveEffect matching the given name on the target actor.",
@@ -1399,10 +1339,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /**
-   * Has Effect -- pure check: outputs 1/0 whether the target has an ActiveEffect
-   * matching the given name.
-   */
   has_effect: {
     title:"Has Effect?", color:"#2a4a6a", cat:"Effects",
     desc:"Outputs 1 if the target actor has an active (non-disabled) effect with the given name, 0 otherwise.",
@@ -1421,19 +1357,6 @@ export const NODE_DEFS = {
   },
 
   // Aura nodes
-  /**
-   * Place Aura -- creates a native Foundry v14 Scene Region attached to the
-   * owner token.  Foundry itself drives follow-the-token and enter/exit
-   * event delivery; a custom RegionBehaviorType "sd.applyEffect" applies
-   * the named ActiveEffect when a token enters and removes it on exit.
-   *
-   * Available shapes come directly from Foundry's region shape types:
-   *   • emanation  -- radius from the token boundary (default aura shape)
-   *   • circle     -- pure disc centred on the owner token
-   *   • rectangle  -- axis-aligned box
-   *   • ellipse    -- axis-aligned ellipse
-   *   • cone       -- triangular polygon, uses "Cone angle" field
-   */
   act_place_aura: {
     title:"Place Aura — With Effect", color:"#1a6a4a", cat:"Effects", wideNode:true,
     desc:"Places a Scene Region attached to the owner token. Tokens inside receive the named Active Effect automatically (hook-based enter/exit); leaving tokens lose it (configurable).",
@@ -1473,7 +1396,7 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Damage Aura — periodic damage to tokens inside. */
+  // Damage Aura -- periodic damage to tokens inside.
   act_place_aura_damage: {
     title:"Place Aura — Damage", color:"#7a2a1a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; rolls damage against tokens inside (onEnter / eachTurn / both). Respects system.resistances[damageType]. Chat card + visibility configurable.",
@@ -1481,7 +1404,7 @@ export const NODE_DEFS = {
       {id:"exec",    label:"",            type:"exec"},
       {id:"owner",   label:"Owner",       type:"value"},
       {id:"size",    label:"Size (ft)",   type:"value"},
-      {id:"formula", label:"Formula",     type:"value"},
+      {id:"formula", label:"Formula",     type:"value.string"},
       {id:"rounds",  label:"Lifetime",    type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1502,6 +1425,7 @@ export const NODE_DEFS = {
       {key:"bonusFormula",     label:"Bonus formula (+)",  type:"text",   default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",         label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",       label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode",   label:"Roll mode",          type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility",       label:"Visibility",         type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"rounds",           label:"Lifetime (rounds, 0=∞)", type:"number", default:0},
       {key:"conditionEffect",  label:"Suppress when owner has effect", type:"text", default:""}
@@ -1525,13 +1449,14 @@ export const NODE_DEFS = {
       showInChat:      (n.data.showInChat ?? "yes") !== "no",
       chatMode:        n.data.chatMode   ?? "card",
       applyMode:        n.data.applyMode   ?? "auto",
+      rollApplyMode:   n.data.rollApplyMode ?? "per_target",
       visibility:      n.data.visibility ?? "everyone",
       rounds:          Number(inp.rounds ?? n.data.rounds ?? 0) || 0,
       conditionEffect: n.data.conditionEffect ?? ""
     })
   },
 
-  /** Heal Aura — periodic healing to tokens inside. */
+  // Heal Aura -- periodic healing to tokens inside.
   act_place_aura_heal: {
     title:"Place Aura — Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; heals tokens inside (onEnter / eachTurn / both). HP path configurable. Chat card + visibility configurable.",
@@ -1539,7 +1464,7 @@ export const NODE_DEFS = {
       {id:"exec",    label:"",          type:"exec"},
       {id:"owner",   label:"Owner",     type:"value"},
       {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value"},
+      {id:"formula", label:"Formula",   type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1559,6 +1484,7 @@ export const NODE_DEFS = {
       {key:"bonusFormula",    label:"Bonus formula (+)", type:"text",  default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",        label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",      label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode",  label:"Roll mode",          type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility",      label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"rounds",          label:"Lifetime (rounds, 0=∞)", type:"number", default:0},
       {key:"conditionEffect", label:"Suppress when owner has effect", type:"text", default:""}
@@ -1581,12 +1507,14 @@ export const NODE_DEFS = {
       showInChat:      (n.data.showInChat ?? "yes") !== "no",
       chatMode:        n.data.chatMode   ?? "card",
       applyMode:        n.data.applyMode   ?? "auto",
+      rollApplyMode:   n.data.rollApplyMode ?? "per_target",
       visibility:      n.data.visibility ?? "everyone",
       rounds:          Number(inp.rounds ?? n.data.rounds ?? 0) || 0,
       conditionEffect: n.data.conditionEffect ?? ""
     })
   },
 
+  // Save Aura w/ Effect -- each tick rolls a save, fail -> effect.
   /** Save Aura w/ Effect — each tick rolls a save, fail → effect. */
   act_place_aura_save_effect: {
     title:"Place Aura — Save → Effect", color:"#6a4a1a", cat:"Effects", wideNode:true,
@@ -1691,14 +1619,14 @@ export const NODE_DEFS = {
     })
   },
 
-  /** AoE Damage — chat card, place, damages tokens inside. */
+  // AoE Damage -- chat card, place, damages tokens inside.
   act_place_aoe_damage: {
     title:"Chat AoE — Damage", color:"#7a3a1a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, rolls damage against tokens inside (onEnter / eachTurn / both). Respects resistances.",
     inputs:[
       {id:"exec",    label:"",          type:"exec"},
       {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value"},
+      {id:"formula", label:"Formula",   type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1717,6 +1645,7 @@ export const NODE_DEFS = {
       {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",   label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode", label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode", label:"Roll mode", type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility", label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"persist",    label:"Keep template on map", type:"select", options:["yes","no"], default:"no"},
       {key:"rounds",     label:"Lifetime (rounds, 0=∞)", type:"number", default:0}
@@ -1738,20 +1667,21 @@ export const NODE_DEFS = {
       showInChat:   (n.data.showInChat ?? "yes") !== "no",
       chatMode:     n.data.chatMode   ?? "card",
       applyMode:     n.data.applyMode   ?? "auto",
+      rollApplyMode: n.data.rollApplyMode ?? "per_target",
       visibility:   n.data.visibility ?? "everyone",
       persist:      (n.data.persist ?? "no") === "yes",
       rounds:       Number(inp.rounds ?? n.data.rounds ?? 0) || 0
     })
   },
 
-  /** AoE Heal — chat card, place, heals tokens inside. */
+  // AoE Heal -- chat card, place, heals tokens inside.
   act_place_aoe_heal: {
     title:"Chat AoE — Heal", color:"#1a6a3a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, heals tokens inside (onEnter / eachTurn / both).",
     inputs:[
       {id:"exec",    label:"",          type:"exec"},
       {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value"},
+      {id:"formula", label:"Formula",   type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1769,6 +1699,7 @@ export const NODE_DEFS = {
       {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",   label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode", label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode", label:"Roll mode", type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility", label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"persist",    label:"Keep template on map", type:"select", options:["yes","no"], default:"no"},
       {key:"rounds",     label:"Lifetime (rounds, 0=∞)", type:"number", default:0}
@@ -1789,13 +1720,14 @@ export const NODE_DEFS = {
       showInChat:   (n.data.showInChat ?? "yes") !== "no",
       chatMode:     n.data.chatMode   ?? "card",
       applyMode:     n.data.applyMode   ?? "auto",
+      rollApplyMode: n.data.rollApplyMode ?? "per_target",
       visibility:   n.data.visibility ?? "everyone",
       persist:      (n.data.persist ?? "no") === "yes",
       rounds:       Number(inp.rounds ?? n.data.rounds ?? 0) || 0
     })
   },
 
-  /** AoE Save → Effect — chat card, place, save each tick, fail → effect. */
+  // AoE Save -> Effect -- chat card, place, save each tick, fail -> effect.
   act_place_aoe_save_effect: {
     title:"Chat AoE — Save → Effect", color:"#6a2a8a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside roll a save (onEnter / eachTurn / both); on failure, the named Active Effect is applied. On leave the effect is removed (configurable).",
@@ -1856,14 +1788,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /**
-   * AoE -- Save Branch.  Places a one-shot template, rolls a save for every
-   * token caught inside, then fires `Saved →` exec per token that passed and
-   * `Failed →` exec per token that failed.  The node also exposes the
-   * `saved / failed / all` token-id arrays for downstream consumption inside
-   * the branch (via runtime.savedTargets / runtime.failedTargets /
-   * runtime.allTargets and runtime.currentTarget when perTarget=yes).
-   */
   act_place_aoe_save_branch: {
     title:"Chat AoE — Save Branch", color:"#8a5a2a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside rolls a save. Fires the 'Saved →' branch for passing tokens and 'Failed →' branch for failing tokens. Use Saved/Failed/All array outputs (available as runtime.savedTargets / failedTargets / allTargets) to fan-out damage / heal / effects.",
@@ -1918,10 +1842,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /**
-   * Remove Aura -- removes any aura matching the given key from the owner
-   * token, along with its linked effect on any tokens currently inside it.
-   */
   act_remove_aura: {
     title:"Remove Aura", color:"#6a1a3a", cat:"Effects",
     desc:"Removes the aura(s) matching the given key from the owner token and clears the linked Active Effect from any tokens currently inside.",
@@ -2010,9 +1930,6 @@ export const NODE_DEFS = {
       return `floor(random*(${hi}-${lo}+1)+${lo})`;
     }
   },
-
-  // (condition_check removed -- auto-migrated to has_effect; see node-migration.mjs)
-  // (actor_level    removed -- auto-migrated to get_path;    see node-migration.mjs)
 
   /** Get Variable — read from actor.flags.sd.vars namespace */
   get_var: {
@@ -2200,8 +2117,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // (sequence4 removed -- auto-migrated to sequence (count=4); see node-migration.mjs)
-
   chat_save_button: {
     title:"Save / Check Button", color:"#7a3a00", cat:"Actions",
     desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field.",
@@ -2256,9 +2171,6 @@ export const NODE_DEFS = {
   },
 
   // Events
-  // Event nodes are independent entry-points that fire on Foundry hooks, not on
-  // the item's Use button. Each exposes an exec output + a handful of value
-  // outputs describing the event payload.
   on_update: {
     title:"On Update", color:"#c04040", cat:"Events",
     desc:"Fires whenever this document (actor/item) is updated. Useful for reacting to HP / resource changes.",
@@ -2346,9 +2258,6 @@ export const NODE_DEFS = {
     isEvent:true, eventHook:"restFlag"
   },
 
-  // PR14: Equip / Unequip events -- fire when an item on this actor flips its
-  // `system.equipped` flag.  Place in the sheet-trigger graph of the actor
-  // (or the item itself) to react to equip/unequip.
   on_equip: {
     title:"On Equip", color:"#c04040", cat:"Events",
     desc:"Fires when an item on this actor (or this item specifically) is equipped.",
@@ -2373,11 +2282,6 @@ export const NODE_DEFS = {
   },
 
   // Unified event node -- Step 3
-  // Single declarative trigger: pick an event from the dropdown and the
-  // FormulaGraph compile loop resolves the Foundry hook dynamically.
-  // Coexists with the specific on_* event nodes (back-compat) -- use whichever
-  // feels clearer. Multiple on_event nodes can target different events
-  // because the compile loop keys them by node.id, not by node.type.
   on_event: {
     title:"On Event", color:"#c04040", cat:"Events", wideNode:true,
     desc:"Declarative event trigger: pick the event type from the dropdown. Equivalent to the specific On-* nodes but keeps the graph compact when you only need a single exec chain.",
@@ -2391,17 +2295,10 @@ export const NODE_DEFS = {
       {key:"nameFilter", label:"Only name (effect only)", type:"text", default:""}
     ],
     isEvent:true,
-    // eventHook is resolved dynamically by FormulaGraph._dynEventHook(node) --
-    // the `eventHook` field here acts as a fallback for callers that look it
-    // up statically from NODE_DEFS.
     eventHook:"updateDocument"
   },
 
   // Target sources -- Step 3 (target as value)
-  // Emit a literal target-selector string that feeds any node accepting a
-  // `target` / `where` input.  The runtime already understands these tokens
-  // ("self", "actor", "token_target", "selected_token", "all_targets"), so
-  // these nodes just make the choice explicit in the graph.
   get_self: {
     title:"Get Self", color:"#2a5a7a", cat:"Targeting",
     desc:"Reference to the document the graph runs on (actor for sheet graphs, item for item graphs).",
@@ -2438,7 +2335,6 @@ export const NODE_DEFS = {
     compile:()=>`"all_targets"`
   },
 
-  // PR14: Pure sources for equipment state (read-only, no exec pin).
   is_equipped: {
     title:"Is Equipped?", color:"#2e6e4a", cat:"Sources",
     desc:"Returns 1 if this item is currently equipped, 0 otherwise.  Reads `system.equipped` on the context item.",
@@ -2457,8 +2353,6 @@ export const NODE_DEFS = {
     isPure:true,
     compile:(n)=>`{__sdEqCount:${n.data.category ?? "any"}}`
   },
-
-  // PR5 -- Latent / Delay / Variables / Cast / Macro
 
   // Delay (wait N ms before continuing exec chain)
   act_delay: {
@@ -2602,12 +2496,6 @@ export const NODE_DEFS = {
   },
 
   // Variables (unified) -- Step 6
-  // var_read / var_write supersede the four legacy variable nodes
-  // (var_get, var_set, get_var, act_set_var).  Scope picks the storage layer:
-  //   local  -- per-run scratch (cleared each button press; runtime token __var)
-  //   actor  -- persisted on actor.flags.sd.vars.NAME (runtime token `var`)
-  //   world  -- game-wide settings (runtime setVar with scope:"world")
-  // Legacy nodes remain in the palette so old graphs keep working unchanged.
   var_read: {
     title:"Read Variable", color:"#2a6a9a", cat:"Variables",
     desc:"Reads a variable by scope. Local — within a single press. Actor — on the actor (persists). World — in system settings.",
@@ -2649,7 +2537,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Variables (legacy -- kept for back-compat)
   var_get: {
     title:"Get Variable", color:"#2a6a9a", cat:"Sources",
     desc:"Reads the value of a local graph variable. Variables are defined in the Variables panel of the graph editor.",
@@ -2778,9 +2665,6 @@ export const NODE_DEFS = {
 };
 
 // Event node value-pin → runtime token map used by _compileValue when an
-// event node's output pin is wired into a downstream node as a value source.
-// Tokens are substituted at runtime by ButtonExecutor._injectRuntime from the
-// buttonDef.__eventRuntime payload built in event-bus.mjs.
 const EVENT_PIN_TOKENS = {
   on_update:       { path: "{__eventPath}", oldValue: "{__eventOldValue}", newValue: "{__eventNewValue}" },
   on_turn_start:   { round: "{__eventRound}", combatantId: "{__eventCombatantId}" },
@@ -2792,17 +2676,9 @@ const EVENT_PIN_TOKENS = {
   on_unequip:      { itemId: "{__eventItemId}", itemName: "{__eventItemName}" }
 };
 
-// Value-pin tokens for branch / save / attack / tiered action nodes.  The
-// executor writes to buttonDef.__lastRoll / __lastMargin / __lastSuccesses /
-// __lastBotches after running these nodes, and downstream value consumers
-// substitute these tokens via FormulaEngine runtime injection.
+// Value-pin tokens for branch / save / attack / tiered action nodes
 const BRANCH_PIN_TOKENS = {
-  // Plain action-node result pins that need runtime tokens.  These nodes
-  // are NOT marked with any `is*Branch` flag, so the pin compiler used to
-  // fall through to the "0" default at `if (!def||def.isAction) return "0"`
-  // -- which is why piping `act_roll_value.result` into AoE/Aura/damage
-  // formula fields produced a literal `0`.  The pin compiler below now
-  // consults BRANCH_PIN_TOKENS first and only then falls back.
+  // Plain action-node result pins that need runtime tokens
   act_roll_value:   { result: "{__lastRoll}" },
   act_attack_check: { result: "{__lastRoll}", margin: "{__lastMargin}" },
   act_roll_check:   { result: "{__lastRoll}", margin: "{__lastMargin}", winnerRoll: "{__opposedWinnerRoll}" },
@@ -2817,9 +2693,6 @@ const BRANCH_PIN_TOKENS = {
   cast_to_item:        { itemId: "{__castItemId}" },
   macro_call:          { retA: "{__macroRetA}", retB: "{__macroRetB}" },
   // Save Branch AoE exposes token-id arrays collected after rolling saves
-  // for every target caught inside the placed template.  The executor at
-  // sd.mjs "sd-chat-aoe-save-branch-btn" sets runtime.savedTargets /
-  // failedTargets / allTargets; _injectRuntime substitutes these tokens.
   act_place_aoe_save_branch: {
     saved:  "{__savedTargets}",
     failed: "{__failedTargets}",
@@ -2827,10 +2700,7 @@ const BRANCH_PIN_TOKENS = {
   }
 };
 
-// Category display order.  Order here = order shown in the palette.
-// "Macros" added in PR9 for macro_input / macro_output / macro_call so they
-// are no longer mixed into Flow.  New Effect/AoE/Template categories will
-// arrive in PR11 -- add them here when they do.
+// Category display order
 const CATS = [
   {id:"Flow",      color:"#8a3a8a"},
   {id:"Events",    color:"#c04040"},
@@ -2848,20 +2718,6 @@ const CATS = [
 ];
 
 // NODE TAXONOMY
-//
-// Every node falls into one of three behavioural kinds (inspired by UE Blueprints):
-//
-//   pure        -- computes a value, has no exec pins, never mutates data.
-//                 (e.g. literal, get_path, math, compare, get_widget)
-//   imperative  -- executes on a click/exec chain and mutates document state.
-//                 (e.g. act_modify, act_damage, act_add_item)
-//   event       -- independent entry-point, fires on a Foundry hook rather than
-//                 on button-click. Provides exec + payload outputs.
-//                 (e.g. on_update, on_turn_start)
-//
-// The editor colour-codes node borders by kind so graph-authors can see at a
-// glance which nodes touch the world and which are purely computational.
-
 export const SD_NODE_KIND_COLOURS = {
   pure:       "#3aa87a",   // green
   imperative: "#e08a2a",   // orange
@@ -2878,9 +2734,6 @@ export function getNodeKind(def) {
   return "pure";
 }
 
-// TARGET MODES
-// Canonical target enum used across action nodes. PR1 publishes the constant;
-// full wiring across every action-node happens incrementally.
 export const SD_TARGET_MODES = [
   { id:"self",            label:"Self (this document)" },
   { id:"actor",            label:"Owning actor" },
@@ -2894,9 +2747,6 @@ export const SD_TARGET_MODES = [
 // FormulaGraph
 
 
-// WIDGET CONFIG NODES -- one per widget type, hidden from normal palette.
-// Opened via "Configure via Graph" button on a widget cell.
-// Fields map directly to widget config keys; input pins allow dynamic wiring.
 const _mkPin = (id, label) => ({ id, label, type: "value" });
 
 const WIDGET_CONFIG_NODES = {
@@ -3024,9 +2874,6 @@ export class FormulaGraph {
     this.saveCtx      = saveCtx;
     this.itemSaveCtx  = itemSaveCtx;
     this.configMode   = opts.mode === "config"; // widget config-via-nodes mode
-    // PR11: sheet-trigger-graph mode -- host for event nodes on the document
-    // level (actor sheet / item sheet), independent of any single widget.
-    // Loads/saves from `doc.system.sdTriggerGraph`.
     this.sheetTrigger = opts.mode === "sheetTrigger";
     this.win          = null;
     this.edgeSVG      = null;
@@ -3103,10 +2950,6 @@ export class FormulaGraph {
     }
   }
 
-  /**
-   * Delete every selected node (with its incident edges) and every selected
-   * comment box.  Called from the Backspace/Delete key handler.
-   */
   _deleteSelection() {
     for (const id of Array.from(this._selected)) this._delNode(id);
     for (const id of Array.from(this._selectedComments)) this._deleteComment(id);
@@ -3166,13 +3009,6 @@ export class FormulaGraph {
     });
   }
 
-  /**
-   * Build a serialisable template payload from a set of node ids.
-   * Edges are kept only if BOTH endpoints are inside the set so the template
-   * is self-contained and can be dropped into any graph.
-   * Node positions are normalised to (0,0) so the insertion point determines
-   * where the template appears.
-   */
   _serialiseSubgraph(nodeIds) {
     const ids = new Set(nodeIds);
     const nodes = this.nodes
@@ -3188,11 +3024,6 @@ export class FormulaGraph {
     return { nodes, edges };
   }
 
-  /**
-   * Insert a previously-saved template at graph coordinates (gx,gy).
-   * IDs are freshly generated so multiple instances of the same template
-   * coexist without collision.
-   */
   _insertTemplate(tpl, gx = 80, gy = 80) {
     if (!tpl?.nodes?.length) return 0;
     const idMap = {};
@@ -3356,11 +3187,6 @@ export class FormulaGraph {
   }
 
   /** Export the current selection (or whole graph) as a downloadable JSON file. */
-  /**
-   * Run the static linter on the current graph and show the report in a modal.
-   * Errors/warnings/notes are grouped and rendered as a scrollable list.
-   * Clicking a row with nodeId selects and pans to that node.
-   */
   _runLint() {
     const report = lintGraph({ nodes: this.nodes, edges: this.edges }, NODE_DEFS);
     const header = lintSummary(report);
@@ -3430,7 +3256,6 @@ export class FormulaGraph {
         return;
       }
     } catch {}
-    // Fallback: manual Blob + <a download>
     const blob = new Blob([json], { type: "application/json" });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
@@ -3480,10 +3305,7 @@ export class FormulaGraph {
       return;
     }
 
-    // Ask whether to insert at viewport centre or store in the library.
-    // `modal: true` makes DialogV2 render via <dialog>.showModal(), which
-    // places the dialog in the browser top layer -- above any z-indexed
-    // graph-editor window (see Foundry v13/v14 DialogV2 docs).
+    // Ask whether to insert at viewport centre or store in the library
     const choice = await foundry.applications.api.DialogV2.wait({
       window: { title: "Import node template" },
       modal: true,
@@ -3521,15 +3343,6 @@ export class FormulaGraph {
     }
   }
 
-  /**
-   * Tiny text prompt (DialogV2) used by template save/rename flows.
-   * Uses `modal: true` so the dialog renders via <dialog>.showModal() in the
-   * browser top layer -- this keeps it above the graph-editor window, which
-   * uses a high z-index and would otherwise occlude a non-modal dialog.
-   *
-   * In Foundry v13+ the `dialog` callback argument is the DialogV2 instance,
-   * so we read the input from `dialog.element` (which is the <dialog> node).
-   */
   async _promptText(label, def = "") {
     return foundry.applications.api.DialogV2.wait({
       window: { title: "Graph Editor" },
@@ -3587,7 +3400,6 @@ export class FormulaGraph {
       }
       return;
     }
-    // PR11: Sheet-trigger-graph mode -- load from system.sdTriggerGraph._graphData
     if (this.sheetTrigger && this.doc) {
       const stg = this.doc.system?.sdTriggerGraph;
       const g   = (stg && typeof stg === "object") ? stg._graphData : null;
@@ -3691,7 +3503,6 @@ export class FormulaGraph {
           const onClickNode = this.nodes.find(n => n.type === "on_click");
           const clickEdge   = onClickNode ? this.edges.find(e => e.fromNode === onClickNode.id && e.fromPin === "exec") : null;
           widget.onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
-          // clear legacy fields
           widget.modFormula = undefined;
           widget.formula    = undefined;
         }
@@ -3712,17 +3523,12 @@ export class FormulaGraph {
       await doc.update({"system.onClickGraph": data, "system.onClickFormula": compiled});
       return;
     }
-    // PR11: sheet-trigger-graph -- persist graphData + compiled payload on the
-    // document so the event-bus can pick it up via _scanDoc.
     if (this.sheetTrigger && this.doc) {
       const data = {
         nodes: this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
         comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
       };
-      // Compile -- the result is usually a JSON payload string. We stash the
-      // graphData alongside it under `_graphData` so re-opening the editor
-      // reconstructs the same visual state.
       const compiledStr = this.compile();
       let compiledObj = {};
       try { compiledObj = JSON.parse(compiledStr); } catch { compiledObj = {}; }
@@ -3753,11 +3559,6 @@ export class FormulaGraph {
     const idx = { slots:[], ownedItems:[], effects:[], widgets:[], invItemSlots:[] };
 
     // Slots
-    // Recursively indexes slots on an item AND slots on items nested inside it.
-    // slotPath encodes the full navigation chain from the top-level Foundry item:
-    //   "topItemId/slotId"                           -- direct item slot
-    //   "topItemId/slotId/nestedItemId/slotId2/..."  -- deeply nested slot
-    // self/actor slots have slotPath = null (resolved by formula-engine as before).
     const _indexItemSlots = (itemData, displayName, sourceId, depth = 0, slotPath = null) => {
       if (depth > 5) return; // guard against cycles
       const defs = itemData?.system?.slotDefinitions ?? [];
@@ -3779,10 +3580,7 @@ export class FormulaGraph {
       }
     };
 
-    // Slots on self (the item being configured).
-    // Use the actual item id as path root so formula-engine can resolve it
-    // via actor.items.get() even when the button fires from the actor sheet.
-    // If self has no id (unusual), fall back to the string "self".
+    // Slots on self (the item being configured)
     const selfPathRoot = (self && !(self instanceof Actor) && self.id) ? self.id : null;
     _indexItemSlots(self, "self", "self", 0, selfPathRoot);
 
@@ -3853,9 +3651,6 @@ export class FormulaGraph {
       return "0";
     }
 
-    // Priority 1: on_click trigger exec chain
-    // Must be checked BEFORE requiring an output node, because action graphs
-    // (on_click → roll / add_item / add_slot / etc.) have no output node at all.
     const trigger = this.nodes.find(n=>n.type==="on_click");
     const eventNodes = this.nodes.filter(n => NODE_DEFS[n.type]?.isEvent);
     if (trigger || eventNodes.length) {
@@ -3872,9 +3667,6 @@ export class FormulaGraph {
         const actions = _chainFor(trigger);
         if (actions?.length) triggers.onClick = actions;
       }
-      // Resolve the Foundry hook for an event node.  Specific on_* nodes use
-      // their static `eventHook` property; the unified on_event node maps its
-      // `data.event` dropdown to the matching hook.
       const _dynHook = (ev) => {
         if (ev.type !== "on_event") return NODE_DEFS[ev.type]?.eventHook;
         const EVENT_HOOK_MAP = {
@@ -3912,8 +3704,6 @@ export class FormulaGraph {
       }
 
       if (Object.keys(triggers).length) {
-        // Legacy shape when only onClick is present -- keep widget button handlers
-        // happy (they expect a plain "[actions]" array in saveCtx mode).
         const onlyOnClick = Object.keys(triggers).length === 1 && triggers.onClick;
         const hasMacros   = Object.keys(macros).length > 0;
         if (onlyOnClick && !hasMacros) {
@@ -3940,9 +3730,6 @@ export class FormulaGraph {
       return src ? this._compileValue(src,new Set(),vEdge.fromPin) : "0";
     }
     // Exec pin(s) wired to output → compile exec chain(s)
-    // Fix: support MULTIPLE nodes connected to output exec,
-    // and trace backwards to find the TRUE start of each chain
-    // so that nodes like Message → Damage → Output all execute in order.
     const xEdges = this.edges.filter(e=>e.toNode===out.id&&e.toPin==="exec");
     if (xEdges.length) {
       if (xEdges.length === 1) {
@@ -3968,9 +3755,6 @@ export class FormulaGraph {
     if (vis.has(node.id)) return "0";
     const v2 = new Set(vis); v2.add(node.id);
     const def = NODE_DEFS[node.type];
-    // Special case: act_roll_value can feed its result pin as a value source.
-    // At runtime the executor stores the roll total in buttonDef.__lastRoll;
-    // we compile it as the special token {__lastRoll} which FormulaEngine passes through.
     if (node.type === "act_roll_value") return "{__lastRoll}";
     // act_set_field: downstream nodes can read the set value via {__lastRoll} too,
     // since the executor stores the resolved value in __lastRoll as well.
@@ -4012,13 +3796,6 @@ export class FormulaGraph {
     return def.compile?.(node,ins)??"0";
   }
 
-  /**
-   * Trace backwards along exec connections to find the true start of a chain.
-   * Example: Message → Damage → Output
-   *   called with Damage (the node connected to Output's exec pin)
-   *   returns  Message (the actual first node in the chain)
-   * This fixes the bug where nodes placed "before" the output-connected node were skipped.
-   */
   _findExecChainStart(nodeId) {
     const visited = new Set();
     let current = nodeId;
@@ -4198,7 +3975,6 @@ export class FormulaGraph {
 
         const failEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="fail");
         const passEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="pass");
-        // PR13: opposed-roll branches -- only present on act_roll_check.
         const wonEdge  = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="youWon");
         const lostEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="youLost");
 
@@ -4365,7 +4141,6 @@ export class FormulaGraph {
         }
         return;
       }
-      // Legacy Sequence ×4 -- same behaviour, original a/b/c/d pin ids.
       if (node.type==="sequence4") {
         for (const pin of ["a","b","c","d"]) {
           const e = this.edges.find(edge=>edge.fromNode===node.id&&edge.fromPin===pin);
@@ -4410,7 +4185,6 @@ export class FormulaGraph {
     if (!this.win) return;
     this.win.querySelector("#gpreview").textContent = f||"—";
 
-    // Refresh Variables / Macros side panel (PR7)
     this._buildVarPanel();
 
     // Refresh Attr Score cards (live score display)
@@ -4469,11 +4243,6 @@ export class FormulaGraph {
     }
   }
 
-  /**
-   * PR7: live list of variables + macros referenced by the current graph.
-   * Rendered into #gvarpanel on every _updatePreview call.  Clicking a row
-   * pans the canvas to the first node that defines/uses that identifier.
-   */
   _buildVarPanel() {
     const panel = this.win?.querySelector("#gvarpanel");
     if (!panel) return;
@@ -4542,11 +4311,7 @@ export class FormulaGraph {
       ${macroRows || `<div style="padding:10px;font-size:10px;color:rgba(255,255,255,.25);font-style:italic">No macros. Use <b>macro_input</b> (define) / <b>macro_call</b> (invoke).</div>`}
     `;
 
-    // Click-to-focus on the first node of a row.
-    // #gwrap has `overflow:hidden` and the canvas is positioned via CSS
-    // transform (pan/zoom), so `scrollIntoView` is a no-op at best and can
-    // silently desync `this._pan` from the visible viewport at worst.
-    // We pan the canvas ourselves, centering the target node in #gwrap.
+    // Click-to-focus on the first node of a row
     panel.querySelectorAll(".gvar-row").forEach(row => {
       row.addEventListener("click", () => {
         const nid  = row.dataset.nid;
@@ -4555,9 +4320,6 @@ export class FormulaGraph {
         if (!el || !node) return;
         const wrap = this.win?.querySelector("#gwrap");
         if (wrap) {
-          // Approximate the node's extent on-screen using its DOM size so
-          // we centre on the middle of the node rather than its top-left
-          // anchor point.
           const w = (el.offsetWidth  || 180) * this._zoom;
           const h = (el.offsetHeight || 80)  * this._zoom;
           this._pan.x = wrap.clientWidth  / 2 - node.x * this._zoom - w / 2;
@@ -4647,23 +4409,6 @@ export class FormulaGraph {
 
   _buildPal() {
     // Palette filters by context so each graph surface only offers nodes that
-    // actually make sense there:
-    //
-    //   configMode (widget-config graph)
-    //     → only Sources + Math categories (wcfg_* node is fixed already).
-    //
-    //   Widget behaviour graph (this.widget set, not configMode, not attribute)
-    //     → hide Events -- those belong to the sheet-trigger-graph.
-    //     → for widgets whose click/step trigger is implicit (rollButton, counter,
-    //       dice, toggle, tracker, clock, tokenPool, diceTray, number), hide
-    //       on_click -- there is nothing extra to hook it to. For button and
-    //       slot-style widgets, on_click is kept as an explicit trigger.
-    //
-    //   Attribute graph (widget.type === "attribute")
-    //     → hide Events; on_click is kept (attribute's modifier click).
-    //
-    //   Item onClick graph (itemSaveCtx set, no widget)
-    //     → hide Events (those belong to the sheet-trigger-graph).
     const ALLOWED_CONFIG_CATS = new Set(["Sources", "Math"]);
     const IMPLICIT_CLICK_WIDGETS = new Set([
       "rollButton","counter","dice","toggle","tracker","clock",
@@ -4672,9 +4417,6 @@ export class FormulaGraph {
     const isWidgetGraph   = !!this.widget && !this.configMode;
     const isAttrGraph     = this.widget?.type === "attribute";
     const isItemGraph     = !!this.itemSaveCtx && !this.widget;
-    // PR11: sheet-trigger-graph is the one surface that WANTS Events and has
-    // no widget behind it.  It is explicitly NOT a widget/attribute/item
-    // graph and Events must stay visible.
     const isSheetTrigger  = !!this.sheetTrigger;
     const hidesEvents     = !isSheetTrigger
       && ((isWidgetGraph && !isAttrGraph) || isAttrGraph || isItemGraph);
@@ -4823,9 +4565,6 @@ export class FormulaGraph {
     const _kd = ev => {
       if (ev.code === "Space" && ev.target === document.body) { space = true; wrap.style.cursor = "grab"; return; }
 
-      // Backspace / Delete -- delete selected nodes and/or comment boxes.
-      // Only fires when the graph editor window is the topmost focus target
-      // and the user isn't typing into a text input/textarea/contenteditable.
       if (ev.key === "Backspace" || ev.key === "Delete") {
         if (!this.win || !document.body.contains(this.win)) return;
         const t = ev.target;
@@ -4856,9 +4595,6 @@ export class FormulaGraph {
         return;
       }
 
-      // Ctrl + LMB on empty canvas → rubber-band that creates a Comment Box
-      // on release (Unreal Blueprint style).  We draw the draft rectangle in
-      // screen-space on `wrap` and convert to graph-space at commit.
       if (ev.button === 0 && (ev.ctrlKey || ev.metaKey) && ev.target === wrap) {
         ev.preventDefault();
         const r = wrap.getBoundingClientRect();
@@ -5020,7 +4756,6 @@ export class FormulaGraph {
     const cfgType = "wcfg_" + wType;
     const def = NODE_DEFS[cfgType];
     if (!def) return;
-    // Pre-fill from current widget values so designer sees existing config
     const data = {};
     for (const field of (def.fields ?? [])) {
       data[field.key] = this.widget[field.key] ?? field.default ?? "";
@@ -5033,14 +4768,6 @@ export class FormulaGraph {
     this.nodes.push({id:"output",type:"output",x:660,y:230,data:{}});
   }
 
-  /**
-   * Default graph for Attribute widget formula field:
-   *   [Attr Score]  →  [Attr Modifier]  →  OUTPUT (Mod Formula pin)
-   *
-   * The Attr Score node is pre-filled with the widget's score path so the
-   * designer can see the live value (e.g. "12") immediately and can wire
-   * additional nodes (e.g. add a bonus) before connecting to the output.
-   */
   _addAttributeDefaultGraph() {
     const scorePath = this.widget?.path ?? "system.attributes.attr1.value";
     // 1. Attr Score Val -- undeletable, reads the raw numeric value from path
@@ -5311,10 +5038,7 @@ export class FormulaGraph {
 
     const el=document.createElement("div");
     el.dataset.nid=node.id;
-    // Width adapts to node type -- wider for actions/attack branches that have more fields
-    // Base width by node category; then expand to fit field values stored in node.data.
-    // UE-style: nodes use min-width + shrink-to-fit so connecting a pin (which hides its
-    // matching field) lets the node collapse back down.
+    // Width adapts to node type -- wider for actions/attack branches that have more fi
     const W_MIN = def.wideNode ? 380 : def.isAttackBranch ? 320 : def.isBranch ? 270 : def.isAction ? 300 : (def.isOutput||def.isAttrOutput) ? 220 : 240;
     const _longestDataVal = Object.values(node.data ?? {}).reduce((max, v) => {
       const len = typeof v === "string" ? v.length : 0;
@@ -5387,10 +5111,7 @@ export class FormulaGraph {
     for(const p of inputPins.filter(p=>p.type==="exec"))
       body.appendChild(this._pinRow(node,p,"input"));
 
-    // Value rows -- each input pin + matching output pin side by side.
-    // UE-style: when a value pin shares a key with a field AND that pin is connected,
-    // the field is replaced by the pin (only the pin label is shown). This keeps the
-    // node visually concise when data flows dynamically.
+    // Value rows -- each input pin + matching output pin side by side
     const valIns  = inputPins.filter(p=>p.type!=="exec");
     const valOuts = outputPins.filter(p=>p.type!=="exec");
 
@@ -5473,9 +5194,6 @@ export class FormulaGraph {
         return;
       }
 
-      // Non-additive click: if this node is already part of a multi-select
-      // keep the existing set so the user can drag the whole group at once.
-      // Otherwise, replace selection with just this node.
       if (!this._selected.has(node.id)) {
         this._selected.clear();
         this._selected.add(node.id);
@@ -5662,11 +5380,7 @@ export class FormulaGraph {
       l.title=lbl;
       wrap.appendChild(l);
     }
-    // UE-style autosize: `field-sizing:content` lets text inputs grow to their
-    // content (Chromium 123+, available in Foundry v13+ Electron). We keep a
-    // sensible min-width and cap max-width so very long strings don't blow up
-    // the node; the node container itself uses min-width + max-width so it
-    // follows the largest field.
+    // UE-style autosize
     const IS="background:#1a1e2e;border:1px solid rgba(120,100,220,.35);border-radius:6px;color:#eef3ff;font-size:12px;padding:5px 10px;font-family:monospace;outline:none;min-width:80px;max-width:420px;width:auto;box-sizing:border-box;height:28px;field-sizing:content";
     const SI=IS+";cursor:pointer";
     const idx=this._smartIndex??{slots:[],ownedItems:[],effects:[],widgets:[],invItemSlots:[]};
@@ -5980,7 +5694,6 @@ export class FormulaGraph {
       const def = NODE_DEFS[this.nodes.find(n=>n.id===edge.fromNode)?.type??""];
       const fromPinDef = [...(def?.outputs??[])].find(p=>p.id===edge.fromPin);
       const isExec = fromPinDef?.type==="exec";
-      // Wire colour follows output-pin subtype; `null` → legacy gradient (value.any).
       const subColor = subtypeColor(fromPinDef?.type);
 
       const bez = this._bez(from,to);

@@ -1,10 +1,3 @@
-/**
- * module/builder/toolbox-app.mjs
- *
- * Toolbox -- Sheet Builder floating window.
- * Three tabs: Widgets | Blueprints | Paths
- */
-
 import { KNOWN_PATHS } from "./widget-registry.mjs";
 import { BLUEPRINT_NODES, BLUEPRINT_CATS } from "../helpers/formula-engine.mjs";
 import { loadSettings } from "../helpers/system-config.mjs";
@@ -274,10 +267,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       el.addEventListener("dragend", () => { el.style.opacity = ""; });
     });
 
-    // Data path chips -- draggable AND click-to-copy.
-    // User requested that clicking a path copies it straight to the clipboard
-    // (previously the only affordance was drag-to-field).  We keep the drag
-    // behaviour intact for chips in the Custom Fields / Paths panels.
+    // Data path chips -- draggable AND click-to-copy
     root.querySelectorAll("[data-drag-type='path']").forEach(el => {
       el.draggable = true;
       el.addEventListener("dragstart", ev => {
@@ -297,7 +287,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
           await navigator.clipboard.writeText(path);
           ui.notifications?.info?.(`Path copied: ${path}`);
         } catch (err) {
-          // Fallback for non-HTTPS / older browsers
           const ta = document.createElement("textarea");
           ta.value = path;
           ta.style.position = "fixed";
@@ -467,9 +456,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     });
   }
 
-  /** Import sheet template(s). Accepts a single template object or a
-   *  {templates: {...}} bundle. Existing names collide → user chooses to
-   *  overwrite, skip, or keep both (rename). */
   async _importSheetTemplates(parsed) {
     // Normalise into a map: {name: tplObj}
     let incoming = {};

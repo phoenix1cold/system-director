@@ -1,8 +1,3 @@
-/**
- * module/data/item-slots.mjs
- * Slot system for System Director.
- */
-
 const {
   StringField, NumberField, BooleanField,
   ArrayField, ObjectField, SchemaField

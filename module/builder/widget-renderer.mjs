@@ -1,14 +1,3 @@
-/**
- * module/builder/widget-renderer.mjs
- *
- * Renders widget definitions into HTML for Handlebars templates.
- * Returns a plain HTML string that is injected as {{{widget.html}}}.
- *
- * Each widget reads live values from the document via foundry.utils.getProperty.
- * When w.valueFormula is set, FormulaEngine evaluates it instead of w.path.
- * When w.formula is set on a dice widget, FormulaEngine resolves {refs} before Roll.
- */
-
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 
 export class WidgetRenderer {
@@ -22,9 +11,6 @@ export class WidgetRenderer {
    */
   static render(widgetDef, doc, editMode = false) {
     try {
-      // showIf guard
-      // New format: showIfKey (widget:key or hidden:fieldName) + showIfValue
-      // Legacy format: showIf as a raw formula (still supported as fallback)
       if (widgetDef.showIfKey && String(widgetDef.showIfKey).trim()) {
         let actualVal;
         const src = widgetDef.showIfKey.trim();
@@ -37,7 +23,6 @@ export class WidgetRenderer {
             const direct = doc?.system?.hiddenFields?.[fieldName];
             actualVal = String(direct !== undefined ? direct : "");
           } else {
-            // bare path fallback
             actualVal = String(foundry.utils.getProperty(doc, src) ?? "");
           }
         } catch { actualVal = ""; }
@@ -48,7 +33,6 @@ export class WidgetRenderer {
           : actualVal === expected || String(Number(actualVal)) === expected;
         if (!visible) return `<!-- widget hidden by showIf: ${this._esc(src)}=${this._esc(expected)} -->`;
       } else if (widgetDef.showIf && String(widgetDef.showIf).trim()) {
-        // Legacy formula-based showIf (backward compat)
         let visible = true;
         try {
           const result = FormulaEngine.evaluate(widgetDef.showIf, doc);
@@ -196,7 +180,6 @@ export class WidgetRenderer {
     const e          = this._esc;
     const rawFormula = w.formula ?? "1d20";
     const hasRefs    = FormulaEngine.isFormula(rawFormula);
-    // Pre-resolve for display; store raw in data-formula-raw for re-resolve on click
     const displayFml = hasRefs ? FormulaEngine.resolveForRoll(rawFormula, doc) : rawFormula;
     return `<div class="widget widget-dice">
   <div class="widget-label">${e(w.label)}${hasRefs ? ` <span style="color:#5a4ec0;font-size:9px" title="Formula with refs">ƒ</span>` : ""}</div>
@@ -424,8 +407,6 @@ export class WidgetRenderer {
     const score = Number(this._get(doc, w.path, 10));
     const e     = this._esc;
 
-    // Compute displayed modifier value:
-    // Use compiled modValueFormula from graph if present; fallback to floor((score-10)/2)
     let mod;
     if (w.modValueFormula) {
       const resolved = Number(FormulaEngine.evaluate(w.modValueFormula, doc));
@@ -456,10 +437,6 @@ export class WidgetRenderer {
   }
 
   // skill
-  // Rendered identically to `attribute` but with an editable rank field and
-  // a bonus formula.  If an onClickFormula exec graph is wired (same as
-  // attribute), that runs on click; otherwise falls back to a plain roll.
-
   static _render_skill(w, doc) {
     const rank   = Number(this._get(doc, w.path, 0));
     const attrMod = Number(w.attrMod ?? 0);
@@ -590,9 +567,6 @@ export class WidgetRenderer {
       return `<div class="widget widget-spellbook"><p class="sb-only-actor">Spellbook works on Actor sheets only</p></div>`;
     }
 
-    // `abilityType` is the new key. `w.type` would be the widget's own type
-    // ("spellbook") -- older saved widgets used it for the filter value, so
-    // fall back to it only when abilityType is absent.
     const wantType = String(w.abilityType ?? (w.type && w.type !== "spellbook" ? w.type : "") ?? "").trim();
 
     // Filter actor items down to abilities of the widget's configured type.
@@ -631,8 +605,6 @@ export class WidgetRenderer {
 </div>`;
     return html;
   }
-  // fallback
-
   // showIf guard -- injected at top of render()
   // (handled by patching the render() method itself below)
 
@@ -729,10 +701,6 @@ export class WidgetRenderer {
   }
 
   // tracker
-  // v2 (PR6): rewritten from scratch to mirror the clock widget's simple fill
-  // semantics.  Click pip N → fill to N+1; click already-filled pip N → unfill
-  // back to N.  One reset button.  No shift/right-click overloads -- they made
-  // the old tracker feel inconsistent versus the clock widget.
   static _render_tracker(w, doc) {
     const esc     = this._esc.bind(this);
     const lbl     = esc(w.label ?? "Tracker");
@@ -741,9 +709,6 @@ export class WidgetRenderer {
 
     const filled = Math.max(0, Number(this._get(doc, rawPath, 0)) || 0);
 
-    // Max: live-path takes priority; fall back to configured maxCount (2..50).
-    // Guards against hiddenFields defaulting to "" -- Number("") = 0 would hide
-    // every pip.
     const defaultMax = Number(w.maxCount ?? 6) || 6;
     let maxVal = defaultMax;
     if (w.maxPath) {
@@ -791,10 +756,6 @@ export class WidgetRenderer {
   }
 
   // counter
-  // PR6: big ± stepper for metacurrencies.  Backed by a plain integer path.
-  // Click handlers are wired by the existing `widgetNumStep` action
-  // (character-sheet.mjs: widget-action dispatcher), so no new wiring is
-  // required -- just emit the same data-* attributes as `number`.
   static _render_counter(w, doc) {
     const e    = this._esc;
     const val  = Number(this._get(doc, w.path, 0)) || 0;
@@ -826,9 +787,6 @@ export class WidgetRenderer {
   }
 
   // rollButton
-  // PR6: pre-configured dice roll button.  Reuses the existing `widgetRoll`
-  // dispatcher so no new click wiring is required -- it is just a nicer visual
-  // variant of the `dice` widget with a coloured accent and explicit flavor.
   static _render_rollButton(w, doc) {
     const e    = this._esc;
     const raw  = w.formula ?? "1d20";
@@ -858,9 +816,6 @@ export class WidgetRenderer {
   }
 
   // tokenPool
-  // PR7: row of metacurrency token icons + integrated spend/gain buttons.
-  // Visually similar to tracker but with stepper controls instead of a reset.
-  // Backed by a single integer path; +/- buttons reuse widgetNumStep dispatch.
   static _render_tokenPool(w, doc) {
     const e       = this._esc;
     const rawPath = w.path ?? "";
@@ -919,9 +874,6 @@ export class WidgetRenderer {
   }
 
   // diceTray
-  // PR7: passive display of the last roll's total + formula + flavor.
-  // Reads from `<flagPath>` (default `flags.sd.lastRoll`) which is written
-  // by ButtonExecutor rollValue.  No click handlers -- purely informative.
   static _render_diceTray(w, doc) {
     const e       = this._esc;
     const flagPath = w.flagPath ?? "flags.sd.lastRoll";

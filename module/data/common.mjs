@@ -1,10 +1,3 @@
-/**
- * module/data/common.mjs
- *
- * Shared schema fragments reused across Actor and Item DataModels.
- * Import these in individual model files to avoid repetition.
- */
-
 const {
   StringField, NumberField, BooleanField, SchemaField,
   HTMLField, ArrayField, ObjectField, FilePathField, ColorField
@@ -12,10 +5,6 @@ const {
 
 // Resource (value / max / min)
 
-/**
- * A tracked resource bar: value, max, optional min.
- * Used for HP, MP, stamina, sanity, etc.
- */
 export function ResourceField({ initial = 0, label = "" } = {}) {
   return new SchemaField({
     value: new NumberField({ required: true, integer: true, initial, nullable: false, label: `${label} Value` }),
@@ -26,10 +15,6 @@ export function ResourceField({ initial = 0, label = "" } = {}) {
 
 // Attribute (score / modifier / bonus)
 
-/**
- * A classic RPG attribute: raw score + computed modifier + proficiency/bonus.
- * The modifier is derived in prepareDerivedData.
- */
 export function AttributeField({ initial = 10, label = "" } = {}) {
   return new SchemaField({
     value:   new NumberField({ required: true, integer: true, initial, nullable: false, min: 1, label: `${label} Score` }),
@@ -40,9 +25,6 @@ export function AttributeField({ initial = 10, label = "" } = {}) {
 
 // Skill
 
-/**
- * A single skill entry: base rank, governing attribute reference, total bonus.
- */
 export function SkillField({ label = "" } = {}) {
   return new SchemaField({
     rank:      new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
@@ -54,10 +36,6 @@ export function SkillField({ label = "" } = {}) {
 
 // Roll Config
 
-/**
- * Stores a configurable dice formula as parts so it can be built dynamically.
- * e.g. { quantity: 2, die: "d6", bonus: 3 } → "2d6+3"
- */
 export function RollConfigField({ label = "Roll" } = {}) {
   return new SchemaField({
     quantity: new NumberField({ required: true, integer: true, initial: 1, min: 1, nullable: false }),

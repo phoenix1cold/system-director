@@ -1,24 +1,3 @@
-/**
- * module/builder/graph-linter.mjs
- *
- * Lightweight static validator for System Director node graphs.
- *
- * Input:  { nodes, edges } shape produced by FormulaGraph.
- * Output: [{ severity:"error"|"warn"|"info", code, message, nodeId? }].
- *
- * Rules implemented on Step 9:
- *   E001  Unknown node type (not in NODE_DEFS and not in migration map)
- *   E002  Deprecated node type (still present despite migration run)
- *   E003  Incompatible pin subtypes on an existing edge
- *   E004  Dangling edge -- endpoint refs a node/pin that does not exist
- *   W001  Action chain has no entry point (no on_click / isEvent / macro_input)
- *   W002  Orphan node (neither input nor output edges)
- *   W003  Required field is empty (heuristic: field without default + empty value)
- *
- * The linter never mutates the graph.  UI layer calls it on demand (palette
- * button or on save) and shows the report in a modal.
- */
-
 import { pinSubtype, arePinsCompatible } from "./pin-types.mjs";
 import { isLegacyNodeType }              from "./node-migration.mjs";
 

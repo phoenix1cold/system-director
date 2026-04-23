@@ -1,10 +1,3 @@
-/**
- * module/data/actor-character.mjs
- *
- * TypeDataModel for Actor subtype: "character"
- * Handles: attributes, derived stats, resources, skills, currency, biography.
- */
-
 import {
   ResourceField, AttributeField, SkillField,
   RollConfigField, BiographyField, CurrencyField
@@ -114,14 +107,8 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
       customTabs: new ArrayField(new ObjectField()),
 
       // Sheet-level Trigger Graph
-      // Stores a single compiled graph payload (same shape as a multi-trigger
-      // widget button) that only hosts event nodes (on_update / on_turn_*).
-      // Empty by default; event-bus scans this alongside widget graphs.
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
-      // Damage Resistances
-      // Free-form map of damageType → "immune" | "resist" | "normal" |
-      // "vulnerable" | numeric factor (e.g. 0.5).  Consumed by act_damage.
       resistances: new ObjectField({ initial: {} }),
 
       // Flags / Custom Fields
@@ -147,7 +134,6 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
   // Migrations
 
   static migrateData(source) {
-    // Example: v0.1 → v0.2 renamed "stats" to "attributes"
     if (source.stats && !source.attributes) {
       source.attributes = source.stats;
       delete source.stats;

@@ -1,8 +1,3 @@
-/**
- * module/sheets/npc-sheet.mjs
- * Same blank-canvas approach as CharacterSheet.
- */
-
 import { CharacterSheet } from "./character-sheet.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;

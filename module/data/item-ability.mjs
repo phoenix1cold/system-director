@@ -1,10 +1,3 @@
-/**
- * module/data/item-ability.mjs
- *
- * TypeDataModel for Item subtype: "ability"
- * Covers spells, powers, techniques -- anything that is activated and rolled.
- */
-
 import { RollConfigField }    from "./common.mjs";
 import { SlotDefinitionField } from "./item-slots.mjs";
 import { ButtonDefinitionField } from "../helpers/button-executor.mjs";
@@ -126,9 +119,6 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
       onClickGraph:   new ObjectField({ initial: {} }),
       onClickFormula: new StringField({ initial: "", blank: true }),
 
-      // Effect Templates
-      // AE templates applied automatically (or via node) when ability is used.
-      // Each entry: { id, name, icon, target, durationRounds, changes, autoApply }
       effectTemplates: new ArrayField(new ObjectField()),
 
       // Description
@@ -172,12 +162,6 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
 }
 
 
-/**
- * module/data/item-feature.mjs (inlined here for convenience)
- *
- * TypeDataModel for Item subtype: "feature"
- * Passive traits, racial features, class features, talents, perks.
- */
 export class FeatureData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {

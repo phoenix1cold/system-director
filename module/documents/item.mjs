@@ -1,20 +1,9 @@
-/**
- * module/documents/item.mjs
- *
- * Extends the base Item document.
- * - Roll methods for attacks and abilities
- * - Use tracking (charges/uses)
- * - Active Effects application from items
- */
-
 export class SDItem extends Item {
 
   /** @override */
   prepareData() {
     super.prepareData();
   }
-
-  // PR14: Equip / Unequip
 
   /**
    * Check whether this item can currently be equipped.  Runs any configured
@@ -69,8 +58,6 @@ export class SDItem extends Item {
     const hadEquipChange = equippedDiff !== undefined;
     await this._origOnUpdate(changed, options, userId);
 
-    // PR15: only the originating client runs the cascade + hook to avoid
-    // duplicate ActiveEffect writes from every connected client.
     if (hadEquipChange && game.user?.id === userId) {
       const nowEquipped = Boolean(equippedDiff);
       // Toggle ActiveEffect.disabled for effects flagged activateOnEquip.
@@ -132,15 +119,6 @@ export class SDItem extends Item {
 
   // Roll Methods
 
-  /**
-   * Activate/use this item.
-   * Handles:
-   *  - use count decrement
-   *  - MP/resource cost
-   *  - attack roll
-   *  - damage roll
-   *  - chat card
-   */
   async use({ event } = {}) {
     const system = this.system;
 
@@ -150,11 +128,7 @@ export class SDItem extends Item {
       try {
         const { ButtonExecutor } = await import("../helpers/button-executor.mjs");
         const parsed = JSON.parse(formula);
-        // Supported shapes:
-        //   - plain array (saveCtx output)
-        //   - { _trigger:"onClick", actions:[...] }
-        //   - { _trigger:"multi", _events:{ onClick:{actions,...}, ... }, _macros? }
-        //   - { _trigger:"macrosOnly", _macros:{...} }
+        // Supported shapes
         let actions = [];
         let macros  = null;
         if (Array.isArray(parsed)) actions = parsed;
@@ -208,9 +182,6 @@ export class SDItem extends Item {
     return this._rollToChat({ event });
   }
 
-  /**
-   * Post this item as a chat message, optionally rolling attack/damage.
-   */
   async _rollToChat({ event } = {}) {
     const system = this.system;
     const rolls  = [];
@@ -313,23 +284,12 @@ export class SDItem extends Item {
     }
   }
 
-  /**
-   * Returns roll data merged with parent actor's roll data.
-   */
   getRollData() {
     const data = this.actor?.getRollData() ?? {};
     data.item = { ...this.system };
     return data;
   }
   // Transfer Effects
-  // When this item is created/deleted on an actor, transfer/remove its effects.
-  // Only effects with transfer !== false are synced (Foundry default is true).
-  //
-  // Design mirrors dnd5e:
-  //  - Each transferred effect gets flags.sd.sourceItemId = item.id
-  //  - On item delete we find & remove all actor effects with that sourceItemId
-  //  - On item update we refresh transferred effects if the effect collection changed
-
   /** Returns the effects on this item that should transfer to the owning actor. */
   get transferrableEffects() {
     return [...(this.effects ?? [])].filter(ef => ef.transfer !== false && !ef.disabled);
@@ -353,10 +313,6 @@ export class SDItem extends Item {
     await this._removeTransferredEffects(actor);
   }
 
-  /**
-   * Create transferred effects on the actor.
-   * Skips effects that already exist (identified by flags.sd.sourceItemId + name).
-   */
   async _applyTransferredEffects(actor) {
     const toCreate = [];
     for (const ef of this.transferrableEffects) {
@@ -376,9 +332,6 @@ export class SDItem extends Item {
     }
   }
 
-  /**
-   * Remove all actor effects that were transferred from this item.
-   */
   async _removeTransferredEffects(actor) {
     const toDelete = actor.effects
       .filter(e => e.flags?.sd?.sourceItemId === this.id)

@@ -1,22 +1,3 @@
-/**
- * module/helpers/event-bus.mjs -- System Director event bus
- *
- * Scans every actor (and each of its items) for compiled widget-button graphs
- * that include event-node entry points, then wires those entry points to
- * Foundry hooks.  When a hook fires, the matching graph's action chain runs
- * through ButtonExecutor with the originating document as context.
- *
- * Supported event hooks (mapped from event node `eventHook` values):
- *   updateDocument   → updateActor / updateItem
- *   createDocument   → createActor / createItem
- *   deleteDocument   → deleteActor / deleteItem
- *   combatTurnStart  → combatTurnStart
- *   combatTurnEnd    → combatTurnEnd
- *   createActiveEffect → createActiveEffect
- *   hpDecrease       → updateActor (synthesised when HP path drops)
- *   restFlag         → updateActor (synthesised when flag path is set)
- */
-
 const HOOK_MAP = {
   updateDocument:     ["updateActor", "updateItem"],
   createDocument:     ["createActor", "createItem"],
@@ -26,7 +7,6 @@ const HOOK_MAP = {
   createActiveEffect: ["createActiveEffect"],
   hpDecrease:         ["updateActor"],
   restFlag:           ["updateActor"],
-  // PR14: synthetic hooks emitted by SDItem._onUpdate on equip-state changes.
   itemEquipped:       ["sdItemEquipped"],
   itemUnequipped:     ["sdItemUnequipped"]
 };
@@ -77,7 +57,6 @@ class EventBus {
   }
 
   _scanDoc(actor, doc) {
-    // 1. Widget-graph event nodes (back-compat, still supported).
     const tabs = doc.system?.customTabs ?? [];
     for (const tab of tabs) {
       for (const row of (tab.rows ?? [])) {
@@ -90,9 +69,6 @@ class EventBus {
       }
     }
 
-    // 2. Sheet-level trigger graph (added in PR11).  Stored as the compiled
-    //    multi-trigger payload on `system.sdTriggerGraph`.  Accepts either an
-    //    object (saved as-is) or a JSON string.
     const stg = doc.system?.sdTriggerGraph;
     if (stg) {
       const raw = typeof stg === "string" ? stg : JSON.stringify(stg);
@@ -187,9 +163,6 @@ class EventBus {
         const hostId = actor?.id ?? item?.parent?.id;
         if (hostId !== entry.actorId) return false;
         // When the event node sits on an item (not the actor), require the
-        // equipped item to match that specific item uuid.  Actor UUIDs look
-        // like "Actor.ABC"; embedded item UUIDs look like "Actor.ABC.Item.DEF"
-        // -- so a missing ".Item." segment means it's an actor-scoped entry.
         if (entry.docUuid && !entry.docUuid.includes(".Item.")) return true;
         if (entry.docUuid && item?.uuid && entry.docUuid !== item.uuid) return false;
         return true;
@@ -302,12 +275,7 @@ class EventBus {
 }
 
 function _oldValueFromDiff(diff, path, doc) {
-  // diff contains the NEW value at `path`; reconstruct old from doc minus diff.
-  // Easiest: the document before update isn't available post-update, so we
-  // approximate by reading whatever pre-update data Foundry provides.  The
-  // diff object is the incoming change; the doc at dispatch time already
-  // reflects the new value.  We expose the old value as the diff's previous
-  // sibling if available, else null.
+  // diff contains the NEW value at `path`; reconstruct old from doc minus diff
   try {
     const prev = foundry.utils.getProperty(doc._source ?? {}, path);
     if (prev !== undefined) return prev;

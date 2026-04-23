@@ -1,10 +1,3 @@
-/**
- * module/helpers/tags-editor.mjs
- *
- * Chip-style tags editor. Replaces any element with [data-tags-editor]
- * with a proper chip UI. Saves back to document on change.
- */
-
 export class TagsEditor {
 
   /**

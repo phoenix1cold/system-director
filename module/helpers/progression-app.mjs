@@ -1,40 +1,3 @@
-/**
- * module/helpers/progression-app.mjs
- *
- * ProgressionApp -- Character Progression Manager for System Director.
- *
- * Replaces the roll-dice button on the character sheet header.
- * Opens a window with two tabs:
- *
- *   Level Up   -- list of level definitions; click "Apply" to grant rewards.
- *   Skill Tree -- interactive node grid; click a node to acquire it.
- *
- * In edit mode (GM only) both tabs become fully editable:
- *   Level Up  : add/remove levels, drag items onto a level, add field-change
- *               instructions, add effects.  Drag a "class" item to use it as
- *               the progression template (changes are saved back to the item).
- *   Skill Tree: resize the grid, drag items onto empty cells to create nodes,
- *               configure each node (label, field changes, maxAcquire),
- *               draw/delete connections by clicking two nodes in sequence.
- *               Drag a "skilltree" item to use it as the tree source.
- *
- * Storage
- * -------
- * Config (template definition):
- *   actor.flags.sd.progression.config = {
- *     classItemId:      null | string,   // linked class item on this actor
- *     skilltreeItemId:  null | string,   // linked skilltree item
- *     inlineLevels:     [...],           // used when no classItem is linked
- *     inlineSkilltree:  {...}            // used when no skilltree item linked
- *   }
- *
- * State (per-actor progress):
- *   actor.flags.sd.progression.state = {
- *     appliedLevel:  0,       // highest level number that has been applied
- *     acquiredNodes: {}       // { [nodeId]: count }
- *   }
- */
-
 const { ApplicationV2 } = foundry.applications.api;
 
 // Helpers
@@ -49,10 +12,6 @@ function getNestedValue(obj, path) {
   return path.split(".").reduce((cur, k) => cur?.[k], obj);
 }
 
-/**
- * Build a Foundry update-object for a single FieldChange instruction,
- * resolved against the current actor data.
- */
 function buildFieldUpdate(actor, { path, mode, value }) {
   const numVal = Number(value);
   const safe   = isNaN(numVal) ? 0 : numVal;
@@ -85,9 +44,6 @@ export class ProgressionApp extends ApplicationV2 {
   /** One instance per actor id. */
   static _instances = new Map();
 
-  /**
-   * Open (or bring to front) the progression window for the given actor.
-   */
   static open(actor) {
     let inst = ProgressionApp._instances.get(actor.id);
     if (!inst) {
@@ -145,9 +101,6 @@ export class ProgressionApp extends ApplicationV2 {
 
   // Rendering
 
-  /**
-   * ApplicationV2 low-level render hook -- build the inner HTML string.
-   */
   async _renderHTML(context, options) {
     return this._buildHTML();
   }

@@ -1,18 +1,3 @@
-/**
- * module/builder/attr-ref.mjs
- *
- * Hidden Fields & Attribute Reference System.
- *
- * Each item/actor carries system.hiddenFields: Record<string, string|number|boolean>
- * These are GM-visible key/value pairs that can be:
- *   1. Displayed as a widget on the sheet (type "text", "number" etc pointing to system.hiddenFields.key)
- *   2. Used as slot filters: drop an item → pick its hidden field → slot only accepts matching items
- *   3. Referenced in button conditions: field value comparisons
- *
- * The "declared attrs" concept: any field path on a doc can be named for easy reference.
- * hiddenFields ARE the primary storage for custom per-item attributes.
- */
-
 export const FILTER_OPERATORS = [
   { value: "==",         label: "= equals" },
   { value: "!=",         label: "≠ not equals" },

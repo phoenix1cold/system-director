@@ -1,15 +1,3 @@
-/**
- * module/documents/actor.mjs
- *
- * Extends the base Actor document with system-specific logic:
- * - Derived data that requires access to embedded Items
- * - Roll methods
- * - Active Effects helpers
- */
-
-// v14: `core.rollMode` was renamed to `core.messageMode` (old key is a
-// deprecated shim until v16).  Read the new key when available, fall back
-// to the old one so v13 and older cores keep working without throwing.
 function _sdMsgMode() {
   try {
     const v = game.settings.get("core", "messageMode");
@@ -85,7 +73,6 @@ export class SDActor extends Actor {
    */
   async rollDialog({ title, formula, label } = {}) {
     const { SdRollDialog } = await import("../helpers/roll-dialog.mjs");
-    // Fallback to safe "1d20" if system formula is empty or malformed
     const rawFormula = formula ?? this.system.rollFormula ?? "1d20";
     const safeFormula = (rawFormula && rawFormula.match(/\d+d\d+/i)) ? rawFormula : "1d20";
     return SdRollDialog.prompt({
@@ -129,10 +116,6 @@ export class SDActor extends Actor {
     });
   }
 
-  /**
-   * Returns the roll data object passed to Roll formulas.
-   * Flatly exposes system data under @attr names.
-   */
   getRollData() {
     const data = { ...this.system };
 
@@ -236,11 +219,6 @@ export class SDActor extends Actor {
   }
   // Transfer Effects bookkeeping
 
-  /**
-   * When any item is created on this actor (including on first load from DB),
-   * ensure its transferrable effects exist on the actor.
-   * Foundry calls this after all embedded documents are initialized.
-   */
   async _onCreateDescendantDocuments(parent, collection, documents, data, options, userId) {
     await super._onCreateDescendantDocuments(parent, collection, documents, data, options, userId);
     if (collection !== "items") return;
@@ -252,9 +230,6 @@ export class SDActor extends Actor {
     }
   }
 
-  /**
-   * When any item is deleted from this actor, remove its transferred effects.
-   */
   async _onDeleteDescendantDocuments(parent, collection, documents, ids, options, userId) {
     await super._onDeleteDescendantDocuments(parent, collection, documents, ids, options, userId);
     if (collection !== "items") return;

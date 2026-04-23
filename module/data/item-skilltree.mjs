@@ -1,20 +1,3 @@
-/**
- * module/data/item-skilltree.mjs
- *
- * TypeDataModel for Item subtype: "skilltree"
- *
- * A "skilltree" item stores a visual grid of skill nodes and the
- * directed connections between them.
- *
- * Each node occupies a (col, row) cell in the grid.  It can contain
- * an item snapshot, active-effect data, and field-change instructions.
- * Connections define which nodes must be acquired before unlocking
- * downstream nodes.
- *
- * A skilltree item can be dragged onto the Progression App to be
- * used as that actor's skill-tree source.
- */
-
 import { ButtonDefinitionField } from "../helpers/button-executor.mjs";
 import { SlotDefinitionField }   from "./item-slots.mjs";
 import { FieldChangeField }      from "./item-class.mjs";
@@ -54,10 +37,6 @@ export class SkillTreeData extends foundry.abstract.TypeDataModel {
           effects: new ArrayField(new ObjectField(), { initial: [] }),
           /** Field-change instructions applied on acquire. */
           fieldChanges: new ArrayField(FieldChangeField(), { initial: [] }),
-        /**
-         * How many times a player must (or can) acquire this node.
-         * maxAcquire > 1 lets nodes be "ranked" (e.g. 1/3, 2/3, 3/3).
-         */
         maxAcquire: new NumberField({ required: true, integer: true, initial: 1, min: 1, nullable: false }),
         /** Skill-point cost to acquire this node once. Defaults to 1. */
         cost: new NumberField({ required: true, integer: true, initial: 1, min: 0, nullable: false }),

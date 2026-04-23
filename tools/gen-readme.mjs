@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-/**
- * tools/gen-readme.mjs
- *
- * Generates readme.html from module/builder/formula-graph.mjs by importing
- * NODE_DEFS + CATS + helper flags and rendering a single self-contained
- * HTML document: sticky sidebar TOC, per-node sections with field / pin
- * tables, and a handful of worked-example graph pipelines.
- *
- * Run: node tools/gen-readme.mjs
- * Output: readme.html at repo root.
- */
-
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -43,9 +31,6 @@ globalThis.window      = globalThis.window      ?? globalThis;
 const mod = await import(resolve(repoRoot, "module/builder/formula-graph.mjs"));
 const { NODE_DEFS } = mod;
 
-// CATS / helper constants are defined at module scope but NOT exported.
-// We re-import the raw source and eval just the CATS literal.  (Keeping
-// the file ESM-clean avoids adding exports we don't actually want runtime.)
 const src = readFileSync(resolve(repoRoot, "module/builder/formula-graph.mjs"), "utf8");
 function extractArrayLiteral(name) {
   const m = new RegExp(`const\\s+${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`, "m").exec(src);

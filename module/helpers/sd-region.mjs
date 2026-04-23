@@ -1,32 +1,3 @@
-/**
- * sd-region.mjs -- v14-native Regions support for SD.
- *
- *   1. Provides helpers to place Aura / AoE regions via
- *      canvas.regions.placeRegions(...) when available, with a programmatic
- *      fallback for older builds.
- *
- *   2. Instead of a custom RegionBehaviorType (which requires declaring the
- *      type in system.json → documentTypes.RegionBehavior and survives a
- *      DataModel validation pipeline that rejects on-the-fly registration),
- *      we drive enter/exit effect application ourselves through a simple
- *      updateToken hook + region.testPoint() geometry check.  The config
- *      for every aura/AoE region is stored on the region itself under
- *      `flags.sd.applyEffect`, so it survives scene reload with zero
- *      additional schema work.
- *
- *   3. Hooks deleteRegion to clear lingering flagged effects.
- *
- * Shape types supported (all are native Foundry region shapes):
- *   • circle     -- radius-based disc (AoE default)
- *   • rectangle  -- axis-aligned box
- *   • ellipse    -- axisX/axisY ellipse
- *   • polygon    -- freeform poly (cone approximated)
- *   • emanation  -- token-based ring (aura default)
- */
-
-// v14: `core.rollMode` was renamed to `core.messageMode` (old key is a
-// deprecated shim until v16).  Read the new key when available, fall back
-// to the old one so v13 and older cores keep working without throwing.
 function _sdMsgMode() {
   try {
     const v = game.settings.get("core", "messageMode");
@@ -107,10 +78,6 @@ function _regionData({ name, shape, flags = {}, hidden = false }) {
   };
 }
 
-/**
- * Place a Region interactively at the cursor.
- * Returns the created RegionDocument, or null on cancel.
- */
 export async function placeRegionInteractive({ name, shape, flags = {}, hidden = false }) {
   if (!canvas?.scene) return null;
   const data = _regionData({ name, shape, flags, hidden });
@@ -134,10 +101,6 @@ export async function placeRegionInteractive({ name, shape, flags = {}, hidden =
   }
 }
 
-/**
- * Place an aura Region attached to a token.
- * Returns the created RegionDocument, or null on failure.
- */
 export async function placeAuraRegion({ ownerToken, shape, flags = {}, name }) {
   if (!canvas?.scene || !ownerToken) return null;
   const data = _regionData({ name: name ?? "SD Aura", shape, flags });
@@ -212,13 +175,6 @@ export function getRegionTokens(regionDoc) {
 }
 
 // Hook-based enter/exit effect application
-//
-// We watch updateToken for movement and recompute which SD-flagged regions
-// each token is inside.  A token that newly enters a region gains the
-// region's named effect; a token that exits has it removed.  All bookkeeping
-// lives in region.flags.sd.applyEffect (per-region) so the scene survives
-// reload without any custom schema.
-
 /** Axis-aligned point-in-polygon test (ray casting). */
 function _pointInPolygon(pt, flat) {
   if (!flat || flat.length < 6) return false;
@@ -274,8 +230,6 @@ function _tokenInside(regionDoc, tokenDoc) {
              ?? canvas.regions?.placeables?.find(r => r.document === regionDoc);
   const tokenObj = tokenDoc.object ?? canvas.tokens?.placeables?.find(t => t.document === tokenDoc);
 
-  // Fallback center: top-left + half the token's pixel footprint so tests
-  // against the token's centre, not its upper-left corner.
   const gridSize = canvas.dimensions?.size ?? canvas.grid?.size ?? 100;
   const halfW = ((Number(tokenDoc.width)  || 1) * gridSize) / 2;
   const halfH = ((Number(tokenDoc.height) || 1) * gridSize) / 2;
@@ -361,9 +315,6 @@ async function _removeNamedEffect(regionDoc, tokenDoc) {
 /** Apply damage or heal to an actor — respects hpMode (add/set). */
 async function _applyHpChange(actor, amount, cfg, kind /* "damage" | "heal" */) {
   const path = cfg.hpPath || "system.resources.hp.value";
-  // Mirror the cap logic used by every other HP path in the codebase
-  // (button-executor chatDamage / applyHp / sd.mjs damage handler): derive
-  // max from <hpPath>.max so heal auras/AoEs don't push HP above max.
   const maxPath = path.replace(/\.value$/, ".max");
   const cur = Number(foundry.utils.getProperty(actor, path)    ?? 0);
   const maxHp = Number(foundry.utils.getProperty(actor, maxPath) ?? 0);
@@ -381,22 +332,26 @@ async function _applyHpChange(actor, amount, cfg, kind /* "damage" | "heal" */) 
   return { cur, next, delta: Math.abs(next - cur) };
 }
 
-/** Resolve a damage/heal formula, honouring resistance for damage. */
-async function _rollAmount(formula, actor, cfg, kind) {
-  const rollData = actor?.getRollData?.() ?? {};
-  const bonus = String(cfg?.bonusFormula ?? "").trim();
-  const full = bonus ? `(${formula || "0"}) + (${bonus})` : String(formula || "0");
+// Resolve a damage/heal formula, honouring resistance for damage
+async function _rollAmount(formula, actor, cfg, kind, preRaw = null) {
   let amount = 0;
-  try {
-    const r = new Roll(full, rollData);
-    await r.evaluate();
-    amount = r.total;
-  } catch (e) {
-    console.warn("SD | region roll failed:", full, e);
-    return { amount: 0, roll: null, resisted: false };
+  if (preRaw !== null && preRaw !== undefined) {
+    amount = Number(preRaw) || 0;
+  } else {
+    const rollData = actor?.getRollData?.() ?? {};
+    const bonus = String(cfg?.bonusFormula ?? "").trim();
+    const full = bonus ? `(${formula || "0"}) + (${bonus})` : String(formula || "0");
+    try {
+      const r = new Roll(full, rollData);
+      await r.evaluate();
+      amount = r.total;
+    } catch (e) {
+      console.warn("SD | region roll failed:", full, e);
+      return { amount: 0, roll: null, resisted: false };
+    }
   }
   let resisted = false;
-  if (kind === "damage" && cfg.damageType) {
+  if (kind === "damage" && cfg.damageType && actor) {
     const resPath = `system.resistances.${cfg.damageType}`;
     const res = foundry.utils.getProperty(actor, resPath);
     if (res === "immune") { amount = 0; resisted = true; }
@@ -406,26 +361,26 @@ async function _rollAmount(formula, actor, cfg, kind) {
   return { amount, roll: null, resisted };
 }
 
-/**
- * Region-level chat toggle.
- *
- * `cfg.showInChat` (new) -- explicit yes/no, wins over the legacy `chatMode`.
- * `cfg.chatMode`   (legacy) -- "card" posts, anything else (incl. "auto") is silent.
- */
+async function _rollSharedAmount(cfg) {
+  const bonus   = String(cfg?.bonusFormula ?? "").trim();
+  const formula = String(cfg?.formula ?? "0");
+  const full    = bonus ? `(${formula}) + (${bonus})` : formula;
+  try {
+    const r = new Roll(full, {});
+    await r.evaluate();
+    return Number(r.total) || 0;
+  } catch (e) {
+    console.warn("SD | region shared roll failed:", full, e);
+    return 0;
+  }
+}
+
 function _chatEnabled(cfg) {
   if (cfg?.showInChat === false) return false;
   if (cfg?.showInChat === true)  return true;
   return (cfg?.chatMode ?? "auto") === "card";
 }
 
-/**
- * Should the region auto-apply HP deltas / named effects on enter / tick?
- *
- *   cfg.applyMode === "auto"  → true  (auto-apply + chat card with "Applied automatically" badge)
- *   cfg.applyMode === "card"  → false (no auto-apply; chat card gets a live Apply button)
- *   cfg.applyMode unset       → legacy path: honour `chatMode` -- "card" = manual, "auto" = auto.
- *   nothing set at all        → true  (backward compat -- old regions keep auto-applying).
- */
 function _shouldAutoApply(cfg) {
   const am = cfg?.applyMode;
   if (am === "auto") return true;
@@ -436,16 +391,6 @@ function _shouldAutoApply(cfg) {
   return true;
 }
 
-/**
- * Post a damage/heal chat card using the same interactive renderer as
- * `chatDamage` / `chatHeal` (Apply / → Selected / mult-buttons / reroll).
- *
- * The aura/AoE already auto-applied the HP change before calling us --
- * we pass `autoApplied:true` so the card shows an "Applied automatically"
- * banner instead of a live Apply button (otherwise clicking Apply would
- * double-apply the delta).  The "→ Selected" button still works for
- * splashing the same amount to other tokens the GM selects.
- */
 async function _postHpCard(actor, cfg, kind, roll, applied) {
   if (!_chatEnabled(cfg)) return;
   const isHeal = kind === "heal";
@@ -456,9 +401,6 @@ async function _postHpCard(actor, cfg, kind, roll, applied) {
 
   const autoApplied = _shouldAutoApply(cfg);
 
-  // In "card" mode nothing was auto-applied -- the rendered card needs a live
-  // Apply button and the actual rolled amount (the caller passes a synthetic
-  // applied:{delta:amount, preview:true} so we can read `amount` off of it).
   const amount = Math.abs(applied?.delta ?? applied?.amount ?? 0);
 
   const content = ButtonExecutor._buildChatCard({
@@ -479,16 +421,6 @@ async function _postHpCard(actor, cfg, kind, roll, applied) {
   try { await ChatMessage.create(payload); } catch {}
 }
 
-/**
- * Post a small interactive card with an "Apply Effect" button.  Used for
- * save-effect regions in applyMode:"card" -- the save roll already fired via
- * `_postSaveCard`, but instead of auto-applying the region's named effect on
- * failure we leave it to the GM to click a button.
- *
- * The button carries the target actor id + region id so the click handler
- * (in `sd.mjs`, next to `chat-*` click wiring) can re-derive the region
- * config and call `_applyNamedEffect` cleanly.
- */
 async function _postApplyEffectButton(actor, regionDoc, cfg) {
   if (!_chatEnabled(cfg)) return;
   const label     = cfg.effectName || cfg.flavor || "Apply Effect";
@@ -520,16 +452,6 @@ async function _postApplyEffectButton(actor, regionDoc, cfg) {
   try { await ChatMessage.create(payload); } catch {}
 }
 
-/**
- * Build the d20 core expression for a save, honouring advMode.
- *
- *   advMode = "none" → "1d20"
- *   advMode = "adv"  → cfg.advFormula (if present) else "2d20kh1"
- *   advMode = "dis"  → cfg.disFormula (if present) else "2d20kl1"
- *
- * A leading `@mod` in adv/dis formulas is stripped -- the caller appends the
- * modifier itself so the mod path stays centralised.
- */
 function _saveCoreFormula(cfg, advMode) {
   const strip = (f) => String(f ?? "").trim();
   if (advMode === "adv") return strip(cfg.advFormula) || "2d20kh1";
@@ -537,10 +459,6 @@ function _saveCoreFormula(cfg, advMode) {
   return "1d20";
 }
 
-/**
- * Show the Adv/Normal/Dis dialog via the shared ButtonExecutor helper.
- * Returns either a chosen advMode ("none"|"adv"|"dis") or `null` if cancelled.
- */
 async function _askAdvMode(cfg, actor) {
   try {
     const mod = Number(foundry.utils.getProperty(actor, cfg.saveAttr || "system.attributes.dex.value") ?? 0);
@@ -563,15 +481,6 @@ async function _askAdvMode(cfg, actor) {
   }
 }
 
-/**
- * Roll a save for a target; returns {passed, total, dc, advMode, rollFormula}.
- *
- * Respects:
- *   cfg.advMode      -- "none" | "adv" | "dis" | "ask"
- *   cfg.advFormula   -- override for the adv d20 core (default 2d20kh1)
- *   cfg.disFormula   -- override for the dis d20 core (default 2d20kl1)
- *   cfg.bonusFormula -- extra term appended to "+ @mod" (e.g. a circumstance bonus)
- */
 async function _rollSave(actor, cfg) {
   const dc = Number(cfg.dc ?? 10);
   const attrPath = cfg.saveAttr || "system.attributes.dex.value";
@@ -603,12 +512,6 @@ async function _rollSave(actor, cfg) {
   return { passed: total >= dc, total, dc, advMode, rollFormula, roll };
 }
 
-/**
- * Post a save chat card with the actual dice breakdown -- uses
- * `roll.toMessage` so the chat entry looks like a native d20 save roll
- * (with expandable dice tooltip, adv/dis tag, and pass/fail flavor).
- * Falls back to a styled HTML card if the Roll is missing.
- */
 async function _postSaveCard(actor, cfg, result) {
   if (!_chatEnabled(cfg)) return;
   const advTag = result?.advMode === "adv" ? " (Adv)"
@@ -644,18 +547,6 @@ async function _postSaveCard(actor, cfg, result) {
   try { await ChatMessage.create(payload); } catch {}
 }
 
-/**
- * Dispatch "enter" for a region/token pair. Called from updateToken + tick.
- * Returns `true` when the region actually applied something to the token
- * (used by bulk sync to decide whether a fire-and-forget AoE should be
- * deleted once, after the whole membership sweep).
- *
- * `opts.suppressAutoDelete`: when true, skip the per-token region self-delete
- * for persist:false damage/heal AoEs.  Callers that iterate the whole token
- * set (see `_resyncRegionTokens`) must pass this so every token inside the
- * AoE gets hit before the region is torn down -- otherwise the first applied
- * token used to delete the region mid-loop and the rest were skipped.
- */
 async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
   const cfg = regionDoc?.flags?.sd?.applyEffect;
   if (!cfg) return false;
@@ -675,9 +566,6 @@ async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
 
   switch (mode) {
     case "effect":
-      // "effect" mode has no chat card on its own -- when the user wants a
-      // manual-apply workflow they'll wrap it in a save-effect instead.
-      // So "effect" always applies (otherwise the aura has no observable side effect).
       await _applyNamedEffect(regionDoc, tokenDoc);
       didApply = true;
       break;
@@ -685,7 +573,7 @@ async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
     case "damage":
     case "heal": {
       if (when === "eachTurn") return false; // no immediate tick
-      const { amount } = await _rollAmount(cfg.formula || "0", actor, cfg, mode);
+      const { amount } = await _rollAmount(cfg.formula || "0", actor, cfg, mode, opts.sharedAmount ?? null);
       if (amount) {
         const applied = autoApply
           ? await _applyHpChange(actor, amount, cfg, mode)
@@ -700,9 +588,6 @@ async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
       if (when === "eachTurn") return false;
       const result = await _rollSave(actor, cfg);
       await _postSaveCard(actor, cfg, result);
-      // Only mark "applied" when the effect was actually applied (save failed),
-      // otherwise the persist=false auto-delete below would nuke the region
-      // and -- via the deleteRegion hook -- strip the effect we just created.
       if (!result.passed) {
         if (autoApply) {
           await _applyNamedEffect(regionDoc, tokenDoc);
@@ -715,18 +600,7 @@ async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
     }
   }
 
-  // Fire-and-forget AoEs: persist=false + damage/heal delete the region after
-  // the first successful application so it doesn't keep ticking.  save-effect
-  // is excluded on purpose -- its effect is tagged with `flags.sd.fromRegion`
-  // and the deleteRegion hook strips every effect with that tag, which would
-  // wipe the effect we just applied.  Save-effect AoEs rely on the `rounds`
-  // lifetime or manual removal instead.
-  //
-  // When the caller is doing a bulk membership sweep (e.g. just after
-  // `createRegion` -- every token inside the freshly placed AoE is about to
-  // get _enterRegion called) the deletion is deferred to the end of the
-  // sweep so every token inside receives the effect.  Walk-in through an
-  // existing AoE still self-deletes on first contact.
+  // Fire-and-forget AoEs
   if (
     !opts.suppressAutoDelete &&
     didApply &&
@@ -826,7 +700,6 @@ async function _resyncTokenRegions(tokenDoc) {
       _membershipCache.delete(cacheKey);
       await _exitRegion(region, tokenDoc);
     } else if (!inside) {
-      // Make sure any legacy effect from this region is cleared.
       await _exitRegion(region, tokenDoc);
     }
   }
@@ -840,6 +713,15 @@ async function _resyncRegionTokens(regionDoc) {
   const scene = regionDoc?.parent;
   if (!scene) return;
 
+  let sharedAmount = null;
+  if (
+    (cfg.rollApplyMode === "once") &&
+    (cfg.mode === "damage" || cfg.mode === "heal") &&
+    cfg.formula
+  ) {
+    sharedAmount = await _rollSharedAmount(cfg);
+  }
+
   let anyApplied = false;
   for (const token of (scene.tokens ?? [])) {
     const inside = _tokenInside(regionDoc, token);
@@ -847,10 +729,10 @@ async function _resyncRegionTokens(regionDoc) {
     const was = _membershipCache.has(cacheKey);
     if (inside && !was) {
       _membershipCache.add(cacheKey);
-      // Suppress per-token self-delete so every token inside the region
-      // receives the effect before the region tears itself down (see
-      // `_enterRegion` + Bug #2 in the patch notes).
-      const applied = await _enterRegion(regionDoc, token, { suppressAutoDelete: true });
+      const applied = await _enterRegion(regionDoc, token, {
+        suppressAutoDelete: true,
+        sharedAmount
+      });
       if (applied) anyApplied = true;
     } else if (!inside && was) {
       _membershipCache.delete(cacheKey);
@@ -858,10 +740,7 @@ async function _resyncRegionTokens(regionDoc) {
     }
   }
 
-  // End-of-sweep fire-and-forget delete for AoE damage/heal regions.
-  // Auras (flags.sd.aura) are persistent by design and never auto-delete
-  // from bulk sync; save-effect regions are excluded for the same reason
-  // as in `_enterRegion` (deleteRegion would strip the just-applied effect).
+  // End-of-sweep fire-and-forget delete for AoE damage/heal regions
   if (
     anyApplied &&
     cfg.persist === false &&
@@ -882,12 +761,7 @@ function _installHooks() {
   if (_hooksInstalled) return;
   _hooksInstalled = true;
 
-  // Token moved / changed shape → re-check its region membership.
-  // Additionally: if the moving token owns an aura-region, the region moved
-  // with it (attached regions follow their token), so we must resync that
-  // region against every other token on the scene -- otherwise stationary
-  // tokens the aura just swept over never fire _enterRegion and the aura's
-  // effect / damage / heal / save never triggers.
+  // Token moved / changed shape → re-check its region membership
   Hooks.on("updateToken", async (tokenDoc, changes) => {
     if (!game.user?.isGM) return;
     const moved = ["x", "y", "width", "height", "hidden", "elevation"].some(k => k in changes);
@@ -898,10 +772,6 @@ function _installHooks() {
     if (!scene) return;
 
     // When the owner token's footprint changes (width/height/shape), the
-    // stored emanation `base` is stale -- rebuild it before resync so the
-    // aura's tested radius reflects the new token size.  Pure x/y/elevation
-    // moves don't need a rebuild, they're reflected in region.tokens via
-    // the token reference already.
     const footprintChanged = ["width", "height", "shape"].some(k => k in changes);
 
     for (const region of (scene.regions ?? [])) {
@@ -926,15 +796,7 @@ function _installHooks() {
     }
   });
 
-  // Region created/edited → push effects and run enter dispatch.
-  // NOTE: non-persist AoEs (persist=false) are NOT auto-deleted on create --
-  // they would vanish before any token had a chance to enter.  Instead we
-  // delete inside `_enterRegion` once the first application has fired.
-  //
-  // On the very first createRegion, the PIXI placeable isn't yet rendered, so
-  // `regionDoc.object.testPoint` / `regionDoc.tokens` are empty.  Re-run the
-  // sync a few times while the canvas settles so stationary tokens caught by
-  // the freshly-placed shape get the enter-dispatch immediately.
+  // Region created/edited → push effects and run enter dispatch
   Hooks.on("createRegion", async (regionDoc) => {
     await _resyncRegionTokens(regionDoc);
     for (const delay of [50, 200, 500]) {
@@ -964,10 +826,7 @@ function _installHooks() {
   Hooks.once("canvasReady", rehydrate);
   Hooks.on("canvasReady", rehydrate);
 
-  // Region deleted → clear lingering flagged effects from every actor on scene.
-  // Honours `deactivateOnLeave` -- when the author wants effects to persist
-  // after the region is gone (e.g. a one-shot save-effect AoE that should
-  // leave lasting conditions on failing tokens), effects are kept intact.
+  // Region deleted → clear lingering flagged effects from every actor on scene
   Hooks.on("deleteRegion", async (regionDoc) => {
     if (!game.user?.isGM) return;
     const scene = regionDoc?.parent;
@@ -1022,12 +881,6 @@ export const SDRegion = {
     _installHooks();
   },
 
-  /**
-   * Public: apply the region's named effect to a specific actor.
-   * Used by the "Apply Effect" chat-card button for save-effect regions
-   * running in applyMode:"card".  Resolves the region from scene+region
-   * id so stale chat messages still work after scene switches.
-   */
   async applyRegionEffect({ sceneId, regionId, actorId }) {
     const scene = game.scenes?.get(sceneId) ?? canvas.scene;
     const regionDoc = scene?.regions?.get(regionId);

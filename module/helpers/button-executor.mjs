@@ -1,35 +1,5 @@
-/**
- * module/helpers/button-executor.mjs
- *
- * Custom Button system for System Director.
- *
- * Each item (and actor) can carry an array of ButtonDefinitions.
- * A button has:
- *   - label, icon, color
- *   - conditions (show/enabled guards)
- *   - actions (ordered chain executed on click)
- *
- * Action types:
- *   roll         - roll a dice formula, post to chat
- *   modifyField  - add/subtract/set a field value (on self, actor, slot item)
- *   createItem   - spawn a new item on the actor (e.g. a shell casing)
- *   removeItem   - delete an owned item of a given category from actor
- *   playSound    - play a sound file
- *   runMacro     - call a world macro by name
- *   message      - post a plain chat message
- *
- * Field target syntax:
- *   self.<path>                        - field on this item
- *   actor.<path>                       - field on the owning actor
- *   slots.<slotId>.<idx>.<path>        - field inside a slotted item
- *   actor.slots.<slotId>.<idx>.<path>  - slot on an actor-owned item (via item name lookup)
- */
-
 import { SlotManager } from "../data/item-slots.mjs";
 
-// v14 renamed `core.rollMode` → `core.messageMode` (old key is a deprecated
-// shim until v16).  Read the new key when available, fall back to the old
-// one so v13 and older cores keep working without throwing.
 function _sdMsgMode() {
   try {
     const v = game.settings.get("core", "messageMode");
@@ -44,26 +14,6 @@ function _sdMsgMode() {
 const { StringField, NumberField, BooleanField, ArrayField, ObjectField, SchemaField } = foundry.data.fields;
 
 // Nested-slot helpers
-/**
- * Resolves a slotPath like "topItemId/slotId/nestedId/slotId2" into
- * { parent, slotId } where parent is the plain-data object that owns the
- * final slot, and slotId is the last segment.
- *
- * For a 2-segment path ("topItemId/slotId") the parent is the live Foundry Item.
- * For deeper paths the parent is a plain data object inside slotContents.
- * Returns null if anything along the chain is missing.
- */
-/**
- * Resolves a slotPath into enough information to read/write nested slot data.
- *
- * Returns { parent, slotId, liveAncestor, snapshotChain } where:
- *   parent        -- data object that owns the final slot (may be a plain snapshot)
- *   slotId        -- the final slot id to operate on
- *   liveAncestor  -- the nearest live Foundry Item that can .update()
- *   snapshotChain -- [{slotId, itemId}] pairs from liveAncestor → parent (empty if parent IS live)
- *
- * Returns null if the root cannot be resolved.
- */
 function _resolveNestedSlotParent(actor, item, slotPath) {
   if (!slotPath) return null;
   const parts = slotPath.split("/");
@@ -88,14 +38,7 @@ function _resolveNestedSlotParent(actor, item, slotPath) {
     return { parent: current, slotId: parts[1], liveAncestor: isLive ? current : null, snapshotChain: [] };
   }
 
-  // Walk the chain from root toward the final slot.
-  // We track:
-  //   liveAncestor  -- root live item (pistol). Never changes once set.
-  //   snapshotChain -- [{slotId, itemId}] path from liveAncestor through snapshots to parent.
-  //
-  // Key insight: the slot UI widget ALWAYS reads from the snapshot stored inside
-  // liveAncestor.system.slotContents (even if a matching live actor item exists).
-  // So we MUST update the snapshot, not the live item. snapshotChain is never reset.
+  // Walk the chain from root toward the final slot
   const liveAncestor = typeof current?.update === "function" ? current : null;
   const snapshotChain = []; // [{slotId, itemId}] from liveAncestor → parent
 
@@ -115,19 +58,12 @@ function _resolveNestedSlotParent(actor, item, slotPath) {
   return { parent: current, slotId: parts[parts.length - 1], liveAncestor, snapshotChain };
 }
 
-/**
- * Remove an item at `index` from slot `slotId` on the resolved parent.
- * Handles both live items (direct update) and snapshots (update liveAncestor).
- */
 async function _nestedRemoveFromSlot(resolved, slotId, index) {
   const { parent, liveAncestor, snapshotChain } = resolved;
   const SM = (await import("../data/item-slots.mjs")).SlotManager;
   const actor = liveAncestor?.parent ?? liveAncestor?.actor ?? null;
 
-  // Find the live item that actually owns the target slot.
-  // Walk the chain: the last step's itemId is the direct parent of slotId.
-  // If that item is live in actor.items, operate on it directly.
-  // SDItem._onUpdate will then auto-refresh its snapshot inside liveAncestor.
+  // Find the live item that actually owns the target slot
   if (snapshotChain.length > 0 && actor) {
     const lastStep = snapshotChain[snapshotChain.length - 1];
     const liveParent = actor.items.get(lastStep.itemId) ?? null;
@@ -137,7 +73,6 @@ async function _nestedRemoveFromSlot(resolved, slotId, index) {
     }
   }
 
-  // Fallback: operate directly on parent if it is live
   if (typeof parent?.update === "function") {
     return SM.removeFromSlot(parent, slotId, index);
   }
@@ -161,10 +96,6 @@ async function _nestedRemoveFromSlot(resolved, slotId, index) {
   await liveAncestor.update({ "system.slotContents": cloned });
 }
 
-/**
- * Add srcItem to slot `slotId` on the resolved parent.
- * Handles both live items (direct update) and snapshots (update liveAncestor).
- */
 async function _nestedAddToSlot(resolved, slotId, srcItem) {
   const { parent, liveAncestor, snapshotChain } = resolved;
   const SM = (await import("../data/item-slots.mjs")).SlotManager;
@@ -184,7 +115,6 @@ async function _nestedAddToSlot(resolved, slotId, srcItem) {
     return SM.addToSlot(parent, slotId, srcItem);
   }
 
-  // Fallback: write snapshot manually
   if (!liveAncestor) { console.error("SD | nestedAddToSlot: no liveAncestor"); return; }
   const cloned = foundry.utils.deepClone(liveAncestor.system.slotContents ?? {});
   let node = cloned;
@@ -323,12 +253,6 @@ export class ConditionEvaluator {
 // Action Executor
 
 // Target resolution
-// Resolves "actor" | "token_target" | "selected_token" to an Actor document.
-//
-// Unified fallback chain so actions never silently do nothing:
-//   token_target  → targeted token  → selected token  → own actor
-//   selected_token→ selected token  → targeted token  → own actor
-//   actor         → own actor (no canvas lookup)
 function _resolveTarget(mode, actor) {
   if (mode === "actor") return actor ?? null;
   const targeted = game.user.targets?.first()?.actor ?? null;
@@ -337,12 +261,6 @@ function _resolveTarget(mode, actor) {
   return targeted ?? selected ?? actor ?? null; // token_target (default)
 }
 
-/**
- * PR13: resolve a list of target actors for plural modes.  Used by
- * chatDamage/AoE/for-each-target when the user wants to fan-out across
- * whatever is currently targeted or selected.  Empty list falls back to the
- * selected token (dnd5e-style "I forgot to click the target") → own actor.
- */
 function _resolveAllTargets(mode, actor) {
   if (mode === "all_targets") {
     const targeted = [...(game.user.targets ?? [])].map(t => t.actor).filter(Boolean);
@@ -355,20 +273,6 @@ function _resolveAllTargets(mode, actor) {
   return single ? [single] : [];
 }
 
-/**
- * Read a target actor's damage resistance for a given damageType.
- *
- * Consulted sources (first hit wins):
- *   1. `system.resistances[type]` -- structured map added in PR11.
- *        Values: "immune" | "resist" | "resistant" | "normal" | "vulnerable"
- *                | numeric factor (e.g. 0.5) or numeric string.
- *   2. `system.traits.*` string arrays (NPC) -- `immunities` / `resistances` /
- *        `vulnerabilities`, each containing lowercased damageType strings.
- *
- * Returns `{factor, label}` where factor is the multiplier applied to the
- * damage amount and label is a short human-readable tag for chat cards
- * (empty string when the damage is unmodified).
- */
 function _resistanceFactor(tActor, damageType) {
   if (!tActor || !damageType) return { factor: 1, label: "" };
   const key = String(damageType).toLowerCase().trim();
@@ -413,9 +317,6 @@ function _savePassedVal(v) {
 
 export class ButtonExecutor {
 
-  /**
-   * Execute all actions on a button definition.
-   */
   static async execute(button, item, actor) {
     if (!ConditionEvaluator.evaluate(button, item, actor)) {
       ui.notifications.warn(game.i18n.format("SD.Buttons.ConditionFailed", { label: button.label }));
@@ -432,11 +333,7 @@ export class ButtonExecutor {
   }
 
   static async _runAction(action, item, actor, buttonDef = null, runtime = {}) {
-    // Inject accumulated runtime values (e.g. from rollValue, rollTable, forLoop)
-    // into formula resolution.  All values come from the per-execution `runtime`
-    // object, NOT from a class-level field, so parallel calls can't interfere.
-    // Strip string values that look like dice notation (e.g. "1d6") from roll data.
-    // Foundry v13 creates unresolvable StringTerms for these if left in rollData.
+    // Inject accumulated runtime values (e
     const _sanitizeRollData = (data) => Object.fromEntries(
       Object.entries(data ?? {}).map(([k, v]) =>
         [k, (typeof v === "string" && /^\s*\d*d\d+/i.test(v)) ? 0 : v]
@@ -472,10 +369,7 @@ export class ButtonExecutor {
       if (runtime.__loopIndex !== undefined) {
         formula = formula.replace(/\{__loopIndex\}/g, String(runtime.__loopIndex));
       }
-      // Save Branch AoE: comma-joined token-id lists captured after placement.
-      // Set by the "sd-chat-aoe-save-branch-btn" handler in sd.mjs.  These tokens
-      // are meant to be consumed by act_for_each_target-style iterators that
-      // split a comma list; scalar consumers fall back to the list string.
+      // Save Branch AoE
       const _tokList = (arr) => Array.isArray(arr) ? arr.join(",") : String(arr ?? "");
       if (runtime.savedTargets !== undefined) {
         formula = formula.replace(/\{__savedTargets\}/g, _tokList(runtime.savedTargets));
@@ -510,14 +404,11 @@ export class ButtonExecutor {
       } else {
         formula = formula.replace(/\{__macroArg:[a-z]\}/g, "0");
       }
-      // Graph-scoped variables: read from actor.flags.sd.vars.<name> with default fallback.
-      // Pattern: {__var:name|default}
       formula = formula.replace(/\{__var:([A-Za-z0-9_]+)\|([^}]*)\}/g, (_, name, dflt) => {
         const vars = foundry.utils.getProperty(actor ?? {}, "flags.sd.vars") ?? {};
         const v = vars[name];
         return v === undefined || v === null ? dflt : String(v);
       });
-      // PR14: equip state tokens.
       if (formula.includes("{__sdIsEquipped}")) {
         const v = item?.system?.equipped ? 1 : 0;
         formula = formula.replace(/\{__sdIsEquipped\}/g, String(v));
@@ -601,8 +492,6 @@ export class ButtonExecutor {
         await roll.evaluate();
         if (buttonDef) buttonDef.__lastRoll = roll.total;
         if (rollData)  rollData.__lastRoll  = roll.total;
-        // Persist last roll into actor flags so passive display widgets
-        // (Dice Tray etc.) can read it across sheet re-renders. PR7.
         if (safeActor) {
           try {
             await safeActor.setFlag("sd", "lastRoll", {
@@ -748,7 +637,6 @@ export class ButtonExecutor {
             }
           } catch(e) { console.warn("SD | createItem uuid error:", e); }
         }
-        // Fallback: create blank item by name if no UUID
         if (action.itemName) {
           await actor.createEmbeddedDocuments("Item", [{
             name: action.itemName,
@@ -1021,9 +909,6 @@ export class ButtonExecutor {
       }
 
       case "addToSlot": {
-        // Add an item (by name or UUID) to a slot.
-        // Works from item sheets, character-sheet widget buttons, and world items (no actor).
-        // When actor is null (world item not embedded in actor), item itself is the context.
         const _slotCtx = actor ?? item ?? null;
         if (!_slotCtx) break;
 
@@ -1034,7 +919,6 @@ export class ButtonExecutor {
         if (action.slotPath) {
           _resolved = _resolveNestedSlotParent(actor, item, action.slotPath);
         }
-        // Fallback: search by slotId across actor items (no slotPath or resolution failed)
         let slotParent = _resolved?.parent ?? null;
         if (!slotParent) {
           const itemHasSlot = !!item?.system?.slotDefinitions?.find?.(d => String(d.id) === _sid);
@@ -1351,7 +1235,6 @@ export class ButtonExecutor {
       }
 
       case "playSound": {
-        // Support both legacy soundPath and new src field
         const soundSrc = action.src ?? action.soundPath;
         if (soundSrc) {
           const vol  = (action.volume !== undefined && action.volume !== null) ? Number(action.volume) : 0.8;
@@ -1396,7 +1279,6 @@ export class ButtonExecutor {
 
           // Step 3: Evaluate the now-numeric condition
           const resolved = FormulaEngine.evaluate(cond, item ?? actor);
-          // resolved may be boolean (from comparisons like 3<2), number, or string fallback
           if (typeof resolved === "boolean") {
             pass = resolved;
           } else {
@@ -1411,7 +1293,6 @@ export class ButtonExecutor {
       }
 
       case "message": {
-        // Collect parts: from messageParts array (dynamic pins) or legacy messageText
         const rawParts = action.messageParts?.length
           ? action.messageParts
           : [action.messageText ?? action.text ?? ""];
@@ -1552,7 +1433,6 @@ export class ButtonExecutor {
 
         if (buttonDef) { buttonDef.__lastRoll = total; buttonDef.__lastMargin = margin; }
 
-        // PR13: opposed-roll chat card -- resolves async via button clicks.
         if (action.opposed) {
           const n = Math.max(1, Math.min(16, Number(action.opposedCount ?? 1) || 1));
           const oppFormula = String(action.opposedFormula ?? "1d20");
@@ -1567,9 +1447,6 @@ export class ButtonExecutor {
             oppFormula,
             oppCount:       n,
             opponents:      [], // filled in as buttons are clicked
-            // PR13 hotfix: persist enough context to run the won/lost branches
-            // from the chat-card resolver in sd.mjs.  Only one client (the
-            // original user) dispatches, avoiding double-fires.
             actorUuid:      actor?.uuid ?? null,
             itemUuid:       item?.uuid  ?? null,
             userId:         game.user?.id ?? null,
@@ -1761,9 +1638,6 @@ export class ButtonExecutor {
 
       case "throwOnCanvas":
       case "throwOnSheet": {
-        // Roll N dice and visually scatter them on the canvas (PIXI overlay)
-        // or on the actor's sheet DOM. Also computes successes against target
-        // like dicePool and branches pass/fail.
         const { FormulaEngine } = await import("./formula-engine.mjs");
         const doc = item ?? actor ?? {};
         const count  = Math.max(0, Number(FormulaEngine.evaluate(String(action.count  ?? "0"), doc)) | 0);
@@ -1857,10 +1731,6 @@ export class ButtonExecutor {
       case "chatDamage":
       case "chatHeal": {
         // Runtime-inject every field that may carry a pin token ({__lastRoll},
-        // {__lastMargin}, {widgetPath:...}, etc.) -- not just `amount`.  Prior
-        // to this PR, `savePassed` / `damageType` were passed through verbatim
-        // which meant wiring them from a roll-check's output pin silently
-        // failed (tokens never resolved → resistance/halfOnSave ignored).
         action = {
           ...action,
           amount:      _injectRuntime(action.amount),
@@ -1888,7 +1758,6 @@ export class ButtonExecutor {
           amount = Number(FormulaEngine.evaluate(amtStr, item ?? actor)) || 0;
         }
 
-        // PR11: half-damage-on-save short-circuit (damage only).
         if (!isHeal && action.halfOnSave && _savePassedVal(action.savePassed)) {
           amount = Math.floor(amount / 2);
         }
@@ -1897,14 +1766,12 @@ export class ButtonExecutor {
         const tMode     = action.target ?? "actor";
         const autoApply = action.autoApply === true || action.autoApply === "yes";
 
-        // PR13: fan out across user.targets with selected-token fallback.
         const tActors = _resolveAllTargets(tMode, actor);
 
         // If nothing was targeted, still send a card with no target shown
         const targets = tActors.length ? tActors : [null];
 
         for (const tActor of targets) {
-          // PR11: per-target resistance/vulnerability/immunity scaling.
           let finalAmount = amount;
           let resLabel    = "";
           if (!isHeal && tActor && action.damageType) {
@@ -1948,8 +1815,6 @@ export class ButtonExecutor {
         }
         break;
       }
-
-      // New action types added in SD patch
 
       case "gate": {
         // Pass-through only if condition is truthy; otherwise stops exec chain
@@ -2112,9 +1977,6 @@ export class ButtonExecutor {
       }
 
       case "forLoop": {
-        // Execute loopActions (or bodyActions, for act_loop generic-branch form)
-        // N times, injecting current index as __loopIndex.  Optional delay in ms
-        // between iterations.
         const { FormulaEngine } = await import("./formula-engine.mjs");
         const _evalNum = (raw, fb = 0) => {
           try {
@@ -2141,9 +2003,6 @@ export class ButtonExecutor {
       }
 
       case "delay": {
-        // Sleep N milliseconds, then continue exec chain via `execActions`
-        // (emitted by generic-branch isAction compiler).  Supports legacy
-        // shape where delay is an isAction node (no branched sub-actions).
         const { FormulaEngine } = await import("./formula-engine.mjs");
         let ms = 0;
         try {
@@ -2220,9 +2079,6 @@ export class ButtonExecutor {
       }
 
       case "macroCall": {
-        // Call a compiled subgraph (macro) registered on buttonDef.__macros.
-        // Args are resolved strings pushed onto runtime.__macroStack so that
-        // {__macroArg:a..d} inside the macro body resolves correctly.
         const { FormulaEngine } = await import("./formula-engine.mjs");
         const macros = buttonDef?.__macros ?? {};
         const mid    = String(action.macroId ?? "");
@@ -2333,17 +2189,6 @@ export class ButtonExecutor {
       }
 
       // Dialog Switch
-      // Shows a modal dialog listing named exec outputs.
-      // The user picks one; that branch's actions run.
-      // action = {
-      //   type: "dialogSwitch",
-      //   title: "Choose action",
-      //   outputs: [
-      //     { label: "Strike", actions: [...] },
-      //     { label: "Parry",  actions: [...] },
-      //     ...  up to 8
-      //   ]
-      // }
       case "dialogSwitch": {
         // Show a dialog with N named buttons; run the actions for the chosen branch.
         const outputs = (action.outputs ?? []).filter(o => o?.label);
@@ -2436,13 +2281,6 @@ export class ButtonExecutor {
       }
 
       // Place Aura (unified) -- native v14 Region attached to owner token
-      // Four modes, same placement pipeline:
-      //   effect        -- applies an Active Effect while tokens are inside
-      //   damage        -- rolls damage (onEnter and/or each turn)
-      //   heal          -- rolls healing (onEnter and/or each turn)
-      //   save-effect   -- rolls a save; applies Active Effect on failure
-      // Per-region behaviour lives in region.flags.sd.applyEffect (read by
-      // module/helpers/sd-region.mjs hooks -- no custom RegionBehaviorType).
       case "placeAura":
       case "placeAuraEffect":
       case "placeAuraDamage":
@@ -2450,9 +2288,6 @@ export class ButtonExecutor {
       case "placeAuraSaveEffect": {
         if (!canvas?.scene) break;
         // Resolve runtime tokens in formula fields so `act_roll_value →
-        // Formula` pins (which compile to `{__lastRoll}`) land correctly
-        // in the persisted region cfg.  Without this the aura/AoE region
-        // saw a literal `{__lastRoll}` string and rolled 0 per tick.
         action = {
           ...action,
           formula:      action.formula      != null ? _injectRuntime(String(action.formula))      : action.formula,
@@ -2484,8 +2319,6 @@ export class ButtonExecutor {
         const effName   = String(action.name    ?? "Aura");
         const rounds    = Number(action.rounds  ?? 0) || 0;
 
-        // Derive mode from action.type (new explicit cases) or action.mode
-        // (legacy "placeAura" with mode field).
         const modeMap = {
           placeAuraEffect:      "effect",
           placeAuraDamage:      "damage",
@@ -2507,11 +2340,11 @@ export class ButtonExecutor {
           ownerTokenId:      ownerToken.id,
           changes:           Array.isArray(action.changes) ? action.changes : [],
           tickMode:          action.tickMode ?? "onEnter",
-          // Chat output: explicit showInChat wins, chatMode kept for back-compat.
           showInChat:        action.showInChat !== false,
           chatMode:          action.chatMode ?? "auto",
           // v6: explicit auto/card toggle -- when undefined falls back to chatMode.
           applyMode:         action.applyMode ?? "auto",
+          rollApplyMode:     action.rollApplyMode ?? "per_target",
           visibility:        action.visibility ?? "everyone",
           deactivateOnLeave: action.deactivateOnLeave !== false,
           conditionEffect:   action.conditionEffect ?? "",
@@ -2555,9 +2388,6 @@ export class ButtonExecutor {
       }
 
       // Place AoE -- post a chat card with an interactive Place button
-      // Same four modes as auras; the chat button in sd.mjs collects the
-      // placement point and creates a (non-attached) SD region there with
-      // flags.sd.applyEffect pre-populated.
       case "placeAoeEffect":
       case "placeAoeDamage":
       case "placeAoeHeal":
@@ -2604,6 +2434,7 @@ export class ButtonExecutor {
           chatMode:          action.chatMode ?? "auto",
           // v6: explicit auto/card toggle -- when undefined falls back to chatMode.
           applyMode:         action.applyMode ?? "auto",
+          rollApplyMode:     action.rollApplyMode ?? "per_target",
           visibility:        action.visibility ?? "everyone",
           deactivateOnLeave: action.deactivateOnLeave !== false,
           conditionEffect:   action.conditionEffect ?? "",
@@ -2655,18 +2486,9 @@ export class ButtonExecutor {
         break;
       }
 
-      // AoE -- Save Branch.  Unlike placeAoeSaveEffect (which installs a
-      //    persistent region and applies a named effect on fail), this node
-      //    places a one-shot template, rolls saves for every token caught
-      //    inside, then fires the compiled `passActions` / `failActions`
-      //    sub-graphs.  Saved / failed / all token-id arrays are exposed via
-      //    runtime so the branch sub-actions can fan damage / heal / effects
-      //    across them.
+      // AoE -- Save Branch
       case "placeAoeSaveBranch": {
         // Resolve runtime tokens (same as placeAura*/placeAoe* above) so a
-        // `Roll → Value` piped into an AoE Save Branch's DC/formula pins
-        // actually becomes a number in the stored cfg, not the literal
-        // `{__lastRoll}` string.
         action = {
           ...action,
           dc:           action.dc           != null ? _injectRuntime(String(action.dc))           : action.dc,
@@ -2758,7 +2580,6 @@ export class ButtonExecutor {
           }
         }
 
-        // Legacy MeasuredTemplate auras (pre-Region migration) -- still clean those up.
         const legacyMatched = (canvas.scene.templates ?? []).filter(t => {
           const a = t.flags?.sd?.aura;
           return a && a.ownerTokenId === ownerToken.id && a.key === key;
@@ -2981,9 +2802,6 @@ export class ButtonExecutor {
     }
   }
 
-  // Static helper -- show a save dialog to the owning user, await their roll.
-  // Returns the numeric roll total (1d20 + mod).
-  // If the user doesn't respond within `timeout` seconds, auto-rolls for them.
   static async _requestSaveDialog({ saveActor, saveMod, dc, flavor, rollFormula = "1d20", timeout = 60 }) {
     // Figure out who owns this actor
     const ownerIds = Object.entries(saveActor.ownership ?? {})
@@ -3009,7 +2827,6 @@ export class ButtonExecutor {
       };
       game.socket.on("system.sd", handler);
 
-      // Timeout fallback -- auto-roll for the player if they don't respond
       const timer = setTimeout(async () => {
         game.socket.off("system.sd", handler);
         ui.notifications.warn(`SD | ${saveActor.name}: save timeout — auto-rolling.`);
@@ -3039,10 +2856,6 @@ export class ButtonExecutor {
   }
 
   // Show the save dialog locally (current user owns this actor)
-  // Roll Dialogue -- shown before rollValue / save when rollDialogue:true.
-  // Lets the user choose Disadvantage / Normal / Advantage and add a bonus.
-  // advFormula and disFormula come from node pins/fields (set in the graph).
-  // Returns { formula, mode, cancelled }.
   static async _showRollDialogue({ flavor, baseFormula, advFormula, disFormula, actor }) {
     // v14-friendly DialogV2 implementation -- no jQuery, no Dialog v1.
     const { DialogV2 } = foundry.applications.api;
@@ -3264,13 +3077,7 @@ export class ButtonExecutor {
       dlg.render(true);
     });
   }
-  // Produces a dnd5e-style interactive card for chatDamage / chatHeal.
-  //
-  // Stored data attributes allow the renderChatMessageHTML hook to wire:
-  //   • Re-roll button          (re-evaluates the original formula)
-  //   • Damage multipliers      (½ ¼ ⅛ ×2 ×4)
-  //   • Target-mode toggle      (targeted token ↔ selected token)
-  //   • Apply-to-selected       (override stored target at click time)
+  // Produces a dnd5e-style interactive card for chatDamage / chatHeal
   static _buildChatCard({ type, label, amount, srcName, srcImg, tActor, hpPath,
                            showApply = true, rollFormula = null, srcActorId = null,
                            autoApplied = false }) {

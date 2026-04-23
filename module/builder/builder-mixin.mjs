@@ -1,20 +1,3 @@
-/**
- * module/builder/builder-mixin.mjs
- *
- * BuilderMixin -- applied to CharacterSheet, NPCSheet, SDItemSheet.
- *
- * Adds:
- *  - Custom tabs rendering (from system.customTabs)
- *  - Edit Mode toggle
- *  - Drop zones for New Tab / Widget drops from Toolbox
- *  - Widget interactions: roll, toggle, number step
- *  - Widget config popup on gear click
- *  - Row/widget CRUD forwarding to GridManager
- *
- * Usage:
- *   class CharacterSheet extends BuilderMixin(HandlebarsApplicationMixin(ActorSheetV2)) { ... }
- */
-
 import { GridManager }    from "./grid-manager.mjs";
 import { WidgetRenderer } from "./widget-renderer.mjs";
 import { WIDGET_TYPES, KNOWN_PATHS } from "./widget-registry.mjs";
@@ -367,13 +350,9 @@ export function BuilderMixin(Base) {
     }
 
     _wireWidgetInteractions() {
-      // Widget text/number inputs use name= attributes → handled by AppV2 form (submitOnChange).
-      // Dice/toggle/step buttons use data-action= → handled by _onBuilderClick click delegation.
-      // This method is a hook for any extra wiring needed per sheet type.
       const root = this.element;
       if (!root) return;
 
-      // Wire any input that has data-path but no name= (fallback for widgets not using form names)
       root.querySelectorAll(".widget input[data-path]:not([name])").forEach(inp => {
         inp.addEventListener("change", async () => {
           const path = inp.dataset.path;
@@ -649,7 +628,6 @@ export function BuilderMixin(Base) {
         popup.style.top  = `${Math.max(10, top)}px`;
         popup.style.left = `${left}px`;
       } else {
-        // Center of screen as fallback
         popup.style.top  = "50%";
         popup.style.left = "50%";
         popup.style.transform = "translate(-50%, -50%)";

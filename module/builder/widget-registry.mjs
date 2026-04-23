@@ -1,10 +1,3 @@
-/**
- * module/builder/widget-registry.mjs
- *
- * Defines all available widget types for the Visual Sheet Builder.
- * Each entry describes: icon, label, default config, config fields.
- */
-
 export const WIDGET_TYPES = {
 
   text: {
@@ -345,10 +338,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Token Tracker -- clickable pip/token counters (stress, fate, momentum).
-   * PR6 rewrite: click-to-fill semantics identical to the Clock widget.
-   */
   tracker: {
     id:    "tracker",
     label: "Token Tracker",
@@ -377,12 +366,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Counter -- large ±N stepper with optional min/max clamp and custom step.
-   * PR6 addition.  Different from `number` in that there is no inline label
-   * input -- just the big number with ± buttons, suitable for metacurrencies
-   * (Fate points, Momentum, Hold, Devil's Bargains, etc.).
-   */
   counter: {
     id:    "counter",
     label: "Counter",
@@ -407,11 +390,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Roll Button -- pre-configured dice-roll button with label + formula + flavor
-   * + icon.  Different from the generic `button` in that it is guaranteed to
-   * output a chat message with a roll, without needing a graph.  PR6 addition.
-   */
   rollButton: {
     id:    "rollButton",
     label: "Roll Button",
@@ -434,13 +412,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Token Pool -- row of metacurrency/token icons with an integrated spend / gain
-   * button pair.  Visually a tracker + stepper combo, but semantically always
-   * acts on a single counter value (no reset-to-0 button).  PR7 addition.
-   *
-   * Typical uses: Fate points, Momentum, Blades Stress, Apocalypse Hold, etc.
-   */
   tokenPool: {
     id:    "tokenPool",
     label: "Token Pool",
@@ -469,11 +440,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Dice Tray -- passive display of the last roll made via any SD action.
-   * Reads from `actor.flags.sd.lastRoll` (written by Button Executor after
-   * every rollValue / rollCheck / tieredRoll / dicePool).  PR7 addition.
-   */
   diceTray: {
     id:    "diceTray",
     label: "Dice Tray",
@@ -567,11 +533,6 @@ export const WIDGET_PALETTE_ORDER = [
   "select", "tags", "image", "section", "richtext"
 ];
 
-/**
- * Common configField appended to every widget in the builder UI.
- * showIf: a formula (same syntax as FormulaEngine) that controls visibility.
- * If blank the widget is always shown.
- */
 export const WIDGET_COMMON_FIELDS = [
   { key: "showIf",    type: "text",     label: "Show if (formula, blank=always)", mono: true, placeholder: "{system.advancement.level} >= 5" },
   { key: "widgetKey", type: "text",     label: "Widget Key (for Get Widget node)", placeholder: "myUniqueKey" },

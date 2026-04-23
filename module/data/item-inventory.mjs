@@ -1,7 +1,3 @@
-/**
- * module/data/item-inventory.mjs  (System Director)
- */
-
 import { RollConfigField }    from "./common.mjs";
 import { SlotDefinitionField, SlotContentField } from "./item-slots.mjs";
 import { ButtonDefinitionField } from "../helpers/button-executor.mjs";
@@ -30,9 +26,6 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
       price:    new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
       currency: new StringField({ initial: "gp", blank: false }),
       equipped:    new BooleanField({ initial: false }),
-      // PR14: mark item as wearable/wieldable -- gates the sheet's Equip button
-      // and the on_equip / on_unequip event triggers.  Default true for
-      // gear-like categories, false for the rest (see migrateData below).
       equippable:  new BooleanField({ initial: false }),
       // Optional GM-authored formula/predicate; evaluated before Equip runs.
       // Empty string ⇒ no restriction.
@@ -96,7 +89,6 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
   }
 
   static migrateData(source) {
-    // PR14: back-fill equippable for pre-existing items by category.
     if (source && source.equippable === undefined) {
       const cat = source.category ?? "gear";
       source.equippable = ["weapon","armor","shield","tool"].includes(cat);

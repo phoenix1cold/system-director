@@ -1,36 +1,3 @@
-/**
- * module/helpers/formula-engine.mjs  -- System Director
- *
- * Evaluates formula strings against a document context.
- *
- * Syntax reference
- *
- *  {path}                        → value at foundry path on the actor/item
- *  {item:Name.system.field}      → field on actor-owned item named "Name"
- *  {item:id:ITEMID.system.field} → field on item by id
- *  {slotCount:slotId}            → number of items in slot (self/actor)
- *  {nestedSlotCount:itemId/sId/nestedId/sId2/...} → slot count on a deeply nested item
- *  {slot:slotId.0.system.field}  → field inside slot contents[0]
- *  floor({...})                  → math function
- *  ceil({...})                   → math function
- *  round({...})                  → math function
- *  max(a, b)                     → math function
- *  min(a, b)                     → math function
- *  abs({...})                    → math function
- *  ({cond} ? {then} : {else})    → ternary
- *  Standard dice: 1d20, 2d6+3    → kept as-is for Roll (in roll mode)
- *
- * Two evaluation modes
- *
- *  FormulaEngine.evaluate(formula, doc)
- *    → resolves all {refs} and evaluates math → returns a number or string
- *    → used for widget value display
- *
- *  FormulaEngine.resolveForRoll(formula, doc)
- *    → resolves {refs} to numbers → returns a dice formula string
- *    → used for Roll button formulas like "1d20 + {system.attributes.attr1.mod}"
- */
-
 export class FormulaEngine {
 
   // Public API
@@ -79,8 +46,6 @@ export class FormulaEngine {
         .replace(/К/g,"K").replace(/М/g,"M").replace(/Т/g,"T");
       result = this._resolveRefs(result, doc, true);
 
-      // Warn if bare dot-paths remain (no braces) -- detect "word.word.word" not dice
-      // Attempt to auto-resolve them as a fallback
       result = result.replace(/\b([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*){1,})\b/gi, (match) => {
         // Skip dice notation like "1d20" patterns already resolved
         if (/^\d+d\d+/i.test(match)) return match;
@@ -113,9 +78,6 @@ export class FormulaEngine {
     }
   }
 
-  /**
-   * Check if a string contains any formula refs (i.e. is a formula, not a plain path).
-   */
   static isFormula(str) {
     return /[{}+\-*\/]|floor|ceil|round|max|min|abs|item:|slot/.test(str ?? "");
   }
@@ -159,9 +121,6 @@ export class FormulaEngine {
       return 0;
     }
 
-    // widgetPath:keyName -- resolve to the widget's bound data path (as a string token
-    // wrapped in braces so other nodes can treat it as a live path). This lets the
-    // graph WRITE back to whatever path the widget is wired to.
     if (token.startsWith("widgetPath:")) {
       const key = token.slice("widgetPath:".length);
       const w   = this._findWidgetByKey(doc, key);
@@ -239,23 +198,16 @@ export class FormulaEngine {
           ?? 0;
     }
 
-    // nestedSlotCount:root/slotId/nestedItemId/slotId2/.../finalSlotId
-    // root is "self" (the item), "actor", or a Foundry item id.
-    // Path layout: [ root, slotId, nestedItemId, slotId, nestedItemId, ..., finalSlotId ]
-    // At every step we prefer the LIVE actor item (up-to-date data) over the
-    // stale snapshot copy stored inside parent's slotContents.
+    // nestedSlotCount
     if (token.startsWith("nestedSlotCount:")) {
       const parts = token.slice("nestedSlotCount:".length).split("/");
       if (parts.length < 3) return 0;
       const actor = doc instanceof Actor ? doc : doc.actor ?? null;
-      // Resolve root. New paths use real item ids so actor.items.get() works from
-      // both the item sheet and the actor sheet. "self"/"actor" are legacy/special cases.
       let current;
       const root = parts[0];
       if (root === "actor") {
         current = actor;
       } else if (root === "self") {
-        // Legacy: try doc if it is an item; if doc is an actor the path is unresolvable
         current = (doc instanceof Actor) ? null : doc;
       } else {
         // Real item id -- resolve via live actor items (works regardless of who fired the button)
@@ -264,10 +216,7 @@ export class FormulaEngine {
         if (!current && doc && !(doc instanceof Actor) && doc.id === root) current = doc;
       }
       if (!current) return 0;
-      // Walk pairs: slotId at i, nestedItemId at i+1.
-      // ALWAYS follow the snapshot chain -- the slot UI widget and button actions
-      // both read/write the snapshot stored in slotContents, so we must read from
-      // the same source for consistency.
+      // Walk pairs
       let i = 1;
       while (i + 1 < parts.length) {
         const slotId   = parts[i];
@@ -386,12 +335,8 @@ export class FormulaEngine {
     // random -- built-in: used by random_num node compile output
     if (token === "random") return Math.random();
 
-    // plain path on doc -- try the doc first, then its parent actor as fallback.
-    // This lets {system.attributes.str.value} (an actor path) work correctly
-    // even when the formula is evaluated in an item context (e.g. ability spell).
     const val = foundry.utils.getProperty(doc, token);
     if (val !== undefined && val !== null && typeof val !== "object") return val;
-    // Fallback: if doc is an item, try the owning actor
     const _actor2 = (doc instanceof Actor) ? null : (doc?.actor ?? null);
     if (_actor2) {
       const val2 = foundry.utils.getProperty(_actor2, token);

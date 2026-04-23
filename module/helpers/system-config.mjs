@@ -1,12 +1,3 @@
-/**
- * module/helpers/system-config.mjs
- *
- * SystemConfig -- in-game GM configuration panel.
- * Lets you add/remove/rename: attributes, resources.
- * Skills removed - skill is now an item.
- * Rolls are defined directly in sheets.
- */
-
 import { TabManager } from "./tabs.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -89,9 +80,6 @@ export function loadSettings() {
     }
   }
 
-  // Migration: old uiFontSize/uiBtnFontSize → uiScale
-  // If saved data has the old fields but no uiScale yet, derive a rough scale
-  // from the old font size (13px = 100%, so scale% = fontSize/13 * 100).
   if (result.uiScale === undefined) {
     const oldSize = Number(result.uiFontSize ?? 13);
     result.uiScale = Math.round((oldSize / 13) * 100 / 5) * 5; // snap to step-5

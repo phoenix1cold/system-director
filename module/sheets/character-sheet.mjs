@@ -1,15 +1,3 @@
-/**
- * module/sheets/character-sheet.mjs
- *
- * Blank canvas sheet. No preset tabs.
- * Everything is built via the Toolbox drag-drop builder.
- *
- * PARTS:
- *   header  -- portrait, name, basic token bars
- *   tabnav  -- nav bar (built tabs + "+" drop zone)
- *   canvas  -- custom tab panels rendered via JS
- */
-
 import { TabManager } from "../helpers/tabs.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { GridManager }    from "../builder/grid-manager.mjs";
@@ -18,12 +6,6 @@ import { ButtonExecutor } from "../helpers/button-executor.mjs";
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
-/**
- * Shared prompt for tab rename dialogs used by _addTab and _renameTab.
- * Returns the trimmed name on Save, or null on Cancel / empty.
- * `modal:true` keeps the dialog in the browser top-layer so it renders above
- * the sheet and any graph windows.
- */
 function _promptTabName(current = "") {
   return new Promise(resolve => {
     const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
@@ -109,15 +91,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     TabManager.activate(this);
   }
 
-  /**
-   * Delegated listener for tracker / clock interactions -- survives partial
-   * re-renders of nested widgets (slot rows, inventory rows, spellbook rows)
-   * where _wireWidget() is not called again for the inner cell.
-   *
-   * v2 (PR6): tracker click semantics match the clock widget -- click pip N
-   * fills to N+1; click already-filled pip N unfills back to N.  No more
-   * shift/right-click overloads.  Reset button always sets to 0.
-   */
   _wireTrackerDelegation() {
     const root = this.element;
     if (!root || root.dataset.sdTrackerDelegated === "1") return;
@@ -375,7 +348,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       for (const k of Object.keys(current)) {
         if (!(k in newFields)) patch[`system.hiddenFields.-=${k}`] = null;
       }
-      // Set every surviving / new key
       for (const [k, v] of Object.entries(newFields)) {
         patch[`system.hiddenFields.${k}`] = v;
       }
@@ -808,11 +780,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // ± step buttons.  Also dispatches for widgets that use
-    // `data-action="widgetNumStep"` (counter, tokenPool) -- per-button
-    // `data-min` / `data-max` attributes take precedence over `w.min` /
-    // `w.max`, so those widgets get proper clamping without needing a
-    // second listener (which caused duplicate doc.update()s in PR6).
+    // ± step buttons
     cell.querySelectorAll("[data-step]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const step   = parseFloat(btn.dataset.step);
@@ -828,7 +796,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Roll button / modifier click (legacy data-roll attribute from widget renderer)
     cell.querySelectorAll("[data-roll]").forEach(el => {
       el.addEventListener("click", async () => {
         let formula = el.dataset.roll;
@@ -880,7 +847,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             return;
           }
         }
-        // Fallback: plain roll via data-attr-roll
         let formula = btn.dataset.attrRoll || "1d20";
         try {
           const { FormulaEngine } = await import("../helpers/formula-engine.mjs");
@@ -923,9 +889,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         } catch(e) { console.error("SD | widgetRoll error:", e, "formula:", formula); }
       });
     });
-    // widgetNumStep dispatch is now handled by the generic [data-step] loop
-    // above (PR7 fix for Devin Review BUG_0001 on PR6 -- double doc.update per
-    // click when both selectors matched the same button).
     cell.querySelectorAll("[data-action='widgetToggle']").forEach(btn => {
       btn.addEventListener("click", async () => {
         await doc.update({ [btn.dataset.path]: !_readPath(btn.dataset.path) });
@@ -1004,11 +967,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         let item = actor?.items?.get(itemData._id) ?? null;
         // 2. Live actor item by name
         if (!item) item = actor?.items?.find(i => i.name === itemData.name) ?? null;
-        // 3. Live source item via _sourceUuid (stored by SlotManager.addToSlot).
-        //    This is the primary path for slotted items that are NOT in actor.items
-        //    (e.g. a world item like "gun" dropped into a character slot).
-        //    fromUuid() returns the live document with up-to-date slotContents, so
-        //    any ammo/clip changes made after the snapshot was taken are visible.
+        // 3
         if (!item && itemData._sourceUuid) {
           try { item = await fromUuid(itemData._sourceUuid); } catch {}
         }
@@ -1069,9 +1028,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         let liveItem = actor?.items?.get(itemData._id) ?? null;
         // 2. Live actor item by name
         if (!liveItem) liveItem = actor?.items?.find(i => i.name === itemData.name) ?? null;
-        // 3. Live source item via _sourceUuid (stored by SlotManager.addToSlot).
-        //    This is the primary path for slotted items not embedded in actor.items.
-        //    Returns the live document with up-to-date nested slotContents.
         if (!liveItem && itemData._sourceUuid) {
           try { liveItem = await fromUuid(itemData._sourceUuid); } catch {}
         }
@@ -1096,9 +1052,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
               foundry.utils.mergeObject(this.system, expanded.system,
                 { insertKeys: true, insertValues: true, overwrite: true });
             }
-            // Write back into character slot: base on the current live snapshot from
-            // doc (not from this._source) so we don't lose changes made between
-            // addToSlot time and now (e.g. ammo manually added after first use).
             const currentSnap = foundry.utils.deepClone(
               SlotManager.getContents(doc, _snapSlotId)[_snapIdx] ?? {}
             );
@@ -1118,7 +1071,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Slot widget: remove button (legacy direct SlotManager call -- only for top-level slots on doc)
     cell.querySelectorAll("[data-sd-slot-remove]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const { SlotManager } = await import("../data/item-slots.mjs");
@@ -1158,7 +1110,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return item ?? null;
     };
 
-    // Slot widget: edit button (legacy data-sd-slot-edit from _widgetHTML)
     cell.querySelectorAll("[data-sd-slot-edit]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const { SlotManager } = await import("../data/item-slots.mjs");
@@ -1357,9 +1308,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Slot pip toggle -- clicking pip at index i sets value = i+1 (fill up to here),
-    // or i if that pip was already the last filled (tap last filled pip to reduce by 1).
-    // data-value-path overrides the default spellSlots path (used in config-driven mode).
     cell.querySelectorAll("[data-action='slotToggle'], [data-action='slotRestore']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const lvl       = btn.dataset.level;
@@ -1426,9 +1374,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Spellbook drop zone -- drag ability items from sidebar to add to actor.
-    // If the widget has a `type` filter, dropped abilities inherit that type
-    // in their hiddenFields so they show up immediately.
     cell.querySelectorAll(".sb-drop-zone").forEach(dz => {
       dz.addEventListener("dragover", ev => {
         ev.preventDefault();
@@ -1464,9 +1409,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
               type:     "",
               ...(obj.system.hiddenFields ?? {})
             };
-            // If the widget has a type filter, stamp the dropped ability with
-            // that type (unless it already has a non-empty, non-matching type
-            // -- respect manually set values).
             if (wantType && !String(obj.system.hiddenFields.type ?? "").trim()) {
               obj.system.hiddenFields.type = wantType;
             }
@@ -1497,7 +1439,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           }
           ui.notifications.info("Macro script copied to clipboard!");
         } catch {
-          // Fallback: open a small dialog with the script text for manual copy
           await foundry.applications.api.DialogV2.prompt({
             window: { title: "Macro Script" },
             content: `<p style="font-size:11px;color:#888;margin-bottom:6px">Copy the script below into a new Macro (type: Script):</p>
@@ -1550,17 +1491,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const segs  = Number(seg.dataset.segs ?? 4);
         if (!path) return;
         const cur   = Number(_readPath(path)) || 0;
-        // Click filled → unfill (set to index), click unfilled → fill (set to index+1)
         const next  = cur > index ? index : index + 1;
         await this.document.update({ [path]: Math.min(segs, Math.max(0, next)) });
       });
     });
 
     // Tracker pip clicks are handled by the root-level delegated listener
-    // installed in _wireTrackerDelegation() so that partial re-renders of
-    // inner cells (inventory rows, slot rows, spellbook rows) don't lose
-    // their handlers.
-
     // Clock reset (sd-clock-reset)
     cell.querySelectorAll(".sd-clock-reset[data-path]").forEach(btn => {
       btn.addEventListener("click", async ev => {
@@ -1965,7 +1901,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       windowHeader.style.position = "relative";
       windowHeader.appendChild(badge);
     } else {
-      // Fallback: use a wrapper inside window-content
       const content = root.querySelector(".window-content");
       if (content) {
         content.style.position = "relative";
@@ -1995,12 +1930,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     Toolbox.toggle();
   }
 
-  /**
-   * Open the sheet-level trigger graph editor.  Events placed here fire for
-   * the actor itself (on_update, on_turn_*, on_damage_taken, …) and are
-   * persisted on `system.sdTriggerGraph`.  Widget graphs no longer host
-   * event nodes -- they live here instead.
-   */
   static async _onOpenSheetTriggers(event, target) {
     const { FormulaGraph } = await import("../builder/formula-graph.mjs");
     const graph = new FormulaGraph(null, this.document, null, null, null,

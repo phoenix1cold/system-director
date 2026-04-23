@@ -1,17 +1,3 @@
-/**
- * module/helpers/tabs.mjs
- *
- * Reliable tab manager for Foundry v13 ApplicationV2 with PARTS rendering.
- *
- * In PARTS mode each template part (header, tabs, attributes, inventory…)
- * renders into its own separate wrapper div inside .window-content.
- * The <nav> from "tabs" part and the <section> from "attributes" part are
- * SIBLINGS inside .window-content -- not parent/child.
- *
- * TabManager queries the whole sheet element (window root) for both
- * nav links and content sections, so it works regardless of DOM nesting.
- */
-
 export class TabManager {
 
   /**
@@ -59,18 +45,11 @@ export class TabManager {
     });
   }
 
-  /**
-   * Programmatically switch to a tab.
-   */
   static _switch(app, root, group, tabId) {
     if (app.tabGroups) app.tabGroups[group] = tabId;
     TabManager._applyActive(root, group, tabId);
   }
 
-  /**
-   * Apply .active to matching nav links and content sections,
-   * remove .active from all others in the same group.
-   */
   static _applyActive(root, group, tabId) {
     // Nav links: <a data-group="X" data-tab="Y">
     root.querySelectorAll(`[data-group="${group}"][data-tab]`).forEach(el => {

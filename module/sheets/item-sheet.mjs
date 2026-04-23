@@ -1,11 +1,3 @@
-/**
- * module/sheets/item-sheet.mjs  (System Director)
- *
- * Blank-canvas item sheet -- same approach as CharacterSheet.
- * Custom tabs built via Toolbox drag-drop. Three permanent system tabs
- * (_sys_attrs, _sys_slots, _sys_buttons) always at the right.
- */
-
 import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
@@ -175,8 +167,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         {id:"_sys_graph", label:"<i class='fas fa-project-diagram' style='margin-right:4px'></i>On Click"},
       ]),
     ];
-    // Show Effects tab for ability items and for inventory items (needed for
-    // Activate-on-Equip toggling introduced in PR14).
     if (this.document.type === "ability" || this.document.type === "inventory") {
       sysNavItems.push({id:"_sys_effects", label:"<i class='fas fa-sparkles' style='margin-right:4px'></i>Effects"});
     }
@@ -1139,7 +1129,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       return "";
     };
 
-    // PR14: Activate-on-Equip badge visibility limited to equippable items.
     const isEquippable = doc?.type === "inventory" && doc.system?.equippable === true;
 
     let rows = "";
@@ -1248,7 +1237,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           break;
         }
         case "sysEffectActivateOnEquip": {
-          // PR14: toggle flags.sd.activateOnEquip; sync disabled state immediately.
           const ef = doc.effects?.get(efId);
           if (!ef) break;
           const next = !(ef.flags?.sd?.activateOnEquip);
@@ -2059,7 +2047,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   static async _onEditImage() { new FilePicker({type:"image",current:this.document.img,callback:p=>this.document.update({img:p})}).browse(); }
   static async _onUseItem(event) { await this.document.use?.({ event }); }
 
-  // PR14: Equip / Unequip toggle from the item-sheet header.
   static async _onToggleEquipped(event) {
     event?.preventDefault?.();
     const doc = this.document;

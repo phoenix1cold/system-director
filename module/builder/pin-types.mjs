@@ -1,30 +1,3 @@
-/**
- * module/builder/pin-types.mjs
- *
- * Pin-subtype registry for System Director's node graph.
- *
- * The legacy pin-type space is just two values:
- *   "exec"    -- execution wires (orange)
- *   "value"   -- data wires (blue→green gradient, any value)
- *
- * Step 2 extends "value" with a dotted subtype suffix:
- *   value.number   value.string   value.bool   value.path
- *   value.uuid     value.actor    value.item   value.token
- *   value.array    value.any      (legacy "value" alone == "value.any")
- *
- * Compatibility at connect-time:
- *   exec ↔ exec          -- OK
- *   value.any ↔ anything -- OK (coercion fallback)
- *   value.X ↔ value.X    -- OK
- *   value.X ↔ value.Y    -- REJECTED
- *
- * Runtime (button-executor) does NOT enforce subtypes -- it still treats all
- * wires as string formulas.  Subtypes are purely editor-side affordances:
- *   • colour-coded wires
- *   • connection rejection in _endConn
- *   • later: autocomplete "drag pin into empty → filter compatible nodes"
- */
-
 /** Map subtype → colour used when rendering the wire. */
 export const PIN_SUBTYPE_COLORS = Object.freeze({
   "exec":          "#ffca6b", // orange — execution flow
@@ -40,13 +13,6 @@ export const PIN_SUBTYPE_COLORS = Object.freeze({
   "value.array":   "#d0d0d0"  // grey
 });
 
-/**
- * Return the normalised subtype of a pin.type string.
- *   "value"          → "value.any"
- *   "value.number"   → "value.number"
- *   "exec"           → "exec"
- *   undefined/""     → "value.any"
- */
 export function pinSubtype(t) {
   if (!t) return "value.any";
   if (t === "exec") return "exec";
@@ -55,19 +21,10 @@ export function pinSubtype(t) {
   return "value.any";
 }
 
-/**
- * Wire stroke colour for an output pin.  Returns `null` for value.any so the
- * caller can fall back to the gradient URL reference.
- */
 export function subtypeColor(t) {
   return PIN_SUBTYPE_COLORS[pinSubtype(t)] ?? null;
 }
 
-/**
- * True if two pin types are compatible for connection.
- * Exec only connects to exec; value.any connects to any value; typed pins
- * must match or touch a value.any on the other side.
- */
 export function arePinsCompatible(outType, inType) {
   const a = pinSubtype(outType);
   const b = pinSubtype(inType);

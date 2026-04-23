@@ -1,11 +1,3 @@
-/**
- * module/helpers/throw-overlay.mjs -- System Director dice-throw overlays
- *
- * Lightweight PIXI / DOM visualisations used by `act_throw_on_canvas` and
- * `act_throw_on_sheet`.  No persistent documents are created -- the overlays
- * live for `duration` seconds, fade, and are removed.
- */
-
 export const ThrowOverlay = {
 
   /** Scatter a set of dice faces as PIXI sprites on the active scene. */

@@ -1,10 +1,3 @@
-/**
- * module/data/actor-npc.mjs
- *
- * TypeDataModel for Actor subtype: "npc"
- * Simpler than character: no advancement, no skills, has CR/threat/role.
- */
-
 import {
   ResourceField, AttributeField,
   RollConfigField, BiographyField
@@ -102,9 +95,6 @@ export class NPCData extends foundry.abstract.TypeDataModel {
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
       // Damage Resistances (structured map)
-      // Map of damageType → "immune" | "resist" | "normal" | "vulnerable"
-      // | numeric factor.  Complements the free-form `traits.resistances`
-      // string list above; both are read by act_damage.
       resistances: new ObjectField({ initial: {} }),
 
       // Flags / Custom Fields

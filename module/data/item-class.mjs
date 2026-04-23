@@ -1,18 +1,3 @@
-/**
- * module/data/item-class.mjs
- *
- * TypeDataModel for Item subtype: "class"
- *
- * A "class" item is a reusable progression template.
- * It stores an ordered list of level definitions -- each level
- * can grant items, active effects, and field-change instructions
- * (e.g. system.resources.hp.max +5).
- *
- * A class item can be dragged onto the Progression App (per-actor)
- * to be used as that actor's level-up source.  Multiple actors can
- * reference the same class item; changes propagate automatically.
- */
-
 import { SlotDefinitionField } from "./item-slots.mjs";
 import { ButtonDefinitionField } from "../helpers/button-executor.mjs";
 

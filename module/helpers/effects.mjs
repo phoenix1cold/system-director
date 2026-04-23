@@ -1,13 +1,4 @@
 /**
- * module/helpers/effects.mjs
- *
- * Helpers for Active Effects:
- *  - Readable change mode labels
- *  - Shorthand for common effect changes
- *  - Transfer logic from items to actors
- */
-
-/**
  * Prepare the effects list for a sheet, sorted by category.
  * @param {Actor|Item} doc
  * @returns {object[]}
@@ -45,11 +36,6 @@ export function prepareActiveEffectCategories(doc) {
   return Object.values(categories);
 }
 
-/**
- * Well-known data paths for Active Effects.
- * These are all the paths an AE can target via `key`.
- * The system registers them so the AE editor shows user-friendly labels.
- */
 export const EFFECT_PATHS = {
   // Attributes
   "system.attributes.attr1.value": "SD.Attributes.attr1",

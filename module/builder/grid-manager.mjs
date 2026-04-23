@@ -1,17 +1,3 @@
-/**
- * module/builder/grid-manager.mjs
- *
- * Manages the customTabs array on Actor/Item documents.
- * All mutations go through here so sheets never touch customTabs directly.
- *
- * Data shape on document:
- *   system.customTabs: Array<TabDef>
- *
- * TabDef: { id, label, icon, order, rows: RowDef[] }
- * RowDef: { id, widgets: WidgetDef[] }
- * WidgetDef: { id, type, span, label, path, ... }
- */
-
 import { createWidget } from "./widget-registry.mjs";
 
 export class GridManager {
