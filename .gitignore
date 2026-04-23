@@ -20,3 +20,9 @@ yarn-error.log*
 ## Foundry-side scratch (just in case the repo is ever symlinked into a userdata folder)
 *.bak
 *.log
+packs/*/CURRENT
+packs/*/LOG
+packs/*/LOG.old
+packs/*/MANIFEST-*
+packs/*/lost/
+packs/*/*.log
