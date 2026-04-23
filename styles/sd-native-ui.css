@@ -1,20 +1,4 @@
-/* ==========================================================================
-   sd-native-ui.css  —  PR12 (v2.4)
 
-   Neutralises the saturated dark-purple palette that every sd-generated chat
-   card and roll dialog was rendering with.  The card / dialog markup still
-   carries a pile of inline `style="background:#1a1a2e; color:#fff …"` declarations
-   (thousands of lines, hand-written across every action type), so rewriting
-   the inline HTML would be enormous and testing-blind; instead we layer
-   class-scoped overrides using Foundry's own CSS custom properties.
-
-   Rules use `!important` because they must beat inline styles.  All selectors
-   are scoped to sd-specific classes so they never touch core / module UI.
-   ========================================================================== */
-
-/* ──────────────────────────────────────────────────────────────────────────
-   Chat cards — damage / heal / save / check / AoE / generic.
-   ────────────────────────────────────────────────────────────────────────── */
 .sd-chat-card,
 .sd-save-card,
 .sd-damage-card,

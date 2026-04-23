@@ -1,16 +1,6 @@
 name: Release
 
-# Builds system.zip + rewrites system.json with release URLs, then uploads
-# both to the GitHub Release so Foundry VTT can install/update the system
-# directly from a manifest URL.
-#
-#  - manifest (stable, "latest"):
-#      https://github.com/<OWNER>/<REPO>/releases/latest/download/system.json
-#  - download (pinned per-version):
-#      https://github.com/<OWNER>/<REPO>/releases/download/<tag>/system.zip
-#
-# Triggered either by pushing a git tag like `v0.0.3` or by creating a
-# GitHub Release manually through the UI.
+
 
 on:
   push:
