@@ -52,9 +52,7 @@ export const NODE_TYPE_MIGRATIONS = {
 };
 
 /**
- * Pure function: walk {nodes, edges} and apply all registered migrations
- * in-place.  Safe to call multiple times -- migrated nodes are identified by
- * having the current type, so second passes are no-ops.
+
  *
  * @param {{nodes: Array, edges: Array}} graph
  * @returns {{changed: number}} statistics
