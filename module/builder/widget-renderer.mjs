@@ -481,6 +481,18 @@ export class WidgetRenderer {
 </div>`;
   }
 
+  static _render_vsection(w, doc) {
+    const e = this._esc;
+    const header = w.label
+      ? `<div class="vsection-title" style="font-size:10px;font-weight:700;color:#7b68ee;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px">${e(w.label)}</div>`
+      : "";
+    const children = (w.widgets ?? []).map(cw => {
+      try { return this.render(cw, doc) ?? ""; }
+      catch { return ""; }
+    }).join("");
+    return `<div class="widget widget-vsection" style="display:flex;flex-direction:column;gap:6px;padding:6px;border:1px dashed rgba(123,104,238,.18);border-radius:5px;background:rgba(123,104,238,.03)">${header}${children}</div>`;
+  }
+
   // richtext
 
   static _render_richtext(w, doc) {

@@ -202,8 +202,63 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     this._wireTemplateActions();
     this._wireCustomFields();
     this._wireBlueprintCopy();
-    // Refresh paths button -- re-renders toolbox so _prepareContext re-scans focused sheet
+    this._wireSearch();
     this.element?.querySelector("[data-action='refreshPaths']")?.addEventListener("click", () => this.render());
+  }
+
+  _wireSearch() {
+    const root = this.element;
+    if (!root) return;
+
+    const hook = (inputId, clearAction, gridId, emptyId, itemSel, matcher) => {
+      const input = root.querySelector(`#${inputId}`);
+      const grid  = root.querySelector(`#${gridId}`);
+      const empty = emptyId ? root.querySelector(`#${emptyId}`) : null;
+      const clear = root.querySelector(`[data-action="${clearAction}"]`);
+      if (!input || !grid) return;
+
+      const apply = () => {
+        const q = input.value.trim().toLowerCase();
+        const items = grid.querySelectorAll(itemSel);
+        let shown = 0;
+        items.forEach(el => {
+          const ok = !q || matcher(el, q);
+          el.style.display = ok ? "" : "none";
+          if (ok) shown++;
+        });
+        if (empty) empty.style.display = (items.length && shown === 0) ? "block" : "none";
+        if (clear) clear.style.display = q ? "block" : "none";
+      };
+
+      input.addEventListener("input", apply);
+      input.addEventListener("keydown", ev => {
+        if (ev.key === "Escape") { input.value = ""; apply(); input.blur(); }
+      });
+      clear?.addEventListener("click", () => { input.value = ""; apply(); input.focus(); });
+    };
+
+    hook(
+      "tb-search-widgets", "clearWidgetSearch",
+      "tb-widget-grid", "tb-widget-empty",
+      "[data-drag-type='widget']",
+      (el, q) => {
+        const label = (el.dataset.widgetLabel ?? "").toLowerCase();
+        const desc  = (el.dataset.widgetDesc  ?? "").toLowerCase();
+        const id    = (el.dataset.widgetType  ?? "").toLowerCase();
+        return label.includes(q) || desc.includes(q) || id.includes(q);
+      }
+    );
+
+    hook(
+      "tb-search-paths", "clearPathSearch",
+      "tb-path-list", null,
+      "[data-drag-type='path']",
+      (el, q) => {
+        const path  = (el.dataset.path      ?? "").toLowerCase();
+        const label = (el.dataset.pathLabel ?? "").toLowerCase();
+        return path.includes(q) || label.includes(q);
+      }
+    );
   }
 
   // Tab bar

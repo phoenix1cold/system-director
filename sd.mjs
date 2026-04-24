@@ -1,15 +1,5 @@
-/**
- * sd.mjs
- *
- * Main entry point for the SD Foundry VTT v13 game system.
- * Imports and registers: DataModels, Documents, Sheets, CONFIG, Hooks.
- */
-
 // Imports
 
-// v13 compatibility: strip string dice-notation values (e.g. "1d6") from roll
-// data before passing to new Roll(). Foundry v13 creates unresolvable
-// StringTerms for these, causing "Unresolved StringTerm" errors at evaluate().
 function _sanitizeRollData(data) {
   return Object.fromEntries(
     Object.entries(data ?? {}).map(([k, v]) =>
@@ -18,9 +8,6 @@ function _sanitizeRollData(data) {
   );
 }
 
-// v14: `core.rollMode` was renamed to `core.messageMode` (old key is a
-// deprecated shim until v16).  Read the new key when available, fall back
-// to the old one so v13 and older cores keep working without throwing.
 function _sdMsgMode() {
   try {
     const v = game.settings.get("core", "messageMode");
@@ -51,10 +38,6 @@ import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 
 // CONFIG Namespace
 
-/**
- * Global CONFIG.SD namespace.
- * All game constants live here -- override via system settings if needed.
- */
 globalThis.SD = {};
 
 function registerConfig() {
@@ -145,9 +128,6 @@ Hooks.once("init", () => {
   // Register CONFIG namespace
   registerConfig();
 
-  // Register custom RegionBehaviorType "sd.applyEffect" so Auras and
-  // sticky AoE regions can hand out ActiveEffects natively through
-  // Foundry's own region event pipeline.
   import("./module/helpers/sd-region.mjs").then(({ SDRegion }) => {
     SDRegion.register();
     globalThis._SD_REGION = SDRegion;
@@ -292,9 +272,6 @@ Hooks.once("ready", async () => {
   globalThis._SD_AURA_SYNC = AuraSync;
 
   // SD Socket listener
-  // Handles:
-  //   saveRequest  → show save dialog to the targeted player
-  //   saveResult   → GM receives the result and resolves a pending promise
   game.socket.on("system.sd", async (data) => {
     // Player receives a save request
     if (data.type === "saveRequest" && data.targetUser === game.user.id) {
@@ -457,9 +434,6 @@ function registerHandlebarsHelpers() {
   Handlebars.registerHelper("concat", (...args) => args.slice(0, -1).join(""));
 }
 
-// Combat / Initiative
-// Apply the configured initiative formula at init time (stable across v13/v14).
-// getCombatantConfigData is not a documented stable hook; we set CONFIG directly.
 Hooks.once("ready", () => {
   try {
     const formula = game.settings.get("sd", "initiativeFormula");
@@ -481,12 +455,6 @@ Hooks.on("updateSetting", (setting) => {
 });
 
 // Chat card interactions
-// Handles all interactive buttons on sd-chat-card elements:
-//   .sd-apply-hp-btn      -- apply stored delta to a known actor
-//   .sd-apply-selected-btn-- apply to whatever token is currently selected/targeted
-//   .sd-mult-btn          -- multiply the base amount then apply to selected
-//   .sd-reroll-btn        -- re-roll the stored formula and update the card total
-
 Hooks.on("renderChatMessageHTML", (message, html) => {
 
   // Helper: resolve live target (targeted token → selected → null)
@@ -762,10 +730,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     });
   });
 
-// 6b. Apply-Effect button for save-effect regions in applyMode:"card"
-// Posted by sd-region.mjs _postApplyEffectButton when a save fails and
-// auto-apply is disabled.  Delegates to SDRegion.applyRegionEffect which
-// re-derives the region + target token from scene/region/actor ids.
+// 6b
 html.querySelectorAll(".sd-apply-region-effect").forEach(btn => {
   btn.addEventListener("click", async () => {
     if (btn.disabled) return;
@@ -787,10 +752,7 @@ html.querySelectorAll(".sd-apply-region-effect").forEach(btn => {
   });
 });
 
-// 7b. Region-backed AoE chat buttons (Effect/Damage/Heal/Save-Effect)
-// Variants posted by placeAoeEffect / placeAoeDamage / placeAoeHeal /
-// placeAoeSaveEffect.  The region is placed interactively; flags.sd.applyEffect
-// carries the per-region behaviour (read by sd-region.mjs hooks).
+// 7b
 html.querySelectorAll(".sd-chat-aoe-place-btn[data-aoe-region-cfg]").forEach(btn => {
   btn.addEventListener("click", async () => {
     if (btn.disabled) return;
@@ -860,13 +822,7 @@ html.querySelectorAll(".sd-chat-aoe-place-btn[data-aoe-region-cfg]").forEach(btn
   });
 });
 
-// 7c. Region-backed AoE Save-Branch chat button
-// Variant posted by `placeAoeSaveBranch`.  Places a one-shot template,
-// rolls saves for every token caught inside, then fans the compiled
-// `passActions` / `failActions` sub-graphs across the saved / failed
-// token sets (per-target or once).  Saved/failed/all arrays are exposed
-// to branch sub-actions via runtime.savedTargets / failedTargets /
-// allTargets / currentTarget.
+// 7c
 html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
   btn.addEventListener("click", async () => {
     if (btn.disabled) return;
@@ -902,12 +858,8 @@ html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
     // Wait one frame so Foundry finalises the placeable + shape geometry.
     await new Promise(r => setTimeout(r, 250));
 
-    // Collect tokens inside the region (PIXI testPoint / geometric fallback).
     const tokenDocs = getRegionTokens(regionDoc);
 
-    // Roll saves per token and split into saved / failed buckets.
-    // Honours advMode (none/adv/dis/ask), custom adv/dis core formulas, a
-    // bonusFormula added after +@mod, and the showInChat toggle.
     const { ButtonExecutor: _BE } = await import("./module/helpers/button-executor.mjs");
     const advCore = (mode) =>
       mode === "adv" ? ((cfg.advFormula || "").trim() || "2d20kh1")
@@ -1130,9 +1082,6 @@ html.addEventListener("click", async (e) => {
   }
 });
 
-// 9. Save card «→ Selected»
-// Подтягивает выбранные/нацеленные токены в карточку без перезаписи уже добавленных.
-// Кнопки Roll в превью работают через event delegation выше (п.8).
 html.querySelectorAll(".sd-save-selected-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const card         = btn.closest(".sd-save-card");
@@ -1231,10 +1180,7 @@ html.querySelectorAll(".sd-save-selected-cancel-btn").forEach(btn => {
   });
 });
 
-// 9b. Opposed-roll chat card (PR13)
-// Each ".sd-opposed-btn" rolls the opposedFormula, pushes the result into
-// the message's `sd.opposed.opponents` flag, then -- once all N rolls are in --
-// patches the message HTML with the winner summary.
+// 9b
 html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
   btn.addEventListener("click", async () => {
     const card   = btn.closest(".sd-opposed-card");
@@ -1292,8 +1238,6 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
             ? `<strong>${opp.initiatorName}</strong> wins (${initRoll} vs ${maxOpp})`
             : `${opp.initiatorName} loses (${initRoll} vs ${maxOpp})`;
         }
-        // PR13 hotfix: dispatch wonActions / lostActions exactly once, and
-        // only from the originating user's client so branches don't double-run.
         if (!opp.resolved && opp.userId && opp.userId === game.user?.id) {
           (async () => {
             const branch = youWon ? (opp.wonActions ?? []) : (opp.lostActions ?? []);
@@ -1328,10 +1272,7 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
   }
 }
 
-// 10. Re-hydrate save results from flags (fixes GM view & chat reopen)
-// Runs every time a save-card message is rendered. Reads the persisted
-// saveResult flag (keyed by actorId) and restores disabled buttons + result
-// labels for every actor row that has already been rolled.
+// 10
 {
   const saveResult = message.getFlag?.("sd", "saveResult");
   if (saveResult && typeof saveResult === "object") {

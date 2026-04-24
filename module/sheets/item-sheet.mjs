@@ -249,43 +249,100 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   _buildRow(tab, row) {
+    const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
     const el = document.createElement("div");
-    el.dataset.rowId=row.id;
-    el.style.cssText="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:start;position:relative;padding:8px;border:1px dashed rgba(123,104,238,.1);border-radius:6px;";
+    el.dataset.rowId=row.id; el.dataset.tabId=tab.id; el.dataset.cols=cols;
+    el.style.cssText=`display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;align-items:start;position:relative;padding:8px;border:1px dashed rgba(123,104,238,.1);border-radius:6px;`;
     if (this._editMode) {
+      const cfg=document.createElement("button"); cfg.type="button"; cfg.innerHTML=`<i class="fas fa-cog"></i> ${cols}`; cfg.title="Row columns (1-9)";
+      cfg.style.cssText="position:absolute;top:-9px;right:32px;z-index:10;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 6px;line-height:17px;";
+      cfg.addEventListener("click",()=>this._configRow(tab.id,row.id)); el.appendChild(cfg);
       const del=document.createElement("button"); del.type="button"; del.textContent="✕"; del.title="Delete row";
       del.style.cssText="position:absolute;top:-9px;right:4px;z-index:10;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#555;cursor:pointer;font-size:10px;padding:0 5px;line-height:17px;";
       del.addEventListener("click",()=>this._deleteRow(tab.id,row.id)); el.appendChild(del);
     }
-    (row.widgets??[]).forEach(w=>el.appendChild(this._buildCell(tab,row,w)));
+    (row.widgets??[]).forEach((w, idx)=>el.appendChild(this._buildCell(tab,row,w,idx)));
     if (this._editMode) el.appendChild(this._mkWidgetDZ(tab,row,"Drop widget here"));
     return el;
   }
 
-  _buildCell(tab, row, w) {
+  _buildCell(tab, row, w, idx = 0, parentVS = null) {
+    const rowCols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+    const span = Math.max(1, Math.min(parentVS ? 1 : rowCols, Number(w.span) || 1));
     const cell=document.createElement("div");
-    cell.dataset.widgetId=w.id; cell.style.cssText=`grid-column:span ${w.span??1};position:relative;min-width:0;`;
+    cell.dataset.widgetId=w.id; cell.dataset.rowId=row.id; cell.dataset.tabId=tab.id;
+    if (parentVS) cell.dataset.parentVsId = parentVS.id;
+    cell.dataset.widgetIdx = idx;
+    cell.style.cssText=`grid-column:${parentVS ? "auto" : `span ${span}`};position:relative;min-width:0;`;
+
+    if (w.type === "vsection") {
+      cell.innerHTML = "";
+      cell.appendChild(this._buildVSection(tab, row, w));
+      if (this._editMode) {
+        this._makeCellDraggable(cell, tab, row, w, parentVS);
+        this._attachCellOverlay(cell, tab, row, w, span, parentVS);
+      }
+      return cell;
+    }
+
     let renderedHtml = "";
     try { renderedHtml = WidgetRenderer.render(w,this.document,this._editMode) ?? ""; }
     catch(e) { renderedHtml = `<div style="color:#e05a5a;font-size:11px">Error: ${e.message}</div>`; }
-    // showIf: if hidden and not in edit mode, collapse cell
     if (!renderedHtml?.trim() && !this._editMode) {
       cell.style.display = "none";
       return cell;
     }
     cell.innerHTML = renderedHtml;
     if (this._editMode) {
-      const ov=document.createElement("div");
-      ov.style.cssText="display:none;position:absolute;top:2px;right:2px;z-index:20;flex-direction:row;gap:2px;";
-      ov.innerHTML=`<button type="button" data-wcfg="1" style="background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Configure">⚙</button><button type="button" data-wspan="1" style="background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Cycle width">↔${w.span??1}</button><button type="button" data-wdel="1" style="background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Remove">✕</button>`;
-      ov.querySelector("[data-wcfg]").addEventListener("click",ev=>{ev.stopPropagation();this._configWidget(tab,row,w);});
-      ov.querySelector("[data-wspan]").addEventListener("click",ev=>{ev.stopPropagation();this._cycleSpan(tab,row,w);});
-      ov.querySelector("[data-wdel]").addEventListener("click", ev=>{ev.stopPropagation();this._deleteWidget(tab,row,w);});
-      cell.addEventListener("mouseenter",()=>ov.style.display="flex");
-      cell.addEventListener("mouseleave",()=>ov.style.display="none");
-      cell.appendChild(ov);
+      this._makeCellDraggable(cell, tab, row, w, parentVS);
+      this._attachCellOverlay(cell, tab, row, w, span, parentVS);
     }
     return cell;
+  }
+
+  _buildVSection(tab, row, vs) {
+    const box = document.createElement("div");
+    box.dataset.vsId = vs.id;
+    box.style.cssText = "display:flex;flex-direction:column;gap:6px;padding:6px;border:1px dashed rgba(123,104,238,.18);border-radius:5px;background:rgba(123,104,238,.03);min-height:40px;";
+    if (vs.label) {
+      const h=document.createElement("div"); h.textContent = vs.label;
+      h.style.cssText="font-size:10px;font-weight:700;color:#7b68ee;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px";
+      box.appendChild(h);
+    }
+    (vs.widgets ?? []).forEach((cw, idx) => { box.appendChild(this._buildCell(tab, row, cw, idx, vs)); });
+    if (this._editMode) box.appendChild(this._mkWidgetDZ(tab, row, "Drop widget into section", vs));
+    return box;
+  }
+
+  _makeCellDraggable(cell, tab, row, w, parentVS) {
+    cell.draggable = true;
+    cell.addEventListener("dragstart", ev => {
+      ev.stopPropagation();
+      try {
+        ev.dataTransfer.setData("text/plain", JSON.stringify({
+          sdType: "widget-move",
+          tabId: tab.id, rowId: row.id, widgetId: w.id,
+          parentVsId: parentVS?.id ?? null
+        }));
+        ev.dataTransfer.effectAllowed = "move";
+      } catch {}
+      cell.style.opacity = "0.4";
+    });
+    cell.addEventListener("dragend", () => { cell.style.opacity = ""; });
+  }
+
+  _attachCellOverlay(cell, tab, row, w, span, parentVS) {
+    const ov=document.createElement("div");
+    ov.style.cssText="display:none;position:absolute;top:2px;right:2px;z-index:20;flex-direction:row;gap:2px;";
+    const spanBtn = parentVS ? ""
+      : `<button type="button" data-wspan="1" style="background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Cycle width">↔${span}</button>`;
+    ov.innerHTML=`<span title="Drag to move" style="cursor:grab;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span><button type="button" data-wcfg="1" style="background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Configure">⚙</button>${spanBtn}<button type="button" data-wdel="1" style="background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Remove">✕</button>`;
+    ov.querySelector("[data-wcfg]").addEventListener("click",ev=>{ev.stopPropagation();this._configWidget(tab,row,w);});
+    ov.querySelector("[data-wspan]")?.addEventListener("click",ev=>{ev.stopPropagation();this._cycleSpan(tab,row,w);});
+    ov.querySelector("[data-wdel]").addEventListener("click", ev=>{ev.stopPropagation();this._deleteWidget(tab,row,w);});
+    cell.addEventListener("mouseenter",()=>ov.style.display="flex");
+    cell.addEventListener("mouseleave",()=>ov.style.display="none");
+    cell.appendChild(ov);
   }
 
   //  SYSTEM PANELS
@@ -1957,12 +2014,16 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     });
   }
 
-  _mkWidgetDZ(tab, row, label) {
+  _mkWidgetDZ(tab, row, label, parentVS = null) {
+    const rowCols = Math.max(1, Math.min(9, Number(row?.cols) || 3));
     const dz=document.createElement("div");
     dz.className="sd-widget-dropzone"; dz.dataset.tabId=tab.id; if (row) dz.dataset.rowId=row.id;
-    dz.style.cssText=`${row?"":"grid-column:span 3;"}border:1px dashed rgba(123,104,238,.2);border-radius:5px;padding:8px;text-align:center;font-size:11px;color:#444;cursor:pointer;transition:background .15s,color .15s,border-color .15s;user-select:none;`;
+    dz.style.cssText=`${(row && !parentVS) ? "" : (parentVS ? "" : `grid-column:span ${rowCols};`)}border:1px dashed rgba(123,104,238,.2);border-radius:5px;padding:8px;text-align:center;font-size:11px;color:#444;cursor:pointer;transition:background .15s,color .15s,border-color .15s;user-select:none;`;
     dz.innerHTML=`<i class="fas fa-arrow-circle-down" style="margin-right:5px;opacity:.5"></i>${label}`;
-    this._attachDrop(dz, async data=>{ if(data.sdType==="widget") await this._addWidget(tab.id, row?.id??null, data.widgetType); });
+    this._attachDrop(dz, async data=>{
+      if (data.sdType==="widget") await this._addWidget(tab.id, row?.id??null, data.widgetType, parentVS?.id ?? null);
+      else if (data.sdType==="widget-move") await this._moveWidget(data, { tabId: tab.id, rowId: row?.id ?? null, parentVsId: parentVS?.id ?? null, toEnd: true });
+    });
     return dz;
   }
 
@@ -1992,15 +2053,108 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
   async _deleteRow(tabId,rowId){ const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(tab) tab.rows=(tab.rows??[]).filter(r=>r.id!==rowId); await this.document.update({"system.customTabs":tabs}); }
 
-  async _addWidget(tabId, rowId, widgetType) {
-    const defaults={ text:{label:"Label",path:"system.hiddenFields.myField"}, number:{label:"Number",path:"system.hiddenFields.myNum"}, resource:{label:"Resource",pathValue:"system.uses.value",pathMax:"system.uses.max",color:"#e05a5a"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"#7b68ee",formula:"",flavor:""}, toggle:{label:"Toggle",path:"system.hiddenFields.myToggle",onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, richtext:{label:"Notes",path:"system.description",span:3}, attribute:{label:"Attr",path:"system.hiddenFields.myAttr"}, skill:{label:"Skill",path:"system.hiddenFields.mySkill"}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
+  _findVs(widgets, vsId) {
+    if (!Array.isArray(widgets)) return null;
+    for (const w of widgets) {
+      if (w.id === vsId && w.type === "vsection") return w;
+      if (w.type === "vsection") { const n = this._findVs(w.widgets, vsId); if (n) return n; }
+    }
+    return null;
+  }
+  _findWidgetDeep(widgets, id) {
+    if (!Array.isArray(widgets)) return null;
+    for (const w of widgets) {
+      if (w.id === id) return w;
+      if (w.type === "vsection") { const n = this._findWidgetDeep(w.widgets, id); if (n) return n; }
+    }
+    return null;
+  }
+  _removeWidgetDeep(widgets, id) {
+    if (!Array.isArray(widgets)) return null;
+    const i = widgets.findIndex(w => w.id === id);
+    if (i >= 0) return widgets.splice(i, 1)[0];
+    for (const w of widgets) {
+      if (w.type === "vsection") { const r = this._removeWidgetDeep(w.widgets, id); if (r) return r; }
+    }
+    return null;
+  }
+
+  async _addWidget(tabId, rowId, widgetType, parentVsId = null) {
+    const defaults={ text:{label:"Label",path:"system.hiddenFields.myField"}, number:{label:"Number",path:"system.hiddenFields.myNum"}, resource:{label:"Resource",pathValue:"system.uses.value",pathMax:"system.uses.max",color:"#e05a5a"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"#7b68ee",formula:"",flavor:""}, toggle:{label:"Toggle",path:"system.hiddenFields.myToggle",onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:"system.description",span:3}, attribute:{label:"Attr",path:"system.hiddenFields.myAttr"}, skill:{label:"Skill",path:"system.hiddenFields.mySkill"}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
     const widget={id:foundry.utils.randomID(8),span:1,...(defaults[widgetType]??{label:widgetType}),type:widgetType};
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(!tab) return;
-    if (rowId) { const row=tab.rows?.find(r=>r.id===rowId); if(row){row.widgets??=[];row.widgets.push(widget);} } else { tab.rows??=[]; tab.rows.push({id:foundry.utils.randomID(8),widgets:[widget]}); }
+    if (rowId) {
+      const row=tab.rows?.find(r=>r.id===rowId); if(!row) return;
+      row.widgets??=[];
+      if (parentVsId) { const vs=this._findVs(row.widgets, parentVsId); if (vs){ vs.widgets??=[]; vs.widgets.push(widget); } }
+      else row.widgets.push(widget);
+    } else { tab.rows??=[]; tab.rows.push({id:foundry.utils.randomID(8),cols:3,widgets:[widget]}); }
     await this.document.update({"system.customTabs":tabs});
   }
-  async _cycleSpan(tab,row,w){ const s=(w.span??1)>=3?1:(w.span??1)+1; const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const ww=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id); if(ww){ww.span=s; await this.document.update({"system.customTabs":tabs});} }
-  async _deleteWidget(tab,row,w){ const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const r=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id); if(r){r.widgets=r.widgets.filter(x=>x.id!==w.id); await this.document.update({"system.customTabs":tabs});} }
+  async _cycleSpan(tab,row,w){
+    const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+    const cur = Math.max(1, Number(w.span) || 1);
+    const s = cur >= cols ? 1 : cur + 1;
+    const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]);
+    const r = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+    if (!r) return;
+    const ww = this._findWidgetDeep(r.widgets, w.id);
+    if(ww){ww.span=s; await this.document.update({"system.customTabs":tabs});}
+  }
+  async _deleteWidget(tab,row,w){
+    const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]);
+    const r=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+    if(!r) return;
+    const removed=this._removeWidgetDeep(r.widgets, w.id);
+    if (removed) await this.document.update({"system.customTabs":tabs});
+  }
+  async _configRow(tabId, rowId) {
+    const row = this.document.system.customTabs?.find(t => t.id === tabId)?.rows?.find(r => r.id === rowId);
+    const cur = Math.max(1, Math.min(9, Number(row?.cols) || 3));
+    const n = await foundry.applications.api.DialogV2.prompt({
+      window: { title: "Row Columns" },
+      content: `<div style="padding:8px 0"><label style="font-size:12px;color:#888">Columns (1-9):</label><input type="number" min="1" max="9" name="cols" value="${cur}" style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box"></div>`,
+      ok: { label: "Apply", callback: (event, button, dialog) => Number(dialog.element.querySelector("input[name='cols']")?.value) },
+      rejectClose: false
+    }).catch(() => null);
+    if (!n || !Number.isFinite(n)) return;
+    const cols = Math.max(1, Math.min(9, Math.round(n)));
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const r = tabs.find(t => t.id === tabId)?.rows?.find(r => r.id === rowId);
+    if (!r) return;
+    r.cols = cols;
+    (r.widgets ?? []).forEach(w => { if (w.type !== "vsection" && Number(w.span) > cols) w.span = cols; });
+    await this.document.update({ "system.customTabs": tabs });
+  }
+  async _moveWidget(src, dst) {
+    if (!src || !dst) return;
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const srcTab = tabs.find(t => t.id === src.tabId);
+    const dstTab = tabs.find(t => t.id === dst.tabId);
+    if (!srcTab || !dstTab) return;
+    const srcRow = srcTab.rows?.find(r => r.id === src.rowId);
+    if (!srcRow) return;
+    const srcContainer = src.parentVsId ? (this._findVs(srcRow.widgets, src.parentVsId)?.widgets ?? []) : srcRow.widgets;
+    const wIdx = srcContainer.findIndex(w => w.id === src.widgetId);
+    if (wIdx < 0) return;
+    const [moved] = srcContainer.splice(wIdx, 1);
+    if (!moved) return;
+    if (moved.type === "vsection" && dst.parentVsId) { srcContainer.splice(wIdx, 0, moved); return; }
+    let dstContainer;
+    if (dst.rowId) {
+      const dstRow = dstTab.rows?.find(r => r.id === dst.rowId);
+      if (!dstRow) { srcContainer.splice(wIdx, 0, moved); return; }
+      dstContainer = dst.parentVsId ? (this._findVs(dstRow.widgets, dst.parentVsId)?.widgets ?? null) : dstRow.widgets;
+      if (!dstContainer) { srcContainer.splice(wIdx, 0, moved); return; }
+    } else {
+      const newRow = { id: foundry.utils.randomID(8), cols: 3, widgets: [] };
+      dstTab.rows ??= []; dstTab.rows.push(newRow);
+      dstContainer = newRow.widgets;
+    }
+    const insertIdx = dst.toEnd ? dstContainer.length : Math.max(0, Math.min(dstContainer.length, dst.index ?? dstContainer.length));
+    dstContainer.splice(insertIdx, 0, moved);
+    await this.document.update({ "system.customTabs": tabs });
+  }
 
   async _configWidget(tab, row, w) {
     const { openWidgetConfigPopup } = await import("../builder/widget-config-popup.mjs");

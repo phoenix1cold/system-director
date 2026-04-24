@@ -455,17 +455,31 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   _buildRow(tab, row) {
+    const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
     const rowEl = document.createElement("div");
     rowEl.dataset.rowId  = row.id;
+    rowEl.dataset.tabId  = tab.id;
+    rowEl.dataset.cols   = cols;
     rowEl.style.cssText  = `
-      display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+      display:grid; grid-template-columns:repeat(${cols},1fr); gap:8px;
       align-items:start; position:relative;
       padding:8px 8px 8px 8px;
       border:1px dashed rgba(123,104,238,.12); border-radius:6px;
     `;
 
-    // Row delete button (edit mode only)
     if (this._editMode) {
+      const cfg = document.createElement("button");
+      cfg.type = "button";
+      cfg.innerHTML = `<i class="fas fa-cog"></i> ${cols}`;
+      cfg.title = "Row columns (1-9)";
+      cfg.style.cssText = `
+        position:absolute; top:-9px; right:32px; z-index:10;
+        background:#1a1a24; border:1px solid #3a3a52; border-radius:3px;
+        color:#7b68ee; cursor:pointer; font-size:10px; padding:0 6px; line-height:17px;
+      `;
+      cfg.addEventListener("click", () => this._configRow(tab.id, row.id));
+      rowEl.appendChild(cfg);
+
       const del = document.createElement("button");
       del.type = "button";
       del.innerHTML = "✕";
@@ -479,12 +493,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       rowEl.appendChild(del);
     }
 
-    // Widgets
-    (row.widgets ?? []).forEach(w => {
-      rowEl.appendChild(this._buildWidget(tab, row, w));
+    (row.widgets ?? []).forEach((w, idx) => {
+      rowEl.appendChild(this._buildWidget(tab, row, w, idx));
     });
 
-    // Intra-row drop zone
     if (this._editMode) {
       rowEl.appendChild(this._makeDropZone(tab, row, "Drop widget here"));
     }
@@ -492,13 +504,28 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     return rowEl;
   }
 
-  _buildWidget(tab, row, w) {
-    const span = w.span ?? 1;
+  _buildWidget(tab, row, w, idx = 0, parentVS = null) {
+    const rowCols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+    const rawSpan = Math.max(1, Math.min(parentVS ? 1 : rowCols, Number(w.span) || 1));
+    const span = rawSpan;
     const cell = document.createElement("div");
     cell.dataset.widgetId = w.id;
-    cell.style.cssText    = `grid-column:span ${span}; position:relative; min-width:0;`;
+    cell.dataset.rowId    = row.id;
+    cell.dataset.tabId    = tab.id;
+    if (parentVS) cell.dataset.parentVsId = parentVS.id;
+    cell.dataset.widgetIdx = idx;
+    cell.style.cssText    = `grid-column:${parentVS ? "auto" : `span ${span}`}; position:relative; min-width:0;`;
 
-    // Widget body -- honour showIf: if hidden, collapse cell to zero size
+    if (w.type === "vsection") {
+      cell.innerHTML = "";
+      cell.appendChild(this._buildVSection(tab, row, w));
+      if (this._editMode) {
+        this._makeWidgetDraggable(cell, tab, row, w, parentVS);
+        this._attachWidgetOverlay(cell, tab, row, w, span, parentVS);
+      }
+      return cell;
+    }
+
     const val = this._getVal(w);
     const html = this._widgetHTML(w, val);
     if (!html && !this._editMode) {
@@ -509,32 +536,82 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     cell.innerHTML = html || "";
     this._wireWidget(cell, w);
 
-    // Edit overlay (visible on hover in edit mode)
     if (this._editMode) {
-      const ov = document.createElement("div");
-      ov.className = "sd-widget-ov";
-      ov.style.cssText = `
-        display:none; position:absolute; top:2px; right:2px; z-index:20;
-        flex-direction:row; gap:2px;
-      `;
-      ov.innerHTML = `
-        <button type="button" title="Configure" data-action="wcfg"
-          style="background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">⚙</button>
-        <button type="button" title="Width (${span})" data-action="wspan"
-          style="background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">↔${span}</button>
-        <button type="button" title="Remove" data-action="wdel"
-          style="background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">✕</button>
-      `;
-      ov.querySelector('[data-action="wcfg"]').addEventListener("click",  ev => { ev.stopPropagation(); this._configWidget(tab, row, w); });
-      ov.querySelector('[data-action="wspan"]').addEventListener("click", ev => { ev.stopPropagation(); this._cycleSpan(tab, row, w); });
-      ov.querySelector('[data-action="wdel"]').addEventListener("click",  ev => { ev.stopPropagation(); this._deleteWidget(tab, row, w); });
-
-      cell.addEventListener("mouseenter", () => ov.style.display = "flex");
-      cell.addEventListener("mouseleave", () => ov.style.display = "none");
-      cell.appendChild(ov);
+      this._makeWidgetDraggable(cell, tab, row, w, parentVS);
+      this._attachWidgetOverlay(cell, tab, row, w, span, parentVS);
     }
 
     return cell;
+  }
+
+  _buildVSection(tab, row, vs) {
+    const box = document.createElement("div");
+    box.dataset.vsId = vs.id;
+    box.style.cssText = `
+      display:flex; flex-direction:column; gap:6px;
+      padding:6px; border:1px dashed rgba(123,104,238,.18); border-radius:5px;
+      background:rgba(123,104,238,.03); min-height:40px;
+    `;
+    if (vs.label) {
+      const h = document.createElement("div");
+      h.textContent = vs.label;
+      h.style.cssText = "font-size:10px;font-weight:700;color:#7b68ee;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px";
+      box.appendChild(h);
+    }
+    (vs.widgets ?? []).forEach((cw, idx) => {
+      box.appendChild(this._buildWidget(tab, row, cw, idx, vs));
+    });
+    if (this._editMode) {
+      box.appendChild(this._makeDropZone(tab, row, "Drop widget into section", vs));
+    }
+    return box;
+  }
+
+  _makeWidgetDraggable(cell, tab, row, w, parentVS) {
+    cell.draggable = true;
+    cell.addEventListener("dragstart", ev => {
+      ev.stopPropagation();
+      try {
+        ev.dataTransfer.setData("text/plain", JSON.stringify({
+          sdType: "widget-move",
+          tabId: tab.id,
+          rowId: row.id,
+          widgetId: w.id,
+          parentVsId: parentVS?.id ?? null
+        }));
+        ev.dataTransfer.effectAllowed = "move";
+      } catch {}
+      cell.style.opacity = "0.4";
+    });
+    cell.addEventListener("dragend", () => { cell.style.opacity = ""; });
+  }
+
+  _attachWidgetOverlay(cell, tab, row, w, span, parentVS) {
+    const ov = document.createElement("div");
+    ov.className = "sd-widget-ov";
+    ov.style.cssText = `
+      display:none; position:absolute; top:2px; right:2px; z-index:20;
+      flex-direction:row; gap:2px;
+    `;
+    const spanBtn = parentVS
+      ? ""
+      : `<button type="button" title="Width (${span})" data-action="wspan"
+          style="background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">↔${span}</button>`;
+    ov.innerHTML = `
+      <span title="Drag to move" style="cursor:grab;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span>
+      <button type="button" title="Configure" data-action="wcfg"
+        style="background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">⚙</button>
+      ${spanBtn}
+      <button type="button" title="Remove" data-action="wdel"
+        style="background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">✕</button>
+    `;
+    ov.querySelector('[data-action="wcfg"]').addEventListener("click",  ev => { ev.stopPropagation(); this._configWidget(tab, row, w, parentVS); });
+    ov.querySelector('[data-action="wspan"]')?.addEventListener("click", ev => { ev.stopPropagation(); this._cycleSpan(tab, row, w); });
+    ov.querySelector('[data-action="wdel"]').addEventListener("click",  ev => { ev.stopPropagation(); this._deleteWidget(tab, row, w, parentVS); });
+
+    cell.addEventListener("mouseenter", () => ov.style.display = "flex");
+    cell.addEventListener("mouseleave", () => ov.style.display = "none");
+    cell.appendChild(ov);
   }
 
   _getVal(w) {
@@ -1624,10 +1701,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
   }
 
-  _makeDropZone(tab, row, label = "Drop here") {
+  _makeDropZone(tab, row, label = "Drop here", parentVS = null) {
+    const rowCols = Math.max(1, Math.min(9, Number(row?.cols) || 3));
     const dz = document.createElement("div");
     dz.style.cssText = `
-      ${row ? "" : "grid-column:span 3;"}
+      ${(row && !parentVS) ? "" : (parentVS ? "" : `grid-column:span ${rowCols};`)}
       border:1px dashed rgba(123,104,238,.2); border-radius:5px;
       padding:8px; text-align:center; font-size:11px; color:#444; cursor:pointer;
       transition:background .15s,color .15s,border-color .15s;
@@ -1648,13 +1726,16 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
     dz.addEventListener("drop", async ev => {
       ev.preventDefault();
+      ev.stopPropagation();
       dz.style.background  = "";
       dz.style.color       = "#444";
       dz.style.borderColor = "rgba(123,104,238,.2)";
       try {
         const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
         if (data.sdType === "widget") {
-          await this._addWidget(tab.id, row?.id ?? null, data.widgetType);
+          await this._addWidget(tab.id, row?.id ?? null, data.widgetType, parentVS?.id ?? null);
+        } else if (data.sdType === "widget-move") {
+          await this._moveWidget(data, { tabId: tab.id, rowId: row?.id ?? null, parentVsId: parentVS?.id ?? null, toEnd: true });
         }
       } catch(e) { console.warn("SD | drop:", e); }
     });
@@ -1717,7 +1798,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await this.document.update({ "system.customTabs": tabs });
   }
 
-  async _addWidget(tabId, rowId, widgetType) {
+  async _addWidget(tabId, rowId, widgetType, parentVsId = null) {
     const defaults = {
       text:      { label: "Label",    path: "system.flags.myField" },
       number:    { label: "Number",   path: "system.flags.myNumber" },
@@ -1726,6 +1807,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       button:    { label: "Action",   icon: "fa-bolt", color: "#7b68ee", formula: "", flavor: "" },
       toggle:    { label: "Toggle",   path: "system.flags.myToggle", onLabel: "On", offLabel: "Off" },
       section:   { label: "Section",  span: 3 },
+      vsection:  { label: "",         widgets: [], span: 1 },
       richtext:  { label: "Notes",    path: "system.biography.notes", span: 3 },
       attribute: { label: "Attribute", path: "system.attributes.attr1.value" },
       skill:     { label: "Skill",    path: "system.skills.skill1.rank" },
@@ -1739,7 +1821,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       id:   foundry.utils.randomID(8),
       span: 1,
       ...(defaults[widgetType] ?? { label: widgetType }),
-      type: widgetType   // after spread: defaults can't clobber widget.type
+      type: widgetType
     };
 
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
@@ -1748,36 +1830,155 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     if (rowId) {
       const row = tab.rows?.find(r => r.id === rowId);
-      if (row) { row.widgets ??= []; row.widgets.push(widget); }
+      if (!row) return;
+      row.widgets ??= [];
+      if (parentVsId) {
+        const vs = this._findVs(row.widgets, parentVsId);
+        if (vs) { vs.widgets ??= []; vs.widgets.push(widget); }
+      } else {
+        row.widgets.push(widget);
+      }
     } else {
       tab.rows ??= [];
-      tab.rows.push({ id: foundry.utils.randomID(8), widgets: [widget] });
+      tab.rows.push({ id: foundry.utils.randomID(8), cols: 3, widgets: [widget] });
     }
 
     await this.document.update({ "system.customTabs": tabs });
   }
 
+  _findVs(widgets, vsId) {
+    if (!Array.isArray(widgets)) return null;
+    for (const w of widgets) {
+      if (w.id === vsId && w.type === "vsection") return w;
+      if (w.type === "vsection") {
+        const nested = this._findVs(w.widgets, vsId);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
   async _cycleSpan(tab, row, w) {
-    const newSpan = (w.span ?? 1) >= 3 ? 1 : (w.span ?? 1) + 1;
-    const tabs    = foundry.utils.deepClone(this.document.system.customTabs ?? []);
-    const widget  = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id);
+    const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+    const cur  = Math.max(1, Number(w.span) || 1);
+    const newSpan = cur >= cols ? 1 : cur + 1;
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const fresh = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+    if (!fresh) return;
+    const widget = this._findWidgetDeep(fresh.widgets, w.id);
     if (widget) { widget.span = newSpan; await this.document.update({ "system.customTabs": tabs }); }
   }
 
-  async _deleteWidget(tab, row, w) {
-    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
-    const r    = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
-    if (r) { r.widgets = r.widgets.filter(x => x.id !== w.id); await this.document.update({ "system.customTabs": tabs }); }
+  _findWidgetDeep(widgets, id) {
+    if (!Array.isArray(widgets)) return null;
+    for (const w of widgets) {
+      if (w.id === id) return w;
+      if (w.type === "vsection") {
+        const nested = this._findWidgetDeep(w.widgets, id);
+        if (nested) return nested;
+      }
+    }
+    return null;
   }
 
-  async _configWidget(tab, row, w) {
+  _removeWidgetDeep(widgets, id) {
+    if (!Array.isArray(widgets)) return null;
+    const i = widgets.findIndex(w => w.id === id);
+    if (i >= 0) return widgets.splice(i, 1)[0];
+    for (const w of widgets) {
+      if (w.type === "vsection") {
+        const r = this._removeWidgetDeep(w.widgets, id);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+
+  async _deleteWidget(tab, row, w, parentVS = null) {
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const r    = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+    if (!r) return;
+    const removed = this._removeWidgetDeep(r.widgets, w.id);
+    if (removed) await this.document.update({ "system.customTabs": tabs });
+  }
+
+  async _configWidget(tab, row, w, parentVS = null) {
     const { openWidgetConfigPopup } = await import("../builder/widget-config-popup.mjs");
-    // Always read fresh from doc so graphData is not stale after a previous save
     const freshTabs   = this.document.system.customTabs ?? [];
     const freshTab    = freshTabs.find(t => t.id === tab.id) ?? tab;
     const freshRow    = freshTab.rows?.find(r => r.id === row.id) ?? row;
-    const freshWidget = freshRow.widgets?.find(x => x.id === w.id) ?? w;
+    const freshWidget = this._findWidgetDeep(freshRow.widgets, w.id) ?? w;
     await openWidgetConfigPopup(freshWidget, freshTab, freshRow, this.document);
+  }
+
+  async _configRow(tabId, rowId) {
+    const row = this.document.system.customTabs?.find(t => t.id === tabId)?.rows?.find(r => r.id === rowId);
+    const cur = Math.max(1, Math.min(9, Number(row?.cols) || 3));
+    const n = await foundry.applications.api.DialogV2.prompt({
+      window: { title: "Row Columns" },
+      content: `<div style="padding:8px 0">
+        <label style="font-size:12px;color:#888">Columns (1-9):</label>
+        <input type="number" min="1" max="9" name="cols" value="${cur}"
+          style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
+      </div>`,
+      ok: {
+        label: "Apply",
+        callback: (event, button, dialog) =>
+          Number(dialog.element.querySelector("input[name='cols']")?.value)
+      },
+      rejectClose: false
+    }).catch(() => null);
+    if (!n || !Number.isFinite(n)) return;
+    const cols = Math.max(1, Math.min(9, Math.round(n)));
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const r = tabs.find(t => t.id === tabId)?.rows?.find(r => r.id === rowId);
+    if (!r) return;
+    r.cols = cols;
+    (r.widgets ?? []).forEach(w => {
+      if (w.type !== "vsection" && Number(w.span) > cols) w.span = cols;
+    });
+    await this.document.update({ "system.customTabs": tabs });
+  }
+
+  async _moveWidget(src, dst) {
+    if (!src || !dst) return;
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const srcTab = tabs.find(t => t.id === src.tabId);
+    const dstTab = tabs.find(t => t.id === dst.tabId);
+    if (!srcTab || !dstTab) return;
+    const srcRow = srcTab.rows?.find(r => r.id === src.rowId);
+    if (!srcRow) return;
+    const srcContainer = src.parentVsId
+      ? (this._findVs(srcRow.widgets, src.parentVsId)?.widgets ?? [])
+      : srcRow.widgets;
+    const wIdx = srcContainer.findIndex(w => w.id === src.widgetId);
+    if (wIdx < 0) return;
+    const [moved] = srcContainer.splice(wIdx, 1);
+    if (!moved) return;
+
+    if (moved.type === "vsection" && dst.parentVsId) {
+      srcContainer.splice(wIdx, 0, moved);
+      return;
+    }
+
+    let dstContainer;
+    if (dst.rowId) {
+      const dstRow = dstTab.rows?.find(r => r.id === dst.rowId);
+      if (!dstRow) { srcContainer.splice(wIdx, 0, moved); return; }
+      dstContainer = dst.parentVsId
+        ? (this._findVs(dstRow.widgets, dst.parentVsId)?.widgets ?? null)
+        : dstRow.widgets;
+      if (!dstContainer) { srcContainer.splice(wIdx, 0, moved); return; }
+    } else {
+      const newRow = { id: foundry.utils.randomID(8), cols: 3, widgets: [] };
+      dstTab.rows ??= [];
+      dstTab.rows.push(newRow);
+      dstContainer = newRow.widgets;
+    }
+
+    const insertIdx = dst.toEnd ? dstContainer.length : Math.max(0, Math.min(dstContainer.length, dst.index ?? dstContainer.length));
+    dstContainer.splice(insertIdx, 0, moved);
+    await this.document.update({ "system.customTabs": tabs });
   }
 
 

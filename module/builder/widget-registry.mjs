@@ -505,6 +505,22 @@ export const WIDGET_TYPES = {
     ]
   },
 
+  /** Vertical Section — takes one grid cell, stacks child widgets vertically */
+  vsection: {
+    id:    "vsection",
+    label: "Vertical Section",
+    icon:  "fa-bars",
+    desc:  "Replaces one grid cell with a vertical stack of widgets",
+    defaultSpan: 1,
+    defaults: {
+      label:   "",
+      widgets: []
+    },
+    configFields: [
+      { key: "label", type: "text", label: "Heading (optional)" }
+    ]
+  },
+
   /** Derived / Computed — read-only display of a formula value with optional graph */
   derived: {
     id:    "derived",
@@ -527,10 +543,10 @@ export const WIDGET_TYPES = {
 
 /** Ordered list for palette display */
 export const WIDGET_PALETTE_ORDER = [
-  "text", "number", "counter", "resource", "derived", "dice", "rollButton", "diceTray", "button",
+  "text", "number", "counter", "resource", "derived", "dice", "diceTray", "button",
   "toggle", "attribute", "skill", "progress", "tracker", "tokenPool", "clock",
   "slot", "inventory", "effects", "spellbook",
-  "select", "tags", "image", "section", "richtext"
+  "select", "tags", "image", "section", "vsection", "richtext"
 ];
 
 export const WIDGET_COMMON_FIELDS = [
