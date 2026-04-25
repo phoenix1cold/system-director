@@ -5,7 +5,6 @@ import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
-// Make SlotManager available at render time
 Hooks.once("ready", () => {
   globalThis._SD_SLOTS = { SlotManager };
 });
@@ -81,7 +80,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
   async _prepareContext(options) {
     const base = await super._prepareContext(options);
-    return { ...base, item: this.document, system: this.document.system, isEditable: this.isEditable, editMode: this._editMode };
+    return { ...base, item: this.document, system: this.document.system, isEditable: this.isEditable, editMode: this._editMode, isInventory: this.document.type === "inventory", isAbility: this.document.type === "ability" };
   }
 
   _onRender(context, options) {
@@ -349,7 +348,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
   _e(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
 
-  //  CLASS ITEM PANEL -- level editor
 
   _buildClassPanel(isActive) {
     const p   = this._mkSysPanel("_sys_class", isActive);
@@ -634,7 +632,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     );
   }
 
-  //  SKILLTREE ITEM PANEL -- visual node grid editor
 
   _buildSkilltreePanel(isActive) {
     const p   = this._mkSysPanel("_sys_skilltree", isActive);
@@ -817,7 +814,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         await this.document.update({ "system.rows": Math.max(2, Math.min(20, parseInt(ev.target.value)||5)) });
       });
 
-      // Node click -- connect or select
       canvas.querySelectorAll("[data-node-id]").forEach(el => {
         el.addEventListener("click", async ev => {
           if (ev.target.closest(".sti-cfg-node,.sti-del-node")) return;
@@ -956,7 +952,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const locked  = LOCKED_HIDDEN_FIELDS[this.document.type] ?? [];
     const lockedKeys = new Set(locked.map(f=>f.key));
     const stored  = sys.hiddenFields ?? {};
-    // Rows = (locked fields, always first and un-deletable) + (user-added).
     const userRows = Object.entries(stored).filter(([k])=>!lockedKeys.has(k));
     const hfEmpty  = locked.length === 0 && userRows.length === 0;
 
@@ -979,8 +974,18 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     ${ed?`<button data-sys-action="removeHiddenField" data-key="${e(k)}" style="background:none;border:none;color:#444;cursor:pointer;font-size:13px;padding:0 5px">✕</button>`:""}
   </div>`;
 
+    const isInv = this.document.type === "inventory";
     const da=sys.declaredAttrs??[];
     p.innerHTML=`
+${isInv ? `<div class="sys-section" style="margin-bottom:12px">
+  <div class="sys-section-header"><i class="fas fa-shield-halved"></i> Inventory Flags</div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:4px 0">
+    <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:#e0e0ee">
+      <input type="checkbox" data-sys-hf-val="equippable" ${(sys.hiddenFields?.equippable ?? sys.equippable)?"checked":""} ${!ed?"disabled":""} style="accent-color:#7b68ee;width:15px;height:15px;cursor:inherit">
+      ${e(game.i18n?.localize?.("SD.Equippable") ?? "Equippable")}
+    </label>
+  </div>
+</div>` : ""}
 <div class="sys-section">
   <div class="sys-section-header"><i class="fas fa-eye-slash"></i> Hidden Fields
     ${ed?`<button data-sys-action="addHiddenField" style="margin-left:auto" class="sys-add-btn"><i class="fas fa-plus"></i> Add</button>`:""}
@@ -1193,7 +1198,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const disabled  = ef.disabled ? "effect-disabled" : "";
       const dur       = _durLabel(ef);
       const eyeIcon   = ef.disabled ? "fa-eye-slash" : "fa-eye";
-      const transfers = ef.transfer !== false;  // default true in Foundry
+      const transfers = ef.transfer !== false;
       const tColor    = transfers ? "#2e8b46" : "#7a4a1a";
       const tIcon     = transfers ? "fa-arrow-right-to-bracket" : "fa-lock";
       const tTitle    = transfers ? "Transfers to actor when item is owned" : "Does NOT transfer to actor";
@@ -1318,16 +1323,15 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     });
   }
 
-  //  INTERACTIONS (delegated)
-  //  INTERACTIONS (delegated)
 
   _wireAllInteractions() {
     const root=this.element; if (!root) return;
     const con=root.querySelector(".sd-panels-container"); if (!con) return;
+    if (con._sdWired) return;
+    con._sdWired = true;
     con.addEventListener("click", this._onPanelClick.bind(this));
     con.addEventListener("change", this._onPanelChange.bind(this));
 
-    // Delegated slot-widget remove button (data-action="removeFromSlot" from WidgetRenderer)
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='removeFromSlot']");
       if (!btn) return;
@@ -1337,7 +1341,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       await SlotManager.removeFromSlot(this.document, slotId, idx);
     });
 
-    // Delegated slot-widget Use button (data-action="slotItemUse" from WidgetRenderer)
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='slotItemUse']");
       if (!btn) return;
@@ -1348,42 +1351,32 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const itemData = contents[idx];
       if (!itemData) return;
       const actor = this.document.actor;
-      // 1. Live actor item by stored _id
       let item = actor?.items?.get(itemData._id) ?? null;
       // 2. Live actor item by name
       if (!item) item = actor?.items?.find(i => i.name === itemData.name) ?? null;
-      // 3. World/compendium item by uuid
       if (!item && itemData.uuid) { try { item = await fromUuid(itemData.uuid); } catch {} }
-      // 4. Build a temporary Item from the stored snapshot
       if (!item) {
         try {
           const ItemCls = foundry.utils.getDocumentClass("Item");
-          item = new ItemCls(itemData, { parent: null }) // parent:null prevents registration in actor.items EmbeddedCollection
+          item = new ItemCls(itemData, { parent: null })
         } catch(e) { console.warn("SD | slotItemUse (item-sheet): could not build temp item:", e); }
       }
       if (item) await item.use({});
     });
 
-    // Shared helper: resolve a live Item from slotted snapshot data
     const _resolveSlottedItem = async (itemId, itemUuid, snapshot, parentDoc) => {
       const actor = parentDoc instanceof Actor ? parentDoc : (parentDoc?.actor ?? null);
-      // 1. Live actor-embedded item by stored _id
       let item = itemId ? (actor?.items?.get(itemId) ?? null) : null;
-      // 2. Via stored _sourceUuid (set by SlotManager.addToSlot)
       if (!item && itemUuid) { try { item = await fromUuid(itemUuid); } catch {} }
-      // 3. Snapshot has _sourceUuid field directly
       if (!item && snapshot?._sourceUuid) { try { item = await fromUuid(snapshot._sourceUuid); } catch {} }
       // 4. Try as world item by _id
       if (!item && itemId) { try { item = await fromUuid("Item." + itemId); } catch {} }
-      // 5. Actor-embedded search by name
       if (!item && snapshot?.name) {
         item = actor?.items?.find(i => i.name === snapshot.name) ?? null;
       }
       return item ?? null;
     };
 
-    // Delegated slot-widget Edit button (data-action="slotItemEdit" from WidgetRenderer)
-    // Opens a snapshot editor -- edits go back to the slot, not the world item.
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='slotItemEdit']");
       if (!btn) return;
@@ -1396,7 +1389,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       await SnapshotItem.openForSnapshot(snapshot, this.document, slotId, idx);
     });
 
-    // Effects widget actions (data-action="effectCreate/Toggle/Edit/Delete")
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action^='effect']");
       if (!btn) return;
@@ -1432,8 +1424,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       }
     });
 
-    // Widget renderer interactions
-    // Copy path buttons
     con.querySelectorAll(".widget-copy-path").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1458,7 +1448,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     con.querySelectorAll("[data-action='widgetRoll']").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         let formula = btn.dataset.formulaRaw || btn.dataset.formula || "1d20";
-        // JSON action graph -- delegate to ButtonExecutor
         if (formula.trim().startsWith("[")) {
           try {
             const { ButtonExecutor } = await import("../helpers/button-executor.mjs");
@@ -1507,7 +1496,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           return;
         }
         const trimmed = rawFormula.trim();
-        // Detect compiled action graph (array "[" or multi-trigger object "{")
         if (trimmed.startsWith("[") || trimmed.startsWith("{\"_trigger\"")) {
           try {
             const { ButtonExecutor } = await import("../helpers/button-executor.mjs");
@@ -1565,8 +1553,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       });
     });
 
-    // Tracker pips
-    // click=step ±1 (PbtA/Blades style); shift+click=jump to index; right-click=decrement.
     con.querySelectorAll(".sd-tracker-pip").forEach(pip => {
       const _apply = async (mode) => {
         const path  = pip.dataset.path;
@@ -1663,7 +1649,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       });
     });
 
-    // Richtext widget: click display → show edit wrap; Save/Cancel buttons handle persistence
     con.querySelectorAll(".richtext-display").forEach(display => {
       const widget   = display.closest(".widget-richtext");
       const editWrap = widget?.querySelector(".richtext-edit-wrap");
@@ -1714,7 +1699,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     // Spellbook widget actions
 
-    // abilityDelete -- remove ability item from actor
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='abilityDelete']");
       if (!btn) return;
@@ -1730,7 +1714,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       if (ok) await item.delete();
     });
 
-    // abilityEdit -- open ability item sheet
     con.addEventListener("click", ev => {
       const btn = ev.target.closest("[data-action='abilityEdit']");
       if (!btn) return;
@@ -1750,7 +1733,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       if (item) await item.use({});
     });
 
-    // slotRestore -- toggle spell slot pip
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='slotRestore']");
       if (!btn) return;
@@ -1768,7 +1750,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       await actor.update({ [`${slotPath}.value`]: newVal });
     });
 
-    // slotSetMax -- set spell slot max for a level
     con.addEventListener("change", async ev => {
       const inp = ev.target.closest("[data-action='slotSetMax']");
       if (!inp) return;
@@ -1895,7 +1876,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         [`system.hiddenFields.${nk}`]: val
       }); return;
     }
-    if (el.dataset.sysHfVal!==undefined) { await this.document.update({[`system.hiddenFields.${el.dataset.sysHfVal}`]:el.value}); return; }
+    if (el.dataset.sysHfVal!==undefined) { const val=el.type==="checkbox"?el.checked:el.value; await this.document.update({[`system.hiddenFields.${el.dataset.sysHfVal}`]:val}); return; }
     if (el.dataset.sysDaName!==undefined) { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); const a=attrs.find(x=>x.id===el.dataset.sysDaName); if(a){a.name=el.value; await this.document.update({"system.declaredAttrs":attrs});} return; }
     if (el.dataset.sysDaPath!==undefined) { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); const a=attrs.find(x=>x.id===el.dataset.sysDaPath); if(a){a.path=el.value; await this.document.update({"system.declaredAttrs":attrs});} return; }
     if (el.dataset.sysSlot!==undefined) {
@@ -1929,8 +1910,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const root=this.element; if (!root) return;
     const con=root.querySelector(".sd-panels-container");
 
-    // Delegated handler covers slot-drop-mini (WidgetRenderer), slot-contents-area (sys panel),
-    // sd-widget-dropzone, slot-drop-filter-zone -- all in one place, survives tab switches.
     if (con && !con._sdItemDropWired) {
       con._sdItemDropWired = true;
 
@@ -1955,12 +1934,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         let data;
         try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return; }
 
-        // Slot contents drop (widget renderer: data-drop-slot, sys panel: data-drop-slot)
         if (zone.dataset.dropSlot !== undefined) {
           const item = data.uuid ? await fromUuid(data.uuid) : null;
           if (item) {
             const slotId = zone.dataset.dropSlot;
-            // Auto-create slot definition on item if missing (mirrors character-sheet behaviour)
             const defs = this.document.system.slotDefinitions ?? [];
             if (!defs.find(d => String(d.id) === String(slotId))) {
               const allWidgets = (this.document.system.customTabs ?? [])
@@ -2034,7 +2011,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const id   = foundry.utils.randomID(8);
     tabs.push({ id, label: "New Tab", rows: [] });
     await this.document.update({ "system.customTabs": tabs });
-    // Immediately open rename dialog so the user can set a real label.
     this._renameTab(id);
   }
   async _renameTab(tabId) {
@@ -2243,7 +2219,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const doc = this.document;
     const sys = doc.system ?? {};
 
-    // Save FULL sheet builder state to game.settings (not as an Item copy).
     const stored = foundry.utils.deepClone(game.settings.get("sd", "sheetTemplates") ?? {});
     stored[name] = {
       name,
@@ -2251,25 +2226,20 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       itemType:        doc.type ?? "ability",
       // Sheet Builder layout
       customTabs:      foundry.utils.deepClone(sys.customTabs      ?? []),
-      // Hidden fields (GM key/value pairs used by widgets)
       hiddenFields:    foundry.utils.deepClone(sys.hiddenFields     ?? {}),
-      // Declared attributes (attribute reference system)
       declaredAttrs:   foundry.utils.deepClone(sys.declaredAttrs    ?? []),
       // Slot widget definitions
       slotDefinitions: foundry.utils.deepClone(sys.slotDefinitions  ?? []),
       // Custom action buttons
       buttons:         foundry.utils.deepClone(sys.buttons          ?? []),
-      // On-click action graph (formula graph)
       onClickGraph:    foundry.utils.deepClone(sys.onClickGraph      ?? {}),
       // Active Effect templates
       effectTemplates: foundry.utils.deepClone(sys.effectTemplates   ?? []),
-      // Sheet-level event trigger graph
       sdTriggerGraph:  foundry.utils.deepClone(sys.sdTriggerGraph    ?? {}),
       created: Date.now()
     };
     await game.settings.set("sd", "sheetTemplates", stored);
 
-    // Refresh Toolbox panel if it is open
     try {
       const tb = Object.values(foundry.applications.instances ?? {})
         .find(a => a.constructor?.name === "Toolbox");
@@ -2287,7 +2257,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const name   = item.name;
     const img    = item.img ?? "icons/svg/dice-target.svg";
 
-    // Script: resolve the item by UUID (works for owned items and world items)
     const command = [
       `// Quick-use: ${name}`,
       `const item = await fromUuid("${uuid}");`,
@@ -2295,11 +2264,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       `await item.use({});`
     ].join("\n");
 
-    // Reuse existing SD macro for this item if one was already created
     let macro = game.macros.find(m => m.flags?.sd?.itemUuid === uuid);
 
     if (macro) {
-      // Update in case name/img changed
       await macro.update({ name, img, command });
       ui.notifications.info(`Macro "${name}" updated.`);
     } else {
@@ -2313,7 +2280,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       ui.notifications.info(`Macro "${name}" created! Drag it to your hotbar from the Macros directory.`);
     }
 
-    // Try to place in first free hotbar slot automatically
     try {
       const freeSlot = Array.from({ length: 50 }, (_, i) => i + 1)
         .find(slot => !game.user.hotbar[slot]);
@@ -2323,7 +2289,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       }
     } catch { /* hotbar assignment is a nice-to-have */ }
 
-    // Open the macro sheet so the user can see / drag it
     macro.sheet.render(true);
   }
 }

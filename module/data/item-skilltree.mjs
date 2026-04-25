@@ -46,8 +46,6 @@ export class SkillTreeData extends foundry.abstract.TypeDataModel {
         { initial: [] }
       ),
 
-      // Connections
-      // Directed edges: "from" must be acquired before "to" is available.
       connections: new ArrayField(
         new SchemaField({
           from: new StringField({ required: true, blank: false }),

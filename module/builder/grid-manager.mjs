@@ -145,7 +145,6 @@ export class GridManager {
     const stored = game.settings.get("sd", "sheetTemplates") ?? {};
     const tmpl   = stored[templateName];
     if (!tmpl) return ui.notifications.warn(`Template "${templateName}" not found.`);
-    // Re-generate fresh IDs so multiple actors don't share ids
     const freshTabs = this._freshenIds(foundry.utils.deepClone(tmpl.tabs));
     await doc.update({ "system.customTabs": freshTabs });
     ui.notifications.info(`Template "${templateName}" applied.`);

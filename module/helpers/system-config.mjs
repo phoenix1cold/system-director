@@ -6,7 +6,6 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 export function getDefaultSettings() {
   return {
-    // Attribute labels (key → display name)
     attributes: {
       attr1: "Strength",
       attr2: "Dexterity",
@@ -35,7 +34,6 @@ export function getDefaultSettings() {
       tertiary:  "Copper"
     },
 
-    // Modifier formula: "halved" (floor((v-10)/2)) or "direct" (raw value)
     modifierFormula: "halved",
 
     // Global UI scale as a percentage (50-200). Applied via CSS zoom to all sheet content.
@@ -51,26 +49,21 @@ export function loadSettings() {
   try {
     stored = game.settings.get("sd", "systemSettings") ?? {};
   } catch(e) {
-    // settings not yet registered during early init
   }
 
-  // If nothing stored, return defaults
   if (Object.keys(stored).length === 0) {
     return foundry.utils.deepClone(getDefaultSettings());
   }
 
-  // Return stored settings, but fill in any missing top-level keys from defaults
   const defaults = getDefaultSettings();
   const result = foundry.utils.deepClone(stored);
 
-  // Only fill missing top-level keys, don't merge arrays/objects
   for (const [key, val] of Object.entries(defaults)) {
     if (result[key] === undefined) {
       result[key] = foundry.utils.deepClone(val);
     }
   }
 
-  // Ensure attributesEnabled exists and has entries for all attributes
   if (result.attributes && !result.attributesEnabled) {
     result.attributesEnabled = {};
   }
@@ -85,7 +78,6 @@ export function loadSettings() {
     result.uiScale = Math.round((oldSize / 13) * 100 / 5) * 5; // snap to step-5
     result.uiScale = Math.min(Math.max(result.uiScale, 50), 200);
   }
-  // Clean up obsolete keys so they don't persist
   delete result.uiFontSize;
   delete result.uiBtnFontSize;
 
@@ -120,7 +112,6 @@ export function applySettings(cfg) {
   CONFIG.SD.modifierFormula = cfg.modifierFormula ?? "halved";
 
   // Global UI scale -- set --sd-ui-scale on :root so CSS zoom picks it up on all SD sheets.
-  // Stored as an integer percentage (50-200); converted to a decimal for CSS (e.g. 120 → 1.2).
   const scale = Math.min(Math.max(Number(cfg.uiScale ?? 100), 50), 200) / 100;
   document.documentElement.style.setProperty("--sd-ui-scale", scale);
 

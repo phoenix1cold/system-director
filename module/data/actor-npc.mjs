@@ -60,7 +60,6 @@ export class NPCData extends foundry.abstract.TypeDataModel {
         isSwarm:   new BooleanField({ initial: false })
       }),
 
-      // Attacks (inline, for quick NPC blocks)
       attacks: new ArrayField(
         new SchemaField({
           name:     new StringField({ initial: "Attack", blank: false }),
@@ -84,27 +83,21 @@ export class NPCData extends foundry.abstract.TypeDataModel {
       // Default Roll Config
       rollConfig: RollConfigField({ label: "Default Roll" }),
 
-      // Declared Attributes (for attribute reference system)
       declaredAttrs: new ArrayField(new ObjectField()),
 
       // Custom Tabs
       customTabs: new ArrayField(new ObjectField()),
 
-      // Sheet-level Trigger Graph
-      // Event-node-only graph scanned by event-bus alongside widget graphs.
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
-      // Damage Resistances (structured map)
       resistances: new ObjectField({ initial: {} }),
 
       // Flags / Custom Fields
       flags: new ObjectField({ initial: {} }),
 
-      // Slot System (Sheet Builder slot widgets)
       slotDefinitions: new ArrayField(SlotDefinitionField()),
       slotContents:    new ObjectField({ initial: {} }),
 
-      // Hidden Fields (GM-only key/value pairs)
       hiddenFields: new ObjectField({ initial: {} }),
 
       // Biography / Notes

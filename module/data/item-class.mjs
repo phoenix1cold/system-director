@@ -33,8 +33,6 @@ export class ClassData extends foundry.abstract.TypeDataModel {
       // Description
       description: new HTMLField({ required: false, blank: true, initial: "" }),
 
-      // Levels
-      // Ordered array of per-level reward definitions.
       levels: new ArrayField(
         new SchemaField({
           /** Stable unique id so re-ordering doesn't break references. */
@@ -53,7 +51,6 @@ export class ClassData extends foundry.abstract.TypeDataModel {
         { initial: [] }
       ),
 
-      // Optional slot / button support (same as other item types)
       customTabs: new ArrayField(new ObjectField(), { initial: [] }),
       slotDefs:   new ArrayField(SlotDefinitionField(),  { initial: [] }),
       slotContents: new ObjectField({ initial: {} }),

@@ -27,16 +27,13 @@ export class SDActor extends Actor {
     }
   }
 
-  // Character-specific derived data
 
   _prepareCharacterData(data) {
-    // Sum encumbrance from owned inventory items.
     let totalWeight = 0;
     for (const item of this.items) {
       if (item.type === "inventory") {
         totalWeight += (item.system.totalWeight ?? 0);
       }
-      // Equipped armor → update defense.
       if (item.type === "inventory" && item.system.armor?.enabled && item.system.equipped) {
         data.defense.armor = item.system.armor.baseAC;
       }
@@ -119,7 +116,6 @@ export class SDActor extends Actor {
   getRollData() {
     const data = { ...this.system };
 
-    // Shorthand: @attr1 = this.system.attributes.attr1.mod
     if (data.attributes) {
       for (const [key, attr] of Object.entries(data.attributes)) {
         data[key] = attr.mod;
@@ -146,17 +142,7 @@ export class SDActor extends Actor {
     });
   }
 
-  /**
-   * @override
-   * Foundry's default applyActiveEffects() handles schema-backed fields fine,
-   * but ObjectField-backed dynamic paths (hiddenFields, flags) get string-
-   * concatenated instead of numeric-added.  We fix this by:
-   *   1. Resetting every dynamic path to its source value before the parent call.
-   *   2. Letting the parent run (it will mis-apply dynamic paths, but we will overwrite).
-   *   3. Re-computing dynamic paths ourselves with proper numeric coercion.
-   */
   applyActiveEffects(phase) {
-    // Paths whose parent key is an untyped ObjectField -- need manual numeric handling.
     const DYNAMIC_PREFIXES = [
       "system.hiddenFields.",
       "system.flags."
@@ -164,8 +150,7 @@ export class SDActor extends Actor {
 
     const isDynamic = key => DYNAMIC_PREFIXES.some(p => String(key).startsWith(p));
 
-    // Phase 1: collect all dynamic changes grouped by key
-    const byKey = new Map(); // key → [{mode, value, priority}]
+    const byKey = new Map();
 
     for (const effect of this.allApplicableEffects()) {
       if (effect.disabled) continue;
@@ -177,25 +162,20 @@ export class SDActor extends Actor {
       }
     }
 
-    // Phase 2: reset dynamic paths to raw source so parent doesn't corrupt
     for (const key of byKey.keys()) {
       const src = foundry.utils.getProperty(this._source, key) ?? 0;
       foundry.utils.setProperty(this, key, src);
     }
 
-    // Phase 3: let Foundry handle schema-backed fields normally
     super.applyActiveEffects(phase);
 
-    // Phase 4: overwrite dynamic paths with correctly computed values
     if (!byKey.size) return;
 
     const M = CONST.ACTIVE_EFFECT_MODES;
 
     for (const [key, changes] of byKey) {
-      // Sort by priority ascending (matches Foundry's ordering)
       changes.sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
 
-      // Start from source value, coerced to number
       const rawSrc = foundry.utils.getProperty(this._source, key) ?? 0;
       let current  = Number(rawSrc);
       if (isNaN(current)) current = 0;

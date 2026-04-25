@@ -46,10 +46,18 @@
     </div>
 
     <div class="detail-group checkboxes">
+      <label><input type="checkbox" name="system.equippable"
+             {{#if system.equippable}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Equippable"}}</label>
       <label><input type="checkbox" name="system.equipped"
              {{#if system.equipped}}checked{{/if}}
              {{#unless isEditable}}disabled{{/unless}} />
         {{localize "SD.Equipped"}}</label>
+      <label><input type="checkbox" name="system.concentration"
+             {{#if system.concentration}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Concentration"}}</label>
       <label><input type="checkbox" name="system.identified"
              {{#if system.identified}}checked{{/if}}
              {{#unless isEditable}}disabled{{/unless}} />
@@ -58,6 +66,18 @@
              {{#if system.attuned}}checked{{/if}}
              {{#unless isEditable}}disabled{{/unless}} />
         {{localize "SD.Attuned"}}</label>
+      <label><input type="checkbox" name="system.broken"
+             {{#if system.broken}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Broken"}}</label>
+    </div>
+
+    <div class="detail-group" style="grid-column:1/-1">
+      <label title="{{localize 'SD.EquipRequirementsHint'}}">{{localize "SD.EquipRequirements"}}</label>
+      <input type="text" name="system.equipRequirements"
+             value="{{system.equipRequirements}}"
+             placeholder="{{localize 'SD.EquipRequirementsPlaceholder'}}"
+             {{#unless isEditable}}disabled{{/unless}} />
     </div>
   </div>
 
@@ -180,7 +200,7 @@
   {{/if}}{{!-- /isInventory --}}
 
 
-  {{!-- ══ ABILITY ════════════════════════════════════════════════════════════ --}}
+{{!-- ══ ABILITY ════════════════════════════════════════════════════════════ --}}
   {{#if isAbility}}
 
   <div class="details-grid two-col">
@@ -362,7 +382,7 @@
   {{/if}}{{!-- /isAbility --}}
 
 
-  {{!-- ══ FEATURE ══════════════════════════════════════════════════════════ --}}
+{{!-- ══ FEATURE ══════════════════════════════════════════════════════════ --}}
   {{#if isFeature}}
   <div class="details-grid two-col">
     <div class="detail-group">

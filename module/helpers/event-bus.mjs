@@ -13,18 +13,14 @@ const HOOK_MAP = {
 
 class EventBus {
   constructor() {
-    // hookName → Map<regKey, entry>
-    //   entry = { actorId, docUuid, widgetId, eventKey, eventHook, actions, data }
     this._reg = new Map();
     // hookName → foundry hook id
     this._hookIds = new Map();
   }
 
   init() {
-    // Initial scan of all world actors + their items.
     for (const actor of game.actors ?? []) this._registerActor(actor);
 
-    // Re-scan whenever a relevant document changes shape.
     Hooks.on("createActor", (actor) => this._registerActor(actor));
     Hooks.on("updateActor", (actor) => this._registerActor(actor));
     Hooks.on("deleteActor", (actor) => this._unregisterByActor(actor.id));
@@ -61,8 +57,6 @@ class EventBus {
     for (const tab of tabs) {
       for (const row of (tab.rows ?? [])) {
         for (const w of (row.widgets ?? [])) {
-          // Button widgets keep the compiled payload in `formula`;
-          // attribute widgets store it in `onClickFormula`.
           const raw = w.formula ?? w.onClickFormula ?? null;
           this._registerPayload(actor, doc, w.id, raw);
         }
@@ -162,7 +156,6 @@ class EventBus {
         const [item, actor] = args;
         const hostId = actor?.id ?? item?.parent?.id;
         if (hostId !== entry.actorId) return false;
-        // When the event node sits on an item (not the actor), require the
         if (entry.docUuid && !entry.docUuid.includes(".Item.")) return true;
         if (entry.docUuid && item?.uuid && entry.docUuid !== item.uuid) return false;
         return true;
@@ -176,14 +169,12 @@ class EventBus {
         entry.eventHook === "createDocument" ||
         entry.eventHook === "deleteDocument") {
       if (entry.eventHook !== "updateDocument") return true;
-      // Path filter for on_update: diff must touch pathFilter when set
       const diff = args[1] ?? {};
       const pathFilter = entry.data?.pathFilter;
       if (!pathFilter) return true;
       return foundry.utils.getProperty(diff, pathFilter) !== undefined;
     }
     if (entry.eventHook === "hpDecrease") {
-      // Only fire when the configured HP path went down
       const [doc, diff] = args;
       const hpPath = entry.data?.hpPath ?? "system.resources.hp.value";
       const newVal = foundry.utils.getProperty(diff, hpPath);
@@ -275,7 +266,6 @@ class EventBus {
 }
 
 function _oldValueFromDiff(diff, path, doc) {
-  // diff contains the NEW value at `path`; reconstruct old from doc minus diff
   try {
     const prev = foundry.utils.getProperty(doc._source ?? {}, path);
     if (prev !== undefined) return prev;

@@ -39,7 +39,6 @@ export function lintGraph(graph, NODE_DEFS) {
     const fromPin = fromDef?.outputs?.find(p => p.id === e.fromPin);
     const toPin   = toDef?.inputs?.find(p => p.id === e.toPin);
     if (!fromPin || !toPin) {
-      // dynamic-pin nodes may declare pins lazily; skip when def absent
       if (!fromDef?.dynamicPins && !toDef?.dynamicPins) {
         out.push({ severity:"warn", code:"E004",
           message:`Edge references missing pin: ${from.type}.${e.fromPin} → ${to.type}.${e.toPin}` });
@@ -68,7 +67,6 @@ export function lintGraph(graph, NODE_DEFS) {
   for (const e of edges) { touched.add(e.fromNode); touched.add(e.toNode); }
   for (const n of nodes) {
     if (touched.has(n.id)) continue;
-    // Singletons like on_click standing alone are fine; flag only pure data nodes.
     const def = NODE_DEFS[n.type];
     if (def?.isEvent || def?.isMacroInput || n.type === "on_click") continue;
     out.push({ severity:"info", code:"W002", nodeId:n.id,

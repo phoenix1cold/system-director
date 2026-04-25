@@ -10,7 +10,6 @@
 
   <div class="section-block">
     <div class="section-title"><i class="fas fa-tags"></i> {{localize "SD.Tags"}}</div>
-    {{!-- Tags editor: wired by TagsEditor.wireAll() in _onRender --}}
     <div data-tags-editor="system.tags" style="cursor:text">
       {{#each system.tags as |tag|}}
       <span class="tag-chip">{{tag}}</span>

@@ -40,7 +40,6 @@ const FIELD_HINTS = {
   bgColor:      "Colour of empty/unfilled segments",
   staticSrc:    "Static image URL. Leave blank to use the document path instead.",
   decimalPlaces:"Decimal places to show for derived numeric values (0 = whole number)",
-  // per-field hints (looked up by field key)
   showCurrency: "Show a currency row at the top of the inventory. " +
                 "Leave Currency Path blank to use the built-in system.currency (primary / secondary / tertiary). " +
                 "Set Currency Path to show a single custom money field instead.",
@@ -59,7 +58,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   const _typeFields = FIELD_DEFS[w.type] ?? [["Label","label"]];
   const _commonFields = [
-    // ["Extra CSS class(es)", "cssClass", "text"]
   ];
   const fields = [..._typeFields, ..._commonFields];
   const allPaths = _buildPathList(doc);
@@ -69,7 +67,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   const IS = "width:100%;background:#1a1a2e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
   const MONO = ";font-family:'Courier New',monospace;font-size:11px";
 
-  // Attribute widgets get a dedicated Graph button (no formula field to attach to)
   const attrGraphRow = (w.type === "attribute" || w.type === "skill") ? `
     <div class="wcfg-f" style="margin-bottom:10px">
       <label class="wcfg-lbl">Node Graph</label>
@@ -81,10 +78,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </button>
     </div>` : "";
 
-  // showIf: collect all widgetKeys + hiddenFields on this doc for dropdown
   const _showIfSources = (() => {
     const list = [];
-    // widget keys from same doc's customTabs
     for (const t of (doc.system?.customTabs ?? [])) {
       for (const r of (t.rows ?? [])) {
         for (const ww of (r.widgets ?? [])) {
@@ -152,7 +147,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>`;
 
     if (type === "slotconfig") {
-      // Per-level slot editor -- renders a mini table; saves as JSON to a hidden input
       const rows = (Array.isArray(w[key]) ? w[key] : []).map((entry, i) => {
         const lvl  = esc(String(entry.level   ?? i + 1));
         const maxP = esc(String(entry.maxPath  ?? ""));
@@ -208,7 +202,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>`;
   }).join("");
 
-  // Blueprint panel removed -- use Graph editor instead
 
   // Path picker
   const pathPickerOpts = allPaths.map(p => `<option value="${esc(p.path)}">${esc(p.label)}</option>`).join("");
@@ -286,7 +279,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   // State
   let _lastFocused = null;
 
-  // Tab switching (Fields ↔ Blueprints)
   const panelFields = popup.querySelector("#wcfg-panel-fields");
     const tabFields   = popup.querySelector("#wcfg-tab-fields");
   
@@ -322,7 +314,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         return;
       }
       try {
-        // Try a dry-run evaluation against an empty doc; catches most syntax errors
         FormulaEngine.evaluate(val, {});
         _showIfInp.style.borderColor = "#3a3a52"; // reset to normal
         _errEl.style.display = "none";
@@ -334,7 +325,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     };
     _showIfInp.addEventListener("input", _validateShowIf);
     _showIfInp.addEventListener("blur",  _validateShowIf);
-    _validateShowIf(); // run once on open in case field pre-populated
+    _validateShowIf();
   }
 
   function _refreshSug(inp) {
@@ -361,7 +352,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     });
   }
 
-  // Close suggestions on outside click
   document.addEventListener("click", ev => {
     if (!popup.contains(ev.target)) return;
     popup.querySelectorAll(".wcfg-sug").forEach(l => { if (!l.contains(ev.target)) l.style.display = "none"; });
@@ -404,7 +394,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   };
 
   if (slotRowsContainer) {
-    // Wire up existing delete buttons
     slotRowsContainer.addEventListener("click", ev => {
       if (ev.target.closest(".wcfg-slot-del")) {
         ev.target.closest(".wcfg-slotrow").remove();
@@ -449,7 +438,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     });
   });
 
-  // Attribute dedicated Graph button
   popup.querySelector("#wcfg-attr-graph-btn")?.addEventListener("click", () => {
     const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc });
     graph.open();
@@ -472,7 +460,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   popup.querySelector("#wcfg-pi").addEventListener("click", () => {
     const val = popup.querySelector("#wcfg-ps").value;
     if (!val || !_lastFocused) return;
-    // For formula fields, wrap in {}, for path fields insert as-is
     const wrap = _lastFocused.dataset.ftype === "formula" ? `{${val}}` : val;
     _insertAt(_lastFocused, wrap);
     popup.querySelector("#wcfg-ps").value = "";
@@ -557,7 +544,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   // Save
   const doSave = async () => {
-    // Sync slotconfig JSON from the live sub-form rows before saving
     const slotRowsEl = popup.querySelector("#wcfg-slotrows");
     const slotJsonEl = popup.querySelector("#wcfg-slotconfig-json");
     if (slotRowsEl && slotJsonEl) {
@@ -581,7 +567,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       if (type === "json") { try { val = JSON.parse(el.value || "[]"); } catch { val = []; } }
       changes[key] = val;
     });
-    // Handle <select data-field> elements (e.g. castingMode)
     popup.querySelectorAll("select[data-field]").forEach(el => {
       changes[el.dataset.field] = el.value;
     });
@@ -639,7 +624,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   return popup;
 }
 
-// Helper: build path suggestions list
 
 function _buildPathList(doc) {
   const paths = [];
@@ -652,7 +636,6 @@ function _buildPathList(doc) {
     }
   } catch {}
 
-  // 2. Actor/item own hidden fields
   const ownHF = Object.entries(doc.system?.hiddenFields ?? {});
   for (const [k] of ownHF) {
     paths.push({ path: `system.hiddenFields.${k}`, label: `Hidden: ${k}` });
@@ -668,7 +651,6 @@ function _buildPathList(doc) {
     paths.push({ path: `system.slotContents.${def.id}.count`, label: `Slot count: ${def.label}` });
   }
 
-  // 5. If actor -- items' hidden fields, declared attrs, slot counts
   if (doc instanceof Actor) {
     for (const item of (doc.items ?? [])) {
       for (const [k] of Object.entries(item.system?.hiddenFields ?? {})) {
@@ -686,7 +668,6 @@ function _buildPathList(doc) {
       paths.push({ path: `system.slotContents.${def.id}.count`, label: `Actor slot: ${def.label}` });
     }
   } else {
-    // Item -- also expose actor's items' hidden fields
     const actor = doc.actor;
     if (actor) {
       for (const item of (actor.items ?? [])) {

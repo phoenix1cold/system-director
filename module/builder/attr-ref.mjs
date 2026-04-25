@@ -9,7 +9,6 @@ export const FILTER_OPERATORS = [
   { value: "startsWith", label: "starts with" }
 ];
 
-// Read hidden fields from a document
 
 export class HiddenFields {
 
@@ -141,7 +140,6 @@ export class AttrFilter {
           {
             label: "Add Filter", icon: "fas fa-filter",
             callback: (ev, btn) => {
-              // btn.form may be null in some v13 builds -- query directly
               const dlgRoot      = btn.closest?.("[data-application]") ?? document;
               const idxEl        = dlgRoot.querySelector("select[name='fieldIdx']");
               const opEl         = dlgRoot.querySelector("select[name='operator']");
@@ -164,8 +162,6 @@ export class AttrFilter {
   }
 }
 
-// AttrRef -- declared attribute CRUD helper
-// Provides: addAttr, removeAttr, updateAttr -- used by SDItemSheet action handlers.
 
 export class AttrRef {
 

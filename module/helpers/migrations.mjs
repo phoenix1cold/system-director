@@ -9,7 +9,6 @@ export async function runMigrations() {
   CONFIG.debug?.sd && console.log(`SD | Running migrations from ${worldVersion} → ${currentVersion}`);
   ui.notifications.info(game.i18n.format("SD.MigrationStart", { version: currentVersion }));
 
-  // Collect all migrations that are newer than worldVersion
   const pending = MIGRATIONS.filter(m => foundry.utils.isNewerVersion(m.version, worldVersion));
 
   for (const migration of pending.sort((a, b) => foundry.utils.isNewerVersion(b.version, a.version) ? -1 : 1)) {
@@ -59,7 +58,6 @@ async function migrateItems(fn) {
       CONFIG.debug?.sd && console.log(`SD | Migrated item: ${item.name}`);
     }
   }
-  // Also migrate owned items on actors
   for (const actor of game.actors) {
     for (const item of actor.items) {
       const updates = fn(item.toObject());
@@ -72,7 +70,6 @@ async function migrateItems(fn) {
 
 export const MIGRATIONS = [
 
-  // 0.1.0 → Initial schema (no-op, establishes baseline)
   {
     version:     "0.1.0",
     description: "Initial schema — no data migration needed.",
@@ -121,7 +118,7 @@ export const MIGRATIONS = [
       const _rewriteGraph = (g) => {
         if (!g?.nodes?.length) return false;
         let changed = false;
-        const remapPairs = []; // [{nodeId, pinMap}]
+        const remapPairs = [];
         for (const n of g.nodes) {
           if (n.type === "sequence4") {
             n.type = "sequence";
@@ -165,7 +162,6 @@ export const MIGRATIONS = [
         return g ? _rewriteGraph(g) : false;
       };
       const _rewriteOnClickGraph = (ocg) => {
-        // Item onClickGraph: { nodes:[], edges:[] } directly OR wrapped under _graphData.
         if (!ocg || typeof ocg !== "object") return false;
         if (ocg.nodes) return _rewriteGraph(ocg);
         if (ocg._graphData) return _rewriteGraph(ocg._graphData);

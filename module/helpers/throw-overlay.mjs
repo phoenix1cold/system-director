@@ -38,7 +38,6 @@ export const ThrowOverlay = {
     Object.assign(overlay.style, {
       position: "absolute", inset: "0", pointerEvents: "none", zIndex: "9999"
     });
-    // Ensure host is positioned so absolute children anchor correctly.
     const prevPos = getComputedStyle(sheetEl).position;
     if (prevPos === "static") sheetEl.style.position = "relative";
     sheetEl.appendChild(overlay);

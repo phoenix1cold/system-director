@@ -46,8 +46,6 @@ function registerConfig() {
     // Dice
     diceTypes: ["d4", "d6", "d8", "d10", "d12", "d20", "d100"],
 
-    // Attributes
-    // Keys must match DataModel attribute keys exactly.
     attributes: {
       attr1: "SD.Attributes.attr1",
       attr2: "SD.Attributes.attr2",
@@ -105,11 +103,9 @@ function registerConfig() {
       gargantuan:  "SD.Sizes.gargantuan"
     },
 
-    // Active Effect paths for the AE editor
     effectPaths: EFFECT_PATHS
   };
 
-  // crToXP stored separately -- float keys crash foundry's mergeObject/expandObject
   CONFIG.SD._crToXP = {
     0: 10, 0.125: 25, 0.25: 50, 0.5: 100,
     1: 200, 2: 450, 3: 700, 4: 1100, 5: 1800,
@@ -133,7 +129,6 @@ Hooks.once("init", () => {
     globalThis._SD_REGION = SDRegion;
   }).catch(e => console.warn("SD | SDRegion.register() failed:", e));
 
-  // Register custom Document classes
   CONFIG.Actor.documentClass = SDActor;
   CONFIG.Item.documentClass  = SDItem;
 
@@ -150,7 +145,6 @@ Hooks.once("init", () => {
     skilltree: SkillTreeData
   };
 
-  // Register token-trackable attributes
   CONFIG.Actor.trackableAttributes = {
     character: {
       bar:   ["resources.hp", "resources.mp", "resources.stamina", "resources.custom1", "resources.custom2"],
@@ -162,7 +156,6 @@ Hooks.once("init", () => {
     }
   };
 
-  // Register Sheets -- v13 namespaced APIs
   const ActorsCollection = foundry.documents.collections.Actors;
   const ItemsCollection  = foundry.documents.collections.Items;
   const LegacyActorSheet = foundry.appv1?.sheets?.ActorSheet;
@@ -196,7 +189,6 @@ Hooks.once("init", () => {
     restricted: true
   });
 
-  // Store for all user-configurable system settings (JSON blob)
   game.settings.register("sd", "systemSettings", {
     name:   "System Settings Data",
     scope:  "world",
@@ -214,7 +206,6 @@ Hooks.once("init", () => {
     default: {}
   });
 
-  // Builder: custom field declarations
   game.settings.register("sd", "customFields", {
     name:    "Custom Fields",
     scope:   "world",
@@ -223,8 +214,6 @@ Hooks.once("init", () => {
     default: []
   });
 
-  // Graph editor: node-graph templates store (shared across all graphs)
-  // Key = template name, value = { name, nodes, edges, created }
   game.settings.register("sd", "nodeTemplates", {
     name:    "Node Graph Templates",
     scope:   "world",
@@ -239,10 +228,8 @@ Hooks.once("init", () => {
   // Register Handlebars helpers
   registerHandlebarsHelpers();
 
-  // Apply saved customisation immediately on init
   SystemConfig.applyStoredSettings();
 
-  // Expose Toolbox globally for keybind / header button
   CONFIG.SD.Toolbox = Toolbox;
 
   console.log("SD | Initialisation complete.");
@@ -252,21 +239,16 @@ Hooks.once("ready", async () => {
   if (game.user.isGM) {
     await runMigrations();
   }
-  // Expose builder classes globally for lazy access
   const { GridManager }    = await import("./module/builder/grid-manager.mjs");
   const { WidgetRenderer } = await import("./module/builder/widget-renderer.mjs");
   const { FormulaEngine }  = await import("./module/helpers/formula-engine.mjs");
   globalThis._SD_BUILDER = { GridManager, WidgetRenderer };
   globalThis._SD_FE      = { FormulaEngine };
 
-  // Event bus: scan all actors/items for widget-button graphs with event nodes
-  // and wire them to Foundry hooks.
   const { EVENT_BUS } = await import("./module/helpers/event-bus.mjs");
   EVENT_BUS.init();
   globalThis._SD_EVENT_BUS = EVENT_BUS;
 
-  // Aura sync: move sticky aura templates with their owner tokens and
-  // apply/remove linked effects on enter/exit.  GM-only.
   const { AuraSync } = await import("./module/helpers/aura-sync.mjs");
   AuraSync.init();
   globalThis._SD_AURA_SYNC = AuraSync;
@@ -286,7 +268,6 @@ Hooks.once("ready", async () => {
         rollFormula: data.rollFormula || "1d20",
         timeout:     data.timeout     ?? 60
       });
-      // Send result back to everyone (GM picks it up via callbackId)
       game.socket.emit("system.sd", {
         type:       "saveResult",
         callbackId: data.callbackId,
@@ -296,8 +277,6 @@ Hooks.once("ready", async () => {
   });
 });
 
-// Scene Controls: add Toolbox button in the left toolbar
-// Compatible with Foundry v13 (object map) and v14 (may change to array).
 Hooks.on("getSceneControlButtons", (controls) => {
   if (!game.user?.isGM) return;
 
@@ -310,13 +289,11 @@ Hooks.on("getSceneControlButtons", (controls) => {
     onChange: () => Toolbox.toggle()
   };
 
-  // v14+: controls is an array of control-group objects
   if (Array.isArray(controls)) {
     const tokenGroup = controls.find(c => c.name === "token");
     if (tokenGroup) (tokenGroup.tools ??= []).push(toolDef);
     return;
   }
-  // v13: controls is a plain object keyed by group name
   const tokenGroup = controls.token ?? controls.tokens;
   if (!tokenGroup) return;
   const tools = tokenGroup.tools ?? tokenGroup;
@@ -327,7 +304,6 @@ Hooks.on("getSceneControlButtons", (controls) => {
 // Settings
 
 function registerSettings() {
-  // Schema version tracker (internal -- used by migrations)
   game.settings.register("sd", "schemaVersion", {
     name:    "Schema Version",
     scope:   "world",
@@ -346,7 +322,6 @@ function registerSettings() {
     default: "1d20"
   });
 
-  // Whether to use encumbrance rules
   game.settings.register("sd", "useEncumbrance", {
     name:    "SD.Settings.UseEncumbrance",
     hint:    "SD.Settings.UseEncumbranceHint",
@@ -360,7 +335,6 @@ function registerSettings() {
 // Handlebars Helpers
 
 function registerHandlebarsHelpers() {
-  // Format modifier with sign: +3 / -2
   Handlebars.registerHelper("signedNumber", n => {
     const num = Number(n);
     return num >= 0 ? `+${num}` : `${num}`;
@@ -378,7 +352,6 @@ function registerHandlebarsHelpers() {
     return path ? game.i18n.localize(path) : key;
   });
 
-  // Eq helper for comparisons in templates
   Handlebars.registerHelper("eq",  (a, b) => a === b);
   Handlebars.registerHelper("neq", (a, b) => a !== b);
   Handlebars.registerHelper("gt",  (a, b) => a > b);
@@ -387,19 +360,15 @@ function registerHandlebarsHelpers() {
   Handlebars.registerHelper("or",  (a, b) => a || b);
   Handlebars.registerHelper("not", a => !a);
 
-  // Join an array with separator: {{join myArray ', '}}
   Handlebars.registerHelper("join", (arr, sep) => {
     if (!Array.isArray(arr)) return arr ?? "";
     return arr.join(typeof sep === "string" ? sep : ", ");
   });
 
-  // Add two numbers: {{add @index 1}}
   Handlebars.registerHelper("add", (a, b) => Number(a) + Number(b));
 
-  // Inline array literal: {{#each (array "a" "b" "c") as |item|}}
   Handlebars.registerHelper("array", (...args) => args.slice(0, -1));
 
-  // Times loop: {{#times 6}}...{{/times}}
   Handlebars.registerHelper("times", (n, block) => {
     let result = "";
     for (let i = 0; i < n; i++) result += block.fn(i);
@@ -412,10 +381,8 @@ function registerHandlebarsHelpers() {
     return s.charAt(0).toUpperCase() + s.slice(1);
   });
 
-  // String concat: {{concat "prefix" value "suffix"}}
   Handlebars.registerHelper("concat", (...args) => args.slice(0, -1).join(""));
 
-  // Dice icon class: d20 → fa-dice-d20
   Handlebars.registerHelper("diceIcon", die => {
     const map = { d4:"d4", d6:"d6", d8:"d8", d10:"dice", d12:"d12", d20:"d20", d100:"dice" };
     return `fas fa-dice-${map[die] ?? "dice"}`;
@@ -424,7 +391,6 @@ function registerHandlebarsHelpers() {
   // Rarity CSS class
   Handlebars.registerHelper("rarityClass", rarity => `rarity-${rarity}`);
 
-  // Convert hiddenFields object to array of {key,value} for iteration in templates
   Handlebars.registerHelper("hiddenFieldPairs", (obj) => {
     if (!obj || typeof obj !== "object") return [];
     return Object.entries(obj).map(([key, value]) => ({ key, value }));
@@ -444,7 +410,6 @@ Hooks.once("ready", () => {
   } catch(e) { /* setting may not be available yet */ }
 });
 
-// Keep initiative formula in sync when the setting changes.
 Hooks.on("updateSetting", (setting) => {
   if (setting.key !== "sd.initiativeFormula") return;
   const formula = setting.value;
@@ -457,14 +422,12 @@ Hooks.on("updateSetting", (setting) => {
 // Chat card interactions
 Hooks.on("renderChatMessageHTML", (message, html) => {
 
-  // Helper: resolve live target (targeted token → selected → null)
   function _liveTarget() {
     return game.user.targets?.first()?.actor
         ?? canvas?.tokens?.controlled?.[0]?.actor
         ?? null;
   }
 
-  // Helper: mark card as applied (dim all apply/mult/reroll btns)
   function _markApplied(card, summaryHtml) {
     card?.querySelectorAll(
       ".sd-apply-hp-btn, .sd-apply-selected-btn, .sd-mult-btn, .sd-reroll-btn, .sd-selected-confirm-btn, .sd-selected-cancel-btn"
@@ -478,7 +441,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     }
   }
 
-  // Helper: apply a delta to an actor
   async function _applyDelta(actor, hpPath, delta, label, card) {
     if (!actor) { ui.notifications.warn(game.i18n.localize("SD.Chat.NoTarget")); return; }
     if (!game.user.isGM && !actor.isOwner) { ui.notifications.warn(game.i18n.localize("SD.Chat.NotOwner")); return; }
@@ -500,7 +462,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     });
   });
 
-  // 2. "→ Selected" -- opens the selected-tokens preview on the card
   html.querySelectorAll(".sd-apply-selected-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const card     = btn.closest(".sd-chat-card");
@@ -511,7 +472,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       const label    = btn.dataset.label ?? card?.dataset.label ?? "Apply";
       const accentColor = isDamage ? "#b83232" : "#2e8b46";
 
-      // Collect unique actors from targets + controlled tokens
       const seenIds = new Set();
       const actors  = [];
       for (const t of (game.user.targets ?? [])) {
@@ -528,12 +488,10 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
 
       const previewArea = card?.querySelector(".sd-selected-preview");
       if (!previewArea) {
-        // No preview panel -- legacy behaviour (apply immediately)
         _applyDelta(actors[0], hpPath, delta, label, card);
         return;
       }
 
-      // Populate the actor list in the preview
       const actorsList = previewArea.querySelector(".sd-selected-actors-list");
       if (actorsList) {
         actorsList.innerHTML = actors.map(a => {
@@ -567,7 +525,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         }).join("");
       }
 
-      // Forward data to the confirm button
       const confirmBtn = previewArea.querySelector(".sd-selected-confirm-btn");
       if (confirmBtn) {
         confirmBtn.dataset.actorIds = actors.map(a => a.id).join(",");
@@ -575,14 +532,12 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         confirmBtn.dataset.hpPath   = hpPath;
       }
 
-      // Show preview, lock the '→ Selected' button
       previewArea.style.display = "block";
       btn.disabled     = true;
       btn.style.opacity = "0.5";
     });
   });
 
-  // 2a. Confirm Apply (from preview panel)
   html.querySelectorAll(".sd-selected-confirm-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const card     = btn.closest(".sd-chat-card");
@@ -621,7 +576,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     });
   });
 
-  // 3. Damage multiplier buttons (½ ¼ ⅛ ×2 ×4)
   html.querySelectorAll(".sd-mult-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const card     = btn.closest(".sd-chat-card");
@@ -634,11 +588,9 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       const scaledAmt = Math.ceil(baseAmt * mult);
       const delta     = isDamage ? -scaledAmt : scaledAmt;
 
-      // Update displayed total for this card temporarily
       const totalEl = card?.querySelector(".sd-card-total");
       if (totalEl) totalEl.textContent = scaledAmt;
 
-      // Sync '→ Selected' button data + hide stale preview
       card?.querySelectorAll(".sd-apply-selected-btn").forEach(b => {
         b.dataset.baseAmount = scaledAmt;
         b.disabled     = false;
@@ -679,7 +631,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       try {
         const r = new Roll(formula, _sanitizeRollData(actor?.getRollData?.() ?? {}));
         await r.evaluate();
-        // Show the re-roll result in chat as a dice roll
         await r.toMessage({
           speaker:  ChatMessage.getSpeaker({ actor }),
           flavor:   `${label} (re-roll)`,
@@ -692,12 +643,10 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         return;
       }
 
-      // Update this card's displayed total and data attributes
       const totalEl = card?.querySelector(".sd-card-total");
       if (totalEl) totalEl.textContent = amount;
       if (card) {
         card.dataset.baseAmount = amount;
-        // Sync '→ Selected' button + hide stale preview
         card.querySelectorAll(".sd-apply-selected-btn").forEach(b => {
           b.dataset.baseAmount = amount;
           b.disabled     = false;
@@ -716,7 +665,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         });
       }
 
-      // If we had a stored target, offer to apply immediately
       const tActor = (targetId ? game.actors.get(targetId) : null) ?? _liveTarget();
       if (tActor) {
         const delta = isDamage ? -amount : amount;
@@ -781,8 +729,8 @@ html.querySelectorAll(".sd-chat-aoe-place-btn[data-aoe-region-cfg]").forEach(btn
       tickMode:          cfg.tickMode ?? "onEnter",
       showInChat:        cfg.showInChat !== false,
       chatMode:          cfg.chatMode ?? "auto",
-      // v6: explicit auto/card toggle -- when undefined falls back to chatMode.
       applyMode:         cfg.applyMode ?? "auto",
+      rollApplyMode:     cfg.rollApplyMode ?? "per_target",
       visibility:        cfg.visibility ?? "everyone",
       deactivateOnLeave: cfg.deactivateOnLeave !== false,
       persist:           cfg.persist !== false,
@@ -794,7 +742,6 @@ html.querySelectorAll(".sd-chat-aoe-place-btn[data-aoe-region-cfg]").forEach(btn
       damageType:        cfg.damageType   ?? "",
       hpPath:            cfg.hpPath       ?? "system.resources.hp.value",
       hpMode:            cfg.hpMode       ?? "add",
-      // save-effect specifics (+ Adv/Dis/ask)
       saveAttr:          cfg.saveAttr    ?? "system.attributes.dex.value",
       dc:                (v => Number.isFinite(v) ? v : 15)(Number(cfg.dc ?? 15)),
       flavor:            cfg.flavor      ?? "Saving Throw",
@@ -855,7 +802,6 @@ html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
       return;
     }
 
-    // Wait one frame so Foundry finalises the placeable + shape geometry.
     await new Promise(r => setTimeout(r, 250));
 
     const tokenDocs = getRegionTokens(regionDoc);
@@ -875,7 +821,6 @@ html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
       if (!tActor) continue;
       const mod  = Number(foundry.utils.getProperty(tActor, cfg.saveAttr ?? "system.attributes.dex.value") ?? 0);
 
-      // Resolve advMode; "ask" opens the shared Adv/Normal/Dis dialog.
       let mode = String(cfg.advMode ?? "none");
       if (mode === "ask") {
         try {
@@ -907,39 +852,33 @@ html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
       else                              failed.push(tDoc);
     }
 
-    // Delete template if persist=false.
     if (!cfg.persist) { try { await regionDoc.delete(); } catch {} }
 
     const { ButtonExecutor } = await import("./module/helpers/button-executor.mjs");
     const srcActor = cfg.srcActorId ? game.actors.get(cfg.srcActorId) : null;
+    let srcItem = null;
+    if (cfg.srcItemUuid) { try { srcItem = await fromUuid(cfg.srcItemUuid); } catch {} }
 
     const savedIds  = saved.map(t  => t.id);
     const failedIds = failed.map(t => t.id);
     const allIds    = [...savedIds, ...failedIds];
 
-    const baseRuntime = {
+    const rt = {
       savedTargets:  savedIds,
       failedTargets: failedIds,
       allTargets:    allIds
     };
 
-    const runBranch = async (subs, tDoc) => {
-      const rt = { ...baseRuntime, currentTarget: tDoc?.id ?? null };
-      for (const sub of (subs ?? [])) {
-        try { await ButtonExecutor._runAction(sub, null, srcActor, null, rt); }
-        catch (err) { console.warn("SD | AoE save-branch sub-action error:", err); }
-      }
-    };
-
-    if (cfg.perTarget) {
-      for (const t of saved)  await runBranch(cfg.passActions, t);
-      for (const t of failed) await runBranch(cfg.failActions, t);
-    } else {
-      if (saved.length)  await runBranch(cfg.passActions, saved[0]  ?? null);
-      if (failed.length) await runBranch(cfg.failActions, failed[0] ?? null);
+    const synthBtn = {};
+    if (cfg.runtimeSnapshot && typeof cfg.runtimeSnapshot === "object") {
+      Object.assign(synthBtn, cfg.runtimeSnapshot);
     }
 
-    // Render result summary into card.
+    for (const sub of (cfg.postActions ?? [])) {
+      try { await ButtonExecutor._runAction(sub, srcItem, srcActor, synthBtn, rt); }
+      catch (err) { console.warn("SD | AoE save-branch post-action error:", err); }
+    }
+
     const card = btn.closest(".sd-chat-aoe-card");
     const results = card?.querySelector(".sd-chat-aoe-results");
     if (results) {
@@ -953,8 +892,6 @@ html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
   });
 });
 
-// 8. Save / Check interactive button
-// Event delegation -- works for dynamically added rows too ('→ Selected').
 html.addEventListener("click", async (e) => {
   const btn = e.target.closest(".sd-save-roll-btn");
   if (!btn || btn.disabled) return;
@@ -986,7 +923,6 @@ html.addEventListener("click", async (e) => {
   let finalFormula = baseFormula;
 
   if (rollDialogue) {
-    // Resolve adv/dis formulas -- substitute @mod with actual saveMod
     const resolveF = (f) => {
       if (!f) return "";
       if (f.includes("@mod")) return f.replace(/@mod/g, String(saveMod));
@@ -1009,8 +945,6 @@ html.addEventListener("click", async (e) => {
       : "";
   }
 
-  // Sanitise roll data: string values that look like dice notation (e.g. "1d6")
-  // become StringTerms in Foundry v13 and cannot be evaluated. Strip them out.
   const _rawRollData = saveActor.getRollData?.() ?? {};
   const _safeRollData = Object.fromEntries(
     Object.entries(_rawRollData).map(([k, v]) =>
@@ -1035,7 +969,6 @@ html.addEventListener("click", async (e) => {
   const pass      = rollTotal >= dc;
   const passLabel = pass ? "✅ Success" : "❌ Failure";
 
-  // Disable button & show result inline
   btn.disabled      = true;
   btn.style.opacity = "0.4";
   btn.style.cursor  = "default";
@@ -1046,7 +979,6 @@ html.addEventListener("click", async (e) => {
 
   const actorRow = btn.closest(".sd-save-actor-row");
   if (actorRow) {
-    // Remove stale result from a previous render if any
     if (actorRow.nextElementSibling?.classList?.contains("sd-save-result"))
       actorRow.nextElementSibling.remove();
     const resultEl = document.createElement("div");
@@ -1068,14 +1000,12 @@ html.addEventListener("click", async (e) => {
     btn.parentElement?.after(resultDiv);
   }
 
-  // Persist result in message flag, keyed by actorId so ALL clients (incl GM) see it
   const message = card.closest(".chat-message");
   if (message) {
     const msgId   = message.dataset.messageId;
     const chatMsg = game.messages.get(msgId);
     if (chatMsg) {
       const existing = chatMsg.getFlag("sd", "saveResult") ?? {};
-      // Key by actorId (not userId): survives re-renders, visible to GM
       existing[saveActor.id] = { total: rollTotal, pass, actorId: saveActor.id, userId: game.user.id };
       await chatMsg.setFlag("sd", "saveResult", existing);
     }
@@ -1096,7 +1026,6 @@ html.querySelectorAll(".sd-save-selected-btn").forEach(btn => {
     const checkType    = btn.dataset.saveType          ?? card?.dataset.saveType    ?? "save";
     const buttonLabel  = btn.dataset.buttonLabel       ?? "Roll Save";
 
-    // Actors already in the card -- skip duplicates
     const existingIds = new Set(
       [...(card?.querySelectorAll(".sd-save-actor-row[data-actor-id]") ?? [])]
         .map(r => r.dataset.actorId)
@@ -1169,7 +1098,6 @@ html.querySelectorAll(".sd-save-selected-btn").forEach(btn => {
   });
 });
 
-// 9a. Cancel (save card selected preview)
 html.querySelectorAll(".sd-save-selected-cancel-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const card        = btn.closest(".sd-save-card");
@@ -1211,12 +1139,10 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
   });
 });
 
-// Re-hydrate opposed-card state + render winner banner on every re-render.
 {
   const opp = message.getFlag?.("sd", "opposed");
   if (opp?.cardId) {
     html.querySelectorAll(`.sd-opposed-card[data-sd-opposed-card="${opp.cardId}"]`).forEach(card => {
-      // Disable buttons that have already been rolled.
       card.querySelectorAll(".sd-opposed-btn").forEach(btn => {
         const idx = Number(btn.dataset.sdOpposedIdx ?? 0);
         const entry = opp.opponents?.[idx];
@@ -1226,7 +1152,6 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
           btn.innerHTML = `<i class="fas fa-check"></i> ${entry.actorName ?? "Opp"}: ${entry.total}`;
         }
       });
-      // When every slot is filled, declare a winner.
       const filled = (opp.opponents ?? []).filter(Boolean);
       if (filled.length === opp.oppCount) {
         const maxOpp = Math.max(...filled.map(o => Number(o.total) || 0));
@@ -1261,7 +1186,6 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
                 console.error("SD | opposed dispatch failed:", e);
               }
             }
-            // Mark resolved even on empty branches so we don't re-attempt.
             const payload = foundry.utils.deepClone(message.getFlag("sd", "opposed") ?? {});
             payload.resolved = true;
             await message.setFlag("sd", "opposed", payload);
@@ -1297,7 +1221,6 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
           btn.innerHTML     = `<i class="fas fa-${pass ? "check" : "times"}-circle"></i> ${total}`;
         }
 
-        // Insert result div if not already present
         if (!actorRow.nextElementSibling?.classList?.contains("sd-save-result")) {
           const resultEl = document.createElement("div");
           resultEl.className = "sd-save-result";

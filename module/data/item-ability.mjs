@@ -74,7 +74,7 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
 
       // Resource Cost
       cost: new SchemaField({
-        resource:  new StringField({ initial: "", blank: true }),  // e.g. "resources.mp"
+        resource:  new StringField({ initial: "", blank: true }),
         value:     new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
         slotLevel: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false })
       }),
@@ -98,14 +98,11 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
       components: new ArrayField(new StringField({ blank: false })),
       tags:       new ArrayField(new StringField({ blank: false })),
 
-      // Declared Attributes (for attribute reference system)
       declaredAttrs: new ArrayField(new ObjectField()),
 
       // Custom Tabs (Visual Builder)
       customTabs: new ArrayField(new ObjectField()),
 
-      // Sheet-level Trigger Graph
-      // Event-node-only graph scanned by event-bus alongside widget graphs.
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
       // SLOTS

@@ -269,7 +269,6 @@ export const WIDGET_TYPES = {
       { key: "path",  type: "path", label: "Data Path" }
     ]
   },
-  // NEW WIDGET TYPES -- System Director patch
 
   /** Progress bar — read-only bar bound to value/max, configurable colour */
   progress: {
@@ -543,7 +542,7 @@ export const WIDGET_TYPES = {
 
 /** Ordered list for palette display */
 export const WIDGET_PALETTE_ORDER = [
-  "text", "number", "counter", "resource", "derived", "dice", "diceTray", "button",
+  "text", "number", "counter", "resource", "derived", "dice", "button",
   "toggle", "attribute", "skill", "progress", "tracker", "tokenPool", "clock",
   "slot", "inventory", "effects", "spellbook",
   "select", "tags", "image", "section", "vsection", "richtext"

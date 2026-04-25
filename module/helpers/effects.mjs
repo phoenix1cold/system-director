@@ -23,7 +23,7 @@ export function prepareActiveEffectCategories(doc) {
   };
 
   for (const effect of doc.allApplicableEffects?.() ?? doc.effects) {
-    effect.sourceName; // Trigger name resolution
+    effect.sourceName;
     if (effect.disabled) {
       categories.inactive.effects.push(effect);
     } else if (effect.isTemporary) {

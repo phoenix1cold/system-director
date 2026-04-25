@@ -89,9 +89,6 @@
             style="background:transparent;border:1px solid #3a3a52;border-radius:4px;color:#7b68ee;cursor:pointer;font-size:10px;padding:1px 6px"><i class="fas fa-file-import"></i></button>
           <button data-action="exportAllTemplates" title="Export all sheet templates as one JSON bundle"
             style="background:transparent;border:1px solid #3a3a52;border-radius:4px;color:#7b68ee;cursor:pointer;font-size:10px;padding:1px 6px"{{#unless templates.length}} disabled{{/unless}}><i class="fas fa-file-export"></i></button>
-          {{!-- Save-template button hidden per user request — saveTemplate
-               action is still wired via character-sheet / item-sheet "Save as
-               Template" entry points. --}}
         </span>
       </div>
       {{#if templates.length}}

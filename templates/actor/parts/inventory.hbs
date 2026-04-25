@@ -45,7 +45,6 @@
             <i class="fas fa-khanda"></i>
           </button>
           {{/if}}
-          {{!-- Custom buttons (showIn: inline or both) --}}
           {{#each item.buttons as |btn|}}
           {{#if (or (eq btn.showIn "inline") (eq btn.showIn "both"))}}
           <button type="button" class="item-btn custom-btn {{#unless btn._enabled}}disabled{{/unless}}"

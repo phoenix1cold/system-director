@@ -27,11 +27,7 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
       currency: new StringField({ initial: "gp", blank: false }),
       equipped:    new BooleanField({ initial: false }),
       equippable:  new BooleanField({ initial: false }),
-      // Optional GM-authored formula/predicate; evaluated before Equip runs.
-      // Empty string ⇒ no restriction.
       equipRequirements: new StringField({ initial: "", blank: true }),
-      // Flag set while equipping -- blocks another concentration item being
-      // equipped at the same time without manual unequip.
       concentration: new BooleanField({ initial: false }),
       identified:  new BooleanField({ initial: true }),
       attuned:     new BooleanField({ initial: false }),
@@ -78,11 +74,9 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
       description: new HTMLField({ initial: "", blank: true }),
       unidentifiedName: new StringField({ initial: "", blank: true }),
       source:      new StringField({ initial: "", blank: true }),
-      // Declared Attributes (for attribute reference system)
       declaredAttrs: new ArrayField(new ObjectField()),
 
       customTabs:  new ArrayField(new ObjectField()),
-      // Sheet-level trigger graph -- event nodes only, scanned by event-bus.
       sdTriggerGraph: new ObjectField({ initial: {} }),
       flags:       new ObjectField({ initial: {} })
     };
@@ -93,11 +87,17 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
       const cat = source.category ?? "gear";
       source.equippable = ["weapon","armor","shield","tool"].includes(cat);
     }
+    if (source?.equippable && !(source.hiddenFields?.equippable)) {
+      source.hiddenFields ??= {};
+      source.hiddenFields.equippable = true;
+    }
     return super.migrateData(source);
   }
 
   prepareDerivedData() {
     super.prepareDerivedData();
+    const hfEq = this.hiddenFields?.equippable;
+    if (hfEq !== undefined) this.equippable = !!hfEq;
     this.totalWeight = this.weight * this.quantity;
     this.totalValue  = this.price  * this.quantity;
     for (const def of (this.slotDefinitions ?? [])) {

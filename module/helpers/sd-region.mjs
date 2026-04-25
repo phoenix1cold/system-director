@@ -133,8 +133,6 @@ export async function placeAuraRegion({ ownerToken, shape, flags = {}, name }) {
     }
   }
 
-  // Attach the region to the owner token -- best-effort, different v14 builds
-  // expose the attachment field under different paths.
   if (doc) {
     try {
       if (typeof doc.attachToken === "function") {
@@ -174,7 +172,6 @@ export function getRegionTokens(regionDoc) {
   return out;
 }
 
-// Hook-based enter/exit effect application
 /** Axis-aligned point-in-polygon test (ray casting). */
 function _pointInPolygon(pt, flat) {
   if (!flat || flat.length < 6) return false;
@@ -244,8 +241,6 @@ function _tokenInside(regionDoc, tokenDoc) {
     if (viaDoc !== undefined) return !!viaDoc;
   } catch {}
 
-  // Last-resort geometric test: the PIXI placeable may not exist yet
-  // (happens on freshly-created AoE regions, before canvas settles).
   const shapes = regionDoc.shapes ?? [];
   for (const shape of shapes) {
     if (_pointInShape(shape, center)) return true;
@@ -332,7 +327,6 @@ async function _applyHpChange(actor, amount, cfg, kind /* "damage" | "heal" */) 
   return { cur, next, delta: Math.abs(next - cur) };
 }
 
-// Resolve a damage/heal formula, honouring resistance for damage
 async function _rollAmount(formula, actor, cfg, kind, preRaw = null) {
   let amount = 0;
   if (preRaw !== null && preRaw !== undefined) {
@@ -490,7 +484,6 @@ async function _rollSave(actor, cfg) {
   if (advMode === "ask") {
     const picked = await _askAdvMode(cfg, actor);
     if (picked == null) {
-      // player cancelled -- treat as failed save so the mechanic fires noticeably
       return { passed: false, total: 0, dc, advMode: "cancel", rollFormula: "" };
     }
     advMode = picked;
@@ -510,6 +503,56 @@ async function _rollSave(actor, cfg) {
     console.warn("SD | _rollSave roll evaluation failed, defaulting to fail:", rollFormula, e);
   }
   return { passed: total >= dc, total, dc, advMode, rollFormula, roll };
+}
+
+function _regionSourceActor(regionDoc, fallbackActor = null) {
+  try {
+    const cfg = regionDoc?.flags?.sd?.applyEffect;
+    const ownerId = cfg?.ownerTokenId ?? regionDoc?.flags?.sd?.aura?.ownerTokenId;
+    const scene = regionDoc?.parent;
+    if (ownerId && scene) {
+      const ownerTok = scene.tokens?.get?.(ownerId);
+      if (ownerTok?.actor) return ownerTok.actor;
+    }
+    const srcActorId = cfg?.srcActorId;
+    if (srcActorId) {
+      const a = game.actors?.get?.(srcActorId);
+      if (a) return a;
+    }
+  } catch {}
+  return fallbackActor;
+}
+
+/** Run a save-branch's postActions with per-token saved/failed/all runtime. */
+async function _runSaveBranchPostActions(regionDoc, tokenDoc, passed) {
+  const cfg = regionDoc?.flags?.sd?.applyEffect;
+  if (!cfg) return;
+  const subs = Array.isArray(cfg.postActions) ? cfg.postActions : [];
+  if (!subs.length) return;
+  const ids = [tokenDoc?.id].filter(Boolean);
+  const rt = {
+    savedTargets:  passed ? ids : [],
+    failedTargets: passed ? []  : ids,
+    allTargets:    ids
+  };
+  const srcActor = _regionSourceActor(regionDoc, tokenDoc?.actor ?? null);
+  let srcItem = null;
+  if (cfg.srcItemUuid) { try { srcItem = await fromUuid(cfg.srcItemUuid); } catch {} }
+
+  const synthBtn = {};
+  if (cfg.runtimeSnapshot && typeof cfg.runtimeSnapshot === "object") {
+    Object.assign(synthBtn, cfg.runtimeSnapshot);
+  }
+
+  try {
+    const { ButtonExecutor } = await import("./button-executor.mjs");
+    for (const sub of subs) {
+      try { await ButtonExecutor._runAction(sub, srcItem, srcActor, synthBtn, rt); }
+      catch (err) { console.warn("SD | aura save-branch post-action error:", err); }
+    }
+  } catch (e) {
+    console.warn("SD | aura save-branch postActions import failed:", e);
+  }
 }
 
 async function _postSaveCard(actor, cfg, result) {
@@ -572,7 +615,7 @@ async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
 
     case "damage":
     case "heal": {
-      if (when === "eachTurn") return false; // no immediate tick
+      if (when === "eachTurn") return false;
       const { amount } = await _rollAmount(cfg.formula || "0", actor, cfg, mode, opts.sharedAmount ?? null);
       if (amount) {
         const applied = autoApply
@@ -596,6 +639,15 @@ async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
         }
         didApply = true;
       }
+      break;
+    }
+
+    case "save-branch": {
+      if (when === "eachTurn") return false;
+      const result = await _rollSave(actor, cfg);
+      await _postSaveCard(actor, cfg, result);
+      await _runSaveBranchPostActions(regionDoc, tokenDoc, !!result.passed);
+      didApply = true;
       break;
     }
   }
@@ -657,6 +709,10 @@ async function _tickTokenInRegion(regionDoc, tokenDoc) {
       if (autoApply) await _applyNamedEffect(regionDoc, tokenDoc);
       else           await _postApplyEffectButton(actor, regionDoc, cfg);
     }
+  } else if (mode === "save-branch") {
+    const result = await _rollSave(actor, cfg);
+    await _postSaveCard(actor, cfg, result);
+    await _runSaveBranchPostActions(regionDoc, tokenDoc, !!result.passed);
   }
 }
 
@@ -740,7 +796,6 @@ async function _resyncRegionTokens(regionDoc) {
     }
   }
 
-  // End-of-sweep fire-and-forget delete for AoE damage/heal regions
   if (
     anyApplied &&
     cfg.persist === false &&
@@ -761,7 +816,6 @@ function _installHooks() {
   if (_hooksInstalled) return;
   _hooksInstalled = true;
 
-  // Token moved / changed shape → re-check its region membership
   Hooks.on("updateToken", async (tokenDoc, changes) => {
     if (!game.user?.isGM) return;
     const moved = ["x", "y", "width", "height", "hidden", "elevation"].some(k => k in changes);
@@ -771,7 +825,6 @@ function _installHooks() {
     const scene = tokenDoc?.parent;
     if (!scene) return;
 
-    // When the owner token's footprint changes (width/height/shape), the
     const footprintChanged = ["width", "height", "shape"].some(k => k in changes);
 
     for (const region of (scene.regions ?? [])) {
@@ -796,7 +849,6 @@ function _installHooks() {
     }
   });
 
-  // Region created/edited → push effects and run enter dispatch
   Hooks.on("createRegion", async (regionDoc) => {
     await _resyncRegionTokens(regionDoc);
     for (const delay of [50, 200, 500]) {
@@ -805,12 +857,8 @@ function _installHooks() {
   });
   Hooks.on("updateRegion", async (regionDoc) => { await _resyncRegionTokens(regionDoc); });
 
-  // canvasReady / ready → populate _membershipCache from ground truth so the
-  // first post-reload token move doesn't spuriously trigger enter-handlers.
   const rehydrate = () => {
     if (!game.user?.isGM) return;
-    // Clear stale entries before repopulating -- otherwise scene changes leave
-    // stray region:token keys that trigger spurious exit handlers on return.
     _membershipCache.clear();
     const scene = canvas.scene;
     if (!scene) return;
@@ -826,7 +874,6 @@ function _installHooks() {
   Hooks.once("canvasReady", rehydrate);
   Hooks.on("canvasReady", rehydrate);
 
-  // Region deleted → clear lingering flagged effects from every actor on scene
   Hooks.on("deleteRegion", async (regionDoc) => {
     if (!game.user?.isGM) return;
     const scene = regionDoc?.parent;
@@ -848,8 +895,6 @@ function _installHooks() {
     }
   });
 
-  // Combat turn → tick eachTurn-mode regions that the current token is inside,
-  //               age region lifetimes once per full round boundary.
   Hooks.on("updateCombat", async (combat, changes /* userId arg in some builds */) => {
     if (!game.user?.isGM) return;
     const turnChanged  = ("turn"  in changes);

@@ -1,11 +1,9 @@
-{{!-- Rendered once per custom tab. editMode CSS class on .window-content controls visibility of overlays --}}
 
 {{#each tab.rows as |row rowIdx|}}
 <div class="widget-row {{#if ../editMode}}edit-mode{{/if}}"
      data-tab-id="{{../tab.id}}"
      data-row-id="{{row.id}}">
 
-  {{!-- Row controls (only visible in edit mode via CSS) --}}
   <div class="widget-row-controls">
     <button type="button" class="row-ctrl-btn" data-action="moveRow"
             data-tab-id="{{../tab.id}}" data-row-id="{{row.id}}" data-dir="up"
@@ -28,7 +26,6 @@
          data-widget-id="{{widget.id}}"
          style="grid-column: span {{widget.span}}">
 
-      {{!-- Rendered widget HTML (pre-rendered in _preparePartContext) --}}
       {{{widget.html}}}
 
       {{!-- Edit mode overlay --}}
@@ -60,7 +57,6 @@
     </div>
     {{/each}}
 
-    {{!-- Drop zone at end of row (edit mode only) --}}
     {{#if ../editMode}}
     <div class="widget-drop-zone"
          data-drop-type="widget"
@@ -87,7 +83,6 @@
 </div>
 {{/each}}
 
-{{!-- Add row button (edit mode only) --}}
 <div class="add-row-btn"
      data-action="addRow"
      data-tab-id="{{tab.id}}">

@@ -1,6 +1,4 @@
-/* ──────────────────────────────────────────────────────────────────────────
-   Chat cards — damage / heal / save / check / AoE / generic.
-   ────────────────────────────────────────────────────────────────────────── */
+
 .sd-chat-card,
 .sd-save-card,
 .sd-damage-card,
@@ -25,7 +23,6 @@
   color: #191813 !important;
 }
 
-/* Inner panels / hero numbers — slightly darker text for de-emphasis. */
 .sd-chat-card small,
 .sd-save-card small,
 .sd-damage-card small,
@@ -41,7 +38,6 @@
   color: #555 !important;
 }
 
-/* Neutralise inline dark sub-sections (header bar / row separators). */
 .sd-chat-card [style*="rgba(0,0,0,.25)"],
 .sd-save-card [style*="rgba(0,0,0,.25)"],
 .sd-damage-card [style*="rgba(0,0,0,.25)"],
@@ -61,7 +57,6 @@
   background: transparent !important;
 }
 
-/*  */
 .sd-chat-card [style*="#1a1a2e"],
 .sd-chat-card [style*="#0d0d1a"],
 .sd-chat-card [style*="#14142a"],
@@ -99,7 +94,6 @@
   color: #191813 !important;
 }
 
-/* Buttons inside cards — match Foundry's default button treatment. */
 .sd-chat-card button,
 .sd-save-card button,
 .sd-damage-card button,
@@ -123,7 +117,6 @@
   color: #191813 !important;
 }
 
-/* Portrait / thumbnail frames — soften the bright-purple/orange borders. */
 .sd-chat-card img,
 .sd-save-card img,
 .sd-damage-card img,
@@ -133,9 +126,6 @@
   border-color: #7a7971 !important;
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Roll dialogue (adv / normal / dis)
-   ────────────────────────────────────────────────────────────────────────── */
 .dialog .sd-rdlg-mode {
   background: #e0dcd4 !important;
   border: 1px solid #7a7971 !important;
@@ -156,9 +146,6 @@
   font-family: monospace !important;
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Chat AoE card — native Foundry look, controlled here not inline.
-   ────────────────────────────────────────────────────────────────────────── */
 .sd-chat-aoe-card {
   padding: 8px 10px !important;
   border-radius: 4px !important;
@@ -218,9 +205,6 @@
   cursor: not-allowed !important;
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Local save dialog + check dialog + any other sd-scoped dialog bodies.
-   ────────────────────────────────────────────────────────────────────────── */
 .dialog .sd-dialog-body,
 .dialog .sd-local-save,
 .dialog .sd-check-body {
@@ -232,9 +216,6 @@
   color: inherit !important;
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
-   Card backgrounds s
-   ────────────────────────────────────────────────────────────────────────── */
 .sd-chat-card,
 .sd-save-card,
 .sd-damage-card,
@@ -247,7 +228,6 @@
   background-color: #f0ebe4 !important;
   color: #191813 !important;
 }
-/* Nuke any inline linear-gradient background inside these cards. */
 .sd-chat-card [style*="linear-gradient"],
 .sd-save-card [style*="linear-gradient"],
 .sd-damage-card [style*="linear-gradient"],

@@ -13,7 +13,6 @@ export function ResourceField({ initial = 0, label = "" } = {}) {
   }, { label });
 }
 
-// Attribute (score / modifier / bonus)
 
 export function AttributeField({ initial = 10, label = "" } = {}) {
   return new SchemaField({
@@ -41,7 +40,7 @@ export function RollConfigField({ label = "Roll" } = {}) {
     quantity: new NumberField({ required: true, integer: true, initial: 1, min: 1, nullable: false }),
     die:      new StringField({ initial: "d20", choices: ["d4","d6","d8","d10","d12","d20","d100"], blank: false }),
     bonus:    new NumberField({ required: true, integer: true, initial: 0, nullable: false }),
-    formula:  new StringField({ initial: "", blank: true })   // override raw formula
+    formula:  new StringField({ initial: "", blank: true })
   }, { label });
 }
 

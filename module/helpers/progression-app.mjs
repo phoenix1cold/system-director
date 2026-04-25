@@ -62,7 +62,7 @@ export class ProgressionApp extends ApplicationV2 {
     this._actor        = options.actor;
     this._tab          = "levelup";
     this._editMode     = false;
-    this._connectFrom  = null;   // nodeId being connected in skill-tree edit mode
+    this._connectFrom  = null;
   }
 
   // Getters
@@ -242,7 +242,7 @@ export class ProgressionApp extends ApplicationV2 {
           <i class="fas fa-trash"></i></button>`;
       }
 
-      html += `</div></div>`; // le-hdr-right, le-hdr
+      html += `</div></div>`;
 
       /* rewards grid */
       html += `<div class="sd-prog-le-rewards">`;
@@ -265,7 +265,7 @@ export class ProgressionApp extends ApplicationV2 {
         </div>`;
       }
 
-      html += `</div></div>`; // items-zone, le-col
+      html += `</div></div>`;
 
       /* field changes */
       html += `<div class="sd-prog-le-col">
@@ -331,13 +331,13 @@ export class ProgressionApp extends ApplicationV2 {
         </div>`;
       }
 
-      html += `</div>`; // le-col (effects)
+      html += `</div>`;
 
       html += `</div>`; // le-rewards
       html += `</div>`; // level-entry
     }
 
-    html += `</div></div>`; // levels-list, levelup
+    html += `</div></div>`;
     return html;
   }
 
@@ -445,7 +445,6 @@ export class ProgressionApp extends ApplicationV2 {
       const active = (acquiredNodes[conn.from] ?? 0) > 0 && (acquiredNodes[conn.to] ?? 0) > 0;
       const marker = active ? "sd-arrow" : "sd-arrow-dim";
 
-      // Shorten line so it doesn't overlap the node squares
       const dx    = x2 - x1;
       const dy    = y2 - y1;
       const dist  = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -544,7 +543,7 @@ export class ProgressionApp extends ApplicationV2 {
       }
     }
 
-    html += `</div></div></div>`; // canvas, scroll, skilltree
+    html += `</div></div></div>`;
     return html;
   }
 
@@ -566,8 +565,6 @@ export class ProgressionApp extends ApplicationV2 {
       btn.addEventListener("click", () => { this._tab = btn.dataset.tab; this.render(); })
     );
 
-    /* All data-action buttons — scoped to app content to avoid hijacking
-       the window-chrome controls (close, minimise) that ApplicationV2 owns */
     el.querySelectorAll(".sd-progression-app [data-action], .window-content [data-action]").forEach(btn =>
       btn.addEventListener("click", ev => { ev.stopPropagation(); this._handleAction(btn); })
     );

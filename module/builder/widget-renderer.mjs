@@ -16,7 +16,6 @@ export class WidgetRenderer {
         const src = widgetDef.showIfKey.trim();
         try {
           if (src.startsWith("widget:")) {
-            // resolve via formula engine widget:key mechanism
             actualVal = String(FormulaEngine.evaluate(`{${src}}`, doc) ?? "");
           } else if (src.startsWith("hidden:")) {
             const fieldName = src.slice("hidden:".length);
@@ -27,7 +26,6 @@ export class WidgetRenderer {
           }
         } catch { actualVal = ""; }
         const expected = String(widgetDef.showIfValue ?? "").trim();
-        // Loose equality: "true"==true, "1"==1, etc.
         const visible = expected === ""
           ? (!!actualVal && actualVal !== "0" && actualVal !== "false")
           : actualVal === expected || String(Number(actualVal)) === expected;
@@ -44,7 +42,6 @@ export class WidgetRenderer {
       let html = this[`_render_${widgetDef.type}`]?.(widgetDef, doc) ?? this._renderUnknown(widgetDef);
       // extra CSS classes
       if (widgetDef.cssClass) {
-        // Inject extra classes onto the outermost element
         html = html.replace(/^(<[^>]+class=")/, `$1${this._esc(widgetDef.cssClass)} `);
       }
       return html;
@@ -56,8 +53,6 @@ export class WidgetRenderer {
 
   static _get(doc, path, fallback = "") {
     if (!path) return fallback;
-    // Fast-path: for hiddenFields, bypass getProperty's DataModel Proxy traversal
-    // and read directly from the plain object stored in system.hiddenFields
     const HF_PREFIX = "system.hiddenFields.";
     if (path.startsWith(HF_PREFIX)) {
       const key = path.slice(HF_PREFIX.length);
@@ -106,16 +101,13 @@ export class WidgetRenderer {
     const val  = this._getValue(w, doc, "");
     const esc  = this._esc;
     const hasFormula = w.valueFormula && FormulaEngine.isFormula(w.valueFormula);
-    // Normalise readOnly -- Foundry may serialise boolean as string
     const isReadOnly = w.readOnly === true || w.readOnly === "true";
-    // If formula-driven: show as read-only display, not editable input
     if (hasFormula) {
       return `<div class="widget widget-text">
   <div class="widget-label">${esc(w.label)} <span style="color:#5a4ec0;font-size:9px" title="Formula: ${esc(w.valueFormula)}">ƒ</span></div>
   <div class="widget-formula-val">${esc(String(val))}</div>
 </div>`;
     }
-    // If readOnly: display as non-editable label + value, no <input>
     if (isReadOnly) {
       return `<div class="widget widget-text widget-text--readonly">
   <div class="widget-label">${esc(w.label)} <span style="color:#555;font-size:9px;margin-left:2px" title="Read only">🔒</span></div>
@@ -276,7 +268,6 @@ export class WidgetRenderer {
     const categories = w.categories ?? [];
     const columns = w.columns ?? [];
 
-    // Filter by categories if specified
     if (categories.length > 0) {
       items = items.filter(item => categories.includes(item.system?.category));
     }
@@ -304,8 +295,6 @@ export class WidgetRenderer {
     if (w.showCurrency) {
       const c = doc.system?.currency ?? {};
       if (w.currencyPath) {
-        // Single custom money field
-        // Derive a display label from the last segment of the path
         const pathLabel = w.currencyPath.split(".").pop()
           .replace(/([A-Z])/g, " $1")
           .replace(/^./, s => s.toUpperCase());
@@ -360,16 +349,20 @@ export class WidgetRenderer {
         const qty = item.system?.quantity ?? 1;
         const weight = w.showWeight ? (item.system?.weight ?? 0) : null;
         const equipped = item.system?.equipped ? "equipped" : "";
+        const isInv    = item.type === "inventory";
 
         // Build extra columns
         let extraCols = "";
         if (columns.length > 0) {
           for (const col of columns) {
-            // hiddenFields stores plain values (string/number), not {value:...} objects
             const val = item.system?.hiddenFields?.[col] ?? item.system?.[col] ?? "";
             extraCols += `<span class="item-col">${e(String(val))}</span>`;
           }
         }
+
+        const equipBtn = isInv
+          ? `<button type="button" class="item-btn item-equip-btn ${item.system?.equipped ? "on" : ""}" data-action="itemEquip" data-item-id="${item.id}" title="${item.system?.equipped ? "Unequip" : "Equip"}"${item.system?.equippable ? "" : ' style="opacity:.45"'}><i class="fas ${item.system?.equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>`
+          : "";
 
         html += `
       <li class="item-row ${equipped}" data-item-id="${item.id}" data-item-drag>
@@ -380,6 +373,7 @@ export class WidgetRenderer {
         ${extraCols}
         <div class="item-controls">
           <button type="button" class="item-btn item-use-btn" data-action="itemUse" data-item-id="${item.id}" title="Use"><i class="fas fa-play"></i></button>
+          ${equipBtn}
           <button type="button" class="item-btn" data-action="itemEdit" data-item-id="${item.id}"><i class="fas fa-edit"></i></button>
           <button type="button" class="item-btn" data-action="itemDelete" data-item-id="${item.id}"><i class="fas fa-trash"></i></button>
         </div>
@@ -416,11 +410,8 @@ export class WidgetRenderer {
     }
     const ms = mod >= 0 ? `+${mod}` : `${mod}`;
 
-    // onClickFormula: compiled exec action graph from on_click → attr_output exec chain
-    // If present, clicking the modifier runs ButtonExecutor; otherwise falls back to 1d20+mod roll
     const onClickFml = w.onClickFormula ?? null;
 
-    // data attributes for the click handler in character-sheet
     const dataOnClick = onClickFml
       ? `data-attr-onclick="${e(onClickFml)}"`
       : `data-attr-roll="1d20+(${mod})" data-flavor="${e(w.flavor || w.label)}"`;
@@ -444,7 +435,6 @@ export class WidgetRenderer {
     const bs     = bonus >= 0 ? `+${bonus}` : `${bonus}`;
     const e      = this._esc;
 
-    // onClickFormula works exactly like attribute widget -- wired from graph editor
     const onClickFml = w.onClickFormula ?? null;
     const rawFml     = w.formula || `1d20+${bonus}`;
     const dispFml    = FormulaEngine.isFormula(rawFml)
@@ -456,8 +446,6 @@ export class WidgetRenderer {
       ? `data-attr-onclick="${e(onClickFml)}"`
       : `data-formula="${e(dispFml)}" data-formula-raw="${e(rawFml)}" data-flavor="${e(flavor)}"`;
 
-    // Use attrModClick (same handler as attribute) when graph is wired,
-    // otherwise widgetRoll for the plain formula path.
     const action = onClickFml ? "attrModClick" : "widgetRoll";
 
     return `<div class="widget widget-skill">
@@ -520,10 +508,8 @@ export class WidgetRenderer {
 
   static _render_effects(w, doc) {
     const e = this._esc;
-    // Works on both Actor and Item -- Item.effects stores its own AEs
     const effects = [...(doc.effects ?? [])];
 
-    // Filter by transfer flag if widget is on an actor and user only wants non-passive
     const showPassive  = w.showPassive  !== false;
     const showDisabled = w.showDisabled !== false;
     const filtered = effects.filter(ef => {
@@ -581,7 +567,6 @@ export class WidgetRenderer {
 
     const wantType = String(w.abilityType ?? (w.type && w.type !== "spellbook" ? w.type : "") ?? "").trim();
 
-    // Filter actor items down to abilities of the widget's configured type.
     let abilities = [...(doc.items ?? [])].filter(i => i.type === "ability");
     if (wantType) {
       abilities = abilities.filter(i => {
@@ -617,8 +602,6 @@ export class WidgetRenderer {
 </div>`;
     return html;
   }
-  // showIf guard -- injected at top of render()
-  // (handled by patching the render() method itself below)
 
   // progress
   static _render_progress(w, doc) {
@@ -630,8 +613,6 @@ export class WidgetRenderer {
     const lbl  = esc(w.label   ?? "Progress");
     const showLabel = w.showLabel !== false && w.showLabel !== "false";
     const showPct   = w.showPct   !== false && w.showPct   !== "false";
-    // progress is always read-only (values driven by data paths / formulas).
-    // Show a small lock badge so users understand they cannot click to edit.
     return `<div class="widget widget-progress">
   <div class="widget-label-row" style="display:flex;align-items:baseline;gap:4px;margin-bottom:3px">
     ${showLabel ? `<span class="widget-label">${lbl}</span>` : ""}
@@ -889,7 +870,6 @@ export class WidgetRenderer {
   static _render_diceTray(w, doc) {
     const e       = this._esc;
     const flagPath = w.flagPath ?? "flags.sd.lastRoll";
-    // support both "flags.sd.lastRoll" and "system.flags.sd.lastRoll"
     const data   = this._get(doc, flagPath, null) ?? this._get(doc, `system.${flagPath}`, null);
     const col    = e(w.color ?? "#7ef0c3");
     const compact = w.compact === true;
@@ -972,8 +952,6 @@ export class WidgetRenderer {
       ? `<img src="${src}" style="${imgStyle}" alt="${lbl || "image"}">`
       : `<div style="${imgStyle};background:#1a1a28;border:1px dashed #3a3a52;display:flex;align-items:center;justify-content:center;color:#3a3a52;font-size:20px"><i class="fas fa-image"></i></div>`;
 
-    // Always show a pencil overlay when a path is set, so users can change the
-    // image without needing to know about the hidden `clickable` config flag.
     const pencilBtn = w.path
       ? `<button type="button" class="sd-img-pick sd-img-pencil"
            data-path="${esc(w.path ?? "")}"
@@ -1065,7 +1043,6 @@ export class WidgetRenderer {
   }
 }
 
-// Make SlotManager available lazily at render time
 Hooks.once("ready", () => {
   import("../data/item-slots.mjs").then(m => {
     globalThis._SD_SLOTS = { SlotManager: m.SlotManager };

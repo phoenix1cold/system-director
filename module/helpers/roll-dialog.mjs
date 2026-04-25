@@ -14,12 +14,10 @@ export class SdRollDialog {
   static async prompt({ actor, title, formula = "1d20", label = "" } = {}) {
     const parsed = SdRollDialog.parseFormula(formula);
 
-    // v13: renderTemplate is now namespaced
     const renderTpl = foundry.applications?.handlebars?.renderTemplate
       ?? foundry.utils.fetchJsonWithTimeout  // fallback guard
       ?? renderTemplate;
 
-    // v13: rollModes values are objects { label, ... } not plain strings
     const rollModes = Object.entries(CONFIG.Dice.rollModes ?? {}).map(([key, val]) => ({
       value: key,
       label: (typeof val === "object" ? val.label : val) ?? key

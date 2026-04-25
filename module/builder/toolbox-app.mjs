@@ -33,15 +33,12 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
   async _prepareContext(options) {
     const base = await super._prepareContext(options);
 
-    // Build widget palette from the registry so adding new widget types is automatic
     const { WIDGET_TYPES: _WR, WIDGET_PALETTE_ORDER } = await import("./widget-registry.mjs");
     const WIDGET_TYPES = WIDGET_PALETTE_ORDER
       .map(id => _WR[id])
       .filter(Boolean)
       .map(w => ({ id: w.id, label: w.label, icon: "fas " + w.icon, desc: w.desc ?? "" }));
 
-    // Build path list: real paths from the currently focused sheet doc,
-    // falling back to paths derived from the system's configured attributes/resources.
     const focusedSheet = this._getFocusedSheet();
     const focusedDoc   = focusedSheet?.document ?? null;
     let knownPaths;
@@ -99,7 +96,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     } catch {}
 
-    // Advancement + combat -- always present
     _add("system.advancement.level",        "Level");
     _add("system.advancement.xp.value",     "XP — Current");
     _add("system.advancement.xp.max",       "XP — Max");
@@ -131,13 +127,11 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     // Standard actor paths
     if (isActor) {
       const sys = doc.system ?? {};
-      // Attributes -- use human-readable names from system config, fall back to key
       for (const [key, attr] of Object.entries(sys.attributes ?? {})) {
         const cfgLabel = cfg?.attributes?.[key] ?? key;
         if (attr?.value !== undefined) _add(`system.attributes.${key}.value`, `${cfgLabel} — Score`);
         if (attr?.mod   !== undefined) _add(`system.attributes.${key}.mod`,   `${cfgLabel} — Modifier`);
       }
-      // Resources -- use system config labels
       for (const [key, res] of Object.entries(sys.resources ?? {})) {
         const cfgLabel = cfg?.resources?.[key]?.label ?? key.toUpperCase();
         if (res?.value !== undefined) _add(`system.resources.${key}.value`, `${cfgLabel} — Current`);
@@ -147,7 +141,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       if (sys.advancement?.level !== undefined) _add("system.advancement.level", "Level");
       if (sys.advancement?.xp?.value !== undefined) _add("system.advancement.xp.value", "XP — Current");
       if (sys.advancement?.xp?.max   !== undefined) _add("system.advancement.xp.max",   "XP — Max");
-      // Defense / initiative / movement
       if (sys.defense?.total    !== undefined) _add("system.defense.total",       "Defense — Total");
       if (sys.defense?.armor    !== undefined) _add("system.defense.armor",       "Defense — Armor");
       if (sys.initiative?.total !== undefined) _add("system.initiative.total",    "Initiative — Total");
@@ -322,7 +315,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       el.addEventListener("dragend", () => { el.style.opacity = ""; });
     });
 
-    // Data path chips -- draggable AND click-to-copy
     root.querySelectorAll("[data-drag-type='path']").forEach(el => {
       el.draggable = true;
       el.addEventListener("dragstart", ev => {
@@ -332,8 +324,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       });
       el.addEventListener("dragend", () => { el.style.opacity = ""; });
 
-      // Click-to-copy.  Bail out when the click originated from a child
-      // control button (remove ×, etc.) so we don't clash with their handlers.
       el.addEventListener("click", async ev => {
         if (ev.target.closest("button")) return;
         const path = el.dataset.path ?? "";
@@ -367,7 +357,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     const root = this.element;
     if (!root) return;
 
-    // Save template -- stores ALL builder state from the currently focused sheet
     root.querySelector("[data-action='saveTemplate']")?.addEventListener("click", async () => {
       const sheet = this._getFocusedSheet();
       if (!sheet) return ui.notifications.warn("Open a character or item sheet first, then click Save Template.");
@@ -391,13 +380,9 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         declaredAttrs:   foundry.utils.deepClone(sys.declaredAttrs    ?? []),
         // Slot widget definitions
         slotDefinitions: foundry.utils.deepClone(sys.slotDefinitions  ?? []),
-        // Sheet-level event trigger graph (actor + item)
         sdTriggerGraph:  foundry.utils.deepClone(sys.sdTriggerGraph   ?? {}),
-        // Custom action buttons (items only)
         buttons:         foundry.utils.deepClone(sys.buttons          ?? []),
-        // On-click action graph (items only)
         onClickGraph:    foundry.utils.deepClone(sys.onClickGraph      ?? {}),
-        // Active Effect templates (items only)
         effectTemplates: foundry.utils.deepClone(sys.effectTemplates   ?? []),
         created: Date.now()
       };
@@ -406,7 +391,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       this.render();
     });
 
-    // Create new Actor or Item from template -- restores ALL saved builder state
     root.querySelectorAll("[data-action='createFromTemplate']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const name    = btn.dataset.name;
@@ -417,25 +401,20 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         const docName = await this._prompt(`Name for new ${tmpl.docType ?? "document"}:`, tmpl.name);
         if (!docName) return;
 
-        // Re-generate IDs for all tabs/rows/widgets so copies are independent
         const freshTabs = this._freshenIds(
           foundry.utils.deepClone(tmpl.customTabs ?? tmpl.tabs ?? [])
         );
 
-        // Rebuild the full system payload -- include every saved builder field
         const systemPayload = {
           customTabs:      freshTabs,
           hiddenFields:    foundry.utils.deepClone(tmpl.hiddenFields  ?? {}),
           declaredAttrs:   foundry.utils.deepClone(tmpl.declaredAttrs ?? []),
-          // Re-generate slot IDs so template copies don't share the same IDs
           slotDefinitions: this._freshenSlotIds(
             foundry.utils.deepClone(tmpl.slotDefinitions ?? [])
           ),
-          // Sheet-level event trigger graph (actor + item)
           sdTriggerGraph:  foundry.utils.deepClone(tmpl.sdTriggerGraph ?? {}),
         };
 
-        // Item-only fields -- safe to include even if empty
         if (tmpl.docType !== "Actor") {
           systemPayload.buttons         = foundry.utils.deepClone(tmpl.buttons          ?? []);
           systemPayload.onClickGraph    = foundry.utils.deepClone(tmpl.onClickGraph      ?? {});
@@ -473,7 +452,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     });
 
-    // Export a single sheet template to JSON
     root.querySelectorAll("[data-action='exportTemplate']").forEach(btn => {
       btn.addEventListener("click", () => {
         const name   = btn.dataset.name;
@@ -485,7 +463,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     });
 
-    // Export ALL sheet templates as a single bundle
     root.querySelector("[data-action='exportAllTemplates']")?.addEventListener("click", () => {
       const stored = foundry.utils.deepClone(game.settings.get("sd", "sheetTemplates") ?? {});
       const names  = Object.keys(stored);
@@ -494,7 +471,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       Toolbox._downloadJSON(payload, `sd-sheet-templates.json`);
     });
 
-    // Import sheet template(s) from a JSON file
     root.querySelector("[data-action='importTemplates']")?.addEventListener("click", () => {
       const inp = document.createElement("input");
       inp.type = "file";
@@ -512,7 +488,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   async _importSheetTemplates(parsed) {
-    // Normalise into a map: {name: tplObj}
     let incoming = {};
     if (parsed?.templates && typeof parsed.templates === "object") {
       incoming = parsed.templates;
@@ -526,8 +501,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     const conflicts = Object.keys(incoming).filter(k => stored[k]);
     let mode = "keep";
     if (conflicts.length) {
-      // `modal: true` renders via <dialog>.showModal() in the browser
-      // top layer so the dialog is always above the Sheet Builder window.
       mode = await foundry.applications.api.DialogV2.wait({
         window: { title: "Import sheet templates" },
         modal: true,
@@ -548,7 +521,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     let added = 0, skipped = 0, renamed = 0, overwritten = 0;
     for (const [rawName, tpl] of Object.entries(incoming)) {
       if (!tpl) continue;
-      // Strip our envelope key if present so the stored shape matches `saveTemplate`.
       const clean = foundry.utils.deepClone(tpl);
       delete clean.sdSheetTemplate;
       delete clean.sdSheetTemplateBundle;
@@ -662,8 +634,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   async _prompt(label, defaultValue = "") {
-    // `modal: true` lifts the dialog into the browser top layer so it
-    // always renders above the Sheet Builder window regardless of z-index.
     return foundry.applications.api.DialogV2.wait({
       window: { title: "Sheet Builder" },
       modal: true,

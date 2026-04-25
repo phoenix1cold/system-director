@@ -1,7 +1,7 @@
 /** Map subtype → colour used when rendering the wire. */
 export const PIN_SUBTYPE_COLORS = Object.freeze({
-  "exec":          "#ffca6b", // orange — execution flow
-  "value.any":     null,      // null  → use legacy blue→green gradient
+  "exec":          "#ffca6b",
+  "value.any":     null,
   "value.number":  "#74c0ff", // blue
   "value.string":  "#e06bff", // magenta
   "value.bool":    "#ff7b7b", // red

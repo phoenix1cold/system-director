@@ -40,11 +40,11 @@ function _NL(text) {
   return text;
 }
 
-// NODE CATALOGUE
+// Каталог нод
 
 export const NODE_DEFS = {
 
-  // System
+  // Системные
   output: {
     title:"OUTPUT", color:"#5a4ec0", cat:"_system",
     desc:"Connect a formula value OR an exec chain. Use Branch to split paths.",
@@ -57,7 +57,6 @@ export const NODE_DEFS = {
     isOutput:true
   },
 
-  // Attribute widget -- special nodes, only appear in attribute graphs
   attr_score_val: {
     title:"Attr Score", color:"#7a4a1a", cat:"_attr",
     desc:"Live numeric value of this attribute (read-only, always present in attribute graphs).",
@@ -78,7 +77,7 @@ export const NODE_DEFS = {
     isAttrOutput:true
   },
 
-  // Flow
+  // Поток
   branch: {
     title:"Branch", color:"#8a2a8a", cat:"Flow",
     desc:"If Condition is TRUE runs True path; otherwise False path",
@@ -107,7 +106,6 @@ export const NODE_DEFS = {
     title:"Sequence", color:"#8a2a8a", cat:"Flow",
     desc:"Run N exec branches in strict order (1 → 2 → … → N). Set `count` to pick how many branches; connected + 1 is the smallest safe count.",
     inputs:[{id:"exec",label:"",type:"exec"}],
-    // 12 static pins -- only the first `count` are rendered & walked.
     outputs:[
       {id:"a0", label:"Then 1",  type:"exec"},
       {id:"a1", label:"Then 2",  type:"exec"},
@@ -128,15 +126,12 @@ export const NODE_DEFS = {
     isSequence: true
   },
 
-  // Sources
-  // Number -- outputs its value, or the wired input if connected
   literal: {
     title:"Number", color:"#2a4a6a", cat:"Sources",
     inputs:[{id:"in",label:"In",type:"value"}], outputs:[{id:"v",label:"Out",type:"value"}],
     fields:[{key:"value",label:"",type:"number",default:0}],
     compile:(n,i)=> i.in !== undefined ? String(i.in) : String(n.data.value ?? 0)
   },
-  // Text -- outputs raw string (no quotes), used for labels/flavors not roll formulas
   literal_str: {
     title:"Text", color:"#2a4a6a", cat:"Sources",
     inputs:[{id:"in",label:"In",type:"value"}], outputs:[{id:"v",label:"Out",type:"value"}],
@@ -181,14 +176,11 @@ export const NODE_DEFS = {
     outputs:[{id:"v",label:"Count",type:"value"}],
     fields:[{key:"slotId",label:"Slot ID",type:"slot-picker",default:"slot1"}],
     compile:(n,i)=>{
-      // Dynamic pin always resolves against self/actor at runtime
       if (i.itemSlot != null) return `{slotCount:${i.itemSlot}}`;
       const path = n.data.slotPath;
       if (path) {
         const parts = path.split("/");
-        // Direct actor-owned item slot: "itemId/slotId" (2 segments) -> invItemSlotCount
         if (parts.length === 2) return `{invItemSlotCount:${parts[0]}.${parts[1]}}`;
-        // Deeply nested: "itemId/slotId/nestedItemId/slotId2/..." -> nestedSlotCount
         return `{nestedSlotCount:${path}}`;
       }
       // Self / actor slot
@@ -236,10 +228,14 @@ export const NODE_DEFS = {
     }
   },
 
-  // Dice
+  // Кубы
   dice: {
     title:"Dice", color:"#7a4500", cat:"Dice",
-    inputs:[{id:"count",label:"Count",type:"value.number"}],
+    desc:"Build a dice formula `<count><die>`. Connect Count for the number of dice, Die for the size (accepts \"d6\", \"6\" or a {ref}; if Die pin is empty the select field below is used).",
+    inputs:[
+      {id:"count",label:"Count",type:"value.number"},
+      {id:"die",  label:"Die",  type:"value.string"}
+    ],
     outputs:[{id:"v",label:"Formula",type:"value.string"}],
     fields:[
       {key:"count",label:"#",type:"number",default:1},
@@ -250,16 +246,28 @@ export const NODE_DEFS = {
       { base:"sub", label:"Sub", max:10 }
     ],
     compile:(n,i)=>{
-      let f=`${i.count??n.data.count??1}${n.data.die??"d6"}`;
-      for(let j=0;j<10;j++){
-        const av=i[`add${j}`]; if(av!=null&&av!=="") f=`(${f}+(${av}))`;
-        const sv=i[`sub${j}`]; if(sv!=null&&sv!=="") f=`(${f}-(${sv}))`;
+      const c = i.count ?? n.data.count ?? 1;
+      let dieSrc = (i.die !== undefined && i.die !== null && i.die !== "")
+        ? String(i.die).trim()
+        : String(n.data.die ?? "d6").trim();
+      if (dieSrc.length >= 2 && (
+            (dieSrc.startsWith('"') && dieSrc.endsWith('"')) ||
+            (dieSrc.startsWith("'") && dieSrc.endsWith("'"))
+          )) {
+        dieSrc = dieSrc.slice(1, -1).trim();
+      }
+      if (!dieSrc) dieSrc = "d6";
+      const dieFinal = /^d/i.test(dieSrc) ? dieSrc : `d${dieSrc}`;
+      let f = `${c}${dieFinal}`;
+      for (let j = 0; j < 10; j++) {
+        const av = i[`add${j}`]; if (av != null && av !== "") f = `(${f}+(${av}))`;
+        const sv = i[`sub${j}`]; if (sv != null && sv !== "") f = `(${f}-(${sv}))`;
       }
       return f;
     }
   },
 
-  // Math
+  // Математика
   add:  {title:"Add",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[{key:"sep",label:"Sep",type:"text",default:""}],compile:(n,i)=>{ const sep=n.data.sep??""; return sep ? `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})` : `(${i.a??"0"}+${i.b??"0"})`; }},
   sub:  {title:"Sub",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}-${i.b??"0"})`},
   mul:  {title:"Mul",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}*${i.b??"0"})`},
@@ -275,7 +283,7 @@ export const NODE_DEFS = {
          outputs:[{id:"v",label:"",type:"value.number"}],fields:[],
          compile:(_,i)=>`max(${i.lo??"0"},min(${i.hi??"0"},${i.v??"0"}))`},
 
-  // Compare
+  // Сравнения
   eq: {title:"==",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}==${i.b??"0"})`},
   neq:{title:"≠", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}!=${i.b??"0"})`},
   gt: {title:">", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>${i.b??"0"})`},
@@ -283,12 +291,12 @@ export const NODE_DEFS = {
   gte:{title:">=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>=${i.b??"0"})`},
   lte:{title:"<=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<=${i.b??"0"})`},
 
-  // Logic
+  // Логика
   and:{title:"AND",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}&&${i.b??"0"})`},
   or: {title:"OR", color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}||${i.b??"0"})`},
   not:{title:"NOT",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(!${i.a??"0"})`},
 
-  // Actions
+  // Действия
   act_roll_value: {
     title:"Roll → Value", color:"#8a4400", cat:"Actions",
     desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin.",
@@ -310,7 +318,6 @@ export const NODE_DEFS = {
     isAction:true,
     toAction:(n,inp)=>{
       const formula = inp.formula ?? n.data.formula ?? "1d6";
-      // advFormula / disFormula: pin takes priority over field
       const advFormula = (inp.advFormula != null && inp.advFormula !== "") ? inp.advFormula : (n.data.advFormula ?? "");
       const disFormula = (inp.disFormula != null && inp.disFormula !== "") ? inp.disFormula : (n.data.disFormula ?? "");
       return {
@@ -326,13 +333,14 @@ export const NODE_DEFS = {
 
   act_damage: {
     title:"Damage", color:"#8a1a1a", cat:"Actions",
-    desc:"Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=×0, resist=×0.5, vulnerable=×2, numeric factor used as-is). halfOnSave × savePassed pin halves damage when the preceding save node passed.",
+    desc:"Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=×0, resist=×0.5, vulnerable=×2, numeric factor used as-is). halfOnSave × savePassed pin halves damage when the preceding save node passed. Connect Targets pin from AoE Save to apply to specific tokens.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"amount",label:"Amount",type:"value"},
       {id:"critMultiplier",label:"Crit ×",type:"value"},
       {id:"damageType",label:"Type",type:"value"},
-      {id:"savePassed",label:"Save passed?",type:"value"}
+      {id:"savePassed",label:"Save passed?",type:"value"},
+      {id:"targets",label:"Targets",type:"value"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
@@ -356,11 +364,11 @@ export const NODE_DEFS = {
       const dmgType = inp.damageType ?? n.data.damageType ?? "";
       const halfOnSave = n.data.halfOnSave === "yes";
       const savePassed = inp.savePassed ?? null;
-      // Always emit chatDamage so resistance/halfOnSave/savePassed scaling
       const silent    = n.data.postToChat === "no";
       return {type:"chatDamage", amount:scaled, label:n.data.label??"Damage",
         target:targetMode, hpPath:n.data.hpPath??"system.resources.hp.value",
         damageType: dmgType, halfOnSave, savePassed,
+        targets: inp.targets ?? null,
         silent,
         showApply: !silent && n.data.showApply !== "no",
         autoApply: silent || n.data.autoApply === "yes"};
@@ -369,8 +377,8 @@ export const NODE_DEFS = {
 
   act_heal: {
     title:"Heal", color:"#1a7a2a", cat:"Actions",
-    desc:"Apply healing to target HP. postToChat:yes → chat card with Apply button. autoApply:yes → post to chat AND immediately heal (no click). postToChat:no → silent direct HP write.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"amount",label:"Amount",type:"value"}],
+    desc:"Apply healing to target HP. postToChat:yes → chat card with Apply button. autoApply:yes → post to chat AND immediately heal (no click). postToChat:no → silent direct HP write. Connect Targets pin from AoE Save to apply to specific tokens.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"amount",label:"Amount",type:"value"},{id:"targets",label:"Targets",type:"value"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"label",      label:"Label",      type:"text",   default:"Healing"},
@@ -387,19 +395,20 @@ export const NODE_DEFS = {
       if (n.data.postToChat === "yes") {
         return {type:"chatHeal", amount:inp.amount??0, label:n.data.label??"Healing",
           target:targetMode, hpPath:n.data.hpPath??"system.resources.hp.value",
+          targets: inp.targets ?? null,
           showApply: n.data.showApply !== "no",
           autoApply: n.data.autoApply === "yes"};
       }
       return {type:"modifyField",
         target:`${tgtPfx}${n.data.hpPath??"system.resources.hp.value"}`,
-        targetMode, delta:`+(${inp.amount??0})`, flavor:n.data.label??"Healing"};
+        targetMode, targets: inp.targets ?? null, delta:`+(${inp.amount??0})`, flavor:n.data.label??"Healing"};
     }
   },
 
   act_effect: {
     title:"Apply Effect", color:"#1a2a8a", cat:"Actions",
-    desc:"Create or toggle an Active Effect on actor/target. Changes: JSON array [{key,value,mode}] where mode 2=Add 5=Override",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"duration",label:"Rounds",type:"value"}],
+    desc:"Create or toggle an Active Effect on actor/target. Changes: JSON array [{key,value,mode}] where mode 2=Add 5=Override. Connect Targets pin from AoE Save to apply to specific tokens.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"duration",label:"Rounds",type:"value"},{id:"targets",label:"Targets",type:"value"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"effectName", label:"Name (existing or new)", type:"effect-picker", default:"My Effect"},
@@ -415,6 +424,7 @@ export const NODE_DEFS = {
       effectName: n.data.effectName ?? "My Effect",
       icon:        n.data.icon       ?? "icons/svg/aura.svg",
       target:      n.data.target     ?? "actor",
+      targets:     inp.targets       ?? null,
       duration:    inp.duration      ?? n.data.duration ?? 0,
       changes:     (() => { try { return JSON.parse(n.data.changes||"[]"); } catch { return []; } })(),
       toggleMode:  n.data.toggleMode ?? "create"
@@ -423,8 +433,8 @@ export const NODE_DEFS = {
 
   act_effect_uuid: {
     title:"Apply Effect (UUID)", color:"#1a2a8a", cat:"Actions",
-    desc:"Apply an existing Active Effect to actor/target by UUID. Pick from the dropdown — UUID is filled automatically.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"duration",label:"Rounds",type:"value"}],
+    desc:"Apply an existing Active Effect to actor/target by UUID. Pick from the dropdown — UUID is filled automatically. Connect Targets pin from AoE Save to apply to specific tokens.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"duration",label:"Rounds",type:"value"},{id:"targets",label:"Targets",type:"value"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"effectUuid", label:"Effect",       type:"effect-uuid-picker", default:""},
@@ -437,6 +447,7 @@ export const NODE_DEFS = {
       type:       "applyEffectByUuid",
       effectUuid: n.data.effectUuid ?? "",
       target:     n.data.target     ?? "actor",
+      targets:    inp.targets       ?? null,
       toggleMode: n.data.toggleMode ?? "create",
       duration:   inp.duration      ?? n.data.duration ?? 0
     })
@@ -454,7 +465,150 @@ export const NODE_DEFS = {
     isLoop: true
   },
 
-  // Spellbook / Casting
+  act_for_each_token: {
+    title:"For Each Token", color:"#1a5a7a", cat:"Flow",
+    desc:"Execute loop body once per token id in a comma-joined list (e.g. Saved[]/Failed[]/All[] from Save Branch). On each iteration {__currentTarget} = current token id and {__loopIndex} = i; the current token's actor becomes the action context.",
+    inputs:[
+      {id:"exec",   label:"",        type:"exec"},
+      {id:"tokens", label:"Tokens",  type:"value"}
+    ],
+    outputs:[
+      {id:"loop",  label:"Loop →",  type:"exec"},
+      {id:"done",  label:"Done →",  type:"exec"},
+      {id:"token", label:"Token",   type:"value"},
+      {id:"index", label:"Index",   type:"value"}
+    ],
+    fields:[],
+    isLoop: true,
+    toAction:(_,inp)=>({
+      type:   "forEachToken",
+      tokens: inp.tokens ?? ""
+    })
+  },
+
+  tok_field: {
+    title:"Token Field", color:"#1a4060", cat:"Sources",
+    desc:"Read a field from the actor of a token by token id. Token Id defaults to {__currentTarget} (set by For Each Token / per-target iterators). Use to read e.g. system.resources.hp.value of a specific saved/failed token.",
+    inputs:[{id:"tokenId", label:"Token Id", type:"value"}],
+    outputs:[{id:"v", label:"Value", type:"value"}],
+    fields:[{key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}],
+    compile:(n,i)=>{
+      const tid  = (i.tokenId != null && i.tokenId !== "") ? String(i.tokenId) : "{__currentTarget}";
+      const path = n.data.path ?? "";
+      return `{tokenField:${tid}.${path}}`;
+    }
+  },
+
+  arr_length: {
+    title:"Array Length", color:"#2a7a3a", cat:"Array",
+    desc:"Number of token ids in a comma-joined list (e.g. Saved[]/Failed[]/All[] from Save Branch).",
+    inputs:[{id:"tokens", label:"Tokens", type:"value"}],
+    outputs:[{id:"v", label:"Count", type:"value.number"}],
+    fields:[],
+    compile:(_,i)=>`{arrayLength:${i.tokens ?? ""}}`
+  },
+
+  arr_at: {
+    title:"Token at Index", color:"#2a7a3a", cat:"Array",
+    desc:"Returns the Nth token id (0-based) from a comma-joined list (Saved[]/Failed[]/All[] etc.). If Index is out of range, returns empty.",
+    inputs:[
+      {id:"tokens", label:"Tokens", type:"value"},
+      {id:"index",  label:"Index",  type:"value.number"}
+    ],
+    outputs:[{id:"v", label:"Token", type:"value"}],
+    fields:[{key:"index",label:"Index",type:"number",default:0}],
+    compile:(n,i)=>`{arrayAt:${i.tokens ?? ""}|${i.index ?? n.data.index ?? 0}}`
+  },
+
+  arr_map_field: {
+    title:"Map Field", color:"#2a7a3a", cat:"Array",
+    desc:"For every token in the array, read the same field from its actor and return all values as a new comma-joined list. Use to feed numeric arrays into Aggregate / Find / Filter or to compare values across tokens.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value"}],
+    outputs:[{id:"v", label:"Values", type:"value.array"}],
+    fields:[{key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}],
+    compile:(n,i)=>`{arrayMapField:${i.tokens ?? ""}|${n.data.path ?? ""}}`
+  },
+
+  arr_aggregate_field: {
+    title:"Aggregate Field", color:"#2a7a3a", cat:"Array",
+    desc:"Reduce a numeric field across all tokens in the array. Sum / Avg / Min / Max / Count. Non-numeric values are skipped.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value"}],
+    outputs:[{id:"v", label:"Result", type:"value.number"}],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
+      {key:"op",  label:"Op",   type:"select",default:"sum",options:["sum","avg","min","max","count"]}
+    ],
+    compile:(n,i)=>`{arrayAgg:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "sum"}}`
+  },
+
+  arr_find_extreme: {
+    title:"Find Top by Field", color:"#2a7a3a", cat:"Array",
+    desc:"Returns the token id of the actor with the highest (max) or lowest (min) field value in the array. Useful for `who has more HP`, `slowest initiative`, etc.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value"}],
+    outputs:[{id:"v", label:"Token", type:"value"}],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
+      {key:"op",  label:"Pick", type:"select",default:"max",options:["max","min"]}
+    ],
+    compile:(n,i)=>`{arrayFindExtreme:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "max"}}`
+  },
+
+  arr_filter: {
+    title:"Filter by Field", color:"#2a7a3a", cat:"Array",
+    desc:"Keep only tokens whose actor field passes `field <op> value`. Numeric comparisons when value parses as a number, string equality otherwise. Outputs a comma-joined list to feed back into other Array / For Each Token nodes.",
+    inputs:[
+      {id:"tokens", label:"Tokens", type:"value"},
+      {id:"value",  label:"Value",  type:"value"}
+    ],
+    outputs:[{id:"v", label:"Filtered", type:"value.array"}],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
+      {key:"op",  label:"Op",   type:"select",default:">",options:["==","!=",">","<",">=","<="]},
+      {key:"value",label:"Value",type:"text",default:"0"}
+    ],
+    compile:(n,i)=>{
+      const cmpRaw = (i.value !== undefined && i.value !== null && i.value !== "")
+        ? String(i.value)
+        : String(n.data.value ?? "0");
+      let cmp = cmpRaw.trim();
+      if (cmp.length >= 2 && (
+            (cmp.startsWith('"') && cmp.endsWith('"')) ||
+            (cmp.startsWith("'") && cmp.endsWith("'"))
+          )) {
+        cmp = cmp.slice(1, -1);
+      }
+      return `{arrayFilter:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? ">"}|${cmp}}`;
+    }
+  },
+
+  arr_compare_two: {
+    title:"Compare Two Tokens", color:"#5a3a7a", cat:"Array",
+    desc:"Read the same field on two tokens and route exec into Greater / Less / Equal based on (A − B). Diff outputs the numeric difference and Winner outputs the id of the higher token (empty on tie).",
+    inputs:[
+      {id:"exec",   label:"",        type:"exec"},
+      {id:"a",      label:"Token A", type:"value"},
+      {id:"b",      label:"Token B", type:"value"}
+    ],
+    outputs:[
+      {id:"greater", label:"A > B →", type:"exec"},
+      {id:"less",    label:"A < B →", type:"exec"},
+      {id:"equal",   label:"A = B →", type:"exec"},
+      {id:"diff",    label:"Diff",    type:"value.number"},
+      {id:"winner",  label:"Winner",  type:"value"}
+    ],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({
+      type:   "arrayCompareTwo",
+      a:      inp.a ?? "",
+      b:      inp.b ?? "",
+      path:   n.data.path ?? ""
+    })
+  },
+
+  // Каст заклинаний
 
   get_spell_slots: {
     title:"Spell Slots", color:"#1a4060", cat:"Sources",
@@ -545,7 +699,6 @@ export const NODE_DEFS = {
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[],
     isAction:true,
-    // Dynamic text pins: text0..text9 -- always show one more than connected, up to 10
     dynamicPins:[{ base:"text", label:"Text", max:10 }],
     toAction:(n,inp)=>{
       const parts=[];
@@ -611,7 +764,7 @@ export const NODE_DEFS = {
     toAction:(n)=>({type:"removeItem", uuid:n.data.uuid??"", itemName:n.data.itemName??"", inventoryWidget:n.data.inventoryWidget??""})
   },
 
-  // Item / Slot deep-access nodes
+  // Предметы и слоты
 
   act_use_slot_item: {
     title:"Use Slot Item", color:"#2a5a3a", cat:"Actions",
@@ -639,6 +792,37 @@ export const NODE_DEFS = {
     ],
     isAction:true, wideNode:true,
     toAction:(n)=>({type:"useItem", itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0)})
+  },
+
+  act_equip: {
+    title:"Equip Item", color:"#2a5a7a", cat:"Actions",
+    desc:"Mark an owned inventory item as equipped. Runs canEquip() requirements check; blocks on concentration conflict. If Force is on, skips the check.",
+    inputs:[{id:"exec",label:"",type:"exec"}],
+    outputs:[{id:"exec",label:"",type:"exec"}],
+    fields:[
+      {key:"itemName", label:"Item",          type:"item-picker", default:""},
+      {key:"uuid",     label:"…or UUID",      type:"text",        default:"", placeholder:"drag item here"},
+      {key:"category", label:"…or Category",  type:"text",        default:"", placeholder:"first item of category"},
+      {key:"index",    label:"Category index",type:"number",      default:0},
+      {key:"force",    label:"Force (skip canEquip)", type:"checkbox", default:false}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n)=>({type:"equipItem", itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0), force:!!n.data.force})
+  },
+
+  act_unequip: {
+    title:"Unequip Item", color:"#7a2a2a", cat:"Actions",
+    desc:"Mark an owned inventory item as unequipped.",
+    inputs:[{id:"exec",label:"",type:"exec"}],
+    outputs:[{id:"exec",label:"",type:"exec"}],
+    fields:[
+      {key:"itemName", label:"Item",          type:"item-picker", default:""},
+      {key:"uuid",     label:"…or UUID",      type:"text",        default:"", placeholder:"drag item here"},
+      {key:"category", label:"…or Category",  type:"text",        default:"", placeholder:"first item of category"},
+      {key:"index",    label:"Category index",type:"number",      default:0}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n)=>({type:"unequipItem", itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0)})
   },
 
   act_modify_slot_item_field: {
@@ -689,7 +873,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Value sources for item field reading
 
   inv_item_field: {
     title:"Inventory Item Field", color:"#1a4060", cat:"Sources",
@@ -729,7 +912,6 @@ export const NODE_DEFS = {
     compile:(n)=>(n.data.slotId??"slot1")
   },
 
-  // Inventory Item → Slot cross-access
 
   inv_item_slot_count: {
     title:"Inv Item Slot Count", color:"#1a4060", cat:"Sources",
@@ -820,7 +1002,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Generic Roll Check (roll-over / roll-under / meet-and-beat / troika / custom)
   act_roll_check: {
     title:"Roll Check", color:"#8a4400", cat:"Actions",
     desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator).",
@@ -877,7 +1058,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Tiered Roll (PbtA / Blades-style threshold branches)
   act_tiered_roll: {
     title:"Tiered Roll", color:"#8a4400", cat:"Actions",
     desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result ≥ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll.",
@@ -921,7 +1101,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Dice Pool (count dice, count successes ≥ target)
   act_dice_pool: {
     title:"Dice Pool", color:"#8a4400", cat:"Actions",
     desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace.",
@@ -961,7 +1140,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Token-based resolution (diceless systems, metacurrency)
   act_spend_token: {
     title:"Spend Token", color:"#4a2a6a", cat:"Actions",
     desc:"Spends N tokens from the given resource. If there aren't enough tokens, exec takes the Empty branch. Works like Consume Resource but with branching.",
@@ -1028,7 +1206,6 @@ export const NODE_DEFS = {
     }
   },
 
-  // Progression (roll, compare with previous, branch)
   act_progression: {
     title:"Progression Roll", color:"#8a4400", cat:"Actions",
     desc:"Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc.",
@@ -1062,7 +1239,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Throw dice (visual scatter on canvas / sheet)
   act_throw_on_canvas: {
     title:"Throw on Canvas", color:"#8a4400", cat:"Actions",
     desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}.",
@@ -1141,7 +1317,7 @@ export const NODE_DEFS = {
     })
   },
 
-  // Flow additions
+  // Доп. поток
 
   /** Switch — routes exec to one of N labeled branches based on a value match */
   switch_node: {
@@ -1176,7 +1352,6 @@ export const NODE_DEFS = {
     desc:"Show a dialog with 2-8 named options. The player picks one and that exec branch fires. Outputs are named via fields.",
     wideNode:true,
     inputs:[{id:"exec", label:"", type:"exec"}],
-    // All 8 possible exec outputs -- the graph renders only those up to count
     outputs:[
       {id:"out0",label:"Option 1",type:"exec"},
       {id:"out1",label:"Option 2",type:"exec"},
@@ -1201,7 +1376,6 @@ export const NODE_DEFS = {
       {key:"label7", label:"Option 8 label",          type:"text",   default:"Option 8"}
     ],
     isDialogSwitch: true,
-    // Emits the number of active outputs so the graph renderer can hide inactive ones
     activeOutputCount: (n) => Math.max(2, Math.min(8, parseInt(n.data?.count) || 2)),
     toAction:(n, inp, compiler) => {
       const count = Math.max(2, Math.min(8, parseInt(n.data?.count) || 2));
@@ -1209,7 +1383,6 @@ export const NODE_DEFS = {
       for (let i = 0; i < count; i++) {
         outputs.push({
           label:   n.data[`label${i}`] ?? `Option ${i+1}`,
-          // Sub-actions are compiled from the connected exec chain for each output pin
           actions: compiler ? compiler.compileExecPin(n, `out${i}`) : []
         });
       }
@@ -1246,7 +1419,7 @@ export const NODE_DEFS = {
   },
 
 
-  // Effect creation nodes
+  // Эффекты
 
   act_create_effect: {
     title:"Create Effect", color:"#1a4a8a", cat:"Effects", wideNode:true,
@@ -1356,7 +1529,7 @@ export const NODE_DEFS = {
     }
   },
 
-  // Aura nodes
+  // Ауры
   act_place_aura: {
     title:"Place Aura — With Effect", color:"#1a6a4a", cat:"Effects", wideNode:true,
     desc:"Places a Scene Region attached to the owner token. Tokens inside receive the named Active Effect automatically (hook-based enter/exit); leaving tokens lose it (configurable).",
@@ -1396,22 +1569,23 @@ export const NODE_DEFS = {
     })
   },
 
-  // Damage Aura -- periodic damage to tokens inside.
   act_place_aura_damage: {
     title:"Place Aura — Damage", color:"#7a2a1a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; rolls damage against tokens inside (onEnter / eachTurn / both). Respects system.resistances[damageType]. Chat card + visibility configurable.",
     inputs:[
-      {id:"exec",    label:"",            type:"exec"},
-      {id:"owner",   label:"Owner",       type:"value"},
-      {id:"size",    label:"Size (ft)",   type:"value"},
-      {id:"formula", label:"Formula",     type:"value.string"},
-      {id:"rounds",  label:"Lifetime",    type:"value"}
+      {id:"exec",       label:"",            type:"exec"},
+      {id:"owner",      label:"Owner",       type:"value"},
+      {id:"size",       label:"Size (ft)",   type:"value"},
+      {id:"formula",    label:"Formula",     type:"value.string"},
+      {id:"name",       label:"Name",        type:"value.string"},
+      {id:"damageType", label:"Damage Type", type:"value.string"},
+      {id:"rounds",     label:"Lifetime",    type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",            label:"Shape",              type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
       {key:"size",             label:"Size (ft)",          type:"number", default:10},
-      {key:"angle",            label:"Cone angle (deg)",   type:"number", default:53.13},
+      {key:"angle",            label:"Cone angle (deg)",   type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",             label:"Aura name",          type:"text",   default:"Damage Aura"},
       {key:"icon",             label:"Icon",               type:"text",   default:"icons/svg/aura.svg"},
       {key:"owner",            label:"Owner",              type:"select", default:"self", options:["self","selected_token","token_target"]},
@@ -1422,7 +1596,6 @@ export const NODE_DEFS = {
       {key:"hpMode",           label:"HP mode",            type:"select", options:["add","set"], default:"add"},
       {key:"tickMode",         label:"When",               type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter+eachTurn"},
       {key:"showInChat",       label:"Show in chat",       type:"select", options:["yes","no"], default:"yes"},
-      {key:"bonusFormula",     label:"Bonus formula (+)",  type:"text",   default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",         label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",       label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
       {key:"rollApplyMode",   label:"Roll mode",          type:"select", options:["per_target","once"], default:"per_target"},
@@ -1436,13 +1609,12 @@ export const NODE_DEFS = {
       shape:           n.data.shape   ?? "emanation",
       size:            inp.size       ?? n.data.size   ?? 10,
       angle:           n.data.angle   ?? 53.13,
-      name:            n.data.name    ?? "Damage Aura",
+      name:            inp.name       ?? n.data.name    ?? "Damage Aura",
       icon:            n.data.icon    ?? "icons/svg/aura.svg",
       owner:           inp.owner      ?? n.data.owner   ?? "self",
       auraKey:         n.data.auraKey ?? "damage-aura",
       formula:         inp.formula    ?? n.data.formula ?? "1d6",
-      bonusFormula:    n.data.bonusFormula ?? "",
-      damageType:      n.data.damageType ?? "",
+      damageType:      inp.damageType ?? n.data.damageType ?? "",
       hpPath:          n.data.hpPath     ?? "system.resources.hp.value",
       hpMode:          n.data.hpMode     ?? "add",
       tickMode:        n.data.tickMode   ?? "onEnter+eachTurn",
@@ -1456,7 +1628,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Heal Aura -- periodic healing to tokens inside.
   act_place_aura_heal: {
     title:"Place Aura — Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; heals tokens inside (onEnter / eachTurn / both). HP path configurable. Chat card + visibility configurable.",
@@ -1465,13 +1636,14 @@ export const NODE_DEFS = {
       {id:"owner",   label:"Owner",     type:"value"},
       {id:"size",    label:"Size (ft)", type:"value"},
       {id:"formula", label:"Formula",   type:"value.string"},
+      {id:"name",    label:"Name",      type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",           label:"Shape",            type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
       {key:"size",            label:"Size (ft)",        type:"number", default:10},
-      {key:"angle",           label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",           label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",            label:"Aura name",        type:"text",   default:"Heal Aura"},
       {key:"icon",            label:"Icon",             type:"text",   default:"icons/svg/aura.svg"},
       {key:"owner",           label:"Owner",            type:"select", default:"self", options:["self","selected_token","token_target"]},
@@ -1481,7 +1653,6 @@ export const NODE_DEFS = {
       {key:"hpMode",          label:"HP mode",          type:"select", options:["add","set"], default:"add"},
       {key:"tickMode",        label:"When",             type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter+eachTurn"},
       {key:"showInChat",      label:"Show in chat",     type:"select", options:["yes","no"], default:"yes"},
-      {key:"bonusFormula",    label:"Bonus formula (+)", type:"text",  default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",        label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",      label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
       {key:"rollApplyMode",  label:"Roll mode",          type:"select", options:["per_target","once"], default:"per_target"},
@@ -1495,12 +1666,11 @@ export const NODE_DEFS = {
       shape:           n.data.shape    ?? "emanation",
       size:            inp.size        ?? n.data.size    ?? 10,
       angle:           n.data.angle    ?? 53.13,
-      name:            n.data.name     ?? "Heal Aura",
+      name:            inp.name        ?? n.data.name     ?? "Heal Aura",
       icon:            n.data.icon     ?? "icons/svg/aura.svg",
       owner:           inp.owner       ?? n.data.owner   ?? "self",
       auraKey:         n.data.auraKey  ?? "heal-aura",
       formula:         inp.formula     ?? n.data.formula ?? "1d4",
-      bonusFormula:    n.data.bonusFormula ?? "",
       hpPath:          n.data.hpPath     ?? "system.resources.hp.value",
       hpMode:          n.data.hpMode     ?? "add",
       tickMode:        n.data.tickMode   ?? "onEnter+eachTurn",
@@ -1514,7 +1684,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Save Aura w/ Effect -- each tick rolls a save, fail -> effect.
   /** Save Aura w/ Effect — each tick rolls a save, fail → effect. */
   act_place_aura_save_effect: {
     title:"Place Aura — Save → Effect", color:"#6a4a1a", cat:"Effects", wideNode:true,
@@ -1523,13 +1692,14 @@ export const NODE_DEFS = {
       {id:"exec",   label:"",          type:"exec"},
       {id:"owner",  label:"Owner",     type:"value"},
       {id:"size",   label:"Size (ft)", type:"value"},
-      {id:"dc",     label:"DC",        type:"value"}
+      {id:"dc",     label:"DC",        type:"value"},
+      {id:"name",   label:"Name",      type:"value.string"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",             label:"Shape",             type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
       {key:"size",              label:"Size (ft)",         type:"number", default:10},
-      {key:"angle",             label:"Cone angle (deg)",  type:"number", default:53.13},
+      {key:"angle",             label:"Cone angle (deg)",  type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",              label:"Effect name",       type:"text",   default:"Aura Effect"},
       {key:"icon",              label:"Icon",              type:"text",   default:"icons/svg/aura.svg"},
       {key:"owner",             label:"Owner",             type:"select", default:"self", options:["self","selected_token","token_target"]},
@@ -1542,7 +1712,6 @@ export const NODE_DEFS = {
       {key:"advMode",           label:"Adv / Dis mode",    type:"select", options:["none","adv","dis","ask"], default:"none"},
       {key:"advFormula",        label:"Adv core formula",  type:"text",   default:"", placeholder:"2d20kh1 (default)"},
       {key:"disFormula",        label:"Dis core formula",  type:"text",   default:"", placeholder:"2d20kl1 (default)"},
-      {key:"bonusFormula",      label:"Bonus formula (+)", type:"text",   default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",          label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",        label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
       {key:"visibility",        label:"Visibility",        type:"select", options:["everyone","gm"], default:"everyone"},
@@ -1556,7 +1725,7 @@ export const NODE_DEFS = {
       shape:             n.data.shape    ?? "emanation",
       size:              inp.size        ?? n.data.size   ?? 10,
       angle:             n.data.angle    ?? 53.13,
-      name:              n.data.name     ?? "Aura Effect",
+      name:              inp.name        ?? n.data.name     ?? "Aura Effect",
       icon:              n.data.icon     ?? "icons/svg/aura.svg",
       owner:             inp.owner       ?? n.data.owner    ?? "self",
       auraKey:           n.data.auraKey  ?? "save-aura",
@@ -1566,7 +1735,6 @@ export const NODE_DEFS = {
       advMode:           n.data.advMode ?? "none",
       advFormula:        n.data.advFormula ?? "",
       disFormula:        n.data.disFormula ?? "",
-      bonusFormula:      n.data.bonusFormula ?? "",
       tickMode:          n.data.tickMode ?? "onEnter+eachTurn",
       showInChat:        (n.data.showInChat ?? "yes") !== "no",
       chatMode:          n.data.chatMode ?? "card",
@@ -1578,7 +1746,67 @@ export const NODE_DEFS = {
     })
   },
 
-  // AoE (free placement) variants -- post chat card w/ Place button
+  /** Save Branch Aura — each tick rolls a save per token; downstream actions read Saved[]/Failed[]/All[]. */
+  act_place_aura_save_branch: {
+    title:"Place Aura — Save Branch", color:"#8a5a2a", cat:"Effects", wideNode:true,
+    desc:"Attaches a region to the owner; tokens inside roll a save (onEnter / eachTurn / both). Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes (per-tick, per-token).",
+    inputs:[
+      {id:"exec",  label:"",          type:"exec"},
+      {id:"owner", label:"Owner",     type:"value"},
+      {id:"size",  label:"Size (ft)", type:"value"},
+      {id:"dc",    label:"DC",        type:"value"}
+    ],
+    outputs:[
+      {id:"exec",   label:"→",        type:"exec"},
+      {id:"saved",  label:"Saved[]",  type:"value"},
+      {id:"failed", label:"Failed[]", type:"value"},
+      {id:"all",    label:"All[]",    type:"value"}
+    ],
+    fields:[
+      {key:"shape",            label:"Shape",            type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
+      {key:"size",             label:"Size (ft)",        type:"number", default:10},
+      {key:"angle",            label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
+      {key:"name",             label:"Aura name",        type:"text",   default:"Save Aura"},
+      {key:"icon",             label:"Icon",             type:"text",   default:"icons/svg/aura.svg"},
+      {key:"owner",            label:"Owner",            type:"select", default:"self", options:["self","selected_token","token_target"]},
+      {key:"auraKey",          label:"Aura key",         type:"text",   default:"save-branch-aura"},
+      {key:"saveAttr",         label:"Save attr path",   type:"path",   default:"system.attributes.dex.value"},
+      {key:"dc",               label:"DC",               type:"number", default:15},
+      {key:"flavor",           label:"Save label",       type:"text",   default:"Saving Throw"},
+      {key:"rollMode",         label:"Roll mode",        type:"select", options:["public","gmroll","blindroll","selfroll"], default:"public"},
+      {key:"tickMode",         label:"When",             type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter+eachTurn"},
+      {key:"showInChat",       label:"Show in chat",     type:"select", options:["yes","no"], default:"yes"},
+      {key:"advMode",          label:"Adv / Dis mode",   type:"select", options:["none","adv","dis","ask"], default:"none"},
+      {key:"advFormula",       label:"Adv core formula", type:"text",   default:"", placeholder:"2d20kh1 (default)"},
+      {key:"disFormula",       label:"Dis core formula", type:"text",   default:"", placeholder:"2d20kl1 (default)"},
+      {key:"rounds",           label:"Lifetime (rounds, 0=∞)", type:"number", default:0},
+      {key:"conditionEffect",  label:"Suppress when owner has effect", type:"text", default:""}
+    ],
+    isAction:true,
+    isAoeSave:true,
+    toAction:(n,inp)=>({
+      type:            "placeAuraSaveBranch",
+      shape:           n.data.shape    ?? "emanation",
+      size:            inp.size        ?? n.data.size    ?? 10,
+      angle:           n.data.angle    ?? 53.13,
+      name:            n.data.name     ?? "Save Aura",
+      icon:            n.data.icon     ?? "icons/svg/aura.svg",
+      owner:           inp.owner       ?? n.data.owner   ?? "self",
+      auraKey:         n.data.auraKey  ?? "save-branch-aura",
+      saveAttr:        n.data.saveAttr ?? "system.attributes.dex.value",
+      dc:              (v => Number.isFinite(v) ? v : 15)(Number(inp.dc ?? n.data.dc ?? 15)),
+      flavor:          n.data.flavor    ?? "Saving Throw",
+      rollMode:        n.data.rollMode  ?? "public",
+      tickMode:        n.data.tickMode  ?? "onEnter+eachTurn",
+      showInChat:      (n.data.showInChat ?? "yes") !== "no",
+      advMode:         n.data.advMode    ?? "none",
+      advFormula:      n.data.advFormula ?? "",
+      disFormula:      n.data.disFormula ?? "",
+      rounds:          Number(n.data.rounds ?? 0) || 0,
+      conditionEffect: n.data.conditionEffect ?? ""
+    })
+  },
+
   /** AoE w/ Effect (no check) — places a region; while inside, Active Effect. */
   act_place_aoe_effect: {
     title:"Chat AoE — With Effect", color:"#1a4a8a", cat:"AoE", wideNode:true,
@@ -1586,6 +1814,7 @@ export const NODE_DEFS = {
     inputs:[
       {id:"exec",  label:"",          type:"exec"},
       {id:"size",  label:"Size (ft)", type:"value"},
+      {id:"name",  label:"Name",      type:"value.string"},
       {id:"rounds",label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1593,7 +1822,7 @@ export const NODE_DEFS = {
       {key:"cardTitle",         label:"Card title",       type:"text",   default:"Area of Effect"},
       {key:"shape",             label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",              label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",             label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",             label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",              label:"Effect name",      type:"text",   default:"AoE Effect"},
       {key:"icon",              label:"Icon",             type:"text",   default:"icons/svg/aura.svg"},
       {key:"deactivateOnLeave", label:"Remove on leave",  type:"select", options:["yes","no"], default:"yes"},
@@ -1609,7 +1838,7 @@ export const NODE_DEFS = {
       shape:             n.data.shape     ?? "circle",
       size:              inp.size         ?? n.data.size ?? 20,
       angle:             n.data.angle     ?? 53.13,
-      name:              n.data.name      ?? "AoE Effect",
+      name:              inp.name         ?? n.data.name      ?? "AoE Effect",
       icon:              n.data.icon      ?? "icons/svg/aura.svg",
       deactivateOnLeave: (n.data.deactivateOnLeave ?? "yes") === "yes",
       persist:           (n.data.persist ?? "yes") === "yes",
@@ -1619,22 +1848,23 @@ export const NODE_DEFS = {
     })
   },
 
-  // AoE Damage -- chat card, place, damages tokens inside.
   act_place_aoe_damage: {
     title:"Chat AoE — Damage", color:"#7a3a1a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, rolls damage against tokens inside (onEnter / eachTurn / both). Respects resistances.",
     inputs:[
-      {id:"exec",    label:"",          type:"exec"},
-      {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value.string"},
-      {id:"rounds",  label:"Lifetime",  type:"value"}
+      {id:"exec",       label:"",            type:"exec"},
+      {id:"size",       label:"Size (ft)",   type:"value"},
+      {id:"formula",    label:"Formula",     type:"value.string"},
+      {id:"name",       label:"Name",        type:"value.string"},
+      {id:"damageType", label:"Damage Type", type:"value.string"},
+      {id:"rounds",     label:"Lifetime",    type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"cardTitle",  label:"Card title",       type:"text",   default:"Damaging AoE"},
       {key:"shape",      label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",       label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",      label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",      label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",       label:"Name",             type:"text",   default:"Damage AoE"},
       {key:"formula",    label:"Damage formula",   type:"text",   default:"2d6"},
       {key:"damageType", label:"Damage type",      type:"text",   default:"fire"},
@@ -1642,7 +1872,6 @@ export const NODE_DEFS = {
       {key:"hpMode",     label:"HP mode",          type:"select", options:["add","set"], default:"add"},
       {key:"tickMode",   label:"When",             type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter"},
       {key:"showInChat", label:"Show in chat",     type:"select", options:["yes","no"], default:"yes"},
-      {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",   label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode", label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
       {key:"rollApplyMode", label:"Roll mode", type:"select", options:["per_target","once"], default:"per_target"},
@@ -1657,10 +1886,9 @@ export const NODE_DEFS = {
       shape:        n.data.shape     ?? "circle",
       size:         inp.size         ?? n.data.size ?? 20,
       angle:        n.data.angle     ?? 53.13,
-      name:         n.data.name      ?? "Damage AoE",
+      name:         inp.name         ?? n.data.name      ?? "Damage AoE",
       formula:      inp.formula      ?? n.data.formula ?? "2d6",
-      bonusFormula: n.data.bonusFormula ?? "",
-      damageType:   n.data.damageType ?? "",
+      damageType:   inp.damageType   ?? n.data.damageType ?? "",
       hpPath:       n.data.hpPath     ?? "system.resources.hp.value",
       hpMode:       n.data.hpMode     ?? "add",
       tickMode:     n.data.tickMode   ?? "onEnter",
@@ -1674,7 +1902,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // AoE Heal -- chat card, place, heals tokens inside.
   act_place_aoe_heal: {
     title:"Chat AoE — Heal", color:"#1a6a3a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, heals tokens inside (onEnter / eachTurn / both).",
@@ -1682,6 +1909,7 @@ export const NODE_DEFS = {
       {id:"exec",    label:"",          type:"exec"},
       {id:"size",    label:"Size (ft)", type:"value"},
       {id:"formula", label:"Formula",   type:"value.string"},
+      {id:"name",    label:"Name",      type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1689,14 +1917,13 @@ export const NODE_DEFS = {
       {key:"cardTitle",  label:"Card title",       type:"text",   default:"Healing AoE"},
       {key:"shape",      label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",       label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",      label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",      label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",       label:"Name",             type:"text",   default:"Heal AoE"},
       {key:"formula",    label:"Heal formula",     type:"text",   default:"2d4"},
       {key:"hpPath",     label:"HP path",          type:"path",   default:"system.resources.hp.value"},
       {key:"hpMode",     label:"HP mode",          type:"select", options:["add","set"], default:"add"},
       {key:"tickMode",   label:"When",             type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter"},
       {key:"showInChat", label:"Show in chat",     type:"select", options:["yes","no"], default:"yes"},
-      {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",   label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode", label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
       {key:"rollApplyMode", label:"Roll mode", type:"select", options:["per_target","once"], default:"per_target"},
@@ -1711,9 +1938,8 @@ export const NODE_DEFS = {
       shape:        n.data.shape     ?? "circle",
       size:         inp.size         ?? n.data.size ?? 20,
       angle:        n.data.angle     ?? 53.13,
-      name:         n.data.name      ?? "Heal AoE",
+      name:         inp.name         ?? n.data.name      ?? "Heal AoE",
       formula:      inp.formula      ?? n.data.formula ?? "2d4",
-      bonusFormula: n.data.bonusFormula ?? "",
       hpPath:       n.data.hpPath     ?? "system.resources.hp.value",
       hpMode:       n.data.hpMode     ?? "add",
       tickMode:     n.data.tickMode   ?? "onEnter",
@@ -1727,7 +1953,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // AoE Save -> Effect -- chat card, place, save each tick, fail -> effect.
   act_place_aoe_save_effect: {
     title:"Chat AoE — Save → Effect", color:"#6a2a8a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside roll a save (onEnter / eachTurn / both); on failure, the named Active Effect is applied. On leave the effect is removed (configurable).",
@@ -1735,6 +1960,7 @@ export const NODE_DEFS = {
       {id:"exec",  label:"",          type:"exec"},
       {id:"size",  label:"Size (ft)", type:"value"},
       {id:"dc",    label:"DC",        type:"value"},
+      {id:"name",  label:"Name",      type:"value.string"},
       {id:"rounds",label:"Lifetime",  type:"value"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
@@ -1742,7 +1968,7 @@ export const NODE_DEFS = {
       {key:"cardTitle",         label:"Card title",       type:"text",   default:"AoE Save"},
       {key:"shape",             label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",              label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",             label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",             label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",              label:"Effect name",      type:"text",   default:"AoE Effect"},
       {key:"icon",              label:"Icon",             type:"text",   default:"icons/svg/aura.svg"},
       {key:"saveAttr",          label:"Save attr path",   type:"path",   default:"system.attributes.dex.value"},
@@ -1753,7 +1979,6 @@ export const NODE_DEFS = {
       {key:"advMode",           label:"Adv / Dis mode",   type:"select", options:["none","adv","dis","ask"], default:"none"},
       {key:"advFormula",        label:"Adv core formula", type:"text",   default:"", placeholder:"2d20kh1 (default)"},
       {key:"disFormula",        label:"Dis core formula", type:"text",   default:"", placeholder:"2d20kl1 (default)"},
-      {key:"bonusFormula",      label:"Bonus formula (+)", type:"text",  default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",          label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",        label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
       {key:"visibility",        label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
@@ -1768,7 +1993,7 @@ export const NODE_DEFS = {
       shape:             n.data.shape     ?? "circle",
       size:              inp.size         ?? n.data.size ?? 20,
       angle:             n.data.angle     ?? 53.13,
-      name:              n.data.name      ?? "AoE Effect",
+      name:              inp.name         ?? n.data.name      ?? "AoE Effect",
       icon:              n.data.icon      ?? "icons/svg/aura.svg",
       saveAttr:          n.data.saveAttr  ?? "system.attributes.dex.value",
       dc:                (v => Number.isFinite(v) ? v : 15)(Number(inp.dc ?? n.data.dc ?? 15)),
@@ -1776,7 +2001,6 @@ export const NODE_DEFS = {
       advMode:           n.data.advMode   ?? "none",
       advFormula:        n.data.advFormula ?? "",
       disFormula:        n.data.disFormula ?? "",
-      bonusFormula:      n.data.bonusFormula ?? "",
       tickMode:          n.data.tickMode  ?? "onEnter",
       showInChat:        (n.data.showInChat ?? "yes") !== "no",
       chatMode:          n.data.chatMode  ?? "card",
@@ -1789,16 +2013,15 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_save_branch: {
-    title:"Chat AoE — Save Branch", color:"#8a5a2a", cat:"AoE", wideNode:true,
-    desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside rolls a save. Fires the 'Saved →' branch for passing tokens and 'Failed →' branch for failing tokens. Use Saved/Failed/All array outputs (available as runtime.savedTargets / failedTargets / allTargets) to fan-out damage / heal / effects.",
+    title:"Chat AoE — Save", color:"#8a5a2a", cat:"AoE", wideNode:true,
+    desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside rolls a save. Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes.",
     inputs:[
       {id:"exec", label:"",          type:"exec"},
       {id:"size", label:"Size (ft)", type:"value"},
       {id:"dc",   label:"DC",        type:"value"}
     ],
     outputs:[
-      {id:"pass",   label:"Saved →",  type:"exec"},
-      {id:"fail",   label:"Failed →", type:"exec"},
+      {id:"exec",   label:"→",        type:"exec"},
       {id:"saved",  label:"Saved[]",  type:"value"},
       {id:"failed", label:"Failed[]", type:"value"},
       {id:"all",    label:"All[]",    type:"value"}
@@ -1807,7 +2030,7 @@ export const NODE_DEFS = {
       {key:"cardTitle",   label:"Card title",       type:"text",   default:"AoE Save"},
       {key:"shape",       label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",        label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",       label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",       label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"saveAttr",    label:"Save attr path",   type:"path",   default:"system.attributes.dex.value"},
       {key:"dc",          label:"DC",               type:"number", default:15},
       {key:"flavor",      label:"Save label",       type:"text",   default:"Saving Throw"},
@@ -1816,12 +2039,10 @@ export const NODE_DEFS = {
       {key:"advMode",     label:"Adv / Dis mode",   type:"select", options:["none","adv","dis","ask"], default:"none"},
       {key:"advFormula",  label:"Adv core formula", type:"text",   default:"", placeholder:"2d20kh1 (default)"},
       {key:"disFormula",  label:"Dis core formula", type:"text",   default:"", placeholder:"2d20kl1 (default)"},
-      {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
-      {key:"perTarget",   label:"Fire branch per-target", type:"select", options:["yes","no"], default:"yes"},
       {key:"persist",     label:"Keep template on map",   type:"select", options:["yes","no"], default:"no"}
     ],
     isAction:true,
-    isSaveBranch:true,
+    isAoeSave:true,
     toAction:(n,inp)=>({
       type:         "placeAoeSaveBranch",
       cardTitle:    n.data.cardTitle ?? "AoE Save",
@@ -1836,8 +2057,6 @@ export const NODE_DEFS = {
       advMode:      n.data.advMode    ?? "none",
       advFormula:   n.data.advFormula ?? "",
       disFormula:   n.data.disFormula ?? "",
-      bonusFormula: n.data.bonusFormula ?? "",
-      perTarget:    (n.data.perTarget ?? "yes") === "yes",
       persist:      (n.data.persist   ?? "no")  === "yes"
     })
   },
@@ -1887,7 +2106,7 @@ export const NODE_DEFS = {
     compile:(_,i)=> i.v !== undefined ? String(i.v) : "0"
   },
 
-  // Sources additions
+  // Доп. источники
 
   /** Ternary — inline conditional value selection */
   ternary: {
@@ -1940,7 +2159,7 @@ export const NODE_DEFS = {
     compile:(n)=>`{var:${n.data.name??"myVar"}}`
   },
 
-  // Math additions
+  // Доп. математика
 
   /** Mod — remainder */
   mod: {
@@ -1966,7 +2185,7 @@ export const NODE_DEFS = {
     compile:(_,i)=>`(${i.a??"0"}>0?1:${i.a??"0"}<0?-1:0)`
   },
 
-  // Actions additions
+  // Доп. действия
 
   /** Play Sound — AudioHelper.play wrapper */
   act_play_sound: {
@@ -2148,7 +2367,6 @@ export const NODE_DEFS = {
     ],
     isSaveBranch: true,
     toAction:(n,inp)=>{
-      // pin takes priority over field (same pattern as act_roll_value)
       const rollFormula = (inp.rollFormula != null && inp.rollFormula !== "") ? inp.rollFormula : (n.data.rollFormula || "1d20");
       const advFormula  = (inp.advFormula  != null && inp.advFormula  !== "") ? inp.advFormula  : (n.data.advFormula ?? "");
       const disFormula  = (inp.disFormula  != null && inp.disFormula  !== "") ? inp.disFormula  : (n.data.disFormula ?? "");
@@ -2170,7 +2388,7 @@ export const NODE_DEFS = {
     }
   },
 
-  // Events
+  // События
   on_update: {
     title:"On Update", color:"#c04040", cat:"Events",
     desc:"Fires whenever this document (actor/item) is updated. Useful for reacting to HP / resource changes.",
@@ -2298,7 +2516,6 @@ export const NODE_DEFS = {
     eventHook:"updateDocument"
   },
 
-  // Target sources -- Step 3 (target as value)
   get_self: {
     title:"Get Self", color:"#2a5a7a", cat:"Targeting",
     desc:"Reference to the document the graph runs on (actor for sheet graphs, item for item graphs).",
@@ -2354,7 +2571,6 @@ export const NODE_DEFS = {
     compile:(n)=>`{__sdEqCount:${n.data.category ?? "any"}}`
   },
 
-  // Delay (wait N ms before continuing exec chain)
   act_delay: {
     title:"Delay", color:"#2a5a8a", cat:"Flow",
     desc:"Waits the given number of milliseconds, then continues the exec chain.",
@@ -2370,7 +2586,6 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({ type:"delay", duration: inp.duration ?? n.data.duration ?? "500" })
   },
 
-  // Loop (run downstream exec N times, with optional delay between)
   act_loop: {
     title:"For Loop", color:"#2a5a8a", cat:"Flow",
     desc:"Runs Body N times. Current iteration index is available as {__loopIndex}. After all iterations, exec goes to Done.",
@@ -2396,7 +2611,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Wait for Foundry hook (one-shot)
   act_wait_for_event: {
     title:"Wait For Event", color:"#2a5a8a", cat:"Flow",
     desc:"Pauses the exec chain until the first fire of a Foundry hook. Timeout is in milliseconds (0 = no timeout). Continues exec once the event fires.",
@@ -2420,7 +2634,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Step 8 additions (pure value nodes, no runtime rework)
 
   /** Random Pick — outputs one of up to 5 value inputs chosen uniformly. */
   random_pick: {
@@ -2440,8 +2653,6 @@ export const NODE_DEFS = {
         .map(k=>i[k])
         .filter(v=>v!=null && v!=="");
       if (!opts.length) return "0";
-      // NB: runtime handles `{random}` as Math.random.
-      // We wrap into chained ternaries keyed on discrete buckets.
       const n = opts.length;
       let expr = opts[n-1];
       for (let j = n-2; j >= 0; j--) {
@@ -2466,7 +2677,6 @@ export const NODE_DEFS = {
       const th = String(n.data.thresholds ?? "25,50,75").split(",").map(s=>s.trim()).filter(Boolean);
       const lb = String(n.data.labels ?? "critical,bloodied,hurt,healthy").split(",").map(s=>s.trim());
       if (!th.length || !lb.length) return `"unknown"`;
-      // Nested ternary: if v < th[0] → lb[0]; elif < th[1] → lb[1]; … else lb[N]
       let expr = JSON.stringify(lb[th.length] ?? lb[lb.length-1] ?? "unknown");
       for (let j = th.length - 1; j >= 0; j--) {
         const label = JSON.stringify(lb[j] ?? "unknown");
@@ -2603,7 +2813,7 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({ type:"castToItem", value: inp.value ?? "" })
   },
 
-  // Macro (subgraph)
+  // Макро
   macro_input: {
     title:"Macro Input", color:"#1a8a4a", cat:"Macros",
     desc:"Entry point for a nested graph (macro). Macro ID must match the ID in macro_call. Exec and up to 4 value pins are forwarded from macro_call.",
@@ -2664,7 +2874,6 @@ export const NODE_DEFS = {
 
 };
 
-// Event node value-pin → runtime token map used by _compileValue when an
 const EVENT_PIN_TOKENS = {
   on_update:       { path: "{__eventPath}", oldValue: "{__eventOldValue}", newValue: "{__eventNewValue}" },
   on_turn_start:   { round: "{__eventRound}", combatantId: "{__eventCombatantId}" },
@@ -2676,9 +2885,7 @@ const EVENT_PIN_TOKENS = {
   on_unequip:      { itemId: "{__eventItemId}", itemName: "{__eventItemName}" }
 };
 
-// Value-pin tokens for branch / save / attack / tiered action nodes
 const BRANCH_PIN_TOKENS = {
-  // Plain action-node result pins that need runtime tokens
   act_roll_value:   { result: "{__lastRoll}" },
   act_attack_check: { result: "{__lastRoll}", margin: "{__lastMargin}" },
   act_roll_check:   { result: "{__lastRoll}", margin: "{__lastMargin}", winnerRoll: "{__opposedWinnerRoll}" },
@@ -2692,15 +2899,27 @@ const BRANCH_PIN_TOKENS = {
   cast_to_actor:       { actorId: "{__castActorId}" },
   cast_to_item:        { itemId: "{__castItemId}" },
   macro_call:          { retA: "{__macroRetA}", retB: "{__macroRetB}" },
-  // Save Branch AoE exposes token-id arrays collected after rolling saves
   act_place_aoe_save_branch: {
     saved:  "{__savedTargets}",
     failed: "{__failedTargets}",
     all:    "{__allTargets}"
+  },
+  act_place_aura_save_branch: {
+    saved:  "{__savedTargets}",
+    failed: "{__failedTargets}",
+    all:    "{__allTargets}"
+  },
+  act_for_each_token: {
+    token: "{__currentTarget}",
+    index: "{__loopIndex}"
+  },
+  arr_compare_two: {
+    diff:   "{__cmpDiff}",
+    winner: "{__cmpWinner}"
   }
 };
 
-// Category display order
+// Порядок категорий
 const CATS = [
   {id:"Flow",      color:"#8a3a8a"},
   {id:"Events",    color:"#c04040"},
@@ -2710,6 +2929,7 @@ const CATS = [
   {id:"Math",      color:"#2a7a3a"},
   {id:"Compare",   color:"#8a2a8a"},
   {id:"Logic",     color:"#8a2a2a"},
+  {id:"Array",     color:"#2a7a3a"},
   {id:"Macros",    color:"#1a8a4a"},
   {id:"Actions",   color:"#5a3a7a"},
   {id:"Effects",   color:"#1a4a8a"},
@@ -2717,7 +2937,7 @@ const CATS = [
   {id:"Targeting", color:"#8a3a6a"}
 ];
 
-// NODE TAXONOMY
+// Категории нод
 export const SD_NODE_KIND_COLOURS = {
   pure:       "#3aa87a",   // green
   imperative: "#e08a2a",   // orange
@@ -2728,7 +2948,7 @@ export const SD_NODE_KIND_COLOURS = {
 export function getNodeKind(def) {
   if (!def) return "pure";
   if (def.isEvent) return "event";
-  if (def.isTrigger) return "event"; // on_click is an entry-point
+  if (def.isTrigger) return "event";
   const hasExec = (arr) => (arr ?? []).some(p => p?.type === "exec");
   if (hasExec(def.inputs) || hasExec(def.outputs) || def.isAction) return "imperative";
   return "pure";
@@ -2863,7 +3083,6 @@ const WIDGET_CONFIG_NODES = {
   },
 };
 
-// Merge config nodes into NODE_DEFS so _renderNode, _fldEl, etc. all work unchanged
 Object.assign(NODE_DEFS, WIDGET_CONFIG_NODES);
 
 export class FormulaGraph {
@@ -2873,7 +3092,7 @@ export class FormulaGraph {
     this.widget       = widget;
     this.saveCtx      = saveCtx;
     this.itemSaveCtx  = itemSaveCtx;
-    this.configMode   = opts.mode === "config"; // widget config-via-nodes mode
+    this.configMode   = opts.mode === "config";
     this.sheetTrigger = opts.mode === "sheetTrigger";
     this.win          = null;
     this.edgeSVG      = null;
@@ -2886,18 +3105,18 @@ export class FormulaGraph {
     this._drag        = null;
     this._conn        = null;
     this._panDrag     = null;
-    this._marquee     = null;                // {ox,oy,cx,cy, el}
-    this._selected    = new Set();           // currently selected node ids
-    this._selectedComments = new Set();      // currently selected comment ids
-    this.comments     = [];                  // [{id,x,y,w,h,title,color}]
-    this._commentDrag = null;                // {id, mx,my, ox,oy, group:[{id,ox,oy}], nodeGroup:[{id,ox,oy}]}
-    this._commentResize = null;              // {id, mx,my, ow,oh}
-    this._commentDraft= null;                // {sx,sy, el} — Ctrl+drag rubber band
+    this._marquee     = null;
+    this._selected    = new Set();
+    this._selectedComments = new Set();
+    this.comments     = [];
+    this._commentDrag = null;
+    this._commentResize = null;
+    this._commentDraft= null;
     this._cleanup     = [];
     this._loadGraph();
   }
 
-  // Selection helpers
+  // Выделение
 
   _isNodeSelected(id) { return this._selected?.has(id); }
 
@@ -2928,7 +3147,6 @@ export class FormulaGraph {
           el.style.outlineOffset = "0";
           el.dataset.selected = "1";
         } else {
-          // Leave the one-shot "focused" outline intact; just clear our flag.
           if (el.dataset.selected === "1") {
             el.style.outline = "";
             el.style.outlineOffset = "";
@@ -2959,7 +3177,6 @@ export class FormulaGraph {
     this._scheduleEdges?.();
   }
 
-  // Comment Box draft (Ctrl+drag rubber band)
 
   _doCommentDraft(ev) {
     if (!this._commentDraft) return;
@@ -2996,7 +3213,6 @@ export class FormulaGraph {
     const w   = gx2 - gx1;
     const h   = gy2 - gy1;
 
-    // Discard tiny drags -- user probably just Ctrl-clicked.
     if (w < 24 || h < 24) return;
 
     this._addComment({
@@ -3038,7 +3254,6 @@ export class FormulaGraph {
         data: foundry.utils.deepClone(n.data ?? {})
       };
     });
-    // Filter out nodes whose type is not registered in this graph to avoid ghosts
     const valid = newNodes.filter(n => NODE_DEFS[n.type]);
     this.nodes.push(...valid);
     const newEdges = (tpl.edges ?? [])
@@ -3049,7 +3264,6 @@ export class FormulaGraph {
         toNode:   idMap[e.toNode],   toPin:   e.toPin
       }));
     this.edges.push(...newEdges);
-    // Render and select the inserted block so the user sees what landed
     this._selected.clear();
     for (const n of valid) {
       this._renderNode(n);
@@ -3132,7 +3346,6 @@ export class FormulaGraph {
         <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tpl.name)}</div>
         <div style="font-size:9px;color:#666">${(tpl.nodes??[]).length} nodes · ${(tpl.edges??[]).length} edges</div>`;
       main.addEventListener("click", () => {
-        // Insert near the current viewport center (graph coords).
         const wrap = this.win?.querySelector("#gwrap");
         let gx = 120, gy = 120;
         if (wrap) {
@@ -3250,7 +3463,6 @@ export class FormulaGraph {
   _downloadTemplateJSON(tpl, filename = "node-template.json") {
     const json = JSON.stringify({ sdNodeTemplate: 1, ...tpl }, null, 2);
     try {
-      // Foundry's saveDataToFile is the preferred cross-platform helper
       if (typeof saveDataToFile === "function") {
         saveDataToFile(json, "application/json", filename);
         return;
@@ -3285,8 +3497,6 @@ export class FormulaGraph {
   }
 
   async _handleImportedTemplate(parsed) {
-    // Accept either { nodes, edges, name } OR { templates: { name: tpl, ... } }
-    // so users can share bundles too.
     if (parsed?.templates && typeof parsed.templates === "object") {
       const store = this._readNodeTemplates();
       let n = 0;
@@ -3305,7 +3515,6 @@ export class FormulaGraph {
       return;
     }
 
-    // Ask whether to insert at viewport centre or store in the library
     const choice = await foundry.applications.api.DialogV2.wait({
       window: { title: "Import node template" },
       modal: true,
@@ -3366,10 +3575,9 @@ export class FormulaGraph {
     }).catch(() => null);
   }
 
-  // Persistence
+  // Сохранение
 
   _loadGraph() {
-    // Config mode -- load widget config graph from widget.configGraph
     if (this.configMode && this.widget) {
       const s = this.widget.configGraph;
       if (s?.nodes?.length) {
@@ -3384,7 +3592,6 @@ export class FormulaGraph {
       }
       return;
     }
-    // Item onClick mode -- load from system.onClickGraph
     if (this.itemSaveCtx) {
       const s = this.itemSaveCtx.doc.system?.onClickGraph;
       if (s?.nodes?.length) {
@@ -3395,7 +3602,6 @@ export class FormulaGraph {
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
       } else {
-        // Default: On Click trigger → output
         this._addTriggerOutputNodes();
       }
       return;
@@ -3411,25 +3617,21 @@ export class FormulaGraph {
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
       } else {
-        // Empty surface -- user picks event nodes from the palette.
       }
       return;
     }
-    // Widget graph mode -- load from widget.graphData
     const s = this.widget?.graphData;
     if (s?.nodes?.length) {
       this.nodes = foundry.utils.deepClone(s.nodes);
       this.edges = foundry.utils.deepClone(s.edges??[]);
       this.comments = foundry.utils.deepClone(s.comments ?? []);
       migrateGraph(this);
-      // Migrate old attribute graphs: replace attr_score+output with new locked nodes
       if (this.widget?.type === "attribute") {
         this._migrateAttrGraph();
       }
       const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
       this._id = (Math.max(0,...numIds) + 2) || 2;
     } else {
-      // Button widgets default to exec/on_click mode; all others to formula/output mode
       if (this.widget?.type === "button") {
         this._addTriggerOutputNodes();
       } else if (this.widget?.type === "attribute") {
@@ -3443,7 +3645,6 @@ export class FormulaGraph {
   }
 
   async _saveGraph() {
-    // Config mode -- extract config node data back to widget fields, then persist
     if (this.configMode && this.saveCtx) {
       const {tab, row, w, doc} = this.saveCtx;
       const graphData = {
@@ -3456,7 +3657,6 @@ export class FormulaGraph {
       const widget = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id);
       if (widget && cfgNode) {
         const def = NODE_DEFS[cfgNode.type];
-        // Compile each input pin -- connected source overrides field value
         const compiledIns = {};
         for (const pin of (def.inputs ?? [])) {
           const e = this.edges.find(e=>e.toNode===cfgNode.id&&e.toPin===pin.id);
@@ -3465,7 +3665,6 @@ export class FormulaGraph {
             if (src) compiledIns[pin.id] = this._compileValue(src, new Set(), e.fromPin);
           }
         }
-        // Write each field: use compiled value if wired, else node.data value
         for (const field of (def.fields ?? [])) {
           const val = compiledIns[field.key] !== undefined
             ? compiledIns[field.key]
@@ -3477,7 +3676,6 @@ export class FormulaGraph {
       }
       return;
     }
-    // Mode: save into widget.graphData (normal Sheet Builder flow)
     if (this.saveCtx) {
       const {tab,row,w,doc} = this.saveCtx;
       const data = {
@@ -3490,16 +3688,12 @@ export class FormulaGraph {
       if (widget) {
         widget.graphData = data;
         if (this.widget?.type === "attribute") {
-          // Attribute widget: compile modValueFormula (what to display/roll as mod)
-          // and onClickFormula (exec chain triggered on modifier click).
           const attrOut = this.nodes.find(n => n.type === "attr_output");
           if (attrOut) {
             const mvEdge = this.edges.find(e => e.toNode === attrOut.id && e.toPin === "modValue");
             const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
             widget.modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
           }
-          // onClickFormula is compiled independently of attr_output -- the graph
-          // may only contain on_click → roll with no attr_output node at all.
           const onClickNode = this.nodes.find(n => n.type === "on_click");
           const clickEdge   = onClickNode ? this.edges.find(e => e.fromNode === onClickNode.id && e.fromPin === "exec") : null;
           widget.onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
@@ -3510,7 +3704,6 @@ export class FormulaGraph {
       }
       return;
     }
-    // Mode: save into item.system.onClickGraph directly
     if (this.itemSaveCtx) {
       const {doc} = this.itemSaveCtx;
       const data = {
@@ -3518,7 +3711,6 @@ export class FormulaGraph {
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
         comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
       };
-      // Also compile and store the formula for the executor
       const compiled = this.compile();
       await doc.update({"system.onClickGraph": data, "system.onClickFormula": compiled});
       return;
@@ -3532,8 +3724,6 @@ export class FormulaGraph {
       const compiledStr = this.compile();
       let compiledObj = {};
       try { compiledObj = JSON.parse(compiledStr); } catch { compiledObj = {}; }
-      // Only multi-trigger event payloads are meaningful here -- degrade
-      // gracefully if the user left the surface empty.
       const payload = (compiledObj && compiledObj._trigger === "multi")
         ? compiledObj
         : {};
@@ -3547,8 +3737,6 @@ export class FormulaGraph {
   open() { this._smartIndex = this._buildSmartIndex(); this._buildWin(); this._renderAll(); setTimeout(()=>this._fitView(),120); }
   close() { this._cleanup.forEach(fn=>fn()); this.win?.remove(); this.win=null; }
 
-  // Smart Index
-  // Scans the live document and builds dropdown option lists for smart pickers.
 
   _buildSmartIndex() {
     const doc    = this.doc;
@@ -3560,7 +3748,7 @@ export class FormulaGraph {
 
     // Slots
     const _indexItemSlots = (itemData, displayName, sourceId, depth = 0, slotPath = null) => {
-      if (depth > 5) return; // guard against cycles
+      if (depth > 5) return;
       const defs = itemData?.system?.slotDefinitions ?? [];
       for (const d of defs) {
         const myPath = slotPath != null ? `${slotPath}/${d.id}` : null;
@@ -3568,29 +3756,23 @@ export class FormulaGraph {
         if (sourceId !== "self" && sourceId !== "actor") {
           idx.invItemSlots.push({ itemId: sourceId, itemName: displayName, itemUuid: itemData.uuid ?? itemData._id, slotId: d.id, slotLabel: d.label || d.id, slotPath: myPath });
         }
-        // Recurse into items stored inside this slot
         const slotContents = itemData?.system?.slotContents?.[d.id]?.contents ?? [];
         for (const nested of slotContents) {
           const nestedName = `${nested.name ?? "?"} (in ${displayName}/${d.label || d.id})`;
           const nestedId   = nested._id ?? nested.uuid ?? nestedName;
-          // Build the nested path: append this slot id and the nested item's _id
           const nestedPath = (myPath != null ? myPath : `${sourceId}/${d.id}`) + `/${nestedId}`;
           _indexItemSlots(nested, nestedName, nestedId, depth + 1, nestedPath);
         }
       }
     };
 
-    // Slots on self (the item being configured)
     const selfPathRoot = (self && !(self instanceof Actor) && self.id) ? self.id : null;
     _indexItemSlots(self, "self", "self", 0, selfPathRoot);
 
-    // Slots on actor (character-level slots) -- no slotPath (null)
     if (actor && actor !== self) {
       _indexItemSlots(actor, "actor", "actor", 0, null);
     }
 
-    // Slots inside every inventory item (+ their nested contents)
-    // Pass the Foundry item id as the root of the slotPath chain.
     for (const item of (actor?.items ?? [])) {
       _indexItemSlots(item, item.name, item.id, 0, item.id);
     }
@@ -3631,7 +3813,6 @@ export class FormulaGraph {
     return idx;
   }
 
-  // Returns slots filtered to those belonging to a specific item id (or "self"/"actor")
   _slotsForItem(itemId) {
     if (!itemId) return this._smartIndex?.slots ?? [];
     if (itemId === "self" || itemId === "actor") return (this._smartIndex?.slots ?? []).filter(s => s.source === itemId);
@@ -3639,8 +3820,6 @@ export class FormulaGraph {
   }
 
   compile() {
-    // Attribute widget graph: handled entirely by _saveGraph
-    // compile() for attribute returns the modValue expression for preview only.
     const attrOut = this.nodes.find(n=>n.type==="attr_output");
     if (attrOut) {
       const mvEdge = this.edges.find(e=>e.toNode===attrOut.id&&e.toPin==="modValue");
@@ -3654,7 +3833,6 @@ export class FormulaGraph {
     const trigger = this.nodes.find(n=>n.type==="on_click");
     const eventNodes = this.nodes.filter(n => NODE_DEFS[n.type]?.isEvent);
     if (trigger || eventNodes.length) {
-      // Collect exec chains keyed by their entry-point type (onClick, onUpdate, …).
       const triggers = {};
       const _chainFor = (entry) => {
         const exitPin = (entry.type === "on_click") ? "exec" : "exec";
@@ -3686,12 +3864,9 @@ export class FormulaGraph {
       for (const ev of eventNodes) {
         const actions = _chainFor(ev);
         if (!actions?.length) continue;
-        // Multiple on_event nodes can coexist → disambiguate by node.id.
         const key = (ev.type === "on_event") ? `on_event::${ev.id}` : ev.type;
         triggers[key] = { hook: _dynHook(ev), data: ev.data ?? {}, actions };
       }
-      // Compile all macro_input graph starts into a registry.  Each macro_input
-      // defines its own independent chain (visually separate from on_click/events).
       const macroInputs = this.nodes.filter(n => NODE_DEFS[n.type]?.isMacroInput);
       const macros = {};
       for (const mi of macroInputs) {
@@ -3710,7 +3885,6 @@ export class FormulaGraph {
           if (this.saveCtx) return JSON.stringify(triggers.onClick);
           return JSON.stringify({ _trigger: "onClick", actions: triggers.onClick });
         }
-        // Multi-trigger shape -- event bus reads _events to wire Foundry hooks.
         const payload = { _trigger: "multi", _events: triggers };
         if (hasMacros) payload._macros = macros;
         return JSON.stringify(payload);
@@ -3720,23 +3894,19 @@ export class FormulaGraph {
       }
     }
 
-    // Priority 2: output node (formula / explicit exec wired to output)
     const out = this.nodes.find(n=>n.type==="output");
     if (!out) return "0";
-    // Value pin wired → compile as formula string
     const vEdge = this.edges.find(e=>e.toNode===out.id&&e.toPin==="value");
     if (vEdge) {
       const src = this.nodes.find(n=>n.id===vEdge.fromNode);
       return src ? this._compileValue(src,new Set(),vEdge.fromPin) : "0";
     }
-    // Exec pin(s) wired to output → compile exec chain(s)
     const xEdges = this.edges.filter(e=>e.toNode===out.id&&e.toPin==="exec");
     if (xEdges.length) {
       if (xEdges.length === 1) {
         const chainStart = this._findExecChainStart(xEdges[0].fromNode);
         return this._compileExecChain(chainStart);
       }
-      // Multiple connections: compile each chain independently and merge
       const allActions = [];
       const seenStarts = new Set();
       for (const xe of xEdges) {
@@ -3756,21 +3926,12 @@ export class FormulaGraph {
     const v2 = new Set(vis); v2.add(node.id);
     const def = NODE_DEFS[node.type];
     if (node.type === "act_roll_value") return "{__lastRoll}";
-    // act_set_field: downstream nodes can read the set value via {__lastRoll} too,
-    // since the executor stores the resolved value in __lastRoll as well.
     if (node.type === "act_set_field") return "{__lastRoll}";
-    // Event node value outputs compile to runtime placeholders that the event
-    // bus fills in via buttonDef.__eventRuntime.  Pin name decides the token.
     if (def?.isEvent) return EVENT_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
-    // Macro input: inside a subgraph, reading an argument pin compiles to a
-    // placeholder that the macro-call runtime fills in from its args.
     if (def?.isMacroInput) return `{__macroArg:${fromPin ?? "a"}}`;
-    // Branch/action nodes can still export value pins via runtime tokens written
-    // by the executor (see button-executor _runAction writes to buttonDef.__last*).
-    if (def?.isAttackBranch || def?.isBranch || def?.isSaveBranch || def?.isTieredBranch || def?.isGenericBranch || def?.isProgressionBranch) {
+    if (def?.isAttackBranch || def?.isBranch || def?.isSaveBranch || def?.isTieredBranch || def?.isGenericBranch || def?.isProgressionBranch || def?.isAoeSave) {
       return BRANCH_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
     }
-    // Non-branch action nodes with runtime-token outputs (e.g. act_roll_value.result).
     if (BRANCH_PIN_TOKENS[node.type]?.[fromPin]) {
       return BRANCH_PIN_TOKENS[node.type][fromPin];
     }
@@ -3781,7 +3942,6 @@ export class FormulaGraph {
       const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
       if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,v2,e.fromPin); }
     }
-    // Collect dynamic pins for compile-type value nodes (e.g. dice add/sub)
     if (def.dynamicPins) {
       const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [def.dynamicPins];
       for (const grp of groups) {
@@ -3801,12 +3961,10 @@ export class FormulaGraph {
     let current = nodeId;
     while (current && !visited.has(current)) {
       visited.add(current);
-      // Who has their exec output wired into current's exec input?
       const prevEdge = this.edges.find(e => e.toNode === current && e.toPin === "exec");
       if (!prevEdge) break;
       const prevNode = this.nodes.find(n => n.id === prevEdge.fromNode);
       if (!prevNode) break;
-      // Stop at trigger nodes (on_click) -- they are handled separately
       if (NODE_DEFS[prevNode.type]?.isTrigger) break;
       current = prevEdge.fromNode;
     }
@@ -3824,7 +3982,6 @@ export class FormulaGraph {
       if (!def) return;
 
       if (def.isBranch) {
-        // Branch: compile condition, push a branch action
         const condEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="cond");
         const condNode = condEdge ? this.nodes.find(n=>n.id===condEdge.fromNode) : null;
         const cond     = condNode ? this._compileValue(condNode,new Set(),condEdge.fromPin) : "1";
@@ -3832,7 +3989,6 @@ export class FormulaGraph {
         const trueEdge  = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="true");
         const falseEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="false");
 
-        // Save current actions length, collect true/false branches recursively
         const trueBefore = [...actions];
         if (trueEdge) _walk(trueEdge.toNode, new Set(vis));
         const trueActions = actions.splice(trueBefore.length);
@@ -3845,7 +4001,6 @@ export class FormulaGraph {
       }
 
       if (def.isSwitch) {
-        // switch_node: compile value input, then walk each case/default exec output
         const valEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="value");
         const valNode = valEdge ? this.nodes.find(n=>n.id===valEdge.fromNode) : null;
         const value   = valNode ? this._compileValue(valNode, new Set(), valEdge.fromPin) : (node.data?.value ?? "0");
@@ -3853,7 +4008,6 @@ export class FormulaGraph {
         const cases = [node.data?.case0 ?? "0", node.data?.case1 ?? "1", node.data?.case2 ?? "2"];
         const act = { type: "switchExec", value, cases };
 
-        // Walk each case exec output and the default fallthrough
         const caseOutputs = ["case0", "case1", "case2", "default"];
         for (const outPin of caseOutputs) {
           const edge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin===outPin);
@@ -3868,7 +4022,6 @@ export class FormulaGraph {
       }
 
       if (def.isDialogSwitch) {
-        // dialog_switch: compile each active exec output into its own actions array
         const count = Math.max(2, Math.min(8, parseInt(node.data?.count) || 2));
         const act = {
           type:        "dialogSwitch",
@@ -3886,14 +4039,11 @@ export class FormulaGraph {
             actions: branchActions
           });
         }
-        // Compile a "continue" chain after the switch (exec output from the whole node, if any)
-        // In our model there's no "after" pin, so just stop here.
         actions.push(act);
         return;
       }
 
       if (def.isLoop) {
-        // Collect value inputs so toAction can read them (e.g. count for for_loop)
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -3910,15 +4060,12 @@ export class FormulaGraph {
         if (doneEdge) _walk(doneEdge.toNode, new Set(vis));
         const doneActions = actions.splice(before.length);
 
-        // Use toAction for the correct type+params (for_loop->forLoop, forEach->forEachTarget)
         const act = def.toAction?.(node, ins) ?? {type:"forEachTarget"};
         actions.push({...act, loopActions, doneActions});
         return;
       }
 
       if (def.isGenericBranch) {
-        // Generic branch: collect all non-exec inputs, walk every exec output
-        // into `<pinId>Actions`, and build the action via toAction(node, ins).
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -3938,7 +4085,6 @@ export class FormulaGraph {
       }
 
       if (def.isProgressionBranch) {
-        // Progression: 4 branches -- higher / lower / equal / noHistory
         const pInp = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -3964,8 +4110,23 @@ export class FormulaGraph {
         return;
       }
 
+      if (def.isAoeSave) {
+        const saveInp = {};
+        for (const pin of (def.inputs ?? [])) {
+          if (pin.type === "exec") continue;
+          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) saveInp[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
+        }
+        const act = def.toAction?.(node, saveInp) ?? {};
+        const execEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="exec");
+        const before = [...actions];
+        if (execEdge) _walk(execEdge.toNode, new Set(vis));
+        act.postActions = actions.splice(before.length);
+        actions.push(act);
+        return;
+      }
+
       if (def.isSaveBranch) {
-        // Save Check: compile ALL input pins, collect fail/pass branches
         const saveInp = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -3998,7 +4159,6 @@ export class FormulaGraph {
       }
 
       if (def.isConsumeSlot) {
-        // consumeSlot: compile level input, collect ok/empty exec branches
         const levelEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="level");
         const levelNode = levelEdge ? this.nodes.find(n=>n.id===levelEdge.fromNode) : null;
         const levelVal  = levelNode ? this._compileValue(levelNode, new Set(), levelEdge.fromPin) : null;
@@ -4082,7 +4242,6 @@ export class FormulaGraph {
       }
 
       if (def.isTieredBranch) {
-        // act_tiered_roll: compile value inputs, then walk each tier exec output
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -4132,7 +4291,6 @@ export class FormulaGraph {
         return;
       }
 
-      // Unified Sequence (2-12 branches) -- walks `count` output pins in order.
       if (node.type==="sequence") {
         const count = Math.max(2, Math.min(12, parseInt(node.data?.count) || 2));
         for (let i=0; i<count; i++) {
@@ -4156,7 +4314,6 @@ export class FormulaGraph {
           const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
-        // Collect dynamic pins -- supports both single object and array of groups
         if (def.dynamicPins) {
           const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [def.dynamicPins];
           for(const grp of groups) {
@@ -4187,12 +4344,10 @@ export class FormulaGraph {
 
     this._buildVarPanel();
 
-    // Refresh Attr Score cards (live score display)
     this.nodesEl?.querySelectorAll("[data-nid]").forEach(el => {
       if (typeof el._refreshAttrCard === "function") el._refreshAttrCard();
     });
 
-    // Live value on Output / Attr Output node
     const liveTargetNode = this.nodes.find(n => n.type === "output" || n.type === "attr_output");
     if (liveTargetNode) {
       const outEl = this.nodesEl?.querySelector(`[data-nid="${liveTargetNode.id}"]`);
@@ -4247,9 +4402,8 @@ export class FormulaGraph {
     const panel = this.win?.querySelector("#gvarpanel");
     if (!panel) return;
 
-    // Collect variables (var_get/var_set) and macro ids (macro_input/macro_call)
-    const vars   = new Map();   // name → {nodes:[], hasSet, hasGet}
-    const macros = new Map();   // id   → {nodes:[], hasInput, hasCall}
+    const vars   = new Map();
+    const macros = new Map();
 
     for (const n of this.nodes) {
       if (n.type === "var_get") {
@@ -4311,7 +4465,6 @@ export class FormulaGraph {
       ${macroRows || `<div style="padding:10px;font-size:10px;color:rgba(255,255,255,.25);font-style:italic">No macros. Use <b>macro_input</b> (define) / <b>macro_call</b> (invoke).</div>`}
     `;
 
-    // Click-to-focus on the first node of a row
     panel.querySelectorAll(".gvar-row").forEach(row => {
       row.addEventListener("click", () => {
         const nid  = row.dataset.nid;
@@ -4403,12 +4556,9 @@ export class FormulaGraph {
       }
 
   _drawGrid() {
-    // Grid is now handled by CSS background on #gwrap.
-    // This method is kept as a no-op so existing call sites don't break.
   }
 
   _buildPal() {
-    // Palette filters by context so each graph surface only offers nodes that
     const ALLOWED_CONFIG_CATS = new Set(["Sources", "Math"]);
     const IMPLICIT_CLICK_WIDGETS = new Set([
       "rollButton","counter","dice","toggle","tracker","clock",
@@ -4425,12 +4575,11 @@ export class FormulaGraph {
 
     const rows = CATS.map(cat=>{
       const nodes = Object.entries(NODE_DEFS).filter(([type,d]) => {
-        if (d.isWidgetConfig) return false; // never in palette
+        if (d.isWidgetConfig) return false;
         if (d.hidden) return false;
         if (this.configMode && !ALLOWED_CONFIG_CATS.has(d.cat)) return false;
         if (hidesEvents && d.isEvent) return false;
         if (hidesOnClick && type === "on_click") return false;
-        // Sheet-trigger-graph has no formula output -- hide the `output` node.
         if (isSheetTrigger && type === "output") return false;
         return d.cat === cat.id;
       });
@@ -4472,27 +4621,21 @@ export class FormulaGraph {
       if(btn){ const orig=btn.innerHTML; btn.innerHTML='<i class="fas fa-check" style="margin-right:4px"></i>Refreshed!'; btn.style.color="#aaffaa"; setTimeout(()=>{ btn.innerHTML=orig; btn.style.color="#6aaa6a"; },1200); }
     });
 
-    // Templates -- open picker / insert
     win.querySelector("#gtpl")?.addEventListener("click", (ev) => {
       ev.stopPropagation();
       this._openTemplatesMenu(ev.currentTarget);
     });
 
-    // Save selection as named template
     win.querySelector("#gtplsave")?.addEventListener("click", async () => {
       await this._saveSelectionAsTemplate();
     });
 
-    // Import JSON (single template or {templates: {...}} bundle)
     win.querySelector("#gimport")?.addEventListener("click", () => this._importTemplateFromFile());
 
-    // Export -- selection if any, otherwise the whole graph
     win.querySelector("#gexport")?.addEventListener("click", () => this._exportSelectionAsFile());
 
-    // Lint -- validate graph (unknown nodes, type mismatches, orphans)
     win.querySelector("#glint")?.addEventListener("click", () => this._runLint());
 
-    // RAF scheduler -- batches all visual updates
     this._raf = 0;
     this._scheduleEdges = () => {
       if (this._raf) return;
@@ -4503,14 +4646,12 @@ export class FormulaGraph {
       });
     };
 
-    // Title bar drag (window repositioning)
     let ds = null;
     win.querySelector("#gbar").addEventListener("mousedown", ev => {
       if (ev.target.closest("button")) return;
       ds = { x: ev.clientX - win.offsetLeft, y: ev.clientY - win.offsetTop };
     });
 
-    // Unified pointermove / pointerup on document
     const _move = ev => {
       // Window drag
       if (ds) {
@@ -4518,7 +4659,6 @@ export class FormulaGraph {
         win.style.left = `${Math.max(0, ev.clientX - ds.x)}px`;
         win.style.top  = `${Math.max(0, ev.clientY - ds.y)}px`;
       }
-      // Canvas pan -- update state immediately, apply in rAF
       if (this._panDrag) {
         this._pan.x = ev.clientX - this._panDrag.ox;
         this._pan.y = ev.clientY - this._panDrag.oy;
@@ -4530,7 +4670,6 @@ export class FormulaGraph {
           });
         }
       }
-      // Node drag -- update DOM position immediately, edges in rAF
       if (this._drag) {
         this._doDrag(ev);
       }
@@ -4538,7 +4677,6 @@ export class FormulaGraph {
       if (this._conn) this._doConn(ev);
       // Marquee selection rectangle
       if (this._marquee) this._doMarquee(ev);
-      // Comment box drag/resize + Ctrl+drag draft
       if (this._commentDrag)   this._doCommentDrag(ev);
       if (this._commentResize) this._doCommentResize(ev);
       if (this._commentDraft)  this._doCommentDraft(ev);
@@ -4612,8 +4750,6 @@ export class FormulaGraph {
         return;
       }
 
-      // Shift + LMB on empty canvas → marquee selection (additive when
-      // existing selection is present).
       if (ev.button === 0 && ev.shiftKey && ev.target === wrap) {
         ev.preventDefault();
         const r = wrap.getBoundingClientRect();
@@ -4631,22 +4767,18 @@ export class FormulaGraph {
         return;
       }
 
-      // Plain LMB on empty canvas → clear selection.
       if (ev.button === 0 && !ev.shiftKey && ev.target === wrap) {
         this._clearSelection();
       }
     });
 
-    // Zoom -- smooth focal-point zoom
     const _zoomAt = (screenX, screenY, delta) => {
       const r   = wrap.getBoundingClientRect();
       const mx  = screenX - r.left;
       const my  = screenY - r.top;
-      // World point under cursor before zoom
       const wx0 = (mx - this._pan.x) / this._zoom;
       const wy0 = (my - this._pan.y) / this._zoom;
       this._zoom = Math.max(0.15, Math.min(3.0, this._zoom * (delta > 0 ? 0.92 : 1.08)));
-      // Adjust pan so the world point stays under the cursor
       this._pan.x = mx - wx0 * this._zoom;
       this._pan.y = my - wy0 * this._zoom;
       this._applyTransform();
@@ -4749,8 +4881,6 @@ export class FormulaGraph {
 
   // Graph ops
 
-  /** Auto-create the widget config node for configMode.
-   *  Places it at a fixed position so it's immediately visible. */
   _addWidgetConfigNode() {
     const wType = this.widget?.type;
     const cfgType = "wcfg_" + wType;
@@ -4770,20 +4900,14 @@ export class FormulaGraph {
 
   _addAttributeDefaultGraph() {
     const scorePath = this.widget?.path ?? "system.attributes.attr1.value";
-    // 1. Attr Score Val -- undeletable, reads the raw numeric value from path
     const scoreNode = { id:"attr_score_val", type:"attr_score_val", x:60,  y:160, data:{ path: scorePath } };
-    // 2. On Click trigger -- undeletable, fires when modifier button is clicked
     const trigNode  = { id:"attr_on_click",  type:"on_click",       x:60,  y:330, data:{} };
-    // 3. Attr Output -- undeletable, unique to attribute widgets
     const outNode   = { id:"attr_output",    type:"attr_output",    x:500, y:240, data:{} };
-    // 4. Default modifier calc: Attr Modifier node wired score→mod→modValue
     const modNode   = { id:"attr_mod_1",     type:"attr_mod",       x:270, y:160, data:{} };
 
     this.nodes.push(scoreNode, trigNode, outNode, modNode);
 
-    // Wire: Attr Score Val.value → Attr Modifier.score
     this.edges.push({ id:"e_sv_mod",   fromNode:"attr_score_val", fromPin:"value", toNode:"attr_mod_1",  toPin:"score" });
-    // Wire: Attr Modifier.mod → Attr Output.modValue
     this.edges.push({ id:"e_mod_out",  fromNode:"attr_mod_1",     fromPin:"mod",   toNode:"attr_output", toPin:"modValue" });
 
     this._id = 20;
@@ -4792,13 +4916,11 @@ export class FormulaGraph {
   /** Migrate old attribute graphData (attr_score/output) to new layout. */
   _migrateAttrGraph() {
     const hasNew = this.nodes.some(n => n.type === "attr_score_val" || n.type === "attr_output");
-    if (hasNew) return; // already new format
+    if (hasNew) return;
 
     const scorePath = this.widget?.path ?? "system.attributes.attr1.value";
-    // Remove old output node; keep user-placed nodes
     this.nodes = this.nodes.filter(n => n.type !== "output");
     this.edges = this.edges.filter(e => e.toNode !== "output" && e.fromNode !== "output");
-    // Rename attr_score → attr_score_val if present
     for (const n of this.nodes) {
       if (n.type === "attr_score") { n.type = "attr_score_val"; if (!n.data.path) n.data.path = scorePath; }
     }
@@ -4815,7 +4937,6 @@ export class FormulaGraph {
   }
 
   _addTriggerOutputNodes() {
-    // Default graph for onClick mode: On Click → (user connects actions)
     this.nodes.push({id:"trigger",type:"on_click",x:80,y:220,data:{}});
   }
 
@@ -4841,8 +4962,6 @@ export class FormulaGraph {
     if(fn===tn) return;
     this.edges=this.edges.filter(e=>!(e.toNode===tn&&e.toPin===tp));
     this.edges.push({id:`e${uid()}`,fromNode:fn,fromPin:fp,toNode:tn,toPin:tp});
-    // Re-render target node so UE-style field-hide-on-connect kicks in, and
-    // dynamic pins get a new empty slot.
     const toNode = this.nodes.find(n => n.id === tn);
     if (toNode) this._renderNode(toNode);
     this._scheduleEdges?.();
@@ -4878,7 +4997,6 @@ export class FormulaGraph {
 
   _renderComment(c) {
     if (!this.commentsEl) return;
-    // Remove any existing DOM node for this comment (idempotent re-render).
     this.commentsEl.querySelector(`[data-cid="${c.id}"]`)?.remove();
 
     const selected = this._selectedComments.has(c.id);
@@ -4918,12 +5036,10 @@ export class FormulaGraph {
       }
     });
 
-    // Header drag = move box + any node currently inside it
     hdr.addEventListener("mousedown", ev => {
       if (ev.target === del || ev.target === rsz) return;
       if (ev.button !== 0) return;
       ev.stopPropagation();
-      // Selection semantics mirror node behaviour
       if (ev.shiftKey) {
         if (this._selectedComments.has(c.id)) this._selectedComments.delete(c.id);
         else this._selectedComments.add(c.id);
@@ -4937,8 +5053,6 @@ export class FormulaGraph {
       }
       this._refreshSelectionHighlights();
 
-      // Capture every selected comment AND every node currently inside any
-      // of them so the group moves as a rigid block.
       const cmtGroup = Array.from(this._selectedComments).map(id => {
         const cc = this.comments.find(x => x.id === id);
         return cc ? { id: cc.id, ox: cc.x, oy: cc.y } : null;
@@ -4949,8 +5063,6 @@ export class FormulaGraph {
         const cc = this.comments.find(x => x.id === id);
         if (!cc) continue;
         for (const n of this.nodes) {
-          // Approximate by top-left corner: node is "inside" if its (x,y)
-          // sits within the comment rect.  Cheap, good-enough for header-drag.
           if (n.x >= cc.x && n.x <= cc.x + cc.w && n.y >= cc.y && n.y <= cc.y + cc.h) {
             childIds.add(n.id);
           }
@@ -5038,7 +5150,6 @@ export class FormulaGraph {
 
     const el=document.createElement("div");
     el.dataset.nid=node.id;
-    // Width adapts to node type -- wider for actions/attack branches that have more fi
     const W_MIN = def.wideNode ? 380 : def.isAttackBranch ? 320 : def.isBranch ? 270 : def.isAction ? 300 : (def.isOutput||def.isAttrOutput) ? 220 : 240;
     const _longestDataVal = Object.values(node.data ?? {}).reduce((max, v) => {
       const len = typeof v === "string" ? v.length : 0;
@@ -5047,7 +5158,6 @@ export class FormulaGraph {
     const W_DATA = _longestDataVal > 0 ? Math.min(520, 100 + Math.ceil(_longestDataVal * 7.5)) : 0;
     const W = Math.max(W_MIN, W_DATA);
 
-    // Kind-based accent border: pure=green, imperative=orange, event=red.
     const _kind   = getNodeKind(def);
     const _accent = SD_NODE_KIND_COLOURS[_kind] ?? "rgba(255,255,255,.08)";
 
@@ -5061,7 +5171,6 @@ export class FormulaGraph {
       overflow:hidden;
       transform:translateZ(0);`;
 
-    // Build header color from def.color -- use as a gradient
     const _hc = def.color ?? "#555";
     el.innerHTML=`
       <div class="gnhdr" data-nid="${node.id}" style="
@@ -5082,8 +5191,6 @@ export class FormulaGraph {
     const outputPins = def.outputs??[];
     const fields     = def.fields??[];
 
-    // Passive-widget OUTPUT node: hide the exec input -- nothing to click on
-    // in a text / derived / image / section / richtext / tags widget.
     if (def.isOutput) {
       const PASSIVE = new Set(["text","derived","image","section","richtext","tags"]);
       if (this.widget && PASSIVE.has(this.widget.type)) {
@@ -5091,7 +5198,6 @@ export class FormulaGraph {
       }
     }
 
-    // Dynamic pins -- supports both single object and array of groups
     if(def.dynamicPins) {
       const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [{ ...def.dynamicPins, label: "Text" }];
       const dynPins = [];
@@ -5104,34 +5210,27 @@ export class FormulaGraph {
         const show = Math.min(connected+2, max);
         for(let i=0;i<show;i++) dynPins.push({id:`${base}${i}`,label:`${label} ${i+1}`,type:"value"});
       }
-      inputPins = [...inputPins.filter(p=>p.type==="exec"), ...dynPins];
+      inputPins = [...inputPins, ...dynPins];
     }
 
-    // Exec inputs first (left-aligned full row)
     for(const p of inputPins.filter(p=>p.type==="exec"))
       body.appendChild(this._pinRow(node,p,"input"));
 
-    // Value rows -- each input pin + matching output pin side by side
     const valIns  = inputPins.filter(p=>p.type!=="exec");
     const valOuts = outputPins.filter(p=>p.type!=="exec");
 
     const _pinConnected = (pinId) =>
       this.edges.some(e => e.toNode === node.id && e.toPin === pinId);
 
-    // Build the list of field slots to render, skipping any field that is "shadowed"
-    // by a connected value-input pin with the same key.
     const pinKeys      = new Set(valIns.map(p => p.id));
     const connectedKeys = new Set(valIns.filter(p => _pinConnected(p.id)).map(p => p.id));
-    const visibleFields = fields.filter(f => !connectedKeys.has(f.key));
+    const visibleFields = fields.filter(f => !connectedKeys.has(f.key) && (!f.visibleIf || f.visibleIf(node.data)));
 
-    // Value-input rows: always show pin; show field inline only when NOT connected
-    // and the field shares the pin's key (inline-edit like UE's embedded literals).
     const rows = [];
     for (const p of valIns) {
       const inlineFld = fields.find(f => f.key === p.id);
       rows.push({ inp:p, fld: (inlineFld && !connectedKeys.has(p.id)) ? inlineFld : null });
     }
-    // Any remaining fields (no matching pin) render on their own row.
     const usedKeys = new Set(rows.filter(r => r.fld).map(r => r.fld.key));
     for (const f of visibleFields) {
       if (!pinKeys.has(f.key) && !usedKeys.has(f.key)) rows.push({ inp:null, fld:f });
@@ -5165,8 +5264,6 @@ export class FormulaGraph {
       body.appendChild(row);
     }
 
-    // Exec outputs last.  `dialog_switch` and `sequence` use a `count` field
-    // to limit how many exec branches are visible -- matches UE's "Add pin".
     let activeExecOuts = outputPins.filter(p=>p.type==="exec");
     if (def.isDialogSwitch) {
       const count = Math.max(2, Math.min(8, parseInt(node.data?.count) || 2));
@@ -5187,8 +5284,6 @@ export class FormulaGraph {
       if(ev.target.classList.contains("ndel")) return;
       ev.stopPropagation();
 
-      // Shift-click toggles this node in the multi-selection and does NOT
-      // start a drag -- mirrors node-editor conventions (Blueprint, Blender…).
       if (ev.shiftKey) {
         this._toggleSelectNode(node.id);
         return;
@@ -5200,8 +5295,6 @@ export class FormulaGraph {
       }
       this._refreshSelectionHighlights();
 
-      // Capture starting positions of every selected node so group-drag
-      // moves them all by the same screen-space delta.
       const group = Array.from(this._selected).map(id => {
         const n = this.nodes.find(x => x.id === id);
         return n ? { id: n.id, ox: n.x, oy: n.y } : null;
@@ -5217,8 +5310,6 @@ export class FormulaGraph {
 
     this.nodesEl.appendChild(el);
 
-    // Live value badge on Number / Text source nodes
-    // Shows the value that will be emitted so the designer can verify instantly.
     if (node.type === "literal" || node.type === "literal_str") {
       const _refreshNodeLive = () => {
         let badge = el.querySelector(".gn-src-live");
@@ -5232,14 +5323,11 @@ export class FormulaGraph {
         badge.textContent = v !== "" ? `out: ${v}` : "";
       };
       _refreshNodeLive();
-      // Re-run whenever the node's value field changes
       el.addEventListener("input", _refreshNodeLive);
     }
 
-    // Attr Score Val node: big live score display
     if (node.type === "attr_score_val" || node.type === "attr_score") {
       const body = el.querySelector(".gnbody");
-      // Scorecard display -- shows the live number from the document prominently
       const card = document.createElement("div");
       card.className = "gn-attr-card";
       card.style.cssText = "margin:4px 8px 5px;border:1px solid #4a3a1a;border-radius:5px;background:#0e0a04;padding:5px 8px;display:flex;flex-direction:column;gap:3px;align-items:center";
@@ -5267,13 +5355,10 @@ export class FormulaGraph {
       };
       _refreshAttrCard();
 
-      // Re-refresh when the path field changes
       el.addEventListener("input", _refreshAttrCard);
-      // Expose refresh so _updatePreview can call it
       el._refreshAttrCard = _refreshAttrCard;
     }
 
-    // UUID fields -- accept item drop
     el.querySelectorAll("input[placeholder*='drag']").forEach(inp=>{
       inp.addEventListener("dragover",ev=>{ev.preventDefault();inp.style.borderColor="#7b68ee";});
       inp.addEventListener("dragleave",()=>inp.style.borderColor="");
@@ -5320,7 +5405,6 @@ export class FormulaGraph {
     const dot=document.createElement("div");
     dot.className="gpin";
     dot.dataset.nid=node.id; dot.dataset.pid=pin.id; dot.dataset.side=side;
-    // Exec pins = orange squares; value pins = colored circles matching preview.html
     const _pinBg  = isExec ? "#ffca6b" : (side==="output" ? "#22d48a" : "#497efb");
     const _pinBdr = isExec ? "#c09020" : (side==="output" ? "#16a864" : "#2a5ab0");
     dot.style.cssText=`width:13px;height:13px;border-radius:${isExec?"3px":"50%"};
@@ -5332,12 +5416,10 @@ export class FormulaGraph {
       ev.stopPropagation();
       if(side==="output") this._startConn(node.id,pin.id,isExec,ev,pin.type);
     });
-    // Right-click on pin → disconnect all edges attached to it
     dot.addEventListener("contextmenu",ev=>{
       ev.preventDefault();
       ev.stopPropagation();
       const before = this.edges.length;
-      // Collect which target nodes need a re-render so UE-style fields can reappear.
       const touchedTargets = new Set();
       if(side==="output") {
         for (const e of this.edges) {
@@ -5403,7 +5485,6 @@ export class FormulaGraph {
           const o=document.createElement("option"); o.value=s.id;
           o.textContent=`${s.id} — ${s.label}`;
           if(s.slotPath!=null) o.dataset.slotPath=s.slotPath;
-          // Match by both id AND slotPath so the correct option stays selected
           const isMatch = s.id===cur && (curPath==null || curPath===s.slotPath || (!s.slotPath && curPath==null));
           if(isMatch) o.selected=true;
           g.appendChild(o);
@@ -5417,7 +5498,6 @@ export class FormulaGraph {
       sel.addEventListener("change",()=>{
         node.data[field.key]=sel.value;
         const selOpt=sel.options[sel.selectedIndex];
-        // Persist the full slot path so compile() can generate the right formula token
         node.data.slotPath = selOpt?.dataset?.slotPath ?? null;
         this._updatePreview();
       });
@@ -5483,7 +5563,6 @@ export class FormulaGraph {
       wrap.appendChild(sel); return wrap;
     }
 
-    // inv-item-slot: cascading item picker → slot picker
     if(field.type==="inv-item-slot"){
       const itemKey=field.itemKey??"itemName";
       const slotKey=field.slotKey??"slotId";
@@ -5518,13 +5597,11 @@ export class FormulaGraph {
       container.appendChild(selItem); container.appendChild(selSlot); wrap.appendChild(container); return wrap;
     }
 
-    // item-uuid-drag: drag-and-drop zone + owned-item picker
     if(field.type==="item-uuid-drag"){
       const curUuid=node.data[field.key]??"";
       const curName=node.data["itemName"]??"";
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0";
 
-      // Owned-item dropdown (sets itemName + resolves uuid from index)
       const selItem=document.createElement("select"); selItem.style.cssText=SI; selItem.title="Pick owned item by name";
       { const o=document.createElement("option"); o.value=""; o.textContent="— pick owned item —"; if(!curName)o.selected=true; selItem.appendChild(o); }
       const byType2={};
@@ -5608,21 +5685,22 @@ export class FormulaGraph {
       node.data[field.key]=inp.type==="number"?Number(ev.target.value):ev.target.value;
       this._updatePreview();
       if(field.type==="path" && liveBadge) _refreshLiveBadge();
-      // Re-render for dialog_switch / sequence: count changes show/hide output pins; label changes update pin text
+      if (field.type === "select") {
+        const _defV = NODE_DEFS[node.type];
+        if (_defV?.fields?.some(f => typeof f.visibleIf === "function")) {
+          this._renderNode(node); this._scheduleEdges?.(); return;
+        }
+      }
       const _def2 = NODE_DEFS[node.type];
       if (_def2?.isSequence && field.key === "count") {
-        // Clamp count on the node immediately, then re-render (edges to
-        // invisible pins are dropped on save if the user shrinks count).
         const c = Math.max(2, Math.min(12, Number(ev.target.value) || 2));
         node.data.count = c;
         this._renderNode(node);
         this._scheduleEdges?.();
       } else if (_def2?.isDialogSwitch) {
         if (field.key === "count") {
-          // Count changed -- re-render the whole node to show/hide output pins
           this._renderNode(node);
         } else if (field.key.startsWith("label")) {
-          // Label changed -- update the pin span text in-place so the input keeps focus
           const pinIdx = parseInt(field.key.replace("label", ""), 10);
           const _nodeEl2 = this.nodesEl?.querySelector(`[data-nid="${node.id}"]`);
           const dot = _nodeEl2?.querySelector(`[data-pid="out${pinIdx}"][data-side="output"]`);
@@ -5632,7 +5710,6 @@ export class FormulaGraph {
           }
         }
       }
-      // Live-resize the node element to fit the new value
       const _nodeEl = this.nodesEl?.querySelector(`[data-nid="${node.id}"]`);
       if (_nodeEl) {
         const _longestNow = Object.values(node.data ?? {}).reduce((max, v) => {
@@ -5647,8 +5724,6 @@ export class FormulaGraph {
     });
     wrap.appendChild(inp);
 
-    // Live value badge for path-type fields
-    // Shows the current doc value so the designer can see what the node resolves to.
     let liveBadge = null;
     const _refreshLiveBadge = () => {
       const doc = this.doc;
@@ -5669,12 +5744,10 @@ export class FormulaGraph {
     return wrap;
   }
 
-  // Edge rendering (screen-space bezier, no transform)
 
   _redrawEdges() {
     const svg=this.edgeSVG; if(!svg) return;
 
-    // Preserve <defs>, remove rendered paths
     const defs = svg.querySelector("defs");
     while(svg.lastChild && svg.lastChild !== defs) svg.removeChild(svg.lastChild);
     if (!defs) {
@@ -5711,7 +5784,6 @@ export class FormulaGraph {
       });
       svg.appendChild(hit);
 
-      // Visible stroke: exec → orange, typed value → subtype colour, untyped → gradient.
       const path=document.createElementNS("http://www.w3.org/2000/svg","path");
       path.setAttribute("d",bez);
       path.setAttribute("fill","none");
@@ -5730,7 +5802,6 @@ export class FormulaGraph {
     return `M${a.x},${a.y} C${a.x+c},${a.y} ${b.x-c},${b.y} ${b.x},${b.y}`;
   }
 
-  // Get pin position in SCREEN coordinates
   _pinScreen(nodeId,pinId,side) {
     const el=this.nodesEl.querySelector(`[data-nid="${nodeId}"] [data-pid="${pinId}"][data-side="${side}"]`);
     if(!el) return null;
@@ -5769,8 +5840,6 @@ export class FormulaGraph {
     conn.line.remove();
     const pin=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".gpin");
     if(!pin||pin.dataset.side!=="input"||pin.dataset.nid===conn.fromNode) return;
-    // Compatibility check -- reject exec↔value and mismatched value.X ↔ value.Y.
-    // value.any on either side is universally compatible.
     const targetNode = this.nodes.find(n=>n.id===pin.dataset.nid);
     const targetDef  = NODE_DEFS[targetNode?.type??""];
     const targetPinDef = (targetDef?.inputs??[]).find(p=>p.id===pin.dataset.pid);
@@ -5789,8 +5858,6 @@ export class FormulaGraph {
     const dx = (ev.clientX - this._drag.mx) / this._zoom;
     const dy = (ev.clientY - this._drag.my) / this._zoom;
 
-    // Group drag -- move every node captured at mousedown by the same delta.
-    // Falls back to single-node drag when `group` wasn't recorded.
     const group = this._drag.group?.length
       ? this._drag.group
       : [{ id: this._drag.nodeId, ox: this._drag.ox, oy: this._drag.oy }];
@@ -5803,11 +5870,9 @@ export class FormulaGraph {
       const el = this.nodesEl.querySelector(`[data-nid="${n.id}"]`);
       if (el) { el.style.left = n.x + "px"; el.style.top = n.y + "px"; }
     }
-    // Schedule edge redraw (RAF-throttled) instead of calling synchronously
     this._scheduleEdges?.();
   }
 
-  // Marquee (Shift + drag on empty canvas)
 
   _doMarquee(ev) {
     if (!this._marquee) return;
@@ -5832,7 +5897,6 @@ export class FormulaGraph {
     this._marquee = null;
     m.el?.remove();
 
-    // Marquee in screen-space (relative to wrap). Convert to graph-space.
     const x1s = Math.min(m.sx, m.cx);
     const y1s = Math.min(m.sy, m.cy);
     const x2s = Math.max(m.sx, m.cx);
@@ -5842,12 +5906,10 @@ export class FormulaGraph {
     const gx2 = (x2s - this._pan.x) / this._zoom;
     const gy2 = (y2s - this._pan.y) / this._zoom;
 
-    // Treat tiny marquees as a simple click -- do nothing.
     if ((x2s - x1s) < 4 && (y2s - y1s) < 4) return;
 
     if (!m.additive) this._selected.clear();
     for (const n of this.nodes) {
-      // Approximate node bounds from rendered element (falls back to 220×80).
       const el = this.nodesEl.querySelector(`[data-nid="${n.id}"]`);
       const w  = el ? el.offsetWidth  : 220;
       const h  = el ? el.offsetHeight : 80;
@@ -5864,7 +5926,6 @@ export class FormulaGraph {
     const tf = `translate(${this._pan.x}px,${this._pan.y}px) scale(${this._zoom})`;
     if(this.nodesEl)    this.nodesEl.style.transform    = tf;
     if(this.commentsEl) this.commentsEl.style.transform = tf;
-    // CSS background-based grid -- update offset so it pans with the canvas
     const wrap = this.win?.querySelector("#gwrap");
     if (wrap) {
       const ox = ((this._pan.x % 32) + 32) % 32;

@@ -6,8 +6,6 @@ import { readFileSync, writeFileSync } from "node:fs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot  = resolve(__dirname, "..");
 
-// Stub the Foundry-specific globals that formula-graph.mjs may touch at
-// import time.  We only need the module's exports, not its side effects.
 globalThis.foundry     = globalThis.foundry     ?? { utils: { randomID: () => "xxx" } };
 globalThis.game        = globalThis.game        ?? {};
 globalThis.Hooks       = globalThis.Hooks       ?? { on:()=>{}, once:()=>{}, call:()=>{}, callAll:()=>{} };
@@ -102,20 +100,18 @@ const byCategory = {};
 
 const nodeEntries = Object.entries(NODE_DEFS);
 for (const [id, def] of nodeEntries) {
-  if (!def || def.hidden) continue;             // skip legacy/hidden defs
+  if (!def || def.hidden) continue;
   const cat = def.cat && def.cat !== "_system" ? def.cat : "System";
   if (!byCategory[cat]) byCategory[cat] = [];
   byCategory[cat].push([id, def]);
 }
 
-// Stable order: CATS first, then any extras alphabetically.
 const orderedCats = [
   "System",
   ...categoryOrder.filter(c => byCategory[c]),
   ...Object.keys(byCategory).filter(c => c !== "System" && !categoryOrder.includes(c)).sort()
 ].filter((c, i, a) => byCategory[c] && a.indexOf(c) === i);
 
-// Sort nodes inside each category alphabetically by title for readability.
 for (const c of orderedCats) {
   byCategory[c].sort((a, b) => (a[1].title ?? a[0]).localeCompare(b[1].title ?? b[0]));
 }

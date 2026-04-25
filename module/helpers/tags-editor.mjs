@@ -24,7 +24,6 @@ export class TagsEditor {
     container.style.cssText = "min-height:32px";
 
     const refresh = () => {
-      // Remove all children except the input
       [...container.children].forEach(c => {
         if (!c.classList.contains("tag-new-input")) c.remove();
       });
@@ -69,7 +68,6 @@ export class TagsEditor {
     });
     inp.addEventListener("blur", addTag);
 
-    // Click on container focuses input
     container.addEventListener("click", (ev) => {
       if (ev.target === container) inp.focus();
     });
