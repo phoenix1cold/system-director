@@ -1,0 +1,9067 @@
+{
+  "output": {
+    "title": "OUTPUT",
+    "color": "#5a4ec0",
+    "cat": "_system",
+    "desc": "Connect a formula value OR an exec chain. Use Branch to split paths.",
+    "inputs": [
+      {
+        "id": "value",
+        "label": "Formula value",
+        "type": "value.any"
+      },
+      {
+        "id": "exec",
+        "label": "Run (exec)",
+        "type": "exec"
+      }
+    ],
+    "outputs": [],
+    "fields": [],
+    "isOutput": true
+  },
+  "attr_score_val": {
+    "title": "Attr Score",
+    "color": "#7a4a1a",
+    "cat": "_attr",
+    "desc": "Live numeric value of this attribute (read-only, always present in attribute graphs).",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Score Path",
+        "type": "path",
+        "default": "system.attributes.attr1.value"
+      }
+    ],
+    "isAttrScore": true,
+    "compile": {
+      "__fn": true
+    }
+  },
+  "attr_output": {
+    "title": "ATTR OUTPUT",
+    "color": "#7a4a1a",
+    "cat": "_attr",
+    "desc": "Attribute widget output. Wire modValue to set what the modifier button shows and rolls. Wire exec to set what happens on click.",
+    "inputs": [
+      {
+        "id": "modValue",
+        "label": "Mod Value",
+        "type": "value.number"
+      },
+      {
+        "id": "exec",
+        "label": "On Click",
+        "type": "exec"
+      }
+    ],
+    "outputs": [],
+    "fields": [],
+    "isAttrOutput": true
+  },
+  "branch": {
+    "title": "Branch",
+    "color": "#8a2a8a",
+    "cat": "Flow",
+    "desc": "If Condition is TRUE runs True path; otherwise False path",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "cond",
+        "label": "Condition",
+        "type": "value.bool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "true",
+        "label": "True",
+        "type": "exec"
+      },
+      {
+        "id": "false",
+        "label": "False",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isBranch": true
+  },
+  "on_click": {
+    "title": "On Click",
+    "color": "#b05000",
+    "cat": "Flow",
+    "desc": "Entry point — fired when the item's Use button is pressed. Connect its exec output to your action chain.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ Execute",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isTrigger": true
+  },
+  "sequence": {
+    "title": "Sequence",
+    "color": "#8a2a8a",
+    "cat": "Flow",
+    "desc": "Run N exec branches in strict order (1 → 2 → … → N). Set `count` to pick how many branches; connected + 1 is the smallest safe count.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "a0",
+        "label": "Then 1",
+        "type": "exec"
+      },
+      {
+        "id": "a1",
+        "label": "Then 2",
+        "type": "exec"
+      },
+      {
+        "id": "a2",
+        "label": "Then 3",
+        "type": "exec"
+      },
+      {
+        "id": "a3",
+        "label": "Then 4",
+        "type": "exec"
+      },
+      {
+        "id": "a4",
+        "label": "Then 5",
+        "type": "exec"
+      },
+      {
+        "id": "a5",
+        "label": "Then 6",
+        "type": "exec"
+      },
+      {
+        "id": "a6",
+        "label": "Then 7",
+        "type": "exec"
+      },
+      {
+        "id": "a7",
+        "label": "Then 8",
+        "type": "exec"
+      },
+      {
+        "id": "a8",
+        "label": "Then 9",
+        "type": "exec"
+      },
+      {
+        "id": "a9",
+        "label": "Then 10",
+        "type": "exec"
+      },
+      {
+        "id": "a10",
+        "label": "Then 11",
+        "type": "exec"
+      },
+      {
+        "id": "a11",
+        "label": "Then 12",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "count",
+        "label": "Count (2-12)",
+        "type": "number",
+        "default": 2
+      }
+    ],
+    "isSequence": true
+  },
+  "literal": {
+    "title": "Number",
+    "color": "#2a4a6a",
+    "cat": "Sources",
+    "inputs": [
+      {
+        "id": "in",
+        "label": "In",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Out",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "value",
+        "label": "",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "literal_str": {
+    "title": "Text",
+    "color": "#2a4a6a",
+    "cat": "Sources",
+    "inputs": [
+      {
+        "id": "in",
+        "label": "In",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Out",
+        "type": "value.string"
+      }
+    ],
+    "fields": [
+      {
+        "key": "value",
+        "label": "",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_path": {
+    "title": "Get Field",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Read any field from the actor or item by dot-path",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Path",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_widget": {
+    "title": "Get Widget Value",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Read the current computed value of another widget by its Widget Key",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "key",
+        "label": "Widget",
+        "type": "widget-picker",
+        "default": ""
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_widget_path": {
+    "title": "Get Widget Path",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Emits the data path bound to a widget (e.g. system.flags.hp). Feed into Set Field / Modify to change the widget's value from the graph.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Path",
+        "type": "value.path"
+      }
+    ],
+    "fields": [
+      {
+        "key": "key",
+        "label": "Widget",
+        "type": "widget-picker",
+        "default": ""
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "actor_ref": {
+    "title": "Actor @Ref",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Shorthand from actor roll data: @attr1=attr1.mod, @level, @prof",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "ref",
+        "label": "@name",
+        "type": "text",
+        "default": "attr1",
+        "placeholder": "attr1 / level / prof"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "slot_count": {
+    "title": "Slot Count",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Count items in a slot. Slot is auto-indexed — pick from dropdown or connect a Get Actor Slot ID node.",
+    "inputs": [
+      {
+        "id": "itemSlot",
+        "label": "Item Slot",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Count",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "slotId",
+        "label": "Slot ID",
+        "type": "slot-picker",
+        "default": "slot1"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "slot_field": {
+    "title": "Slot Item Field",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Field on item at index inside a slot (0=first)",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "slotId",
+        "label": "Slot ID",
+        "type": "text",
+        "default": "slot1"
+      },
+      {
+        "key": "index",
+        "label": "Index",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.hiddenFields.field"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "item_uuid": {
+    "title": "Item by UUID",
+    "color": "#1a3050",
+    "cat": "Sources",
+    "desc": "Drag an item from the sidebar here to get its UUID, then read a field",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "uuid",
+        "label": "UUID",
+        "type": "text",
+        "default": "",
+        "placeholder": "Item.xxxxx or drag item here"
+      },
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.hiddenFields.field"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "target_field": {
+    "title": "Target Field",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Read a field from the first targeted/selected token's actor",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "attr_mod": {
+    "title": "Attr Modifier",
+    "color": "#7a4a1a",
+    "cat": "Attribute",
+    "desc": "Calculates the modifier from an attribute score. Default formula: floor((score − 10) / 2). Connect Attr Score → score pin.",
+    "inputs": [
+      {
+        "id": "score",
+        "label": "Score",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "mod",
+        "label": "Mod",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "dice": {
+    "title": "Dice",
+    "color": "#7a4500",
+    "cat": "Dice",
+    "desc": "Build a dice formula `<count><die>`. Connect Count for the number of dice, Die for the size (accepts \"d6\", \"6\" or a {ref}; if Die pin is empty the select field below is used).",
+    "inputs": [
+      {
+        "id": "count",
+        "label": "Count",
+        "type": "value.number"
+      },
+      {
+        "id": "die",
+        "label": "Die",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Formula",
+        "type": "value.string"
+      }
+    ],
+    "fields": [
+      {
+        "key": "count",
+        "label": "#",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "die",
+        "label": "Die",
+        "type": "select",
+        "default": "d6",
+        "options": [
+          "d4",
+          "d6",
+          "d8",
+          "d10",
+          "d12",
+          "d20",
+          "d100"
+        ]
+      }
+    ],
+    "dynamicPins": [
+      {
+        "base": "add",
+        "label": "Add",
+        "max": 10,
+        "type": "value.number"
+      },
+      {
+        "base": "sub",
+        "label": "Sub",
+        "max": 10,
+        "type": "value.number"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "add": {
+    "title": "Add",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "sep",
+        "label": "Sep",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "sub": {
+    "title": "Sub",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "mul": {
+    "title": "Mul",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "div": {
+    "title": "Div",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "floor": {
+    "title": "Floor",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "ceil": {
+    "title": "Ceil",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "round": {
+    "title": "Round",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "max2": {
+    "title": "Max",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "min2": {
+    "title": "Min",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "abs": {
+    "title": "Abs",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "clamp": {
+    "title": "Clamp",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "v",
+        "label": "Val",
+        "type": "value.number"
+      },
+      {
+        "id": "lo",
+        "label": "Min",
+        "type": "value.number"
+      },
+      {
+        "id": "hi",
+        "label": "Max",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "eq": {
+    "title": "==",
+    "color": "#6a1a6a",
+    "cat": "Compare",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Bool",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "neq": {
+    "title": "≠",
+    "color": "#6a1a6a",
+    "cat": "Compare",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Bool",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "gt": {
+    "title": ">",
+    "color": "#6a1a6a",
+    "cat": "Compare",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Bool",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "lt": {
+    "title": "<",
+    "color": "#6a1a6a",
+    "cat": "Compare",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Bool",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "gte": {
+    "title": ">=",
+    "color": "#6a1a6a",
+    "cat": "Compare",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Bool",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "lte": {
+    "title": "<=",
+    "color": "#6a1a6a",
+    "cat": "Compare",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Bool",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "and": {
+    "title": "AND",
+    "color": "#6a1a1a",
+    "cat": "Logic",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.bool"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.bool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Bool",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "or": {
+    "title": "OR",
+    "color": "#6a1a1a",
+    "cat": "Logic",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.bool"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.bool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Bool",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "not": {
+    "title": "NOT",
+    "color": "#6a1a1a",
+    "cat": "Logic",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.bool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Bool",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "act_roll_value": {
+    "title": "Roll → Value",
+    "color": "#8a4400",
+    "cat": "Actions",
+    "desc": "Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "advFormula",
+        "label": "Adv Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "disFormula",
+        "label": "Dis Formula",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Result",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "formula",
+        "label": "Formula",
+        "type": "text",
+        "default": "1d6"
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Roll"
+      },
+      {
+        "key": "toChat",
+        "label": "To chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "rollDialogue",
+        "label": "Roll dialog",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "advFormula",
+        "label": "Adv formula (pin>field)",
+        "type": "text",
+        "default": "",
+        "placeholder": "e.g. 2d20kh1 + @mod"
+      },
+      {
+        "key": "disFormula",
+        "label": "Dis formula (pin>field)",
+        "type": "text",
+        "default": "",
+        "placeholder": "e.g. 2d20kl1 + @mod"
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_damage": {
+    "title": "Damage",
+    "color": "#8a1a1a",
+    "cat": "Actions",
+    "desc": "Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=×0, resist=×0.5, vulnerable=×2, numeric factor used as-is). halfOnSave × savePassed pin halves damage when the preceding save node passed. Connect Targets pin from AoE Save to apply to specific tokens.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Amount",
+        "type": "value.number"
+      },
+      {
+        "id": "critMultiplier",
+        "label": "Crit ×",
+        "type": "value.number"
+      },
+      {
+        "id": "damageType",
+        "label": "Type",
+        "type": "value.string"
+      },
+      {
+        "id": "savePassed",
+        "label": "Save passed?",
+        "type": "value.bool"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "targets",
+        "label": "Targets",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "label",
+        "label": "Label",
+        "type": "text",
+        "default": "Damage"
+      },
+      {
+        "key": "target",
+        "label": "To",
+        "type": "select",
+        "default": "token_target",
+        "options": [
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      },
+      {
+        "key": "hpPath",
+        "label": "HP path",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "damageType",
+        "label": "Damage type",
+        "type": "text",
+        "default": "",
+        "placeholder": "fire / cold / physical …"
+      },
+      {
+        "key": "critMultiplier",
+        "label": "Crit multiplier (default)",
+        "type": "text",
+        "default": "1"
+      },
+      {
+        "key": "halfOnSave",
+        "label": "Half on save",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "postToChat",
+        "label": "Chat card",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "autoApply",
+        "label": "Auto-apply",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "showApply",
+        "label": "Apply btn",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_heal": {
+    "title": "Heal",
+    "color": "#1a7a2a",
+    "cat": "Actions",
+    "desc": "Apply healing to target HP. postToChat:yes → chat card with Apply button. autoApply:yes → post to chat AND immediately heal (no click). postToChat:no → silent direct HP write. Connect Targets pin from AoE Save to apply to specific tokens.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Amount",
+        "type": "value.number"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "targets",
+        "label": "Targets",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "label",
+        "label": "Label",
+        "type": "text",
+        "default": "Healing"
+      },
+      {
+        "key": "target",
+        "label": "To",
+        "type": "select",
+        "default": "actor",
+        "options": [
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      },
+      {
+        "key": "hpPath",
+        "label": "HP path",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "postToChat",
+        "label": "Chat card",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "autoApply",
+        "label": "Auto-apply",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "showApply",
+        "label": "Apply btn",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_effect": {
+    "title": "Apply Effect",
+    "color": "#1a2a8a",
+    "cat": "Actions",
+    "desc": "Create or toggle an Active Effect on actor/target. Changes: JSON array [{key,value,mode}] where mode 2=Add 5=Override. Connect Target pin (single actor) or Targets pin (array) to override the field.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "duration",
+        "label": "Rounds",
+        "type": "value.number"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "targets",
+        "label": "Targets",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "effectName",
+        "label": "Name (existing or new)",
+        "type": "effect-picker",
+        "default": "My Effect"
+      },
+      {
+        "key": "icon",
+        "label": "Icon",
+        "type": "text",
+        "default": "icons/svg/aura.svg",
+        "placeholder": "icons/svg/aura.svg"
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "select",
+        "default": "actor",
+        "options": [
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      },
+      {
+        "key": "duration",
+        "label": "Rounds (0=∞)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "changes",
+        "label": "Changes JSON",
+        "type": "text",
+        "default": "",
+        "placeholder": "[{\"key\":\"system.attributes.str.value\",\"value\":\"2\",\"mode\":2}]"
+      },
+      {
+        "key": "toggleMode",
+        "label": "Mode",
+        "type": "select",
+        "default": "create",
+        "options": [
+          "create",
+          "toggle",
+          "ensure_on",
+          "ensure_off"
+        ]
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_effect_uuid": {
+    "title": "Apply Effect (UUID)",
+    "color": "#1a2a8a",
+    "cat": "Actions",
+    "desc": "Apply an existing Active Effect to actor/target by UUID. Pick from the dropdown — UUID is filled automatically. Connect Target pin (single actor) or Targets pin (array) to override the field.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "duration",
+        "label": "Rounds",
+        "type": "value.number"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "targets",
+        "label": "Targets",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "effectUuid",
+        "label": "Effect",
+        "type": "effect-uuid-picker",
+        "default": ""
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "select",
+        "default": "actor",
+        "options": [
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      },
+      {
+        "key": "toggleMode",
+        "label": "Mode",
+        "type": "select",
+        "default": "create",
+        "options": [
+          "create",
+          "toggle",
+          "ensure_on",
+          "ensure_off"
+        ]
+      },
+      {
+        "key": "duration",
+        "label": "Rounds (0=∞)",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "for_each_target": {
+    "title": "For Each Target",
+    "color": "#1a5a7a",
+    "cat": "Flow",
+    "desc": "Execute loop body once per targeted token. Use Set Target (multi-target with T) before activating.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "loop",
+        "label": "Loop →",
+        "type": "exec"
+      },
+      {
+        "id": "done",
+        "label": "Done →",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isLoop": true
+  },
+  "act_for_each_token": {
+    "title": "For Each Token",
+    "color": "#1a5a7a",
+    "cat": "Flow",
+    "desc": "Execute loop body once per token id in a comma-joined list (e.g. Saved[]/Failed[]/All[] from Save Branch). On each iteration {__currentTarget} = current token id and {__loopIndex} = i; the current token's actor becomes the action context.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "loop",
+        "label": "Loop →",
+        "type": "exec"
+      },
+      {
+        "id": "done",
+        "label": "Done →",
+        "type": "exec"
+      },
+      {
+        "id": "token",
+        "label": "Token",
+        "type": "value.token"
+      },
+      {
+        "id": "index",
+        "label": "Index",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "isLoop": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "tok_field": {
+    "title": "Token Field",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Read a field from the actor of a token by token id. Token Id defaults to {__currentTarget} (set by For Each Token / per-target iterators). Use to read e.g. system.resources.hp.value of a specific saved/failed token.",
+    "inputs": [
+      {
+        "id": "tokenId",
+        "label": "Token Id",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_length": {
+    "title": "Array Length",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Number of token ids in a comma-joined list (e.g. Saved[]/Failed[]/All[] from Save Branch).",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Count",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_at": {
+    "title": "Token at Index",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Returns the Nth token id (0-based) from a comma-joined list (Saved[]/Failed[]/All[] etc.). If Index is out of range, returns empty.",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      },
+      {
+        "id": "index",
+        "label": "Index",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Token",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "index",
+        "label": "Index",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_map_field": {
+    "title": "Map Field",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "For every token in the array, read the same field from its actor and return all values as a new comma-joined list. Use to feed numeric arrays into Aggregate / Find / Filter or to compare values across tokens.",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Values",
+        "type": "value.array"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_aggregate_field": {
+    "title": "Aggregate Field",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Reduce a numeric field across all tokens in the array. Sum / Avg / Min / Max / Count. Non-numeric values are skipped.",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Result",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "op",
+        "label": "Op",
+        "type": "select",
+        "default": "sum",
+        "options": [
+          "sum",
+          "avg",
+          "min",
+          "max",
+          "count"
+        ]
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_find_extreme": {
+    "title": "Find Top by Field",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Returns the token id of the actor with the highest (max) or lowest (min) field value in the array. Useful for `who has more HP`, `slowest initiative`, etc.",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Token",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "op",
+        "label": "Pick",
+        "type": "select",
+        "default": "max",
+        "options": [
+          "max",
+          "min"
+        ]
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_filter": {
+    "title": "Filter by Field",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Keep only tokens whose actor field passes `field <op> value`. Numeric comparisons when value parses as a number, string equality otherwise. Outputs a comma-joined list to feed back into other Array / For Each Token nodes.",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Filtered",
+        "type": "value.array"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "op",
+        "label": "Op",
+        "type": "select",
+        "default": ">",
+        "options": [
+          "==",
+          "!=",
+          ">",
+          "<",
+          ">=",
+          "<="
+        ]
+      },
+      {
+        "key": "value",
+        "label": "Value",
+        "type": "text",
+        "default": "0"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_compare_two": {
+    "title": "Compare Two Tokens",
+    "color": "#5a3a7a",
+    "cat": "Array",
+    "desc": "Read the same field on two tokens and route exec into Greater / Less / Equal based on (A − B). Diff outputs the numeric difference and Winner outputs the id of the higher token (empty on tie).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "a",
+        "label": "Token A",
+        "type": "value.array"
+      },
+      {
+        "id": "b",
+        "label": "Token B",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "greater",
+        "label": "A > B →",
+        "type": "exec"
+      },
+      {
+        "id": "less",
+        "label": "A < B →",
+        "type": "exec"
+      },
+      {
+        "id": "equal",
+        "label": "A = B →",
+        "type": "exec"
+      },
+      {
+        "id": "diff",
+        "label": "Diff",
+        "type": "value.number"
+      },
+      {
+        "id": "winner",
+        "label": "Winner",
+        "type": "value.token"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "arr_sort": {
+    "title": "Sort by Field",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Sort token ids by a numeric actor field. Ascending or descending. Tokens with non-numeric values go to the end.",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Sorted",
+        "type": "value.array"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "op",
+        "label": "Order",
+        "type": "select",
+        "default": "desc",
+        "options": [
+          "desc",
+          "asc"
+        ]
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_slice": {
+    "title": "Slice / Take",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Take a sub-range of an array. Start is 0-based; Count of -1 means «to the end». Use after Sort to get top-N / bottom-N.",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      },
+      {
+        "id": "start",
+        "label": "Start",
+        "type": "value.number"
+      },
+      {
+        "id": "count",
+        "label": "Count",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Slice",
+        "type": "value.array"
+      }
+    ],
+    "fields": [
+      {
+        "key": "start",
+        "label": "Start",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "count",
+        "label": "Count (-1 = all)",
+        "type": "number",
+        "default": 3
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_concat": {
+    "title": "Concat",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Join two arrays end-to-end (duplicates kept). For unique union use Union node.",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.array"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "A+B",
+        "type": "value.array"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_union": {
+    "title": "Union",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "All ids present in A or B (unique).",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.array"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "A ∪ B",
+        "type": "value.array"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_intersect": {
+    "title": "Intersect",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Only ids present in BOTH A and B. «Tokens that are buffed AND poisoned».",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.array"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "A ∩ B",
+        "type": "value.array"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_difference": {
+    "title": "Difference",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Ids in A that are NOT in B. «Targets that did not save».",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.array"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "A − B",
+        "type": "value.array"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_contains": {
+    "title": "Contains",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Returns 1 if Token id is present in the array, 0 otherwise. Useful for branches.",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      },
+      {
+        "id": "id",
+        "label": "Id",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "In?",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "arr_distinct": {
+    "title": "Distinct",
+    "color": "#2a7a3a",
+    "cat": "Array",
+    "desc": "Remove duplicate ids preserving first-seen order.",
+    "inputs": [
+      {
+        "id": "tokens",
+        "label": "Tokens",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Unique",
+        "type": "value.array"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_spell_slots": {
+    "title": "Spell Slots",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Get remaining spell slots for a given level on actor",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Remaining",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "level",
+        "label": "Spell Level",
+        "type": "number",
+        "default": 1
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "act_consume_slot": {
+    "title": "Consume Slot",
+    "color": "#6a2a6a",
+    "cat": "Actions",
+    "desc": "Consume one spell slot of given level from actor. Branches OK (slot available) or Empty (no slots left).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "level",
+        "label": "Level",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "ok",
+        "label": "OK →",
+        "type": "exec"
+      },
+      {
+        "id": "empty",
+        "label": "Empty →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "level",
+        "label": "Default Level",
+        "type": "number",
+        "default": 1
+      }
+    ],
+    "isConsumeSlot": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_restore_slot": {
+    "title": "Restore Slot",
+    "color": "#1a4a2a",
+    "cat": "Actions",
+    "desc": "Restore one spell slot of given level on actor",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "level",
+        "label": "Level",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "level",
+        "label": "Default Level",
+        "type": "number",
+        "default": 1
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_apply_effect_template": {
+    "title": "Apply Effect Template (legacy)",
+    "color": "#1a2a8a",
+    "cat": "Actions",
+    "hidden": true,
+    "desc": "Legacy — use Create Effect or Chat Apply Effect instead.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "templateName",
+        "label": "Template Name",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "target",
+        "label": "Target Override",
+        "type": "select",
+        "default": "use_template",
+        "options": [
+          "use_template",
+          "self",
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_modify": {
+    "title": "Modify Field",
+    "color": "#4a2a6a",
+    "cat": "Actions",
+    "desc": "Add / subtract / set any field on self, actor or target. Path can be fed dynamically (e.g. from Get Widget Path).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Amount",
+        "type": "value.number"
+      },
+      {
+        "id": "path",
+        "label": "Path",
+        "type": "value.path"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "newValue",
+        "label": "New Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "where",
+        "label": "Where",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "actor",
+          "token_target"
+        ]
+      },
+      {
+        "key": "path",
+        "label": "Field",
+        "type": "path",
+        "default": "system.uses.value"
+      },
+      {
+        "key": "op",
+        "label": "Op",
+        "type": "select",
+        "default": "add",
+        "options": [
+          "add",
+          "subtract",
+          "set"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_set_initiative": {
+    "title": "Set Initiative",
+    "color": "#4a2a6a",
+    "cat": "Actions",
+    "desc": "Set or roll initiative for the target actor in the active combat. Mode `roll` rolls the system formula; `value` sets the exact number. If the actor isn't in combat, a combatant is created (only for the active combat).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "select",
+        "default": "actor",
+        "options": [
+          "self",
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      },
+      {
+        "key": "mode",
+        "label": "Mode",
+        "type": "select",
+        "default": "roll",
+        "options": [
+          "roll",
+          "value"
+        ]
+      },
+      {
+        "key": "value",
+        "label": "Value (mode=value)",
+        "type": "number",
+        "default": 10
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_message": {
+    "title": "Message",
+    "color": "#4a4a1a",
+    "cat": "Actions",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isAction": true,
+    "dynamicPins": [
+      {
+        "base": "text",
+        "label": "Text",
+        "max": 10,
+        "type": "value.string"
+      }
+    ],
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_add_item": {
+    "title": "Add Item",
+    "color": "#2a4a2a",
+    "cat": "Actions",
+    "desc": "Add a world item (drag UUID from sidebar) as a copy to the actor's inventory. Optionally restrict to an inventory widget.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "uuid",
+        "label": "Item UUID (drag here)",
+        "type": "text",
+        "default": "",
+        "placeholder": "drag item from sidebar…"
+      },
+      {
+        "key": "qty",
+        "label": "Qty",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "inventoryWidget",
+        "label": "Inventory Widget",
+        "type": "widget-picker",
+        "default": ""
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_add_slot": {
+    "title": "Add to Slot",
+    "color": "#2a4a2a",
+    "cat": "Actions",
+    "desc": "Add an actor-owned item to a slot on this item or actor. Item and Slot are auto-indexed from the document.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "itemName",
+        "label": "Item",
+        "type": "item-picker",
+        "default": ""
+      },
+      {
+        "key": "slotId",
+        "label": "Slot",
+        "type": "slot-picker",
+        "default": "slot1"
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_remove_slot": {
+    "title": "Remove from Slot",
+    "color": "#6a2a2a",
+    "cat": "Actions",
+    "desc": "Remove an item from a slot by slot ID. Slot is auto-indexed.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "slotId",
+        "label": "Slot",
+        "type": "slot-picker",
+        "default": "slot1"
+      },
+      {
+        "key": "index",
+        "label": "Index (0=first)",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_remove_item": {
+    "title": "Remove Item",
+    "color": "#6a2a2a",
+    "cat": "Actions",
+    "desc": "Remove an owned item from actor inventory. Item is auto-indexed — pick from dropdown. Optionally scope to a widget.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "itemName",
+        "label": "Item",
+        "type": "item-picker",
+        "default": ""
+      },
+      {
+        "key": "uuid",
+        "label": "…or UUID",
+        "type": "text",
+        "default": "",
+        "placeholder": "drag item from sidebar…"
+      },
+      {
+        "key": "inventoryWidget",
+        "label": "Inventory Widget",
+        "type": "widget-picker",
+        "default": ""
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_use_slot_item": {
+    "title": "Use Slot Item",
+    "color": "#2a5a3a",
+    "cat": "Actions",
+    "desc": "Calls item.use() on the item sitting at [index] in a slot. Slot is auto-indexed.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "index",
+        "label": "Index",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "slotId",
+        "label": "Slot",
+        "type": "slot-picker",
+        "default": "slot1"
+      },
+      {
+        "key": "index",
+        "label": "Index (0=first)",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_use_item": {
+    "title": "Use Item",
+    "color": "#2a5a3a",
+    "cat": "Actions",
+    "desc": "Find an owned item by name and call item.use(). Item is auto-indexed from actor inventory.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "itemName",
+        "label": "Item",
+        "type": "item-picker",
+        "default": ""
+      },
+      {
+        "key": "uuid",
+        "label": "…or UUID",
+        "type": "text",
+        "default": "",
+        "placeholder": "drag item here"
+      },
+      {
+        "key": "category",
+        "label": "…or Category",
+        "type": "text",
+        "default": "",
+        "placeholder": "first item of category"
+      },
+      {
+        "key": "index",
+        "label": "Category index",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_equip": {
+    "title": "Equip Item",
+    "color": "#2a5a7a",
+    "cat": "Actions",
+    "desc": "Mark an owned inventory item as equipped. Runs canEquip() requirements check; blocks on concentration conflict. If Force is on, skips the check.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "itemName",
+        "label": "Item",
+        "type": "item-picker",
+        "default": ""
+      },
+      {
+        "key": "uuid",
+        "label": "…or UUID",
+        "type": "text",
+        "default": "",
+        "placeholder": "drag item here"
+      },
+      {
+        "key": "category",
+        "label": "…or Category",
+        "type": "text",
+        "default": "",
+        "placeholder": "first item of category"
+      },
+      {
+        "key": "index",
+        "label": "Category index",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "force",
+        "label": "Force (skip canEquip)",
+        "type": "checkbox",
+        "default": false
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_unequip": {
+    "title": "Unequip Item",
+    "color": "#7a2a2a",
+    "cat": "Actions",
+    "desc": "Mark an owned inventory item as unequipped.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "itemName",
+        "label": "Item",
+        "type": "item-picker",
+        "default": ""
+      },
+      {
+        "key": "uuid",
+        "label": "…or UUID",
+        "type": "text",
+        "default": "",
+        "placeholder": "drag item here"
+      },
+      {
+        "key": "category",
+        "label": "…or Category",
+        "type": "text",
+        "default": "",
+        "placeholder": "first item of category"
+      },
+      {
+        "key": "index",
+        "label": "Category index",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_modify_slot_item_field": {
+    "title": "Modify Slot Item Field",
+    "color": "#4a2a6a",
+    "cat": "Actions",
+    "desc": "Add / subtract / set a field on the item sitting at [index] in a slot. Slot is auto-indexed.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Amount",
+        "type": "value.number"
+      },
+      {
+        "id": "index",
+        "label": "Index",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "slotId",
+        "label": "Slot",
+        "type": "slot-picker",
+        "default": "slot1"
+      },
+      {
+        "key": "index",
+        "label": "Index (0=first)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "path",
+        "label": "Field Path",
+        "type": "path",
+        "default": "system.hiddenFields.field"
+      },
+      {
+        "key": "op",
+        "label": "Operation",
+        "type": "select",
+        "default": "add",
+        "options": [
+          "add",
+          "subtract",
+          "set"
+        ]
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_modify_inv_item_field": {
+    "title": "Modify Inventory Item Field",
+    "color": "#4a2a6a",
+    "cat": "Actions",
+    "desc": "Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Amount",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "itemName",
+        "label": "Item",
+        "type": "item-picker",
+        "default": ""
+      },
+      {
+        "key": "uuid",
+        "label": "…or UUID",
+        "type": "text",
+        "default": "",
+        "placeholder": "drag item here"
+      },
+      {
+        "key": "category",
+        "label": "…or Category+index",
+        "type": "text",
+        "default": "",
+        "placeholder": "category name"
+      },
+      {
+        "key": "index",
+        "label": "Category index",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "path",
+        "label": "Field Path",
+        "type": "path",
+        "default": "system.hiddenFields.field"
+      },
+      {
+        "key": "op",
+        "label": "Operation",
+        "type": "select",
+        "default": "add",
+        "options": [
+          "add",
+          "subtract",
+          "set"
+        ]
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "inv_item_field": {
+    "title": "Inventory Item Field",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Read a field from an actor-owned item. Item is auto-indexed from actor inventory.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "itemName",
+        "label": "Item",
+        "type": "item-picker",
+        "default": ""
+      },
+      {
+        "key": "uuid",
+        "label": "…or UUID",
+        "type": "text",
+        "default": "",
+        "placeholder": "drag item here"
+      },
+      {
+        "key": "category",
+        "label": "…or Category",
+        "type": "text",
+        "default": "",
+        "placeholder": "first item of category"
+      },
+      {
+        "key": "index",
+        "label": "Category index (0=first)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "path",
+        "label": "Field Path",
+        "type": "path",
+        "default": "system.hiddenFields.field"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "slot_item_uuid": {
+    "title": "Slot Item UUID",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Outputs the UUID of the item at [index] in a slot. Slot is auto-indexed.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "UUID (str)",
+        "type": "value.uuid"
+      }
+    ],
+    "fields": [
+      {
+        "key": "slotId",
+        "label": "Slot",
+        "type": "slot-picker",
+        "default": "slot1"
+      },
+      {
+        "key": "index",
+        "label": "Index (0=first)",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_actor_slot_id": {
+    "title": "Get Actor Slot ID",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Reference a slot by ID — connect to the Item Slot pin on Slot Count, Add/Remove from Inv Item Slot nodes to dynamically select which slot to operate on.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Item Slot",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "slotId",
+        "label": "Slot ID",
+        "type": "slot-picker",
+        "default": "slot1"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "inv_item_slot_count": {
+    "title": "Inv Item Slot Count",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Count of items in a slot on an actor-owned inventory item. Item and slot are auto-indexed. Connect Get Actor Slot ID to override slot.",
+    "inputs": [
+      {
+        "id": "itemSlot",
+        "label": "Item Slot",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Count",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "itemName",
+        "label": "Item",
+        "type": "item-picker",
+        "default": ""
+      },
+      {
+        "key": "uuid",
+        "label": "…or UUID",
+        "type": "text",
+        "default": "",
+        "placeholder": "drag item here"
+      },
+      {
+        "key": "slotId",
+        "label": "Slot on that item",
+        "type": "slot-picker",
+        "default": "slot1"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "act_remove_from_inv_item_slot": {
+    "title": "Remove from Inv Item Slot",
+    "color": "#6a2a2a",
+    "cat": "Actions",
+    "desc": "Find an item in actor's inventory, then remove one item from its slot. Both item and slot are auto-indexed — just pick from dropdowns. Connect Get Actor Slot ID to Item Slot pin to override.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "index",
+        "label": "Index",
+        "type": "value.number"
+      },
+      {
+        "id": "itemSlot",
+        "label": "Item Slot",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Done →",
+        "type": "exec"
+      },
+      {
+        "id": "empty",
+        "label": "Empty →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "_compound",
+        "label": "Container → Slot",
+        "type": "inv-item-slot",
+        "itemKey": "itemName",
+        "slotKey": "slotId"
+      },
+      {
+        "key": "index",
+        "label": "Index (0=first)",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "isRemoveFromInvSlot": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_add_to_inv_item_slot": {
+    "title": "Add to Inv Item Slot",
+    "color": "#2a4a2a",
+    "cat": "Actions",
+    "desc": "Find a container item and add another inventory item into its slot. Pick container from dropdown, drag item to add from sidebar.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "itemSlot",
+        "label": "Item Slot",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Done →",
+        "type": "exec"
+      },
+      {
+        "id": "full",
+        "label": "Full →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "_compound",
+        "label": "Container → Slot",
+        "type": "inv-item-slot",
+        "itemKey": "parentName",
+        "slotKey": "slotId"
+      },
+      {
+        "key": "itemUuid",
+        "label": "Item to add",
+        "type": "item-uuid-drag",
+        "default": ""
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "isAddToInvSlot": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_attack_check": {
+    "title": "Attack Check",
+    "color": "#8a3a00",
+    "cat": "Actions",
+    "desc": "Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total − AC.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "formula",
+        "label": "Attack",
+        "type": "value.string"
+      },
+      {
+        "id": "bonus",
+        "label": "Bonus",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "hit",
+        "label": "Hit →",
+        "type": "exec"
+      },
+      {
+        "id": "miss",
+        "label": "Miss →",
+        "type": "exec"
+      },
+      {
+        "id": "crit",
+        "label": "Crit →",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll Result",
+        "type": "value.number"
+      },
+      {
+        "id": "margin",
+        "label": "Margin",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "formula",
+        "label": "Roll",
+        "type": "text",
+        "default": "1d20"
+      },
+      {
+        "key": "bonus",
+        "label": "Bonus",
+        "type": "text",
+        "default": "0"
+      },
+      {
+        "key": "acPath",
+        "label": "AC path",
+        "type": "path",
+        "default": "system.attributes.ac.value"
+      },
+      {
+        "key": "critFace",
+        "label": "Crit on",
+        "type": "number",
+        "default": 20
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Attack"
+      }
+    ],
+    "isAttackBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_roll_check": {
+    "title": "Roll Check",
+    "color": "#8a4400",
+    "cat": "Actions",
+    "desc": "Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "dc",
+        "label": "DC",
+        "type": "value.number"
+      },
+      {
+        "id": "modifier",
+        "label": "Modifier",
+        "type": "value.number"
+      },
+      {
+        "id": "advFormula",
+        "label": "Adv Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "disFormula",
+        "label": "Dis Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "opposedCount",
+        "label": "Opposed N",
+        "type": "value.number"
+      },
+      {
+        "id": "opposedFormula",
+        "label": "Opposed Formula",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "pass",
+        "label": "Pass →",
+        "type": "exec"
+      },
+      {
+        "id": "fail",
+        "label": "Fail →",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll",
+        "type": "value.number"
+      },
+      {
+        "id": "margin",
+        "label": "Margin",
+        "type": "value.number"
+      },
+      {
+        "id": "youWon",
+        "label": "You Won →",
+        "type": "exec"
+      },
+      {
+        "id": "youLost",
+        "label": "You Lost →",
+        "type": "exec"
+      },
+      {
+        "id": "winnerRoll",
+        "label": "Winner Roll",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "formula",
+        "label": "Roll",
+        "type": "text",
+        "default": "1d20"
+      },
+      {
+        "key": "dc",
+        "label": "DC",
+        "type": "text",
+        "default": "10"
+      },
+      {
+        "key": "modifier",
+        "label": "Modifier",
+        "type": "text",
+        "default": "0"
+      },
+      {
+        "key": "mode",
+        "label": "Rule",
+        "type": "select",
+        "default": "roll_over",
+        "options": [
+          "roll_over",
+          "roll_under",
+          "meet_and_beat",
+          "troika",
+          "custom"
+        ]
+      },
+      {
+        "key": "custom",
+        "label": "Custom cond (mode=custom)",
+        "type": "text",
+        "default": "{roll} >= {dc}",
+        "placeholder": "e.g. {roll} > {dc} && {roll} < 20"
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Check"
+      },
+      {
+        "key": "toChat",
+        "label": "To chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "howRoll",
+        "label": "How to roll",
+        "type": "select",
+        "default": "auto",
+        "options": [
+          "auto",
+          "chat_button"
+        ]
+      },
+      {
+        "key": "chatTimeout",
+        "label": "Chat timeout (sec, 0=∞)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "rollDialogue",
+        "label": "Roll dialog",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "opposed",
+        "label": "Opposed",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "opposedCount",
+        "label": "Opposed N",
+        "type": "text",
+        "default": "1"
+      },
+      {
+        "key": "opposedFormula",
+        "label": "Opposed Formula",
+        "type": "text",
+        "default": "1d20"
+      }
+    ],
+    "isSaveBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_tiered_roll": {
+    "title": "Tiered Roll",
+    "color": "#8a4400",
+    "cat": "Actions",
+    "desc": "Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result ≥ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll.",
+    "wideNode": true,
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "tier0",
+        "label": "Tier 1 →",
+        "type": "exec"
+      },
+      {
+        "id": "tier1",
+        "label": "Tier 2 →",
+        "type": "exec"
+      },
+      {
+        "id": "tier2",
+        "label": "Tier 3 →",
+        "type": "exec"
+      },
+      {
+        "id": "tier3",
+        "label": "Tier 4 →",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "formula",
+        "label": "Roll",
+        "type": "text",
+        "default": "2d6"
+      },
+      {
+        "key": "t1Label",
+        "label": "Tier 1 label",
+        "type": "text",
+        "default": "Miss"
+      },
+      {
+        "key": "t1Min",
+        "label": "Tier 1 ≥",
+        "type": "text",
+        "default": "-999"
+      },
+      {
+        "key": "t2Label",
+        "label": "Tier 2 label",
+        "type": "text",
+        "default": "Partial"
+      },
+      {
+        "key": "t2Min",
+        "label": "Tier 2 ≥",
+        "type": "text",
+        "default": "7"
+      },
+      {
+        "key": "t3Label",
+        "label": "Tier 3 label",
+        "type": "text",
+        "default": "Full"
+      },
+      {
+        "key": "t3Min",
+        "label": "Tier 3 ≥",
+        "type": "text",
+        "default": "10"
+      },
+      {
+        "key": "t4Label",
+        "label": "Tier 4 label",
+        "type": "text",
+        "default": "Crit"
+      },
+      {
+        "key": "t4Min",
+        "label": "Tier 4 ≥",
+        "type": "text",
+        "default": "12"
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Roll"
+      },
+      {
+        "key": "toChat",
+        "label": "To chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isTieredBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_dice_pool": {
+    "title": "Dice Pool",
+    "color": "#8a4400",
+    "cat": "Actions",
+    "desc": "Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "count",
+        "label": "Count",
+        "type": "value.number"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "pass",
+        "label": "Pass →",
+        "type": "exec"
+      },
+      {
+        "id": "fail",
+        "label": "Fail →",
+        "type": "exec"
+      },
+      {
+        "id": "successes",
+        "label": "Successes",
+        "type": "value.number"
+      },
+      {
+        "id": "botches",
+        "label": "Botches",
+        "type": "value.number"
+      },
+      {
+        "id": "result",
+        "label": "Total",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "count",
+        "label": "Count",
+        "type": "text",
+        "default": "5"
+      },
+      {
+        "key": "die",
+        "label": "Die faces",
+        "type": "number",
+        "default": 10
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "text",
+        "default": "8"
+      },
+      {
+        "key": "compare",
+        "label": "Compare",
+        "type": "select",
+        "default": "ge",
+        "options": [
+          "ge",
+          "le",
+          "eq"
+        ]
+      },
+      {
+        "key": "required",
+        "label": "Pass if ≥",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "botchFace",
+        "label": "Botch on face",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Dice Pool"
+      },
+      {
+        "key": "toChat",
+        "label": "To chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isSaveBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_spend_token": {
+    "title": "Spend Token",
+    "color": "#4a2a6a",
+    "cat": "Actions",
+    "desc": "Spends N tokens from the given resource. If there aren't enough tokens, exec takes the Empty branch. Works like Consume Resource but with branching.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Amount",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "ok",
+        "label": "Spent →",
+        "type": "exec"
+      },
+      {
+        "id": "empty",
+        "label": "Empty →",
+        "type": "exec"
+      },
+      {
+        "id": "remaining",
+        "label": "Remaining",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "where",
+        "label": "Where",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "actor",
+          "token_target"
+        ]
+      },
+      {
+        "key": "path",
+        "label": "Token path",
+        "type": "path",
+        "default": "system.resources.tokens.value"
+      },
+      {
+        "key": "amount",
+        "label": "Default",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Spend Token"
+      }
+    ],
+    "isConsumeSlot": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_gain_token": {
+    "title": "Gain Token",
+    "color": "#2a5a4a",
+    "cat": "Actions",
+    "desc": "Adds N tokens to the resource. Handy for FATE points / Drama dice / stress.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Amount",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "newValue",
+        "label": "New Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "where",
+        "label": "Where",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "actor",
+          "token_target"
+        ]
+      },
+      {
+        "key": "path",
+        "label": "Token path",
+        "type": "path",
+        "default": "system.resources.tokens.value"
+      },
+      {
+        "key": "amount",
+        "label": "Default",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Gain Token"
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "get_token_count": {
+    "title": "Get Token Count",
+    "color": "#1a4060",
+    "cat": "Sources",
+    "desc": "Pure source node: reads the current token count at the given resource path.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Count",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "where",
+        "label": "Where",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "actor",
+          "token_target"
+        ]
+      },
+      {
+        "key": "path",
+        "label": "Token path",
+        "type": "path",
+        "default": "system.resources.tokens.value"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "act_progression": {
+    "title": "Progression Roll",
+    "color": "#8a4400",
+    "cat": "Actions",
+    "desc": "Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc.",
+    "wideNode": true,
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "historyPath",
+        "label": "History Path",
+        "type": "value.path"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "higher",
+        "label": "Higher →",
+        "type": "exec"
+      },
+      {
+        "id": "lower",
+        "label": "Lower →",
+        "type": "exec"
+      },
+      {
+        "id": "equal",
+        "label": "Equal →",
+        "type": "exec"
+      },
+      {
+        "id": "noHistory",
+        "label": "First →",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      },
+      {
+        "id": "previous",
+        "label": "Previous",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "formula",
+        "label": "Formula",
+        "type": "text",
+        "default": "1d6"
+      },
+      {
+        "key": "historyPath",
+        "label": "History Path",
+        "type": "path",
+        "default": "system.flags.progressionDie"
+      },
+      {
+        "key": "flavor",
+        "label": "Flavor",
+        "type": "text",
+        "default": "Progression"
+      },
+      {
+        "key": "toChat",
+        "label": "Post to chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isProgressionBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_throw_on_canvas": {
+    "title": "Throw on Canvas",
+    "color": "#8a4400",
+    "cat": "Actions",
+    "desc": "Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "count",
+        "label": "Count",
+        "type": "value.number"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "pass",
+        "label": "Pass →",
+        "type": "exec"
+      },
+      {
+        "id": "fail",
+        "label": "Fail →",
+        "type": "exec"
+      },
+      {
+        "id": "successes",
+        "label": "Successes",
+        "type": "value.number"
+      },
+      {
+        "id": "total",
+        "label": "Total",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "count",
+        "label": "Count",
+        "type": "text",
+        "default": "3"
+      },
+      {
+        "key": "die",
+        "label": "Die faces",
+        "type": "number",
+        "default": 6
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "text",
+        "default": "4"
+      },
+      {
+        "key": "compare",
+        "label": "Compare",
+        "type": "select",
+        "default": "ge",
+        "options": [
+          "ge",
+          "le",
+          "eq"
+        ]
+      },
+      {
+        "key": "required",
+        "label": "Pass if ≥",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "area",
+        "label": "Area (px)",
+        "type": "number",
+        "default": 300
+      },
+      {
+        "key": "duration",
+        "label": "Duration (s)",
+        "type": "number",
+        "default": 6
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Throw"
+      },
+      {
+        "key": "toChat",
+        "label": "To chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isSaveBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_throw_on_sheet": {
+    "title": "Throw on Sheet",
+    "color": "#8a4400",
+    "cat": "Actions",
+    "desc": "Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "count",
+        "label": "Count",
+        "type": "value.number"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "pass",
+        "label": "Pass →",
+        "type": "exec"
+      },
+      {
+        "id": "fail",
+        "label": "Fail →",
+        "type": "exec"
+      },
+      {
+        "id": "successes",
+        "label": "Successes",
+        "type": "value.number"
+      },
+      {
+        "id": "total",
+        "label": "Total",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "count",
+        "label": "Count",
+        "type": "text",
+        "default": "3"
+      },
+      {
+        "key": "die",
+        "label": "Die faces",
+        "type": "number",
+        "default": 6
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "text",
+        "default": "4"
+      },
+      {
+        "key": "compare",
+        "label": "Compare",
+        "type": "select",
+        "default": "ge",
+        "options": [
+          "ge",
+          "le",
+          "eq"
+        ]
+      },
+      {
+        "key": "required",
+        "label": "Pass if ≥",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "duration",
+        "label": "Duration (s)",
+        "type": "number",
+        "default": 6
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Throw"
+      },
+      {
+        "key": "toChat",
+        "label": "To chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isSaveBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "switch_node": {
+    "title": "Switch",
+    "color": "#8a2a8a",
+    "cat": "Flow",
+    "desc": "Compare Value against each Case label and jump to the matching exec output. Falls through to Default if no match.",
+    "wideNode": true,
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "case0",
+        "label": "Case 0",
+        "type": "exec"
+      },
+      {
+        "id": "case1",
+        "label": "Case 1",
+        "type": "exec"
+      },
+      {
+        "id": "case2",
+        "label": "Case 2",
+        "type": "exec"
+      },
+      {
+        "id": "default",
+        "label": "Default",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "case0",
+        "label": "Case 0 value",
+        "type": "text",
+        "default": "0"
+      },
+      {
+        "key": "case1",
+        "label": "Case 1 value",
+        "type": "text",
+        "default": "1"
+      },
+      {
+        "key": "case2",
+        "label": "Case 2 value",
+        "type": "text",
+        "default": "2"
+      }
+    ],
+    "isSwitch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "dialog_switch": {
+    "title": "Dialog Switch",
+    "color": "#c05a20",
+    "cat": "Flow",
+    "desc": "Show a dialog with 2-8 named options. The player picks one and that exec branch fires. Outputs are named via fields.",
+    "wideNode": true,
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "out0",
+        "label": "Option 1",
+        "type": "exec"
+      },
+      {
+        "id": "out1",
+        "label": "Option 2",
+        "type": "exec"
+      },
+      {
+        "id": "out2",
+        "label": "Option 3",
+        "type": "exec"
+      },
+      {
+        "id": "out3",
+        "label": "Option 4",
+        "type": "exec"
+      },
+      {
+        "id": "out4",
+        "label": "Option 5",
+        "type": "exec"
+      },
+      {
+        "id": "out5",
+        "label": "Option 6",
+        "type": "exec"
+      },
+      {
+        "id": "out6",
+        "label": "Option 7",
+        "type": "exec"
+      },
+      {
+        "id": "out7",
+        "label": "Option 8",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "count",
+        "label": "Number of options (2-8)",
+        "type": "number",
+        "default": 2
+      },
+      {
+        "key": "title",
+        "label": "Dialog title",
+        "type": "text",
+        "default": "Choose"
+      },
+      {
+        "key": "desc",
+        "label": "Description (optional)",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "label0",
+        "label": "Option 1 label",
+        "type": "text",
+        "default": "Option 1"
+      },
+      {
+        "key": "label1",
+        "label": "Option 2 label",
+        "type": "text",
+        "default": "Option 2"
+      },
+      {
+        "key": "label2",
+        "label": "Option 3 label",
+        "type": "text",
+        "default": "Option 3"
+      },
+      {
+        "key": "label3",
+        "label": "Option 4 label",
+        "type": "text",
+        "default": "Option 4"
+      },
+      {
+        "key": "label4",
+        "label": "Option 5 label",
+        "type": "text",
+        "default": "Option 5"
+      },
+      {
+        "key": "label5",
+        "label": "Option 6 label",
+        "type": "text",
+        "default": "Option 6"
+      },
+      {
+        "key": "label6",
+        "label": "Option 7 label",
+        "type": "text",
+        "default": "Option 7"
+      },
+      {
+        "key": "label7",
+        "label": "Option 8 label",
+        "type": "text",
+        "default": "Option 8"
+      }
+    ],
+    "isDialogSwitch": true,
+    "activeOutputCount": {
+      "__fn": true
+    },
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "dialog_select_array": {
+    "title": "Dialog Select (Array)",
+    "color": "#c05a20",
+    "cat": "Flow",
+    "desc": "Show a dialog with one button per element of the input array. The chosen element is emitted on `Selected` (value), the index on `Index`, and Selected→ exec fires after pick. Cancel → Cancel exec.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "items",
+        "label": "Items",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "sel",
+        "label": "Selected →",
+        "type": "exec"
+      },
+      {
+        "id": "cancel",
+        "label": "Cancel",
+        "type": "exec"
+      },
+      {
+        "id": "selected",
+        "label": "Selected",
+        "type": "value.any"
+      },
+      {
+        "id": "index",
+        "label": "Index",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Dialog title",
+        "type": "text",
+        "default": "Choose"
+      },
+      {
+        "key": "desc",
+        "label": "Description (optional)",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "labelPath",
+        "label": "Label path (e.g. name)",
+        "type": "text",
+        "default": "name"
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "dialog_text_input": {
+    "title": "Dialog Text Input",
+    "color": "#c05a20",
+    "cat": "Flow",
+    "desc": "Show a single-line text input dialog. The entered text is emitted on `Text` and OK exec fires.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "ok",
+        "label": "OK →",
+        "type": "exec"
+      },
+      {
+        "id": "cancel",
+        "label": "Cancel",
+        "type": "exec"
+      },
+      {
+        "id": "text",
+        "label": "Text",
+        "type": "value.string"
+      }
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Dialog title",
+        "type": "text",
+        "default": "Enter text"
+      },
+      {
+        "key": "desc",
+        "label": "Description",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "default",
+        "label": "Default value",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "dialog_confirm": {
+    "title": "Dialog Confirm",
+    "color": "#c05a20",
+    "cat": "Flow",
+    "desc": "Show a Yes/No confirmation dialog. The matching exec branch fires.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "yes",
+        "label": "Yes →",
+        "type": "exec"
+      },
+      {
+        "id": "no",
+        "label": "No →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Dialog title",
+        "type": "text",
+        "default": "Confirm"
+      },
+      {
+        "key": "message",
+        "label": "Message",
+        "type": "text",
+        "default": "Are you sure?"
+      },
+      {
+        "key": "yesLabel",
+        "label": "Yes label",
+        "type": "text",
+        "default": "Yes"
+      },
+      {
+        "key": "noLabel",
+        "label": "No label",
+        "type": "text",
+        "default": "No"
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "while_loop": {
+    "title": "While Loop",
+    "color": "#1a5a7a",
+    "cat": "Flow",
+    "desc": "Execute Loop body while Condition is truthy. Re-evaluates the condition each iteration. Done fires when the condition becomes false or Max Iterations is reached.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "condition",
+        "label": "Condition",
+        "type": "value.bool"
+      },
+      {
+        "id": "maxIter",
+        "label": "Max Iter",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "loop",
+        "label": "Loop →",
+        "type": "exec"
+      },
+      {
+        "id": "index",
+        "label": "Index",
+        "type": "value.number"
+      },
+      {
+        "id": "done",
+        "label": "Done →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "maxIter",
+        "label": "Max Iterations (safety)",
+        "type": "number",
+        "default": 20
+      }
+    ],
+    "isLoop": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_create_effect": {
+    "title": "Create Effect",
+    "color": "#1a4a8a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Creates an ActiveEffect on the target actor. Configure name, icon, duration, and attribute changes. Target resolves from pin or falls back to selected tokens / self.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "duration",
+        "label": "Duration (rds)",
+        "type": "value.number"
+      },
+      {
+        "id": "name",
+        "label": "Effect name",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Effect name",
+        "type": "text",
+        "default": "New Effect"
+      },
+      {
+        "key": "icon",
+        "label": "Icon path",
+        "type": "text",
+        "default": "icons/svg/aura.svg"
+      },
+      {
+        "key": "duration",
+        "label": "Duration (rounds)",
+        "type": "number",
+        "default": 0,
+        "placeholder": "0 = permanent"
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "select",
+        "default": "token_target",
+        "options": [
+          "self",
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      },
+      {
+        "key": "disabled",
+        "label": "Start disabled",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "transfer",
+        "label": "Transfer to actor",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "change0key",
+        "label": "Change 1 — key",
+        "type": "text",
+        "default": "",
+        "placeholder": "system.attributes.ac.bonus"
+      },
+      {
+        "key": "change0val",
+        "label": "Change 1 — value",
+        "type": "text",
+        "default": "0"
+      },
+      {
+        "key": "change0mode",
+        "label": "Change 1 — mode",
+        "type": "select",
+        "default": "2",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ]
+      },
+      {
+        "key": "change1key",
+        "label": "Change 2 — key",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "change1val",
+        "label": "Change 2 — value",
+        "type": "text",
+        "default": "0"
+      },
+      {
+        "key": "change1mode",
+        "label": "Change 2 — mode",
+        "type": "select",
+        "default": "2",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ]
+      },
+      {
+        "key": "change2key",
+        "label": "Change 3 — key",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "change2val",
+        "label": "Change 3 — value",
+        "type": "text",
+        "default": "0"
+      },
+      {
+        "key": "change2mode",
+        "label": "Change 3 — mode",
+        "type": "select",
+        "default": "2",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_apply_status": {
+    "title": "Apply Status",
+    "color": "#1a4a8a",
+    "cat": "Effects",
+    "desc": "Apply / remove / toggle a status condition (CONFIG.statusEffects). Status Id can be e.g. `dead`, `prone`, `poisoned`, etc. — anything the active system or world registers. Status Id pin overrides the field.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "statusId",
+        "label": "Status Id",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "statusId",
+        "label": "Status Id",
+        "type": "text",
+        "default": "poisoned",
+        "placeholder": "dead, prone, blinded, poisoned…"
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "select",
+        "default": "token_target",
+        "options": [
+          "self",
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      },
+      {
+        "key": "mode",
+        "label": "Mode",
+        "type": "select",
+        "default": "apply",
+        "options": [
+          "apply",
+          "remove",
+          "toggle"
+        ]
+      },
+      {
+        "key": "overlay",
+        "label": "Big overlay",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_remove_effect": {
+    "title": "Remove Effect",
+    "color": "#8a1a2a",
+    "cat": "Effects",
+    "desc": "Removes all ActiveEffects matching the given name from the target actor.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "name",
+        "label": "Effect name",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Effect name",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "select",
+        "default": "token_target",
+        "options": [
+          "self",
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_toggle_effect": {
+    "title": "Toggle Effect",
+    "color": "#4a4a8a",
+    "cat": "Effects",
+    "desc": "Toggles the disabled state of an ActiveEffect matching the given name on the target actor.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "name",
+        "label": "Effect name",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Effect name",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "select",
+        "default": "token_target",
+        "options": [
+          "self",
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets"
+        ]
+      },
+      {
+        "key": "state",
+        "label": "Set state",
+        "type": "select",
+        "default": "toggle",
+        "options": [
+          "toggle",
+          "enable",
+          "disable"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "has_effect": {
+    "title": "Has Effect?",
+    "color": "#2a4a6a",
+    "cat": "Effects",
+    "desc": "Outputs 1 if the target actor has an active (non-disabled) effect with the given name, 0 otherwise.",
+    "inputs": [
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "name",
+        "label": "Effect name",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Has?",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Effect name",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "target",
+        "label": "Target",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "actor",
+          "token_target",
+          "selected_token"
+        ]
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "act_place_aura": {
+    "title": "Place Aura — With Effect",
+    "color": "#1a6a4a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Places a Scene Region attached to the owner token. Tokens inside receive the named Active Effect automatically (hook-based enter/exit); leaving tokens lose it (configurable).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.actor"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "name",
+        "label": "Effect",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "emanation",
+          "circle",
+          "rectangle",
+          "ellipse",
+          "cone"
+        ],
+        "default": "emanation"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 10
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13
+      },
+      {
+        "key": "name",
+        "label": "Effect name",
+        "type": "text",
+        "default": "Aura"
+      },
+      {
+        "key": "icon",
+        "label": "Effect icon",
+        "type": "text",
+        "default": "icons/svg/aura.svg"
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "selected_token",
+          "token_target"
+        ]
+      },
+      {
+        "key": "auraKey",
+        "label": "Aura key (unique)",
+        "type": "text",
+        "default": "aura"
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0=∞)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "deactivateOnLeave",
+        "label": "Remove effect on leave",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "conditionEffect",
+        "label": "Suppress when owner has effect",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_place_aura_damage": {
+    "title": "Place Aura — Damage",
+    "color": "#7a2a1a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Attaches a region to the owner; rolls damage against tokens inside (onEnter / eachTurn / both). Respects system.resistances[damageType]. Chat card + visibility configurable.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.actor"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "value.string"
+      },
+      {
+        "id": "damageType",
+        "label": "Damage Type",
+        "type": "value.string"
+      },
+      {
+        "id": "rounds",
+        "label": "Lifetime",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "emanation",
+          "circle",
+          "rectangle",
+          "ellipse",
+          "cone"
+        ],
+        "default": "emanation"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 10
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13,
+        "visibleIf": {
+          "__fn": true
+        }
+      },
+      {
+        "key": "name",
+        "label": "Aura name",
+        "type": "text",
+        "default": "Damage Aura"
+      },
+      {
+        "key": "icon",
+        "label": "Icon",
+        "type": "text",
+        "default": "icons/svg/aura.svg"
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "selected_token",
+          "token_target"
+        ]
+      },
+      {
+        "key": "auraKey",
+        "label": "Aura key",
+        "type": "text",
+        "default": "damage-aura"
+      },
+      {
+        "key": "formula",
+        "label": "Damage formula",
+        "type": "text",
+        "default": "1d6"
+      },
+      {
+        "key": "damageType",
+        "label": "Damage type",
+        "type": "text",
+        "default": "fire"
+      },
+      {
+        "key": "hpPath",
+        "label": "HP path",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "hpMode",
+        "label": "HP mode",
+        "type": "select",
+        "options": [
+          "add",
+          "set"
+        ],
+        "default": "add"
+      },
+      {
+        "key": "tickMode",
+        "label": "When",
+        "type": "select",
+        "options": [
+          "onEnter",
+          "onEnter+eachTurn",
+          "eachTurn"
+        ],
+        "default": "onEnter+eachTurn"
+      },
+      {
+        "key": "showInChat",
+        "label": "Show in chat",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "chatMode",
+        "label": "Chat card (legacy)",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "card"
+      },
+      {
+        "key": "applyMode",
+        "label": "Apply mode",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "auto"
+      },
+      {
+        "key": "rollApplyMode",
+        "label": "Roll mode",
+        "type": "select",
+        "options": [
+          "per_target",
+          "once"
+        ],
+        "default": "per_target"
+      },
+      {
+        "key": "visibility",
+        "label": "Visibility",
+        "type": "select",
+        "options": [
+          "everyone",
+          "gm"
+        ],
+        "default": "everyone"
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0=∞)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "conditionEffect",
+        "label": "Suppress when owner has effect",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_place_aura_heal": {
+    "title": "Place Aura — Heal",
+    "color": "#1a6a3a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Attaches a region to the owner; heals tokens inside (onEnter / eachTurn / both). HP path configurable. Chat card + visibility configurable.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.actor"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "value.string"
+      },
+      {
+        "id": "rounds",
+        "label": "Lifetime",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "emanation",
+          "circle",
+          "rectangle",
+          "ellipse",
+          "cone"
+        ],
+        "default": "emanation"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 10
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13,
+        "visibleIf": {
+          "__fn": true
+        }
+      },
+      {
+        "key": "name",
+        "label": "Aura name",
+        "type": "text",
+        "default": "Heal Aura"
+      },
+      {
+        "key": "icon",
+        "label": "Icon",
+        "type": "text",
+        "default": "icons/svg/aura.svg"
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "selected_token",
+          "token_target"
+        ]
+      },
+      {
+        "key": "auraKey",
+        "label": "Aura key",
+        "type": "text",
+        "default": "heal-aura"
+      },
+      {
+        "key": "formula",
+        "label": "Heal formula",
+        "type": "text",
+        "default": "1d4"
+      },
+      {
+        "key": "hpPath",
+        "label": "HP path",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "hpMode",
+        "label": "HP mode",
+        "type": "select",
+        "options": [
+          "add",
+          "set"
+        ],
+        "default": "add"
+      },
+      {
+        "key": "tickMode",
+        "label": "When",
+        "type": "select",
+        "options": [
+          "onEnter",
+          "onEnter+eachTurn",
+          "eachTurn"
+        ],
+        "default": "onEnter+eachTurn"
+      },
+      {
+        "key": "showInChat",
+        "label": "Show in chat",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "chatMode",
+        "label": "Chat card (legacy)",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "card"
+      },
+      {
+        "key": "applyMode",
+        "label": "Apply mode",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "auto"
+      },
+      {
+        "key": "rollApplyMode",
+        "label": "Roll mode",
+        "type": "select",
+        "options": [
+          "per_target",
+          "once"
+        ],
+        "default": "per_target"
+      },
+      {
+        "key": "visibility",
+        "label": "Visibility",
+        "type": "select",
+        "options": [
+          "everyone",
+          "gm"
+        ],
+        "default": "everyone"
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0=∞)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "conditionEffect",
+        "label": "Suppress when owner has effect",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_place_aura_save_effect": {
+    "title": "Place Aura — Save → Effect",
+    "color": "#6a4a1a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Attaches a region to the owner; tokens inside roll a save (onEnter / eachTurn / both). On failure the named Active Effect is applied. On leave the effect is removed (configurable).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.actor"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "dc",
+        "label": "DC",
+        "type": "value.number"
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "emanation",
+          "circle",
+          "rectangle",
+          "ellipse",
+          "cone"
+        ],
+        "default": "emanation"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 10
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13,
+        "visibleIf": {
+          "__fn": true
+        }
+      },
+      {
+        "key": "name",
+        "label": "Effect name",
+        "type": "text",
+        "default": "Aura Effect"
+      },
+      {
+        "key": "icon",
+        "label": "Icon",
+        "type": "text",
+        "default": "icons/svg/aura.svg"
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "selected_token",
+          "token_target"
+        ]
+      },
+      {
+        "key": "auraKey",
+        "label": "Aura key",
+        "type": "text",
+        "default": "save-aura"
+      },
+      {
+        "key": "saveAttr",
+        "label": "Save attr path",
+        "type": "path",
+        "default": "system.attributes.dex.value"
+      },
+      {
+        "key": "dc",
+        "label": "DC",
+        "type": "number",
+        "default": 15
+      },
+      {
+        "key": "flavor",
+        "label": "Save label",
+        "type": "text",
+        "default": "Saving Throw"
+      },
+      {
+        "key": "tickMode",
+        "label": "When",
+        "type": "select",
+        "options": [
+          "onEnter",
+          "onEnter+eachTurn",
+          "eachTurn"
+        ],
+        "default": "onEnter+eachTurn"
+      },
+      {
+        "key": "showInChat",
+        "label": "Show in chat",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "advMode",
+        "label": "Adv / Dis mode",
+        "type": "select",
+        "options": [
+          "none",
+          "adv",
+          "dis",
+          "ask"
+        ],
+        "default": "none"
+      },
+      {
+        "key": "advFormula",
+        "label": "Adv core formula",
+        "type": "text",
+        "default": "",
+        "placeholder": "2d20kh1 (default)"
+      },
+      {
+        "key": "disFormula",
+        "label": "Dis core formula",
+        "type": "text",
+        "default": "",
+        "placeholder": "2d20kl1 (default)"
+      },
+      {
+        "key": "chatMode",
+        "label": "Chat card (legacy)",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "card"
+      },
+      {
+        "key": "applyMode",
+        "label": "Apply mode",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "auto"
+      },
+      {
+        "key": "visibility",
+        "label": "Visibility",
+        "type": "select",
+        "options": [
+          "everyone",
+          "gm"
+        ],
+        "default": "everyone"
+      },
+      {
+        "key": "deactivateOnLeave",
+        "label": "Remove effect on leave",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0=∞)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "conditionEffect",
+        "label": "Suppress when owner has effect",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_place_aura_save_branch": {
+    "title": "Place Aura — Save Branch",
+    "color": "#8a5a2a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Attaches a region to the owner; tokens inside roll a save (onEnter / eachTurn / both). Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes (per-tick, per-token).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.actor"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "dc",
+        "label": "DC",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      },
+      {
+        "id": "saved",
+        "label": "Saved[]",
+        "type": "value.array"
+      },
+      {
+        "id": "failed",
+        "label": "Failed[]",
+        "type": "value.array"
+      },
+      {
+        "id": "all",
+        "label": "All[]",
+        "type": "value.array"
+      }
+    ],
+    "fields": [
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "emanation",
+          "circle",
+          "rectangle",
+          "ellipse",
+          "cone"
+        ],
+        "default": "emanation"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 10
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13,
+        "visibleIf": {
+          "__fn": true
+        }
+      },
+      {
+        "key": "name",
+        "label": "Aura name",
+        "type": "text",
+        "default": "Save Aura"
+      },
+      {
+        "key": "icon",
+        "label": "Icon",
+        "type": "text",
+        "default": "icons/svg/aura.svg"
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "selected_token",
+          "token_target"
+        ]
+      },
+      {
+        "key": "auraKey",
+        "label": "Aura key",
+        "type": "text",
+        "default": "save-branch-aura"
+      },
+      {
+        "key": "saveAttr",
+        "label": "Save attr path",
+        "type": "path",
+        "default": "system.attributes.dex.value"
+      },
+      {
+        "key": "dc",
+        "label": "DC",
+        "type": "number",
+        "default": 15
+      },
+      {
+        "key": "flavor",
+        "label": "Save label",
+        "type": "text",
+        "default": "Saving Throw"
+      },
+      {
+        "key": "rollMode",
+        "label": "Roll mode",
+        "type": "select",
+        "options": [
+          "public",
+          "gmroll",
+          "blindroll",
+          "selfroll"
+        ],
+        "default": "public"
+      },
+      {
+        "key": "tickMode",
+        "label": "When",
+        "type": "select",
+        "options": [
+          "onEnter",
+          "onEnter+eachTurn",
+          "eachTurn"
+        ],
+        "default": "onEnter+eachTurn"
+      },
+      {
+        "key": "showInChat",
+        "label": "Show in chat",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "advMode",
+        "label": "Adv / Dis mode",
+        "type": "select",
+        "options": [
+          "none",
+          "adv",
+          "dis",
+          "ask"
+        ],
+        "default": "none"
+      },
+      {
+        "key": "advFormula",
+        "label": "Adv core formula",
+        "type": "text",
+        "default": "",
+        "placeholder": "2d20kh1 (default)"
+      },
+      {
+        "key": "disFormula",
+        "label": "Dis core formula",
+        "type": "text",
+        "default": "",
+        "placeholder": "2d20kl1 (default)"
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0=∞)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "conditionEffect",
+        "label": "Suppress when owner has effect",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isAction": true,
+    "isAoeSave": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_place_aoe_effect": {
+    "title": "Chat AoE — With Effect",
+    "color": "#1a4a8a",
+    "cat": "AoE",
+    "wideNode": true,
+    "desc": "Posts a chat card with a 'Place Template' button. Once placed, tokens inside gain the named Active Effect (removed on leave, configurable).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "value.string"
+      },
+      {
+        "id": "rounds",
+        "label": "Lifetime",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "cardTitle",
+        "label": "Card title",
+        "type": "text",
+        "default": "Area of Effect"
+      },
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "circle",
+          "cone",
+          "ray",
+          "rect",
+          "ellipse"
+        ],
+        "default": "circle"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 20
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13,
+        "visibleIf": {
+          "__fn": true
+        }
+      },
+      {
+        "key": "name",
+        "label": "Effect name",
+        "type": "text",
+        "default": "AoE Effect"
+      },
+      {
+        "key": "icon",
+        "label": "Icon",
+        "type": "text",
+        "default": "icons/svg/aura.svg"
+      },
+      {
+        "key": "deactivateOnLeave",
+        "label": "Remove on leave",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "persist",
+        "label": "Keep template on map",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0=∞)",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "visibility",
+        "label": "Visibility",
+        "type": "select",
+        "options": [
+          "everyone",
+          "gm"
+        ],
+        "default": "everyone"
+      },
+      {
+        "key": "conditionEffect",
+        "label": "Suppress when source has effect",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_place_aoe_damage": {
+    "title": "Chat AoE — Damage",
+    "color": "#7a3a1a",
+    "cat": "AoE",
+    "wideNode": true,
+    "desc": "Posts a chat card with a 'Place Template' button. Once placed, rolls damage against tokens inside (onEnter / eachTurn / both). Respects resistances.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "value.string"
+      },
+      {
+        "id": "damageType",
+        "label": "Damage Type",
+        "type": "value.string"
+      },
+      {
+        "id": "rounds",
+        "label": "Lifetime",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "cardTitle",
+        "label": "Card title",
+        "type": "text",
+        "default": "Damaging AoE"
+      },
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "circle",
+          "cone",
+          "ray",
+          "rect",
+          "ellipse"
+        ],
+        "default": "circle"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 20
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13,
+        "visibleIf": {
+          "__fn": true
+        }
+      },
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "default": "Damage AoE"
+      },
+      {
+        "key": "formula",
+        "label": "Damage formula",
+        "type": "text",
+        "default": "2d6"
+      },
+      {
+        "key": "damageType",
+        "label": "Damage type",
+        "type": "text",
+        "default": "fire"
+      },
+      {
+        "key": "hpPath",
+        "label": "HP path",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "hpMode",
+        "label": "HP mode",
+        "type": "select",
+        "options": [
+          "add",
+          "set"
+        ],
+        "default": "add"
+      },
+      {
+        "key": "tickMode",
+        "label": "When",
+        "type": "select",
+        "options": [
+          "onEnter",
+          "onEnter+eachTurn",
+          "eachTurn"
+        ],
+        "default": "onEnter"
+      },
+      {
+        "key": "showInChat",
+        "label": "Show in chat",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "chatMode",
+        "label": "Chat card (legacy)",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "card"
+      },
+      {
+        "key": "applyMode",
+        "label": "Apply mode",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "auto"
+      },
+      {
+        "key": "rollApplyMode",
+        "label": "Roll mode",
+        "type": "select",
+        "options": [
+          "per_target",
+          "once"
+        ],
+        "default": "per_target"
+      },
+      {
+        "key": "visibility",
+        "label": "Visibility",
+        "type": "select",
+        "options": [
+          "everyone",
+          "gm"
+        ],
+        "default": "everyone"
+      },
+      {
+        "key": "persist",
+        "label": "Keep template on map",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "no"
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0=∞)",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_place_aoe_heal": {
+    "title": "Chat AoE — Heal",
+    "color": "#1a6a3a",
+    "cat": "AoE",
+    "wideNode": true,
+    "desc": "Posts a chat card with a 'Place Template' button. Once placed, heals tokens inside (onEnter / eachTurn / both).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "value.string"
+      },
+      {
+        "id": "rounds",
+        "label": "Lifetime",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "cardTitle",
+        "label": "Card title",
+        "type": "text",
+        "default": "Healing AoE"
+      },
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "circle",
+          "cone",
+          "ray",
+          "rect",
+          "ellipse"
+        ],
+        "default": "circle"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 20
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13,
+        "visibleIf": {
+          "__fn": true
+        }
+      },
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "default": "Heal AoE"
+      },
+      {
+        "key": "formula",
+        "label": "Heal formula",
+        "type": "text",
+        "default": "2d4"
+      },
+      {
+        "key": "hpPath",
+        "label": "HP path",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      },
+      {
+        "key": "hpMode",
+        "label": "HP mode",
+        "type": "select",
+        "options": [
+          "add",
+          "set"
+        ],
+        "default": "add"
+      },
+      {
+        "key": "tickMode",
+        "label": "When",
+        "type": "select",
+        "options": [
+          "onEnter",
+          "onEnter+eachTurn",
+          "eachTurn"
+        ],
+        "default": "onEnter"
+      },
+      {
+        "key": "showInChat",
+        "label": "Show in chat",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "chatMode",
+        "label": "Chat card (legacy)",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "card"
+      },
+      {
+        "key": "applyMode",
+        "label": "Apply mode",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "auto"
+      },
+      {
+        "key": "rollApplyMode",
+        "label": "Roll mode",
+        "type": "select",
+        "options": [
+          "per_target",
+          "once"
+        ],
+        "default": "per_target"
+      },
+      {
+        "key": "visibility",
+        "label": "Visibility",
+        "type": "select",
+        "options": [
+          "everyone",
+          "gm"
+        ],
+        "default": "everyone"
+      },
+      {
+        "key": "persist",
+        "label": "Keep template on map",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "no"
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0=∞)",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_place_aoe_save_effect": {
+    "title": "Chat AoE — Save → Effect",
+    "color": "#6a2a8a",
+    "cat": "AoE",
+    "wideNode": true,
+    "desc": "Posts a chat card with a 'Place Template' button. Once placed, tokens inside roll a save (onEnter / eachTurn / both); on failure, the named Active Effect is applied. On leave the effect is removed (configurable).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "dc",
+        "label": "DC",
+        "type": "value.number"
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "value.string"
+      },
+      {
+        "id": "rounds",
+        "label": "Lifetime",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "cardTitle",
+        "label": "Card title",
+        "type": "text",
+        "default": "AoE Save"
+      },
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "circle",
+          "cone",
+          "ray",
+          "rect",
+          "ellipse"
+        ],
+        "default": "circle"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 20
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13,
+        "visibleIf": {
+          "__fn": true
+        }
+      },
+      {
+        "key": "name",
+        "label": "Effect name",
+        "type": "text",
+        "default": "AoE Effect"
+      },
+      {
+        "key": "icon",
+        "label": "Icon",
+        "type": "text",
+        "default": "icons/svg/aura.svg"
+      },
+      {
+        "key": "saveAttr",
+        "label": "Save attr path",
+        "type": "path",
+        "default": "system.attributes.dex.value"
+      },
+      {
+        "key": "dc",
+        "label": "DC",
+        "type": "number",
+        "default": 15
+      },
+      {
+        "key": "flavor",
+        "label": "Save label",
+        "type": "text",
+        "default": "Saving Throw"
+      },
+      {
+        "key": "tickMode",
+        "label": "When",
+        "type": "select",
+        "options": [
+          "onEnter",
+          "onEnter+eachTurn",
+          "eachTurn"
+        ],
+        "default": "onEnter"
+      },
+      {
+        "key": "showInChat",
+        "label": "Show in chat",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "advMode",
+        "label": "Adv / Dis mode",
+        "type": "select",
+        "options": [
+          "none",
+          "adv",
+          "dis",
+          "ask"
+        ],
+        "default": "none"
+      },
+      {
+        "key": "advFormula",
+        "label": "Adv core formula",
+        "type": "text",
+        "default": "",
+        "placeholder": "2d20kh1 (default)"
+      },
+      {
+        "key": "disFormula",
+        "label": "Dis core formula",
+        "type": "text",
+        "default": "",
+        "placeholder": "2d20kl1 (default)"
+      },
+      {
+        "key": "chatMode",
+        "label": "Chat card (legacy)",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "card"
+      },
+      {
+        "key": "applyMode",
+        "label": "Apply mode",
+        "type": "select",
+        "options": [
+          "auto",
+          "card"
+        ],
+        "default": "auto"
+      },
+      {
+        "key": "visibility",
+        "label": "Visibility",
+        "type": "select",
+        "options": [
+          "everyone",
+          "gm"
+        ],
+        "default": "everyone"
+      },
+      {
+        "key": "deactivateOnLeave",
+        "label": "Remove on leave",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "persist",
+        "label": "Keep template on map",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0=∞)",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_place_aoe_save_branch": {
+    "title": "Chat AoE — Save",
+    "color": "#8a5a2a",
+    "cat": "AoE",
+    "wideNode": true,
+    "desc": "Posts a chat card with a 'Place Template' button. When placed, every token inside rolls a save. Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "size",
+        "label": "Size (ft)",
+        "type": "value.number"
+      },
+      {
+        "id": "dc",
+        "label": "DC",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      },
+      {
+        "id": "saved",
+        "label": "Saved[]",
+        "type": "value.array"
+      },
+      {
+        "id": "failed",
+        "label": "Failed[]",
+        "type": "value.array"
+      },
+      {
+        "id": "all",
+        "label": "All[]",
+        "type": "value.array"
+      }
+    ],
+    "fields": [
+      {
+        "key": "cardTitle",
+        "label": "Card title",
+        "type": "text",
+        "default": "AoE Save"
+      },
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "options": [
+          "circle",
+          "cone",
+          "ray",
+          "rect",
+          "ellipse"
+        ],
+        "default": "circle"
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 20
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle (deg)",
+        "type": "number",
+        "default": 53.13,
+        "visibleIf": {
+          "__fn": true
+        }
+      },
+      {
+        "key": "saveAttr",
+        "label": "Save attr path",
+        "type": "path",
+        "default": "system.attributes.dex.value"
+      },
+      {
+        "key": "dc",
+        "label": "DC",
+        "type": "number",
+        "default": 15
+      },
+      {
+        "key": "flavor",
+        "label": "Save label",
+        "type": "text",
+        "default": "Saving Throw"
+      },
+      {
+        "key": "rollMode",
+        "label": "Roll mode",
+        "type": "select",
+        "options": [
+          "public",
+          "gmroll",
+          "blindroll",
+          "selfroll"
+        ],
+        "default": "public"
+      },
+      {
+        "key": "showInChat",
+        "label": "Show in chat",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "yes"
+      },
+      {
+        "key": "advMode",
+        "label": "Adv / Dis mode",
+        "type": "select",
+        "options": [
+          "none",
+          "adv",
+          "dis",
+          "ask"
+        ],
+        "default": "none"
+      },
+      {
+        "key": "advFormula",
+        "label": "Adv core formula",
+        "type": "text",
+        "default": "",
+        "placeholder": "2d20kh1 (default)"
+      },
+      {
+        "key": "disFormula",
+        "label": "Dis core formula",
+        "type": "text",
+        "default": "",
+        "placeholder": "2d20kl1 (default)"
+      },
+      {
+        "key": "persist",
+        "label": "Keep template on map",
+        "type": "select",
+        "options": [
+          "yes",
+          "no"
+        ],
+        "default": "no"
+      }
+    ],
+    "isAction": true,
+    "isAoeSave": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_remove_aura": {
+    "title": "Remove Aura",
+    "color": "#6a1a3a",
+    "cat": "Effects",
+    "desc": "Removes the aura(s) matching the given key from the owner token and clears the linked Active Effect from any tokens currently inside.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.actor"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "auraKey",
+        "label": "Aura key",
+        "type": "text",
+        "default": "aura"
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "selected_token",
+          "token_target"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "gate": {
+    "title": "Gate",
+    "color": "#5a2a8a",
+    "cat": "Flow",
+    "desc": "Exec passes through only when Condition is truthy. Acts as an early-exit guard without needing a Branch.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "cond",
+        "label": "Condition",
+        "type": "value.bool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Pass →",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "reroute": {
+    "title": "•",
+    "color": "#2a2a3a",
+    "cat": "Flow",
+    "desc": "Visual wire re-routing point. No logic — just keeps graphs tidy.",
+    "inputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.any"
+      }
+    ],
+    "fields": [],
+    "isReroute": true,
+    "compile": {
+      "__fn": true
+    }
+  },
+  "ternary": {
+    "title": "Ternary",
+    "color": "#6a1a6a",
+    "cat": "Sources",
+    "desc": "Outputs True value when Condition is truthy, False value otherwise. Equivalent to (cond ? a : b). Eliminates common Branch→Output patterns.",
+    "inputs": [
+      {
+        "id": "cond",
+        "label": "Condition",
+        "type": "value.bool"
+      },
+      {
+        "id": "a",
+        "label": "True val",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "False val",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Out",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "a",
+        "label": "True (const)",
+        "type": "text",
+        "default": "1"
+      },
+      {
+        "key": "b",
+        "label": "False (const)",
+        "type": "text",
+        "default": "0"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "random_num": {
+    "title": "Random",
+    "color": "#2a4a6a",
+    "cat": "Sources",
+    "desc": "Output a uniformly random integer between Min and Max (inclusive). Re-evaluated each time the formula runs.",
+    "inputs": [
+      {
+        "id": "min",
+        "label": "Min",
+        "type": "value.number"
+      },
+      {
+        "id": "max",
+        "label": "Max",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "min",
+        "label": "Min",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "max",
+        "label": "Max",
+        "type": "number",
+        "default": 6
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_var": {
+    "title": "Get Variable",
+    "color": "#2a3a5a",
+    "cat": "Sources",
+    "desc": "Read a named variable stored on this actor (actor.flags.sd.vars.NAME). Use with Set Variable to pass data between button clicks or graph segments.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Variable Name",
+        "type": "text",
+        "default": "myVar",
+        "placeholder": "e.g. lastRollResult"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "mod": {
+    "title": "Mod %",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "desc": "Integer remainder of A ÷ B",
+    "compile": {
+      "__fn": true
+    }
+  },
+  "pow": {
+    "title": "Pow ^",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "Base",
+        "type": "value.number"
+      },
+      {
+        "id": "b",
+        "label": "Exp",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "desc": "A raised to the power of B",
+    "compile": {
+      "__fn": true
+    }
+  },
+  "sign": {
+    "title": "Sign",
+    "color": "#1a5c2a",
+    "cat": "Math",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "desc": "Returns -1, 0 or +1 based on the sign of A",
+    "compile": {
+      "__fn": true
+    }
+  },
+  "act_play_sound": {
+    "title": "Play Sound",
+    "color": "#4a2a7a",
+    "cat": "Actions",
+    "desc": "Play a sound file via Foundry's AudioHelper. Path is relative to the Data folder or a full URL.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "src",
+        "label": "Sound path / URL",
+        "type": "text",
+        "default": "sounds/dice.wav",
+        "placeholder": "sounds/dice.wav"
+      },
+      {
+        "key": "volume",
+        "label": "Volume (0–1)",
+        "type": "number",
+        "default": 0.8
+      },
+      {
+        "key": "loop",
+        "label": "Loop",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_run_macro": {
+    "title": "Run Macro",
+    "color": "#4a4a7a",
+    "cat": "Actions",
+    "desc": "Execute a world Macro by exact name. The macro runs with the current actor and token as speaker context.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "macroName",
+        "label": "Macro Name",
+        "type": "text",
+        "default": "",
+        "placeholder": "exact name from Macros directory"
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_notify": {
+    "title": "Notify",
+    "color": "#4a4a1a",
+    "cat": "Actions",
+    "desc": "Show a toast notification (info / warning / error) to the current user. Useful for feedback without a full chat message.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "text",
+        "label": "Message",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "text",
+        "label": "Default text",
+        "type": "text",
+        "default": "Done!"
+      },
+      {
+        "key": "level",
+        "label": "Level",
+        "type": "select",
+        "default": "info",
+        "options": [
+          "info",
+          "warn",
+          "error"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_consume_resource": {
+    "title": "Consume Resource",
+    "color": "#6a2a6a",
+    "cat": "Actions",
+    "desc": "Decrement a resource value by Amount (default 1). If current value would go below 0 takes the Empty branch instead. Use instead of Modify Field + Branch for uses/charges/mana.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Amount",
+        "type": "value.number"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "ok",
+        "label": "OK →",
+        "type": "exec"
+      },
+      {
+        "id": "empty",
+        "label": "Empty →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Resource value path",
+        "type": "path",
+        "default": "system.resources.mp.value"
+      },
+      {
+        "key": "amount",
+        "label": "Default amount",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "target",
+        "label": "On",
+        "type": "select",
+        "default": "self",
+        "options": [
+          "self",
+          "actor",
+          "token_target"
+        ]
+      }
+    ],
+    "isConsumeResource": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_set_var": {
+    "title": "Set Variable",
+    "color": "#2a3a6a",
+    "cat": "Actions",
+    "desc": "Store a value in actor.flags.sd.vars.NAME for retrieval later in the same or other graphs. Useful for persisting roll results between button presses.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Variable Name",
+        "type": "text",
+        "default": "myVar",
+        "placeholder": "e.g. lastRollResult"
+      },
+      {
+        "key": "scope",
+        "label": "Scope",
+        "type": "select",
+        "default": "actor",
+        "options": [
+          "actor",
+          "world"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_open_sheet": {
+    "title": "Open Sheet",
+    "color": "#2a3a6a",
+    "cat": "Actions",
+    "desc": "Open the sheet window of another Actor or Item by UUID. Useful for 'Inspect' buttons on slot items.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "uuid",
+        "label": "UUID",
+        "type": "value.uuid"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "uuid",
+        "label": "UUID (or drag here)",
+        "type": "text",
+        "default": "",
+        "placeholder": "Actor.xxx or Item.xxx"
+      },
+      {
+        "key": "asOwner",
+        "label": "Require ownership",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isAction": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_roll_table": {
+    "title": "Roll Table",
+    "color": "#7a4500",
+    "cat": "Actions",
+    "desc": "Roll on a world RollTable. Found→ fires when at least one result is drawn. Empty→ fires when the table is empty or not found. Result text and index available as value outputs. Use drawCount > 1 to draw multiple entries — {__rollTableIndex} tracks the current draw (0-based).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "drawCount",
+        "label": "Draw count",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "found",
+        "label": "Found →",
+        "type": "exec"
+      },
+      {
+        "id": "empty",
+        "label": "Empty →",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Result text",
+        "type": "value.any"
+      },
+      {
+        "id": "index",
+        "label": "Draw index",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "tableName",
+        "label": "Table Name (exact)",
+        "type": "text",
+        "default": "",
+        "placeholder": "exact table name"
+      },
+      {
+        "key": "tableUuid",
+        "label": "…or Table UUID",
+        "type": "text",
+        "default": "",
+        "placeholder": "RollTable.xxxx"
+      },
+      {
+        "key": "formula",
+        "label": "Default formula",
+        "type": "text",
+        "default": "1d6",
+        "placeholder": "1d6"
+      },
+      {
+        "key": "drawCount",
+        "label": "Draw count",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "key": "toChat",
+        "label": "Post to chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "replacement",
+        "label": "With replacement",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isRollTableBranch": true,
+    "wideNode": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "chat_save_button": {
+    "title": "Save / Check Button",
+    "color": "#7a3a00",
+    "cat": "Actions",
+    "desc": "Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "dc",
+        "label": "DC",
+        "type": "value.number"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.actor"
+      },
+      {
+        "id": "rollFormula",
+        "label": "Roll Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "advFormula",
+        "label": "Adv Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "disFormula",
+        "label": "Dis Formula",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "pass",
+        "label": "Pass →",
+        "type": "exec"
+      },
+      {
+        "id": "fail",
+        "label": "Fail →",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll Result",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "checkType",
+        "label": "Check type",
+        "type": "select",
+        "default": "save",
+        "options": [
+          "save",
+          "ability",
+          "skill",
+          "custom"
+        ]
+      },
+      {
+        "key": "modifierPath",
+        "label": "Modifier path",
+        "type": "path",
+        "default": "system.attributes.attr1.mod",
+        "placeholder": "system.attributes.attr1.mod"
+      },
+      {
+        "key": "dc",
+        "label": "Default DC",
+        "type": "number",
+        "default": 15
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Saving Throw"
+      },
+      {
+        "key": "buttonLabel",
+        "label": "Button text",
+        "type": "text",
+        "default": "Roll Save",
+        "placeholder": "Roll Save / Roll Check"
+      },
+      {
+        "key": "target",
+        "label": "Prompt who",
+        "type": "select",
+        "default": "token_target",
+        "options": [
+          "actor",
+          "token_target",
+          "selected_token",
+          "all_targets",
+          "selected_tokens"
+        ]
+      },
+      {
+        "key": "rollMode",
+        "label": "Roll mode",
+        "type": "select",
+        "default": "publicroll",
+        "options": [
+          "publicroll",
+          "gmroll",
+          "blindroll",
+          "selfroll"
+        ]
+      },
+      {
+        "key": "rollFormula",
+        "label": "Roll formula",
+        "type": "text",
+        "default": "",
+        "placeholder": "e.g. 1d20, 2d6, d20 (empty = 1d20)"
+      },
+      {
+        "key": "rollDialogue",
+        "label": "Roll dialog",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "advFormula",
+        "label": "Adv formula (pin>field)",
+        "type": "text",
+        "default": "",
+        "placeholder": "e.g. 2d20kh1 + @mod"
+      },
+      {
+        "key": "disFormula",
+        "label": "Dis formula (pin>field)",
+        "type": "text",
+        "default": "",
+        "placeholder": "e.g. 2d20kl1 + @mod"
+      },
+      {
+        "key": "timeout",
+        "label": "Timeout (sec, 0=∞)",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "isSaveBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "on_update": {
+    "title": "On Update",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires whenever this document (actor/item) is updated. Useful for reacting to HP / resource changes.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Update",
+        "type": "exec"
+      },
+      {
+        "id": "path",
+        "label": "Changed Path",
+        "type": "value.path"
+      },
+      {
+        "id": "oldValue",
+        "label": "Old Value",
+        "type": "value.any"
+      },
+      {
+        "id": "newValue",
+        "label": "New Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "pathFilter",
+        "label": "Only path (optional)",
+        "type": "path",
+        "default": "",
+        "placeholder": "system.resources.hp.value"
+      }
+    ],
+    "isEvent": true,
+    "eventHook": "updateDocument"
+  },
+  "on_create": {
+    "title": "On Create",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires once when this document is created.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Create",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isEvent": true,
+    "eventHook": "createDocument"
+  },
+  "on_delete": {
+    "title": "On Delete",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires when this document is about to be deleted.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Delete",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isEvent": true,
+    "eventHook": "deleteDocument"
+  },
+  "on_turn_start": {
+    "title": "On Turn Start",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires at the start of this actor's combat turn.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Turn Start",
+        "type": "exec"
+      },
+      {
+        "id": "round",
+        "label": "Round",
+        "type": "value.number"
+      },
+      {
+        "id": "combatantId",
+        "label": "Combatant Id",
+        "type": "value.string"
+      }
+    ],
+    "fields": [],
+    "isEvent": true,
+    "eventHook": "combatTurnStart"
+  },
+  "on_turn_end": {
+    "title": "On Turn End",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires at the end of this actor's combat turn.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Turn End",
+        "type": "exec"
+      },
+      {
+        "id": "round",
+        "label": "Round",
+        "type": "value.number"
+      },
+      {
+        "id": "combatantId",
+        "label": "Combatant Id",
+        "type": "value.string"
+      }
+    ],
+    "fields": [],
+    "isEvent": true,
+    "eventHook": "combatTurnEnd"
+  },
+  "on_effect_apply": {
+    "title": "On Effect Apply",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires when an Active Effect is applied to this actor.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Effect",
+        "type": "exec"
+      },
+      {
+        "id": "effectName",
+        "label": "Name",
+        "type": "value.string"
+      }
+    ],
+    "fields": [
+      {
+        "key": "nameFilter",
+        "label": "Only name (optional)",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isEvent": true,
+    "eventHook": "createActiveEffect"
+  },
+  "on_damage_taken": {
+    "title": "On Damage Taken",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires when this actor's HP path decreases. Configure the HP path below.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Damage",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Damage",
+        "type": "value.number"
+      },
+      {
+        "id": "newHp",
+        "label": "New HP",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "hpPath",
+        "label": "HP Path",
+        "type": "path",
+        "default": "system.resources.hp.value"
+      }
+    ],
+    "isEvent": true,
+    "eventHook": "hpDecrease"
+  },
+  "on_rest": {
+    "title": "On Rest",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires when a rest flag is set on this actor (configurable flag path).",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Rest",
+        "type": "exec"
+      },
+      {
+        "id": "type",
+        "label": "Rest Type",
+        "type": "value.string"
+      }
+    ],
+    "fields": [
+      {
+        "key": "flagPath",
+        "label": "Rest Flag Path",
+        "type": "path",
+        "default": "system.flags.rest"
+      }
+    ],
+    "isEvent": true,
+    "eventHook": "restFlag"
+  },
+  "on_equip": {
+    "title": "On Equip",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires when an item on this actor (or this item specifically) is equipped.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Equip",
+        "type": "exec"
+      },
+      {
+        "id": "itemId",
+        "label": "Item Id",
+        "type": "value.string"
+      },
+      {
+        "id": "itemName",
+        "label": "Item Name",
+        "type": "value.string"
+      }
+    ],
+    "fields": [],
+    "isEvent": true,
+    "eventHook": "itemEquipped"
+  },
+  "on_unequip": {
+    "title": "On Unequip",
+    "color": "#c04040",
+    "cat": "Events",
+    "desc": "Fires when an item on this actor (or this item specifically) is unequipped.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ On Unequip",
+        "type": "exec"
+      },
+      {
+        "id": "itemId",
+        "label": "Item Id",
+        "type": "value.string"
+      },
+      {
+        "id": "itemName",
+        "label": "Item Name",
+        "type": "value.string"
+      }
+    ],
+    "fields": [],
+    "isEvent": true,
+    "eventHook": "itemUnequipped"
+  },
+  "on_event": {
+    "title": "On Event",
+    "color": "#c04040",
+    "cat": "Events",
+    "wideNode": true,
+    "desc": "Declarative event trigger: pick the event type from the dropdown. Equivalent to the specific On-* nodes but keeps the graph compact when you only need a single exec chain.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→ Fire",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "select",
+        "default": "update",
+        "options": [
+          "create",
+          "update",
+          "delete",
+          "turnStart",
+          "turnEnd",
+          "damageTaken",
+          "rest",
+          "equip",
+          "unequip",
+          "effectApply"
+        ]
+      },
+      {
+        "key": "pathFilter",
+        "label": "Only path (update only)",
+        "type": "path",
+        "default": "",
+        "placeholder": "system.resources.hp.value"
+      },
+      {
+        "key": "nameFilter",
+        "label": "Only name (effect only)",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isEvent": true,
+    "eventHook": "updateDocument"
+  },
+  "get_self": {
+    "title": "Get Self",
+    "color": "#2a5a7a",
+    "cat": "Targeting",
+    "desc": "Reference to the document the graph runs on (actor for sheet graphs, item for item graphs).",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Self",
+        "type": "value.actor"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_actor": {
+    "title": "Get Actor",
+    "color": "#2a5a7a",
+    "cat": "Targeting",
+    "desc": "Reference to the actor owning the graph (self for actor graphs, owner for item graphs).",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Actor",
+        "type": "value.actor"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_target": {
+    "title": "Get Target",
+    "color": "#2a5a7a",
+    "cat": "Targeting",
+    "desc": "First targeted token's actor. Use Get All Targets for multi-target workflows.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Target",
+        "type": "value.token"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_selected_token": {
+    "title": "Get Selected Token",
+    "color": "#2a5a7a",
+    "cat": "Targeting",
+    "desc": "First currently-selected token on the canvas. Falls back to self if none selected.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Token",
+        "type": "value.token"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_all_targets": {
+    "title": "Get All Targets",
+    "color": "#2a5a7a",
+    "cat": "Targeting",
+    "desc": "All currently targeted tokens as an array. Feed into For Each Target, AoE save branches, etc.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Targets",
+        "type": "value.array"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_player_actors": {
+    "title": "Get Player Actors",
+    "color": "#2a5a7a",
+    "cat": "Targeting",
+    "desc": "Returns the array of player-character actors. Feed into Dialog Select (Array) to let the user pick a PC, or into For Each Token / array nodes.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Players",
+        "type": "value.array"
+      }
+    ],
+    "fields": [
+      {
+        "key": "onlineOnly",
+        "label": "Online users only",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "includeGM",
+        "label": "Include GM",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_user_character": {
+    "title": "Get User's Character",
+    "color": "#2a5a7a",
+    "cat": "Targeting",
+    "desc": "Returns the actor assigned to the current user (game.user.character). Empty if the user has no assigned character.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Actor",
+        "type": "value.actor"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "is_equipped": {
+    "title": "Is Equipped?",
+    "color": "#2e6e4a",
+    "cat": "Sources",
+    "desc": "Returns 1 if this item is currently equipped, 0 otherwise.  Reads `system.equipped` on the context item.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "value",
+        "label": "0/1",
+        "type": "value.any"
+      }
+    ],
+    "fields": [],
+    "isPure": true,
+    "compile": {
+      "__fn": true
+    }
+  },
+  "equipped_count": {
+    "title": "Equipped Count",
+    "color": "#2e6e4a",
+    "cat": "Sources",
+    "desc": "Returns the count of items with `system.equipped:true` on the owning actor, optionally filtered by category.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "value",
+        "label": "N",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "category",
+        "label": "Category",
+        "type": "select",
+        "default": "any",
+        "options": [
+          "any",
+          "weapon",
+          "armor",
+          "shield",
+          "consumable",
+          "ammo",
+          "magazine",
+          "tool",
+          "gear",
+          "container",
+          "treasure",
+          "other"
+        ]
+      }
+    ],
+    "isPure": true,
+    "compile": {
+      "__fn": true
+    }
+  },
+  "act_delay": {
+    "title": "Delay",
+    "color": "#2a5a8a",
+    "cat": "Flow",
+    "desc": "Waits the given number of milliseconds, then continues the exec chain.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "duration",
+        "label": "ms",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "duration",
+        "label": "Duration (ms)",
+        "type": "text",
+        "default": "500"
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_loop": {
+    "title": "For Loop",
+    "color": "#2a5a8a",
+    "cat": "Flow",
+    "desc": "Runs Body N times. Current iteration index is available as {__loopIndex}. After all iterations, exec goes to Done.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "count",
+        "label": "Count",
+        "type": "value.number"
+      },
+      {
+        "id": "delay",
+        "label": "Delay ms",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "body",
+        "label": "Body →",
+        "type": "exec"
+      },
+      {
+        "id": "done",
+        "label": "Done →",
+        "type": "exec"
+      },
+      {
+        "id": "index",
+        "label": "Index",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "count",
+        "label": "Count",
+        "type": "text",
+        "default": "3"
+      },
+      {
+        "key": "delay",
+        "label": "Delay ms",
+        "type": "text",
+        "default": "0"
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "act_wait_for_event": {
+    "title": "Wait For Event",
+    "color": "#2a5a8a",
+    "cat": "Flow",
+    "desc": "Pauses the exec chain until the first fire of a Foundry hook. Timeout is in milliseconds (0 = no timeout). Continues exec once the event fires.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "timeout",
+        "label": "Timeout",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "done",
+        "label": "Fired →",
+        "type": "exec"
+      },
+      {
+        "id": "timedOut",
+        "label": "Timed out →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "hook",
+        "label": "Hook name",
+        "type": "text",
+        "default": "updateCombat"
+      },
+      {
+        "key": "timeout",
+        "label": "Timeout ms",
+        "type": "text",
+        "default": "0"
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "random_pick": {
+    "title": "Random Pick",
+    "color": "#2a4a6a",
+    "cat": "Sources",
+    "desc": "Randomly returns one of the connected value inputs (up to 5). Empty inputs are skipped. Gives a uniform distribution.",
+    "inputs": [
+      {
+        "id": "a",
+        "label": "A",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "B",
+        "type": "value.any"
+      },
+      {
+        "id": "c",
+        "label": "C",
+        "type": "value.any"
+      },
+      {
+        "id": "d",
+        "label": "D",
+        "type": "value.any"
+      },
+      {
+        "id": "e",
+        "label": "E",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "resource_tier": {
+    "title": "Resource Tier",
+    "color": "#2a4a6a",
+    "cat": "Sources",
+    "desc": "Maps a number to a tier (e.g. HP → 'critical / bloodied / healthy'). Thresholds are a list of values; tier labels are a list one longer.",
+    "inputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "tier",
+        "label": "Tier",
+        "type": "value.string"
+      }
+    ],
+    "fields": [
+      {
+        "key": "thresholds",
+        "label": "Thresholds (csv, ascending)",
+        "type": "text",
+        "default": "25,50,75",
+        "placeholder": "e.g. 25,50,75"
+      },
+      {
+        "key": "labels",
+        "label": "Labels (csv, one more)",
+        "type": "text",
+        "default": "critical,bloodied,hurt,healthy"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "get_combat_state": {
+    "title": "Get Combat State",
+    "color": "#2a4a6a",
+    "cat": "Sources",
+    "desc": "Value outputs about the current encounter: is combat active (0/1), current round, active combatant index.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "active",
+        "label": "Active?",
+        "type": "value.bool"
+      },
+      {
+        "id": "round",
+        "label": "Round",
+        "type": "value.number"
+      },
+      {
+        "id": "turn",
+        "label": "Turn index",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "var_read": {
+    "title": "Read Variable",
+    "color": "#2a6a9a",
+    "cat": "Variables",
+    "desc": "Reads a variable by scope. Local — within a single press. Actor — on the actor (persists). World — in system settings.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "scope",
+        "label": "Scope",
+        "type": "select",
+        "default": "local",
+        "options": [
+          "local",
+          "actor",
+          "world"
+        ]
+      },
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "default": "myVar"
+      },
+      {
+        "key": "default",
+        "label": "Default",
+        "type": "text",
+        "default": "0"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "var_write": {
+    "title": "Write Variable",
+    "color": "#2a6a9a",
+    "cat": "Variables",
+    "desc": "Writes a variable by scope. Local lasts until the end of the current graph pass. Actor is stored in actor.flags.sd.vars. World goes into game.settings.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "scope",
+        "label": "Scope",
+        "type": "select",
+        "default": "local",
+        "options": [
+          "local",
+          "actor",
+          "world"
+        ]
+      },
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "default": "myVar"
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "var_get": {
+    "title": "Get Variable",
+    "color": "#2a6a9a",
+    "cat": "Sources",
+    "desc": "Reads the value of a local graph variable. Variables are defined in the Variables panel of the graph editor.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "default": "myVar"
+      },
+      {
+        "key": "default",
+        "label": "Default",
+        "type": "text",
+        "default": "0"
+      }
+    ],
+    "compile": {
+      "__fn": true
+    }
+  },
+  "var_set": {
+    "title": "Set Variable",
+    "color": "#2a6a9a",
+    "cat": "Sources",
+    "desc": "Assigns a value to a local graph variable. Variables live within a single button press (per-run).",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "default": "myVar"
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "cast_to_actor": {
+    "title": "Cast to Actor",
+    "color": "#6a2a6a",
+    "cat": "Flow",
+    "desc": "Attempts to cast Value (UUID string) to an Actor. On success, emits Cast Success with ActorId; otherwise Cast Failed.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "ok",
+        "label": "Cast Success →",
+        "type": "exec"
+      },
+      {
+        "id": "fail",
+        "label": "Cast Failed →",
+        "type": "exec"
+      },
+      {
+        "id": "actorId",
+        "label": "Actor ID",
+        "type": "value.string"
+      }
+    ],
+    "fields": [],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "cast_to_item": {
+    "title": "Cast to Item",
+    "color": "#6a2a6a",
+    "cat": "Flow",
+    "desc": "Attempts to cast Value (UUID string) to an Item. On success, emits Cast Success with ItemId; otherwise Cast Failed.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "ok",
+        "label": "Cast Success →",
+        "type": "exec"
+      },
+      {
+        "id": "fail",
+        "label": "Cast Failed →",
+        "type": "exec"
+      },
+      {
+        "id": "itemId",
+        "label": "Item ID",
+        "type": "value.string"
+      }
+    ],
+    "fields": [],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "macro_input": {
+    "title": "Macro Input",
+    "color": "#1a8a4a",
+    "cat": "Macros",
+    "desc": "Entry point for a nested graph (macro). Macro ID must match the ID in macro_call. Exec and up to 4 value pins are forwarded from macro_call.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      },
+      {
+        "id": "a",
+        "label": "Arg 1",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "Arg 2",
+        "type": "value.any"
+      },
+      {
+        "id": "c",
+        "label": "Arg 3",
+        "type": "value.any"
+      },
+      {
+        "id": "d",
+        "label": "Arg 4",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "macroId",
+        "label": "Macro ID",
+        "type": "text",
+        "default": "myMacro"
+      }
+    ],
+    "isMacroInput": true
+  },
+  "macro_output": {
+    "title": "Macro Output",
+    "color": "#1a8a4a",
+    "cat": "Macros",
+    "desc": "Exit point of a nested graph. Placed INSIDE the macro graph. Exec and up to 2 value pins are returned out to macro_call.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "a",
+        "label": "Return 1",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "Return 2",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [],
+    "fields": [],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    }
+  },
+  "macro_call": {
+    "title": "Call Macro",
+    "color": "#1a8a4a",
+    "cat": "Macros",
+    "desc": "Calls a nested macro graph by ID. The macro must be defined in the Macros panel of the graph editor. Return values are available via value pins.",
+    "wideNode": true,
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "a",
+        "label": "Arg 1",
+        "type": "value.any"
+      },
+      {
+        "id": "b",
+        "label": "Arg 2",
+        "type": "value.any"
+      },
+      {
+        "id": "c",
+        "label": "Arg 3",
+        "type": "value.any"
+      },
+      {
+        "id": "d",
+        "label": "Arg 4",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      },
+      {
+        "id": "retA",
+        "label": "Return 1",
+        "type": "value.any"
+      },
+      {
+        "id": "retB",
+        "label": "Return 2",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "macroId",
+        "label": "Macro ID",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    }
+  }
+}

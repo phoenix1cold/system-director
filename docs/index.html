@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>System Director — Wiki</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
+<body>
+  <header class="site-header"></header>
+
+  <main class="page">
+    <h1 data-i18n="ui.siteTitle">System Director — Wiki</h1>
+    <p class="lead" data-i18n="ui.tagline">Visual sheet builder &amp; node-graph automation for Foundry VTT</p>
+
+    <div data-bilingual
+         data-en="System Director is a system-agnostic toolkit that lets you build actor &amp; item sheets from drag-and-drop widgets and wire automation between them with a node-based formula graph. This wiki covers all 26 widget types, all 167 graph nodes, and end-to-end usage examples."
+         data-ru="System Director — это system-agnostic тулкит для Foundry VTT: лист персонажа собирается из drag-and-drop виджетов, а автоматизация между ними строится визуально нодами. Эта вики покрывает все 26 виджетов, все 167 нод графа и сквозные примеры использования.">
+    </div>
+
+    <h2 data-i18n="nav.quick" data-bilingual data-en="Quick links" data-ru="Быстрые ссылки"></h2>
+    <div class="cards">
+      <div class="card">
+        <h3 data-i18n="ui.nav.start">Getting started</h3>
+        <p data-bilingual data-en="Install, open the builder, place your first widget, save."
+                          data-ru="Установка, открытие конструктора, первый виджет, сохранение."></p>
+        <a class="btn" href="getting-started.html" data-bilingual data-en="Open" data-ru="Открыть">Open</a>
+      </div>
+      <div class="card">
+        <h3 data-i18n="ui.nav.widgets">Widgets</h3>
+        <p data-bilingual data-en="All widget types — text, resources, dice, slots, inventory, effects, and more."
+                          data-ru="Все типы виджетов — текст, ресурсы, кости, слоты, инвентарь, эффекты и др."></p>
+        <a class="btn" href="widgets.html" data-bilingual data-en="Browse" data-ru="Перейти">Browse</a>
+      </div>
+      <div class="card">
+        <h3 data-i18n="ui.nav.nodes">Nodes</h3>
+        <p data-bilingual data-en="The full graph node catalog: 167 nodes across 17 categories."
+                          data-ru="Полный каталог нод: 167 штук в 17 категориях."></p>
+        <a class="btn" href="nodes.html" data-bilingual data-en="Browse" data-ru="Перейти">Browse</a>
+      </div>
+      <div class="card">
+        <h3 data-i18n="ui.nav.examples">Examples</h3>
+        <p data-bilingual data-en="From a 1d20 button to AoE-save with elemental resists."
+                          data-ru="От простой 1d20-кнопки до AoE save с резистами по стихиям."></p>
+        <a class="btn" href="examples.html" data-bilingual data-en="Browse" data-ru="Перейти">Browse</a>
+      </div>
+    </div>
+
+    <h2 data-bilingual data-en="What's in the box" data-ru="Что внутри"></h2>
+
+    <div class="cards">
+      <div class="card">
+        <h3 data-bilingual data-en="Sheet builder" data-ru="Конструктор листов"></h3>
+        <p data-bilingual data-en="Tab-row-cell layout. Drag widgets onto the grid, span them across columns, group with vertical sections."
+                          data-ru="Сетка вкладки → ряды → ячейки. Перетаскиваете виджеты, растягиваете их по колонкам, группируете в вертикальные секции."></p>
+      </div>
+      <div class="card">
+        <h3 data-bilingual data-en="Per-widget styling" data-ru="Стиль каждого виджета"></h3>
+        <p data-bilingual data-en="Width, height, colors, borders, paddings — all in one popup. Reset button on every field."
+                          data-ru="Размеры, цвета, рамки, паддинги — всё в одном попапе. У каждого поля есть кнопка сброса."></p>
+      </div>
+      <div class="card">
+        <h3 data-bilingual data-en="Formula graphs" data-ru="Нодовые графы"></h3>
+        <p data-bilingual data-en="Bind a graph to any clickable widget — Use buttons, dice, action buttons, even number-step ±. Graphs run on click and can chain through dialogs, branches, loops."
+                          data-ru="К любому кликабельному виджету привязывается граф — Use-кнопки, броски кубов, action-кнопки, даже шаги ± у числа. Граф исполняется по клику, поддерживает диалоги, ветвления и циклы."></p>
+      </div>
+      <div class="card">
+        <h3 data-bilingual data-en="Pin types" data-ru="Типизация пинов"></h3>
+        <p data-bilingual data-en="Number, String, Bool, Path, UUID, Actor, Item, Token, Array, Any. The editor only allows compatible connections."
+                          data-ru="Number, String, Bool, Path, UUID, Actor, Item, Token, Array, Any. Редактор разрешает только совместимые соединения."></p>
+        <div class="pin-legend" id="pin-legend"></div>
+      </div>
+    </div>
+
+    <h2 data-bilingual data-en="Node kinds" data-ru="Виды нод"></h2>
+    <p data-bilingual data-en="Every node has a kind that affects its color and how it behaves:"
+                      data-ru="У каждой ноды есть «вид», влияющий на цвет акцента и поведение:"></p>
+    <table class="grid">
+      <thead><tr>
+        <th data-bilingual data-en="Kind" data-ru="Вид"></th>
+        <th data-bilingual data-en="Color" data-ru="Цвет"></th>
+        <th data-bilingual data-en="Description" data-ru="Описание"></th>
+      </tr></thead>
+      <tbody>
+        <tr><td><span class="kind-badge" style="--c:#3aa87a">Pure</span></td>
+            <td><code>#3aa87a</code></td>
+            <td data-bilingual data-en="Computation only — no side effects. Math, comparisons, getters, etc."
+                                data-ru="Только вычисление — без побочных эффектов. Math, сравнения, геттеры и т.п."></td></tr>
+        <tr><td><span class="kind-badge" style="--c:#e08a2a">Imperative</span></td>
+            <td><code>#e08a2a</code></td>
+            <td data-bilingual data-en="Performs an action: damage, heal, apply effect, modify field, dialog…"
+                                data-ru="Выполняет действие: урон, лечение, эффект, изменение поля, диалог…"></td></tr>
+        <tr><td><span class="kind-badge" style="--c:#d04040">Event</span></td>
+            <td><code>#d04040</code></td>
+            <td data-bilingual data-en="Trigger node — fires on a Foundry event (turn start, damage taken, equip…)."
+                                data-ru="Триггер — срабатывает на событие Foundry (ход, получение урона, экипировка…)."></td></tr>
+      </tbody>
+    </table>
+
+    <h2 data-bilingual data-en="Repository" data-ru="Репозиторий"></h2>
+    <p>
+      <a href="https://github.com/phoenix1cold/system-director" target="_blank" rel="noopener">github.com/phoenix1cold/system-director</a>
+    </p>
+  </main>
+
+  <footer class="site">
+    <span data-bilingual
+          data-en="Generated from System Director source — node and widget data are extracted from formula-graph.mjs &amp; widget-registry.mjs."
+          data-ru="Сгенерировано из исходников System Director — данные нод и виджетов извлечены из formula-graph.mjs и widget-registry.mjs."></span>
+  </footer>
+
+  <script type="module">
+    import { bootPage } from "./js/main.js";
+    import { pickLocale } from "./js/i18n.js";
+    await bootPage();
+
+    // Build the pin-type legend.
+    const r = await fetch("data/i18n.json");
+    const i18n = await r.json();
+    const legend = document.getElementById("pin-legend");
+    if (legend) {
+      for (const [key, info] of Object.entries(i18n.pinTypes)) {
+        const tag = document.createElement("span");
+        tag.className = "pin-tag";
+        tag.style.cssText = `--c:${info.color}`;
+        tag.innerHTML = `<span class="dot"></span><span>${pickLocale(info)}</span>`;
+        legend.appendChild(tag);
+      }
+    }
+  </script>
+</body>
+</html>

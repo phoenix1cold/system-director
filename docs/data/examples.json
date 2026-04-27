@@ -1,0 +1,266 @@
+[
+  {
+    "id": "d20-button",
+    "level": "basic",
+    "title": { "en": "Simple d20 Button", "ru": "Простая d20 кнопка" },
+    "desc": {
+      "en": "A bare attack roll. Place a Dice Button on the sheet, set its formula to <code>1d20+@attr.str.mod</code> — that's it. No graph needed for vanilla rolls.",
+      "ru": "Голая атака d20. Поставьте Dice Button на лист, в formula впишите <code>1d20+@attr.str.mod</code> — всё. Граф не нужен для простых бросков."
+    },
+    "nodes": [
+      { "type": "dice_button_widget", "title": { "en": "Dice Button", "ru": "Dice Button" }, "subtitle": "1d20+@attr.str.mod", "color": "#7b68ee" }
+    ],
+    "tip": {
+      "en": "If you need crit detection, advantage prompt, or follow-up damage — use a graph (next examples).",
+      "ru": "Если нужны крит/преимущество/добивание уроном — нужен граф (следующие примеры)."
+    }
+  },
+
+  {
+    "id": "heal-self",
+    "level": "basic",
+    "title": { "en": "Heal Self", "ru": "Лечение себя" },
+    "desc": {
+      "en": "On click, restore HP on the actor. The Heal node defaults to <code>target=actor</code>, so just connecting On Click → Heal is enough.",
+      "ru": "По клику восстанавливает HP актора. У ноды Heal по умолчанию <code>target=actor</code> — достаточно соединить On Click → Heal."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "act_heal", "fields": { "amount": "1d8+5", "to": "actor", "label": "Heal" } }
+    ]
+  },
+
+  {
+    "id": "damage-target",
+    "level": "basic",
+    "title": { "en": "Damage Selected Token", "ru": "Урон выбранному токену" },
+    "desc": {
+      "en": "Pick a token on the canvas, click the button — it takes 2d6 fire damage. Resistances/immunities are applied automatically.",
+      "ru": "Выделите токен на канвасе, нажмите кнопку — он получит 2d6 огнём. Резисты/иммунитеты учитываются автоматически."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "act_damage", "fields": { "amount": "2d6", "type": "fire", "to": "selected_token" } }
+    ]
+  },
+
+  {
+    "id": "attack-then-damage",
+    "level": "basic",
+    "title": { "en": "Attack Roll → Damage on Hit", "ru": "Атака → урон при попадании" },
+    "desc": {
+      "en": "Roll 1d20+5 vs target AC. On Hit, deal 1d8+3 slashing. On Crit, the same 1d8+3 doubles automatically (Damage uses the upstream Crit ×).",
+      "ru": "Бросок 1d20+5 против AC цели. На Hit — 1d8+3 рубящего. На Crit — тот же 1d8+3 автоматически удваивается (Damage учитывает upstream Crit ×)."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "act_attack_check", "fields": { "roll": "1d20+5", "ac_path": "system.ac.value" } },
+      { "ref": "act_damage", "fields": { "amount": "1d8+3", "type": "slashing" } }
+    ],
+    "branches": [
+      { "from": 1, "to": 2, "label": "Hit →" },
+      { "from": 1, "to": 2, "label": "Crit →" }
+    ]
+  },
+
+  {
+    "id": "save-half",
+    "level": "basic",
+    "title": { "en": "Save for Half Damage", "ru": "Сейв на половину урона" },
+    "desc": {
+      "en": "Post a save button to chat. On pass, deal half damage. On fail, full damage. Connect Save passed? pin to the Damage node and set halfOnSave=yes.",
+      "ru": "Постит save-кнопку в чат. На pass — половина, на fail — полный. Соедините пин «Save passed?» с нодой Damage и поставьте halfOnSave=yes."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "chat_save_button", "fields": { "dc": 15, "modifier_path": "system.attributes.dex.mod" } },
+      { "ref": "act_damage", "fields": { "amount": "8d6", "type": "fire", "halfOnSave": "yes" } }
+    ],
+    "branches": [
+      { "from": 1, "to": 2, "label": "Pass →" },
+      { "from": 1, "to": 2, "label": "Fail →" }
+    ]
+  },
+
+  {
+    "id": "confirm-spell",
+    "level": "basic",
+    "title": { "en": "Confirm Before Cast", "ru": "Подтверждение перед кастом" },
+    "desc": {
+      "en": "Show Yes/No dialog before consuming the spell slot. Useful for expensive abilities the player might mis-click.",
+      "ru": "Показывает Yes/No перед тратой слота. Удобно для дорогих способностей, чтобы не было промаха кликом."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "dialog_confirm", "fields": { "title": "Cast Fireball?", "message": "This will burn a 3rd-level slot." } },
+      { "ref": "act_consume_resource", "fields": { "path": "system.spells.l3.value" } },
+      { "ref": "act_damage", "fields": { "amount": "8d6", "type": "fire", "to": "all_targets" } }
+    ],
+    "branches": [
+      { "from": 1, "to": 2, "label": "Yes →" },
+      { "from": 2, "to": 3, "label": "OK →" }
+    ]
+  },
+
+  {
+    "id": "pick-player-bless",
+    "level": "advanced",
+    "title": { "en": "Pick a Player → Apply Bless", "ru": "Выбрать игрока → Bless" },
+    "desc": {
+      "en": "Open a dialog with a button per online player; the chosen actor receives a 10-round Bless effect. Works as a buff that the GM/player can target across the party.",
+      "ru": "Открывает диалог с кнопкой на каждого онлайн-игрока; выбранный актор получает Bless на 10 раундов. GM/игрок таргетит любого члена пати."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "get_player_actors", "fields": { "online_only": "yes", "include_gm": "no" } },
+      { "ref": "dialog_select_array", "fields": { "title": "Bless whom?", "label_path": "name" } },
+      { "ref": "act_effect_uuid", "fields": { "rounds": 10, "target": "actor" } }
+    ],
+    "branches": [
+      { "from": 2, "to": 3, "label": "Selected →" }
+    ],
+    "data_flow": [
+      { "from": 1, "to": 2, "label": "Players → Items" },
+      { "from": 2, "to": 3, "label": "Selected → Target" }
+    ]
+  },
+
+  {
+    "id": "aoe-save-damage",
+    "level": "advanced",
+    "title": { "en": "AoE: Save → Damage (Half on Success)", "ru": "AoE: сейв → урон (половина при сейве)" },
+    "desc": {
+      "en": "Place a circular AoE save zone, every token inside rolls Dex DC15. Failed targets take full 6d6 fire, saved targets take half. The AoE Save Branch outputs both Failed[] and Saved[] arrays — feed each to its own Damage node.",
+      "ru": "Кладёт круг AoE save, все токены внутри кидают Dex DC15. Failed = полный 6d6 огнём, Saved = половина. AoE Save Branch выдаёт Failed[] и Saved[] — подключите их в две Damage ноды."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "act_place_aoe_save_branch", "title": { "en": "Chat AoE — Save", "ru": "Chat AoE — Save" }, "fields": { "shape": "circle", "size": 20, "dc": 15, "save_path": "system.attributes.dex.mod" } },
+      { "ref": "act_damage", "title": { "en": "Damage (Failed)", "ru": "Damage (Failed)" }, "fields": { "amount": "6d6", "type": "fire" } },
+      { "ref": "act_damage", "title": { "en": "Damage (Saved, half)", "ru": "Damage (Saved, ½)" }, "fields": { "amount": "6d6", "type": "fire", "halfOnSave": "yes" } }
+    ],
+    "branches": [
+      { "from": 1, "to": 2, "label": "Done →" }
+    ],
+    "data_flow": [
+      { "from": 1, "to": 2, "label": "Failed[] → targets" },
+      { "from": 1, "to": 3, "label": "Saved[] → targets" }
+    ]
+  },
+
+  {
+    "id": "iterate-targets",
+    "level": "advanced",
+    "title": { "en": "Damage Each Targeted Token Separately", "ru": "Урон каждой цели отдельно" },
+    "desc": {
+      "en": "Run the loop body once per targeted token. Each iteration sets {__currentTarget} = current token id, so Damage applies to that specific token. Use this when you want per-target log lines or per-target rolls instead of one shared roll.",
+      "ru": "Тело цикла на каждую цель. На каждой итерации {__currentTarget} = id текущего токена, и Damage применяется к нему. Удобно для отдельной строчки в логе и индивидуальных бросков на каждую цель."
+    },
+    "nodes": [
+      "on_click",
+      "get_all_targets",
+      { "ref": "act_for_each_token" },
+      { "ref": "act_damage", "fields": { "amount": "1d6", "type": "necrotic" } }
+    ],
+    "branches": [
+      { "from": 2, "to": 3, "label": "Loop →" }
+    ],
+    "data_flow": [
+      { "from": 1, "to": 2, "label": "Targets → Tokens" }
+    ]
+  },
+
+  {
+    "id": "consume-then-act",
+    "level": "advanced",
+    "title": { "en": "Pay Cost, Then Act", "ru": "Сначала плата, потом эффект" },
+    "desc": {
+      "en": "Consume Resource has two exec outputs: OK fires when there was enough, Empty fires when the resource hit zero. Pay-then-act is the canonical pattern for limited-use abilities.",
+      "ru": "У Consume Resource два exec-выхода: OK — если хватило, Empty — если пусто. Сначала-плата-потом-эффект — каноничный паттерн для ограниченных способностей."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "act_consume_resource", "fields": { "amount": 1, "path": "system.resources.charges.value" } },
+      { "ref": "act_damage", "fields": { "amount": "3d6", "type": "lightning" } },
+      { "ref": "act_notify", "fields": { "message": "Out of charges!", "level": "warn" } }
+    ],
+    "branches": [
+      { "from": 1, "to": 2, "label": "OK →" },
+      { "from": 1, "to": 3, "label": "Empty →" }
+    ]
+  },
+
+  {
+    "id": "tiered-roll",
+    "level": "advanced",
+    "title": { "en": "PbtA-style 2d6 Tiered Roll", "ru": "PbtA 2d6 — три tier'а" },
+    "desc": {
+      "en": "Roll 2d6+stat, route into Miss / Partial / Full based on thresholds. Each branch fires its own follow-up. Classic Powered by the Apocalypse / Blades in the Dark mechanic.",
+      "ru": "Бросок 2d6+stat, маршрутизация в Miss / Partial / Full по порогам. Каждая ветка вызывает свой эффект. Классический PbtA / Blades механизм."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "act_tiered_roll", "fields": { "formula": "2d6+@attr.heart.mod", "tier1_at": 6, "tier2_at": 7, "tier3_at": 10 } },
+      { "ref": "act_message", "title": { "en": "Miss msg", "ru": "Сообщение miss" } },
+      { "ref": "act_message", "title": { "en": "Partial msg", "ru": "Сообщение partial" } },
+      { "ref": "act_message", "title": { "en": "Full hit msg", "ru": "Сообщение full" } }
+    ],
+    "branches": [
+      { "from": 1, "to": 2, "label": "Tier 1 →" },
+      { "from": 1, "to": 3, "label": "Tier 2 →" },
+      { "from": 1, "to": 4, "label": "Tier 3 →" }
+    ]
+  },
+
+  {
+    "id": "find-lowest-hp",
+    "level": "advanced",
+    "title": { "en": "Heal the Lowest-HP Ally", "ru": "Лечить союзника с наименьшим HP" },
+    "desc": {
+      "en": "Get all targets, sort by HP ascending, take the first one, heal them. Lets you wire up smart 'auto-heal' buttons that always pick the right target.",
+      "ru": "Берёт все цели, сортирует по HP по возрастанию, берёт первого, лечит. Позволяет делать «умные» кнопки автолечения с правильным выбором цели."
+    },
+    "nodes": [
+      "on_click",
+      "get_all_targets",
+      { "ref": "arr_sort", "fields": { "field": "system.resources.hp.value", "order": "asc" } },
+      { "ref": "arr_at", "fields": { "index": 0 } },
+      { "ref": "act_heal", "fields": { "amount": "2d4+2" } }
+    ],
+    "branches": [
+      { "from": 0, "to": 4, "label": "exec →" }
+    ],
+    "data_flow": [
+      { "from": 1, "to": 2, "label": "tokens" },
+      { "from": 2, "to": 3, "label": "sorted" },
+      { "from": 3, "to": 4, "label": "target" }
+    ]
+  },
+
+  {
+    "id": "compute-derived",
+    "level": "advanced",
+    "title": { "en": "Computed Modifier (Derived Widget Graph)", "ru": "Вычисляемый модификатор (Derived widget)" },
+    "desc": {
+      "en": "Derived widget runs a graph and shows the final number. Here: STR mod + half level + proficiency. The graph is pure (no exec) and ends with an Output node carrying the result.",
+      "ru": "Derived widget исполняет граф и показывает итоговое число. Здесь: STR mod + ½ уровня + профишн. Граф — чисто вычислительный (без exec), на выходе нода Output с результатом."
+    },
+    "nodes": [
+      { "ref": "actor_ref",  "title": "@attr1.mod" },
+      { "ref": "actor_ref",  "title": "@level" },
+      { "ref": "literal", "title": "/2", "fields": { "value": "0.5" } },
+      { "ref": "mul" },
+      { "ref": "actor_ref",  "title": "@prof" },
+      { "ref": "add", "title": { "en": "Sum", "ru": "Сумма" } },
+      "output"
+    ],
+    "data_flow": [
+      { "from": 0, "to": 5, "label": "STR mod" },
+      { "from": 1, "to": 3, "label": "level" },
+      { "from": 2, "to": 3, "label": "0.5" },
+      { "from": 3, "to": 5, "label": "level/2" },
+      { "from": 4, "to": 5, "label": "prof" },
+      { "from": 5, "to": 6, "label": "total" }
+    ]
+  }
+]

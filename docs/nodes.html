@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nodes — System Director</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
+<body>
+  <header class="site-header"></header>
+
+  <main class="page">
+    <h1 data-i18n="ui.nav.nodes">Nodes</h1>
+    <p class="lead"
+       data-bilingual
+       data-en="All 167 graph nodes. Each card shows the node as it appears in the editor, plus full pin / field details."
+       data-ru="Все 167 нод графа. На каждой карточке нода нарисована как в редакторе плюс полный список пинов и полей."></p>
+
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search…" data-i18n-attr="placeholder|ui.search">
+      <select id="cat-filter">
+        <option value="">— all categories —</option>
+      </select>
+      <select id="kind-filter">
+        <option value="">— all kinds —</option>
+        <option value="pure">Pure</option>
+        <option value="imperative">Imperative</option>
+        <option value="event">Event</option>
+      </select>
+      <span style="margin-left:auto;color:var(--fg-mut);font-size:12px" id="count"></span>
+    </div>
+
+    <div class="pin-legend" id="pin-legend"></div>
+
+    <div id="cat-list"></div>
+  </main>
+
+  <footer class="site">© System Director Wiki</footer>
+
+  <script type="module">
+    import { bootPage } from "./js/main.js";
+    import { pickLocale, getLang } from "./js/i18n.js";
+    import { renderNode, nodeKind } from "./js/render-node.js";
+    await bootPage();
+
+    const [nodes, byCat, i18n, tr] = await Promise.all([
+      fetch("data/nodes.json").then(r => r.json()),
+      fetch("data/nodes-by-category.json").then(r => r.json()),
+      fetch("data/i18n.json").then(r => r.json()),
+      fetch("data/translations.json").then(r => r.json())
+    ]);
+
+    // Build pin legend.
+    const legend = document.getElementById("pin-legend");
+    for (const [k, info] of Object.entries(i18n.pinTypes)) {
+      const tag = document.createElement("span");
+      tag.className = "pin-tag";
+      tag.style.cssText = `--c:${info.color}`;
+      tag.innerHTML = `<span class="dot"></span><span>${pickLocale(info)}</span> <code style="font-size:10px;color:var(--fg-mut);margin-left:4px">${k}</code>`;
+      legend.appendChild(tag);
+    }
+
+    // Build category filter.
+    const catFilter = document.getElementById("cat-filter");
+    const catKeys = Object.keys(byCat).sort();
+    for (const cat of catKeys) {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = `${cat} (${byCat[cat].length})`;
+      catFilter.appendChild(opt);
+    }
+
+    const list = document.getElementById("cat-list");
+    const countEl = document.getElementById("count");
+    const search = document.getElementById("search");
+    const kindFilter = document.getElementById("kind-filter");
+
+    function localTitle(id, def) {
+      const lang = getLang();
+      const t = tr.nodes?.[id]?.title;
+      if (lang === "ru" && t?.ru) return t.ru;
+      return def.title ?? id;
+    }
+    function localDesc(id, def) {
+      const lang = getLang();
+      const t = tr.nodes?.[id]?.desc;
+      if (lang === "ru" && t?.ru) return t.ru;
+      return def.desc ?? "";
+    }
+
+    function pinTypeLabel(t) {
+      if (!t) return "value.any";
+      return t === "value" ? "value.any" : t;
+    }
+
+    function renderPinList(arr, side) {
+      const ul = document.createElement("ul");
+      ul.className = "pinlist";
+      if (!arr?.length) {
+        const li = document.createElement("li");
+        li.style.color = "var(--fg-mut)";
+        li.textContent = "—";
+        ul.appendChild(li);
+        return ul;
+      }
+      for (const p of arr) {
+        const li = document.createElement("li");
+        const dot = document.createElement("span");
+        const c = (i18n.pinTypes[pinTypeLabel(p.type)]?.color) ?? "#9aa1b2";
+        dot.style.cssText = `width:10px;height:10px;border-radius:${p.type === "exec" ? "2px" : "50%"};background:${c};box-shadow:0 0 0 2px rgba(0,0,0,.3) inset, 0 0 4px ${c};margin-top:6px;flex-shrink:0`;
+        if (p.type === "exec") dot.style.transform = "rotate(45deg)";
+        li.appendChild(dot);
+        const nm = document.createElement("span");
+        nm.className = "name";
+        nm.textContent = p.label || p.id;
+        li.appendChild(nm);
+        const tp = document.createElement("span");
+        tp.className = "type";
+        tp.style.color = c;
+        tp.textContent = pinTypeLabel(p.type);
+        li.appendChild(tp);
+        ul.appendChild(li);
+      }
+      return ul;
+    }
+
+    function renderFieldList(arr) {
+      const ul = document.createElement("ul");
+      ul.className = "fieldlist";
+      if (!arr?.length) {
+        const li = document.createElement("li");
+        li.style.color = "var(--fg-mut)";
+        li.textContent = "—";
+        ul.appendChild(li);
+        return ul;
+      }
+      for (const f of arr) {
+        const li = document.createElement("li");
+        const nm = document.createElement("span");
+        nm.className = "name";
+        nm.textContent = f.label || f.key;
+        li.appendChild(nm);
+        const tp = document.createElement("span");
+        tp.className = "type";
+        tp.textContent = f.type ?? "text";
+        li.appendChild(tp);
+        const desc = document.createElement("span");
+        desc.className = "desc";
+        const def = f.def ?? f.options?.[0]?.label ?? "";
+        const opts = f.options?.map(o => o.label ?? o.value ?? o).join(" / ");
+        desc.textContent = (opts ? "[" + opts + "] " : "") + (def !== "" ? `default: ${JSON.stringify(def)}` : "");
+        li.appendChild(desc);
+        ul.appendChild(li);
+      }
+      return ul;
+    }
+
+    function buildCard(id, def) {
+      const card = document.createElement("div");
+      card.className = "node-detail";
+      card.id = "node-" + id;
+      card.dataset.cat = def.cat ?? "Other";
+      card.dataset.kind = nodeKind(def);
+      const titleStr = localTitle(id, def);
+      card.dataset.searchKey = (id + " " + titleStr + " " + (def.desc ?? "")).toLowerCase();
+
+      // Header
+      const header = document.createElement("header");
+      const h3 = document.createElement("h3");
+      h3.textContent = titleStr;
+      header.appendChild(h3);
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      const kind = nodeKind(def);
+      const kc = i18n.kinds[kind];
+      const kb = document.createElement("span");
+      kb.className = "kind-badge";
+      kb.style.setProperty("--c", kc.color);
+      kb.textContent = pickLocale(kc.label);
+      meta.appendChild(kb);
+
+      const cat = document.createElement("span");
+      cat.style.cssText = "font-size:11px;color:var(--fg-mut)";
+      cat.innerHTML = `<code>${id}</code> · ${def.cat ?? "—"}`;
+      meta.appendChild(cat);
+
+      header.appendChild(meta);
+      card.appendChild(header);
+
+      // Description
+      const p = document.createElement("p");
+      p.className = "desc";
+      p.textContent = localDesc(id, def);
+      card.appendChild(p);
+
+      // Grid: preview | pin lists
+      const grid2 = document.createElement("div");
+      grid2.className = "grid2";
+
+      const previewCol = document.createElement("div");
+      const preview = document.createElement("div");
+      preview.className = "preview";
+      preview.appendChild(renderNode(def, { showFields: true }));
+      previewCol.appendChild(preview);
+
+      const detailCol = document.createElement("div");
+      // Inputs heading
+      const ih = document.createElement("h4");
+      ih.style.cssText = "margin:0 0 6px;font-size:13px;color:var(--fg-mut);text-transform:uppercase;letter-spacing:.5px";
+      ih.textContent = pickLocale(i18n.ui["section.inputs"]);
+      detailCol.appendChild(ih);
+      detailCol.appendChild(renderPinList(def.inputs, "input"));
+
+      const oh = document.createElement("h4");
+      oh.style.cssText = "margin:10px 0 6px;font-size:13px;color:var(--fg-mut);text-transform:uppercase;letter-spacing:.5px";
+      oh.textContent = pickLocale(i18n.ui["section.outputs"]);
+      detailCol.appendChild(oh);
+      detailCol.appendChild(renderPinList(def.outputs, "output"));
+
+      const fh = document.createElement("h4");
+      fh.style.cssText = "margin:10px 0 6px;font-size:13px;color:var(--fg-mut);text-transform:uppercase;letter-spacing:.5px";
+      fh.textContent = pickLocale(i18n.ui["section.fields"]);
+      detailCol.appendChild(fh);
+      detailCol.appendChild(renderFieldList(def.fields));
+
+      // Flags / boolean meta
+      const flags = [];
+      for (const k of ["isAction", "isEvent", "isTrigger", "isOutput", "isAttrOutput", "isBranch", "isAttackBranch", "isWidgetConfig", "wideNode"]) {
+        if (def[k]) flags.push(k);
+      }
+      if (def.dynamicPins) flags.push("dynamicPins");
+      if (flags.length) {
+        const fhe = document.createElement("h4");
+        fhe.style.cssText = "margin:10px 0 6px;font-size:13px;color:var(--fg-mut);text-transform:uppercase;letter-spacing:.5px";
+        fhe.textContent = pickLocale(i18n.ui["section.flags"]);
+        detailCol.appendChild(fhe);
+        const ulF = document.createElement("ul");
+        ulF.style.cssText = "list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:6px";
+        for (const f of flags) {
+          const tag = document.createElement("span");
+          tag.style.cssText = "padding:2px 8px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);font-size:11px;color:var(--fg-mut);font-family:monospace";
+          tag.textContent = f;
+          ulF.appendChild(tag);
+        }
+        detailCol.appendChild(ulF);
+      }
+
+      grid2.appendChild(previewCol);
+      grid2.appendChild(detailCol);
+      card.appendChild(grid2);
+      return card;
+    }
+
+    function buildCategorySection(cat, ids) {
+      const sec = document.createElement("section");
+      sec.dataset.cat = cat;
+      const h2 = document.createElement("h2");
+      const catLabel = pickLocale(i18n.categories[cat]) ?? cat;
+      h2.textContent = `${catLabel} (${ids.length})`;
+      sec.appendChild(h2);
+      for (const id of ids) {
+        sec.appendChild(buildCard(id, nodes[id]));
+      }
+      return sec;
+    }
+
+    function renderAll() {
+      list.innerHTML = "";
+      let total = 0;
+      const catOrder = ["Targeting","Sources","Math","Compare","Logic","Array","Flow","Actions","Effects","AoE","Events","Variables","Macros","Attribute","Dice","_attr","_system"];
+      const allCats = new Set(Object.keys(byCat));
+      const ordered = [...catOrder.filter(c => allCats.has(c)), ...[...allCats].filter(c => !catOrder.includes(c))];
+      for (const cat of ordered) {
+        const ids = byCat[cat] ?? [];
+        if (!ids.length) continue;
+        list.appendChild(buildCategorySection(cat, ids));
+        total += ids.length;
+      }
+      countEl.textContent = `${total} nodes`;
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const q = search.value.toLowerCase().trim();
+      const cat = catFilter.value;
+      const kind = kindFilter.value;
+      let visible = 0;
+      for (const sec of list.children) {
+        let secVisible = 0;
+        for (const card of sec.children) {
+          if (card.tagName !== "DIV") continue;
+          let show = true;
+          if (q && !card.dataset.searchKey.includes(q)) show = false;
+          if (cat && card.dataset.cat !== cat) show = false;
+          if (kind && card.dataset.kind !== kind) show = false;
+          card.style.display = show ? "" : "none";
+          if (show) { secVisible++; visible++; }
+        }
+        sec.style.display = secVisible ? "" : "none";
+      }
+      countEl.textContent = `${visible} nodes`;
+    }
+
+    renderAll();
+    window.addEventListener("sd:lang-change", renderAll);
+    search.addEventListener("input", applyFilters);
+    catFilter.addEventListener("change", applyFilters);
+    kindFilter.addEventListener("change", applyFilters);
+  </script>
+</body>
+</html>

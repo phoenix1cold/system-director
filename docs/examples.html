@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Examples — System Director Wiki</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
+<body>
+  <header class="site-header"></header>
+
+  <main class="page">
+    <h1 data-bilingual data-en="Examples" data-ru="Примеры">Examples</h1>
+    <p class="lead" data-bilingual
+       data-en="End-to-end recipes — basic patterns first, then advanced workflows. Each example shows the node chain laid out left-to-right with the labelled exec / data wires between nodes."
+       data-ru="Готовые рецепты — сначала базовые паттерны, затем сложные сценарии. Каждый пример — цепочка нод слева направо с подписанными exec / data связями.">
+    </p>
+
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search…">
+      <select id="level">
+        <option value="">— all —</option>
+        <option value="basic" data-bilingual data-en="Basic only" data-ru="Только базовые">Basic only</option>
+        <option value="advanced" data-bilingual data-en="Advanced only" data-ru="Только продвинутые">Advanced only</option>
+      </select>
+      <span id="count" class="hint"></span>
+    </div>
+
+    <div id="examples"></div>
+  </main>
+
+  <footer class="site">© System Director Wiki</footer>
+
+  <script type="module">
+    import { bootPage } from "./js/main.js";
+    import { renderNode, nodeKind } from "./js/render-node.js";
+    import { pickLocale, applyLangAttrs, getLang } from "./js/i18n.js";
+
+    function elt(tag, attrs = {}, children = []) {
+      const e = document.createElement(tag);
+      for (const [k, v] of Object.entries(attrs)) {
+        if (k === "class") e.className = v;
+        else if (k === "style") e.style.cssText = v;
+        else if (k.startsWith("data-")) e.setAttribute(k, v);
+        else e[k] = v;
+      }
+      for (const c of [].concat(children)) {
+        if (c == null) continue;
+        if (typeof c === "string") e.appendChild(document.createTextNode(c));
+        else e.appendChild(c);
+      }
+      return e;
+    }
+
+    let NODES = {};
+    let EXAMPLES = [];
+
+    function fakeNode(title, subtitle) {
+      return elt("div", { class: "fakenode" }, [
+        elt("div", { class: "nhdr" }, title || "—"),
+        elt("div", { class: "nbody" }, subtitle || "")
+      ]);
+    }
+
+    function makeNodeCard(spec) {
+      // spec can be: string id, "output", or { ref, title, subtitle, fields, type }
+      if (typeof spec === "string") {
+        if (spec === "output") {
+          return fakeNode("Output", "result");
+        }
+        const def = NODES[spec];
+        if (!def) return fakeNode(spec, "(unknown)");
+        return renderNode(def, { showFields: false });
+      }
+      if (spec && spec.type === "dice_button_widget") {
+        return fakeNode(pickLocale(spec.title) || "Dice Button", spec.subtitle || "");
+      }
+      if (spec && spec.ref) {
+        const def = NODES[spec.ref];
+        if (!def) return fakeNode(spec.ref, "(unknown)");
+        const customTitle = spec.title ? pickLocale(spec.title) : null;
+        const data = spec.fields || {};
+        return renderNode(
+          customTitle ? { ...def, title: customTitle } : def,
+          { showFields: true, data }
+        );
+      }
+      return fakeNode("?", "");
+    }
+
+    function arrow(label, kind) {
+      return elt("div", { class: `ex-arrow ${kind}` }, [
+        elt("span", { class: "lbl" }, label || ""),
+        elt("span", { class: "arr" }, "→")
+      ]);
+    }
+
+    function renderExample(ex) {
+      const block = elt("div", { class: "example-block" });
+      const lvl = ex.level === "advanced" ? "advanced" : "basic";
+
+      // header
+      const titleText = pickLocale(ex.title) || ex.id;
+      const h = elt("h3", {}, [
+        document.createTextNode(titleText + " "),
+        elt("span", { class: `ex-tag ${lvl}` }, lvl)
+      ]);
+      block.appendChild(h);
+
+      // description (allow inline html)
+      const descText = pickLocale(ex.desc) || "";
+      const desc = elt("p", { class: "ex-desc" });
+      desc.innerHTML = descText;
+      block.appendChild(desc);
+
+      // stage with row of nodes
+      const stage = elt("div", { class: "ex-stage" });
+      const row = elt("div", { class: "ex-row" });
+
+      // figure out exec connections (default: sequential 0->1->2->...)
+      // and named branches
+      const branches = ex.branches || [];
+      // Build an array of [arrow_label, kind] entries between each pair.
+      // We render strict left-to-right: node[0] arrow node[1] arrow node[2] ...
+      // Branch labels for sequential pairs: collect labels for that "from" index.
+      const labelsBetween = {};
+      branches.forEach(b => {
+        if (typeof b.from !== "number" || typeof b.to !== "number") return;
+        if (b.to === b.from + 1) {
+          (labelsBetween[b.from] = labelsBetween[b.from] || []).push(b.label || "exec");
+        }
+      });
+
+      ex.nodes.forEach((spec, i) => {
+        row.appendChild(makeNodeCard(spec));
+        if (i < ex.nodes.length - 1) {
+          const labels = labelsBetween[i];
+          if (labels && labels.length) {
+            // Multi-branch arrow: stack label lines with one arrow
+            const a = elt("div", { class: "ex-arrow exec" });
+            labels.forEach(l => a.appendChild(elt("span", { class: "lbl" }, l)));
+            a.appendChild(elt("span", { class: "arr" }, "→"));
+            row.appendChild(a);
+          } else {
+            row.appendChild(arrow("exec", "exec"));
+          }
+        }
+      });
+      stage.appendChild(row);
+      block.appendChild(stage);
+
+      // data flow / branches that aren't sequential
+      const flowLines = [];
+      branches.forEach(b => {
+        if (b.to !== b.from + 1) flowLines.push(["exec", b]);
+      });
+      (ex.data_flow || []).forEach(b => flowLines.push(["data", b]));
+      if (flowLines.length) {
+        const list = elt("div", { class: "ex-flowlist" });
+        flowLines.forEach(([kind, b]) => {
+          const fromTitle = nodeTitleAt(ex, b.from);
+          const toTitle = nodeTitleAt(ex, b.to);
+          const arr = kind === "data" ? "↦" : "→";
+          const line = elt("div", {}, [
+            elt("span", { class: kind === "data" ? "" : "" }, kind === "data" ? "data " : "exec "),
+            elt("b", {}, fromTitle),
+            ` ${arr} `,
+            elt("b", {}, toTitle),
+            b.label ? `   (${b.label})` : ""
+          ]);
+          list.appendChild(line);
+        });
+        block.appendChild(list);
+      }
+
+      if (ex.tip) {
+        const tip = elt("div", { class: "ex-tip" });
+        tip.innerHTML = pickLocale(ex.tip) || "";
+        block.appendChild(tip);
+      }
+
+      return block;
+    }
+
+    function nodeTitleAt(ex, idx) {
+      const spec = ex.nodes[idx];
+      if (typeof spec === "string") {
+        if (spec === "output") return "Output";
+        return NODES[spec]?.title || spec;
+      }
+      if (spec && spec.title) return pickLocale(spec.title) || "";
+      if (spec && spec.ref) return NODES[spec.ref]?.title || spec.ref;
+      return "?";
+    }
+
+    function applyFilter() {
+      const q = document.getElementById("search").value.toLowerCase().trim();
+      const lvl = document.getElementById("level").value;
+      const root = document.getElementById("examples");
+      let count = 0;
+      [...root.children].forEach((b, i) => {
+        const ex = EXAMPLES[i];
+        const titleS = (pickLocale(ex.title) || "").toLowerCase();
+        const descS = (pickLocale(ex.desc) || "").toLowerCase();
+        const matchQ = !q || titleS.includes(q) || descS.includes(q) || ex.id.includes(q);
+        const matchL = !lvl || ex.level === lvl;
+        const show = matchQ && matchL;
+        b.style.display = show ? "" : "none";
+        if (show) count++;
+      });
+      document.getElementById("count").textContent = `${count} / ${EXAMPLES.length}`;
+    }
+
+    function rerender() {
+      const root = document.getElementById("examples");
+      root.innerHTML = "";
+      EXAMPLES.forEach(ex => root.appendChild(renderExample(ex)));
+      applyFilter();
+    }
+
+    (async () => {
+      await bootPage();
+      const [nodesObj, examples] = await Promise.all([
+        fetch("data/nodes.json").then(r => r.json()),
+        fetch("data/examples.json").then(r => r.json())
+      ]);
+      NODES = nodesObj;
+      EXAMPLES = examples;
+
+      rerender();
+      document.getElementById("search").addEventListener("input", applyFilter);
+      document.getElementById("level").addEventListener("change", applyFilter);
+      window.addEventListener("sd:lang-change", () => {
+        rerender();
+        applyLangAttrs(document.body);
+      });
+    })();
+  </script>
+</body>
+</html>
