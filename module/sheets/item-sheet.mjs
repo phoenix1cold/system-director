@@ -1637,14 +1637,50 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
       });
     });
 
-    // Image widget -- click to pick
-    con.querySelectorAll(".sd-img-pick[data-path]").forEach(btn => {
+    // Image widget — picker (path или staticSrc)
+    con.querySelectorAll(".sd-img-pick").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
+        const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+        if (!FP) return ui.notifications?.error?.("FilePicker недоступен");
+
+        if (btn.dataset.static === "1") {
+          const widgetCell = btn.closest("[data-widget-id]");
+          const tabId = widgetCell?.dataset.tabId;
+          const rowId = widgetCell?.dataset.rowId;
+          const widgetId = widgetCell?.dataset.widgetId;
+          if (!tabId || !rowId || !widgetId) return;
+          const cur = btn.dataset.current ?? "";
+          new FP({
+            type: "image",
+            current: cur,
+            callback: src => {
+              const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+              const tab = tabs.find(t => t.id === tabId);
+              const row = tab?.rows?.find(r => r.id === rowId);
+              if (!row) return;
+              const findIn = (arr) => {
+                for (const w of arr) {
+                  if (w.id === widgetId) return w;
+                  if (w.type === "vsection" && Array.isArray(w.widgets)) {
+                    const f = findIn(w.widgets); if (f) return f;
+                  }
+                }
+                return null;
+              };
+              const widget = findIn(row.widgets ?? []);
+              if (!widget) return;
+              widget.staticSrc = src;
+              this.document.update({ "system.customTabs": tabs });
+            }
+          }).render(true);
+          return;
+        }
+
         const path = btn.dataset.path;
         if (!path) return;
         const cur  = String(foundry.utils.getProperty(this.document, path) ?? "");
-        new FilePicker({ type: "image", current: cur,
+        new FP({ type: "image", current: cur,
           callback: src => this.document.update({ [path]: src }) }).render(true);
       });
     });
@@ -2137,7 +2173,7 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
     const freshTabs   = this.document.system.customTabs ?? [];
     const freshTab    = freshTabs.find(t => t.id === tab.id) ?? tab;
     const freshRow    = freshTab.rows?.find(r => r.id === row.id) ?? row;
-    const freshWidget = freshRow.widgets?.find(x => x.id === w.id) ?? w;
+    const freshWidget = this._findWidgetDeep(freshRow.widgets, w.id) ?? w;
     await openWidgetConfigPopup(freshWidget, freshTab, freshRow, this.document);
   }
 
@@ -2147,7 +2183,10 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
   _wireHeaderInputs() {
     const root=this.element; if(!root||!this.isEditable) return;
     root.querySelector(".item-name-input")?.addEventListener("change",async ev=>await this.document.update({name:ev.target.value}));
-    root.querySelector(".item-img")?.addEventListener("click",()=>new FilePicker({type:"image",current:this.document.img,callback:p=>this.document.update({img:p})}).browse());
+    root.querySelector(".item-img")?.addEventListener("click",()=>{
+      const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+      new FP({type:"image",current:this.document.img,callback:p=>this.document.update({img:p})}).render(true);
+    });
   }
 
   _showEditModeBadge() {
@@ -2174,7 +2213,10 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
     this._editMode=!this._editMode;
     this._buildTabNav(); this._buildTabPanels(); this._wireAllDropZones(); this._wireAllInteractions(); this._showEditModeBadge();
   }
-  static async _onEditImage() { new FilePicker({type:"image",current:this.document.img,callback:p=>this.document.update({img:p})}).browse(); }
+  static async _onEditImage() {
+    const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+    new FP({type:"image",current:this.document.img,callback:p=>this.document.update({img:p})}).render(true);
+  }
   static async _onUseItem(event) { await this.document.use?.({ event }); }
 
   static async _onToggleEquipped(event) {

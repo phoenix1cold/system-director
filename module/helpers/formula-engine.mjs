@@ -305,10 +305,10 @@ export class FormulaEngine {
     if (token.startsWith("arrayMapField:")) {
       const rest = token.slice("arrayMapField:".length);
       const sep  = rest.indexOf("|");
-      if (sep < 0) return "[]";
+      if (sep < 0) return "";
       const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
       const path = rest.slice(sep + 1);
-      if (!path) return "[]";
+      if (!path) return "";
       const out = [];
       for (const tid of list) {
         const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
@@ -317,7 +317,7 @@ export class FormulaEngine {
         const v = foundry.utils.getProperty(a, path);
         out.push(v === undefined || v === null || typeof v === "object" ? "" : String(v));
       }
-      return `[${out.join(",")}]`;
+      return out.join(",");
     }
 
     if (token.startsWith("arrayAgg:")) {
@@ -363,6 +363,111 @@ export class FormulaEngine {
         }
       }
       return bestId;
+    }
+
+    if (token.startsWith("arraySort:")) {
+      const parts = token.slice("arraySort:".length).split("|");
+      if (parts.length < 3) return "";
+      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const path = parts[1];
+      const op   = parts[2];
+      const annotated = list.map(tid => {
+        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
+        const a  = tk?.actor;
+        const v  = a ? Number(foundry.utils.getProperty(a, path)) : NaN;
+        return { tid, v: isNaN(v) ? null : v };
+      });
+      annotated.sort((x, y) => {
+        if (x.v === null && y.v === null) return 0;
+        if (x.v === null) return  1;
+        if (y.v === null) return -1;
+        return op === "asc" ? (x.v - y.v) : (y.v - x.v);
+      });
+      return annotated.map(e => e.tid).join(",");
+    }
+
+    if (token.startsWith("arraySlice:")) {
+      const parts = token.slice("arraySlice:".length).split("|");
+      if (parts.length < 3) return "";
+      const list  = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const start = Math.max(0, Math.floor(Number(parts[1]) || 0));
+      const cnt   = Math.floor(Number(parts[2]));
+      const end   = (cnt < 0) ? list.length : Math.min(list.length, start + cnt);
+      return list.slice(start, end).join(",");
+    }
+
+    if (token.startsWith("arrayConcat:")) {
+      const parts = token.slice("arrayConcat:".length).split("|");
+      if (parts.length < 2) return "";
+      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const b = parts[1].split(",").map(s => s.trim()).filter(Boolean);
+      return [...a, ...b].join(",");
+    }
+
+    if (token.startsWith("arrayUnion:")) {
+      const parts = token.slice("arrayUnion:".length).split("|");
+      if (parts.length < 2) return "";
+      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const b = parts[1].split(",").map(s => s.trim()).filter(Boolean);
+      const seen = new Set();
+      const out  = [];
+      for (const id of [...a, ...b]) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("arrayIntersect:")) {
+      const parts = token.slice("arrayIntersect:".length).split("|");
+      if (parts.length < 2) return "";
+      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const b = new Set(parts[1].split(",").map(s => s.trim()).filter(Boolean));
+      const seen = new Set();
+      const out  = [];
+      for (const id of a) {
+        if (!b.has(id) || seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("arrayDifference:")) {
+      const parts = token.slice("arrayDifference:".length).split("|");
+      if (parts.length < 2) return "";
+      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const b = new Set(parts[1].split(",").map(s => s.trim()).filter(Boolean));
+      const seen = new Set();
+      const out  = [];
+      for (const id of a) {
+        if (b.has(id) || seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("arrayContains:")) {
+      const parts = token.slice("arrayContains:".length).split("|");
+      if (parts.length < 2) return 0;
+      const list = new Set(parts[0].split(",").map(s => s.trim()).filter(Boolean));
+      const id   = String(parts.slice(1).join("|")).trim();
+      return list.has(id) ? 1 : 0;
+    }
+
+    if (token.startsWith("arrayDistinct:")) {
+      const rest = token.slice("arrayDistinct:".length);
+      const list = rest.split(",").map(s => s.trim()).filter(Boolean);
+      const seen = new Set();
+      const out  = [];
+      for (const id of list) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+      return out.join(",");
     }
 
     if (token.startsWith("arrayFilter:")) {

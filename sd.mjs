@@ -249,10 +249,6 @@ Hooks.once("ready", async () => {
   EVENT_BUS.init();
   globalThis._SD_EVENT_BUS = EVENT_BUS;
 
-  const { AuraSync } = await import("./module/helpers/aura-sync.mjs");
-  AuraSync.init();
-  globalThis._SD_AURA_SYNC = AuraSync;
-
   // SD Socket listener
   game.socket.on("system.sd", async (data) => {
     // Player receives a save request
@@ -1109,6 +1105,60 @@ html.querySelectorAll(".sd-save-selected-cancel-btn").forEach(btn => {
 });
 
 // 9b
+html.querySelectorAll(".sd-rollcheck-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const card    = btn.closest(".sd-rollcheck-card");
+    const msgId   = btn.closest(".chat-message")?.dataset.messageId;
+    const chatMsg = msgId ? game.messages.get(msgId) : null;
+    if (!card || !chatMsg) return;
+
+    const payload = foundry.utils.deepClone(chatMsg.getFlag("sd", "rollCheck") ?? {});
+    if (payload.resolved) return;
+
+    const formula = btn.dataset.sdRcFormula ?? "1d20";
+    const cardId  = btn.dataset.sdRc;
+    const actor   = payload.actorUuid ? await fromUuid(payload.actorUuid).catch(() => null) : null;
+    const r = new Roll(formula, actor?.getRollData?.() ?? {});
+    await r.evaluate();
+    await r.toMessage({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      flavor:  `${payload.flavor ?? "Check"} (DC ${payload.dc ?? "?"})`,
+      rollMode: _sdMsgMode()
+    });
+
+    payload.resolved = true;
+    payload.total    = r.total;
+    payload.rollerId = game.user?.id ?? null;
+    payload.rollerName = game.user?.name ?? null;
+    if (game.user.isGM) {
+      await chatMsg.setFlag("sd", "rollCheck", payload);
+    }
+    game.socket.emit("system.sd", { type: "rollCheckResult", cardId, total: r.total });
+    if (payload.requesterId === game.user?.id) {
+      try {
+        const ev = new CustomEvent("sd-rollcheck-result", { detail: { cardId, total: r.total } });
+        document.dispatchEvent(ev);
+      } catch {}
+    }
+  });
+});
+
+{
+  const rc = message.getFlag?.("sd", "rollCheck");
+  if (rc?.cardId && rc.resolved) {
+    html.querySelectorAll(`.sd-rollcheck-card[data-sd-rc-card="${rc.cardId}"]`).forEach(card => {
+      const btn = card.querySelector(".sd-rollcheck-btn");
+      if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = "0.5";
+        btn.innerHTML = `<i class="fas fa-check"></i> ${rc.rollerName ?? "Rolled"}: ${rc.total}`;
+      }
+      const status = card.querySelector(".sd-rollcheck-status");
+      if (status) status.textContent = `Result: ${rc.total} (DC ${rc.dc})`;
+    });
+  }
+}
+
 html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
   btn.addEventListener("click", async () => {
     const card   = btn.closest(".sd-opposed-card");

@@ -7,14 +7,12 @@ export const WIDGET_TYPES = {
     desc:  "Single-line text",
     defaultSpan: 1,
     defaults: {
-      label:       "Label",
-      path:        "system.flags.myField",
-      placeholder: ""
+      label: "Label",
+      path:  "system.flags.myField"
     },
     configFields: [
-      { key: "label",       type: "text",   label: "Label" },
-      { key: "path",        type: "path",   label: "Data Path" },
-      { key: "placeholder", type: "text",   label: "Placeholder" }
+      { key: "label", type: "text", label: "Label" },
+      { key: "path",  type: "path", label: "Data Path" }
     ]
   },
 
@@ -478,29 +476,22 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /** Image Display — shows a static image or one from an actor/item path */
+  /** Image Display — shows a static image (FilePicker). */
   image: {
     id:    "image",
     label: "Image",
     icon:  "fa-image",
-    desc:  "Displays a static image URL or resolves an image path from the document (e.g. actor portrait, item icon).",
+    desc:  "Displays a static image. Size and border are configured in the “Style” section.",
     defaultSpan: 1,
     defaults: {
       label:       "",
       staticSrc:   "",
-      path:        "",
       width:       64,
       height:      64,
-      borderRadius: 4,
-      clickable:   false
+      borderRadius: 4
     },
     configFields: [
-      { key: "staticSrc",    type: "text",     label: "Static URL (blank = use path)" },
-      { key: "path",         type: "path",     label: "Document path to image URL" },
-      { key: "width",        type: "number",   label: "Width (px)" },
-      { key: "height",       type: "number",   label: "Height (px)" },
-      { key: "borderRadius", type: "number",   label: "Border radius (px)" },
-      { key: "clickable",    type: "checkbox", label: "Click to change (filepicker)" }
+      { key: "staticSrc", type: "text", label: "Image" }
     ]
   },
 
@@ -546,12 +537,6 @@ export const WIDGET_PALETTE_ORDER = [
   "toggle", "attribute", "skill", "progress", "tracker", "tokenPool", "clock",
   "slot", "inventory", "effects", "spellbook",
   "select", "tags", "image", "section", "vsection", "richtext"
-];
-
-export const WIDGET_COMMON_FIELDS = [
-  { key: "showIf",    type: "text",     label: "Show if (formula, blank=always)", mono: true, placeholder: "{system.advancement.level} >= 5" },
-  { key: "widgetKey", type: "text",     label: "Widget Key (for Get Widget node)", placeholder: "myUniqueKey" },
-  { key: "cssClass",  type: "text",     label: "Extra CSS class(es)", placeholder: "my-class another-class" }
 ];
 
 /** Create a fresh widget definition with a random id */

@@ -1,0 +1,48 @@
+<div class="sd-rdlg" style="font-family:inherit;padding:4px 0;">
+  <div style="margin-bottom:12px;background:#f0ebe4;border:1px solid #b5b3a4;
+              border-radius:6px;padding:10px 14px;">
+    <div style="font-size:9px;color:#555555;text-transform:uppercase;
+                letter-spacing:.6px;margin-bottom:4px;">Roll formula</div>
+    <div class="sd-rdlg-formula"
+         style="font-size:15px;font-weight:700;color:#c8a0ff;
+                font-family:monospace;word-break:break-all;">{{baseFormula}}</div>
+  </div>
+
+  <div style="display:flex;gap:6px;margin-bottom:12px;">
+    <button type="button" class="sd-rdlg-mode" data-mode="disadvantage"
+      style="flex:1;background:#1a1a2e;border:1px solid #4a2a6a;border-radius:6px;
+             color:#8060b0;cursor:pointer;padding:8px 4px;transition:all .15s;
+             display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <span style="font-size:18px;">⬇️</span>
+      <span style="font-size:11px;font-weight:700;">Disadvantage</span>
+      <span style="font-size:9px;opacity:.65;font-family:monospace;">{{disShort}}</span>
+    </button>
+    <button type="button" class="sd-rdlg-mode" data-mode="normal"
+      style="flex:1;background:#1a3a1a;border:2px solid #2e8b46;border-radius:6px;
+             color:#5ae07a;cursor:pointer;padding:8px 4px;transition:all .15s;
+             display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <span style="font-size:18px;">🎲</span>
+      <span style="font-size:11px;font-weight:700;">Normal</span>
+      <span style="font-size:9px;opacity:.65;font-family:monospace;">{{baseShort}}</span>
+    </button>
+    <button type="button" class="sd-rdlg-mode" data-mode="advantage"
+      style="flex:1;background:#1a1a2e;border:1px solid #4a2a6a;border-radius:6px;
+             color:#8060b0;cursor:pointer;padding:8px 4px;transition:all .15s;
+             display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <span style="font-size:18px;">⬆️</span>
+      <span style="font-size:11px;font-weight:700;">Advantage</span>
+      <span style="font-size:9px;opacity:.65;font-family:monospace;">{{advShort}}</span>
+    </button>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;background:#f0ebe4;
+              border:1px solid #b5b3a4;border-radius:6px;padding:9px 12px;">
+    <span style="font-size:13px;color:#555555;white-space:nowrap;flex-shrink:0;">
+      <i class="fas fa-plus" style="font-size:10px;"></i> Bonus
+    </span>
+    <input type="text" class="sd-rdlg-bonus" name="sdRdlgBonus" placeholder="1d4, +2, ..."
+      style="flex:1;background:transparent;border:none;border-bottom:1px solid #b5b3a4;
+             color:#191813;font-size:13px;padding:2px 4px;outline:none;
+             font-family:monospace;">
+  </div>
+</div>

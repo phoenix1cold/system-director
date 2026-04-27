@@ -44,6 +44,15 @@ export class WidgetRenderer {
       if (widgetDef.cssClass) {
         html = html.replace(/^(<[^>]+class=")/, `$1${this._esc(widgetDef.cssClass)} `);
       }
+      // common style overrides (width/height/colors/border/padding)
+      const styleStr = this._buildStyle(widgetDef);
+      if (styleStr) {
+        if (/^<[^>]+style="/.test(html)) {
+          html = html.replace(/^(<[^>]+style=")/, `$1${styleStr};`);
+        } else {
+          html = html.replace(/^(<[^>]+)(>)/, `$1 style="${styleStr}"$2`);
+        }
+      }
       return html;
     } catch(e) {
       console.warn("SD | Widget render error:", e, widgetDef);
@@ -75,6 +84,49 @@ export class WidgetRenderer {
   static _getRollFormula(w, doc) {
     const raw = w.formula ?? "1d20";
     return FormulaEngine.resolveForRoll(raw, doc);
+  }
+
+  static _buildStyle(w) {
+    const parts = [];
+    const px = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? `${n}px` : null;
+    };
+    const colour = (v) => {
+      if (typeof v !== "string") return null;
+      const t = v.trim();
+      return /^#[0-9a-f]{3,8}$/i.test(t) || /^rgb/i.test(t) || /^[a-z]+$/i.test(t) ? t : null;
+    };
+
+    const wPx = px(w.boxW);    if (wPx) parts.push(`width:${wPx}`);
+    const hPx = px(w.boxH);    if (hPx) parts.push(`min-height:${hPx}`);
+    const bg  = colour(w.boxBg);      if (bg) parts.push(`background:${bg}`);
+    const fg  = colour(w.boxFg);      if (fg) parts.push(`color:${fg}`);
+    const bd  = colour(w.boxBorder);  if (bd && w.type !== "image") parts.push(`border:1px solid ${bd}`);
+    const br  = px(w.boxRadius);      if (br) parts.push(`border-radius:${br}`);
+    const pd  = px(w.boxPad);         if (pd) parts.push(`padding:${pd}`);
+
+    const cvar = (name, val) => { if (val) parts.push(`${name}:${val}`); };
+    cvar("--sd-w-bar-h",     px(w.barH));
+    cvar("--sd-w-bar-track", colour(w.barTrack));
+    cvar("--sd-w-btn-bg",    colour(w.btnBg));
+    cvar("--sd-w-btn-fg",    colour(w.btnFg));
+    cvar("--sd-w-btn-bd",    colour(w.btnBorder));
+    cvar("--sd-w-icon",      colour(w.iconColor));
+    cvar("--sd-w-num-btn",   colour(w.btnColor));
+    cvar("--sd-w-on",        colour(w.onColor));
+    cvar("--sd-w-off",       colour(w.offColor));
+    cvar("--sd-w-line",      colour(w.lineColor));
+    cvar("--sd-w-title",     colour(w.titleColor));
+    cvar("--sd-w-line-th",   px(w.lineThickness));
+    cvar("--sd-w-pip-size",  px(w.pipSize));
+    cvar("--sd-w-pip-bd",    px(w.pipBorder));
+    cvar("--sd-w-empty",     colour(w.emptyColor));
+    cvar("--sd-w-header",    colour(w.headerColor));
+    cvar("--sd-w-tag-fg",    colour(w.tagFg));
+    cvar("--sd-w-bw",        px(w.borderWidth));
+
+    return parts.join(";");
   }
 
   static _esc(str) {
@@ -116,7 +168,7 @@ export class WidgetRenderer {
     }
     return `<div class="widget widget-text">
   <div class="widget-label" style="display:flex;align-items:center">${esc(w.label)}${w.path ? this._copyBtn(w.path, "text value") : ""}</div>
-  <input type="text" name="${esc(w.path)}" value="${esc(val)}" placeholder="${esc(w.placeholder ?? "")}">
+  <input type="text" name="${esc(w.path)}" value="${esc(val)}">
 </div>`;
   }
 
@@ -150,11 +202,14 @@ export class WidgetRenderer {
   // resource
 
   static _render_resource(w, doc) {
-    const val   = Number(this._get(doc, w.pathValue, 0));
-    const max   = Number(this._get(doc, w.pathMax,   0));
-    const pct   = max > 0 ? Math.round(Math.clamp(val / max, 0, 1) * 100) : 0;
-    const color = w.color ?? "#7b68ee";
-    const e     = this._esc;
+    const val    = Number(this._get(doc, w.pathValue, 0));
+    const max    = Number(this._get(doc, w.pathMax,   0));
+    const pct    = max > 0 ? Math.round(Math.clamp(val / max, 0, 1) * 100) : 0;
+    const color  = w.color ?? "#7b68ee";
+    const e      = this._esc;
+    const barH   = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "";
+    const barTrk = (typeof w.barTrack === "string" && w.barTrack.trim()) ? w.barTrack.trim() : "";
+    const barStyle = [barH ? `height:${barH}` : "", barTrk ? `background:${e(barTrk)}` : ""].filter(Boolean).join(";");
     return `<div class="widget widget-resource">
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.pathValue ? this._copyBtn(w.pathValue, "value") : ""}${w.pathMax ? this._copyBtn(w.pathMax, "max") : ""}</div>
   <div class="res-row">
@@ -162,7 +217,7 @@ export class WidgetRenderer {
     <span class="res-sep">/</span>
     <input type="number" name="${e(w.pathMax)}" value="${e(max)}" class="res-max">
   </div>
-  <div class="res-bar"><div class="res-bar-fill" style="width:${pct}%;background:${e(color)}"></div></div>
+  <div class="res-bar"${barStyle ? ` style="${barStyle}"` : ""}><div class="res-bar-fill" style="width:${pct}%;background:${e(color)}"></div></div>
 </div>`;
   }
 
@@ -173,13 +228,19 @@ export class WidgetRenderer {
     const rawFormula = w.formula ?? "1d20";
     const hasRefs    = FormulaEngine.isFormula(rawFormula);
     const displayFml = hasRefs ? FormulaEngine.resolveForRoll(rawFormula, doc) : rawFormula;
+    const btnParts = [];
+    if (typeof w.btnBg === "string"     && w.btnBg.trim())     btnParts.push(`background:${e(w.btnBg)}`);
+    if (typeof w.btnFg === "string"     && w.btnFg.trim())     btnParts.push(`color:${e(w.btnFg)}`);
+    if (typeof w.btnBorder === "string" && w.btnBorder.trim()) btnParts.push(`border-color:${e(w.btnBorder)}`);
+    const btnStyle = btnParts.join(";");
+    const iconStyle = (typeof w.iconColor === "string" && w.iconColor.trim()) ? ` style="color:${e(w.iconColor)}"` : "";
     return `<div class="widget widget-dice">
   <div class="widget-label">${e(w.label)}${hasRefs ? ` <span style="color:#5a4ec0;font-size:9px" title="Formula with refs">ƒ</span>` : ""}</div>
   <button type="button" class="dice-btn" data-action="widgetRoll"
           data-formula="${e(displayFml)}"
           data-formula-raw="${e(rawFormula)}"
-          data-flavor="${e(w.flavor ?? "")}">
-    <i class="fas ${e(w.icon ?? "fa-dice-d20")}"></i>
+          data-flavor="${e(w.flavor ?? "")}"${btnStyle ? ` style="${btnStyle}"` : ""}>
+    <i class="fas ${e(w.icon ?? "fa-dice-d20")}"${iconStyle}></i>
     ${e(w.label)}
     <span style="opacity:.6;font-size:10px">(${e(displayFml)})</span>
   </button>
@@ -190,16 +251,20 @@ export class WidgetRenderer {
 
   static _render_button(w, doc) {
     const e       = this._esc;
-    const color   = w.color ?? "#7b68ee";
+    const accent  = w.btnBg || "#7b68ee";
+    const fgColor = w.btnFg || accent;
+    const bdColor = w.boxBorder || accent;
+    const iconCol = w.iconColor || fgColor;
     const icon    = w.icon  ?? "fa-bolt";
+    const bg      = w.btnBg ? e(w.btnBg) : `${e(accent)}22`;
     const formula = w.formula ? (FormulaEngine.isFormula(w.formula) ? FormulaEngine.resolveForRoll(w.formula, doc) : w.formula) : "";
     return `<div class="widget widget-button">
   <button type="button" class="sd-action-btn" data-action="widgetButton"
           data-formula-raw="${e(w.formula ?? "")}"
           data-formula="${e(formula)}"
           data-flavor="${e(w.flavor ?? w.label ?? "")}"
-          style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:${e(color)}22;border:1px solid ${e(color)};border-radius:5px;color:${e(color)};cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">
-    <i class="fas ${e(icon)}"></i>
+          style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:${bg};border:1px solid ${e(bdColor)};border-radius:5px;color:${e(fgColor)};cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">
+    <i class="fas ${e(icon)}" style="color:${e(iconCol)}"></i>
     <span>${e(w.label)}</span>
   </button>
 </div>`;
@@ -463,22 +528,31 @@ export class WidgetRenderer {
 
   static _render_section(w, doc) {
     const e = this._esc;
+    const titleStyle = w.titleColor ? `color:${e(w.titleColor)}` : "";
+    const lineCol = w.lineColor ? e(w.lineColor) : "";
+    const lineTh  = Number(w.lineThickness) > 0 ? Number(w.lineThickness) : 0;
+    const hrStyle = (lineCol || lineTh) ? `style="${lineCol ? `border-top-color:${lineCol};` : ""}${lineTh ? `border-top-width:${lineTh}px;` : ""}"` : "";
     return `<div class="widget widget-section">
-  <div class="sec-title">${e(w.label)}</div>
-  <hr class="sec-divider">
+  <div class="sec-title"${titleStyle ? ` style="${titleStyle}"` : ""}>${e(w.label)}</div>
+  <hr class="sec-divider" ${hrStyle}>
 </div>`;
   }
 
   static _render_vsection(w, doc) {
     const e = this._esc;
+    const titleCol = w.titleColor || "#7b68ee";
+    const bdCol    = w.boxBorder  || "rgba(123,104,238,.18)";
+    const bdStyle  = w.boxBorder  ? "solid" : "dashed";
+    const bg       = w.boxBg      || "rgba(123,104,238,.03)";
+    const radius   = Number(w.boxRadius) > 0 ? `${Number(w.boxRadius)}px` : "5px";
     const header = w.label
-      ? `<div class="vsection-title" style="font-size:10px;font-weight:700;color:#7b68ee;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px">${e(w.label)}</div>`
+      ? `<div class="vsection-title" style="font-size:10px;font-weight:700;color:${e(titleCol)};text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px">${e(w.label)}</div>`
       : "";
     const children = (w.widgets ?? []).map(cw => {
       try { return this.render(cw, doc) ?? ""; }
       catch { return ""; }
     }).join("");
-    return `<div class="widget widget-vsection" style="display:flex;flex-direction:column;gap:6px;padding:6px;border:1px dashed rgba(123,104,238,.18);border-radius:5px;background:rgba(123,104,238,.03)">${header}${children}</div>`;
+    return `<div class="widget widget-vsection" style="display:flex;flex-direction:column;gap:6px;padding:6px;border:1px ${bdStyle} ${e(bdCol)};border-radius:${radius};background:${e(bg)}">${header}${children}</div>`;
   }
 
   // richtext
@@ -610,6 +684,8 @@ export class WidgetRenderer {
     const max  = Number(this._get(doc, w.pathMax,   1)) || 1;
     const pct  = Math.round(Math.min(100, Math.max(0, (val / max) * 100)));
     const col  = esc(w.color   ?? "#5a8aff");
+    const trk  = esc(w.barTrack ?? "#1a1a28");
+    const barH = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "10px";
     const lbl  = esc(w.label   ?? "Progress");
     const showLabel = w.showLabel !== false && w.showLabel !== "false";
     const showPct   = w.showPct   !== false && w.showPct   !== "false";
@@ -619,7 +695,7 @@ export class WidgetRenderer {
     <span title="Read-only — edit via the source field" style="font-size:9px;color:#555;margin-left:3px;cursor:default">🔒</span>
     ${showPct   ? `<span style="margin-left:auto;font-size:10px;color:#888">${val}/${max} (${pct}%)</span>` : ""}
   </div>
-  <div style="background:#1a1a28;border-radius:3px;height:10px;overflow:hidden;border:1px solid #2a2a38;opacity:.85">
+  <div style="background:${trk};border-radius:3px;height:${barH};overflow:hidden;border:1px solid #2a2a38;opacity:.85">
     <div style="height:100%;width:${pct}%;background:${col};border-radius:3px;transition:width .3s"></div>
   </div>
 </div>`;
@@ -653,7 +729,9 @@ export class WidgetRenderer {
     const filled = Number(this._get(doc, w.path, 0)) || 0;
     const col   = esc(w.color   ?? "#e0a020");
     const bg    = esc(w.bgColor ?? "#1a1a2a");
-    const size  = 64;
+    const pipSz = Number(w.pipSize) > 0 ? Number(w.pipSize) : 0;
+    const size  = pipSz > 0 ? Math.max(20, pipSz * Math.min(segs, 6)) : 64;
+    const sw    = Number(w.pipBorder) > 0 ? Number(w.pipBorder) : 1.5;
     const cx = size / 2, cy = size / 2, r = size / 2 - 3;
 
     // Build SVG pie segments
@@ -669,7 +747,7 @@ export class WidgetRenderer {
       const fill = i < filled ? col : bg;
       slices.push(
         `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z"
-          fill="${fill}" stroke="#2a2a3a" stroke-width="1.5"
+          fill="${fill}" stroke="#2a2a3a" stroke-width="${sw}"
           class="sd-clock-segment" data-path="${path}" data-index="${i}" data-segs="${segs}"
           style="cursor:pointer;transition:opacity .1s" />`
       );
@@ -711,10 +789,10 @@ export class WidgetRenderer {
     }
     maxVal = Math.min(Math.max(1, Math.round(maxVal)), 50);
 
-    const col   = esc(w.color   ?? "#e04040");
-    const bg    = esc(w.bgColor ?? "#2a2a3a");
-    const icon  = esc(w.icon    ?? "fa-circle");
-    const size  = Math.min(24, Math.max(10, Number(w.pipSize ?? 14)));
+    const col   = esc(w.color      ?? "#e04040");
+    const bg    = esc(w.emptyColor ?? w.bgColor ?? "#2a2a3a");
+    const icon  = esc(w.icon       ?? "fa-circle");
+    const size  = Math.min(48, Math.max(8, Number(w.pipSize) > 0 ? Number(w.pipSize) : 14));
 
     const pips = [];
     for (let i = 0; i < maxVal; i++) {
@@ -824,10 +902,10 @@ export class WidgetRenderer {
     }
     maxVal = Math.min(Math.max(1, Math.round(maxVal)), 50);
 
-    const col   = e(w.color   ?? "#f0c040");
-    const bg    = e(w.bgColor ?? "#2a2a3a");
-    const icon  = e(w.icon    ?? "fa-coins");
-    const size  = Math.min(24, Math.max(10, Number(w.pipSize ?? 16)));
+    const col   = e(w.color      ?? "#f0c040");
+    const bg    = e(w.emptyColor ?? w.bgColor ?? "#2a2a3a");
+    const icon  = e(w.icon       ?? "fa-coins");
+    const size  = Math.min(48, Math.max(8, Number(w.pipSize) > 0 ? Number(w.pipSize) : 16));
 
     const pips = [];
     for (let i = 0; i < maxVal; i++) {
@@ -917,10 +995,11 @@ export class WidgetRenderer {
     const path  = esc(w.path  ?? "");
     const raw   = String(this._get(doc, w.path, ""));
     const col   = esc(w.color ?? "#5a6a9a");
+    const fg    = esc(w.tagFg ?? "#c0c0d8");
     const tags  = raw.split(",").map(t => t.trim()).filter(Boolean);
     const pills = tags.map(t =>
       `<span class="sd-tag-pill" style="background:${col}22;border:1px solid ${col}55;
-        border-radius:10px;padding:1px 8px;font-size:10px;color:#c0c0d8;white-space:nowrap">${esc(t)}
+        border-radius:10px;padding:1px 8px;font-size:10px;color:${fg};white-space:nowrap">${esc(t)}
         <span class="sd-tag-remove" data-path="${path}" data-tag="${esc(t)}"
           style="cursor:pointer;margin-left:3px;color:#888;font-size:9px" title="Remove">✕</span>
       </span>`
@@ -942,25 +1021,28 @@ export class WidgetRenderer {
   // image
   static _render_image(w, doc) {
     const esc = this._esc.bind(this);
-    const src = esc(w.staticSrc || (w.path ? String(this._get(doc, w.path, "")) : ""));
+    const fromPath = w.path ? String(this._get(doc, w.path, "")) : "";
+    const src = esc(w.staticSrc || fromPath || "");
     const lbl = esc(w.label ?? "");
-    const ww  = Number(w.width  ?? 64);
-    const hh  = Number(w.height ?? 64);
-    const br  = Number(w.borderRadius ?? 4);
-    const imgStyle  = `width:${ww}px;height:${hh}px;object-fit:cover;border-radius:${br}px;display:block`;
+    const ww  = Number(w.width)        || 64;
+    const hh  = Number(w.height)       || 64;
+    const br  = Number(w.borderRadius);
+    const brCSS = Number.isFinite(br) && br >= 0 ? `border-radius:${br}px;` : "";
+    const bd  = (typeof w.boxBorder === "string" && w.boxBorder.trim()) ? w.boxBorder.trim() : null;
+    const bw  = Number(w.borderWidth) > 0 ? Number(w.borderWidth) : (bd ? 1 : 0);
+    const borderCSS = bd ? `border:${bw}px solid ${esc(bd)};` : "";
+    const imgStyle  = `width:${ww}px;height:${hh}px;object-fit:cover;${brCSS}display:block;${borderCSS}box-sizing:border-box`;
     const imgEl     = src
       ? `<img src="${src}" style="${imgStyle}" alt="${lbl || "image"}">`
-      : `<div style="${imgStyle};background:#1a1a28;border:1px dashed #3a3a52;display:flex;align-items:center;justify-content:center;color:#3a3a52;font-size:20px"><i class="fas fa-image"></i></div>`;
+      : `<div style="${imgStyle};background:#1a1a28;${bd ? "" : "border:1px dashed #3a3a52;"}display:flex;align-items:center;justify-content:center;color:#3a3a52;font-size:20px"><i class="fas fa-image"></i></div>`;
 
-    const pencilBtn = w.path
-      ? `<button type="button" class="sd-img-pick sd-img-pencil"
-           data-path="${esc(w.path ?? "")}"
-           title="Change image"
-           style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);
-                  border:none;border-radius:3px;color:#c0c0d8;cursor:pointer;
-                  padding:1px 5px;font-size:10px;line-height:14px;opacity:0;
-                  transition:opacity .15s">✎</button>`
-      : "";
+    const pencilBtn = `<button type="button" class="sd-img-pick sd-img-pencil"
+         data-static="1" data-current="${src}"
+         title="Выбрать изображение"
+         style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);
+                border:none;border-radius:3px;color:#c0c0d8;cursor:pointer;
+                padding:1px 5px;font-size:11px;line-height:16px;opacity:0;
+                transition:opacity .15s"><i class="fas fa-folder-open"></i></button>`;
 
     const wrapper = `<div style="position:relative;display:inline-block;line-height:0"
         onmouseenter="this.querySelector('.sd-img-pencil')&&(this.querySelector('.sd-img-pencil').style.opacity='1')"

@@ -1466,9 +1466,75 @@ export class ButtonExecutor {
         const modifier = Number(FormulaEngine.evaluate(String(action.modifier ?? "0"), doc)) || 0;
         const rollStr  = modifier ? `(${formula})+(${modifier})` : formula;
 
-        const roll = new Roll(rollStr, _sanitizeRollData(actor?.getRollData?.() ?? {}));
-        await roll.evaluate();
-        const total = roll.total;
+        let total;
+        if (action.howRoll === "chat_button") {
+          const cardId = foundry.utils.randomID();
+          const flavor = action.flavor ?? "Check";
+          const buttonLabel = `${flavor} (DC ${dc})`;
+          const content = `
+            <div class="sd-chat-card sd-rollcheck-card" data-sd-rc-card="${cardId}">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;">
+                <img src="${actor?.img ?? "icons/svg/mystery-man.svg"}"
+                     style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:700;">${actor?.name ?? "?"}</div>
+                  <div style="font-size:11px;color:#666;">${flavor} — DC ${dc}</div>
+                </div>
+              </div>
+              <div style="padding:6px 12px;">
+                <button type="button" class="sd-rollcheck-btn"
+                        data-sd-rc="${cardId}"
+                        data-sd-rc-formula="${rollStr.replace(/"/g,"&quot;")}"
+                        style="display:block;width:100%;padding:7px 10px;
+                               border-radius:5px;cursor:pointer;font-weight:700;
+                               background:#7a3a00;color:#fff;border:1px solid #5a2a00;">
+                  <i class="fas fa-dice-d20"></i> ${buttonLabel}
+                </button>
+                <div class="sd-rollcheck-status" style="padding:6px 0 2px;font-size:11px;color:#888;">
+                  Waiting for roll…
+                </div>
+              </div>
+            </div>`;
+          const msgPayload = {
+            cardId,
+            actorUuid: actor?.uuid ?? null,
+            requesterId: game.user?.id ?? null,
+            flavor,
+            dc,
+            rollStr,
+            resolved: false
+          };
+          await ChatMessage.create({
+            user:    game.user.id,
+            speaker: ChatMessage.getSpeaker({ actor }),
+            flavor:  `${flavor} — Roll Check`,
+            content,
+            flags: { sd: { rollCheck: msgPayload } }
+          });
+
+          const timeoutSec = Number(action.chatTimeout ?? 0) || 0;
+          total = await new Promise((resolve) => {
+            let timer = null;
+            const handler = (data) => {
+              if (data?.type !== "rollCheckResult" || data?.cardId !== cardId) return;
+              game.socket.off("system.sd", handler);
+              if (timer) clearTimeout(timer);
+              resolve(Number(data.total) || 0);
+            };
+            game.socket.on("system.sd", handler);
+            if (timeoutSec > 0) {
+              timer = setTimeout(() => {
+                game.socket.off("system.sd", handler);
+                ui.notifications?.warn?.(`SD | Roll Check «${flavor}» timed out (${timeoutSec}s).`);
+                resolve(0);
+              }, timeoutSec * 1000);
+            }
+          });
+        } else {
+          const roll = new Roll(rollStr, _sanitizeRollData(actor?.getRollData?.() ?? {}));
+          await roll.evaluate();
+          total = roll.total;
+        }
         const margin = total - dc;
 
         let passed = false;
@@ -2307,6 +2373,62 @@ export class ButtonExecutor {
         break;
       }
 
+      case "setInitiative": {
+        const combat = game.combat;
+        if (!combat) {
+          ui.notifications?.warn?.("Set Initiative: no active combat.");
+          break;
+        }
+        const targets = _resolveAllTargets(action.target ?? "actor", actor);
+        for (const tActor of targets) {
+          if (!tActor) continue;
+          const token = tActor.getActiveTokens?.()?.[0]?.document
+                     ?? canvas?.tokens?.placeables?.find?.(t => t.actor?.id === tActor.id)?.document;
+          let combatant = combat.combatants.find(c => c.actorId === tActor.id);
+          if (!combatant) {
+            const created = await combat.createEmbeddedDocuments("Combatant", [{
+              actorId: tActor.id,
+              tokenId: token?.id ?? null,
+              sceneId: token?.parent?.id ?? canvas?.scene?.id ?? null
+            }]);
+            combatant = created?.[0];
+          }
+          if (!combatant) continue;
+          if (action.mode === "value") {
+            const v = Number(action.value ?? 0) || 0;
+            await combat.setInitiative(combatant.id, v);
+          } else {
+            await combat.rollInitiative([combatant.id]);
+          }
+        }
+        break;
+      }
+
+      case "applyStatus": {
+        const raw = String(action.statusId ?? "").trim();
+        if (!raw) break;
+        const reg = (CONFIG.statusEffects ?? []);
+        const match = reg.find(s => s.id === raw)
+                   ?? reg.find(s => (s.label ?? s.name ?? "").toLowerCase() === raw.toLowerCase())
+                   ?? reg.find(s => game.i18n?.localize?.(s.label ?? s.name ?? "")?.toLowerCase?.() === raw.toLowerCase());
+        const statusId = match?.id ?? raw;
+        const targets  = _resolveAllTargets(action.target ?? "token_target", actor);
+        for (const tActor of targets) {
+          if (!tActor || (!game.user.isGM && !tActor.isOwner)) continue;
+          const has = tActor.statuses?.has?.(statusId);
+          let active;
+          if (action.mode === "remove") active = false;
+          else if (action.mode === "toggle") active = !has;
+          else active = true;
+          try {
+            await tActor.toggleStatusEffect(statusId, { active, overlay: !!action.overlay });
+          } catch (err) {
+            console.warn(`SD | applyStatus failed for ${tActor.name}/${statusId}:`, err);
+          }
+        }
+        break;
+      }
+
       case "placeAura":
       case "placeAuraEffect":
       case "placeAuraDamage":
@@ -2901,54 +3023,13 @@ export class ButtonExecutor {
     : m === "disadvantage" ? (disFormula || baseFormula)
     : baseFormula;
 
-    const content = `
-      <div style="font-family:inherit;padding:4px 0;">
-        <div style="margin-bottom:12px;background:#f0ebe4;border:1px solid #b5b3a4;
-                    border-radius:6px;padding:10px 14px;">
-          <div style="font-size:9px;color:#555555;text-transform:uppercase;
-                      letter-spacing:.6px;margin-bottom:4px;">Roll formula</div>
-          <div class="sd-rdlg-formula" style="font-size:15px;font-weight:700;color:#c8a0ff;
-                                              font-family:monospace;word-break:break-all;">${baseFormula}</div>
-        </div>
-
-        <div style="display:flex;gap:6px;margin-bottom:12px;">
-          <button type="button" class="sd-rdlg-mode" data-mode="disadvantage"
-            style="flex:1;background:#1a1a2e;border:1px solid #4a2a6a;border-radius:6px;
-                   color:#8060b0;cursor:pointer;padding:8px 4px;transition:all .15s;
-                   display:flex;flex-direction:column;align-items:center;gap:3px;">
-            <span style="font-size:18px;">⬇️</span>
-            <span style="font-size:11px;font-weight:700;">Disadvantage</span>
-            <span style="font-size:9px;opacity:.65;font-family:monospace;">${fmtShort(disFormula)}</span>
-          </button>
-          <button type="button" class="sd-rdlg-mode" data-mode="normal"
-            style="flex:1;background:#1a3a1a;border:2px solid #2e8b46;border-radius:6px;
-                   color:#5ae07a;cursor:pointer;padding:8px 4px;transition:all .15s;
-                   display:flex;flex-direction:column;align-items:center;gap:3px;">
-            <span style="font-size:18px;">🎲</span>
-            <span style="font-size:11px;font-weight:700;">Normal</span>
-            <span style="font-size:9px;opacity:.65;font-family:monospace;">${fmtShort(baseFormula)}</span>
-          </button>
-          <button type="button" class="sd-rdlg-mode" data-mode="advantage"
-            style="flex:1;background:#1a1a2e;border:1px solid #4a2a6a;border-radius:6px;
-                   color:#8060b0;cursor:pointer;padding:8px 4px;transition:all .15s;
-                   display:flex;flex-direction:column;align-items:center;gap:3px;">
-            <span style="font-size:18px;">⬆️</span>
-            <span style="font-size:11px;font-weight:700;">Advantage</span>
-            <span style="font-size:9px;opacity:.65;font-family:monospace;">${fmtShort(advFormula)}</span>
-          </button>
-        </div>
-
-        <div style="display:flex;align-items:center;gap:8px;background:#f0ebe4;
-                    border:1px solid #b5b3a4;border-radius:6px;padding:9px 12px;">
-          <span style="font-size:13px;color:#555555;white-space:nowrap;flex-shrink:0;">
-            <i class="fas fa-plus" style="font-size:10px;"></i> Bonus
-          </span>
-          <input type="text" class="sd-rdlg-bonus" name="sdRdlgBonus" placeholder="1d4, +2, ..."
-            style="flex:1;background:transparent;border:none;border-bottom:1px solid #b5b3a4;
-                   color:#191813;font-size:13px;padding:2px 4px;outline:none;
-                   font-family:monospace;">
-        </div>
-      </div>`;
+    const renderTpl = foundry.applications?.handlebars?.renderTemplate ?? renderTemplate;
+    const content = await renderTpl("systems/sd/templates/dialog/roll-mode-dialog.hbs", {
+      baseFormula,
+      baseShort: fmtShort(baseFormula),
+      advShort:  fmtShort(advFormula),
+      disShort:  fmtShort(disFormula)
+    });
 
     const bindUI = (root) => {
       const formulaEl = root.querySelector(".sd-rdlg-formula");
@@ -3037,21 +3118,18 @@ export class ButtonExecutor {
   }
 
     static _showLocalSaveDialog({ saveActor, saveMod, dc, flavor, rollFormula = "1d20", timeout }) {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       const sign  = saveMod >= 0 ? `+${saveMod}` : String(saveMod);
+      const renderTpl = foundry.applications?.handlebars?.renderTemplate ?? renderTemplate;
+      const content = await renderTpl("systems/sd/templates/dialog/local-save-dialog.hbs", {
+        actorName: saveActor.name,
+        rollFormula,
+        sign,
+        dc
+      });
       const dlg   = new Dialog({
         title:   `${flavor} — DC ${dc}`,
-        content: `
-          <div style="font-family:inherit;padding:4px 0;">
-            <p style="margin:0 0 8px;font-size:13px;">
-              <strong>${saveActor.name}</strong> must make a saving throw.
-            </p>
-            <div style="display:flex;align-items:center;justify-content:center;gap:12px;
-                        background:#1a1a2e;border:1px solid #b5b3a4;border-radius:6px;padding:10px;">
-              <span style="font-size:22px;font-weight:bold;color:#c8a0ff;">${rollFormula} ${sign}</span>
-              <span style="font-size:12px;color:#888;">vs DC ${dc}</span>
-            </div>
-          </div>`,
+        content,
         buttons: {
           roll: {
             icon:  '<i class="fas fa-dice-d20"></i>',

@@ -608,6 +608,107 @@ export const NODE_DEFS = {
     })
   },
 
+  arr_sort: {
+    title:"Sort by Field", color:"#2a7a3a", cat:"Array",
+    desc:"Sort token ids by a numeric actor field. Ascending or descending. Tokens with non-numeric values go to the end.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value"}],
+    outputs:[{id:"v", label:"Sorted", type:"value.array"}],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
+      {key:"op",  label:"Order",type:"select",default:"desc",options:["desc","asc"]}
+    ],
+    compile:(n,i)=>`{arraySort:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "desc"}}`
+  },
+
+  arr_slice: {
+    title:"Slice / Take", color:"#2a7a3a", cat:"Array",
+    desc:"Take a sub-range of an array. Start is 0-based; Count of -1 means «to the end». Use after Sort to get top-N / bottom-N.",
+    inputs:[
+      {id:"tokens", label:"Tokens", type:"value"},
+      {id:"start",  label:"Start",  type:"value.number"},
+      {id:"count",  label:"Count",  type:"value.number"}
+    ],
+    outputs:[{id:"v", label:"Slice", type:"value.array"}],
+    fields:[
+      {key:"start",label:"Start",type:"number",default:0},
+      {key:"count",label:"Count (-1 = all)",type:"number",default:3}
+    ],
+    compile:(n,i)=>{
+      const s = (i.start ?? n.data.start ?? 0);
+      const c = (i.count ?? n.data.count ?? -1);
+      return `{arraySlice:${i.tokens ?? ""}|${s}|${c}}`;
+    }
+  },
+
+  arr_concat: {
+    title:"Concat", color:"#2a7a3a", cat:"Array",
+    desc:"Join two arrays end-to-end (duplicates kept). For unique union use Union node.",
+    inputs:[
+      {id:"a", label:"A", type:"value"},
+      {id:"b", label:"B", type:"value"}
+    ],
+    outputs:[{id:"v", label:"A+B", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayConcat:${i.a ?? ""}|${i.b ?? ""}}`
+  },
+
+  arr_union: {
+    title:"Union", color:"#2a7a3a", cat:"Array",
+    desc:"All ids present in A or B (unique).",
+    inputs:[
+      {id:"a", label:"A", type:"value"},
+      {id:"b", label:"B", type:"value"}
+    ],
+    outputs:[{id:"v", label:"A ∪ B", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayUnion:${i.a ?? ""}|${i.b ?? ""}}`
+  },
+
+  arr_intersect: {
+    title:"Intersect", color:"#2a7a3a", cat:"Array",
+    desc:"Only ids present in BOTH A and B. «Tokens that are buffed AND poisoned».",
+    inputs:[
+      {id:"a", label:"A", type:"value"},
+      {id:"b", label:"B", type:"value"}
+    ],
+    outputs:[{id:"v", label:"A ∩ B", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayIntersect:${i.a ?? ""}|${i.b ?? ""}}`
+  },
+
+  arr_difference: {
+    title:"Difference", color:"#2a7a3a", cat:"Array",
+    desc:"Ids in A that are NOT in B. «Targets that did not save».",
+    inputs:[
+      {id:"a", label:"A", type:"value"},
+      {id:"b", label:"B", type:"value"}
+    ],
+    outputs:[{id:"v", label:"A − B", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayDifference:${i.a ?? ""}|${i.b ?? ""}}`
+  },
+
+  arr_contains: {
+    title:"Contains", color:"#2a7a3a", cat:"Array",
+    desc:"Returns 1 if Token id is present in the array, 0 otherwise. Useful for branches.",
+    inputs:[
+      {id:"tokens", label:"Tokens", type:"value"},
+      {id:"id",     label:"Id",     type:"value"}
+    ],
+    outputs:[{id:"v", label:"In?", type:"value.bool"}],
+    fields:[],
+    compile:(_,i)=>`{arrayContains:${i.tokens ?? ""}|${i.id ?? ""}}`
+  },
+
+  arr_distinct: {
+    title:"Distinct", color:"#2a7a3a", cat:"Array",
+    desc:"Remove duplicate ids preserving first-seen order.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value"}],
+    outputs:[{id:"v", label:"Unique", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayDistinct:${i.tokens ?? ""}}`
+  },
+
   // Каст заклинаний
 
   get_spell_slots: {
@@ -691,6 +792,29 @@ export const NODE_DEFS = {
         setValue:n.data.op==="set"?String(amt):null
       };
     }
+  },
+
+  act_set_initiative: {
+    title:"Set Initiative", color:"#4a2a6a", cat:"Actions",
+    desc:"Set or roll initiative for the target actor in the active combat. Mode `roll` rolls the system formula; `value` sets the exact number. If the actor isn't in combat, a combatant is created (only for the active combat).",
+    inputs:[
+      {id:"exec",   label:"",          type:"exec"},
+      {id:"target", label:"Target",    type:"value"},
+      {id:"value",  label:"Value",     type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"target",label:"Target",type:"select",default:"actor",options:["self","actor","token_target","selected_token","all_targets"]},
+      {key:"mode",  label:"Mode",  type:"select",default:"roll", options:["roll","value"]},
+      {key:"value", label:"Value (mode=value)", type:"number", default:10}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:   "setInitiative",
+      target: inp.target ?? n.data.target ?? "actor",
+      mode:   n.data.mode ?? "roll",
+      value:  inp.value  ?? n.data.value  ?? 0
+    })
   },
 
   act_message: {
@@ -1034,6 +1158,8 @@ export const NODE_DEFS = {
         placeholder:"e.g. {roll} > {dc} && {roll} < 20"},
       {key:"flavor",         label:"Label",     type:"text",   default:"Check"},
       {key:"toChat",         label:"To chat",   type:"select", default:"yes", options:["yes","no"]},
+      {key:"howRoll",        label:"How to roll",type:"select",default:"auto", options:["auto","chat_button"]},
+      {key:"chatTimeout",    label:"Chat timeout (sec, 0=∞)", type:"number", default:0},
       {key:"rollDialogue",   label:"Roll dialog",   type:"select", default:"no", options:["no","yes"]},
       {key:"opposed",        label:"Opposed",   type:"select", default:"no", options:["no","yes"]},
       {key:"opposedCount",   label:"Opposed N", type:"text",   default:"1"},
@@ -1051,6 +1177,8 @@ export const NODE_DEFS = {
       custom:     n.data.custom ?? "{roll} >= {dc}",
       flavor:     n.data.flavor ?? "Check",
       toChat:     n.data.toChat !== "no",
+      howRoll:    n.data.howRoll ?? "auto",
+      chatTimeout: Number(n.data.chatTimeout ?? 0),
       rollDialogue: n.data.rollDialogue === "yes",
       opposed:       n.data.opposed === "yes",
       opposedCount:  inp.opposedCount   ?? n.data.opposedCount   ?? "1",
@@ -1466,6 +1594,31 @@ export const NODE_DEFS = {
         changes
       };
     }
+  },
+
+  act_apply_status: {
+    title:"Apply Status", color:"#1a4a8a", cat:"Effects",
+    desc:"Apply / remove / toggle a status condition (CONFIG.statusEffects). Status Id can be e.g. `dead`, `prone`, `poisoned`, etc. — anything the active system or world registers. Status Id pin overrides the field.",
+    inputs:[
+      {id:"exec",     label:"",         type:"exec"},
+      {id:"target",   label:"Target",   type:"value"},
+      {id:"statusId", label:"Status Id",type:"value"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"statusId",label:"Status Id",   type:"text",   default:"poisoned", placeholder:"dead, prone, blinded, poisoned…"},
+      {key:"target",  label:"Target",      type:"select", default:"token_target", options:["self","actor","token_target","selected_token","all_targets"]},
+      {key:"mode",    label:"Mode",        type:"select", default:"apply",        options:["apply","remove","toggle"]},
+      {key:"overlay", label:"Big overlay", type:"select", default:"no",           options:["no","yes"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:     "applyStatus",
+      statusId: inp.statusId ?? n.data.statusId ?? "",
+      target:   inp.target   ?? n.data.target   ?? "token_target",
+      mode:     n.data.mode  ?? "apply",
+      overlay:  n.data.overlay === "yes"
+    })
   },
 
   act_remove_effect: {
@@ -3113,7 +3266,147 @@ export class FormulaGraph {
     this._commentResize = null;
     this._commentDraft= null;
     this._cleanup     = [];
+    this._history     = [];
+    this._historyIdx  = -1;
+    this._suppressHistory = false;
     this._loadGraph();
+    this._pushHistory();
+  }
+
+  // Undo/Redo
+
+  _snapshot() {
+    return {
+      nodes:    foundry.utils.deepClone(this.nodes ?? []),
+      edges:    foundry.utils.deepClone(this.edges ?? []),
+      comments: foundry.utils.deepClone(this.comments ?? [])
+    };
+  }
+
+  _pushHistory() {
+    if (this._suppressHistory) return;
+    if (this._historyIdx < this._history.length - 1) {
+      this._history.length = this._historyIdx + 1;
+    }
+    this._history.push(this._snapshot());
+    if (this._history.length > 80) {
+      this._history.shift();
+    } else {
+      this._historyIdx++;
+    }
+  }
+
+  _restoreSnapshot(s) {
+    this._suppressHistory = true;
+    try {
+      this.nodes    = foundry.utils.deepClone(s.nodes ?? []);
+      this.edges    = foundry.utils.deepClone(s.edges ?? []);
+      this.comments = foundry.utils.deepClone(s.comments ?? []);
+      this._selected.clear();
+      this._selectedComments?.clear?.();
+      this._renderAll();
+      this._updatePreview?.();
+    } finally {
+      this._suppressHistory = false;
+    }
+  }
+
+  _undo() {
+    if (this._historyIdx <= 0) return;
+    this._historyIdx--;
+    this._restoreSnapshot(this._history[this._historyIdx]);
+  }
+
+  _redo() {
+    if (this._historyIdx >= this._history.length - 1) return;
+    this._historyIdx++;
+    this._restoreSnapshot(this._history[this._historyIdx]);
+  }
+
+  // Дубль выделенного
+
+  _duplicateSelection(offset = 28) {
+    if (!this._selected?.size) return;
+    const ids = [...this._selected];
+    const idMap = new Map();
+    const created = [];
+    for (const oldId of ids) {
+      const src = this.nodes.find(n => n.id === oldId);
+      if (!src) continue;
+      const def = NODE_DEFS[src.type];
+      if (!def) continue;
+      const newId = `n${this._id++}`;
+      idMap.set(oldId, newId);
+      const clone = foundry.utils.deepClone(src);
+      clone.id = newId;
+      clone.x  = (src.x ?? 0) + offset;
+      clone.y  = (src.y ?? 0) + offset;
+      this.nodes.push(clone);
+      created.push(clone);
+    }
+    const newEdges = [];
+    for (const e of this.edges) {
+      if (idMap.has(e.fromNode) && idMap.has(e.toNode)) {
+        newEdges.push({
+          id:       `e${uid()}`,
+          fromNode: idMap.get(e.fromNode),
+          fromPin:  e.fromPin,
+          toNode:   idMap.get(e.toNode),
+          toPin:    e.toPin
+        });
+      }
+    }
+    this.edges.push(...newEdges);
+    this._selected = new Set(created.map(n => n.id));
+    for (const n of created) this._renderNode(n);
+    this._refreshSelectionHighlights?.();
+    this._scheduleEdges?.();
+    this._updatePreview?.();
+    this._pushHistory();
+  }
+
+  _copySelection() {
+    if (!this._selected?.size) return;
+    const ids = new Set(this._selected);
+    const nodes = this.nodes.filter(n => ids.has(n.id)).map(n => foundry.utils.deepClone(n));
+    const edges = this.edges
+      .filter(e => ids.has(e.fromNode) && ids.has(e.toNode))
+      .map(e => foundry.utils.deepClone(e));
+    this._clipboard = { nodes, edges };
+  }
+
+  _pasteClipboard(offset = 32) {
+    if (!this._clipboard?.nodes?.length) return;
+    const idMap = new Map();
+    const created = [];
+    for (const src of this._clipboard.nodes) {
+      const def = NODE_DEFS[src.type];
+      if (!def) continue;
+      const newId = `n${this._id++}`;
+      idMap.set(src.id, newId);
+      const clone = foundry.utils.deepClone(src);
+      clone.id = newId;
+      clone.x  = (src.x ?? 0) + offset;
+      clone.y  = (src.y ?? 0) + offset;
+      this.nodes.push(clone);
+      created.push(clone);
+    }
+    for (const e of this._clipboard.edges) {
+      if (!idMap.has(e.fromNode) || !idMap.has(e.toNode)) continue;
+      this.edges.push({
+        id:       `e${uid()}`,
+        fromNode: idMap.get(e.fromNode),
+        fromPin:  e.fromPin,
+        toNode:   idMap.get(e.toNode),
+        toPin:    e.toPin
+      });
+    }
+    this._selected = new Set(created.map(n => n.id));
+    for (const n of created) this._renderNode(n);
+    this._refreshSelectionHighlights?.();
+    this._scheduleEdges?.();
+    this._updatePreview?.();
+    this._pushHistory();
   }
 
   // Выделение
@@ -3169,12 +3462,19 @@ export class FormulaGraph {
   }
 
   _deleteSelection() {
-    for (const id of Array.from(this._selected)) this._delNode(id);
-    for (const id of Array.from(this._selectedComments)) this._deleteComment(id);
+    if (!this._selected?.size && !this._selectedComments?.size) return;
+    this._suppressHistory = true;
+    try {
+      for (const id of Array.from(this._selected)) this._delNode(id);
+      for (const id of Array.from(this._selectedComments)) this._deleteComment(id);
+    } finally {
+      this._suppressHistory = false;
+    }
     this._selected.clear();
     this._selectedComments.clear();
     this._refreshSelectionHighlights();
     this._scheduleEdges?.();
+    this._pushHistory();
   }
 
 
@@ -3644,6 +3944,18 @@ export class FormulaGraph {
     }
   }
 
+  _findWidgetDeepInRow(list, id) {
+    if (!Array.isArray(list)) return null;
+    for (const ww of list) {
+      if (ww?.id === id) return ww;
+      if (ww?.type === "vsection") {
+        const nested = this._findWidgetDeepInRow(ww.widgets, id);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
   async _saveGraph() {
     if (this.configMode && this.saveCtx) {
       const {tab, row, w, doc} = this.saveCtx;
@@ -3654,7 +3966,9 @@ export class FormulaGraph {
       };
       const cfgNode = this.nodes.find(n => NODE_DEFS[n.type]?.isWidgetConfig);
       const tabs = foundry.utils.deepClone(doc.system?.customTabs ?? []);
-      const widget = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id);
+      const _row = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+      const widget = _row ? this._findWidgetDeepInRow(_row.widgets, w.id) : null;
+      if (!widget) console.warn("[sd] formula-graph: widget not found in customTabs", { tabId: tab?.id, rowId: row?.id, widgetId: w?.id });
       if (widget && cfgNode) {
         const def = NODE_DEFS[cfgNode.type];
         const compiledIns = {};
@@ -3684,7 +3998,9 @@ export class FormulaGraph {
         comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
       };
       const tabs   = foundry.utils.deepClone(doc.system.customTabs??[]);
-      const widget = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id);
+      const _row   = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+      const widget = _row ? this._findWidgetDeepInRow(_row.widgets, w.id) : null;
+      if (!widget) console.warn("[sd] formula-graph: widget not found in customTabs", { tabId: tab?.id, rowId: row?.id, widgetId: w?.id });
       if (widget) {
         widget.graphData = data;
         if (this.widget?.type === "attribute") {
@@ -4684,12 +5000,27 @@ export class FormulaGraph {
     const _up = ev => {
       ds = null;
       if (this._panDrag) { this._panDrag = null; wrap.style.cursor = ""; }
-      if (this._drag)    { this._drag    = null; }
+      let dragMoved = false;
+      if (this._drag) {
+        dragMoved = !!this._drag._moved;
+        this._drag = null;
+      }
+      let commentDragMoved = false;
+      if (this._commentDrag) {
+        commentDragMoved = !!this._commentDrag._moved;
+        this._commentDrag = null;
+      }
+      let commentResizeMoved = false;
+      if (this._commentResize) {
+        commentResizeMoved = !!this._commentResize._moved;
+        this._commentResize = null;
+      }
       if (this._conn)          this._endConn(ev);
       if (this._marquee)       this._endMarquee(ev);
-      if (this._commentDrag)   { this._commentDrag = null; }
-      if (this._commentResize) { this._commentResize = null; }
       if (this._commentDraft)  this._endCommentDraft(ev);
+      if (dragMoved || commentDragMoved || commentResizeMoved) {
+        this._pushHistory();
+      }
     };
     document.addEventListener("mousemove", _move);
     document.addEventListener("mouseup",   _up);
@@ -4703,19 +5034,31 @@ export class FormulaGraph {
     const _kd = ev => {
       if (ev.code === "Space" && ev.target === document.body) { space = true; wrap.style.cursor = "grab"; return; }
 
+      if (!this.win || !document.body.contains(this.win)) return;
+      const t = ev.target;
+      const inField = t && (
+        t.tagName === "INPUT" ||
+        t.tagName === "TEXTAREA" ||
+        t.isContentEditable
+      );
+
       if (ev.key === "Backspace" || ev.key === "Delete") {
-        if (!this.win || !document.body.contains(this.win)) return;
-        const t = ev.target;
-        const inField = t && (
-          t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.isContentEditable
-        );
         if (inField) return;
         if (!this._selected.size && !this._selectedComments.size) return;
         ev.preventDefault();
         this._deleteSelection();
+        return;
       }
+
+      const mod = ev.ctrlKey || ev.metaKey;
+      if (!mod || inField) return;
+
+      const k = (ev.key || "").toLowerCase();
+      if (k === "z" && !ev.shiftKey)         { ev.preventDefault(); this._undo(); }
+      else if (k === "y" || (k === "z" && ev.shiftKey)) { ev.preventDefault(); this._redo(); }
+      else if (k === "d")                    { ev.preventDefault(); this._duplicateSelection(); }
+      else if (k === "c")                    { ev.preventDefault(); this._copySelection(); }
+      else if (k === "v")                    { ev.preventDefault(); this._pasteClipboard(); }
     };
     const _ku = ev => { if (ev.code === "Space") { space = false; wrap.style.cursor = ""; }};
     document.addEventListener("keydown", _kd);
@@ -4947,6 +5290,7 @@ export class FormulaGraph {
     this.nodes.push(node);
     this._renderNode(node);
     this._updatePreview();
+    this._pushHistory();
     return node;
   }
 
@@ -4956,6 +5300,7 @@ export class FormulaGraph {
     this.edges=this.edges.filter(e=>e.fromNode!==id&&e.toNode!==id);
     this.nodesEl.querySelector(`[data-nid="${id}"]`)?.remove();
     this._scheduleEdges?.();
+    this._pushHistory();
   }
 
   _addEdge(fn,fp,tn,tp) {
@@ -4965,6 +5310,7 @@ export class FormulaGraph {
     const toNode = this.nodes.find(n => n.id === tn);
     if (toNode) this._renderNode(toNode);
     this._scheduleEdges?.();
+    this._pushHistory();
   }
 
   _removeEdge(edgeId) {
@@ -4974,6 +5320,7 @@ export class FormulaGraph {
     const toNode = this.nodes.find(n => n.id === edge.toNode);
     if (toNode) this._renderNode(toNode);
     this._scheduleEdges?.();
+    this._pushHistory();
   }
 
   // Rendering
@@ -5098,6 +5445,7 @@ export class FormulaGraph {
     const c = { id, x, y, w: Math.max(120, w), h: Math.max(80, h), title, color };
     this.comments.push(c);
     this._renderComment(c);
+    this._pushHistory();
     return c;
   }
 
@@ -5105,12 +5453,14 @@ export class FormulaGraph {
     this.comments = this.comments.filter(c => c.id !== id);
     this._selectedComments.delete(id);
     this.commentsEl?.querySelector(`[data-cid="${id}"]`)?.remove();
+    this._pushHistory();
   }
 
   _doCommentDrag(ev) {
     if (!this._commentDrag) return;
     const dx = (ev.clientX - this._commentDrag.mx) / this._zoom;
     const dy = (ev.clientY - this._commentDrag.my) / this._zoom;
+    if (Math.abs(dx) + Math.abs(dy) > 1) this._commentDrag._moved = true;
     for (const g of this._commentDrag.cmtGroup) {
       const cc = this.comments.find(x => x.id === g.id);
       if (!cc) continue;
@@ -5137,6 +5487,7 @@ export class FormulaGraph {
     if (!c) return;
     const dx = (ev.clientX - r.mx) / this._zoom;
     const dy = (ev.clientY - r.my) / this._zoom;
+    if (Math.abs(dx) + Math.abs(dy) > 1) r._moved = true;
     c.w = Math.max(120, Math.round(r.ow + dx));
     c.h = Math.max(80,  Math.round(r.oh + dy));
     const el = this.commentsEl.querySelector(`[data-cid="${c.id}"]`);
@@ -5839,7 +6190,15 @@ export class FormulaGraph {
     const conn=this._conn; this._conn=null;
     conn.line.remove();
     const pin=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".gpin");
-    if(!pin||pin.dataset.side!=="input"||pin.dataset.nid===conn.fromNode) return;
+    if (!pin) {
+      const wrap = this.win?.querySelector("#gwrap");
+      const overWrap = wrap?.contains(ev.target) || (document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.("#gwrap"));
+      if (overWrap) {
+        this._showQuickInsertMenu(conn, ev);
+      }
+      return;
+    }
+    if (pin.dataset.side !== "input" || pin.dataset.nid === conn.fromNode) return;
     const targetNode = this.nodes.find(n=>n.id===pin.dataset.nid);
     const targetDef  = NODE_DEFS[targetNode?.type??""];
     const targetPinDef = (targetDef?.inputs??[]).find(p=>p.id===pin.dataset.pid);
@@ -5851,12 +6210,98 @@ export class FormulaGraph {
     this._addEdge(conn.fromNode,conn.fromPin,pin.dataset.nid,pin.dataset.pid);
   }
 
+  _showQuickInsertMenu(conn, ev) {
+    const wrap = this.win?.querySelector("#gwrap");
+    if (!wrap) return;
+    const r = wrap.getBoundingClientRect();
+    const gx = (ev.clientX - r.left - this._pan.x) / this._zoom;
+    const gy = (ev.clientY - r.top  - this._pan.y) / this._zoom;
+
+    const fromType = conn.fromType;
+    const candidates = [];
+    for (const [type, def] of Object.entries(NODE_DEFS)) {
+      if (def.hidden) continue;
+      const inputs = def.inputs ?? [];
+      const compat = inputs.find(p => {
+        if (fromType === "exec") return p.type === "exec";
+        return p.type !== "exec" && arePinsCompatible(fromType, p.type);
+      });
+      if (!compat) continue;
+      candidates.push({ type, def, pin: compat });
+    }
+    candidates.sort((a, b) => (a.def.cat ?? "").localeCompare(b.def.cat ?? "") || (a.def.title ?? a.type).localeCompare(b.def.title ?? b.type));
+
+    document.getElementById("sd-quick-insert-menu")?.remove();
+    const menu = document.createElement("div");
+    menu.id = "sd-quick-insert-menu";
+    menu.style.cssText = `position:fixed;left:${ev.clientX}px;top:${ev.clientY}px;
+      min-width:240px;max-width:340px;max-height:60vh;overflow:auto;
+      background:#121220;border:1px solid #2a2a3e;border-radius:8px;
+      box-shadow:0 12px 40px rgba(0,0,0,.8);z-index:25000;
+      font-family:'Signika',sans-serif;color:#e0e0ee;padding:6px 0`;
+
+    const head = document.createElement("div");
+    head.textContent = `Insert node compatible with ${pinSubtype(fromType) || "exec"}`;
+    head.style.cssText = "padding:6px 12px;font-size:11px;color:#98a6c6;border-bottom:1px solid #2a2a3e";
+    menu.appendChild(head);
+
+    if (!candidates.length) {
+      const empty = document.createElement("div");
+      empty.textContent = "No compatible nodes";
+      empty.style.cssText = "padding:8px 12px;color:#666";
+      menu.appendChild(empty);
+    } else {
+      let lastCat = null;
+      for (const c of candidates.slice(0, 80)) {
+        if (c.def.cat !== lastCat) {
+          lastCat = c.def.cat;
+          const sec = document.createElement("div");
+          sec.textContent = lastCat ?? "Other";
+          sec.style.cssText = "padding:4px 12px 2px;font-size:10px;color:#74a7ff;text-transform:uppercase;letter-spacing:.5px";
+          menu.appendChild(sec);
+        }
+        const item = document.createElement("div");
+        item.textContent = c.def.title ?? c.type;
+        item.style.cssText = "padding:5px 14px;font-size:12px;cursor:pointer";
+        item.addEventListener("mouseenter", () => item.style.background = "#1f2538");
+        item.addEventListener("mouseleave", () => item.style.background = "");
+        item.addEventListener("click", () => {
+          menu.remove();
+          this._suppressHistory = true;
+          let added;
+          try {
+            added = this._addNode(c.type, gx, gy);
+            if (added) this._addEdge(conn.fromNode, conn.fromPin, added.id, c.pin.id);
+          } finally {
+            this._suppressHistory = false;
+          }
+          if (added) this._pushHistory();
+        });
+        menu.appendChild(item);
+      }
+    }
+    document.body.appendChild(menu);
+
+    const close = (e) => {
+      if (e && menu.contains(e.target)) return;
+      menu.remove();
+      document.removeEventListener("mousedown", close, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    setTimeout(() => {
+      document.addEventListener("mousedown", close, true);
+      document.addEventListener("keydown", onKey, true);
+    }, 0);
+  }
+
   // Node drag
 
   _doDrag(ev) {
     if(!this._drag) return;
     const dx = (ev.clientX - this._drag.mx) / this._zoom;
     const dy = (ev.clientY - this._drag.my) / this._zoom;
+    if (Math.abs(dx) + Math.abs(dy) > 1) this._drag._moved = true;
 
     const group = this._drag.group?.length
       ? this._drag.group

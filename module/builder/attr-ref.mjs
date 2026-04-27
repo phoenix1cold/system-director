@@ -161,35 +161,3 @@ export class AttrFilter {
     });
   }
 }
-
-
-export class AttrRef {
-
-  /** Add a new declared attribute (auto-named) */
-  static async addAttr(doc) {
-    const attrs = foundry.utils.deepClone(doc.system.declaredAttrs ?? []);
-    attrs.push({
-      id:    foundry.utils.randomID(8),
-      name:  `attr${attrs.length + 1}`,
-      label: "",
-      path:  ""
-    });
-    await doc.update({ "system.declaredAttrs": attrs });
-  }
-
-  /** Remove a declared attribute by id */
-  static async removeAttr(doc, attrId) {
-    const attrs = (doc.system.declaredAttrs ?? []).filter(a => a.id !== attrId);
-    await doc.update({ "system.declaredAttrs": attrs });
-  }
-
-  /** Update fields of a declared attribute */
-  static async updateAttr(doc, attrId, changes) {
-    const attrs = foundry.utils.deepClone(doc.system.declaredAttrs ?? []);
-    const attr  = attrs.find(a => a.id === attrId);
-    if (attr) {
-      Object.assign(attr, changes);
-      await doc.update({ "system.declaredAttrs": attrs });
-    }
-  }
-}

@@ -517,6 +517,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return cell;
     }
     cell.innerHTML = html || "";
+    const styleStr = WidgetRenderer._buildStyle(w);
+    if (styleStr) cell.style.cssText += `;${styleStr};box-sizing:border-box`;
     this._wireWidget(cell, w);
 
     if (this._editMode) {
@@ -633,16 +635,18 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (w.readOnly === true || w.readOnly === "true") return `${lbl}<div style="width:100%;background:#111120;border:1px solid #2a2a38;border-radius:4px;color:#8888aa;font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0">${e(String(val))} <span style="float:right;opacity:.4" title="Read only">🔒</span></div>`;
         return `${lbl}<input type="text" data-path="${e(w.path)}" value="${e(val)}" ${inp}>`;
 
-      case "number":
+      case "number": {
         if (hasFormula) return `${lbl}<div style="text-align:center;font-weight:700;font-size:18px;color:#e0e0ee;padding:4px 2px;background:#22222e;border:1px solid #2a2a42;border-radius:4px" title="Formula: ${e(w.valueFormula)}">${e(String(val))}<span style="font-size:9px;color:#5a4ec0;margin-left:4px">ƒ</span></div>`;
+        const btnCol = (typeof w.btnColor === "string" && w.btnColor.trim()) ? w.btnColor.trim() : "#a0a0c0";
         return `${lbl}<div style="display:flex;align-items:center;gap:3px">
           <button data-step="-${w.step||1}" data-path="${e(w.path)}"
-            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;cursor:pointer;font-size:16px;line-height:1">−</button>
+            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">−</button>
           <input type="number" data-path="${e(w.path)}" value="${e(val)}"
             style="flex:1;text-align:center;font-weight:700;font-size:15px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;padding:2px;box-sizing:border-box;min-width:0">
           <button data-step="${w.step||1}" data-path="${e(w.path)}"
-            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;cursor:pointer;font-size:16px;line-height:1">+</button>
+            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">+</button>
         </div>`;
+      }
 
       case "resource": {
         const doc = this.document;
@@ -650,6 +654,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const mx  = Number(foundry.utils.getProperty(doc, w.pathMax)   ?? 0);
         const pct = mx > 0 ? Math.round(Math.clamp(vv / mx, 0, 1) * 100) : 0;
         const clr = w.color ?? "#7b68ee";
+        const barH = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "5px";
+        const barTrk = (typeof w.barTrack === "string" && w.barTrack.trim()) ? w.barTrack.trim() : "#111";
         return `${lbl}
           <div style="display:flex;align-items:center;gap:4px">
             <input type="number" data-path="${e(w.pathValue)}" value="${e(vv)}"
@@ -658,7 +664,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             <input type="number" data-path="${e(w.pathMax)}" value="${e(mx)}"
               style="width:46px;text-align:center;font-size:13px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;padding:2px;box-sizing:border-box">
           </div>
-          <div style="height:5px;background:#111;border-radius:3px;overflow:hidden;margin-top:3px">
+          <div style="height:${barH};background:${e(barTrk)};border-radius:3px;overflow:hidden;margin-top:3px">
             <div style="height:100%;width:${pct}%;background:${e(clr)};border-radius:3px;transition:width .3s"></div>
           </div>`;
       }
@@ -666,10 +672,14 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       case "dice": {
         const diceFormula = w.formula ?? "1d20";
         const diceMacroScript = `// ${e(w.label ?? "Roll")}\\nconst actor = token?.actor ?? game.user.character;\\nconst roll = new Roll("${e(diceFormula)}", actor?.getRollData() ?? {});\\nawait roll.evaluate();\\nawait roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${e(w.label ?? "Roll")}" });`;
+        const dBg = (typeof w.btnBg     === "string" && w.btnBg.trim())     ? w.btnBg.trim()     : "#22222e";
+        const dFg = (typeof w.btnFg     === "string" && w.btnFg.trim())     ? w.btnFg.trim()     : "#e0e0ee";
+        const dBd = (typeof w.btnBorder === "string" && w.btnBorder.trim()) ? w.btnBorder.trim() : "#3a3a52";
+        const dIc = (typeof w.iconColor === "string" && w.iconColor.trim()) ? w.iconColor.trim() : "#7b68ee";
         return `${lbl}<div style="display:flex;align-items:center;gap:4px">
           <button type="button" data-roll="${e(diceFormula)}" data-flavor="${e(w.label ?? "Roll")}"
-            style="flex:1;padding:6px 8px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;transition:border-color .15s">
-            <i class="fas fa-dice-d20" style="color:#7b68ee"></i>
+            style="flex:1;padding:6px 8px;background:${e(dBg)};border:1px solid ${e(dBd)};border-radius:4px;color:${e(dFg)};cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;transition:border-color .15s">
+            <i class="fas fa-dice-d20" style="color:${e(dIc)}"></i>
             ${e(w.label ?? "Roll")}
             <span style="opacity:.4;font-size:10px;margin-left:2px">${e(diceFormula)}</span>
           </button>
@@ -684,20 +694,26 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       case "toggle": {
         const on  = !!val;
         const lv  = on ? (w.onLabel ?? "On") : (w.offLabel ?? "Off");
+        const onC  = (typeof w.onColor  === "string" && w.onColor.trim())  ? w.onColor.trim()  : "#7b68ee";
+        const offC = (typeof w.offColor === "string" && w.offColor.trim()) ? w.offColor.trim() : "#22222e";
         return `${lbl}<div data-toggle="${e(w.path)}" data-on="${on}"
           style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;user-select:none">
-          <div style="width:36px;height:20px;flex-shrink:0;background:${on ? "#7b68ee" : "#22222e"};border:1px solid ${on ? "#7b68ee" : "#3a3a52"};border-radius:10px;position:relative;transition:background .2s">
+          <div style="width:36px;height:20px;flex-shrink:0;background:${on ? e(onC) : e(offC)};border:1px solid ${on ? e(onC) : "#3a3a52"};border-radius:10px;position:relative;transition:background .2s">
             <div style="position:absolute;top:2px;left:${on ? "18px" : "2px"};width:14px;height:14px;background:${on ? "#fff" : "#555"};border-radius:50%;transition:left .2s"></div>
           </div>
           <span style="font-size:12px;color:#a0a0c0">${e(lv)}</span>
         </div>`;
       }
 
-      case "section":
+      case "section": {
+        const lineCol = (typeof w.lineColor  === "string" && w.lineColor.trim())  ? w.lineColor.trim()  : "#3a3a52";
+        const titleCol= (typeof w.titleColor === "string" && w.titleColor.trim()) ? w.titleColor.trim() : "#a0a0c0";
+        const lineTh  = Number(w.lineThickness) > 0 ? `${Number(w.lineThickness)}px` : "1px";
         return `<div style="grid-column:span 3;display:flex;align-items:center;gap:8px;padding:4px 0">
-          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a0a0c0;white-space:nowrap">${e(w.label)}</span>
-          <div style="flex:1;height:1px;background:#3a3a52"></div>
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${e(titleCol)};white-space:nowrap">${e(w.label)}</span>
+          <div style="flex:1;height:${lineTh};background:${e(lineCol)}"></div>
         </div>`;
+      }
 
       case "richtext":
         return WidgetRenderer._render_richtext(w, this.document);
@@ -1583,18 +1599,53 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    cell.querySelectorAll(".sd-img-pick[data-path]").forEach(btn => {
+    cell.querySelectorAll(".sd-img-pick").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
+        const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+        if (!FP) return ui.notifications?.error?.("FilePicker недоступен");
+
+        if (btn.dataset.static === "1") {
+          const widgetCell = btn.closest("[data-widget-id]");
+          const tabId = widgetCell?.dataset.tabId;
+          const rowId = widgetCell?.dataset.rowId;
+          const widgetId = widgetCell?.dataset.widgetId;
+          if (!tabId || !rowId || !widgetId) return;
+          const cur = btn.dataset.current ?? "";
+          new FP({
+            type: "image",
+            current: cur,
+            callback: src => {
+              const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+              const tab = tabs.find(t => t.id === tabId);
+              const row = tab?.rows?.find(r => r.id === rowId);
+              if (!row) return;
+              const findIn = (arr) => {
+                for (const w of arr) {
+                  if (w.id === widgetId) return w;
+                  if (w.type === "vsection" && Array.isArray(w.widgets)) {
+                    const f = findIn(w.widgets); if (f) return f;
+                  }
+                }
+                return null;
+              };
+              const widget = findIn(row.widgets ?? []);
+              if (!widget) return;
+              widget.staticSrc = src;
+              this.document.update({ "system.customTabs": tabs });
+            }
+          }).render(true);
+          return;
+        }
+
         const path = btn.dataset.path;
         if (!path) return;
         const cur  = String(foundry.utils.getProperty(this.document, path) ?? "");
-        const fp   = new FilePicker({
+        new FP({
           type:     "image",
           current:  cur,
           callback: src => this.document.update({ [path]: src })
-        });
-        fp.render(true);
+        }).render(true);
       });
     });
 
@@ -2014,7 +2065,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       await this.document.update({ name: ev.target.value });
     });
     root.querySelector(".portrait-img")?.addEventListener("click", () => {
-      new FilePicker({ type: "image", current: this.document.img, callback: p => this.document.update({ img: p }) }).browse();
+      const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+      new FP({ type: "image", current: this.document.img, callback: p => this.document.update({ img: p }) }).render(true);
     });
   }
 
@@ -2046,7 +2098,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // Static actions
 
   static async _onEditImage(event, target) {
-    new FilePicker({ type: "image", current: this.document.img, callback: p => this.document.update({ img: p }) }).browse();
+    const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+    new FP({ type: "image", current: this.document.img, callback: p => this.document.update({ img: p }) }).render(true);
   }
 
   static async _onOpenRollDialog(event, target) {
