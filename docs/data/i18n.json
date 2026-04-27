@@ -6,6 +6,7 @@
     "nav": {
       "home":     { "en": "Overview",        "ru": "Обзор" },
       "start":    { "en": "Getting started", "ru": "С чего начать" },
+      "concepts": { "en": "Concepts",        "ru": "Концепции" },
       "widgets":  { "en": "Widgets",         "ru": "Виджеты" },
       "nodes":    { "en": "Nodes",           "ru": "Ноды" },
       "examples": { "en": "Examples",        "ru": "Примеры" }

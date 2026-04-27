@@ -262,5 +262,93 @@
       { "from": 4, "to": 5, "label": "prof" },
       { "from": 5, "to": 6, "label": "total" }
     ]
+  },
+
+  {
+    "id": "on-equip-armor",
+    "level": "triggers",
+    "title": { "en": "On Equip → Apply Armor Effect", "ru": "При экипировке → накинуть эффект брони" },
+    "desc": {
+      "en": "Open the item (a piece of armor), open its <kbd>Sheet Trigger</kbd> graph (the document-level graph). Add an <em>On Equip</em> event node and chain it to <em>Apply Effect</em> targeting the wearer. When the player flips the item to equipped, the effect is applied automatically.",
+      "ru": "Откройте предмет (броня), откройте у него <kbd>Sheet Trigger</kbd> граф (граф уровня документа). Добавьте event-ноду <em>On Equip</em> и подключите к <em>Apply Effect</em> на носителя. Как только игрок переключит предмет в equipped — эффект применится сам."
+    },
+    "nodes": [
+      "on_equip",
+      { "ref": "act_effect", "fields": { "effectId": "armor_plate_+2", "to": "actor", "label": "Apply Effect" } }
+    ],
+    "tip": {
+      "en": "Pair this with <strong>On Unequip → Remove Effect</strong> on the same item, otherwise the effect lingers when the player takes the armor off.",
+      "ru": "Парно сделайте <strong>On Unequip → Remove Effect</strong> на том же предмете, иначе эффект останется когда броню снимут."
+    }
+  },
+
+  {
+    "id": "on-unequip-armor",
+    "level": "triggers",
+    "title": { "en": "On Unequip → Remove Effect", "ru": "При снятии → убрать эффект" },
+    "desc": {
+      "en": "Mirror of the previous example. The trigger fires when <code>system.equipped</code> flips from true → false.",
+      "ru": "Зеркало предыдущего примера. Триггер сработает, когда <code>system.equipped</code> сменится с true на false."
+    },
+    "nodes": [
+      "on_unequip",
+      { "ref": "act_remove_effect", "fields": { "effectName": "armor_plate_+2", "to": "actor" } }
+    ]
+  },
+
+  {
+    "id": "on-turn-start-regen",
+    "level": "triggers",
+    "title": { "en": "On Turn Start → Regenerate HP", "ru": "В начале хода → регенерация HP" },
+    "desc": {
+      "en": "Sheet-level trigger graph (open the actor sheet → Trigger). Adds 5 HP every time this actor's combat turn begins. Combine with a <em>Branch (HP &lt; max)</em> if you want to stop at full health.",
+      "ru": "Граф-триггер уровня листа (на акторе → Trigger). Добавляет 5 HP каждый раз, когда начинается ход этого актора в бою. Можно дополнить нодой <em>Branch (HP &lt; max)</em>, если не хотите перезалечивать выше максимума."
+    },
+    "nodes": [
+      "on_turn_start",
+      { "ref": "act_heal", "fields": { "amount": "5", "to": "actor", "label": "Regen" } }
+    ]
+  },
+
+  {
+    "id": "on-damage-taken-react",
+    "level": "triggers",
+    "title": { "en": "On Damage Taken → Reaction", "ru": "При получении урона → реакция" },
+    "desc": {
+      "en": "Trigger fires when actor's HP decreases. Pin <code>amount</code> gives how much was lost; <code>newHp</code> gives the post-damage value. Useful for shield reactions, retaliation auras, panic effects.",
+      "ru": "Триггер срабатывает при уменьшении HP актора. Пин <code>amount</code> — сколько потеряно; <code>newHp</code> — значение после урона. Удобно для реакций щита, ответных аур, эффектов паники."
+    },
+    "nodes": [
+      "on_damage_taken",
+      { "ref": "lt", "title": { "en": "newHp ≤ 10?", "ru": "newHp ≤ 10?" } },
+      { "ref": "branch", "title": { "en": "Bloodied?", "ru": "Кровит?" } },
+      { "ref": "act_apply_status", "fields": { "status": "bloodied", "to": "actor", "label": "Apply: Bloodied" } }
+    ],
+    "branches": [
+      { "from": 0, "to": 2, "label": "exec" },
+      { "from": 2, "to": 3, "label": "true" }
+    ],
+    "data_flow": [
+      { "from": 0, "to": 1, "label": "newHp" },
+      { "from": 1, "to": 2, "label": "cond" }
+    ]
+  },
+
+  {
+    "id": "hidden-field-toggle",
+    "level": "triggers",
+    "title": { "en": "Hidden Field — Conditional Visibility", "ru": "Hidden Field — условная видимость" },
+    "desc": {
+      "en": "Hidden Fields are arbitrary <code>true / false / number / string</code> slots on a document (<code>system.hiddenFields.&lt;key&gt;</code>). Widgets check them to decide whether to render. Toggle them from a graph with <em>Set Path</em>. Example: a Toggle widget that flips <code>system.hiddenFields.spellbookOpen</code>; a Spellbook widget below has <em>Visible if</em> set to that key.",
+      "ru": "Hidden Fields — произвольные слоты <code>true / false / число / строка</code> на документе (<code>system.hiddenFields.&lt;ключ&gt;</code>). Виджеты смотрят на них чтобы решить, рендериться или нет. Переключаются из графа через <em>Set Path</em>. Пример: Toggle-виджет переключает <code>system.hiddenFields.spellbookOpen</code>; ниже Spellbook-виджет с <em>Visible if</em> = тот же ключ."
+    },
+    "nodes": [
+      "on_click",
+      { "ref": "act_modify", "fields": { "path": "system.hiddenFields.spellbookOpen", "op": "set", "value": "true" }, "title": "Set hiddenFields.spellbookOpen = true" }
+    ],
+    "tip": {
+      "en": "Use <strong>Toggle Path</strong> instead of <em>Set Path</em> if you want a single button that flips on/off.",
+      "ru": "Используйте <strong>Toggle Path</strong> вместо <em>Set Path</em>, если нужна одна кнопка-переключатель."
+    }
   }
 ]

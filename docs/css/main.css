@@ -448,6 +448,7 @@ kbd {
 }
 .ex-tag.basic    { background: rgba(58,168,122,.18);  color: #5dd6a8; border: 1px solid rgba(58,168,122,.4); }
 .ex-tag.advanced { background: rgba(224,138,42,.16);  color: #ffb14a; border: 1px solid rgba(224,138,42,.4); }
+.ex-tag.triggers { background: rgba(208,64,64,.18);   color: #ff9090; border: 1px solid rgba(208,64,64,.4); }
 
 .example-block .ex-tip {
   margin-top: 12px;
@@ -482,6 +483,19 @@ kbd {
 }
 
 /* ---------- misc ---------- */
+.toc {
+  margin: 16px 0 24px;
+  padding: 14px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 14px;
+}
+.toc strong { display: block; margin-bottom: 6px; color: var(--fg-mut); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.toc ul { margin: 0; padding-left: 18px; }
+.toc a { color: var(--accent-2); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+
 .callout {
   border-left: 4px solid var(--accent);
   background: rgba(123, 104, 238, .08);

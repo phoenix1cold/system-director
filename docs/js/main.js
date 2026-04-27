@@ -4,6 +4,7 @@ import { loadI18n, applyLangAttrs, t, getLang, initLangToggle } from "./i18n.js"
 const NAV = [
   { href: "index.html",            key: "ui.nav.home",     match: ["", "index.html"] },
   { href: "getting-started.html",  key: "ui.nav.start",    match: ["getting-started.html"] },
+  { href: "concepts.html",         key: "ui.nav.concepts", match: ["concepts.html"] },
   { href: "widgets.html",          key: "ui.nav.widgets",  match: ["widgets.html"] },
   { href: "nodes.html",            key: "ui.nav.nodes",    match: ["nodes.html"] },
   { href: "examples.html",         key: "ui.nav.examples", match: ["examples.html"] }

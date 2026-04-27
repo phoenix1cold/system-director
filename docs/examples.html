@@ -23,6 +23,7 @@
         <option value="">— all —</option>
         <option value="basic" data-bilingual data-en="Basic only" data-ru="Только базовые">Basic only</option>
         <option value="advanced" data-bilingual data-en="Advanced only" data-ru="Только продвинутые">Advanced only</option>
+        <option value="triggers" data-bilingual data-en="Triggers / Events only" data-ru="Только триггеры">Triggers only</option>
       </select>
       <span id="count" class="hint"></span>
     </div>
@@ -98,7 +99,9 @@
 
     function renderExample(ex) {
       const block = elt("div", { class: "example-block" });
-      const lvl = ex.level === "advanced" ? "advanced" : "basic";
+      const lvl = ex.level === "advanced" ? "advanced"
+                : ex.level === "triggers" ? "triggers"
+                : "basic";
 
       // header
       const titleText = pickLocale(ex.title) || ex.id;
