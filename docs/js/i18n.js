@@ -52,17 +52,20 @@ export function t(key) {
 /** Apply data-i18n="…" placeholders across the page. */
 export function applyLangAttrs(root = document) {
   for (const el of root.querySelectorAll("[data-i18n]")) {
-    el.textContent = t(el.dataset.i18n);
+    const v = t(el.dataset.i18n);
+    // Translations may contain inline HTML (<kbd>, <code>, <strong>, …),
+    // so we render as HTML rather than escape it.
+    el.innerHTML = (v == null ? "" : String(v));
   }
   for (const el of root.querySelectorAll("[data-i18n-attr]")) {
     const [attr, key] = el.dataset.i18nAttr.split("|");
     el.setAttribute(attr, t(key));
   }
   for (const el of root.querySelectorAll("[data-bilingual]")) {
-    // Element provides both languages and we pick one.
+    // Element provides both languages with optional inline HTML.
     const en = el.dataset.en ?? "";
     const ru = el.dataset.ru ?? "";
-    el.textContent = _lang === "ru" ? (ru || en) : (en || ru);
+    el.innerHTML = _lang === "ru" ? (ru || en) : (en || ru);
   }
 }
 
