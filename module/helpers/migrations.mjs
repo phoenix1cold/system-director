@@ -1,16 +1,5 @@
-/**
- * module/helpers/migrations.mjs
- *
- * Schema migration helpers.
- * Called on "ready" hook; compares stored world version vs. current system version.
- * Each migration function is pure: receives old data, returns new data.
- */
-
 const MIGRATION_KEY = "sd.schemaVersion";
 
-/**
- * Run all pending migrations for the world.
- */
 export async function runMigrations() {
   const currentVersion = game.system.version;
   const worldVersion   = game.settings.get("sd", "schemaVersion") || "0.0.0";
@@ -20,7 +9,6 @@ export async function runMigrations() {
   CONFIG.debug?.sd && console.log(`SD | Running migrations from ${worldVersion} → ${currentVersion}`);
   ui.notifications.info(game.i18n.format("SD.MigrationStart", { version: currentVersion }));
 
-  // Collect all migrations that are newer than worldVersion
   const pending = MIGRATIONS.filter(m => foundry.utils.isNewerVersion(m.version, worldVersion));
 
   for (const migration of pending.sort((a, b) => foundry.utils.isNewerVersion(b.version, a.version) ? -1 : 1)) {
@@ -62,9 +50,6 @@ async function migrateActors(fn) {
   }
 }
 
-/**
- * Utility: migrate all world Items.
- */
 async function migrateItems(fn) {
   for (const item of game.items) {
     const updates = fn(item.toObject());
@@ -73,7 +58,6 @@ async function migrateItems(fn) {
       CONFIG.debug?.sd && console.log(`SD | Migrated item: ${item.name}`);
     }
   }
-  // Also migrate owned items on actors
   for (const actor of game.actors) {
     for (const item of actor.items) {
       const updates = fn(item.toObject());
@@ -84,27 +68,15 @@ async function migrateItems(fn) {
   }
 }
 
-// Migration Definitions
-
-/**
- * Each entry: { version, description, run: async () => void }
- * Add new migrations here as the schema evolves.
- */
 export const MIGRATIONS = [
 
-  // 0.1.0 → Initial schema (no-op, establishes baseline)
   {
     version:     "0.1.0",
     description: "Initial schema — no data migration needed.",
     run: async () => {}
   },
 
-  // 0.2.0 → PR7: normalise legacy attr_score nodes in stored graphs.
-  // attr_score is hidden from the palette but still compiles; rewriting
-  // it to attr_score_val keeps sheets clean and lets us drop the legacy
-  // node entirely in a future release.  This migration only rewrites
-  // node type strings -- field data stays untouched and old formulas
-  // compile to identical output under the new type.
+  // 0
   {
     version:     "0.2.0",
     description: "Rename legacy attr_score nodes → attr_score_val in stored widget graphs.",
@@ -138,13 +110,7 @@ export const MIGRATIONS = [
     }
   },
 
-  // 0.3.0 → PR16: unified Sequence node (count-driven).
-  // Old `sequence` (pins a,b) and `sequence4` (a,b,c,d) collapse into a single
-  // `sequence` node that renders N exec pins based on a `count` field (2-12).
-  // This rewrites graphs stored in actor + item customTabs and in sheet-level
-  // triggerGraph/graphData so existing wires keep working without manual re-
-  // linking.  Pin ids remap a/b/c/d → a0/a1/a2/a3 and count is set from the
-  // source node (2 for old sequence, 4 for sequence4).
+  // 0
   {
     version:     "0.3.0",
     description: "Merge sequence + sequence4 into unified Sequence with count field.",
@@ -152,7 +118,7 @@ export const MIGRATIONS = [
       const _rewriteGraph = (g) => {
         if (!g?.nodes?.length) return false;
         let changed = false;
-        const remapPairs = []; // [{nodeId, pinMap}]
+        const remapPairs = [];
         for (const n of g.nodes) {
           if (n.type === "sequence4") {
             n.type = "sequence";
@@ -196,7 +162,6 @@ export const MIGRATIONS = [
         return g ? _rewriteGraph(g) : false;
       };
       const _rewriteOnClickGraph = (ocg) => {
-        // Item onClickGraph: { nodes:[], edges:[] } directly OR wrapped under _graphData.
         if (!ocg || typeof ocg !== "object") return false;
         if (ocg.nodes) return _rewriteGraph(ocg);
         if (ocg._graphData) return _rewriteGraph(ocg._graphData);
@@ -230,14 +195,4 @@ export const MIGRATIONS = [
   }
 
   // TEMPLATE for future migrations
-  // {
-  //   version:     "0.2.0",
-  //   description: "Rename 'stats' field to 'attributes'.",
-  //   run: async () => {
-  //     await migrateActors(data => {
-  //       if (!data.system?.stats) return null;
-  //       return { "system.attributes": data.system.stats, "system.-=stats": null };
-  //     });
-  //   }
-  // }
 ];

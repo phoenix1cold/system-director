@@ -1,10 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   SYSTEM DIRECTOR — Master Stylesheet v2
-   Design tokens → Reset → Layout → Components → Sheets → Items →
-   Builder → Toolbox → Chat → Config → Utilities
-   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── 1. Design Tokens ───────────────────────────────────────────────────── */
 :root {
   --sd-bg:            #1a1a24;
   --sd-bg-2:          #22222e;
@@ -37,8 +31,7 @@
   --sd-r-lg:          9px;
   --sd-shadow:        0 4px 20px rgba(0,0,0,.55);
   --sd-font:          'Signika', 'Palatino Linotype', serif;
-  --sd-base-font-size: var(--sd-fs-md);
-  /* ── Scaled font-size tiers (all relative to --sd-base-font-size) ── */
+  --sd-base-font-size: 13px;
   --sd-fs-2xs: calc(var(--sd-base-font-size) * 0.6154); /* ≈8px  */
   --sd-fs-xs:  calc(var(--sd-base-font-size) * 0.6923); /* ≈9px  */
   --sd-fs-s2:  calc(var(--sd-base-font-size) * 0.7692); /* ≈10px */
@@ -51,7 +44,7 @@
   --sd-fs-2xl: calc(var(--sd-base-font-size) * 1.5385); /* ≈20px */
   --sd-fs-3xl: calc(var(--sd-base-font-size) * 1.8462); /* ≈24px */
   --sd-fs-4xl: calc(var(--sd-base-font-size) * 2.1538); /* ≈28px */
-  --sd-btn-font-size: var(--sd-base-font-size);         /* button tier, separate control */
+  --sd-btn-font-size: var(--sd-base-font-size);
   --sd-mono:          'Courier New', monospace;
 
   /* Form element sizes */
@@ -59,8 +52,6 @@
   --sd-label-h:       16px;
 }
 
-/* ── 2. Reset ────────────────────────────────────────────────────────────── */
-/* Scope reset to .window-content only — keeps Foundry window chrome intact */
 .sd .window-content,
 .sd .window-content * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -69,11 +60,7 @@
   color: var(--sd-text);
 }
 
-/* ── 2a. Window chrome — intentionally left unstyled ────────────────────── */
-/* Header buttons (close, minimize, controls) are rendered entirely by
-   Foundry's own CSS. We touch nothing here so icons never break.            */
 
-/* Apply font to sheet body elements — NOT to window chrome */
 .sd .window-content input,
 .sd .window-content select,
 .sd .window-content textarea,
@@ -90,7 +77,6 @@
   font-family: var(--sd-font);
 }
 
-/* ── 3. Base form elements ──────────────────────────────────────────────── */
 .sd input[type="text"],
 .sd input[type="number"],
 .sd input[type="search"],
@@ -164,7 +150,6 @@
   user-select: none;
 }
 
-/* ── 4. Field row (label + input side by side) ───────────────────────────── */
 .sd .field-row {
   display: grid;
   grid-template-columns: 110px 1fr;
@@ -182,7 +167,6 @@
 .sd .field-row input,
 .sd .field-row select { width: 100%; }
 
-/* ── 5. Checkbox row ─────────────────────────────────────────────────────── */
 .sd .check-row {
   display: flex;
   align-items: center;
@@ -198,7 +182,6 @@
   cursor: pointer;
 }
 
-/* ── 6. Tags / Chips ─────────────────────────────────────────────────────── */
 .sd .tags-editor {
   display: flex;
   flex-wrap: wrap;
@@ -249,7 +232,6 @@
   padding: 0 !important;
 }
 
-/* ── 7. Section block ────────────────────────────────────────────────────── */
 .sd .section-block {
   background: var(--sd-bg-2);
   border: 1px solid var(--sd-border);
@@ -281,7 +263,6 @@
   line-height: 1.4;
 }
 
-/* ── 8. Buttons ──────────────────────────────────────────────────────────── */
 .sd .btn,
 .sd .create-btn,
 .sd .item-btn {
@@ -340,7 +321,6 @@
 }
 .sd .roll-button:hover { background: var(--sd-accent); color: #fff; transform: scale(1.08); }
 
-/* ── 9. Badges ───────────────────────────────────────────────────────────── */
 .sd .badge {
   display: inline-flex;
   align-items: center;
@@ -363,7 +343,6 @@
 .sd .rarity-artifact  { border-color: var(--sd-danger); color: var(--sd-danger); }
 .sd .rarity-unique    { border-color: #e91e63; color: #e91e63; }
 
-/* ── 10. Sheet window ────────────────────────────────────────────────────── */
 .sd.sheet,
 .sd.item-sheet {
   background: var(--sd-bg);
@@ -387,7 +366,6 @@
 /* PARTS wrapper divs collapse */
 .sd .window-content > div { display: contents; }
 
-/* ── 11. Sheet Header ────────────────────────────────────────────────────── */
 .sd .sheet-header {
   display: flex;
   align-items: flex-start;
@@ -444,7 +422,6 @@
 
 .sd .actor-meta { display: flex; gap: 5px; flex-wrap: wrap; }
 
-/* ── 12. Resources in header ────────────────────────────────────────────── */
 .sd .resources-row {
   display: flex;
   gap: 10px;
@@ -502,7 +479,6 @@
 .sd .mp-fill { background: var(--sd-mp); }
 .sd .stamina-fill { background: var(--sd-stamina); }
 
-/* ── 13. Tab nav ─────────────────────────────────────────────────────────── */
 .sd .sheet-tabs {
   display: flex;
   gap: 2px;
@@ -538,7 +514,6 @@
   border-color: var(--sd-border);
 }
 
-/* ── 14. Tab content ─────────────────────────────────────────────────────── */
 .sd .tab-content {
   display: none;
   flex: 1;
@@ -551,7 +526,6 @@
   flex-direction: column;
 }
 
-/* ── 15. Attributes grid ─────────────────────────────────────────────────── */
 .sd .attributes-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -604,7 +578,6 @@
 }
 .sd .attr-mod:hover { background: var(--sd-accent-glow); }
 
-/* ── 16. Combat stats ────────────────────────────────────────────────────── */
 .sd .combat-stats {
   display: flex;
   gap: 12px;
@@ -654,13 +627,11 @@
   color: var(--sd-text-3);
 }
 
-/* ── 17. XP bar ──────────────────────────────────────────────────────────── */
 .sd .xp-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .sd .xp-row input { width: 64px; text-align: center; }
 .sd .xp-bar { flex: 1; height: 8px; background: var(--sd-bg); border-radius: 4px; overflow: hidden; min-width: 60px; }
 .sd .xp-fill { height: 100%; background: linear-gradient(90deg, var(--sd-accent-2), var(--sd-accent)); transition: width .4s; }
 
-/* ── 18. Skills list ─────────────────────────────────────────────────────── */
 .sd .skills-list {
   list-style: none;
   display: grid;
@@ -693,7 +664,6 @@
 }
 .sd .skill-bonus:hover { background: var(--sd-accent-glow); }
 
-/* ── 19. Section controls ────────────────────────────────────────────────── */
 .sd .section-controls {
   display: flex;
   align-items: center;
@@ -703,7 +673,6 @@
   flex-shrink: 0;
 }
 
-/* ── 20. Currency row ────────────────────────────────────────────────────── */
 .sd .currency-row {
   display: flex;
   align-items: center;
@@ -717,10 +686,8 @@
 .sd .currency-row input { width: 62px; text-align: center; }
 .sd .currency-row label { font-size: var(--sd-fs-s2); color: var(--sd-text-3); text-transform: uppercase; }
 
-/* ── 21. Encumbrance ────────────────────────────────────────────────────── */
 .sd .encumbrance-label { font-size: var(--sd-fs-sm); color: var(--sd-text-3); }
 
-/* ── 22. Item list ───────────────────────────────────────────────────────── */
 .sd .item-category { margin-bottom: 10px; }
 
 .sd .category-header {
@@ -799,7 +766,6 @@
 .sd .custom-btn { transition: opacity .15s; }
 .sd .custom-btn.disabled { opacity: .35; pointer-events: none; }
 
-/* ── 23. Effects ─────────────────────────────────────────────────────────── */
 .sd .effects-list { list-style: none; display: flex; flex-direction: column; gap: 3px; }
 
 .sd .effect-row {
@@ -828,7 +794,6 @@
   font-family: var(--sd-mono);
 }
 
-/* ── 24. Biography ───────────────────────────────────────────────────────── */
 .sd .bio-columns {
   display: grid;
   grid-template-columns: 200px 1fr;
@@ -846,7 +811,6 @@
 .sd .trait-row label { font-size: var(--sd-fs-s2); white-space: nowrap; }
 .sd .trait-row input { font-size: var(--sd-fs-m2); }
 
-/* ── 25. Two-col layout ──────────────────────────────────────────────────── */
 .sd .two-col-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 .sd .details-grid { display: grid; gap: 7px; }
@@ -868,7 +832,6 @@
   color: var(--sd-text-2);
 }
 
-/* ── 26. Subsection ──────────────────────────────────────────────────────── */
 .sd .subsection-block {
   background: var(--sd-bg-3);
   border: 1px solid var(--sd-border);
@@ -889,7 +852,6 @@
   letter-spacing: .06em;
 }
 
-/* ── 27. Drop zones ──────────────────────────────────────────────────────── */
 .sd [data-drop-zone],
 .sd [data-drop-slot] {
   transition: background .15s, outline .15s;
@@ -902,7 +864,6 @@
   border-radius: var(--sd-r);
 }
 
-/* ── 28. Empty states ────────────────────────────────────────────────────── */
 .sd .empty-list {
   text-align: center;
   padding: 24px;
@@ -915,7 +876,6 @@
 }
 .sd .empty-list i { font-size: var(--sd-fs-4xl); opacity: .35; }
 
-/* ── 29. NPC Header & Stats ──────────────────────────────────────────────── */
 .sd .npc-classification { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
 
 .sd .classification-grid {
@@ -938,7 +898,6 @@
 .sd .attack-bonus { text-align: center; }
 .sd .attacks-block { margin-top: 8px; }
 
-/* ── 30. Slots ───────────────────────────────────────────────────────────── */
 .sd .slot-defs-list { display: flex; flex-direction: column; gap: 8px; }
 
 .sd .slot-def-row {
@@ -1024,7 +983,6 @@
 .sd .hf-key { font-family: var(--sd-mono); font-size: var(--sd-fs-m2); }
 .sd .hf-path { cursor: help; text-align: center; font-size: var(--sd-fs-lg); }
 
-/* ── 31. Buttons editor ──────────────────────────────────────────────────── */
 .sd .buttons-editor-list { display: flex; flex-direction: column; gap: 10px; }
 .sd .button-editor-card {
   background: var(--sd-bg-2);
@@ -1071,7 +1029,6 @@
 .sd .action-target { flex: 1; min-width: 80px; font-family: var(--sd-mono); font-size: var(--sd-fs-m2); }
 .sd .action-delay { width: 60px; font-size: var(--sd-fs-sm); text-align: center; }
 
-/* ── 32. Chat cards ──────────────────────────────────────────────────────── */
 .sd.chat-card {
   background: var(--sd-bg);
   border: 1px solid var(--sd-border);
@@ -1103,7 +1060,6 @@
 .sd .uses-bar { flex: 1; height: 5px; background: var(--sd-bg); border-radius: 3px; overflow: hidden; }
 .sd .uses-fill { height: 100%; background: var(--sd-accent); border-radius: 3px; }
 
-/* ── 33. Roll dialog ─────────────────────────────────────────────────────── */
 .roll-dialog-content { display: flex; flex-direction: column; gap: 12px; padding: 4px; }
 .roll-builder { display: flex; align-items: flex-end; gap: 8px; background: var(--sd-bg-3); border: 1px solid var(--sd-border); border-radius: var(--sd-r); padding: 10px; flex-wrap: wrap; }
 .die-selector, .die-bonus { display: flex; flex-direction: column; gap: 4px; }
@@ -1124,7 +1080,6 @@
 .situation-bonus label, .roll-mode-row label { min-width: 100px; }
 .roll-label { text-align: center; color: var(--sd-text-3); font-size: var(--sd-fs-m2); font-style: italic; }
 
-/* ── 34. SystemConfig ────────────────────────────────────────────────────── */
 .sd.system-config-window .window-content {
   display: flex; flex-direction: column; height: 100%; padding: 0; overflow: hidden;
 }
@@ -1167,6 +1122,9 @@
 .sd .skill-config-row     { display: grid; grid-template-columns: 60px 1fr 100px 60px 28px; gap: 8px; align-items: center; background: var(--sd-bg-3); border: 1px solid var(--sd-border); border-radius: var(--sd-r); padding: 5px 8px; }
 .sd .resource-config-header { display: grid; gap: 8px; padding: 4px 8px; font-size: var(--sd-fs-s2); font-weight: 700; text-transform: uppercase; color: var(--sd-text-3); grid-template-columns: 60px 1fr 48px 80px; }
 .sd .resource-config-row  { display: grid; grid-template-columns: 60px 1fr 48px 80px; gap: 8px; align-items: center; background: var(--sd-bg-3); border: 1px solid var(--sd-border); border-radius: var(--sd-r); padding: 5px 8px; }
+/* Currency rows have only key / label / remove — narrower layout */
+.sd .resource-config-row.currency-config-row,
+.sd .resource-config-table:has(.currency-config-row) .resource-config-header { grid-template-columns: 80px 1fr 28px; }
 .sd .tab-config-header    { display: grid; gap: 8px; padding: 4px 8px; font-size: var(--sd-fs-s2); font-weight: 700; text-transform: uppercase; color: var(--sd-text-3); grid-template-columns: 80px 1fr 60px 60px; }
 .sd .tab-config-row       { display: grid; grid-template-columns: 80px 1fr 60px 60px; gap: 8px; align-items: center; background: var(--sd-bg-3); border: 1px solid var(--sd-border); border-radius: var(--sd-r); padding: 5px 8px; }
 .sd .itype-config-grid    { display: flex; flex-direction: column; gap: 4px; }
@@ -1207,17 +1165,12 @@
 .sd .config-btn.danger  { background: transparent; border-color: var(--sd-danger); color: var(--sd-danger); }
 .sd .config-btn.danger:hover  { background: var(--sd-danger-dim); }
 
-/* ── 35. Scrollbars ──────────────────────────────────────────────────────── */
 .sd ::-webkit-scrollbar { width: 5px; height: 5px; }
 .sd ::-webkit-scrollbar-track { background: transparent; }
 .sd ::-webkit-scrollbar-thumb { background: var(--sd-border); border-radius: 3px; }
 .sd ::-webkit-scrollbar-thumb:hover { background: var(--sd-border-2); }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   BUILDER — Visual Sheet Builder
-   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── 36. Toolbox floating window ─────────────────────────────────────────── */
 .sd-toolbox {
   background: var(--sd-bg-2);
   border: 1px solid var(--sd-border);
@@ -1307,7 +1260,6 @@
   line-height: 1.2;
 }
 
-/* New Tab item — full width, special style */
 .sd-toolbox .palette-item.new-tab-item {
   grid-column: span 2;
   background: var(--sd-accent-glow);
@@ -1339,7 +1291,6 @@
   align-items: end;
 }
 
-/* ── 37. Custom Tab on sheet ─────────────────────────────────────────────── */
 .sd .custom-tab-content {
   display: none;
   flex: 1;
@@ -1453,7 +1404,6 @@
   color: var(--sd-accent);
 }
 
-/* ── 38. Widget styles ───────────────────────────────────────────────────── */
 
 /* Generic widget wrapper */
 .sd .widget {
@@ -1548,7 +1498,6 @@
 /* richtext widget */
 .sd .widget-richtext .prosemirror { min-height: 60px; }
 
-/* slot widget — same as inventory list but compact */
 .sd .widget-slot .slot-mini-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
 .sd .widget-slot .slot-mini-item {
   display: flex; align-items: center; gap: 5px;
@@ -1563,7 +1512,6 @@
 }
 .sd .widget-slot .slot-drop-mini.drag-over { background: var(--sd-accent-glow); border-color: var(--sd-accent); }
 
-/* ── 39. Widget config popup ─────────────────────────────────────────────── */
 .sd-widget-popup {
   position: fixed !important;
   z-index: 99999 !important;
@@ -1719,7 +1667,6 @@
   background: rgba(123,104,238,.1) !important;
 }
 
-/* ── 40. Custom tab nav button ───────────────────────────────────────────── */
 .sd .tab-link.custom-tab { position: relative; }
 .sd .tab-link.custom-tab .tab-edit-btn {
   display: none;
@@ -1741,7 +1688,6 @@
 }
 .sd .tab-link.add-tab-btn:hover { opacity: 1; }
 
-/* Edit mode toggle btn in header */
 .sd .edit-mode-btn {
   width: 30px; height: 30px;
   border-radius: var(--sd-r);
@@ -1879,7 +1825,6 @@
   border-color: #7b68ee !important;
 }
 
-/* Builder button in sheet header */
 .header-button.sd-toolbox-btn {
   font-size: var(--sd-fs-m2);
   padding: 0 8px;
@@ -1887,7 +1832,6 @@
 }
 .header-button.sd-toolbox-btn:hover { color: #9d8fff !important; }
 
-/* Scene control toolbox button highlight */
 .control-tool[data-tool="sd-toolbox"] .control-icon { color: #7b68ee; }
 
 /* ── Blank canvas sheet layout ───────────────────────────────────────────── */
@@ -1900,7 +1844,6 @@
   background: #1a1a24 !important;
 }
 
-/* PARTS wrapper divs must not add layout (except header) */
 .sd.sheet .window-content > div[data-part="canvas"],
 .sd.sheet .window-content > div[data-part="tabnav"] {
   display: contents;
@@ -1919,7 +1862,6 @@
   min-height: 0;
 }
 
-/* ── 35. Attribute Filter Block ───────────────────────────────────────────── */
 .sd .attr-filter-block {
   background: var(--sd-bg-2);
   border: 1px solid var(--sd-border);
@@ -1972,7 +1914,6 @@
   min-width: 60px;
 }
 
-/* ── 36. Toolbox Window ───────────────────────────────────────────────────── */
 .sd-toolbox .window-content {
   padding: 10px 12px;
   background: var(--sd-bg);
@@ -2044,7 +1985,6 @@
   color: var(--sd-accent-text);
 }
 
-/* ── 37. Declared Attributes ──────────────────────────────────────────────── */
 .sd .declared-attr-row {
   display: grid;
   grid-template-columns: 1fr 140px 40px auto;
@@ -2065,7 +2005,6 @@
   white-space: nowrap;
 }
 
-/* ── 38. Widget Overlay Controls ──────────────────────────────────────────── */
 .sd-widget-ov {
   position: absolute;
   top: 2px;
@@ -2099,7 +2038,6 @@
   color: var(--sd-danger);
 }
 
-/* ── 39. Field Path Picker ────────────────────────────────────────────────── */
 .sd .path-picker {
   background: var(--sd-bg-3);
   border: 1px solid var(--sd-border);
@@ -2135,7 +2073,6 @@
   color: var(--sd-text-2);
 }
 
-/* ── 40. Custom Tab Add Button ───────────────────────────────────────────── */
 .sd-add-tab {
   opacity: .5;
   transition: opacity .15s, background .15s;
@@ -2146,7 +2083,6 @@
   background: var(--sd-accent-glow);
 }
 
-/* ── 41. Slot Widget for Builder ──────────────────────────────────────────── */
 .sd .widget-slot {
   background: var(--sd-bg-3);
   border: 1px solid var(--sd-border);
@@ -2226,7 +2162,6 @@
   color: var(--sd-accent);
 }
 
-/* ── 42. Edit Mode Save Button ────────────────────────────────────────────── */
 .sd .edit-save-btn {
   padding: 6px 14px;
   font-size: var(--sd-fs-m2);
@@ -2237,7 +2172,6 @@
   flex-shrink: 0;
 }
 
-/* ── 43. Formula Drag & Drop ──────────────────────────────────────────────── */
 .sd input.formula-input.drag-over,
 .sd input[data-config-key="formula"].drag-over {
   border-color: var(--sd-accent);
@@ -2245,7 +2179,6 @@
   background: var(--sd-accent-glow);
 }
 
-/* ── 44. Inventory Widget ─────────────────────────────────────────────────── */
 .sd .widget-inventory {
   background: var(--sd-bg-2);
   border: 1px solid var(--sd-border);
@@ -2424,7 +2357,6 @@
   margin-bottom: 6px;
 }
 
-/* ── 46. Effects Widget ───────────────────────────────────────────────────── */
 .sd .widget-effects {
   background: var(--sd-bg-2);
   border: 1px solid var(--sd-border);
@@ -2590,7 +2522,6 @@
 }
 
 
-/* ── 46. Widget: Attribute ────────────────────────────────────────────────── */
 .sd .widget-attribute .attr-box {
   display: flex;
   flex-direction: column;
@@ -2631,7 +2562,6 @@
 
 .sd .widget-attribute .attr-mod:hover { background: var(--sd-accent-glow); }
 
-/* ── 47. Widget: Skill ───────────────────────────────────────────────────── */
 .sd .widget-skill {
   display: flex;
   align-items: center;
@@ -2674,8 +2604,6 @@
 
 .sd .widget-skill .skill-roll:hover { background: var(--sd-accent-glow); }
 
-/* ── 48. ConfigWidget dialog inputs ──────────────────────────────────────── */
-/* DialogV2 content inherits some sheet styles; ensure inputs render properly */
 .sd-dialog-config input[type="text"],
 .sd-dialog-config input[type="number"],
 .application input[data-field] {
@@ -2689,7 +2617,6 @@
   box-sizing: border-box !important;
 }
 
-/* ── 49. Drag-over highlight ─────────────────────────────────────────────── */
 .sd [data-drop-zone].drag-over,
 .sd .inventory-drop-zone.drag-over {
   border-color: var(--sd-accent) !important;
@@ -2697,7 +2624,6 @@
   color: var(--sd-accent) !important;
 }
 
-/* ── 51. Widget Config Popup (sd-wcfg-popup) ─────────────────────────────── */
 .sd-wcfg-popup {
   font-family: 'Signika', 'Palatino Linotype', serif;
 }
@@ -2723,7 +2649,6 @@
   box-shadow: 0 0 0 2px rgba(123,104,238,.2);
 }
 
-/* Autocomplete suggestion dropdown */
 .wcfg-suggestions {
   border-radius: 0 0 5px 5px;
   overflow: hidden;
@@ -2735,17 +2660,10 @@
 /* Path chips in drop result */
 .wcfg-path-chip { font-family: 'Courier New', monospace !important; }
 
-/* Scroll within the popup itself */
 .sd-wcfg-popup::-webkit-scrollbar { width: 5px; }
 .sd-wcfg-popup::-webkit-scrollbar-track { background: #13131d; }
 .sd-wcfg-popup::-webkit-scrollbar-thumb { background: #3a3a52; border-radius: 3px; }
 
-/* drop result paths scroll */
-#wcfg-drop-paths::-webkit-scrollbar { width: 4px; }
-#wcfg-drop-paths::-webkit-scrollbar-track { background: transparent; }
-#wcfg-drop-paths::-webkit-scrollbar-thumb { background: #3a3a52; border-radius: 2px; }
-
-/* ── 52. System panels (Hidden Fields / Slots / Buttons) ─────────────────── */
 .sd .sys-section {
   display: flex;
   flex-direction: column;
@@ -2871,7 +2789,6 @@
   flex-shrink: 0;
 }
 
-/* ── 53. Widget Config Popup — Blueprint panel ───────────────────────────── */
 
 /* Blueprint category */
 .bp-cat { margin-bottom: 12px; }
@@ -2969,13 +2886,85 @@
 /* Tab buttons in popup */
 .wcfg-tab-btn { font-family: 'Signika', sans-serif; transition: background .15s, color .15s; }
 
-/* Popup scrollbar */
-#wcfg-panel-fields::-webkit-scrollbar,
-#wcfg-panel-bp::-webkit-scrollbar { width: 4px; }
-#wcfg-panel-fields::-webkit-scrollbar-thumb,
-#wcfg-panel-bp::-webkit-scrollbar-thumb { background: #3a3a52; border-radius: 2px; }
+/* Стиль */
+.wcfg-style-section {
+  margin-top: 10px;
+  border-top: 1px solid #2a2a3e;
+  padding-top: 10px;
+}
+.wcfg-style-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #9d8fff;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wcfg-style-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+.wcfg-style-field { display: flex; flex-direction: column; gap: 3px; }
+.wcfg-style-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: #888;
+}
+.wcfg-style-num {
+  background: #1a1a2e;
+  border: 1px solid #3a3a52;
+  border-radius: 4px;
+  color: #e0e0ee;
+  font-size: 12px;
+  padding: 4px 7px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color .15s;
+}
+.wcfg-style-num:focus { border-color: #7b68ee; }
+.wcfg-style-color-wrap { display: flex; align-items: center; gap: 4px; }
+.wcfg-style-color {
+  height: 28px;
+  width: 56px;
+  padding: 2px;
+  border: 1px solid #3a3a52;
+  border-radius: 4px;
+  background: #1a1a2e;
+  cursor: pointer;
+}
+.wcfg-style-clear {
+  background: none;
+  border: 1px solid #3a3a52;
+  border-radius: 3px;
+  color: #555;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  transition: color .15s, border-color .15s;
+}
+.wcfg-style-clear:hover { color: var(--sd-danger, #e05050); border-color: var(--sd-danger, #e05050); }
+.wcfg-style-hint {
+  font-size: 10px;
+  color: #555;
+  font-style: italic;
+  padding: 0 2px;
+}
 
-/* ── 54. Richtext widget ─────────────────────────────────────────────────── */
+/* Popup scrollbar */
+#wcfg-panel-fields::-webkit-scrollbar { width: 4px; }
+#wcfg-panel-fields::-webkit-scrollbar-thumb { background: #3a3a52; border-radius: 2px; }
+
 .sd .widget-richtext .richtext-display {
   min-height: 60px;
   cursor: text;
@@ -3009,7 +2998,6 @@
   box-shadow: 0 0 0 2px var(--sd-accent-glow);
 }
 
-/* Widget key badge shown on formula-driven widgets */
 .sd .widget-formula-badge {
   display: inline-block;
   background: var(--sd-accent-2);
@@ -3032,7 +3020,6 @@
   margin-left: 4px;
 }
 
-/* ── 47. Spellbook Widget ─────────────────────────────────────────────────── */
 .sd .widget-spellbook {
   background: var(--sd-bg-2);
   border: 1px solid var(--sd-border);
@@ -3229,13 +3216,9 @@
 }
 .sd .sb-slot-max-edit:focus { border-color: #7b68ee; color: #e0e0ee; outline: none; }
 
-/* Spellbook mana bar editable inputs */
 .sd .sb-mana-input { outline: none; }
 .sd .sb-mana-input:focus { border-bottom-color: #7b68ee !important; }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   NEW WIDGET STYLES — System Director patch
-   ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Progress bar ─────────────────────────────────────────────────────────── */
 .sd .widget-progress { display: flex; flex-direction: column; gap: 2px; }
@@ -3272,7 +3255,6 @@
 .sd .widget-derived-value { font-variant-numeric: tabular-nums; }
 
 /* ── showIf hidden comment node ───────────────────────────────────────────── */
-/* (nothing to style — hidden widgets emit HTML comments) */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PROGRESSION APP
@@ -3788,10 +3770,6 @@
 .sd-prog-fc-row { display: flex; align-items: center; gap: 4px; }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   CHAT CARD INTERACTIVE BUTTONS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 /* ── Multiplier row ─────────────────────────────────────────────────────── */
 .sd-card-mults {
   display: flex;
@@ -3871,7 +3849,6 @@
 }
 .sd-reroll-btn:disabled { opacity: .4; cursor: default; }
 
-/* ── Apply button (original stored-target variant) ──────────────────────── */
 .sd-apply-hp-btn {
   display: flex;
   align-items: center;
@@ -3917,3 +3894,54 @@
 .sd-aoe-apply-btn:disabled { opacity: .4; cursor: default; }
 .sd-aoe-save-btn:hover  { filter: brightness(1.15); }
 .sd-aoe-save-btn:disabled { opacity: .4; cursor: default; }
+
+/* === Per-widget style overrides via CSS variables === */
+/* Resource */
+.sd .widget-resource .res-bar { height: var(--sd-w-bar-h, 5px); background: var(--sd-w-bar-track, var(--sd-bg)); }
+
+/* Progress */
+.sd .widget-progress .progress-bar,
+.sd .widget-progress .prog-bar { height: var(--sd-w-bar-h, 6px); background: var(--sd-w-bar-track, var(--sd-bg)); }
+
+/* Dice */
+.sd .widget-dice .dice-btn { background: var(--sd-w-btn-bg, var(--sd-bg-3)); color: var(--sd-w-btn-fg, var(--sd-text)); border-color: var(--sd-w-btn-bd, var(--sd-border)); }
+.sd .widget-dice .dice-btn i { color: var(--sd-w-icon, inherit); }
+
+/* Roll button */
+.sd .widget-rollButton .sd-action-btn { background: var(--sd-w-btn-bg, transparent); color: var(--sd-w-btn-fg, currentColor); border-color: var(--sd-w-btn-bd, currentColor); }
+
+/* Number/counter ± buttons */
+.sd .widget-number .num-btn,
+.sd .widget-counter .cnt-btn { color: var(--sd-w-num-btn, var(--sd-text-2)); }
+
+/* Button text override */
+.sd .widget-button .sd-action-btn[style] { color: var(--sd-w-btn-fg, currentColor); }
+
+/* Toggle */
+.sd .widget-toggle .tog-track.on { background: var(--sd-w-on, var(--sd-accent)); border-color: var(--sd-w-on, var(--sd-accent)); }
+.sd .widget-toggle .tog-track:not(.on) { background: var(--sd-w-off, var(--sd-bg-3)); }
+
+/* Section/vsection */
+.sd .widget-section .sec-divider { border-top: var(--sd-w-line-th, 1px) solid var(--sd-w-line, var(--sd-border)); }
+.sd .widget-section .sec-title { color: var(--sd-w-title, var(--sd-text-2)); }
+.sd .widget-section .sec-title::after { background: var(--sd-w-line, var(--sd-border)); height: var(--sd-w-line-th, 1px); }
+.sd .widget-vsection .vsection-title { color: var(--sd-w-title, #7b68ee); }
+
+/* Clock */
+.sd .widget-clock .clock-pip { width: var(--sd-w-pip-size, 16px); height: var(--sd-w-pip-size, 16px); border-width: var(--sd-w-pip-bd, 1px); }
+
+/* Tracker / Token Pool */
+.sd .widget-tracker .tracker-pip { width: var(--sd-w-pip-size, 18px); height: var(--sd-w-pip-size, 18px); }
+.sd .widget-tracker .tracker-pip:not(.filled) { background: var(--sd-w-empty, transparent); }
+.sd .widget-tokenPool .pool-pip { width: var(--sd-w-pip-size, 14px); height: var(--sd-w-pip-size, 14px); }
+.sd .widget-tokenPool .pool-pip:not(.filled) { background: var(--sd-w-empty, transparent); }
+
+/* Inventory header */
+.sd .widget-inventory .inv-header,
+.sd .widget-inventory .inv-cat-title { color: var(--sd-w-header, var(--sd-text)); }
+
+/* Tags */
+.sd .widget-tags .tag-pill { color: var(--sd-w-tag-fg, currentColor); }
+
+/* Image border-width */
+.sd .widget-image img[style] { border-width: var(--sd-w-bw, 0) !important; }

@@ -1,17 +1,3 @@
-/**
- * module/builder/formula-graph.mjs -- System Director
- * Visual node-graph editor, Unreal Engine Blueprint style.
- *
- * KEY FIXES:
- * - Edges rendered in a SEPARATE fixed SVG layer (no transform conflicts)
- * - Nodes use min-width, labels wrap properly
- * - Branch node (bool → True exec / False exec)
- * - Items referenced by UUID (drag item from sidebar to UUID fields)
- * - Button widget action (not Roll) -- just a label + action chain
- * - Output node is just a sink for exec chains OR formula value
- * - Graph serialised into widget.graphData and restored
- */
-
 import { migrateGraph } from "./node-migration.mjs";
 import { pinSubtype, subtypeColor, arePinsCompatible } from "./pin-types.mjs";
 import { lintGraph, lintSummary } from "./graph-linter.mjs";
@@ -19,11 +5,6 @@ import { lintGraph, lintSummary } from "./graph-linter.mjs";
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
 
-/**
- * Slug an arbitrary node-label string into a stable localization key.
- * Must stay in sync with `scripts/gen-i18n.mjs` so that every label present
- * in `lang/en.json` and `lang/ru.json` resolves correctly.
- */
 function _slugLabel(s) {
   const map = {
     "→":"Arrow", "←":"ArrowL", "↑":"ArrowU", "↓":"ArrowD",
@@ -45,19 +26,12 @@ function _slugLabel(s) {
   return out.replace(/^_+|_+$/g, "").replace(/__+/g, "_") || "_";
 }
 
-/**
- * Localize a node label through `SD.Graph.<slug>`.  If the i18n module isn't
- * ready yet (early init), or the key is missing, returns the original text
- * so the editor remains usable.
- */
 function _NL(text) {
   if (!text) return text;
   try {
     const key  = `SD.Graph.${_slugLabel(text)}`;
     const i18n = globalThis.game?.i18n;
     if (i18n?.has?.(key)) return i18n.localize(key);
-    // Fallback: try `.localize` even without `has` (older versions) -- if it
-    // returns the key unchanged, assume missing and fall back to `text`.
     if (i18n?.localize) {
       const s = i18n.localize(key);
       if (s && s !== key) return s;
@@ -66,16 +40,16 @@ function _NL(text) {
   return text;
 }
 
-// NODE CATALOGUE
+// Каталог нод
 
 export const NODE_DEFS = {
 
-  // System
+  // Системные
   output: {
     title:"OUTPUT", color:"#5a4ec0", cat:"_system",
     desc:"Connect a formula value OR an exec chain. Use Branch to split paths.",
     inputs:[
-      {id:"value",     label:"Formula value", type:"value"},
+      {id:"value",     label:"Formula value", type:"value.any"},
       {id:"exec",      label:"Run (exec)",    type:"exec"}
     ],
     outputs:[],
@@ -83,11 +57,10 @@ export const NODE_DEFS = {
     isOutput:true
   },
 
-  // Attribute widget -- special nodes, only appear in attribute graphs
   attr_score_val: {
     title:"Attr Score", color:"#7a4a1a", cat:"_attr",
     desc:"Live numeric value of this attribute (read-only, always present in attribute graphs).",
-    inputs:[], outputs:[{id:"value",label:"Value",type:"value"}],
+    inputs:[], outputs:[{id:"value",label:"Value",type:"value.number"}],
     fields:[{key:"path",label:"Score Path",type:"path",default:"system.attributes.attr1.value"}],
     isAttrScore: true,
     compile:(n)=>`{${n.data.path??"system.attributes.attr1.value"}}`
@@ -96,7 +69,7 @@ export const NODE_DEFS = {
     title:"ATTR OUTPUT", color:"#7a4a1a", cat:"_attr",
     desc:"Attribute widget output. Wire modValue to set what the modifier button shows and rolls. Wire exec to set what happens on click.",
     inputs:[
-      {id:"modValue", label:"Mod Value",   type:"value"},
+      {id:"modValue", label:"Mod Value",   type:"value.number"},
       {id:"exec",     label:"On Click",    type:"exec"}
     ],
     outputs:[],
@@ -104,13 +77,13 @@ export const NODE_DEFS = {
     isAttrOutput:true
   },
 
-  // Flow
+  // Поток
   branch: {
     title:"Branch", color:"#8a2a8a", cat:"Flow",
     desc:"If Condition is TRUE runs True path; otherwise False path",
     inputs:[
       {id:"exec",  label:"",         type:"exec"},
-      {id:"cond",  label:"Condition",type:"value"}
+      {id:"cond",  label:"Condition",type:"value.bool"}
     ],
     outputs:[
       {id:"true",  label:"True",  type:"exec"},
@@ -133,7 +106,6 @@ export const NODE_DEFS = {
     title:"Sequence", color:"#8a2a8a", cat:"Flow",
     desc:"Run N exec branches in strict order (1 → 2 → … → N). Set `count` to pick how many branches; connected + 1 is the smallest safe count.",
     inputs:[{id:"exec",label:"",type:"exec"}],
-    // 12 static pins -- only the first `count` are rendered & walked.
     outputs:[
       {id:"a0", label:"Then 1",  type:"exec"},
       {id:"a1", label:"Then 2",  type:"exec"},
@@ -154,18 +126,15 @@ export const NODE_DEFS = {
     isSequence: true
   },
 
-  // Sources
-  // Number -- outputs its value, or the wired input if connected
   literal: {
     title:"Number", color:"#2a4a6a", cat:"Sources",
-    inputs:[{id:"in",label:"In",type:"value"}], outputs:[{id:"v",label:"Out",type:"value"}],
+    inputs:[{id:"in",label:"In",type:"value.number"}], outputs:[{id:"v",label:"Out",type:"value.number"}],
     fields:[{key:"value",label:"",type:"number",default:0}],
     compile:(n,i)=> i.in !== undefined ? String(i.in) : String(n.data.value ?? 0)
   },
-  // Text -- outputs raw string (no quotes), used for labels/flavors not roll formulas
   literal_str: {
     title:"Text", color:"#2a4a6a", cat:"Sources",
-    inputs:[{id:"in",label:"In",type:"value"}], outputs:[{id:"v",label:"Out",type:"value"}],
+    inputs:[{id:"in",label:"In",type:"value.string"}], outputs:[{id:"v",label:"Out",type:"value.string"}],
     fields:[{key:"value",label:"",type:"text",default:""}],
     compile:(n,i)=>{
       const v = i.in !== undefined ? String(i.in) : String(n.data.value ?? "");
@@ -175,46 +144,43 @@ export const NODE_DEFS = {
   get_path: {
     title:"Get Field", color:"#1a4060", cat:"Sources",
     desc:"Read any field from the actor or item by dot-path",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"path",label:"Path",type:"path",default:"system.resources.hp.value"}],
     compile:(n)=>`{${n.data.path??""}}`
   },
   get_widget: {
     title:"Get Widget Value", color:"#1a4060", cat:"Sources",
     desc:"Read the current computed value of another widget by its Widget Key",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"key",label:"Widget",type:"widget-picker",default:""}],
     compile:(n)=>`{widget:${n.data.key??""}}`
   },
   get_widget_path: {
     title:"Get Widget Path", color:"#1a4060", cat:"Sources",
     desc:"Emits the data path bound to a widget (e.g. system.flags.hp). Feed into Set Field / Modify to change the widget's value from the graph.",
-    inputs:[], outputs:[{id:"v",label:"Path",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Path",type:"value.path"}],
     fields:[{key:"key",label:"Widget",type:"widget-picker",default:""}],
     compile:(n)=>`{widgetPath:${n.data.key??""}}`
   },
   actor_ref: {
     title:"Actor @Ref", color:"#1a4060", cat:"Sources",
     desc:"Shorthand from actor roll data: @attr1=attr1.mod, @level, @prof",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"ref",label:"@name",type:"text",default:"attr1",placeholder:"attr1 / level / prof"}],
     compile:(n)=>`{@${n.data.ref??"attr1"}}`
   },
   slot_count: {
     title:"Slot Count", color:"#1a4060", cat:"Sources",
     desc:"Count items in a slot. Slot is auto-indexed — pick from dropdown or connect a Get Actor Slot ID node.",
-    inputs:[{id:"itemSlot",label:"Item Slot",type:"value"}],
-    outputs:[{id:"v",label:"Count",type:"value"}],
+    inputs:[{id:"itemSlot",label:"Item Slot",type:"value.any"}],
+    outputs:[{id:"v",label:"Count",type:"value.number"}],
     fields:[{key:"slotId",label:"Slot ID",type:"slot-picker",default:"slot1"}],
     compile:(n,i)=>{
-      // Dynamic pin always resolves against self/actor at runtime
       if (i.itemSlot != null) return `{slotCount:${i.itemSlot}}`;
       const path = n.data.slotPath;
       if (path) {
         const parts = path.split("/");
-        // Direct actor-owned item slot: "itemId/slotId" (2 segments) -> invItemSlotCount
         if (parts.length === 2) return `{invItemSlotCount:${parts[0]}.${parts[1]}}`;
-        // Deeply nested: "itemId/slotId/nestedItemId/slotId2/..." -> nestedSlotCount
         return `{nestedSlotCount:${path}}`;
       }
       // Self / actor slot
@@ -224,7 +190,7 @@ export const NODE_DEFS = {
   slot_field: {
     title:"Slot Item Field", color:"#1a4060", cat:"Sources",
     desc:"Field on item at index inside a slot (0=first)",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[
       {key:"slotId",label:"Slot ID",type:"text",default:"slot1"},
       {key:"index", label:"Index",  type:"number",default:0},
@@ -235,7 +201,7 @@ export const NODE_DEFS = {
   item_uuid: {
     title:"Item by UUID", color:"#1a3050", cat:"Sources",
     desc:"Drag an item from the sidebar here to get its UUID, then read a field",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[
       {key:"uuid", label:"UUID",  type:"text",default:"",placeholder:"Item.xxxxx or drag item here"},
       {key:"path", label:"Field", type:"path",default:"system.hiddenFields.field"}
@@ -245,13 +211,11 @@ export const NODE_DEFS = {
   target_field: {
     title:"Target Field", color:"#1a4060", cat:"Sources",
     desc:"Read a field from the first targeted/selected token's actor",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}],
     compile:(n)=>`{target.${n.data.path??""}}`
   },
 
-  // Attribute
-  // (attr_score removed -- auto-migrated to attr_score_val; see node-migration.mjs)
   attr_mod: {
     title:"Attr Modifier", color:"#7a4a1a", cat:"Attribute",
     desc:"Calculates the modifier from an attribute score. Default formula: floor((score − 10) / 2). Connect Attr Score → score pin.",
@@ -264,103 +228,131 @@ export const NODE_DEFS = {
     }
   },
 
-  // Dice
+  // Кубы
   dice: {
     title:"Dice", color:"#7a4500", cat:"Dice",
-    inputs:[{id:"count",label:"Count",type:"value.number"}],
+    desc:"Build a dice formula `<count><die>`. Connect Count for the number of dice, Die for the size (accepts \"d6\", \"6\" or a {ref}; if Die pin is empty the select field below is used).",
+    inputs:[
+      {id:"count",label:"Count",type:"value.number"},
+      {id:"die",  label:"Die",  type:"value.string"}
+    ],
     outputs:[{id:"v",label:"Formula",type:"value.string"}],
     fields:[
       {key:"count",label:"#",type:"number",default:1},
       {key:"die",  label:"Die",type:"select",default:"d6",options:["d4","d6","d8","d10","d12","d20","d100"]}
     ],
     dynamicPins:[
-      { base:"add", label:"Add", max:10 },
-      { base:"sub", label:"Sub", max:10 }
+      { base:"add", label:"Add", max:10, type:"value.number" },
+      { base:"sub", label:"Sub", max:10, type:"value.number" }
     ],
     compile:(n,i)=>{
-      let f=`${i.count??n.data.count??1}${n.data.die??"d6"}`;
-      for(let j=0;j<10;j++){
-        const av=i[`add${j}`]; if(av!=null&&av!=="") f=`(${f}+(${av}))`;
-        const sv=i[`sub${j}`]; if(sv!=null&&sv!=="") f=`(${f}-(${sv}))`;
+      const c = i.count ?? n.data.count ?? 1;
+      let dieSrc = (i.die !== undefined && i.die !== null && i.die !== "")
+        ? String(i.die).trim()
+        : String(n.data.die ?? "d6").trim();
+      if (dieSrc.length >= 2 && (
+            (dieSrc.startsWith('"') && dieSrc.endsWith('"')) ||
+            (dieSrc.startsWith("'") && dieSrc.endsWith("'"))
+          )) {
+        dieSrc = dieSrc.slice(1, -1).trim();
+      }
+      if (!dieSrc) dieSrc = "d6";
+      const dieFinal = /^d/i.test(dieSrc) ? dieSrc : `d${dieSrc}`;
+      let f = `${c}${dieFinal}`;
+      for (let j = 0; j < 10; j++) {
+        const av = i[`add${j}`]; if (av != null && av !== "") f = `(${f}+(${av}))`;
+        const sv = i[`sub${j}`]; if (sv != null && sv !== "") f = `(${f}-(${sv}))`;
       }
       return f;
     }
   },
 
-  // Math
-  add:  {title:"Add",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[{key:"sep",label:"Sep",type:"text",default:""}],compile:(n,i)=>{ const sep=n.data.sep??""; return sep ? `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})` : `(${i.a??"0"}+${i.b??"0"})`; }},
-  sub:  {title:"Sub",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}-${i.b??"0"})`},
-  mul:  {title:"Mul",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}*${i.b??"0"})`},
-  div:  {title:"Div",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}/${i.b??"1"})`},
-  floor:{title:"Floor", color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`floor(${i.a??"0"})`},
-  ceil: {title:"Ceil",  color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`ceil(${i.a??"0"})`},
-  round:{title:"Round", color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`round(${i.a??"0"})`},
-  max2: {title:"Max",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`max(${i.a??"0"},${i.b??"0"})`},
-  min2: {title:"Min",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`min(${i.a??"0"},${i.b??"0"})`},
-  abs:  {title:"Abs",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`abs(${i.a??"0"})`},
+  // Математика
+  add:  {title:"Add",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[{key:"sep",label:"Sep",type:"text",default:""}],compile:(n,i)=>{ const sep=n.data.sep??""; return sep ? `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})` : `(${i.a??"0"}+${i.b??"0"})`; }},
+  sub:  {title:"Sub",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}-${i.b??"0"})`},
+  mul:  {title:"Mul",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}*${i.b??"0"})`},
+  div:  {title:"Div",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}/${i.b??"1"})`},
+  floor:{title:"Floor", color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`floor(${i.a??"0"})`},
+  ceil: {title:"Ceil",  color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`ceil(${i.a??"0"})`},
+  round:{title:"Round", color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`round(${i.a??"0"})`},
+  max2: {title:"Max",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`max(${i.a??"0"},${i.b??"0"})`},
+  min2: {title:"Min",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`min(${i.a??"0"},${i.b??"0"})`},
+  abs:  {title:"Abs",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`abs(${i.a??"0"})`},
   clamp:{title:"Clamp", color:"#1a5c2a",cat:"Math",
-         inputs:[{id:"v",label:"Val"},{id:"lo",label:"Min"},{id:"hi",label:"Max"}],
+         inputs:[{id:"v",label:"Val",type:"value.number"},{id:"lo",label:"Min",type:"value.number"},{id:"hi",label:"Max",type:"value.number"}],
          outputs:[{id:"v",label:"",type:"value.number"}],fields:[],
          compile:(_,i)=>`max(${i.lo??"0"},min(${i.hi??"0"},${i.v??"0"}))`},
 
-  // Compare
-  eq: {title:"==",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}==${i.b??"0"})`},
-  neq:{title:"≠", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}!=${i.b??"0"})`},
-  gt: {title:">", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>${i.b??"0"})`},
-  lt: {title:"<", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<${i.b??"0"})`},
-  gte:{title:">=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>=${i.b??"0"})`},
-  lte:{title:"<=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<=${i.b??"0"})`},
+  // Сравнения
+  eq: {title:"==",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}==${i.b??"0"})`},
+  neq:{title:"≠", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}!=${i.b??"0"})`},
+  gt: {title:">", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>${i.b??"0"})`},
+  lt: {title:"<", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<${i.b??"0"})`},
+  gte:{title:">=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>=${i.b??"0"})`},
+  lte:{title:"<=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<=${i.b??"0"})`},
 
-  // Logic
-  and:{title:"AND",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}&&${i.b??"0"})`},
-  or: {title:"OR", color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A"},{id:"b",label:"B"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}||${i.b??"0"})`},
-  not:{title:"NOT",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(!${i.a??"0"})`},
+  // Логика
+  and:{title:"AND",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}&&${i.b??"0"})`},
+  or: {title:"OR", color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}||${i.b??"0"})`},
+  not:{title:"NOT",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(!${i.a??"0"})`},
 
-  // Actions
+  // Действия
   act_roll_value: {
     title:"Roll → Value", color:"#8a4400", cat:"Actions",
-    desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin.",
+    desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
-      {id:"exec",       label:"",              type:"exec"},
-      {id:"formula",    label:"Formula",        type:"value"},
-      {id:"advFormula", label:"Adv Formula",    type:"value"},
-      {id:"disFormula", label:"Dis Formula",    type:"value"}
+      {id:"exec",          label:"",              type:"exec"},
+      {id:"formula",       label:"Formula",        type:"value.string"},
+      {id:"advFormula",    label:"Adv Formula",    type:"value.string"},
+      {id:"disFormula",    label:"Dis Formula",    type:"value.string"},
+      {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
-    outputs:[{id:"exec",label:"",type:"exec"},{id:"result",label:"Result",type:"value"}],
+    outputs:[{id:"exec",label:"",type:"exec"},{id:"result",label:"Result",type:"value.number"}],
     fields:[
-      {key:"formula",      label:"Formula",              type:"text",   default:"1d6"},
-      {key:"flavor",       label:"Label",                type:"text",   default:"Roll"},
-      {key:"toChat",       label:"To chat",              type:"select", default:"yes", options:["yes","no"]},
-      {key:"rollDialogue", label:"Roll dialog",          type:"select", default:"no",  options:["no","yes"]},
-      {key:"advFormula",   label:"Adv formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kh1 + @mod"},
-      {key:"disFormula",   label:"Dis formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kl1 + @mod"}
+      {key:"formula",        label:"Formula",              type:"text",   default:"1d6"},
+      {key:"flavor",         label:"Label",                type:"text",   default:"Roll"},
+      {key:"toChat",         label:"To chat",              type:"select", default:"yes", options:["yes","no"]},
+      {key:"rollDialogue",   label:"Roll dialog",          type:"select", default:"no",  options:["no","yes"]},
+      {key:"advFormula",     label:"Adv formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kh1 + @mod"},
+      {key:"disFormula",     label:"Dis formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kl1 + @mod"},
+      {key:"rerollEnabled",  label:"Reroll button",       type:"select", default:"no", options:["no","yes"]},
+      {key:"rerollPath",     label:"Reroll resource path", type:"path",   default:"",   placeholder:"e.g. system.resources.luck.value"},
+      {key:"rerollCost",     label:"Reroll cost",          type:"number", default:1}
     ],
     isAction:true,
     toAction:(n,inp)=>{
       const formula = inp.formula ?? n.data.formula ?? "1d6";
-      // advFormula / disFormula: pin takes priority over field
       const advFormula = (inp.advFormula != null && inp.advFormula !== "") ? inp.advFormula : (n.data.advFormula ?? "");
       const disFormula = (inp.disFormula != null && inp.disFormula !== "") ? inp.disFormula : (n.data.disFormula ?? "");
+      const _rrEnabledRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
+      const rerollEnabled = (_rrEnabledRaw === true || _rrEnabledRaw === "yes" || _rrEnabledRaw === 1 || _rrEnabledRaw === "1") ? "yes" : "no";
       return {
         type:"rollValue", formula,
         flavor:       n.data.flavor ?? "Roll",
         toChat:       n.data.toChat !== "no",
         rollDialogue: n.data.rollDialogue === "yes",
         advFormula,
-        disFormula
+        disFormula,
+        rerollEnabled,
+        rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
       };
     }
   },
 
   act_damage: {
     title:"Damage", color:"#8a1a1a", cat:"Actions",
-    desc:"Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=×0, resist=×0.5, vulnerable=×2, numeric factor used as-is). halfOnSave × savePassed pin halves damage when the preceding save node passed.",
+    desc:"Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=×0, resist=×0.5, vulnerable=×2, numeric factor used as-is). halfOnSave × savePassed pin halves damage when the preceding save node passed. Connect Targets pin from AoE Save to apply to specific tokens.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
-      {id:"amount",label:"Amount",type:"value"},
-      {id:"critMultiplier",label:"Crit ×",type:"value"},
-      {id:"damageType",label:"Type",type:"value"},
-      {id:"savePassed",label:"Save passed?",type:"value"}
+      {id:"amount",label:"Amount",type:"value.number"},
+      {id:"critMultiplier",label:"Crit ×",type:"value.number"},
+      {id:"damageType",label:"Type",type:"value.string"},
+      {id:"savePassed",label:"Save passed?",type:"value.bool"},
+      {id:"target",label:"Target",type:"value.actor"},
+      {id:"targets",label:"Targets",type:"value.array"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
@@ -376,22 +368,18 @@ export const NODE_DEFS = {
     ],
     isAction:true,
     toAction:(n,inp)=>{
-      const targetMode = n.data.target ?? "token_target";
-      const tgtPfx = (targetMode==="token_target"||targetMode==="selected_token"||targetMode==="all_targets") ? "target." : "actor.";
+      const targetMode = (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "token_target");
       const amt   = inp.amount ?? 0;
       const mult  = inp.critMultiplier ?? n.data.critMultiplier ?? "1";
       const scaled = `(${amt})*(${mult})`;
       const dmgType = inp.damageType ?? n.data.damageType ?? "";
       const halfOnSave = n.data.halfOnSave === "yes";
       const savePassed = inp.savePassed ?? null;
-      // Always emit chatDamage so resistance/halfOnSave/savePassed scaling
-      // runs on every path.  `silent:true` skips the chat card and forces
-      // autoApply (direct HP write) -- preserves the old "postToChat:no"
-      // behaviour while respecting resistances/immunities.
       const silent    = n.data.postToChat === "no";
       return {type:"chatDamage", amount:scaled, label:n.data.label??"Damage",
         target:targetMode, hpPath:n.data.hpPath??"system.resources.hp.value",
         damageType: dmgType, halfOnSave, savePassed,
+        targets: inp.targets ?? null,
         silent,
         showApply: !silent && n.data.showApply !== "no",
         autoApply: silent || n.data.autoApply === "yes"};
@@ -400,8 +388,13 @@ export const NODE_DEFS = {
 
   act_heal: {
     title:"Heal", color:"#1a7a2a", cat:"Actions",
-    desc:"Apply healing to target HP. postToChat:yes → chat card with Apply button. autoApply:yes → post to chat AND immediately heal (no click). postToChat:no → silent direct HP write.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"amount",label:"Amount",type:"value"}],
+    desc:"Apply healing to target HP. postToChat:yes → chat card with Apply button. autoApply:yes → post to chat AND immediately heal (no click). postToChat:no → silent direct HP write. Connect Targets pin from AoE Save to apply to specific tokens.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"amount",label:"Amount",type:"value.number"},
+      {id:"target",label:"Target",type:"value.actor"},
+      {id:"targets",label:"Targets",type:"value.array"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"label",      label:"Label",      type:"text",   default:"Healing"},
@@ -413,29 +406,38 @@ export const NODE_DEFS = {
     ],
     isAction:true,
     toAction:(n,inp)=>{
-      const targetMode = n.data.target ?? "actor";
-      const tgtPfx = (targetMode==="token_target"||targetMode==="selected_token"||targetMode==="all_targets") ? "target." : "actor.";
+      const targetMode = (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "actor");
       if (n.data.postToChat === "yes") {
         return {type:"chatHeal", amount:inp.amount??0, label:n.data.label??"Healing",
           target:targetMode, hpPath:n.data.hpPath??"system.resources.hp.value",
+          targets: inp.targets ?? null,
           showApply: n.data.showApply !== "no",
           autoApply: n.data.autoApply === "yes"};
       }
+      // Silent direct write: route through "target." prefix so runtime resolves
+      // the target actor via targetMode (handles magic strings, UUIDs, user_character, …).
+      const path = n.data.hpPath ?? "system.resources.hp.value";
+      const isSelfMode = (targetMode === "actor" || targetMode === "self");
       return {type:"modifyField",
-        target:`${tgtPfx}${n.data.hpPath??"system.resources.hp.value"}`,
-        targetMode, delta:`+(${inp.amount??0})`, flavor:n.data.label??"Healing"};
+        target: isSelfMode ? `actor.${path}` : `target.${path}`,
+        targetMode, targets: inp.targets ?? null, delta:`+(${inp.amount??0})`, flavor:n.data.label??"Healing"};
     }
   },
 
   act_effect: {
     title:"Apply Effect", color:"#1a2a8a", cat:"Actions",
-    desc:"Create or toggle an Active Effect on actor/target. Changes: JSON array [{key,value,mode}] where mode 2=Add 5=Override",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"duration",label:"Rounds",type:"value"}],
+    desc:"Create or toggle an Active Effect on actor/target. Changes: JSON array [{key,value,mode}] where mode 2=Add 5=Override. Connect Target pin (single actor) or Targets pin (array) to override the field.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"duration",label:"Rounds",type:"value.number"},
+      {id:"target",label:"Target",type:"value.actor"},
+      {id:"targets",label:"Targets",type:"value.array"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"effectName", label:"Name (existing or new)", type:"effect-picker", default:"My Effect"},
       {key:"icon",       label:"Icon",        type:"text",   default:"icons/svg/aura.svg", placeholder:"icons/svg/aura.svg"},
-      {key:"target",     label:"Target",      type:"select", default:"actor", options:["actor","token_target","selected_token"]},
+      {key:"target",     label:"Target",      type:"select", default:"actor", options:["actor","token_target","selected_token","all_targets"]},
       {key:"duration",   label:"Rounds (0=∞)",type:"number", default:0},
       {key:"changes",    label:"Changes JSON",type:"text",   default:"", placeholder:'[{"key":"system.attributes.str.value","value":"2","mode":2}]'},
       {key:"toggleMode", label:"Mode",        type:"select", default:"create", options:["create","toggle","ensure_on","ensure_off"]}
@@ -445,24 +447,27 @@ export const NODE_DEFS = {
       type:"applyEffect",
       effectName: n.data.effectName ?? "My Effect",
       icon:        n.data.icon       ?? "icons/svg/aura.svg",
-      target:      n.data.target     ?? "actor",
+      target:      (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "actor"),
+      targets:     inp.targets       ?? null,
       duration:    inp.duration      ?? n.data.duration ?? 0,
       changes:     (() => { try { return JSON.parse(n.data.changes||"[]"); } catch { return []; } })(),
       toggleMode:  n.data.toggleMode ?? "create"
     })
   },
 
-  /** Legacy act_remove_effect moved to Effects category (line ~1537).
-   *  This slot intentionally left empty so the key is not duplicated. */
-
   act_effect_uuid: {
     title:"Apply Effect (UUID)", color:"#1a2a8a", cat:"Actions",
-    desc:"Apply an existing Active Effect to actor/target by UUID. Pick from the dropdown — UUID is filled automatically.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"duration",label:"Rounds",type:"value"}],
+    desc:"Apply an existing Active Effect to actor/target by UUID. Pick from the dropdown — UUID is filled automatically. Connect Target pin (single actor) or Targets pin (array) to override the field.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"duration",label:"Rounds",type:"value.number"},
+      {id:"target",label:"Target",type:"value.actor"},
+      {id:"targets",label:"Targets",type:"value.array"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"effectUuid", label:"Effect",       type:"effect-uuid-picker", default:""},
-      {key:"target",     label:"Target",        type:"select", default:"actor", options:["actor","token_target","selected_token"]},
+      {key:"target",     label:"Target",        type:"select", default:"actor", options:["actor","token_target","selected_token","all_targets"]},
       {key:"toggleMode", label:"Mode",          type:"select", default:"create", options:["create","toggle","ensure_on","ensure_off"]},
       {key:"duration",   label:"Rounds (0=∞)",  type:"number", default:0}
     ],
@@ -470,7 +475,8 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({
       type:       "applyEffectByUuid",
       effectUuid: n.data.effectUuid ?? "",
-      target:     n.data.target     ?? "actor",
+      target:     (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "actor"),
+      targets:    inp.targets       ?? null,
       toggleMode: n.data.toggleMode ?? "create",
       duration:   inp.duration      ?? n.data.duration ?? 0
     })
@@ -488,12 +494,256 @@ export const NODE_DEFS = {
     isLoop: true
   },
 
-  // Spellbook / Casting
+  act_for_each_token: {
+    title:"For Each Token", color:"#1a5a7a", cat:"Flow",
+    desc:"Execute loop body once per token id in a comma-joined list (e.g. Saved[]/Failed[]/All[] from Save Branch). On each iteration {__currentTarget} = current token id and {__loopIndex} = i; the current token's actor becomes the action context.",
+    inputs:[
+      {id:"exec",   label:"",        type:"exec"},
+      {id:"tokens", label:"Tokens",  type:"value.array"}
+    ],
+    outputs:[
+      {id:"loop",  label:"Loop →",  type:"exec"},
+      {id:"done",  label:"Done →",  type:"exec"},
+      {id:"token", label:"Token",   type:"value.token"},
+      {id:"index", label:"Index",   type:"value.number"}
+    ],
+    fields:[],
+    isLoop: true,
+    toAction:(_,inp)=>({
+      type:   "forEachToken",
+      tokens: inp.tokens ?? ""
+    })
+  },
+
+  tok_field: {
+    title:"Token Field", color:"#1a4060", cat:"Sources",
+    desc:"Read a field from the actor of a token by token id. Token Id defaults to {__currentTarget} (set by For Each Token / per-target iterators). Use to read e.g. system.resources.hp.value of a specific saved/failed token.",
+    inputs:[{id:"tokenId", label:"Token Id", type:"value.any"}],
+    outputs:[{id:"v", label:"Value", type:"value.any"}],
+    fields:[{key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}],
+    compile:(n,i)=>{
+      const tid  = (i.tokenId != null && i.tokenId !== "") ? String(i.tokenId) : "{__currentTarget}";
+      const path = n.data.path ?? "";
+      return `{tokenField:${tid}.${path}}`;
+    }
+  },
+
+  arr_length: {
+    title:"Array Length", color:"#2a7a3a", cat:"Array",
+    desc:"Number of token ids in a comma-joined list (e.g. Saved[]/Failed[]/All[] from Save Branch).",
+    inputs:[{id:"tokens", label:"Tokens", type:"value.array"}],
+    outputs:[{id:"v", label:"Count", type:"value.number"}],
+    fields:[],
+    compile:(_,i)=>`{arrayLength:${i.tokens ?? ""}}`
+  },
+
+  arr_at: {
+    title:"Token at Index", color:"#2a7a3a", cat:"Array",
+    desc:"Returns the Nth token id (0-based) from a comma-joined list (Saved[]/Failed[]/All[] etc.). If Index is out of range, returns empty.",
+    inputs:[
+      {id:"tokens", label:"Tokens", type:"value.array"},
+      {id:"index",  label:"Index",  type:"value.number"}
+    ],
+    outputs:[{id:"v", label:"Token", type:"value.any"}],
+    fields:[{key:"index",label:"Index",type:"number",default:0}],
+    compile:(n,i)=>`{arrayAt:${i.tokens ?? ""}|${i.index ?? n.data.index ?? 0}}`
+  },
+
+  arr_map_field: {
+    title:"Map Field", color:"#2a7a3a", cat:"Array",
+    desc:"For every token in the array, read the same field from its actor and return all values as a new comma-joined list. Use to feed numeric arrays into Aggregate / Find / Filter or to compare values across tokens.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value.array"}],
+    outputs:[{id:"v", label:"Values", type:"value.array"}],
+    fields:[{key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}],
+    compile:(n,i)=>`{arrayMapField:${i.tokens ?? ""}|${n.data.path ?? ""}}`
+  },
+
+  arr_aggregate_field: {
+    title:"Aggregate Field", color:"#2a7a3a", cat:"Array",
+    desc:"Reduce a numeric field across all tokens in the array. Sum / Avg / Min / Max / Count. Non-numeric values are skipped.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value.array"}],
+    outputs:[{id:"v", label:"Result", type:"value.number"}],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
+      {key:"op",  label:"Op",   type:"select",default:"sum",options:["sum","avg","min","max","count"]}
+    ],
+    compile:(n,i)=>`{arrayAgg:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "sum"}}`
+  },
+
+  arr_find_extreme: {
+    title:"Find Top by Field", color:"#2a7a3a", cat:"Array",
+    desc:"Returns the token id of the actor with the highest (max) or lowest (min) field value in the array. Useful for `who has more HP`, `slowest initiative`, etc.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value.array"}],
+    outputs:[{id:"v", label:"Token", type:"value.any"}],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
+      {key:"op",  label:"Pick", type:"select",default:"max",options:["max","min"]}
+    ],
+    compile:(n,i)=>`{arrayFindExtreme:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "max"}}`
+  },
+
+  arr_filter: {
+    title:"Filter by Field", color:"#2a7a3a", cat:"Array",
+    desc:"Keep only tokens whose actor field passes `field <op> value`. Numeric comparisons when value parses as a number, string equality otherwise. Outputs a comma-joined list to feed back into other Array / For Each Token nodes.",
+    inputs:[
+      {id:"tokens", label:"Tokens", type:"value.array"},
+      {id:"value",  label:"Value",  type:"value.any"}
+    ],
+    outputs:[{id:"v", label:"Filtered", type:"value.array"}],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
+      {key:"op",  label:"Op",   type:"select",default:">",options:["==","!=",">","<",">=","<="]},
+      {key:"value",label:"Value",type:"text",default:"0"}
+    ],
+    compile:(n,i)=>{
+      const cmpRaw = (i.value !== undefined && i.value !== null && i.value !== "")
+        ? String(i.value)
+        : String(n.data.value ?? "0");
+      let cmp = cmpRaw.trim();
+      if (cmp.length >= 2 && (
+            (cmp.startsWith('"') && cmp.endsWith('"')) ||
+            (cmp.startsWith("'") && cmp.endsWith("'"))
+          )) {
+        cmp = cmp.slice(1, -1);
+      }
+      return `{arrayFilter:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? ">"}|${cmp}}`;
+    }
+  },
+
+  arr_compare_two: {
+    title:"Compare Two Tokens", color:"#5a3a7a", cat:"Array",
+    desc:"Read the same field on two tokens and route exec into Greater / Less / Equal based on (A − B). Diff outputs the numeric difference and Winner outputs the id of the higher token (empty on tie).",
+    inputs:[
+      {id:"exec",   label:"",        type:"exec"},
+      {id:"a",      label:"Token A", type:"value.array"},
+      {id:"b",      label:"Token B", type:"value.array"}
+    ],
+    outputs:[
+      {id:"greater", label:"A > B →", type:"exec"},
+      {id:"less",    label:"A < B →", type:"exec"},
+      {id:"equal",   label:"A = B →", type:"exec"},
+      {id:"diff",    label:"Diff",    type:"value.number"},
+      {id:"winner",  label:"Winner",  type:"value.token"}
+    ],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({
+      type:   "arrayCompareTwo",
+      a:      inp.a ?? "",
+      b:      inp.b ?? "",
+      path:   n.data.path ?? ""
+    })
+  },
+
+  arr_sort: {
+    title:"Sort by Field", color:"#2a7a3a", cat:"Array",
+    desc:"Sort token ids by a numeric actor field. Ascending or descending. Tokens with non-numeric values go to the end.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value.array"}],
+    outputs:[{id:"v", label:"Sorted", type:"value.array"}],
+    fields:[
+      {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
+      {key:"op",  label:"Order",type:"select",default:"desc",options:["desc","asc"]}
+    ],
+    compile:(n,i)=>`{arraySort:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "desc"}}`
+  },
+
+  arr_slice: {
+    title:"Slice / Take", color:"#2a7a3a", cat:"Array",
+    desc:"Take a sub-range of an array. Start is 0-based; Count of -1 means «to the end». Use after Sort to get top-N / bottom-N.",
+    inputs:[
+      {id:"tokens", label:"Tokens", type:"value.array"},
+      {id:"start",  label:"Start",  type:"value.number"},
+      {id:"count",  label:"Count",  type:"value.number"}
+    ],
+    outputs:[{id:"v", label:"Slice", type:"value.array"}],
+    fields:[
+      {key:"start",label:"Start",type:"number",default:0},
+      {key:"count",label:"Count (-1 = all)",type:"number",default:3}
+    ],
+    compile:(n,i)=>{
+      const s = (i.start ?? n.data.start ?? 0);
+      const c = (i.count ?? n.data.count ?? -1);
+      return `{arraySlice:${i.tokens ?? ""}|${s}|${c}}`;
+    }
+  },
+
+  arr_concat: {
+    title:"Concat", color:"#2a7a3a", cat:"Array",
+    desc:"Join two arrays end-to-end (duplicates kept). For unique union use Union node.",
+    inputs:[
+      {id:"a", label:"A", type:"value.array"},
+      {id:"b", label:"B", type:"value.array"}
+    ],
+    outputs:[{id:"v", label:"A+B", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayConcat:${i.a ?? ""}|${i.b ?? ""}}`
+  },
+
+  arr_union: {
+    title:"Union", color:"#2a7a3a", cat:"Array",
+    desc:"All ids present in A or B (unique).",
+    inputs:[
+      {id:"a", label:"A", type:"value.array"},
+      {id:"b", label:"B", type:"value.array"}
+    ],
+    outputs:[{id:"v", label:"A ∪ B", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayUnion:${i.a ?? ""}|${i.b ?? ""}}`
+  },
+
+  arr_intersect: {
+    title:"Intersect", color:"#2a7a3a", cat:"Array",
+    desc:"Only ids present in BOTH A and B. «Tokens that are buffed AND poisoned».",
+    inputs:[
+      {id:"a", label:"A", type:"value.array"},
+      {id:"b", label:"B", type:"value.array"}
+    ],
+    outputs:[{id:"v", label:"A ∩ B", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayIntersect:${i.a ?? ""}|${i.b ?? ""}}`
+  },
+
+  arr_difference: {
+    title:"Difference", color:"#2a7a3a", cat:"Array",
+    desc:"Ids in A that are NOT in B. «Targets that did not save».",
+    inputs:[
+      {id:"a", label:"A", type:"value.array"},
+      {id:"b", label:"B", type:"value.array"}
+    ],
+    outputs:[{id:"v", label:"A − B", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayDifference:${i.a ?? ""}|${i.b ?? ""}}`
+  },
+
+  arr_contains: {
+    title:"Contains", color:"#2a7a3a", cat:"Array",
+    desc:"Returns 1 if Token id is present in the array, 0 otherwise. Useful for branches.",
+    inputs:[
+      {id:"tokens", label:"Tokens", type:"value.array"},
+      {id:"id",     label:"Id",     type:"value.any"}
+    ],
+    outputs:[{id:"v", label:"In?", type:"value.bool"}],
+    fields:[],
+    compile:(_,i)=>`{arrayContains:${i.tokens ?? ""}|${i.id ?? ""}}`
+  },
+
+  arr_distinct: {
+    title:"Distinct", color:"#2a7a3a", cat:"Array",
+    desc:"Remove duplicate ids preserving first-seen order.",
+    inputs:[{id:"tokens", label:"Tokens", type:"value.array"}],
+    outputs:[{id:"v", label:"Unique", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayDistinct:${i.tokens ?? ""}}`
+  },
+
+  // Каст заклинаний
 
   get_spell_slots: {
     title:"Spell Slots", color:"#1a4060", cat:"Sources",
     desc:"Get remaining spell slots for a given level on actor",
-    inputs:[], outputs:[{id:"v",label:"Remaining",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Remaining",type:"value.number"}],
     fields:[{key:"level",label:"Spell Level",type:"number",default:1}],
     compile:(n)=>`{spellSlots:${n.data.level??1}}`
   },
@@ -501,7 +751,7 @@ export const NODE_DEFS = {
   act_consume_slot: {
     title:"Consume Slot", color:"#6a2a6a", cat:"Actions",
     desc:"Consume one spell slot of given level from actor. Branches OK (slot available) or Empty (no slots left).",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"level",label:"Level",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"level",label:"Level",type:"value.number"}],
     outputs:[
       {id:"ok",   label:"OK →",   type:"exec"},
       {id:"empty",label:"Empty →",type:"exec"}
@@ -517,7 +767,7 @@ export const NODE_DEFS = {
   act_restore_slot: {
     title:"Restore Slot", color:"#1a4a2a", cat:"Actions",
     desc:"Restore one spell slot of given level on actor",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"level",label:"Level",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"level",label:"Level",type:"value.number"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[{key:"level",label:"Default Level",type:"number",default:1}],
     isAction:true,
@@ -528,17 +778,22 @@ export const NODE_DEFS = {
     title:"Apply Effect Template (legacy)", color:"#1a2a8a", cat:"Actions",
     hidden:true,
     desc:"Legacy — use Create Effect or Chat Apply Effect instead.",
-    inputs:[{id:"exec",label:"",type:"exec"}],
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"target",label:"Target",type:"value.actor"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"templateName",label:"Template Name",  type:"text",  default:""},
       {key:"target",      label:"Target Override", type:"select",default:"use_template", options:["use_template","self","actor","token_target","selected_token","all_targets"]}
     ],
     isAction:true, wideNode:true,
-    toAction:(n)=>({
+    toAction:(n,inp)=>({
       type:           "applyEffectTemplate",
       templateName:   n.data.templateName ?? "",
-      targetOverride: n.data.target === "use_template" ? null : (n.data.target ?? null)
+      targetOverride: (inp.target!=null && inp.target!=="" && inp.target!=="0")
+        ? inp.target
+        : (n.data.target === "use_template" ? null : (n.data.target ?? null))
     })
   },
 
@@ -547,10 +802,10 @@ export const NODE_DEFS = {
     desc:"Add / subtract / set any field on self, actor or target. Path can be fed dynamically (e.g. from Get Widget Path).",
     inputs:[
       {id:"exec",  label:"",        type:"exec"},
-      {id:"amount",label:"Amount",  type:"value"},
-      {id:"path",  label:"Path",    type:"value"}
+      {id:"amount",label:"Amount",  type:"value.number"},
+      {id:"path",  label:"Path",    type:"value.path"}
     ],
-    outputs:[{id:"exec",label:"",type:"exec"},{id:"newValue",label:"New Value",type:"value"}],
+    outputs:[{id:"exec",label:"",type:"exec"},{id:"newValue",label:"New Value",type:"value.any"}],
     fields:[
       {key:"where",label:"Where",type:"select",default:"self",options:["self","actor","token_target"]},
       {key:"path", label:"Field",type:"path",default:"system.uses.value"},
@@ -573,7 +828,59 @@ export const NODE_DEFS = {
     }
   },
 
-  // (act_set_field removed -- auto-migrated to act_modify op="set"; see node-migration.mjs)
+  act_set_text_field: {
+    title:"Set Text Field", color:"#4a2a6a", cat:"Actions",
+    desc:"Write a string/text value to any path on self / actor / target. Use this for non-numeric writes — chat AI responses to a notes field, paste a label, fill a description, etc. Modify Field is for numbers; this is for text. Value supports module tokens ({widget:KEY}, {@attr1}, {item:Sword.system.notes}) and runtime tokens ({__lastAiResponse}, {__lastAiError}, {__lastRoll}).",
+    inputs:[
+      {id:"exec",  label:"",       type:"exec"},
+      {id:"value", label:"Value",  type:"value.string"},
+      {id:"path",  label:"Path",   type:"value.path"}
+    ],
+    outputs:[{id:"exec",label:"",type:"exec"}],
+    fields:[
+      {key:"where", label:"Where",  type:"select", default:"self", options:["self","actor","token_target"]},
+      {key:"path",  label:"Field",  type:"path",   default:"",
+        placeholder:"e.g. system.notes.story or system.hiddenFields.aiAnswer"},
+      {key:"value", label:"Value",  type:"text",   default:"",
+        placeholder:"plain text or {__lastAiResponse} / {widget:save}"}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>{
+      const pfx = n.data.where==="token_target" ? "target." : n.data.where==="actor" ? "actor." : "self.";
+      const p   = (inp.path  != null && inp.path  !== "") ? String(inp.path)  : (n.data.path  ?? "");
+      const v   = (inp.value != null && inp.value !== "") ? String(inp.value) : (n.data.value ?? "");
+      return {
+        type:"setTextField",
+        target:`${pfx}${p}`,
+        rawPath:p,
+        where:n.data.where,
+        value:v
+      };
+    }
+  },
+
+  act_set_initiative: {
+    title:"Set Initiative", color:"#4a2a6a", cat:"Actions",
+    desc:"Set or roll initiative for the target actor in the active combat. Mode `roll` rolls the system formula; `value` sets the exact number. If the actor isn't in combat, a combatant is created (only for the active combat).",
+    inputs:[
+      {id:"exec",   label:"",          type:"exec"},
+      {id:"target", label:"Target",    type:"value.actor"},
+      {id:"value",  label:"Value",     type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"target",label:"Target",type:"select",default:"actor",options:["self","actor","token_target","selected_token","all_targets"]},
+      {key:"mode",  label:"Mode",  type:"select",default:"roll", options:["roll","value"]},
+      {key:"value", label:"Value (mode=value)", type:"number", default:10}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:   "setInitiative",
+      target: inp.target ?? n.data.target ?? "actor",
+      mode:   n.data.mode ?? "roll",
+      value:  inp.value  ?? n.data.value  ?? 0
+    })
+  },
 
   act_message: {
     title:"Message", color:"#4a4a1a", cat:"Actions",
@@ -581,8 +888,7 @@ export const NODE_DEFS = {
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[],
     isAction:true,
-    // Dynamic text pins: text0..text9 -- always show one more than connected, up to 10
-    dynamicPins:[{ base:"text", label:"Text", max:10 }],
+    dynamicPins:[{ base:"text", label:"Text", max:10, type:"value.string" }],
     toAction:(n,inp)=>{
       const parts=[];
       for(let i=0;i<10;i++){
@@ -647,12 +953,12 @@ export const NODE_DEFS = {
     toAction:(n)=>({type:"removeItem", uuid:n.data.uuid??"", itemName:n.data.itemName??"", inventoryWidget:n.data.inventoryWidget??""})
   },
 
-  // Item / Slot deep-access nodes
+  // Предметы и слоты
 
   act_use_slot_item: {
     title:"Use Slot Item", color:"#2a5a3a", cat:"Actions",
     desc:"Calls item.use() on the item sitting at [index] in a slot. Slot is auto-indexed.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"index",label:"Index",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"index",label:"Index",type:"value.number"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"slotId", label:"Slot",         type:"slot-picker", default:"slot1"},
@@ -677,10 +983,41 @@ export const NODE_DEFS = {
     toAction:(n)=>({type:"useItem", itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0)})
   },
 
+  act_equip: {
+    title:"Equip Item", color:"#2a5a7a", cat:"Actions",
+    desc:"Mark an owned inventory item as equipped. Runs canEquip() requirements check; blocks on concentration conflict. If Force is on, skips the check.",
+    inputs:[{id:"exec",label:"",type:"exec"}],
+    outputs:[{id:"exec",label:"",type:"exec"}],
+    fields:[
+      {key:"itemName", label:"Item",          type:"item-picker", default:""},
+      {key:"uuid",     label:"…or UUID",      type:"text",        default:"", placeholder:"drag item here"},
+      {key:"category", label:"…or Category",  type:"text",        default:"", placeholder:"first item of category"},
+      {key:"index",    label:"Category index",type:"number",      default:0},
+      {key:"force",    label:"Force (skip canEquip)", type:"checkbox", default:false}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n)=>({type:"equipItem", itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0), force:!!n.data.force})
+  },
+
+  act_unequip: {
+    title:"Unequip Item", color:"#7a2a2a", cat:"Actions",
+    desc:"Mark an owned inventory item as unequipped.",
+    inputs:[{id:"exec",label:"",type:"exec"}],
+    outputs:[{id:"exec",label:"",type:"exec"}],
+    fields:[
+      {key:"itemName", label:"Item",          type:"item-picker", default:""},
+      {key:"uuid",     label:"…or UUID",      type:"text",        default:"", placeholder:"drag item here"},
+      {key:"category", label:"…or Category",  type:"text",        default:"", placeholder:"first item of category"},
+      {key:"index",    label:"Category index",type:"number",      default:0}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n)=>({type:"unequipItem", itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0)})
+  },
+
   act_modify_slot_item_field: {
     title:"Modify Slot Item Field", color:"#4a2a6a", cat:"Actions",
     desc:"Add / subtract / set a field on the item sitting at [index] in a slot. Slot is auto-indexed.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"amount",label:"Amount",type:"value"},{id:"index",label:"Index",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"amount",label:"Amount",type:"value.number"},{id:"index",label:"Index",type:"value.number"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"slotId", label:"Slot",          type:"slot-picker", default:"slot1"},
@@ -702,7 +1039,7 @@ export const NODE_DEFS = {
   act_modify_inv_item_field: {
     title:"Modify Inventory Item Field", color:"#4a2a6a", cat:"Actions",
     desc:"Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"amount",label:"Amount",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"amount",label:"Amount",type:"value.number"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"itemName", label:"Item",               type:"item-picker", default:""},
@@ -725,12 +1062,11 @@ export const NODE_DEFS = {
     })
   },
 
-  // Value sources for item field reading
 
   inv_item_field: {
     title:"Inventory Item Field", color:"#1a4060", cat:"Sources",
     desc:"Read a field from an actor-owned item. Item is auto-indexed from actor inventory.",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[
       {key:"itemName", label:"Item",          type:"item-picker", default:""},
       {key:"uuid",     label:"…or UUID",      type:"text",        default:"", placeholder:"drag item here"},
@@ -749,7 +1085,7 @@ export const NODE_DEFS = {
   slot_item_uuid: {
     title:"Slot Item UUID", color:"#1a4060", cat:"Sources",
     desc:"Outputs the UUID of the item at [index] in a slot. Slot is auto-indexed.",
-    inputs:[], outputs:[{id:"v",label:"UUID (str)",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"UUID (str)",type:"value.uuid"}],
     fields:[
       {key:"slotId", label:"Slot",          type:"slot-picker", default:"slot1"},
       {key:"index",  label:"Index (0=first)", type:"number",    default:0}
@@ -760,18 +1096,17 @@ export const NODE_DEFS = {
   get_actor_slot_id: {
     title:"Get Actor Slot ID", color:"#1a4060", cat:"Sources",
     desc:"Reference a slot by ID — connect to the Item Slot pin on Slot Count, Add/Remove from Inv Item Slot nodes to dynamically select which slot to operate on.",
-    inputs:[], outputs:[{id:"v",label:"Item Slot",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Item Slot",type:"value.any"}],
     fields:[{key:"slotId",label:"Slot ID",type:"slot-picker",default:"slot1"}],
     compile:(n)=>(n.data.slotId??"slot1")
   },
 
-  // Inventory Item → Slot cross-access
 
   inv_item_slot_count: {
     title:"Inv Item Slot Count", color:"#1a4060", cat:"Sources",
     desc:"Count of items in a slot on an actor-owned inventory item. Item and slot are auto-indexed. Connect Get Actor Slot ID to override slot.",
-    inputs:[{id:"itemSlot",label:"Item Slot",type:"value"}],
-    outputs:[{id:"v",label:"Count",type:"value"}],
+    inputs:[{id:"itemSlot",label:"Item Slot",type:"value.any"}],
+    outputs:[{id:"v",label:"Count",type:"value.number"}],
     fields:[
       {key:"itemName", label:"Item",                    type:"item-picker", default:""},
       {key:"uuid",     label:"…or UUID",                type:"text",        default:"", placeholder:"drag item here"},
@@ -783,7 +1118,7 @@ export const NODE_DEFS = {
   act_remove_from_inv_item_slot: {
     title:"Remove from Inv Item Slot", color:"#6a2a2a", cat:"Actions",
     desc:"Find an item in actor's inventory, then remove one item from its slot. Both item and slot are auto-indexed — just pick from dropdowns. Connect Get Actor Slot ID to Item Slot pin to override.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"index",label:"Index",type:"value"},{id:"itemSlot",label:"Item Slot",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"index",label:"Index",type:"value.number"},{id:"itemSlot",label:"Item Slot",type:"value.any"}],
     outputs:[
       {id:"exec",  label:"Done →", type:"exec"},
       {id:"empty", label:"Empty →",type:"exec"}
@@ -806,7 +1141,7 @@ export const NODE_DEFS = {
   act_add_to_inv_item_slot: {
     title:"Add to Inv Item Slot", color:"#2a4a2a", cat:"Actions",
     desc:"Find a container item and add another inventory item into its slot. Pick container from dropdown, drag item to add from sidebar.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"itemSlot",label:"Item Slot",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"itemSlot",label:"Item Slot",type:"value.any"}],
     outputs:[{id:"exec",label:"Done →",type:"exec"},{id:"full",label:"Full →",type:"exec"}],
     fields:[
       {key:"_compound",  label:"Container → Slot", type:"inv-item-slot", itemKey:"parentName", slotKey:"slotId"},
@@ -825,62 +1160,74 @@ export const NODE_DEFS = {
   },
   act_attack_check: {
     title:"Attack Check", color:"#8a3a00", cat:"Actions",
-    desc:"Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total − AC.",
+    desc:"Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total − AC. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
-      {id:"exec",   label:"",        type:"exec"},
-      {id:"formula",label:"Attack",  type:"value"},
-      {id:"bonus",  label:"Bonus",   type:"value"}
+      {id:"exec",          label:"",              type:"exec"},
+      {id:"formula",       label:"Attack",         type:"value.string"},
+      {id:"bonus",         label:"Bonus",          type:"value.number"},
+      {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
       {id:"hit",    label:"Hit →",      type:"exec"},
       {id:"miss",   label:"Miss →",     type:"exec"},
       {id:"crit",   label:"Crit →",     type:"exec"},
-      {id:"result", label:"Roll Result",type:"value"},
-      {id:"margin", label:"Margin",     type:"value"}
+      {id:"result", label:"Roll Result",type:"value.number"},
+      {id:"margin", label:"Margin",     type:"value.number"}
     ],
     fields:[
-      {key:"formula",  label:"Roll",      type:"text",   default:"1d20"},
-      {key:"bonus",    label:"Bonus",     type:"text",   default:"0"},
-      {key:"acPath",   label:"AC path",   type:"path",   default:"system.attributes.ac.value"},
-      {key:"critFace", label:"Crit on",   type:"number", default:20},
-      {key:"flavor",   label:"Label",     type:"text",   default:"Attack"}
+      {key:"formula",       label:"Roll",                  type:"text",   default:"1d20"},
+      {key:"bonus",         label:"Bonus",                 type:"text",   default:"0"},
+      {key:"acPath",        label:"AC path",               type:"path",   default:"system.attributes.ac.value"},
+      {key:"critFace",      label:"Crit on",               type:"number", default:20},
+      {key:"flavor",        label:"Label",                 type:"text",   default:"Attack"},
+      {key:"rerollEnabled", label:"Reroll button",        type:"select", default:"no", options:["no","yes"]},
+      {key:"rerollPath",    label:"Reroll resource path",  type:"path",   default:"",   placeholder:"e.g. system.resources.luck.value"},
+      {key:"rerollCost",    label:"Reroll cost",           type:"number", default:1}
     ],
     isAttackBranch: true,
-    toAction:(n,inp)=>({
-      type:      "attackCheck",
-      formula:   inp.formula ?? n.data.formula ?? "1d20",
-      bonus:     inp.bonus   ?? n.data.bonus   ?? "0",
-      acPath:    n.data.acPath  ?? "system.attributes.ac.value",
-      critFace:  Number(n.data.critFace ?? 20),
-      flavor:    n.data.flavor  ?? "Attack"
-    })
+    toAction:(n,inp)=>{
+      const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
+      const rerollEnabled = (_rrRaw === true || _rrRaw === "yes" || _rrRaw === 1 || _rrRaw === "1") ? "yes" : "no";
+      return {
+        type:      "attackCheck",
+        formula:   inp.formula ?? n.data.formula ?? "1d20",
+        bonus:     inp.bonus   ?? n.data.bonus   ?? "0",
+        acPath:    n.data.acPath  ?? "system.attributes.ac.value",
+        critFace:  Number(n.data.critFace ?? 20),
+        flavor:    n.data.flavor  ?? "Attack",
+        rerollEnabled,
+        rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
+      };
+    }
   },
 
-  // Generic Roll Check (roll-over / roll-under / meet-and-beat / troika / custom)
-  // Replaces the dnd-centric attack_check for systems that use different compare
-  // rules. Emits pass / fail exec branches and carries roll result + margin as
-  // value outputs so downstream math/damage nodes can consume them.
   act_roll_check: {
     title:"Roll Check", color:"#8a4400", cat:"Actions",
-    desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator).",
+    desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator). Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",           label:"",           type:"exec"},
-      {id:"formula",        label:"Formula",    type:"value"},
-      {id:"dc",             label:"DC",          type:"value"},
-      {id:"modifier",       label:"Modifier",    type:"value"},
-      {id:"advFormula",     label:"Adv Formula", type:"value"},
-      {id:"disFormula",     label:"Dis Formula", type:"value"},
-      {id:"opposedCount",   label:"Opposed N",   type:"value"},
-      {id:"opposedFormula", label:"Opposed Formula", type:"value"}
+      {id:"formula",        label:"Formula",    type:"value.string"},
+      {id:"dc",             label:"DC",          type:"value.number"},
+      {id:"modifier",       label:"Modifier",    type:"value.number"},
+      {id:"advFormula",     label:"Adv Formula", type:"value.string"},
+      {id:"disFormula",     label:"Dis Formula", type:"value.string"},
+      {id:"opposedCount",   label:"Opposed N",   type:"value.number"},
+      {id:"opposedFormula", label:"Opposed Formula", type:"value.string"},
+      {id:"rerollEnabled",  label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",     label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",     label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
       {id:"pass",        label:"Pass →",    type:"exec"},
       {id:"fail",        label:"Fail →",    type:"exec"},
-      {id:"result",      label:"Roll",      type:"value"},
-      {id:"margin",      label:"Margin",    type:"value"},
+      {id:"result",      label:"Roll",      type:"value.number"},
+      {id:"margin",      label:"Margin",    type:"value.number"},
       {id:"youWon",      label:"You Won →", type:"exec"},
       {id:"youLost",     label:"You Lost →",type:"exec"},
-      {id:"winnerRoll",  label:"Winner Roll", type:"value"}
+      {id:"winnerRoll",  label:"Winner Roll", type:"value.number"}
     ],
     fields:[
       {key:"formula",        label:"Roll",      type:"text",   default:"1d20"},
@@ -892,45 +1239,61 @@ export const NODE_DEFS = {
         placeholder:"e.g. {roll} > {dc} && {roll} < 20"},
       {key:"flavor",         label:"Label",     type:"text",   default:"Check"},
       {key:"toChat",         label:"To chat",   type:"select", default:"yes", options:["yes","no"]},
+      {key:"howRoll",        label:"How to roll",type:"select",default:"auto", options:["auto","chat_button"]},
+      {key:"chatTimeout",    label:"Chat timeout (sec, 0=∞)", type:"number", default:0},
       {key:"rollDialogue",   label:"Roll dialog",   type:"select", default:"no", options:["no","yes"]},
       {key:"opposed",        label:"Opposed",   type:"select", default:"no", options:["no","yes"]},
       {key:"opposedCount",   label:"Opposed N", type:"text",   default:"1"},
-      {key:"opposedFormula", label:"Opposed Formula", type:"text", default:"1d20"}
+      {key:"opposedFormula", label:"Opposed Formula", type:"text", default:"1d20"},
+      {key:"rerollEnabled",  label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
+      {key:"rerollPath",     label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
+      {key:"rerollCost",     label:"Reroll cost",    type:"number", default:1}
     ],
     isSaveBranch:true,
-    toAction:(n,inp)=>({
-      type:       "rollCheck",
-      formula:    inp.formula   ?? n.data.formula   ?? "1d20",
-      dc:         inp.dc        ?? n.data.dc        ?? "10",
-      modifier:   inp.modifier  ?? n.data.modifier  ?? "0",
-      advFormula: inp.advFormula ?? "",
-      disFormula: inp.disFormula ?? "",
-      mode:       n.data.mode   ?? "roll_over",
-      custom:     n.data.custom ?? "{roll} >= {dc}",
-      flavor:     n.data.flavor ?? "Check",
-      toChat:     n.data.toChat !== "no",
-      rollDialogue: n.data.rollDialogue === "yes",
-      opposed:       n.data.opposed === "yes",
-      opposedCount:  inp.opposedCount   ?? n.data.opposedCount   ?? "1",
-      opposedFormula: inp.opposedFormula ?? n.data.opposedFormula ?? "1d20"
-    })
+    toAction:(n,inp)=>{
+      const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
+      const rerollEnabled = (_rrRaw === true || _rrRaw === "yes" || _rrRaw === 1 || _rrRaw === "1") ? "yes" : "no";
+      return {
+        type:       "rollCheck",
+        formula:    inp.formula   ?? n.data.formula   ?? "1d20",
+        dc:         inp.dc        ?? n.data.dc        ?? "10",
+        modifier:   inp.modifier  ?? n.data.modifier  ?? "0",
+        advFormula: inp.advFormula ?? "",
+        disFormula: inp.disFormula ?? "",
+        mode:       n.data.mode   ?? "roll_over",
+        custom:     n.data.custom ?? "{roll} >= {dc}",
+        flavor:     n.data.flavor ?? "Check",
+        toChat:     n.data.toChat !== "no",
+        howRoll:    n.data.howRoll ?? "auto",
+        chatTimeout: Number(n.data.chatTimeout ?? 0),
+        rollDialogue: n.data.rollDialogue === "yes",
+        opposed:       n.data.opposed === "yes",
+        opposedCount:  inp.opposedCount   ?? n.data.opposedCount   ?? "1",
+        opposedFormula: inp.opposedFormula ?? n.data.opposedFormula ?? "1d20",
+        rerollEnabled,
+        rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
+      };
+    }
   },
 
-  // Tiered Roll (PbtA / Blades-style threshold branches)
   act_tiered_roll: {
     title:"Tiered Roll", color:"#8a4400", cat:"Actions",
-    desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result ≥ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll.",
+    desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result ≥ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
-      {id:"exec",    label:"",         type:"exec"},
-      {id:"formula", label:"Formula",  type:"value"}
+      {id:"exec",          label:"",              type:"exec"},
+      {id:"formula",       label:"Formula",        type:"value.string"},
+      {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
       {id:"tier0",  label:"Tier 1 →", type:"exec"},
       {id:"tier1",  label:"Tier 2 →", type:"exec"},
       {id:"tier2",  label:"Tier 3 →", type:"exec"},
       {id:"tier3",  label:"Tier 4 →", type:"exec"},
-      {id:"result", label:"Roll",     type:"value"}
+      {id:"result", label:"Roll",     type:"value.number"}
     ],
     fields:[
       {key:"formula",  label:"Roll",          type:"text",   default:"2d6"},
@@ -943,38 +1306,50 @@ export const NODE_DEFS = {
       {key:"t4Label",  label:"Tier 4 label",  type:"text",   default:"Crit"},
       {key:"t4Min",    label:"Tier 4 ≥",      type:"text",   default:"12"},
       {key:"flavor",   label:"Label",         type:"text",   default:"Roll"},
-      {key:"toChat",   label:"To chat",       type:"select", default:"yes", options:["yes","no"]}
+      {key:"toChat",   label:"To chat",       type:"select", default:"yes", options:["yes","no"]},
+      {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
+      {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
+      {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
     ],
     isTieredBranch:true,
-    toAction:(n,inp)=>({
-      type:    "tieredRoll",
-      formula: inp.formula ?? n.data.formula ?? "2d6",
-      tiers: [
-        { min:n.data.t1Min ?? "-999", label:n.data.t1Label ?? "Tier 1" },
-        { min:n.data.t2Min ?? "7",    label:n.data.t2Label ?? "Tier 2" },
-        { min:n.data.t3Min ?? "10",   label:n.data.t3Label ?? "Tier 3" },
-        { min:n.data.t4Min ?? "12",   label:n.data.t4Label ?? "Tier 4" }
-      ],
-      flavor: n.data.flavor ?? "Roll",
-      toChat: n.data.toChat !== "no"
-    })
+    toAction:(n,inp)=>{
+      const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
+      const rerollEnabled = (_rrRaw === true || _rrRaw === "yes" || _rrRaw === 1 || _rrRaw === "1") ? "yes" : "no";
+      return {
+        type:    "tieredRoll",
+        formula: inp.formula ?? n.data.formula ?? "2d6",
+        tiers: [
+          { min:n.data.t1Min ?? "-999", label:n.data.t1Label ?? "Tier 1" },
+          { min:n.data.t2Min ?? "7",    label:n.data.t2Label ?? "Tier 2" },
+          { min:n.data.t3Min ?? "10",   label:n.data.t3Label ?? "Tier 3" },
+          { min:n.data.t4Min ?? "12",   label:n.data.t4Label ?? "Tier 4" }
+        ],
+        flavor: n.data.flavor ?? "Roll",
+        toChat: n.data.toChat !== "no",
+        rerollEnabled,
+        rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
+      };
+    }
   },
 
-  // Dice Pool (count dice, count successes ≥ target)
   act_dice_pool: {
     title:"Dice Pool", color:"#8a4400", cat:"Actions",
-    desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace.",
+    desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
-      {id:"exec",   label:"",         type:"exec"},
-      {id:"count",  label:"Count",    type:"value"},
-      {id:"target", label:"Target",   type:"value"}
+      {id:"exec",          label:"",              type:"exec"},
+      {id:"count",         label:"Count",          type:"value.number"},
+      {id:"target",        label:"Target",         type:"value.actor"},
+      {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
       {id:"pass",      label:"Pass →",     type:"exec"},
       {id:"fail",      label:"Fail →",     type:"exec"},
-      {id:"successes", label:"Successes",  type:"value"},
-      {id:"botches",   label:"Botches",    type:"value"},
-      {id:"result",    label:"Total",      type:"value"}
+      {id:"successes", label:"Successes",  type:"value.number"},
+      {id:"botches",   label:"Botches",    type:"value.number"},
+      {id:"result",    label:"Total",      type:"value.any"}
     ],
     fields:[
       {key:"count",     label:"Count",       type:"text",   default:"5"},
@@ -984,34 +1359,43 @@ export const NODE_DEFS = {
       {key:"required",  label:"Pass if ≥",    type:"number", default:1},
       {key:"botchFace", label:"Botch on face",type:"number", default:1},
       {key:"flavor",    label:"Label",       type:"text",   default:"Dice Pool"},
-      {key:"toChat",    label:"To chat",     type:"select", default:"yes", options:["yes","no"]}
+      {key:"toChat",    label:"To chat",     type:"select", default:"yes", options:["yes","no"]},
+      {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
+      {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
+      {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
     ],
     isSaveBranch:true,
-    toAction:(n,inp)=>({
-      type:      "dicePool",
-      count:     inp.count  ?? n.data.count  ?? "5",
-      die:       Number(n.data.die ?? 10),
-      target:    inp.target ?? n.data.target ?? "8",
-      compare:   n.data.compare ?? "ge",
-      required:  Number(n.data.required ?? 1),
-      botchFace: Number(n.data.botchFace ?? 1),
-      flavor:    n.data.flavor ?? "Dice Pool",
-      toChat:    n.data.toChat !== "no"
-    })
+    toAction:(n,inp)=>{
+      const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
+      const rerollEnabled = (_rrRaw === true || _rrRaw === "yes" || _rrRaw === 1 || _rrRaw === "1") ? "yes" : "no";
+      return {
+        type:      "dicePool",
+        count:     inp.count  ?? n.data.count  ?? "5",
+        die:       Number(n.data.die ?? 10),
+        target:    inp.target ?? n.data.target ?? "8",
+        compare:   n.data.compare ?? "ge",
+        required:  Number(n.data.required ?? 1),
+        botchFace: Number(n.data.botchFace ?? 1),
+        flavor:    n.data.flavor ?? "Dice Pool",
+        toChat:    n.data.toChat !== "no",
+        rerollEnabled,
+        rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
+      };
+    }
   },
 
-  // Token-based resolution (diceless systems, metacurrency)
   act_spend_token: {
     title:"Spend Token", color:"#4a2a6a", cat:"Actions",
     desc:"Spends N tokens from the given resource. If there aren't enough tokens, exec takes the Empty branch. Works like Consume Resource but with branching.",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
-      {id:"amount", label:"Amount", type:"value"}
+      {id:"amount", label:"Amount", type:"value.number"}
     ],
     outputs:[
       {id:"ok",       label:"Spent →",   type:"exec"},
       {id:"empty",    label:"Empty →",   type:"exec"},
-      {id:"remaining",label:"Remaining", type:"value"}
+      {id:"remaining",label:"Remaining", type:"value.number"}
     ],
     fields:[
       {key:"where", label:"Where",    type:"select", default:"self",  options:["self","actor","token_target"]},
@@ -1034,9 +1418,9 @@ export const NODE_DEFS = {
     desc:"Adds N tokens to the resource. Handy for FATE points / Drama dice / stress.",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
-      {id:"amount", label:"Amount", type:"value"}
+      {id:"amount", label:"Amount", type:"value.number"}
     ],
-    outputs:[{id:"exec",label:"",type:"exec"},{id:"newValue",label:"New Value",type:"value"}],
+    outputs:[{id:"exec",label:"",type:"exec"},{id:"newValue",label:"New Value",type:"value.any"}],
     fields:[
       {key:"where", label:"Where",    type:"select", default:"self", options:["self","actor","token_target"]},
       {key:"path",  label:"Token path",type:"path",  default:"system.resources.tokens.value"},
@@ -1056,7 +1440,7 @@ export const NODE_DEFS = {
   get_token_count: {
     title:"Get Token Count", color:"#1a4060", cat:"Sources",
     desc:"Pure source node: reads the current token count at the given resource path.",
-    inputs:[], outputs:[{id:"v",label:"Count",type:"value"}],
+    inputs:[], outputs:[{id:"v",label:"Count",type:"value.number"}],
     fields:[
       {key:"where",label:"Where",    type:"select",default:"self",options:["self","actor","token_target"]},
       {key:"path", label:"Token path",type:"path", default:"system.resources.tokens.value"}
@@ -1067,54 +1451,68 @@ export const NODE_DEFS = {
     }
   },
 
-  // Progression (roll, compare with previous, branch)
   act_progression: {
     title:"Progression Roll", color:"#8a4400", cat:"Actions",
-    desc:"Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc.",
+    desc:"Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
-      {id:"exec",       label:"",              type:"exec"},
-      {id:"formula",    label:"Formula",       type:"value"},
-      {id:"historyPath",label:"History Path",  type:"value"}
+      {id:"exec",          label:"",              type:"exec"},
+      {id:"formula",       label:"Formula",        type:"value.string"},
+      {id:"historyPath",   label:"History Path",   type:"value.path"},
+      {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
       {id:"higher",   label:"Higher →",  type:"exec"},
       {id:"lower",    label:"Lower →",   type:"exec"},
       {id:"equal",    label:"Equal →",   type:"exec"},
       {id:"noHistory",label:"First →",   type:"exec"},
-      {id:"value",    label:"Value",     type:"value"},
-      {id:"previous", label:"Previous",  type:"value"}
+      {id:"value",    label:"Value",     type:"value.any"},
+      {id:"previous", label:"Previous",  type:"value.any"}
     ],
     fields:[
       {key:"formula",     label:"Formula",          type:"text", default:"1d6"},
       {key:"historyPath", label:"History Path",     type:"path", default:"system.flags.progressionDie"},
       {key:"flavor",      label:"Flavor",           type:"text", default:"Progression"},
-      {key:"toChat",      label:"Post to chat",     type:"select", default:"yes", options:["yes","no"]}
+      {key:"toChat",      label:"Post to chat",     type:"select", default:"yes", options:["yes","no"]},
+      {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
+      {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
+      {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
     ],
     isProgressionBranch:true,
-    toAction:(n,inp)=>({
-      type:        "progression",
-      formula:     inp.formula     ?? n.data.formula     ?? "1d6",
-      historyPath: inp.historyPath ?? n.data.historyPath ?? "system.flags.progressionDie",
-      flavor:      n.data.flavor   ?? "Progression",
-      toChat:      n.data.toChat   !== "no"
-    })
+    toAction:(n,inp)=>{
+      const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
+      const rerollEnabled = (_rrRaw === true || _rrRaw === "yes" || _rrRaw === 1 || _rrRaw === "1") ? "yes" : "no";
+      return {
+        type:        "progression",
+        formula:     inp.formula     ?? n.data.formula     ?? "1d6",
+        historyPath: inp.historyPath ?? n.data.historyPath ?? "system.flags.progressionDie",
+        flavor:      n.data.flavor   ?? "Progression",
+        toChat:      n.data.toChat   !== "no",
+        rerollEnabled,
+        rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
+      };
+    }
   },
 
-  // Throw dice (visual scatter on canvas / sheet)
   act_throw_on_canvas: {
     title:"Throw on Canvas", color:"#8a4400", cat:"Actions",
-    desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}.",
+    desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
-      {id:"exec",   label:"",        type:"exec"},
-      {id:"count",  label:"Count",   type:"value"},
-      {id:"target", label:"Target",  type:"value"}
+      {id:"exec",          label:"",              type:"exec"},
+      {id:"count",         label:"Count",          type:"value.number"},
+      {id:"target",        label:"Target",         type:"value.actor"},
+      {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
       {id:"pass",      label:"Pass →",     type:"exec"},
       {id:"fail",      label:"Fail →",     type:"exec"},
-      {id:"successes", label:"Successes",  type:"value"},
-      {id:"total",     label:"Total",      type:"value"}
+      {id:"successes", label:"Successes",  type:"value.number"},
+      {id:"total",     label:"Total",      type:"value.number"}
     ],
     fields:[
       {key:"count",    label:"Count",      type:"text",   default:"3"},
@@ -1125,36 +1523,49 @@ export const NODE_DEFS = {
       {key:"area",     label:"Area (px)",  type:"number", default:300},
       {key:"duration", label:"Duration (s)",type:"number", default:6},
       {key:"flavor",   label:"Label",      type:"text",   default:"Throw"},
-      {key:"toChat",   label:"To chat",      type:"select", default:"yes", options:["yes","no"]}
+      {key:"toChat",   label:"To chat",      type:"select", default:"yes", options:["yes","no"]},
+      {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
+      {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
+      {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
     ],
     isSaveBranch:true,
-    toAction:(n,inp)=>({
-      type:     "throwOnCanvas",
-      count:    inp.count  ?? n.data.count  ?? "3",
-      die:      Number(n.data.die ?? 6),
-      target:   inp.target ?? n.data.target ?? "4",
-      compare:  n.data.compare ?? "ge",
-      required: Number(n.data.required ?? 1),
-      area:     Number(n.data.area ?? 300),
-      duration: Number(n.data.duration ?? 6),
-      flavor:   n.data.flavor ?? "Throw",
-      toChat:   n.data.toChat !== "no"
-    })
+    toAction:(n,inp)=>{
+      const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
+      const rerollEnabled = (_rrRaw === true || _rrRaw === "yes" || _rrRaw === 1 || _rrRaw === "1") ? "yes" : "no";
+      return {
+        type:     "throwOnCanvas",
+        count:    inp.count  ?? n.data.count  ?? "3",
+        die:      Number(n.data.die ?? 6),
+        target:   inp.target ?? n.data.target ?? "4",
+        compare:  n.data.compare ?? "ge",
+        required: Number(n.data.required ?? 1),
+        area:     Number(n.data.area ?? 300),
+        duration: Number(n.data.duration ?? 6),
+        flavor:   n.data.flavor ?? "Throw",
+        toChat:   n.data.toChat !== "no",
+        rerollEnabled,
+        rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
+      };
+    }
   },
 
   act_throw_on_sheet: {
     title:"Throw on Sheet", color:"#8a4400", cat:"Actions",
-    desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}.",
+    desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
-      {id:"exec",   label:"",        type:"exec"},
-      {id:"count",  label:"Count",   type:"value"},
-      {id:"target", label:"Target",  type:"value"}
+      {id:"exec",          label:"",              type:"exec"},
+      {id:"count",         label:"Count",          type:"value.number"},
+      {id:"target",        label:"Target",         type:"value.actor"},
+      {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
       {id:"pass",      label:"Pass →",     type:"exec"},
       {id:"fail",      label:"Fail →",     type:"exec"},
-      {id:"successes", label:"Successes",  type:"value"},
-      {id:"total",     label:"Total",      type:"value"}
+      {id:"successes", label:"Successes",  type:"value.number"},
+      {id:"total",     label:"Total",      type:"value.number"}
     ],
     fields:[
       {key:"count",    label:"Count",      type:"text",   default:"3"},
@@ -1164,27 +1575,87 @@ export const NODE_DEFS = {
       {key:"required", label:"Pass if ≥",   type:"number", default:1},
       {key:"duration", label:"Duration (s)",type:"number", default:6},
       {key:"flavor",   label:"Label",      type:"text",   default:"Throw"},
-      {key:"toChat",   label:"To chat",      type:"select", default:"yes", options:["yes","no"]}
+      {key:"toChat",   label:"To chat",      type:"select", default:"yes", options:["yes","no"]},
+      {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
+      {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
+      {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
     ],
     isSaveBranch:true,
+    toAction:(n,inp)=>{
+      const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
+      const rerollEnabled = (_rrRaw === true || _rrRaw === "yes" || _rrRaw === 1 || _rrRaw === "1") ? "yes" : "no";
+      return {
+        type:     "throwOnSheet",
+        count:    inp.count  ?? n.data.count  ?? "3",
+        die:      Number(n.data.die ?? 6),
+        target:   inp.target ?? n.data.target ?? "4",
+        compare:  n.data.compare ?? "ge",
+        required: Number(n.data.required ?? 1),
+        duration: Number(n.data.duration ?? 6),
+        flavor:   n.data.flavor ?? "Throw",
+        toChat:   n.data.toChat !== "no",
+        rerollEnabled,
+        rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
+      };
+    }
+  },
+
+  act_ai_request: {
+    title:"AI Request (OpenAI-compatible)", color:"#4a4a8a", cat:"Actions",
+    desc:"POSTs an OpenAI-compatible chat-completion request to the given URL with Authorization: Bearer <key>. Compatible with api.openai.com, openrouter.ai, LM Studio (http://localhost:1234/v1/chat/completions), Ollama OAI compat, vLLM, etc. Output 'Response' carries choices[0].message.content as a string. Use {__lastAiResponse} in downstream formulas / text. SECURITY: API key is stored on the document where the graph lives — visible to all owners. Use 'API key setting' to read from a world setting (sd.<settingKey>) instead.",
+    wideNode:true,
+    inputs:[
+      {id:"exec",         label:"",            type:"exec"},
+      {id:"url",          label:"URL",          type:"value.string"},
+      {id:"apiKey",       label:"API Key",      type:"value.string"},
+      {id:"model",        label:"Model",        type:"value.string"},
+      {id:"systemPrompt", label:"System Prompt",type:"value.string"},
+      {id:"prompt",       label:"Prompt",       type:"value.string"},
+      {id:"temperature",  label:"Temperature",  type:"value.number"},
+      {id:"maxTokens",    label:"Max Tokens",   type:"value.number"}
+    ],
+    outputs:[
+      {id:"exec",     label:"Done →",   type:"exec"},
+      {id:"error",    label:"Error →",  type:"exec"},
+      {id:"response", label:"Response", type:"value.string"},
+      {id:"errorMsg", label:"Error",    type:"value.string"}
+    ],
+    fields:[
+      {key:"url",          label:"URL",            type:"text",   default:"https://api.openai.com/v1/chat/completions",
+        placeholder:"https://api.openai.com/v1/chat/completions"},
+      {key:"apiKey",       label:"API Key",        type:"text",   default:"",
+        placeholder:"sk-... (leave empty if using API key setting)"},
+      {key:"apiKeySetting",label:"API key setting (world)", type:"text", default:"",
+        placeholder:"e.g. openaiKey  → reads game.settings.get('sd', '<this>')"},
+      {key:"model",        label:"Model",          type:"text",   default:"gpt-4o-mini",
+        placeholder:"gpt-4o-mini, gpt-4o, claude-3-haiku, qwen2.5-7b-instruct…"},
+      {key:"systemPrompt", label:"System Prompt",  type:"text",   default:"",
+        placeholder:"e.g. You are a helpful Foundry VTT NPC."},
+      {key:"prompt",       label:"Prompt",         type:"text",   default:"",
+        placeholder:"e.g. Generate a tavern name and 3 rumours."},
+      {key:"temperature",  label:"Temperature",    type:"number", default:0.7},
+      {key:"maxTokens",    label:"Max Tokens",     type:"number", default:512},
+      {key:"flavor",       label:"Chat label",     type:"text",   default:"AI"},
+      {key:"toChat",       label:"Post to chat",   type:"select", default:"no", options:["no","yes"]}
+    ],
+    isAiBranch: true,
     toAction:(n,inp)=>({
-      type:     "throwOnSheet",
-      count:    inp.count  ?? n.data.count  ?? "3",
-      die:      Number(n.data.die ?? 6),
-      target:   inp.target ?? n.data.target ?? "4",
-      compare:  n.data.compare ?? "ge",
-      required: Number(n.data.required ?? 1),
-      duration: Number(n.data.duration ?? 6),
-      flavor:   n.data.flavor ?? "Throw",
-      toChat:   n.data.toChat !== "no"
+      type:         "aiRequest",
+      url:          inp.url          ?? n.data.url          ?? "https://api.openai.com/v1/chat/completions",
+      apiKey:       inp.apiKey       ?? n.data.apiKey       ?? "",
+      apiKeySetting: n.data.apiKeySetting ?? "",
+      model:        inp.model        ?? n.data.model        ?? "gpt-4o-mini",
+      systemPrompt: inp.systemPrompt ?? n.data.systemPrompt ?? "",
+      prompt:       inp.prompt       ?? n.data.prompt       ?? "",
+      temperature:  (inp.temperature != null && inp.temperature !== "") ? Number(inp.temperature) : Number(n.data.temperature ?? 0.7),
+      maxTokens:    (inp.maxTokens   != null && inp.maxTokens   !== "") ? Number(inp.maxTokens)   : Number(n.data.maxTokens   ?? 512),
+      flavor:       n.data.flavor ?? "AI",
+      toChat:       n.data.toChat === "yes"
     })
   },
 
-  // act_chat_damage and act_chat_heal removed -- use act_damage / act_heal
-  // with postToChat:"yes" + autoApply:"yes"/"no" instead.
-  // NEW NODES -- System Director patch
-
-  // Flow additions
+  // Доп. поток
 
   /** Switch — routes exec to one of N labeled branches based on a value match */
   switch_node: {
@@ -1193,7 +1664,7 @@ export const NODE_DEFS = {
     wideNode:true,
     inputs:[
       {id:"exec",  label:"",        type:"exec"},
-      {id:"value", label:"Value",   type:"value"}
+      {id:"value", label:"Value",   type:"value.any"}
     ],
     outputs:[
       {id:"case0", label:"Case 0",  type:"exec"},
@@ -1214,17 +1685,11 @@ export const NODE_DEFS = {
     })
   },
 
-  /**
-   * Dialog Switch -- shows a popup dialog listing N named choices (2-8).
-   * The user clicks one; that exec branch fires.
-   * Output count is controlled by the "count" field on the node.
-   */
   dialog_switch: {
     title:"Dialog Switch", color:"#c05a20", cat:"Flow",
     desc:"Show a dialog with 2-8 named options. The player picks one and that exec branch fires. Outputs are named via fields.",
     wideNode:true,
     inputs:[{id:"exec", label:"", type:"exec"}],
-    // All 8 possible exec outputs -- the graph renders only those up to count
     outputs:[
       {id:"out0",label:"Option 1",type:"exec"},
       {id:"out1",label:"Option 2",type:"exec"},
@@ -1249,7 +1714,6 @@ export const NODE_DEFS = {
       {key:"label7", label:"Option 8 label",          type:"text",   default:"Option 8"}
     ],
     isDialogSwitch: true,
-    // Emits the number of active outputs so the graph renderer can hide inactive ones
     activeOutputCount: (n) => Math.max(2, Math.min(8, parseInt(n.data?.count) || 2)),
     toAction:(n, inp, compiler) => {
       const count = Math.max(2, Math.min(8, parseInt(n.data?.count) || 2));
@@ -1257,7 +1721,6 @@ export const NODE_DEFS = {
       for (let i = 0; i < count; i++) {
         outputs.push({
           label:   n.data[`label${i}`] ?? `Option ${i+1}`,
-          // Sub-actions are compiled from the connected exec chain for each output pin
           actions: compiler ? compiler.compileExecPin(n, `out${i}`) : []
         });
       }
@@ -1270,7 +1733,83 @@ export const NODE_DEFS = {
     }
   },
 
-  // (for_loop removed -- auto-migrated to act_loop; see node-migration.mjs)
+  /** Dialog Select (from array) — show a dialog with one button per array element */
+  dialog_select_array: {
+    title:"Dialog Select (Array)", color:"#c05a20", cat:"Flow",
+    desc:"Show a dialog with one button per element of the input array. The chosen element is emitted on `Selected` (value), the index on `Index`, and Selected→ exec fires after pick. Cancel → Cancel exec.",
+    inputs:[
+      {id:"exec",  label:"",      type:"exec"},
+      {id:"items", label:"Items", type:"value.array"}
+    ],
+    outputs:[
+      {id:"sel",      label:"Selected →", type:"exec"},
+      {id:"cancel",   label:"Cancel",     type:"exec"},
+      {id:"selected", label:"Selected",   type:"value.any"},
+      {id:"index",    label:"Index",      type:"value.number"}
+    ],
+    fields:[
+      {key:"title",     label:"Dialog title",                 type:"text", default:"Choose"},
+      {key:"desc",      label:"Description (optional)",       type:"text", default:""},
+      {key:"labelPath", label:"Label path (e.g. name)",       type:"text", default:"name"}
+    ],
+    isGenericBranch: true,
+    toAction:(n, inp) => ({
+      type:        "dialogSelectArray",
+      title:       n.data.title ?? "Choose",
+      description: n.data.desc  ?? "",
+      labelPath:   n.data.labelPath ?? "name",
+      items:       inp.items ?? ""
+    })
+  },
+
+  /** Dialog: text input — prompt for a string */
+  dialog_text_input: {
+    title:"Dialog Text Input", color:"#c05a20", cat:"Flow",
+    desc:"Show a single-line text input dialog. The entered text is emitted on `Text` and OK exec fires.",
+    inputs:[{id:"exec", label:"", type:"exec"}],
+    outputs:[
+      {id:"ok",     label:"OK →",   type:"exec"},
+      {id:"cancel", label:"Cancel", type:"exec"},
+      {id:"text",   label:"Text",   type:"value.string"}
+    ],
+    fields:[
+      {key:"title",   label:"Dialog title", type:"text", default:"Enter text"},
+      {key:"desc",    label:"Description",  type:"text", default:""},
+      {key:"default", label:"Default value", type:"text", default:""}
+    ],
+    isGenericBranch: true,
+    toAction:(n) => ({
+      type:        "dialogTextInput",
+      title:       n.data.title   ?? "Enter text",
+      description: n.data.desc    ?? "",
+      default:     n.data.default ?? ""
+    })
+  },
+
+  /** Dialog: yes/no confirm */
+  dialog_confirm: {
+    title:"Dialog Confirm", color:"#c05a20", cat:"Flow",
+    desc:"Show a Yes/No confirmation dialog. The matching exec branch fires.",
+    inputs:[{id:"exec", label:"", type:"exec"}],
+    outputs:[
+      {id:"yes", label:"Yes →", type:"exec"},
+      {id:"no",  label:"No →",  type:"exec"}
+    ],
+    fields:[
+      {key:"title",   label:"Dialog title", type:"text", default:"Confirm"},
+      {key:"message", label:"Message",      type:"text", default:"Are you sure?"},
+      {key:"yesLabel",label:"Yes label",    type:"text", default:"Yes"},
+      {key:"noLabel", label:"No label",     type:"text", default:"No"}
+    ],
+    isGenericBranch: true,
+    toAction:(n) => ({
+      type:        "dialogConfirm",
+      title:       n.data.title    ?? "Confirm",
+      message:     n.data.message  ?? "",
+      yesLabel:    n.data.yesLabel ?? "Yes",
+      noLabel:     n.data.noLabel  ?? "No"
+    })
+  },
 
   /** While Loop — runs loop body while Condition is truthy */
   while_loop: {
@@ -1278,12 +1817,12 @@ export const NODE_DEFS = {
     desc:"Execute Loop body while Condition is truthy. Re-evaluates the condition each iteration. Done fires when the condition becomes false or Max Iterations is reached.",
     inputs:[
       {id:"exec",      label:"",            type:"exec"},
-      {id:"condition", label:"Condition",   type:"value"},
-      {id:"maxIter",   label:"Max Iter",    type:"value"}
+      {id:"condition", label:"Condition",   type:"value.bool"},
+      {id:"maxIter",   label:"Max Iter",    type:"value.number"}
     ],
     outputs:[
       {id:"loop",  label:"Loop →",  type:"exec"},
-      {id:"index", label:"Index",   type:"value"},
+      {id:"index", label:"Index",   type:"value.number"},
       {id:"done",  label:"Done →",  type:"exec"}
     ],
     fields:[{key:"maxIter", label:"Max Iterations (safety)", type:"number", default:20}],
@@ -1296,20 +1835,16 @@ export const NODE_DEFS = {
   },
 
 
-  // Effect creation nodes
+  // Эффекты
 
-  /**
-   * Create Effect -- programmatically creates an ActiveEffect on a target actor.
-   * Fully configurable from fields + input pins: name, icon, duration, changes.
-   */
   act_create_effect: {
     title:"Create Effect", color:"#1a4a8a", cat:"Effects", wideNode:true,
     desc:"Creates an ActiveEffect on the target actor. Configure name, icon, duration, and attribute changes. Target resolves from pin or falls back to selected tokens / self.",
     inputs:[
       {id:"exec",     label:"",             type:"exec"},
-      {id:"target",   label:"Target",       type:"value"},
-      {id:"duration", label:"Duration (rds)", type:"value"},
-      {id:"name",     label:"Effect name",  type:"value"}
+      {id:"target",   label:"Target",       type:"value.actor"},
+      {id:"duration", label:"Duration (rds)", type:"value.number"},
+      {id:"name",     label:"Effect name",  type:"value.string"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
@@ -1349,16 +1884,38 @@ export const NODE_DEFS = {
     }
   },
 
-  /**
-   * Remove Effect -- removes an ActiveEffect by name from a target actor.
-   */
+  act_apply_status: {
+    title:"Apply Status", color:"#1a4a8a", cat:"Effects",
+    desc:"Apply / remove / toggle a status condition (CONFIG.statusEffects). Status Id can be e.g. `dead`, `prone`, `poisoned`, etc. — anything the active system or world registers. Status Id pin overrides the field.",
+    inputs:[
+      {id:"exec",     label:"",         type:"exec"},
+      {id:"target",   label:"Target",   type:"value.actor"},
+      {id:"statusId", label:"Status Id",type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"statusId",label:"Status Id",   type:"text",   default:"poisoned", placeholder:"dead, prone, blinded, poisoned…"},
+      {key:"target",  label:"Target",      type:"select", default:"token_target", options:["self","actor","token_target","selected_token","all_targets"]},
+      {key:"mode",    label:"Mode",        type:"select", default:"apply",        options:["apply","remove","toggle"]},
+      {key:"overlay", label:"Big overlay", type:"select", default:"no",           options:["no","yes"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:     "applyStatus",
+      statusId: inp.statusId ?? n.data.statusId ?? "",
+      target:   inp.target   ?? n.data.target   ?? "token_target",
+      mode:     n.data.mode  ?? "apply",
+      overlay:  n.data.overlay === "yes"
+    })
+  },
+
   act_remove_effect: {
     title:"Remove Effect", color:"#8a1a2a", cat:"Effects",
     desc:"Removes all ActiveEffects matching the given name from the target actor.",
     inputs:[
       {id:"exec",   label:"",           type:"exec"},
-      {id:"target", label:"Target",     type:"value"},
-      {id:"name",   label:"Effect name", type:"value"}
+      {id:"target", label:"Target",     type:"value.actor"},
+      {id:"name",   label:"Effect name", type:"value.string"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
@@ -1373,16 +1930,13 @@ export const NODE_DEFS = {
     })
   },
 
-  /**
-   * Toggle Effect -- enables/disables an ActiveEffect by name on the target.
-   */
   act_toggle_effect: {
     title:"Toggle Effect", color:"#4a4a8a", cat:"Effects",
     desc:"Toggles the disabled state of an ActiveEffect matching the given name on the target actor.",
     inputs:[
       {id:"exec",   label:"",           type:"exec"},
-      {id:"target", label:"Target",     type:"value"},
-      {id:"name",   label:"Effect name", type:"value"}
+      {id:"target", label:"Target",     type:"value.actor"},
+      {id:"name",   label:"Effect name", type:"value.string"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
@@ -1399,15 +1953,11 @@ export const NODE_DEFS = {
     })
   },
 
-  /**
-   * Has Effect -- pure check: outputs 1/0 whether the target has an ActiveEffect
-   * matching the given name.
-   */
   has_effect: {
     title:"Has Effect?", color:"#2a4a6a", cat:"Effects",
     desc:"Outputs 1 if the target actor has an active (non-disabled) effect with the given name, 0 otherwise.",
     inputs:[
-      {id:"target", label:"Target", type:"value"},
+      {id:"target", label:"Target", type:"value.actor"},
       {id:"name",   label:"Effect name", type:"value.string"}
     ],
     outputs:[{id:"v", label:"Has?", type:"value.bool"}],
@@ -1420,28 +1970,15 @@ export const NODE_DEFS = {
     }
   },
 
-  // Aura nodes
-  /**
-   * Place Aura -- creates a native Foundry v14 Scene Region attached to the
-   * owner token.  Foundry itself drives follow-the-token and enter/exit
-   * event delivery; a custom RegionBehaviorType "sd.applyEffect" applies
-   * the named ActiveEffect when a token enters and removes it on exit.
-   *
-   * Available shapes come directly from Foundry's region shape types:
-   *   • emanation  -- radius from the token boundary (default aura shape)
-   *   • circle     -- pure disc centred on the owner token
-   *   • rectangle  -- axis-aligned box
-   *   • ellipse    -- axis-aligned ellipse
-   *   • cone       -- triangular polygon, uses "Cone angle" field
-   */
+  // Ауры
   act_place_aura: {
     title:"Place Aura — With Effect", color:"#1a6a4a", cat:"Effects", wideNode:true,
     desc:"Places a Scene Region attached to the owner token. Tokens inside receive the named Active Effect automatically (hook-based enter/exit); leaving tokens lose it (configurable).",
     inputs:[
       {id:"exec",     label:"",          type:"exec"},
-      {id:"owner",    label:"Owner",     type:"value"},
-      {id:"size",     label:"Size (ft)", type:"value"},
-      {id:"name",     label:"Effect",    type:"value"}
+      {id:"owner",    label:"Owner",     type:"value.actor"},
+      {id:"size",     label:"Size (ft)", type:"value.number"},
+      {id:"name",     label:"Effect",    type:"value.string"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
@@ -1473,22 +2010,23 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Damage Aura — periodic damage to tokens inside. */
   act_place_aura_damage: {
     title:"Place Aura — Damage", color:"#7a2a1a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; rolls damage against tokens inside (onEnter / eachTurn / both). Respects system.resistances[damageType]. Chat card + visibility configurable.",
     inputs:[
-      {id:"exec",    label:"",            type:"exec"},
-      {id:"owner",   label:"Owner",       type:"value"},
-      {id:"size",    label:"Size (ft)",   type:"value"},
-      {id:"formula", label:"Formula",     type:"value"},
-      {id:"rounds",  label:"Lifetime",    type:"value"}
+      {id:"exec",       label:"",            type:"exec"},
+      {id:"owner",      label:"Owner",       type:"value.actor"},
+      {id:"size",       label:"Size (ft)",   type:"value.number"},
+      {id:"formula",    label:"Formula",     type:"value.string"},
+      {id:"name",       label:"Name",        type:"value.string"},
+      {id:"damageType", label:"Damage Type", type:"value.string"},
+      {id:"rounds",     label:"Lifetime",    type:"value.number"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",            label:"Shape",              type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
       {key:"size",             label:"Size (ft)",          type:"number", default:10},
-      {key:"angle",            label:"Cone angle (deg)",   type:"number", default:53.13},
+      {key:"angle",            label:"Cone angle (deg)",   type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",             label:"Aura name",          type:"text",   default:"Damage Aura"},
       {key:"icon",             label:"Icon",               type:"text",   default:"icons/svg/aura.svg"},
       {key:"owner",            label:"Owner",              type:"select", default:"self", options:["self","selected_token","token_target"]},
@@ -1499,9 +2037,9 @@ export const NODE_DEFS = {
       {key:"hpMode",           label:"HP mode",            type:"select", options:["add","set"], default:"add"},
       {key:"tickMode",         label:"When",               type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter+eachTurn"},
       {key:"showInChat",       label:"Show in chat",       type:"select", options:["yes","no"], default:"yes"},
-      {key:"bonusFormula",     label:"Bonus formula (+)",  type:"text",   default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",         label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",       label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode",   label:"Roll mode",          type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility",       label:"Visibility",         type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"rounds",           label:"Lifetime (rounds, 0=∞)", type:"number", default:0},
       {key:"conditionEffect",  label:"Suppress when owner has effect", type:"text", default:""}
@@ -1512,41 +2050,41 @@ export const NODE_DEFS = {
       shape:           n.data.shape   ?? "emanation",
       size:            inp.size       ?? n.data.size   ?? 10,
       angle:           n.data.angle   ?? 53.13,
-      name:            n.data.name    ?? "Damage Aura",
+      name:            inp.name       ?? n.data.name    ?? "Damage Aura",
       icon:            n.data.icon    ?? "icons/svg/aura.svg",
       owner:           inp.owner      ?? n.data.owner   ?? "self",
       auraKey:         n.data.auraKey ?? "damage-aura",
       formula:         inp.formula    ?? n.data.formula ?? "1d6",
-      bonusFormula:    n.data.bonusFormula ?? "",
-      damageType:      n.data.damageType ?? "",
+      damageType:      inp.damageType ?? n.data.damageType ?? "",
       hpPath:          n.data.hpPath     ?? "system.resources.hp.value",
       hpMode:          n.data.hpMode     ?? "add",
       tickMode:        n.data.tickMode   ?? "onEnter+eachTurn",
       showInChat:      (n.data.showInChat ?? "yes") !== "no",
       chatMode:        n.data.chatMode   ?? "card",
       applyMode:        n.data.applyMode   ?? "auto",
+      rollApplyMode:   n.data.rollApplyMode ?? "per_target",
       visibility:      n.data.visibility ?? "everyone",
       rounds:          Number(inp.rounds ?? n.data.rounds ?? 0) || 0,
       conditionEffect: n.data.conditionEffect ?? ""
     })
   },
 
-  /** Heal Aura — periodic healing to tokens inside. */
   act_place_aura_heal: {
     title:"Place Aura — Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; heals tokens inside (onEnter / eachTurn / both). HP path configurable. Chat card + visibility configurable.",
     inputs:[
       {id:"exec",    label:"",          type:"exec"},
-      {id:"owner",   label:"Owner",     type:"value"},
-      {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value"},
-      {id:"rounds",  label:"Lifetime",  type:"value"}
+      {id:"owner",   label:"Owner",     type:"value.actor"},
+      {id:"size",    label:"Size (ft)", type:"value.number"},
+      {id:"formula", label:"Formula",   type:"value.string"},
+      {id:"name",    label:"Name",      type:"value.string"},
+      {id:"rounds",  label:"Lifetime",  type:"value.number"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",           label:"Shape",            type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
       {key:"size",            label:"Size (ft)",        type:"number", default:10},
-      {key:"angle",           label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",           label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",            label:"Aura name",        type:"text",   default:"Heal Aura"},
       {key:"icon",            label:"Icon",             type:"text",   default:"icons/svg/aura.svg"},
       {key:"owner",           label:"Owner",            type:"select", default:"self", options:["self","selected_token","token_target"]},
@@ -1556,9 +2094,9 @@ export const NODE_DEFS = {
       {key:"hpMode",          label:"HP mode",          type:"select", options:["add","set"], default:"add"},
       {key:"tickMode",        label:"When",             type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter+eachTurn"},
       {key:"showInChat",      label:"Show in chat",     type:"select", options:["yes","no"], default:"yes"},
-      {key:"bonusFormula",    label:"Bonus formula (+)", type:"text",  default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",        label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",      label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode",  label:"Roll mode",          type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility",      label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"rounds",          label:"Lifetime (rounds, 0=∞)", type:"number", default:0},
       {key:"conditionEffect", label:"Suppress when owner has effect", type:"text", default:""}
@@ -1569,18 +2107,18 @@ export const NODE_DEFS = {
       shape:           n.data.shape    ?? "emanation",
       size:            inp.size        ?? n.data.size    ?? 10,
       angle:           n.data.angle    ?? 53.13,
-      name:            n.data.name     ?? "Heal Aura",
+      name:            inp.name        ?? n.data.name     ?? "Heal Aura",
       icon:            n.data.icon     ?? "icons/svg/aura.svg",
       owner:           inp.owner       ?? n.data.owner   ?? "self",
       auraKey:         n.data.auraKey  ?? "heal-aura",
       formula:         inp.formula     ?? n.data.formula ?? "1d4",
-      bonusFormula:    n.data.bonusFormula ?? "",
       hpPath:          n.data.hpPath     ?? "system.resources.hp.value",
       hpMode:          n.data.hpMode     ?? "add",
       tickMode:        n.data.tickMode   ?? "onEnter+eachTurn",
       showInChat:      (n.data.showInChat ?? "yes") !== "no",
       chatMode:        n.data.chatMode   ?? "card",
       applyMode:        n.data.applyMode   ?? "auto",
+      rollApplyMode:   n.data.rollApplyMode ?? "per_target",
       visibility:      n.data.visibility ?? "everyone",
       rounds:          Number(inp.rounds ?? n.data.rounds ?? 0) || 0,
       conditionEffect: n.data.conditionEffect ?? ""
@@ -1593,15 +2131,16 @@ export const NODE_DEFS = {
     desc:"Attaches a region to the owner; tokens inside roll a save (onEnter / eachTurn / both). On failure the named Active Effect is applied. On leave the effect is removed (configurable).",
     inputs:[
       {id:"exec",   label:"",          type:"exec"},
-      {id:"owner",  label:"Owner",     type:"value"},
-      {id:"size",   label:"Size (ft)", type:"value"},
-      {id:"dc",     label:"DC",        type:"value"}
+      {id:"owner",  label:"Owner",     type:"value.actor"},
+      {id:"size",   label:"Size (ft)", type:"value.number"},
+      {id:"dc",     label:"DC",        type:"value.number"},
+      {id:"name",   label:"Name",      type:"value.string"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",             label:"Shape",             type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
       {key:"size",              label:"Size (ft)",         type:"number", default:10},
-      {key:"angle",             label:"Cone angle (deg)",  type:"number", default:53.13},
+      {key:"angle",             label:"Cone angle (deg)",  type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",              label:"Effect name",       type:"text",   default:"Aura Effect"},
       {key:"icon",              label:"Icon",              type:"text",   default:"icons/svg/aura.svg"},
       {key:"owner",             label:"Owner",             type:"select", default:"self", options:["self","selected_token","token_target"]},
@@ -1614,7 +2153,6 @@ export const NODE_DEFS = {
       {key:"advMode",           label:"Adv / Dis mode",    type:"select", options:["none","adv","dis","ask"], default:"none"},
       {key:"advFormula",        label:"Adv core formula",  type:"text",   default:"", placeholder:"2d20kh1 (default)"},
       {key:"disFormula",        label:"Dis core formula",  type:"text",   default:"", placeholder:"2d20kl1 (default)"},
-      {key:"bonusFormula",      label:"Bonus formula (+)", type:"text",   default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",          label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",        label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
       {key:"visibility",        label:"Visibility",        type:"select", options:["everyone","gm"], default:"everyone"},
@@ -1628,7 +2166,7 @@ export const NODE_DEFS = {
       shape:             n.data.shape    ?? "emanation",
       size:              inp.size        ?? n.data.size   ?? 10,
       angle:             n.data.angle    ?? 53.13,
-      name:              n.data.name     ?? "Aura Effect",
+      name:              inp.name        ?? n.data.name     ?? "Aura Effect",
       icon:              n.data.icon     ?? "icons/svg/aura.svg",
       owner:             inp.owner       ?? n.data.owner    ?? "self",
       auraKey:           n.data.auraKey  ?? "save-aura",
@@ -1638,7 +2176,6 @@ export const NODE_DEFS = {
       advMode:           n.data.advMode ?? "none",
       advFormula:        n.data.advFormula ?? "",
       disFormula:        n.data.disFormula ?? "",
-      bonusFormula:      n.data.bonusFormula ?? "",
       tickMode:          n.data.tickMode ?? "onEnter+eachTurn",
       showInChat:        (n.data.showInChat ?? "yes") !== "no",
       chatMode:          n.data.chatMode ?? "card",
@@ -1650,22 +2187,83 @@ export const NODE_DEFS = {
     })
   },
 
-  // AoE (free placement) variants -- post chat card w/ Place button
+  /** Save Branch Aura — each tick rolls a save per token; downstream actions read Saved[]/Failed[]/All[]. */
+  act_place_aura_save_branch: {
+    title:"Place Aura — Save Branch", color:"#8a5a2a", cat:"Effects", wideNode:true,
+    desc:"Attaches a region to the owner; tokens inside roll a save (onEnter / eachTurn / both). Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes (per-tick, per-token).",
+    inputs:[
+      {id:"exec",  label:"",          type:"exec"},
+      {id:"owner", label:"Owner",     type:"value.actor"},
+      {id:"size",  label:"Size (ft)", type:"value.number"},
+      {id:"dc",    label:"DC",        type:"value.number"}
+    ],
+    outputs:[
+      {id:"exec",   label:"→",        type:"exec"},
+      {id:"saved",  label:"Saved[]",  type:"value.array"},
+      {id:"failed", label:"Failed[]", type:"value.array"},
+      {id:"all",    label:"All[]",    type:"value.array"}
+    ],
+    fields:[
+      {key:"shape",            label:"Shape",            type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
+      {key:"size",             label:"Size (ft)",        type:"number", default:10},
+      {key:"angle",            label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
+      {key:"name",             label:"Aura name",        type:"text",   default:"Save Aura"},
+      {key:"icon",             label:"Icon",             type:"text",   default:"icons/svg/aura.svg"},
+      {key:"owner",            label:"Owner",            type:"select", default:"self", options:["self","selected_token","token_target"]},
+      {key:"auraKey",          label:"Aura key",         type:"text",   default:"save-branch-aura"},
+      {key:"saveAttr",         label:"Save attr path",   type:"path",   default:"system.attributes.dex.value"},
+      {key:"dc",               label:"DC",               type:"number", default:15},
+      {key:"flavor",           label:"Save label",       type:"text",   default:"Saving Throw"},
+      {key:"rollMode",         label:"Roll mode",        type:"select", options:["public","gmroll","blindroll","selfroll"], default:"public"},
+      {key:"tickMode",         label:"When",             type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter+eachTurn"},
+      {key:"showInChat",       label:"Show in chat",     type:"select", options:["yes","no"], default:"yes"},
+      {key:"advMode",          label:"Adv / Dis mode",   type:"select", options:["none","adv","dis","ask"], default:"none"},
+      {key:"advFormula",       label:"Adv core formula", type:"text",   default:"", placeholder:"2d20kh1 (default)"},
+      {key:"disFormula",       label:"Dis core formula", type:"text",   default:"", placeholder:"2d20kl1 (default)"},
+      {key:"rounds",           label:"Lifetime (rounds, 0=∞)", type:"number", default:0},
+      {key:"conditionEffect",  label:"Suppress when owner has effect", type:"text", default:""}
+    ],
+    isAction:true,
+    isAoeSave:true,
+    toAction:(n,inp)=>({
+      type:            "placeAuraSaveBranch",
+      shape:           n.data.shape    ?? "emanation",
+      size:            inp.size        ?? n.data.size    ?? 10,
+      angle:           n.data.angle    ?? 53.13,
+      name:            n.data.name     ?? "Save Aura",
+      icon:            n.data.icon     ?? "icons/svg/aura.svg",
+      owner:           inp.owner       ?? n.data.owner   ?? "self",
+      auraKey:         n.data.auraKey  ?? "save-branch-aura",
+      saveAttr:        n.data.saveAttr ?? "system.attributes.dex.value",
+      dc:              (v => Number.isFinite(v) ? v : 15)(Number(inp.dc ?? n.data.dc ?? 15)),
+      flavor:          n.data.flavor    ?? "Saving Throw",
+      rollMode:        n.data.rollMode  ?? "public",
+      tickMode:        n.data.tickMode  ?? "onEnter+eachTurn",
+      showInChat:      (n.data.showInChat ?? "yes") !== "no",
+      advMode:         n.data.advMode    ?? "none",
+      advFormula:      n.data.advFormula ?? "",
+      disFormula:      n.data.disFormula ?? "",
+      rounds:          Number(n.data.rounds ?? 0) || 0,
+      conditionEffect: n.data.conditionEffect ?? ""
+    })
+  },
+
   /** AoE w/ Effect (no check) — places a region; while inside, Active Effect. */
   act_place_aoe_effect: {
     title:"Chat AoE — With Effect", color:"#1a4a8a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside gain the named Active Effect (removed on leave, configurable).",
     inputs:[
       {id:"exec",  label:"",          type:"exec"},
-      {id:"size",  label:"Size (ft)", type:"value"},
-      {id:"rounds",label:"Lifetime",  type:"value"}
+      {id:"size",  label:"Size (ft)", type:"value.number"},
+      {id:"name",  label:"Name",      type:"value.string"},
+      {id:"rounds",label:"Lifetime",  type:"value.number"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"cardTitle",         label:"Card title",       type:"text",   default:"Area of Effect"},
       {key:"shape",             label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",              label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",             label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",             label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",              label:"Effect name",      type:"text",   default:"AoE Effect"},
       {key:"icon",              label:"Icon",             type:"text",   default:"icons/svg/aura.svg"},
       {key:"deactivateOnLeave", label:"Remove on leave",  type:"select", options:["yes","no"], default:"yes"},
@@ -1681,7 +2279,7 @@ export const NODE_DEFS = {
       shape:             n.data.shape     ?? "circle",
       size:              inp.size         ?? n.data.size ?? 20,
       angle:             n.data.angle     ?? 53.13,
-      name:              n.data.name      ?? "AoE Effect",
+      name:              inp.name         ?? n.data.name      ?? "AoE Effect",
       icon:              n.data.icon      ?? "icons/svg/aura.svg",
       deactivateOnLeave: (n.data.deactivateOnLeave ?? "yes") === "yes",
       persist:           (n.data.persist ?? "yes") === "yes",
@@ -1691,22 +2289,23 @@ export const NODE_DEFS = {
     })
   },
 
-  /** AoE Damage — chat card, place, damages tokens inside. */
   act_place_aoe_damage: {
     title:"Chat AoE — Damage", color:"#7a3a1a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, rolls damage against tokens inside (onEnter / eachTurn / both). Respects resistances.",
     inputs:[
-      {id:"exec",    label:"",          type:"exec"},
-      {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value"},
-      {id:"rounds",  label:"Lifetime",  type:"value"}
+      {id:"exec",       label:"",            type:"exec"},
+      {id:"size",       label:"Size (ft)",   type:"value.number"},
+      {id:"formula",    label:"Formula",     type:"value.string"},
+      {id:"name",       label:"Name",        type:"value.string"},
+      {id:"damageType", label:"Damage Type", type:"value.string"},
+      {id:"rounds",     label:"Lifetime",    type:"value.number"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"cardTitle",  label:"Card title",       type:"text",   default:"Damaging AoE"},
       {key:"shape",      label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",       label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",      label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",      label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",       label:"Name",             type:"text",   default:"Damage AoE"},
       {key:"formula",    label:"Damage formula",   type:"text",   default:"2d6"},
       {key:"damageType", label:"Damage type",      type:"text",   default:"fire"},
@@ -1714,9 +2313,9 @@ export const NODE_DEFS = {
       {key:"hpMode",     label:"HP mode",          type:"select", options:["add","set"], default:"add"},
       {key:"tickMode",   label:"When",             type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter"},
       {key:"showInChat", label:"Show in chat",     type:"select", options:["yes","no"], default:"yes"},
-      {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",   label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode", label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode", label:"Roll mode", type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility", label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"persist",    label:"Keep template on map", type:"select", options:["yes","no"], default:"no"},
       {key:"rounds",     label:"Lifetime (rounds, 0=∞)", type:"number", default:0}
@@ -1728,47 +2327,47 @@ export const NODE_DEFS = {
       shape:        n.data.shape     ?? "circle",
       size:         inp.size         ?? n.data.size ?? 20,
       angle:        n.data.angle     ?? 53.13,
-      name:         n.data.name      ?? "Damage AoE",
+      name:         inp.name         ?? n.data.name      ?? "Damage AoE",
       formula:      inp.formula      ?? n.data.formula ?? "2d6",
-      bonusFormula: n.data.bonusFormula ?? "",
-      damageType:   n.data.damageType ?? "",
+      damageType:   inp.damageType   ?? n.data.damageType ?? "",
       hpPath:       n.data.hpPath     ?? "system.resources.hp.value",
       hpMode:       n.data.hpMode     ?? "add",
       tickMode:     n.data.tickMode   ?? "onEnter",
       showInChat:   (n.data.showInChat ?? "yes") !== "no",
       chatMode:     n.data.chatMode   ?? "card",
       applyMode:     n.data.applyMode   ?? "auto",
+      rollApplyMode: n.data.rollApplyMode ?? "per_target",
       visibility:   n.data.visibility ?? "everyone",
       persist:      (n.data.persist ?? "no") === "yes",
       rounds:       Number(inp.rounds ?? n.data.rounds ?? 0) || 0
     })
   },
 
-  /** AoE Heal — chat card, place, heals tokens inside. */
   act_place_aoe_heal: {
     title:"Chat AoE — Heal", color:"#1a6a3a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, heals tokens inside (onEnter / eachTurn / both).",
     inputs:[
       {id:"exec",    label:"",          type:"exec"},
-      {id:"size",    label:"Size (ft)", type:"value"},
-      {id:"formula", label:"Formula",   type:"value"},
-      {id:"rounds",  label:"Lifetime",  type:"value"}
+      {id:"size",    label:"Size (ft)", type:"value.number"},
+      {id:"formula", label:"Formula",   type:"value.string"},
+      {id:"name",    label:"Name",      type:"value.string"},
+      {id:"rounds",  label:"Lifetime",  type:"value.number"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"cardTitle",  label:"Card title",       type:"text",   default:"Healing AoE"},
       {key:"shape",      label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",       label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",      label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",      label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",       label:"Name",             type:"text",   default:"Heal AoE"},
       {key:"formula",    label:"Heal formula",     type:"text",   default:"2d4"},
       {key:"hpPath",     label:"HP path",          type:"path",   default:"system.resources.hp.value"},
       {key:"hpMode",     label:"HP mode",          type:"select", options:["add","set"], default:"add"},
       {key:"tickMode",   label:"When",             type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter"},
       {key:"showInChat", label:"Show in chat",     type:"select", options:["yes","no"], default:"yes"},
-      {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",   label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode", label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
+      {key:"rollApplyMode", label:"Roll mode", type:"select", options:["per_target","once"], default:"per_target"},
       {key:"visibility", label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
       {key:"persist",    label:"Keep template on map", type:"select", options:["yes","no"], default:"no"},
       {key:"rounds",     label:"Lifetime (rounds, 0=∞)", type:"number", default:0}
@@ -1780,37 +2379,37 @@ export const NODE_DEFS = {
       shape:        n.data.shape     ?? "circle",
       size:         inp.size         ?? n.data.size ?? 20,
       angle:        n.data.angle     ?? 53.13,
-      name:         n.data.name      ?? "Heal AoE",
+      name:         inp.name         ?? n.data.name      ?? "Heal AoE",
       formula:      inp.formula      ?? n.data.formula ?? "2d4",
-      bonusFormula: n.data.bonusFormula ?? "",
       hpPath:       n.data.hpPath     ?? "system.resources.hp.value",
       hpMode:       n.data.hpMode     ?? "add",
       tickMode:     n.data.tickMode   ?? "onEnter",
       showInChat:   (n.data.showInChat ?? "yes") !== "no",
       chatMode:     n.data.chatMode   ?? "card",
       applyMode:     n.data.applyMode   ?? "auto",
+      rollApplyMode: n.data.rollApplyMode ?? "per_target",
       visibility:   n.data.visibility ?? "everyone",
       persist:      (n.data.persist ?? "no") === "yes",
       rounds:       Number(inp.rounds ?? n.data.rounds ?? 0) || 0
     })
   },
 
-  /** AoE Save → Effect — chat card, place, save each tick, fail → effect. */
   act_place_aoe_save_effect: {
     title:"Chat AoE — Save → Effect", color:"#6a2a8a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside roll a save (onEnter / eachTurn / both); on failure, the named Active Effect is applied. On leave the effect is removed (configurable).",
     inputs:[
       {id:"exec",  label:"",          type:"exec"},
-      {id:"size",  label:"Size (ft)", type:"value"},
-      {id:"dc",    label:"DC",        type:"value"},
-      {id:"rounds",label:"Lifetime",  type:"value"}
+      {id:"size",  label:"Size (ft)", type:"value.number"},
+      {id:"dc",    label:"DC",        type:"value.number"},
+      {id:"name",  label:"Name",      type:"value.string"},
+      {id:"rounds",label:"Lifetime",  type:"value.number"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"cardTitle",         label:"Card title",       type:"text",   default:"AoE Save"},
       {key:"shape",             label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",              label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",             label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",             label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"name",              label:"Effect name",      type:"text",   default:"AoE Effect"},
       {key:"icon",              label:"Icon",             type:"text",   default:"icons/svg/aura.svg"},
       {key:"saveAttr",          label:"Save attr path",   type:"path",   default:"system.attributes.dex.value"},
@@ -1821,7 +2420,6 @@ export const NODE_DEFS = {
       {key:"advMode",           label:"Adv / Dis mode",   type:"select", options:["none","adv","dis","ask"], default:"none"},
       {key:"advFormula",        label:"Adv core formula", type:"text",   default:"", placeholder:"2d20kh1 (default)"},
       {key:"disFormula",        label:"Dis core formula", type:"text",   default:"", placeholder:"2d20kl1 (default)"},
-      {key:"bonusFormula",      label:"Bonus formula (+)", type:"text",  default:"", placeholder:"e.g. @bonus or 1d4"},
       {key:"chatMode",          label:"Chat card (legacy)", type:"select", options:["auto","card"], default:"card"},
       {key:"applyMode",        label:"Apply mode",type:"select", options:["auto","card"], default:"auto"},
       {key:"visibility",        label:"Visibility",       type:"select", options:["everyone","gm"], default:"everyone"},
@@ -1836,7 +2434,7 @@ export const NODE_DEFS = {
       shape:             n.data.shape     ?? "circle",
       size:              inp.size         ?? n.data.size ?? 20,
       angle:             n.data.angle     ?? 53.13,
-      name:              n.data.name      ?? "AoE Effect",
+      name:              inp.name         ?? n.data.name      ?? "AoE Effect",
       icon:              n.data.icon      ?? "icons/svg/aura.svg",
       saveAttr:          n.data.saveAttr  ?? "system.attributes.dex.value",
       dc:                (v => Number.isFinite(v) ? v : 15)(Number(inp.dc ?? n.data.dc ?? 15)),
@@ -1844,7 +2442,6 @@ export const NODE_DEFS = {
       advMode:           n.data.advMode   ?? "none",
       advFormula:        n.data.advFormula ?? "",
       disFormula:        n.data.disFormula ?? "",
-      bonusFormula:      n.data.bonusFormula ?? "",
       tickMode:          n.data.tickMode  ?? "onEnter",
       showInChat:        (n.data.showInChat ?? "yes") !== "no",
       chatMode:          n.data.chatMode  ?? "card",
@@ -1856,34 +2453,25 @@ export const NODE_DEFS = {
     })
   },
 
-  /**
-   * AoE -- Save Branch.  Places a one-shot template, rolls a save for every
-   * token caught inside, then fires `Saved →` exec per token that passed and
-   * `Failed →` exec per token that failed.  The node also exposes the
-   * `saved / failed / all` token-id arrays for downstream consumption inside
-   * the branch (via runtime.savedTargets / runtime.failedTargets /
-   * runtime.allTargets and runtime.currentTarget when perTarget=yes).
-   */
   act_place_aoe_save_branch: {
-    title:"Chat AoE — Save Branch", color:"#8a5a2a", cat:"AoE", wideNode:true,
-    desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside rolls a save. Fires the 'Saved →' branch for passing tokens and 'Failed →' branch for failing tokens. Use Saved/Failed/All array outputs (available as runtime.savedTargets / failedTargets / allTargets) to fan-out damage / heal / effects.",
+    title:"Chat AoE — Save", color:"#8a5a2a", cat:"AoE", wideNode:true,
+    desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside rolls a save. Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes.",
     inputs:[
       {id:"exec", label:"",          type:"exec"},
-      {id:"size", label:"Size (ft)", type:"value"},
-      {id:"dc",   label:"DC",        type:"value"}
+      {id:"size", label:"Size (ft)", type:"value.number"},
+      {id:"dc",   label:"DC",        type:"value.number"}
     ],
     outputs:[
-      {id:"pass",   label:"Saved →",  type:"exec"},
-      {id:"fail",   label:"Failed →", type:"exec"},
-      {id:"saved",  label:"Saved[]",  type:"value"},
-      {id:"failed", label:"Failed[]", type:"value"},
-      {id:"all",    label:"All[]",    type:"value"}
+      {id:"exec",   label:"→",        type:"exec"},
+      {id:"saved",  label:"Saved[]",  type:"value.array"},
+      {id:"failed", label:"Failed[]", type:"value.array"},
+      {id:"all",    label:"All[]",    type:"value.array"}
     ],
     fields:[
       {key:"cardTitle",   label:"Card title",       type:"text",   default:"AoE Save"},
       {key:"shape",       label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
       {key:"size",        label:"Size (ft)",        type:"number", default:20},
-      {key:"angle",       label:"Cone angle (deg)", type:"number", default:53.13},
+      {key:"angle",       label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
       {key:"saveAttr",    label:"Save attr path",   type:"path",   default:"system.attributes.dex.value"},
       {key:"dc",          label:"DC",               type:"number", default:15},
       {key:"flavor",      label:"Save label",       type:"text",   default:"Saving Throw"},
@@ -1892,12 +2480,10 @@ export const NODE_DEFS = {
       {key:"advMode",     label:"Adv / Dis mode",   type:"select", options:["none","adv","dis","ask"], default:"none"},
       {key:"advFormula",  label:"Adv core formula", type:"text",   default:"", placeholder:"2d20kh1 (default)"},
       {key:"disFormula",  label:"Dis core formula", type:"text",   default:"", placeholder:"2d20kl1 (default)"},
-      {key:"bonusFormula", label:"Bonus formula (+)", type:"text", default:"", placeholder:"e.g. @bonus or 1d4"},
-      {key:"perTarget",   label:"Fire branch per-target", type:"select", options:["yes","no"], default:"yes"},
       {key:"persist",     label:"Keep template on map",   type:"select", options:["yes","no"], default:"no"}
     ],
     isAction:true,
-    isSaveBranch:true,
+    isAoeSave:true,
     toAction:(n,inp)=>({
       type:         "placeAoeSaveBranch",
       cardTitle:    n.data.cardTitle ?? "AoE Save",
@@ -1912,22 +2498,16 @@ export const NODE_DEFS = {
       advMode:      n.data.advMode    ?? "none",
       advFormula:   n.data.advFormula ?? "",
       disFormula:   n.data.disFormula ?? "",
-      bonusFormula: n.data.bonusFormula ?? "",
-      perTarget:    (n.data.perTarget ?? "yes") === "yes",
       persist:      (n.data.persist   ?? "no")  === "yes"
     })
   },
 
-  /**
-   * Remove Aura -- removes any aura matching the given key from the owner
-   * token, along with its linked effect on any tokens currently inside it.
-   */
   act_remove_aura: {
     title:"Remove Aura", color:"#6a1a3a", cat:"Effects",
     desc:"Removes the aura(s) matching the given key from the owner token and clears the linked Active Effect from any tokens currently inside.",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
-      {id:"owner", label:"Owner",  type:"value"}
+      {id:"owner", label:"Owner",  type:"value.actor"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
@@ -1948,7 +2528,7 @@ export const NODE_DEFS = {
     desc:"Exec passes through only when Condition is truthy. Acts as an early-exit guard without needing a Branch.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
-      {id:"cond",label:"Condition",type:"value"}
+      {id:"cond",label:"Condition",type:"value.bool"}
     ],
     outputs:[{id:"exec",label:"Pass →",type:"exec"}],
     fields:[],
@@ -1960,25 +2540,25 @@ export const NODE_DEFS = {
   reroute: {
     title:"•", color:"#2a2a3a", cat:"Flow",
     desc:"Visual wire re-routing point. No logic — just keeps graphs tidy.",
-    inputs:[{id:"v",label:"",type:"value"}],
-    outputs:[{id:"v",label:"",type:"value"}],
+    inputs:[{id:"v",label:"",type:"value.any"}],
+    outputs:[{id:"v",label:"",type:"value.any"}],
     fields:[],
     isReroute: true,
     compile:(_,i)=> i.v !== undefined ? String(i.v) : "0"
   },
 
-  // Sources additions
+  // Доп. источники
 
   /** Ternary — inline conditional value selection */
   ternary: {
     title:"Ternary", color:"#6a1a6a", cat:"Sources",
     desc:"Outputs True value when Condition is truthy, False value otherwise. Equivalent to (cond ? a : b). Eliminates common Branch→Output patterns.",
     inputs:[
-      {id:"cond",  label:"Condition", type:"value"},
-      {id:"a",     label:"True val",  type:"value"},
-      {id:"b",     label:"False val", type:"value"}
+      {id:"cond",  label:"Condition", type:"value.bool"},
+      {id:"a",     label:"True val",  type:"value.any"},
+      {id:"b",     label:"False val", type:"value.any"}
     ],
-    outputs:[{id:"v", label:"Out", type:"value"}],
+    outputs:[{id:"v", label:"Out", type:"value.any"}],
     fields:[
       {key:"a", label:"True (const)",  type:"text", default:"1"},
       {key:"b", label:"False (const)", type:"text", default:"0"}
@@ -2011,24 +2591,21 @@ export const NODE_DEFS = {
     }
   },
 
-  // (condition_check removed -- auto-migrated to has_effect; see node-migration.mjs)
-  // (actor_level    removed -- auto-migrated to get_path;    see node-migration.mjs)
-
   /** Get Variable — read from actor.flags.sd.vars namespace */
   get_var: {
     title:"Get Variable", color:"#2a3a5a", cat:"Sources",
     desc:"Read a named variable stored on this actor (actor.flags.sd.vars.NAME). Use with Set Variable to pass data between button clicks or graph segments.",
-    inputs:[], outputs:[{id:"v", label:"Value", type:"value"}],
+    inputs:[], outputs:[{id:"v", label:"Value", type:"value.any"}],
     fields:[{key:"name", label:"Variable Name", type:"text", default:"myVar", placeholder:"e.g. lastRollResult"}],
     compile:(n)=>`{var:${n.data.name??"myVar"}}`
   },
 
-  // Math additions
+  // Доп. математика
 
   /** Mod — remainder */
   mod: {
     title:"Mod %", color:"#1a5c2a", cat:"Math",
-    inputs:[{id:"a",label:"A"},{id:"b",label:"B"}], outputs:[{id:"v",label:"",type:"value.number"}],
+    inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
     fields:[], desc:"Integer remainder of A ÷ B",
     compile:(_,i)=>`(${i.a??"0"}%${i.b??"1"})`
   },
@@ -2036,7 +2613,7 @@ export const NODE_DEFS = {
   /** Pow — exponentiation */
   pow: {
     title:"Pow ^", color:"#1a5c2a", cat:"Math",
-    inputs:[{id:"a",label:"Base"},{id:"b",label:"Exp"}], outputs:[{id:"v",label:"",type:"value.number"}],
+    inputs:[{id:"a",label:"Base",type:"value.number"},{id:"b",label:"Exp",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
     fields:[], desc:"A raised to the power of B",
     compile:(_,i)=>`(${i.a??"0"}**${i.b??"2"})`
   },
@@ -2044,12 +2621,12 @@ export const NODE_DEFS = {
   /** Sign — returns -1, 0 or +1 */
   sign: {
     title:"Sign", color:"#1a5c2a", cat:"Math",
-    inputs:[{id:"a",label:"A"}], outputs:[{id:"v",label:"",type:"value.number"}],
+    inputs:[{id:"a",label:"A",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
     fields:[], desc:"Returns -1, 0 or +1 based on the sign of A",
     compile:(_,i)=>`(${i.a??"0"}>0?1:${i.a??"0"}<0?-1:0)`
   },
 
-  // Actions additions
+  // Доп. действия
 
   /** Play Sound — AudioHelper.play wrapper */
   act_play_sound: {
@@ -2088,7 +2665,7 @@ export const NODE_DEFS = {
   act_notify: {
     title:"Notify", color:"#4a4a1a", cat:"Actions",
     desc:"Show a toast notification (info / warning / error) to the current user. Useful for feedback without a full chat message.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"text",label:"Message",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"text",label:"Message",type:"value.string"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"text",  label:"Default text", type:"text",   default:"Done!"},
@@ -2108,7 +2685,8 @@ export const NODE_DEFS = {
     desc:"Decrement a resource value by Amount (default 1). If current value would go below 0 takes the Empty branch instead. Use instead of Modify Field + Branch for uses/charges/mana.",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
-      {id:"amount", label:"Amount", type:"value"}
+      {id:"amount", label:"Amount", type:"value.number"},
+      {id:"target", label:"Target", type:"value.actor"}
     ],
     outputs:[
       {id:"ok",    label:"OK →",    type:"exec"},
@@ -2124,7 +2702,7 @@ export const NODE_DEFS = {
       type:   "consumeResource",
       path:   n.data.path   ?? "system.resources.mp.value",
       amount: inp.amount    ?? n.data.amount ?? 1,
-      target: n.data.target ?? "self"
+      target: (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "self")
     })
   },
 
@@ -2132,7 +2710,7 @@ export const NODE_DEFS = {
   act_set_var: {
     title:"Set Variable", color:"#2a3a6a", cat:"Actions",
     desc:"Store a value in actor.flags.sd.vars.NAME for retrieval later in the same or other graphs. Useful for persisting roll results between button presses.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"value",label:"Value",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"value",label:"Value",type:"value.any"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"name",  label:"Variable Name", type:"text",   default:"myVar", placeholder:"e.g. lastRollResult"},
@@ -2151,7 +2729,7 @@ export const NODE_DEFS = {
   act_open_sheet: {
     title:"Open Sheet", color:"#2a3a6a", cat:"Actions",
     desc:"Open the sheet window of another Actor or Item by UUID. Useful for 'Inspect' buttons on slot items.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"uuid",label:"UUID",type:"value"}],
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"uuid",label:"UUID",type:"value.uuid"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"uuid",    label:"UUID (or drag here)", type:"text",   default:"", placeholder:"Actor.xxx or Item.xxx"},
@@ -2171,14 +2749,14 @@ export const NODE_DEFS = {
     desc:"Roll on a world RollTable. Found→ fires when at least one result is drawn. Empty→ fires when the table is empty or not found. Result text and index available as value outputs. Use drawCount > 1 to draw multiple entries — {__rollTableIndex} tracks the current draw (0-based).",
     inputs:[
       {id:"exec",      label:"",           type:"exec"},
-      {id:"formula",   label:"Formula",    type:"value"},
-      {id:"drawCount", label:"Draw count", type:"value"}
+      {id:"formula",   label:"Formula",    type:"value.string"},
+      {id:"drawCount", label:"Draw count", type:"value.number"}
     ],
     outputs:[
       {id:"found",  label:"Found →",      type:"exec"},
       {id:"empty",  label:"Empty →",      type:"exec"},
-      {id:"result", label:"Result text",  type:"value"},
-      {id:"index",  label:"Draw index",   type:"value"}
+      {id:"result", label:"Result text",  type:"value.any"},
+      {id:"index",  label:"Draw index",   type:"value.number"}
     ],
     fields:[
       {key:"tableName",  label:"Table Name (exact)",  type:"text",   default:"",    placeholder:"exact table name"},
@@ -2200,22 +2778,24 @@ export const NODE_DEFS = {
     })
   },
 
-  // (sequence4 removed -- auto-migrated to sequence (count=4); see node-migration.mjs)
-
   chat_save_button: {
     title:"Save / Check Button", color:"#7a3a00", cat:"Actions",
-    desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field.",
+    desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field. Reroll button (yes/no) adds a Re-roll button to the resulting roll message; Reroll Path / Reroll Cost optionally consume a numeric resource from the rolling actor each time they reroll.",
     inputs:[
-      {id:"exec",        label:"",            type:"exec"},
-      {id:"dc",          label:"DC",           type:"value"},
-      {id:"rollFormula", label:"Roll Formula", type:"value"},
-      {id:"advFormula",  label:"Adv Formula",  type:"value"},
-      {id:"disFormula",  label:"Dis Formula",  type:"value"}
+      {id:"exec",          label:"",              type:"exec"},
+      {id:"dc",            label:"DC",             type:"value.number"},
+      {id:"target",        label:"Target",         type:"value.actor"},
+      {id:"rollFormula",   label:"Roll Formula",   type:"value.string"},
+      {id:"advFormula",    label:"Adv Formula",    type:"value.string"},
+      {id:"disFormula",    label:"Dis Formula",    type:"value.string"},
+      {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
       {id:"pass", label:"Pass →", type:"exec"},
       {id:"fail", label:"Fail →", type:"exec"},
-      {id:"result", label:"Roll Result", type:"value"}
+      {id:"result", label:"Roll Result", type:"value.any"}
     ],
     fields:[
       {key:"checkType",    label:"Check type",    type:"select", default:"save", options:["save","ability","skill","custom"]},
@@ -2229,14 +2809,18 @@ export const NODE_DEFS = {
       {key:"rollDialogue",  label:"Roll dialog", type:"select", default:"no", options:["no","yes"]},
       {key:"advFormula",    label:"Adv formula (pin>field)", type:"text", default:"", placeholder:"e.g. 2d20kh1 + @mod"},
       {key:"disFormula",    label:"Dis formula (pin>field)", type:"text", default:"", placeholder:"e.g. 2d20kl1 + @mod"},
-      {key:"timeout",       label:"Timeout (sec, 0=∞)", type:"number", default:0}
+      {key:"timeout",       label:"Timeout (sec, 0=∞)", type:"number", default:0},
+      {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
+      {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
+      {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
     ],
     isSaveBranch: true,
     toAction:(n,inp)=>{
-      // pin takes priority over field (same pattern as act_roll_value)
       const rollFormula = (inp.rollFormula != null && inp.rollFormula !== "") ? inp.rollFormula : (n.data.rollFormula || "1d20");
       const advFormula  = (inp.advFormula  != null && inp.advFormula  !== "") ? inp.advFormula  : (n.data.advFormula ?? "");
       const disFormula  = (inp.disFormula  != null && inp.disFormula  !== "") ? inp.disFormula  : (n.data.disFormula ?? "");
+      const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
+      const rerollEnabled = (_rrRaw === true || _rrRaw === "yes" || _rrRaw === 1 || _rrRaw === "1") ? "yes" : "no";
       return {
         type: "chatSaveButton",
         checkType:    n.data.checkType    ?? "save",
@@ -2244,29 +2828,29 @@ export const NODE_DEFS = {
         dc:           inp.dc ?? n.data.dc ?? 15,
         flavor:       n.data.flavor       ?? "Saving Throw",
         buttonLabel:  n.data.buttonLabel  ?? "Roll Save",
-        target:       n.data.target       ?? "token_target",
+        target:       (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "token_target"),
         rollMode:     n.data.rollMode     ?? "publicroll",
         rollFormula,
         rollDialogue: n.data.rollDialogue === "yes",
         advFormula,
         disFormula,
-        timeout:      Number(n.data.timeout ?? 0)
+        timeout:      Number(n.data.timeout ?? 0),
+        rerollEnabled,
+        rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
       };
     }
   },
 
-  // Events
-  // Event nodes are independent entry-points that fire on Foundry hooks, not on
-  // the item's Use button. Each exposes an exec output + a handful of value
-  // outputs describing the event payload.
+  // События
   on_update: {
     title:"On Update", color:"#c04040", cat:"Events",
     desc:"Fires whenever this document (actor/item) is updated. Useful for reacting to HP / resource changes.",
     inputs:[], outputs:[
       {id:"exec",     label:"→ On Update", type:"exec"},
-      {id:"path",     label:"Changed Path",type:"value"},
-      {id:"oldValue", label:"Old Value",   type:"value"},
-      {id:"newValue", label:"New Value",   type:"value"}
+      {id:"path",     label:"Changed Path",type:"value.path"},
+      {id:"oldValue", label:"Old Value",   type:"value.any"},
+      {id:"newValue", label:"New Value",   type:"value.any"}
     ],
     fields:[{key:"pathFilter",label:"Only path (optional)",type:"path",default:"",placeholder:"system.resources.hp.value"}],
     isEvent:true, eventHook:"updateDocument"
@@ -2293,8 +2877,8 @@ export const NODE_DEFS = {
     desc:"Fires at the start of this actor's combat turn.",
     inputs:[], outputs:[
       {id:"exec",       label:"→ On Turn Start",type:"exec"},
-      {id:"round",      label:"Round",           type:"value"},
-      {id:"combatantId",label:"Combatant Id",    type:"value"}
+      {id:"round",      label:"Round",           type:"value.number"},
+      {id:"combatantId",label:"Combatant Id",    type:"value.string"}
     ],
     fields:[],
     isEvent:true, eventHook:"combatTurnStart"
@@ -2305,8 +2889,8 @@ export const NODE_DEFS = {
     desc:"Fires at the end of this actor's combat turn.",
     inputs:[], outputs:[
       {id:"exec",       label:"→ On Turn End",type:"exec"},
-      {id:"round",      label:"Round",         type:"value"},
-      {id:"combatantId",label:"Combatant Id",  type:"value"}
+      {id:"round",      label:"Round",         type:"value.number"},
+      {id:"combatantId",label:"Combatant Id",  type:"value.string"}
     ],
     fields:[],
     isEvent:true, eventHook:"combatTurnEnd"
@@ -2317,7 +2901,7 @@ export const NODE_DEFS = {
     desc:"Fires when an Active Effect is applied to this actor.",
     inputs:[], outputs:[
       {id:"exec",      label:"→ On Effect",type:"exec"},
-      {id:"effectName",label:"Name",        type:"value"}
+      {id:"effectName",label:"Name",        type:"value.string"}
     ],
     fields:[{key:"nameFilter",label:"Only name (optional)",type:"text",default:""}],
     isEvent:true, eventHook:"createActiveEffect"
@@ -2328,8 +2912,8 @@ export const NODE_DEFS = {
     desc:"Fires when this actor's HP path decreases. Configure the HP path below.",
     inputs:[], outputs:[
       {id:"exec",   label:"→ On Damage",type:"exec"},
-      {id:"amount", label:"Damage",      type:"value"},
-      {id:"newHp",  label:"New HP",      type:"value"}
+      {id:"amount", label:"Damage",      type:"value.number"},
+      {id:"newHp",  label:"New HP",      type:"value.number"}
     ],
     fields:[{key:"hpPath",label:"HP Path",type:"path",default:"system.resources.hp.value"}],
     isEvent:true, eventHook:"hpDecrease"
@@ -2340,22 +2924,19 @@ export const NODE_DEFS = {
     desc:"Fires when a rest flag is set on this actor (configurable flag path).",
     inputs:[], outputs:[
       {id:"exec", label:"→ On Rest",type:"exec"},
-      {id:"type", label:"Rest Type",  type:"value"}
+      {id:"type", label:"Rest Type",  type:"value.string"}
     ],
     fields:[{key:"flagPath",label:"Rest Flag Path",type:"path",default:"system.flags.rest"}],
     isEvent:true, eventHook:"restFlag"
   },
 
-  // PR14: Equip / Unequip events -- fire when an item on this actor flips its
-  // `system.equipped` flag.  Place in the sheet-trigger graph of the actor
-  // (or the item itself) to react to equip/unequip.
   on_equip: {
     title:"On Equip", color:"#c04040", cat:"Events",
     desc:"Fires when an item on this actor (or this item specifically) is equipped.",
     inputs:[], outputs:[
       {id:"exec",   label:"→ On Equip", type:"exec"},
-      {id:"itemId", label:"Item Id",    type:"value"},
-      {id:"itemName",label:"Item Name", type:"value"}
+      {id:"itemId", label:"Item Id",    type:"value.string"},
+      {id:"itemName",label:"Item Name", type:"value.string"}
     ],
     fields:[],
     isEvent:true, eventHook:"itemEquipped"
@@ -2365,19 +2946,14 @@ export const NODE_DEFS = {
     desc:"Fires when an item on this actor (or this item specifically) is unequipped.",
     inputs:[], outputs:[
       {id:"exec",   label:"→ On Unequip",type:"exec"},
-      {id:"itemId", label:"Item Id",     type:"value"},
-      {id:"itemName",label:"Item Name",  type:"value"}
+      {id:"itemId", label:"Item Id",     type:"value.string"},
+      {id:"itemName",label:"Item Name",  type:"value.string"}
     ],
     fields:[],
     isEvent:true, eventHook:"itemUnequipped"
   },
 
   // Unified event node -- Step 3
-  // Single declarative trigger: pick an event from the dropdown and the
-  // FormulaGraph compile loop resolves the Foundry hook dynamically.
-  // Coexists with the specific on_* event nodes (back-compat) -- use whichever
-  // feels clearer. Multiple on_event nodes can target different events
-  // because the compile loop keys them by node.id, not by node.type.
   on_event: {
     title:"On Event", color:"#c04040", cat:"Events", wideNode:true,
     desc:"Declarative event trigger: pick the event type from the dropdown. Equivalent to the specific On-* nodes but keeps the graph compact when you only need a single exec chain.",
@@ -2391,17 +2967,9 @@ export const NODE_DEFS = {
       {key:"nameFilter", label:"Only name (effect only)", type:"text", default:""}
     ],
     isEvent:true,
-    // eventHook is resolved dynamically by FormulaGraph._dynEventHook(node) --
-    // the `eventHook` field here acts as a fallback for callers that look it
-    // up statically from NODE_DEFS.
     eventHook:"updateDocument"
   },
 
-  // Target sources -- Step 3 (target as value)
-  // Emit a literal target-selector string that feeds any node accepting a
-  // `target` / `where` input.  The runtime already understands these tokens
-  // ("self", "actor", "token_target", "selected_token", "all_targets"), so
-  // these nodes just make the choice explicit in the graph.
   get_self: {
     title:"Get Self", color:"#2a5a7a", cat:"Targeting",
     desc:"Reference to the document the graph runs on (actor for sheet graphs, item for item graphs).",
@@ -2438,18 +3006,36 @@ export const NODE_DEFS = {
     compile:()=>`"all_targets"`
   },
 
-  // PR14: Pure sources for equipment state (read-only, no exec pin).
+  get_player_actors: {
+    title:"Get Player Actors", color:"#2a5a7a", cat:"Targeting",
+    desc:"Returns the array of player-character actors. Feed into Dialog Select (Array) to let the user pick a PC, or into For Each Token / array nodes.",
+    inputs:[], outputs:[{id:"v", label:"Players", type:"value.array"}],
+    fields:[
+      {key:"onlineOnly", label:"Online users only", type:"select", default:"yes", options:["yes","no"]},
+      {key:"includeGM",  label:"Include GM",        type:"select", default:"no",  options:["no","yes"]}
+    ],
+    compile:(n)=>`"player_actors:${n.data.onlineOnly ?? "yes"}:${n.data.includeGM ?? "no"}"`
+  },
+
+  get_user_character: {
+    title:"Get User's Character", color:"#2a5a7a", cat:"Targeting",
+    desc:"Returns the actor assigned to the current user (game.user.character). Empty if the user has no assigned character.",
+    inputs:[], outputs:[{id:"v", label:"Actor", type:"value.actor"}],
+    fields:[],
+    compile:()=>`"user_character"`
+  },
+
   is_equipped: {
     title:"Is Equipped?", color:"#2e6e4a", cat:"Sources",
     desc:"Returns 1 if this item is currently equipped, 0 otherwise.  Reads `system.equipped` on the context item.",
-    inputs:[], outputs:[{id:"value", label:"0/1", type:"value"}],
+    inputs:[], outputs:[{id:"value", label:"0/1", type:"value.any"}],
     fields:[], isPure:true,
     compile:()=>"{__sdIsEquipped}"
   },
   equipped_count: {
     title:"Equipped Count", color:"#2e6e4a", cat:"Sources",
     desc:"Returns the count of items with `system.equipped:true` on the owning actor, optionally filtered by category.",
-    inputs:[], outputs:[{id:"value", label:"N", type:"value"}],
+    inputs:[], outputs:[{id:"value", label:"N", type:"value.any"}],
     fields:[
       {key:"category", label:"Category", type:"select", default:"any",
         options:["any","weapon","armor","shield","consumable","ammo","magazine","tool","gear","container","treasure","other"]}
@@ -2458,15 +3044,12 @@ export const NODE_DEFS = {
     compile:(n)=>`{__sdEqCount:${n.data.category ?? "any"}}`
   },
 
-  // PR5 -- Latent / Delay / Variables / Cast / Macro
-
-  // Delay (wait N ms before continuing exec chain)
   act_delay: {
     title:"Delay", color:"#2a5a8a", cat:"Flow",
     desc:"Waits the given number of milliseconds, then continues the exec chain.",
     inputs:[
       {id:"exec",     label:"",        type:"exec"},
-      {id:"duration", label:"ms",      type:"value"}
+      {id:"duration", label:"ms",      type:"value.number"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
@@ -2476,19 +3059,18 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({ type:"delay", duration: inp.duration ?? n.data.duration ?? "500" })
   },
 
-  // Loop (run downstream exec N times, with optional delay between)
   act_loop: {
     title:"For Loop", color:"#2a5a8a", cat:"Flow",
     desc:"Runs Body N times. Current iteration index is available as {__loopIndex}. After all iterations, exec goes to Done.",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
-      {id:"count", label:"Count",  type:"value"},
-      {id:"delay", label:"Delay ms",type:"value"}
+      {id:"count", label:"Count",  type:"value.number"},
+      {id:"delay", label:"Delay ms",type:"value.number"}
     ],
     outputs:[
       {id:"body", label:"Body →", type:"exec"},
       {id:"done", label:"Done →", type:"exec"},
-      {id:"index",label:"Index",  type:"value"}
+      {id:"index",label:"Index",  type:"value.number"}
     ],
     fields:[
       {key:"count", label:"Count",   type:"text", default:"3"},
@@ -2502,13 +3084,12 @@ export const NODE_DEFS = {
     })
   },
 
-  // Wait for Foundry hook (one-shot)
   act_wait_for_event: {
     title:"Wait For Event", color:"#2a5a8a", cat:"Flow",
     desc:"Pauses the exec chain until the first fire of a Foundry hook. Timeout is in milliseconds (0 = no timeout). Continues exec once the event fires.",
     inputs:[
       {id:"exec",    label:"",        type:"exec"},
-      {id:"timeout", label:"Timeout", type:"value"}
+      {id:"timeout", label:"Timeout", type:"value.number"}
     ],
     outputs:[
       {id:"done",    label:"Fired →",    type:"exec"},
@@ -2526,7 +3107,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Step 8 additions (pure value nodes, no runtime rework)
 
   /** Random Pick — outputs one of up to 5 value inputs chosen uniformly. */
   random_pick: {
@@ -2546,8 +3126,6 @@ export const NODE_DEFS = {
         .map(k=>i[k])
         .filter(v=>v!=null && v!=="");
       if (!opts.length) return "0";
-      // NB: runtime handles `{random}` as Math.random.
-      // We wrap into chained ternaries keyed on discrete buckets.
       const n = opts.length;
       let expr = opts[n-1];
       for (let j = n-2; j >= 0; j--) {
@@ -2572,7 +3150,6 @@ export const NODE_DEFS = {
       const th = String(n.data.thresholds ?? "25,50,75").split(",").map(s=>s.trim()).filter(Boolean);
       const lb = String(n.data.labels ?? "critical,bloodied,hurt,healthy").split(",").map(s=>s.trim());
       if (!th.length || !lb.length) return `"unknown"`;
-      // Nested ternary: if v < th[0] → lb[0]; elif < th[1] → lb[1]; … else lb[N]
       let expr = JSON.stringify(lb[th.length] ?? lb[lb.length-1] ?? "unknown");
       for (let j = th.length - 1; j >= 0; j--) {
         const label = JSON.stringify(lb[j] ?? "unknown");
@@ -2602,12 +3179,6 @@ export const NODE_DEFS = {
   },
 
   // Variables (unified) -- Step 6
-  // var_read / var_write supersede the four legacy variable nodes
-  // (var_get, var_set, get_var, act_set_var).  Scope picks the storage layer:
-  //   local  -- per-run scratch (cleared each button press; runtime token __var)
-  //   actor  -- persisted on actor.flags.sd.vars.NAME (runtime token `var`)
-  //   world  -- game-wide settings (runtime setVar with scope:"world")
-  // Legacy nodes remain in the palette so old graphs keep working unchanged.
   var_read: {
     title:"Read Variable", color:"#2a6a9a", cat:"Variables",
     desc:"Reads a variable by scope. Local — within a single press. Actor — on the actor (persists). World — in system settings.",
@@ -2649,12 +3220,11 @@ export const NODE_DEFS = {
     })
   },
 
-  // Variables (legacy -- kept for back-compat)
   var_get: {
     title:"Get Variable", color:"#2a6a9a", cat:"Sources",
     desc:"Reads the value of a local graph variable. Variables are defined in the Variables panel of the graph editor.",
     inputs:[],
-    outputs:[{id:"v", label:"Value", type:"value"}],
+    outputs:[{id:"v", label:"Value", type:"value.any"}],
     fields:[
       {key:"name",    label:"Name",    type:"text", default:"myVar"},
       {key:"default", label:"Default", type:"text", default:"0"}
@@ -2667,7 +3237,7 @@ export const NODE_DEFS = {
     desc:"Assigns a value to a local graph variable. Variables live within a single button press (per-run).",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
-      {id:"value", label:"Value",type:"value"}
+      {id:"value", label:"Value",type:"value.any"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
@@ -2687,12 +3257,12 @@ export const NODE_DEFS = {
     desc:"Attempts to cast Value (UUID string) to an Actor. On success, emits Cast Success with ActorId; otherwise Cast Failed.",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
-      {id:"value", label:"Value",type:"value"}
+      {id:"value", label:"Value",type:"value.any"}
     ],
     outputs:[
       {id:"ok",      label:"Cast Success →",type:"exec"},
       {id:"fail",    label:"Cast Failed →",  type:"exec"},
-      {id:"actorId", label:"Actor ID",       type:"value"}
+      {id:"actorId", label:"Actor ID",       type:"value.string"}
     ],
     fields:[],
     isGenericBranch:true,
@@ -2704,29 +3274,29 @@ export const NODE_DEFS = {
     desc:"Attempts to cast Value (UUID string) to an Item. On success, emits Cast Success with ItemId; otherwise Cast Failed.",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
-      {id:"value", label:"Value",type:"value"}
+      {id:"value", label:"Value",type:"value.any"}
     ],
     outputs:[
       {id:"ok",     label:"Cast Success →",type:"exec"},
       {id:"fail",   label:"Cast Failed →",  type:"exec"},
-      {id:"itemId", label:"Item ID",         type:"value"}
+      {id:"itemId", label:"Item ID",         type:"value.string"}
     ],
     fields:[],
     isGenericBranch:true,
     toAction:(n,inp)=>({ type:"castToItem", value: inp.value ?? "" })
   },
 
-  // Macro (subgraph)
+  // Макро
   macro_input: {
     title:"Macro Input", color:"#1a8a4a", cat:"Macros",
     desc:"Entry point for a nested graph (macro). Macro ID must match the ID in macro_call. Exec and up to 4 value pins are forwarded from macro_call.",
     inputs:[],
     outputs:[
       {id:"exec", label:"→",     type:"exec"},
-      {id:"a",    label:"Arg 1", type:"value"},
-      {id:"b",    label:"Arg 2", type:"value"},
-      {id:"c",    label:"Arg 3", type:"value"},
-      {id:"d",    label:"Arg 4", type:"value"}
+      {id:"a",    label:"Arg 1", type:"value.any"},
+      {id:"b",    label:"Arg 2", type:"value.any"},
+      {id:"c",    label:"Arg 3", type:"value.any"},
+      {id:"d",    label:"Arg 4", type:"value.any"}
     ],
     fields:[
       {key:"macroId", label:"Macro ID", type:"text", default:"myMacro"}
@@ -2739,8 +3309,8 @@ export const NODE_DEFS = {
     desc:"Exit point of a nested graph. Placed INSIDE the macro graph. Exec and up to 2 value pins are returned out to macro_call.",
     inputs:[
       {id:"exec", label:"",         type:"exec"},
-      {id:"a",    label:"Return 1", type:"value"},
-      {id:"b",    label:"Return 2", type:"value"}
+      {id:"a",    label:"Return 1", type:"value.any"},
+      {id:"b",    label:"Return 2", type:"value.any"}
     ],
     outputs:[],
     fields:[],
@@ -2754,15 +3324,15 @@ export const NODE_DEFS = {
     wideNode:true,
     inputs:[
       {id:"exec", label:"",  type:"exec"},
-      {id:"a",    label:"Arg 1", type:"value"},
-      {id:"b",    label:"Arg 2", type:"value"},
-      {id:"c",    label:"Arg 3", type:"value"},
-      {id:"d",    label:"Arg 4", type:"value"}
+      {id:"a",    label:"Arg 1", type:"value.any"},
+      {id:"b",    label:"Arg 2", type:"value.any"},
+      {id:"c",    label:"Arg 3", type:"value.any"},
+      {id:"d",    label:"Arg 4", type:"value.any"}
     ],
     outputs:[
       {id:"exec",   label:"→",        type:"exec"},
-      {id:"retA",   label:"Return 1", type:"value"},
-      {id:"retB",   label:"Return 2", type:"value"}
+      {id:"retA",   label:"Return 1", type:"value.any"},
+      {id:"retB",   label:"Return 2", type:"value.any"}
     ],
     fields:[
       {key:"macroId", label:"Macro ID", type:"text", default:""}
@@ -2777,10 +3347,6 @@ export const NODE_DEFS = {
 
 };
 
-// Event node value-pin → runtime token map used by _compileValue when an
-// event node's output pin is wired into a downstream node as a value source.
-// Tokens are substituted at runtime by ButtonExecutor._injectRuntime from the
-// buttonDef.__eventRuntime payload built in event-bus.mjs.
 const EVENT_PIN_TOKENS = {
   on_update:       { path: "{__eventPath}", oldValue: "{__eventOldValue}", newValue: "{__eventNewValue}" },
   on_turn_start:   { round: "{__eventRound}", combatantId: "{__eventCombatantId}" },
@@ -2792,17 +3358,7 @@ const EVENT_PIN_TOKENS = {
   on_unequip:      { itemId: "{__eventItemId}", itemName: "{__eventItemName}" }
 };
 
-// Value-pin tokens for branch / save / attack / tiered action nodes.  The
-// executor writes to buttonDef.__lastRoll / __lastMargin / __lastSuccesses /
-// __lastBotches after running these nodes, and downstream value consumers
-// substitute these tokens via FormulaEngine runtime injection.
 const BRANCH_PIN_TOKENS = {
-  // Plain action-node result pins that need runtime tokens.  These nodes
-  // are NOT marked with any `is*Branch` flag, so the pin compiler used to
-  // fall through to the "0" default at `if (!def||def.isAction) return "0"`
-  // -- which is why piping `act_roll_value.result` into AoE/Aura/damage
-  // formula fields produced a literal `0`.  The pin compiler below now
-  // consults BRANCH_PIN_TOKENS first and only then falls back.
   act_roll_value:   { result: "{__lastRoll}" },
   act_attack_check: { result: "{__lastRoll}", margin: "{__lastMargin}" },
   act_roll_check:   { result: "{__lastRoll}", margin: "{__lastMargin}", winnerRoll: "{__opposedWinnerRoll}" },
@@ -2812,25 +3368,39 @@ const BRANCH_PIN_TOKENS = {
   act_throw_on_sheet:  { successes: "{__lastSuccesses}", total: "{__lastRoll}" },
   chat_save_button:    { result: "{__lastRoll}" },
   act_progression:     { value: "{__lastRoll}", previous: "{__progPrev}" },
+  act_ai_request:      { response: "{__lastAiResponse}", errorMsg: "{__lastAiError}" },
   act_loop:            { index: "{__loopIndex}" },
   cast_to_actor:       { actorId: "{__castActorId}" },
   cast_to_item:        { itemId: "{__castItemId}" },
   macro_call:          { retA: "{__macroRetA}", retB: "{__macroRetB}" },
-  // Save Branch AoE exposes token-id arrays collected after rolling saves
-  // for every target caught inside the placed template.  The executor at
-  // sd.mjs "sd-chat-aoe-save-branch-btn" sets runtime.savedTargets /
-  // failedTargets / allTargets; _injectRuntime substitutes these tokens.
   act_place_aoe_save_branch: {
     saved:  "{__savedTargets}",
     failed: "{__failedTargets}",
     all:    "{__allTargets}"
+  },
+  act_place_aura_save_branch: {
+    saved:  "{__savedTargets}",
+    failed: "{__failedTargets}",
+    all:    "{__allTargets}"
+  },
+  act_for_each_token: {
+    token: "{__currentTarget}",
+    index: "{__loopIndex}"
+  },
+  arr_compare_two: {
+    diff:   "{__cmpDiff}",
+    winner: "{__cmpWinner}"
+  },
+  dialog_select_array: {
+    selected: "{__sdSelectedItem}",
+    index:    "{__sdSelectedIndex}"
+  },
+  dialog_text_input: {
+    text: "{__sdInputText}"
   }
 };
 
-// Category display order.  Order here = order shown in the palette.
-// "Macros" added in PR9 for macro_input / macro_output / macro_call so they
-// are no longer mixed into Flow.  New Effect/AoE/Template categories will
-// arrive in PR11 -- add them here when they do.
+// Порядок категорий
 const CATS = [
   {id:"Flow",      color:"#8a3a8a"},
   {id:"Events",    color:"#c04040"},
@@ -2840,6 +3410,7 @@ const CATS = [
   {id:"Math",      color:"#2a7a3a"},
   {id:"Compare",   color:"#8a2a8a"},
   {id:"Logic",     color:"#8a2a2a"},
+  {id:"Array",     color:"#2a7a3a"},
   {id:"Macros",    color:"#1a8a4a"},
   {id:"Actions",   color:"#5a3a7a"},
   {id:"Effects",   color:"#1a4a8a"},
@@ -2847,21 +3418,7 @@ const CATS = [
   {id:"Targeting", color:"#8a3a6a"}
 ];
 
-// NODE TAXONOMY
-//
-// Every node falls into one of three behavioural kinds (inspired by UE Blueprints):
-//
-//   pure        -- computes a value, has no exec pins, never mutates data.
-//                 (e.g. literal, get_path, math, compare, get_widget)
-//   imperative  -- executes on a click/exec chain and mutates document state.
-//                 (e.g. act_modify, act_damage, act_add_item)
-//   event       -- independent entry-point, fires on a Foundry hook rather than
-//                 on button-click. Provides exec + payload outputs.
-//                 (e.g. on_update, on_turn_start)
-//
-// The editor colour-codes node borders by kind so graph-authors can see at a
-// glance which nodes touch the world and which are purely computational.
-
+// Категории нод
 export const SD_NODE_KIND_COLOURS = {
   pure:       "#3aa87a",   // green
   imperative: "#e08a2a",   // orange
@@ -2872,15 +3429,12 @@ export const SD_NODE_KIND_COLOURS = {
 export function getNodeKind(def) {
   if (!def) return "pure";
   if (def.isEvent) return "event";
-  if (def.isTrigger) return "event"; // on_click is an entry-point
+  if (def.isTrigger) return "event";
   const hasExec = (arr) => (arr ?? []).some(p => p?.type === "exec");
   if (hasExec(def.inputs) || hasExec(def.outputs) || def.isAction) return "imperative";
   return "pure";
 }
 
-// TARGET MODES
-// Canonical target enum used across action nodes. PR1 publishes the constant;
-// full wiring across every action-node happens incrementally.
 export const SD_TARGET_MODES = [
   { id:"self",            label:"Self (this document)" },
   { id:"actor",            label:"Owning actor" },
@@ -2894,9 +3448,6 @@ export const SD_TARGET_MODES = [
 // FormulaGraph
 
 
-// WIDGET CONFIG NODES -- one per widget type, hidden from normal palette.
-// Opened via "Configure via Graph" button on a widget cell.
-// Fields map directly to widget config keys; input pins allow dynamic wiring.
 const _mkPin = (id, label) => ({ id, label, type: "value" });
 
 const WIDGET_CONFIG_NODES = {
@@ -3013,7 +3564,6 @@ const WIDGET_CONFIG_NODES = {
   },
 };
 
-// Merge config nodes into NODE_DEFS so _renderNode, _fldEl, etc. all work unchanged
 Object.assign(NODE_DEFS, WIDGET_CONFIG_NODES);
 
 export class FormulaGraph {
@@ -3023,10 +3573,7 @@ export class FormulaGraph {
     this.widget       = widget;
     this.saveCtx      = saveCtx;
     this.itemSaveCtx  = itemSaveCtx;
-    this.configMode   = opts.mode === "config"; // widget config-via-nodes mode
-    // PR11: sheet-trigger-graph mode -- host for event nodes on the document
-    // level (actor sheet / item sheet), independent of any single widget.
-    // Loads/saves from `doc.system.sdTriggerGraph`.
+    this.configMode   = opts.mode === "config";
     this.sheetTrigger = opts.mode === "sheetTrigger";
     this.win          = null;
     this.edgeSVG      = null;
@@ -3039,18 +3586,158 @@ export class FormulaGraph {
     this._drag        = null;
     this._conn        = null;
     this._panDrag     = null;
-    this._marquee     = null;                // {ox,oy,cx,cy, el}
-    this._selected    = new Set();           // currently selected node ids
-    this._selectedComments = new Set();      // currently selected comment ids
-    this.comments     = [];                  // [{id,x,y,w,h,title,color}]
-    this._commentDrag = null;                // {id, mx,my, ox,oy, group:[{id,ox,oy}], nodeGroup:[{id,ox,oy}]}
-    this._commentResize = null;              // {id, mx,my, ow,oh}
-    this._commentDraft= null;                // {sx,sy, el} — Ctrl+drag rubber band
+    this._marquee     = null;
+    this._selected    = new Set();
+    this._selectedComments = new Set();
+    this.comments     = [];
+    this._commentDrag = null;
+    this._commentResize = null;
+    this._commentDraft= null;
     this._cleanup     = [];
+    this._history     = [];
+    this._historyIdx  = -1;
+    this._suppressHistory = false;
     this._loadGraph();
+    this._pushHistory();
   }
 
-  // Selection helpers
+  // Undo/Redo
+
+  _snapshot() {
+    return {
+      nodes:    foundry.utils.deepClone(this.nodes ?? []),
+      edges:    foundry.utils.deepClone(this.edges ?? []),
+      comments: foundry.utils.deepClone(this.comments ?? [])
+    };
+  }
+
+  _pushHistory() {
+    if (this._suppressHistory) return;
+    if (this._historyIdx < this._history.length - 1) {
+      this._history.length = this._historyIdx + 1;
+    }
+    this._history.push(this._snapshot());
+    if (this._history.length > 80) {
+      this._history.shift();
+    } else {
+      this._historyIdx++;
+    }
+  }
+
+  _restoreSnapshot(s) {
+    this._suppressHistory = true;
+    try {
+      this.nodes    = foundry.utils.deepClone(s.nodes ?? []);
+      this.edges    = foundry.utils.deepClone(s.edges ?? []);
+      this.comments = foundry.utils.deepClone(s.comments ?? []);
+      this._selected.clear();
+      this._selectedComments?.clear?.();
+      this._renderAll();
+      this._updatePreview?.();
+    } finally {
+      this._suppressHistory = false;
+    }
+  }
+
+  _undo() {
+    if (this._historyIdx <= 0) return;
+    this._historyIdx--;
+    this._restoreSnapshot(this._history[this._historyIdx]);
+  }
+
+  _redo() {
+    if (this._historyIdx >= this._history.length - 1) return;
+    this._historyIdx++;
+    this._restoreSnapshot(this._history[this._historyIdx]);
+  }
+
+  // Дубль выделенного
+
+  _duplicateSelection(offset = 28) {
+    if (!this._selected?.size) return;
+    const ids = [...this._selected];
+    const idMap = new Map();
+    const created = [];
+    for (const oldId of ids) {
+      const src = this.nodes.find(n => n.id === oldId);
+      if (!src) continue;
+      const def = NODE_DEFS[src.type];
+      if (!def) continue;
+      const newId = `n${this._id++}`;
+      idMap.set(oldId, newId);
+      const clone = foundry.utils.deepClone(src);
+      clone.id = newId;
+      clone.x  = (src.x ?? 0) + offset;
+      clone.y  = (src.y ?? 0) + offset;
+      this.nodes.push(clone);
+      created.push(clone);
+    }
+    const newEdges = [];
+    for (const e of this.edges) {
+      if (idMap.has(e.fromNode) && idMap.has(e.toNode)) {
+        newEdges.push({
+          id:       `e${uid()}`,
+          fromNode: idMap.get(e.fromNode),
+          fromPin:  e.fromPin,
+          toNode:   idMap.get(e.toNode),
+          toPin:    e.toPin
+        });
+      }
+    }
+    this.edges.push(...newEdges);
+    this._selected = new Set(created.map(n => n.id));
+    for (const n of created) this._renderNode(n);
+    this._refreshSelectionHighlights?.();
+    this._scheduleEdges?.();
+    this._updatePreview?.();
+    this._pushHistory();
+  }
+
+  _copySelection() {
+    if (!this._selected?.size) return;
+    const ids = new Set(this._selected);
+    const nodes = this.nodes.filter(n => ids.has(n.id)).map(n => foundry.utils.deepClone(n));
+    const edges = this.edges
+      .filter(e => ids.has(e.fromNode) && ids.has(e.toNode))
+      .map(e => foundry.utils.deepClone(e));
+    this._clipboard = { nodes, edges };
+  }
+
+  _pasteClipboard(offset = 32) {
+    if (!this._clipboard?.nodes?.length) return;
+    const idMap = new Map();
+    const created = [];
+    for (const src of this._clipboard.nodes) {
+      const def = NODE_DEFS[src.type];
+      if (!def) continue;
+      const newId = `n${this._id++}`;
+      idMap.set(src.id, newId);
+      const clone = foundry.utils.deepClone(src);
+      clone.id = newId;
+      clone.x  = (src.x ?? 0) + offset;
+      clone.y  = (src.y ?? 0) + offset;
+      this.nodes.push(clone);
+      created.push(clone);
+    }
+    for (const e of this._clipboard.edges) {
+      if (!idMap.has(e.fromNode) || !idMap.has(e.toNode)) continue;
+      this.edges.push({
+        id:       `e${uid()}`,
+        fromNode: idMap.get(e.fromNode),
+        fromPin:  e.fromPin,
+        toNode:   idMap.get(e.toNode),
+        toPin:    e.toPin
+      });
+    }
+    this._selected = new Set(created.map(n => n.id));
+    for (const n of created) this._renderNode(n);
+    this._refreshSelectionHighlights?.();
+    this._scheduleEdges?.();
+    this._updatePreview?.();
+    this._pushHistory();
+  }
+
+  // Выделение
 
   _isNodeSelected(id) { return this._selected?.has(id); }
 
@@ -3081,7 +3768,6 @@ export class FormulaGraph {
           el.style.outlineOffset = "0";
           el.dataset.selected = "1";
         } else {
-          // Leave the one-shot "focused" outline intact; just clear our flag.
           if (el.dataset.selected === "1") {
             el.style.outline = "";
             el.style.outlineOffset = "";
@@ -3103,20 +3789,22 @@ export class FormulaGraph {
     }
   }
 
-  /**
-   * Delete every selected node (with its incident edges) and every selected
-   * comment box.  Called from the Backspace/Delete key handler.
-   */
   _deleteSelection() {
-    for (const id of Array.from(this._selected)) this._delNode(id);
-    for (const id of Array.from(this._selectedComments)) this._deleteComment(id);
+    if (!this._selected?.size && !this._selectedComments?.size) return;
+    this._suppressHistory = true;
+    try {
+      for (const id of Array.from(this._selected)) this._delNode(id);
+      for (const id of Array.from(this._selectedComments)) this._deleteComment(id);
+    } finally {
+      this._suppressHistory = false;
+    }
     this._selected.clear();
     this._selectedComments.clear();
     this._refreshSelectionHighlights();
     this._scheduleEdges?.();
+    this._pushHistory();
   }
 
-  // Comment Box draft (Ctrl+drag rubber band)
 
   _doCommentDraft(ev) {
     if (!this._commentDraft) return;
@@ -3153,7 +3841,6 @@ export class FormulaGraph {
     const w   = gx2 - gx1;
     const h   = gy2 - gy1;
 
-    // Discard tiny drags -- user probably just Ctrl-clicked.
     if (w < 24 || h < 24) return;
 
     this._addComment({
@@ -3166,13 +3853,6 @@ export class FormulaGraph {
     });
   }
 
-  /**
-   * Build a serialisable template payload from a set of node ids.
-   * Edges are kept only if BOTH endpoints are inside the set so the template
-   * is self-contained and can be dropped into any graph.
-   * Node positions are normalised to (0,0) so the insertion point determines
-   * where the template appears.
-   */
   _serialiseSubgraph(nodeIds) {
     const ids = new Set(nodeIds);
     const nodes = this.nodes
@@ -3188,11 +3868,6 @@ export class FormulaGraph {
     return { nodes, edges };
   }
 
-  /**
-   * Insert a previously-saved template at graph coordinates (gx,gy).
-   * IDs are freshly generated so multiple instances of the same template
-   * coexist without collision.
-   */
   _insertTemplate(tpl, gx = 80, gy = 80) {
     if (!tpl?.nodes?.length) return 0;
     const idMap = {};
@@ -3207,7 +3882,6 @@ export class FormulaGraph {
         data: foundry.utils.deepClone(n.data ?? {})
       };
     });
-    // Filter out nodes whose type is not registered in this graph to avoid ghosts
     const valid = newNodes.filter(n => NODE_DEFS[n.type]);
     this.nodes.push(...valid);
     const newEdges = (tpl.edges ?? [])
@@ -3218,7 +3892,6 @@ export class FormulaGraph {
         toNode:   idMap[e.toNode],   toPin:   e.toPin
       }));
     this.edges.push(...newEdges);
-    // Render and select the inserted block so the user sees what landed
     this._selected.clear();
     for (const n of valid) {
       this._renderNode(n);
@@ -3301,7 +3974,6 @@ export class FormulaGraph {
         <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tpl.name)}</div>
         <div style="font-size:9px;color:#666">${(tpl.nodes??[]).length} nodes · ${(tpl.edges??[]).length} edges</div>`;
       main.addEventListener("click", () => {
-        // Insert near the current viewport center (graph coords).
         const wrap = this.win?.querySelector("#gwrap");
         let gx = 120, gy = 120;
         if (wrap) {
@@ -3356,11 +4028,6 @@ export class FormulaGraph {
   }
 
   /** Export the current selection (or whole graph) as a downloadable JSON file. */
-  /**
-   * Run the static linter on the current graph and show the report in a modal.
-   * Errors/warnings/notes are grouped and rendered as a scrollable list.
-   * Clicking a row with nodeId selects and pans to that node.
-   */
   _runLint() {
     const report = lintGraph({ nodes: this.nodes, edges: this.edges }, NODE_DEFS);
     const header = lintSummary(report);
@@ -3424,13 +4091,11 @@ export class FormulaGraph {
   _downloadTemplateJSON(tpl, filename = "node-template.json") {
     const json = JSON.stringify({ sdNodeTemplate: 1, ...tpl }, null, 2);
     try {
-      // Foundry's saveDataToFile is the preferred cross-platform helper
       if (typeof saveDataToFile === "function") {
         saveDataToFile(json, "application/json", filename);
         return;
       }
     } catch {}
-    // Fallback: manual Blob + <a download>
     const blob = new Blob([json], { type: "application/json" });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
@@ -3460,8 +4125,6 @@ export class FormulaGraph {
   }
 
   async _handleImportedTemplate(parsed) {
-    // Accept either { nodes, edges, name } OR { templates: { name: tpl, ... } }
-    // so users can share bundles too.
     if (parsed?.templates && typeof parsed.templates === "object") {
       const store = this._readNodeTemplates();
       let n = 0;
@@ -3480,10 +4143,6 @@ export class FormulaGraph {
       return;
     }
 
-    // Ask whether to insert at viewport centre or store in the library.
-    // `modal: true` makes DialogV2 render via <dialog>.showModal(), which
-    // places the dialog in the browser top layer -- above any z-indexed
-    // graph-editor window (see Foundry v13/v14 DialogV2 docs).
     const choice = await foundry.applications.api.DialogV2.wait({
       window: { title: "Import node template" },
       modal: true,
@@ -3521,15 +4180,6 @@ export class FormulaGraph {
     }
   }
 
-  /**
-   * Tiny text prompt (DialogV2) used by template save/rename flows.
-   * Uses `modal: true` so the dialog renders via <dialog>.showModal() in the
-   * browser top layer -- this keeps it above the graph-editor window, which
-   * uses a high z-index and would otherwise occlude a non-modal dialog.
-   *
-   * In Foundry v13+ the `dialog` callback argument is the DialogV2 instance,
-   * so we read the input from `dialog.element` (which is the <dialog> node).
-   */
   async _promptText(label, def = "") {
     return foundry.applications.api.DialogV2.wait({
       window: { title: "Graph Editor" },
@@ -3553,10 +4203,9 @@ export class FormulaGraph {
     }).catch(() => null);
   }
 
-  // Persistence
+  // Сохранение
 
   _loadGraph() {
-    // Config mode -- load widget config graph from widget.configGraph
     if (this.configMode && this.widget) {
       const s = this.widget.configGraph;
       if (s?.nodes?.length) {
@@ -3571,7 +4220,6 @@ export class FormulaGraph {
       }
       return;
     }
-    // Item onClick mode -- load from system.onClickGraph
     if (this.itemSaveCtx) {
       const s = this.itemSaveCtx.doc.system?.onClickGraph;
       if (s?.nodes?.length) {
@@ -3582,12 +4230,10 @@ export class FormulaGraph {
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
       } else {
-        // Default: On Click trigger → output
         this._addTriggerOutputNodes();
       }
       return;
     }
-    // PR11: Sheet-trigger-graph mode -- load from system.sdTriggerGraph._graphData
     if (this.sheetTrigger && this.doc) {
       const stg = this.doc.system?.sdTriggerGraph;
       const g   = (stg && typeof stg === "object") ? stg._graphData : null;
@@ -3599,25 +4245,21 @@ export class FormulaGraph {
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
       } else {
-        // Empty surface -- user picks event nodes from the palette.
       }
       return;
     }
-    // Widget graph mode -- load from widget.graphData
     const s = this.widget?.graphData;
     if (s?.nodes?.length) {
       this.nodes = foundry.utils.deepClone(s.nodes);
       this.edges = foundry.utils.deepClone(s.edges??[]);
       this.comments = foundry.utils.deepClone(s.comments ?? []);
       migrateGraph(this);
-      // Migrate old attribute graphs: replace attr_score+output with new locked nodes
       if (this.widget?.type === "attribute") {
         this._migrateAttrGraph();
       }
       const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
       this._id = (Math.max(0,...numIds) + 2) || 2;
     } else {
-      // Button widgets default to exec/on_click mode; all others to formula/output mode
       if (this.widget?.type === "button") {
         this._addTriggerOutputNodes();
       } else if (this.widget?.type === "attribute") {
@@ -3630,8 +4272,19 @@ export class FormulaGraph {
     }
   }
 
+  _findWidgetDeepInRow(list, id) {
+    if (!Array.isArray(list)) return null;
+    for (const ww of list) {
+      if (ww?.id === id) return ww;
+      if (ww?.type === "vsection") {
+        const nested = this._findWidgetDeepInRow(ww.widgets, id);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
   async _saveGraph() {
-    // Config mode -- extract config node data back to widget fields, then persist
     if (this.configMode && this.saveCtx) {
       const {tab, row, w, doc} = this.saveCtx;
       const graphData = {
@@ -3641,10 +4294,11 @@ export class FormulaGraph {
       };
       const cfgNode = this.nodes.find(n => NODE_DEFS[n.type]?.isWidgetConfig);
       const tabs = foundry.utils.deepClone(doc.system?.customTabs ?? []);
-      const widget = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id);
+      const _row = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+      const widget = _row ? this._findWidgetDeepInRow(_row.widgets, w.id) : null;
+      if (!widget) console.warn("[sd] formula-graph: widget not found in customTabs", { tabId: tab?.id, rowId: row?.id, widgetId: w?.id });
       if (widget && cfgNode) {
         const def = NODE_DEFS[cfgNode.type];
-        // Compile each input pin -- connected source overrides field value
         const compiledIns = {};
         for (const pin of (def.inputs ?? [])) {
           const e = this.edges.find(e=>e.toNode===cfgNode.id&&e.toPin===pin.id);
@@ -3653,7 +4307,6 @@ export class FormulaGraph {
             if (src) compiledIns[pin.id] = this._compileValue(src, new Set(), e.fromPin);
           }
         }
-        // Write each field: use compiled value if wired, else node.data value
         for (const field of (def.fields ?? [])) {
           const val = compiledIns[field.key] !== undefined
             ? compiledIns[field.key]
@@ -3665,7 +4318,6 @@ export class FormulaGraph {
       }
       return;
     }
-    // Mode: save into widget.graphData (normal Sheet Builder flow)
     if (this.saveCtx) {
       const {tab,row,w,doc} = this.saveCtx;
       const data = {
@@ -3674,24 +4326,21 @@ export class FormulaGraph {
         comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
       };
       const tabs   = foundry.utils.deepClone(doc.system.customTabs??[]);
-      const widget = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id);
+      const _row   = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+      const widget = _row ? this._findWidgetDeepInRow(_row.widgets, w.id) : null;
+      if (!widget) console.warn("[sd] formula-graph: widget not found in customTabs", { tabId: tab?.id, rowId: row?.id, widgetId: w?.id });
       if (widget) {
         widget.graphData = data;
         if (this.widget?.type === "attribute") {
-          // Attribute widget: compile modValueFormula (what to display/roll as mod)
-          // and onClickFormula (exec chain triggered on modifier click).
           const attrOut = this.nodes.find(n => n.type === "attr_output");
           if (attrOut) {
             const mvEdge = this.edges.find(e => e.toNode === attrOut.id && e.toPin === "modValue");
             const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
             widget.modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
           }
-          // onClickFormula is compiled independently of attr_output -- the graph
-          // may only contain on_click → roll with no attr_output node at all.
           const onClickNode = this.nodes.find(n => n.type === "on_click");
           const clickEdge   = onClickNode ? this.edges.find(e => e.fromNode === onClickNode.id && e.fromPin === "exec") : null;
           widget.onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
-          // clear legacy fields
           widget.modFormula = undefined;
           widget.formula    = undefined;
         }
@@ -3699,7 +4348,6 @@ export class FormulaGraph {
       }
       return;
     }
-    // Mode: save into item.system.onClickGraph directly
     if (this.itemSaveCtx) {
       const {doc} = this.itemSaveCtx;
       const data = {
@@ -3707,27 +4355,19 @@ export class FormulaGraph {
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
         comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
       };
-      // Also compile and store the formula for the executor
       const compiled = this.compile();
       await doc.update({"system.onClickGraph": data, "system.onClickFormula": compiled});
       return;
     }
-    // PR11: sheet-trigger-graph -- persist graphData + compiled payload on the
-    // document so the event-bus can pick it up via _scanDoc.
     if (this.sheetTrigger && this.doc) {
       const data = {
         nodes: this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
         comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
       };
-      // Compile -- the result is usually a JSON payload string. We stash the
-      // graphData alongside it under `_graphData` so re-opening the editor
-      // reconstructs the same visual state.
       const compiledStr = this.compile();
       let compiledObj = {};
       try { compiledObj = JSON.parse(compiledStr); } catch { compiledObj = {}; }
-      // Only multi-trigger event payloads are meaningful here -- degrade
-      // gracefully if the user left the surface empty.
       const payload = (compiledObj && compiledObj._trigger === "multi")
         ? compiledObj
         : {};
@@ -3741,8 +4381,6 @@ export class FormulaGraph {
   open() { this._smartIndex = this._buildSmartIndex(); this._buildWin(); this._renderAll(); setTimeout(()=>this._fitView(),120); }
   close() { this._cleanup.forEach(fn=>fn()); this.win?.remove(); this.win=null; }
 
-  // Smart Index
-  // Scans the live document and builds dropdown option lists for smart pickers.
 
   _buildSmartIndex() {
     const doc    = this.doc;
@@ -3753,13 +4391,8 @@ export class FormulaGraph {
     const idx = { slots:[], ownedItems:[], effects:[], widgets:[], invItemSlots:[] };
 
     // Slots
-    // Recursively indexes slots on an item AND slots on items nested inside it.
-    // slotPath encodes the full navigation chain from the top-level Foundry item:
-    //   "topItemId/slotId"                           -- direct item slot
-    //   "topItemId/slotId/nestedItemId/slotId2/..."  -- deeply nested slot
-    // self/actor slots have slotPath = null (resolved by formula-engine as before).
     const _indexItemSlots = (itemData, displayName, sourceId, depth = 0, slotPath = null) => {
-      if (depth > 5) return; // guard against cycles
+      if (depth > 5) return;
       const defs = itemData?.system?.slotDefinitions ?? [];
       for (const d of defs) {
         const myPath = slotPath != null ? `${slotPath}/${d.id}` : null;
@@ -3767,32 +4400,23 @@ export class FormulaGraph {
         if (sourceId !== "self" && sourceId !== "actor") {
           idx.invItemSlots.push({ itemId: sourceId, itemName: displayName, itemUuid: itemData.uuid ?? itemData._id, slotId: d.id, slotLabel: d.label || d.id, slotPath: myPath });
         }
-        // Recurse into items stored inside this slot
         const slotContents = itemData?.system?.slotContents?.[d.id]?.contents ?? [];
         for (const nested of slotContents) {
           const nestedName = `${nested.name ?? "?"} (in ${displayName}/${d.label || d.id})`;
           const nestedId   = nested._id ?? nested.uuid ?? nestedName;
-          // Build the nested path: append this slot id and the nested item's _id
           const nestedPath = (myPath != null ? myPath : `${sourceId}/${d.id}`) + `/${nestedId}`;
           _indexItemSlots(nested, nestedName, nestedId, depth + 1, nestedPath);
         }
       }
     };
 
-    // Slots on self (the item being configured).
-    // Use the actual item id as path root so formula-engine can resolve it
-    // via actor.items.get() even when the button fires from the actor sheet.
-    // If self has no id (unusual), fall back to the string "self".
     const selfPathRoot = (self && !(self instanceof Actor) && self.id) ? self.id : null;
     _indexItemSlots(self, "self", "self", 0, selfPathRoot);
 
-    // Slots on actor (character-level slots) -- no slotPath (null)
     if (actor && actor !== self) {
       _indexItemSlots(actor, "actor", "actor", 0, null);
     }
 
-    // Slots inside every inventory item (+ their nested contents)
-    // Pass the Foundry item id as the root of the slotPath chain.
     for (const item of (actor?.items ?? [])) {
       _indexItemSlots(item, item.name, item.id, 0, item.id);
     }
@@ -3833,7 +4457,6 @@ export class FormulaGraph {
     return idx;
   }
 
-  // Returns slots filtered to those belonging to a specific item id (or "self"/"actor")
   _slotsForItem(itemId) {
     if (!itemId) return this._smartIndex?.slots ?? [];
     if (itemId === "self" || itemId === "actor") return (this._smartIndex?.slots ?? []).filter(s => s.source === itemId);
@@ -3841,8 +4464,6 @@ export class FormulaGraph {
   }
 
   compile() {
-    // Attribute widget graph: handled entirely by _saveGraph
-    // compile() for attribute returns the modValue expression for preview only.
     const attrOut = this.nodes.find(n=>n.type==="attr_output");
     if (attrOut) {
       const mvEdge = this.edges.find(e=>e.toNode===attrOut.id&&e.toPin==="modValue");
@@ -3853,13 +4474,9 @@ export class FormulaGraph {
       return "0";
     }
 
-    // Priority 1: on_click trigger exec chain
-    // Must be checked BEFORE requiring an output node, because action graphs
-    // (on_click → roll / add_item / add_slot / etc.) have no output node at all.
     const trigger = this.nodes.find(n=>n.type==="on_click");
     const eventNodes = this.nodes.filter(n => NODE_DEFS[n.type]?.isEvent);
     if (trigger || eventNodes.length) {
-      // Collect exec chains keyed by their entry-point type (onClick, onUpdate, …).
       const triggers = {};
       const _chainFor = (entry) => {
         const exitPin = (entry.type === "on_click") ? "exec" : "exec";
@@ -3872,9 +4489,6 @@ export class FormulaGraph {
         const actions = _chainFor(trigger);
         if (actions?.length) triggers.onClick = actions;
       }
-      // Resolve the Foundry hook for an event node.  Specific on_* nodes use
-      // their static `eventHook` property; the unified on_event node maps its
-      // `data.event` dropdown to the matching hook.
       const _dynHook = (ev) => {
         if (ev.type !== "on_event") return NODE_DEFS[ev.type]?.eventHook;
         const EVENT_HOOK_MAP = {
@@ -3894,12 +4508,9 @@ export class FormulaGraph {
       for (const ev of eventNodes) {
         const actions = _chainFor(ev);
         if (!actions?.length) continue;
-        // Multiple on_event nodes can coexist → disambiguate by node.id.
         const key = (ev.type === "on_event") ? `on_event::${ev.id}` : ev.type;
         triggers[key] = { hook: _dynHook(ev), data: ev.data ?? {}, actions };
       }
-      // Compile all macro_input graph starts into a registry.  Each macro_input
-      // defines its own independent chain (visually separate from on_click/events).
       const macroInputs = this.nodes.filter(n => NODE_DEFS[n.type]?.isMacroInput);
       const macros = {};
       for (const mi of macroInputs) {
@@ -3912,15 +4523,12 @@ export class FormulaGraph {
       }
 
       if (Object.keys(triggers).length) {
-        // Legacy shape when only onClick is present -- keep widget button handlers
-        // happy (they expect a plain "[actions]" array in saveCtx mode).
         const onlyOnClick = Object.keys(triggers).length === 1 && triggers.onClick;
         const hasMacros   = Object.keys(macros).length > 0;
         if (onlyOnClick && !hasMacros) {
           if (this.saveCtx) return JSON.stringify(triggers.onClick);
           return JSON.stringify({ _trigger: "onClick", actions: triggers.onClick });
         }
-        // Multi-trigger shape -- event bus reads _events to wire Foundry hooks.
         const payload = { _trigger: "multi", _events: triggers };
         if (hasMacros) payload._macros = macros;
         return JSON.stringify(payload);
@@ -3930,26 +4538,19 @@ export class FormulaGraph {
       }
     }
 
-    // Priority 2: output node (formula / explicit exec wired to output)
     const out = this.nodes.find(n=>n.type==="output");
     if (!out) return "0";
-    // Value pin wired → compile as formula string
     const vEdge = this.edges.find(e=>e.toNode===out.id&&e.toPin==="value");
     if (vEdge) {
       const src = this.nodes.find(n=>n.id===vEdge.fromNode);
       return src ? this._compileValue(src,new Set(),vEdge.fromPin) : "0";
     }
-    // Exec pin(s) wired to output → compile exec chain(s)
-    // Fix: support MULTIPLE nodes connected to output exec,
-    // and trace backwards to find the TRUE start of each chain
-    // so that nodes like Message → Damage → Output all execute in order.
     const xEdges = this.edges.filter(e=>e.toNode===out.id&&e.toPin==="exec");
     if (xEdges.length) {
       if (xEdges.length === 1) {
         const chainStart = this._findExecChainStart(xEdges[0].fromNode);
         return this._compileExecChain(chainStart);
       }
-      // Multiple connections: compile each chain independently and merge
       const allActions = [];
       const seenStarts = new Set();
       for (const xe of xEdges) {
@@ -3968,25 +4569,13 @@ export class FormulaGraph {
     if (vis.has(node.id)) return "0";
     const v2 = new Set(vis); v2.add(node.id);
     const def = NODE_DEFS[node.type];
-    // Special case: act_roll_value can feed its result pin as a value source.
-    // At runtime the executor stores the roll total in buttonDef.__lastRoll;
-    // we compile it as the special token {__lastRoll} which FormulaEngine passes through.
     if (node.type === "act_roll_value") return "{__lastRoll}";
-    // act_set_field: downstream nodes can read the set value via {__lastRoll} too,
-    // since the executor stores the resolved value in __lastRoll as well.
     if (node.type === "act_set_field") return "{__lastRoll}";
-    // Event node value outputs compile to runtime placeholders that the event
-    // bus fills in via buttonDef.__eventRuntime.  Pin name decides the token.
     if (def?.isEvent) return EVENT_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
-    // Macro input: inside a subgraph, reading an argument pin compiles to a
-    // placeholder that the macro-call runtime fills in from its args.
     if (def?.isMacroInput) return `{__macroArg:${fromPin ?? "a"}}`;
-    // Branch/action nodes can still export value pins via runtime tokens written
-    // by the executor (see button-executor _runAction writes to buttonDef.__last*).
-    if (def?.isAttackBranch || def?.isBranch || def?.isSaveBranch || def?.isTieredBranch || def?.isGenericBranch || def?.isProgressionBranch) {
+    if (def?.isAttackBranch || def?.isBranch || def?.isSaveBranch || def?.isTieredBranch || def?.isGenericBranch || def?.isProgressionBranch || def?.isAoeSave || def?.isAiBranch) {
       return BRANCH_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
     }
-    // Non-branch action nodes with runtime-token outputs (e.g. act_roll_value.result).
     if (BRANCH_PIN_TOKENS[node.type]?.[fromPin]) {
       return BRANCH_PIN_TOKENS[node.type][fromPin];
     }
@@ -3997,7 +4586,6 @@ export class FormulaGraph {
       const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
       if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,v2,e.fromPin); }
     }
-    // Collect dynamic pins for compile-type value nodes (e.g. dice add/sub)
     if (def.dynamicPins) {
       const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [def.dynamicPins];
       for (const grp of groups) {
@@ -4012,24 +4600,15 @@ export class FormulaGraph {
     return def.compile?.(node,ins)??"0";
   }
 
-  /**
-   * Trace backwards along exec connections to find the true start of a chain.
-   * Example: Message → Damage → Output
-   *   called with Damage (the node connected to Output's exec pin)
-   *   returns  Message (the actual first node in the chain)
-   * This fixes the bug where nodes placed "before" the output-connected node were skipped.
-   */
   _findExecChainStart(nodeId) {
     const visited = new Set();
     let current = nodeId;
     while (current && !visited.has(current)) {
       visited.add(current);
-      // Who has their exec output wired into current's exec input?
       const prevEdge = this.edges.find(e => e.toNode === current && e.toPin === "exec");
       if (!prevEdge) break;
       const prevNode = this.nodes.find(n => n.id === prevEdge.fromNode);
       if (!prevNode) break;
-      // Stop at trigger nodes (on_click) -- they are handled separately
       if (NODE_DEFS[prevNode.type]?.isTrigger) break;
       current = prevEdge.fromNode;
     }
@@ -4047,7 +4626,6 @@ export class FormulaGraph {
       if (!def) return;
 
       if (def.isBranch) {
-        // Branch: compile condition, push a branch action
         const condEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="cond");
         const condNode = condEdge ? this.nodes.find(n=>n.id===condEdge.fromNode) : null;
         const cond     = condNode ? this._compileValue(condNode,new Set(),condEdge.fromPin) : "1";
@@ -4055,7 +4633,6 @@ export class FormulaGraph {
         const trueEdge  = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="true");
         const falseEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="false");
 
-        // Save current actions length, collect true/false branches recursively
         const trueBefore = [...actions];
         if (trueEdge) _walk(trueEdge.toNode, new Set(vis));
         const trueActions = actions.splice(trueBefore.length);
@@ -4068,7 +4645,6 @@ export class FormulaGraph {
       }
 
       if (def.isSwitch) {
-        // switch_node: compile value input, then walk each case/default exec output
         const valEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="value");
         const valNode = valEdge ? this.nodes.find(n=>n.id===valEdge.fromNode) : null;
         const value   = valNode ? this._compileValue(valNode, new Set(), valEdge.fromPin) : (node.data?.value ?? "0");
@@ -4076,7 +4652,6 @@ export class FormulaGraph {
         const cases = [node.data?.case0 ?? "0", node.data?.case1 ?? "1", node.data?.case2 ?? "2"];
         const act = { type: "switchExec", value, cases };
 
-        // Walk each case exec output and the default fallthrough
         const caseOutputs = ["case0", "case1", "case2", "default"];
         for (const outPin of caseOutputs) {
           const edge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin===outPin);
@@ -4091,7 +4666,6 @@ export class FormulaGraph {
       }
 
       if (def.isDialogSwitch) {
-        // dialog_switch: compile each active exec output into its own actions array
         const count = Math.max(2, Math.min(8, parseInt(node.data?.count) || 2));
         const act = {
           type:        "dialogSwitch",
@@ -4109,14 +4683,11 @@ export class FormulaGraph {
             actions: branchActions
           });
         }
-        // Compile a "continue" chain after the switch (exec output from the whole node, if any)
-        // In our model there's no "after" pin, so just stop here.
         actions.push(act);
         return;
       }
 
       if (def.isLoop) {
-        // Collect value inputs so toAction can read them (e.g. count for for_loop)
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -4133,15 +4704,12 @@ export class FormulaGraph {
         if (doneEdge) _walk(doneEdge.toNode, new Set(vis));
         const doneActions = actions.splice(before.length);
 
-        // Use toAction for the correct type+params (for_loop->forLoop, forEach->forEachTarget)
         const act = def.toAction?.(node, ins) ?? {type:"forEachTarget"};
         actions.push({...act, loopActions, doneActions});
         return;
       }
 
       if (def.isGenericBranch) {
-        // Generic branch: collect all non-exec inputs, walk every exec output
-        // into `<pinId>Actions`, and build the action via toAction(node, ins).
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -4161,7 +4729,6 @@ export class FormulaGraph {
       }
 
       if (def.isProgressionBranch) {
-        // Progression: 4 branches -- higher / lower / equal / noHistory
         const pInp = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -4187,8 +4754,23 @@ export class FormulaGraph {
         return;
       }
 
+      if (def.isAoeSave) {
+        const saveInp = {};
+        for (const pin of (def.inputs ?? [])) {
+          if (pin.type === "exec") continue;
+          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) saveInp[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
+        }
+        const act = def.toAction?.(node, saveInp) ?? {};
+        const execEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="exec");
+        const before = [...actions];
+        if (execEdge) _walk(execEdge.toNode, new Set(vis));
+        act.postActions = actions.splice(before.length);
+        actions.push(act);
+        return;
+      }
+
       if (def.isSaveBranch) {
-        // Save Check: compile ALL input pins, collect fail/pass branches
         const saveInp = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -4198,7 +4780,6 @@ export class FormulaGraph {
 
         const failEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="fail");
         const passEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="pass");
-        // PR13: opposed-roll branches -- only present on act_roll_check.
         const wonEdge  = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="youWon");
         const lostEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="youLost");
 
@@ -4222,7 +4803,6 @@ export class FormulaGraph {
       }
 
       if (def.isConsumeSlot) {
-        // consumeSlot: compile level input, collect ok/empty exec branches
         const levelEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="level");
         const levelNode = levelEdge ? this.nodes.find(n=>n.id===levelEdge.fromNode) : null;
         const levelVal  = levelNode ? this._compileValue(levelNode, new Set(), levelEdge.fromPin) : null;
@@ -4306,7 +4886,6 @@ export class FormulaGraph {
       }
 
       if (def.isTieredBranch) {
-        // act_tiered_roll: compile value inputs, then walk each tier exec output
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
@@ -4324,6 +4903,29 @@ export class FormulaGraph {
           tierActions.push(actions.splice(before.length));
         }
         act.tierActions = tierActions;
+
+        actions.push(act);
+        return;
+      }
+
+      if (def.isAiBranch) {
+        const ins = {};
+        for (const pin of (def.inputs ?? [])) {
+          if (pin.type === "exec") continue;
+          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
+        }
+        const act = def.toAction?.(node, ins) ?? {};
+
+        const doneEdge  = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="exec");
+        const errorEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="error");
+
+        const before = [...actions];
+        if (doneEdge)  _walk(doneEdge.toNode,  new Set(vis));
+        act.successActions = actions.splice(before.length);
+
+        if (errorEdge) _walk(errorEdge.toNode, new Set(vis));
+        act.errorActions = actions.splice(before.length);
 
         actions.push(act);
         return;
@@ -4356,7 +4958,6 @@ export class FormulaGraph {
         return;
       }
 
-      // Unified Sequence (2-12 branches) -- walks `count` output pins in order.
       if (node.type==="sequence") {
         const count = Math.max(2, Math.min(12, parseInt(node.data?.count) || 2));
         for (let i=0; i<count; i++) {
@@ -4365,7 +4966,6 @@ export class FormulaGraph {
         }
         return;
       }
-      // Legacy Sequence ×4 -- same behaviour, original a/b/c/d pin ids.
       if (node.type==="sequence4") {
         for (const pin of ["a","b","c","d"]) {
           const e = this.edges.find(edge=>edge.fromNode===node.id&&edge.fromPin===pin);
@@ -4381,7 +4981,6 @@ export class FormulaGraph {
           const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
-        // Collect dynamic pins -- supports both single object and array of groups
         if (def.dynamicPins) {
           const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [def.dynamicPins];
           for(const grp of groups) {
@@ -4410,15 +5009,12 @@ export class FormulaGraph {
     if (!this.win) return;
     this.win.querySelector("#gpreview").textContent = f||"—";
 
-    // Refresh Variables / Macros side panel (PR7)
     this._buildVarPanel();
 
-    // Refresh Attr Score cards (live score display)
     this.nodesEl?.querySelectorAll("[data-nid]").forEach(el => {
       if (typeof el._refreshAttrCard === "function") el._refreshAttrCard();
     });
 
-    // Live value on Output / Attr Output node
     const liveTargetNode = this.nodes.find(n => n.type === "output" || n.type === "attr_output");
     if (liveTargetNode) {
       const outEl = this.nodesEl?.querySelector(`[data-nid="${liveTargetNode.id}"]`);
@@ -4469,18 +5065,12 @@ export class FormulaGraph {
     }
   }
 
-  /**
-   * PR7: live list of variables + macros referenced by the current graph.
-   * Rendered into #gvarpanel on every _updatePreview call.  Clicking a row
-   * pans the canvas to the first node that defines/uses that identifier.
-   */
   _buildVarPanel() {
     const panel = this.win?.querySelector("#gvarpanel");
     if (!panel) return;
 
-    // Collect variables (var_get/var_set) and macro ids (macro_input/macro_call)
-    const vars   = new Map();   // name → {nodes:[], hasSet, hasGet}
-    const macros = new Map();   // id   → {nodes:[], hasInput, hasCall}
+    const vars   = new Map();
+    const macros = new Map();
 
     for (const n of this.nodes) {
       if (n.type === "var_get") {
@@ -4542,11 +5132,6 @@ export class FormulaGraph {
       ${macroRows || `<div style="padding:10px;font-size:10px;color:rgba(255,255,255,.25);font-style:italic">No macros. Use <b>macro_input</b> (define) / <b>macro_call</b> (invoke).</div>`}
     `;
 
-    // Click-to-focus on the first node of a row.
-    // #gwrap has `overflow:hidden` and the canvas is positioned via CSS
-    // transform (pan/zoom), so `scrollIntoView` is a no-op at best and can
-    // silently desync `this._pan` from the visible viewport at worst.
-    // We pan the canvas ourselves, centering the target node in #gwrap.
     panel.querySelectorAll(".gvar-row").forEach(row => {
       row.addEventListener("click", () => {
         const nid  = row.dataset.nid;
@@ -4555,9 +5140,6 @@ export class FormulaGraph {
         if (!el || !node) return;
         const wrap = this.win?.querySelector("#gwrap");
         if (wrap) {
-          // Approximate the node's extent on-screen using its DOM size so
-          // we centre on the middle of the node rather than its top-left
-          // anchor point.
           const w = (el.offsetWidth  || 180) * this._zoom;
           const h = (el.offsetHeight || 80)  * this._zoom;
           this._pan.x = wrap.clientWidth  / 2 - node.x * this._zoom - w / 2;
@@ -4641,29 +5223,9 @@ export class FormulaGraph {
       }
 
   _drawGrid() {
-    // Grid is now handled by CSS background on #gwrap.
-    // This method is kept as a no-op so existing call sites don't break.
   }
 
   _buildPal() {
-    // Palette filters by context so each graph surface only offers nodes that
-    // actually make sense there:
-    //
-    //   configMode (widget-config graph)
-    //     → only Sources + Math categories (wcfg_* node is fixed already).
-    //
-    //   Widget behaviour graph (this.widget set, not configMode, not attribute)
-    //     → hide Events -- those belong to the sheet-trigger-graph.
-    //     → for widgets whose click/step trigger is implicit (rollButton, counter,
-    //       dice, toggle, tracker, clock, tokenPool, diceTray, number), hide
-    //       on_click -- there is nothing extra to hook it to. For button and
-    //       slot-style widgets, on_click is kept as an explicit trigger.
-    //
-    //   Attribute graph (widget.type === "attribute")
-    //     → hide Events; on_click is kept (attribute's modifier click).
-    //
-    //   Item onClick graph (itemSaveCtx set, no widget)
-    //     → hide Events (those belong to the sheet-trigger-graph).
     const ALLOWED_CONFIG_CATS = new Set(["Sources", "Math"]);
     const IMPLICIT_CLICK_WIDGETS = new Set([
       "rollButton","counter","dice","toggle","tracker","clock",
@@ -4672,9 +5234,6 @@ export class FormulaGraph {
     const isWidgetGraph   = !!this.widget && !this.configMode;
     const isAttrGraph     = this.widget?.type === "attribute";
     const isItemGraph     = !!this.itemSaveCtx && !this.widget;
-    // PR11: sheet-trigger-graph is the one surface that WANTS Events and has
-    // no widget behind it.  It is explicitly NOT a widget/attribute/item
-    // graph and Events must stay visible.
     const isSheetTrigger  = !!this.sheetTrigger;
     const hidesEvents     = !isSheetTrigger
       && ((isWidgetGraph && !isAttrGraph) || isAttrGraph || isItemGraph);
@@ -4683,12 +5242,11 @@ export class FormulaGraph {
 
     const rows = CATS.map(cat=>{
       const nodes = Object.entries(NODE_DEFS).filter(([type,d]) => {
-        if (d.isWidgetConfig) return false; // never in palette
+        if (d.isWidgetConfig) return false;
         if (d.hidden) return false;
         if (this.configMode && !ALLOWED_CONFIG_CATS.has(d.cat)) return false;
         if (hidesEvents && d.isEvent) return false;
         if (hidesOnClick && type === "on_click") return false;
-        // Sheet-trigger-graph has no formula output -- hide the `output` node.
         if (isSheetTrigger && type === "output") return false;
         return d.cat === cat.id;
       });
@@ -4730,27 +5288,21 @@ export class FormulaGraph {
       if(btn){ const orig=btn.innerHTML; btn.innerHTML='<i class="fas fa-check" style="margin-right:4px"></i>Refreshed!'; btn.style.color="#aaffaa"; setTimeout(()=>{ btn.innerHTML=orig; btn.style.color="#6aaa6a"; },1200); }
     });
 
-    // Templates -- open picker / insert
     win.querySelector("#gtpl")?.addEventListener("click", (ev) => {
       ev.stopPropagation();
       this._openTemplatesMenu(ev.currentTarget);
     });
 
-    // Save selection as named template
     win.querySelector("#gtplsave")?.addEventListener("click", async () => {
       await this._saveSelectionAsTemplate();
     });
 
-    // Import JSON (single template or {templates: {...}} bundle)
     win.querySelector("#gimport")?.addEventListener("click", () => this._importTemplateFromFile());
 
-    // Export -- selection if any, otherwise the whole graph
     win.querySelector("#gexport")?.addEventListener("click", () => this._exportSelectionAsFile());
 
-    // Lint -- validate graph (unknown nodes, type mismatches, orphans)
     win.querySelector("#glint")?.addEventListener("click", () => this._runLint());
 
-    // RAF scheduler -- batches all visual updates
     this._raf = 0;
     this._scheduleEdges = () => {
       if (this._raf) return;
@@ -4761,14 +5313,12 @@ export class FormulaGraph {
       });
     };
 
-    // Title bar drag (window repositioning)
     let ds = null;
     win.querySelector("#gbar").addEventListener("mousedown", ev => {
       if (ev.target.closest("button")) return;
       ds = { x: ev.clientX - win.offsetLeft, y: ev.clientY - win.offsetTop };
     });
 
-    // Unified pointermove / pointerup on document
     const _move = ev => {
       // Window drag
       if (ds) {
@@ -4776,7 +5326,6 @@ export class FormulaGraph {
         win.style.left = `${Math.max(0, ev.clientX - ds.x)}px`;
         win.style.top  = `${Math.max(0, ev.clientY - ds.y)}px`;
       }
-      // Canvas pan -- update state immediately, apply in rAF
       if (this._panDrag) {
         this._pan.x = ev.clientX - this._panDrag.ox;
         this._pan.y = ev.clientY - this._panDrag.oy;
@@ -4788,7 +5337,6 @@ export class FormulaGraph {
           });
         }
       }
-      // Node drag -- update DOM position immediately, edges in rAF
       if (this._drag) {
         this._doDrag(ev);
       }
@@ -4796,7 +5344,6 @@ export class FormulaGraph {
       if (this._conn) this._doConn(ev);
       // Marquee selection rectangle
       if (this._marquee) this._doMarquee(ev);
-      // Comment box drag/resize + Ctrl+drag draft
       if (this._commentDrag)   this._doCommentDrag(ev);
       if (this._commentResize) this._doCommentResize(ev);
       if (this._commentDraft)  this._doCommentDraft(ev);
@@ -4804,12 +5351,27 @@ export class FormulaGraph {
     const _up = ev => {
       ds = null;
       if (this._panDrag) { this._panDrag = null; wrap.style.cursor = ""; }
-      if (this._drag)    { this._drag    = null; }
+      let dragMoved = false;
+      if (this._drag) {
+        dragMoved = !!this._drag._moved;
+        this._drag = null;
+      }
+      let commentDragMoved = false;
+      if (this._commentDrag) {
+        commentDragMoved = !!this._commentDrag._moved;
+        this._commentDrag = null;
+      }
+      let commentResizeMoved = false;
+      if (this._commentResize) {
+        commentResizeMoved = !!this._commentResize._moved;
+        this._commentResize = null;
+      }
       if (this._conn)          this._endConn(ev);
       if (this._marquee)       this._endMarquee(ev);
-      if (this._commentDrag)   { this._commentDrag = null; }
-      if (this._commentResize) { this._commentResize = null; }
       if (this._commentDraft)  this._endCommentDraft(ev);
+      if (dragMoved || commentDragMoved || commentResizeMoved) {
+        this._pushHistory();
+      }
     };
     document.addEventListener("mousemove", _move);
     document.addEventListener("mouseup",   _up);
@@ -4823,22 +5385,31 @@ export class FormulaGraph {
     const _kd = ev => {
       if (ev.code === "Space" && ev.target === document.body) { space = true; wrap.style.cursor = "grab"; return; }
 
-      // Backspace / Delete -- delete selected nodes and/or comment boxes.
-      // Only fires when the graph editor window is the topmost focus target
-      // and the user isn't typing into a text input/textarea/contenteditable.
+      if (!this.win || !document.body.contains(this.win)) return;
+      const t = ev.target;
+      const inField = t && (
+        t.tagName === "INPUT" ||
+        t.tagName === "TEXTAREA" ||
+        t.isContentEditable
+      );
+
       if (ev.key === "Backspace" || ev.key === "Delete") {
-        if (!this.win || !document.body.contains(this.win)) return;
-        const t = ev.target;
-        const inField = t && (
-          t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.isContentEditable
-        );
         if (inField) return;
         if (!this._selected.size && !this._selectedComments.size) return;
         ev.preventDefault();
         this._deleteSelection();
+        return;
       }
+
+      const mod = ev.ctrlKey || ev.metaKey;
+      if (!mod || inField) return;
+
+      const k = (ev.key || "").toLowerCase();
+      if (k === "z" && !ev.shiftKey)         { ev.preventDefault(); this._undo(); }
+      else if (k === "y" || (k === "z" && ev.shiftKey)) { ev.preventDefault(); this._redo(); }
+      else if (k === "d")                    { ev.preventDefault(); this._duplicateSelection(); }
+      else if (k === "c")                    { ev.preventDefault(); this._copySelection(); }
+      else if (k === "v")                    { ev.preventDefault(); this._pasteClipboard(); }
     };
     const _ku = ev => { if (ev.code === "Space") { space = false; wrap.style.cursor = ""; }};
     document.addEventListener("keydown", _kd);
@@ -4856,9 +5427,6 @@ export class FormulaGraph {
         return;
       }
 
-      // Ctrl + LMB on empty canvas → rubber-band that creates a Comment Box
-      // on release (Unreal Blueprint style).  We draw the draft rectangle in
-      // screen-space on `wrap` and convert to graph-space at commit.
       if (ev.button === 0 && (ev.ctrlKey || ev.metaKey) && ev.target === wrap) {
         ev.preventDefault();
         const r = wrap.getBoundingClientRect();
@@ -4876,8 +5444,6 @@ export class FormulaGraph {
         return;
       }
 
-      // Shift + LMB on empty canvas → marquee selection (additive when
-      // existing selection is present).
       if (ev.button === 0 && ev.shiftKey && ev.target === wrap) {
         ev.preventDefault();
         const r = wrap.getBoundingClientRect();
@@ -4895,22 +5461,18 @@ export class FormulaGraph {
         return;
       }
 
-      // Plain LMB on empty canvas → clear selection.
       if (ev.button === 0 && !ev.shiftKey && ev.target === wrap) {
         this._clearSelection();
       }
     });
 
-    // Zoom -- smooth focal-point zoom
     const _zoomAt = (screenX, screenY, delta) => {
       const r   = wrap.getBoundingClientRect();
       const mx  = screenX - r.left;
       const my  = screenY - r.top;
-      // World point under cursor before zoom
       const wx0 = (mx - this._pan.x) / this._zoom;
       const wy0 = (my - this._pan.y) / this._zoom;
       this._zoom = Math.max(0.15, Math.min(3.0, this._zoom * (delta > 0 ? 0.92 : 1.08)));
-      // Adjust pan so the world point stays under the cursor
       this._pan.x = mx - wx0 * this._zoom;
       this._pan.y = my - wy0 * this._zoom;
       this._applyTransform();
@@ -5013,14 +5575,11 @@ export class FormulaGraph {
 
   // Graph ops
 
-  /** Auto-create the widget config node for configMode.
-   *  Places it at a fixed position so it's immediately visible. */
   _addWidgetConfigNode() {
     const wType = this.widget?.type;
     const cfgType = "wcfg_" + wType;
     const def = NODE_DEFS[cfgType];
     if (!def) return;
-    // Pre-fill from current widget values so designer sees existing config
     const data = {};
     for (const field of (def.fields ?? [])) {
       data[field.key] = this.widget[field.key] ?? field.default ?? "";
@@ -5033,30 +5592,16 @@ export class FormulaGraph {
     this.nodes.push({id:"output",type:"output",x:660,y:230,data:{}});
   }
 
-  /**
-   * Default graph for Attribute widget formula field:
-   *   [Attr Score]  →  [Attr Modifier]  →  OUTPUT (Mod Formula pin)
-   *
-   * The Attr Score node is pre-filled with the widget's score path so the
-   * designer can see the live value (e.g. "12") immediately and can wire
-   * additional nodes (e.g. add a bonus) before connecting to the output.
-   */
   _addAttributeDefaultGraph() {
     const scorePath = this.widget?.path ?? "system.attributes.attr1.value";
-    // 1. Attr Score Val -- undeletable, reads the raw numeric value from path
     const scoreNode = { id:"attr_score_val", type:"attr_score_val", x:60,  y:160, data:{ path: scorePath } };
-    // 2. On Click trigger -- undeletable, fires when modifier button is clicked
     const trigNode  = { id:"attr_on_click",  type:"on_click",       x:60,  y:330, data:{} };
-    // 3. Attr Output -- undeletable, unique to attribute widgets
     const outNode   = { id:"attr_output",    type:"attr_output",    x:500, y:240, data:{} };
-    // 4. Default modifier calc: Attr Modifier node wired score→mod→modValue
     const modNode   = { id:"attr_mod_1",     type:"attr_mod",       x:270, y:160, data:{} };
 
     this.nodes.push(scoreNode, trigNode, outNode, modNode);
 
-    // Wire: Attr Score Val.value → Attr Modifier.score
     this.edges.push({ id:"e_sv_mod",   fromNode:"attr_score_val", fromPin:"value", toNode:"attr_mod_1",  toPin:"score" });
-    // Wire: Attr Modifier.mod → Attr Output.modValue
     this.edges.push({ id:"e_mod_out",  fromNode:"attr_mod_1",     fromPin:"mod",   toNode:"attr_output", toPin:"modValue" });
 
     this._id = 20;
@@ -5065,13 +5610,11 @@ export class FormulaGraph {
   /** Migrate old attribute graphData (attr_score/output) to new layout. */
   _migrateAttrGraph() {
     const hasNew = this.nodes.some(n => n.type === "attr_score_val" || n.type === "attr_output");
-    if (hasNew) return; // already new format
+    if (hasNew) return;
 
     const scorePath = this.widget?.path ?? "system.attributes.attr1.value";
-    // Remove old output node; keep user-placed nodes
     this.nodes = this.nodes.filter(n => n.type !== "output");
     this.edges = this.edges.filter(e => e.toNode !== "output" && e.fromNode !== "output");
-    // Rename attr_score → attr_score_val if present
     for (const n of this.nodes) {
       if (n.type === "attr_score") { n.type = "attr_score_val"; if (!n.data.path) n.data.path = scorePath; }
     }
@@ -5088,7 +5631,6 @@ export class FormulaGraph {
   }
 
   _addTriggerOutputNodes() {
-    // Default graph for onClick mode: On Click → (user connects actions)
     this.nodes.push({id:"trigger",type:"on_click",x:80,y:220,data:{}});
   }
 
@@ -5099,6 +5641,7 @@ export class FormulaGraph {
     this.nodes.push(node);
     this._renderNode(node);
     this._updatePreview();
+    this._pushHistory();
     return node;
   }
 
@@ -5108,17 +5651,17 @@ export class FormulaGraph {
     this.edges=this.edges.filter(e=>e.fromNode!==id&&e.toNode!==id);
     this.nodesEl.querySelector(`[data-nid="${id}"]`)?.remove();
     this._scheduleEdges?.();
+    this._pushHistory();
   }
 
   _addEdge(fn,fp,tn,tp) {
     if(fn===tn) return;
     this.edges=this.edges.filter(e=>!(e.toNode===tn&&e.toPin===tp));
     this.edges.push({id:`e${uid()}`,fromNode:fn,fromPin:fp,toNode:tn,toPin:tp});
-    // Re-render target node so UE-style field-hide-on-connect kicks in, and
-    // dynamic pins get a new empty slot.
     const toNode = this.nodes.find(n => n.id === tn);
     if (toNode) this._renderNode(toNode);
     this._scheduleEdges?.();
+    this._pushHistory();
   }
 
   _removeEdge(edgeId) {
@@ -5128,6 +5671,7 @@ export class FormulaGraph {
     const toNode = this.nodes.find(n => n.id === edge.toNode);
     if (toNode) this._renderNode(toNode);
     this._scheduleEdges?.();
+    this._pushHistory();
   }
 
   // Rendering
@@ -5151,7 +5695,6 @@ export class FormulaGraph {
 
   _renderComment(c) {
     if (!this.commentsEl) return;
-    // Remove any existing DOM node for this comment (idempotent re-render).
     this.commentsEl.querySelector(`[data-cid="${c.id}"]`)?.remove();
 
     const selected = this._selectedComments.has(c.id);
@@ -5191,12 +5734,10 @@ export class FormulaGraph {
       }
     });
 
-    // Header drag = move box + any node currently inside it
     hdr.addEventListener("mousedown", ev => {
       if (ev.target === del || ev.target === rsz) return;
       if (ev.button !== 0) return;
       ev.stopPropagation();
-      // Selection semantics mirror node behaviour
       if (ev.shiftKey) {
         if (this._selectedComments.has(c.id)) this._selectedComments.delete(c.id);
         else this._selectedComments.add(c.id);
@@ -5210,8 +5751,6 @@ export class FormulaGraph {
       }
       this._refreshSelectionHighlights();
 
-      // Capture every selected comment AND every node currently inside any
-      // of them so the group moves as a rigid block.
       const cmtGroup = Array.from(this._selectedComments).map(id => {
         const cc = this.comments.find(x => x.id === id);
         return cc ? { id: cc.id, ox: cc.x, oy: cc.y } : null;
@@ -5222,8 +5761,6 @@ export class FormulaGraph {
         const cc = this.comments.find(x => x.id === id);
         if (!cc) continue;
         for (const n of this.nodes) {
-          // Approximate by top-left corner: node is "inside" if its (x,y)
-          // sits within the comment rect.  Cheap, good-enough for header-drag.
           if (n.x >= cc.x && n.x <= cc.x + cc.w && n.y >= cc.y && n.y <= cc.y + cc.h) {
             childIds.add(n.id);
           }
@@ -5259,6 +5796,7 @@ export class FormulaGraph {
     const c = { id, x, y, w: Math.max(120, w), h: Math.max(80, h), title, color };
     this.comments.push(c);
     this._renderComment(c);
+    this._pushHistory();
     return c;
   }
 
@@ -5266,12 +5804,14 @@ export class FormulaGraph {
     this.comments = this.comments.filter(c => c.id !== id);
     this._selectedComments.delete(id);
     this.commentsEl?.querySelector(`[data-cid="${id}"]`)?.remove();
+    this._pushHistory();
   }
 
   _doCommentDrag(ev) {
     if (!this._commentDrag) return;
     const dx = (ev.clientX - this._commentDrag.mx) / this._zoom;
     const dy = (ev.clientY - this._commentDrag.my) / this._zoom;
+    if (Math.abs(dx) + Math.abs(dy) > 1) this._commentDrag._moved = true;
     for (const g of this._commentDrag.cmtGroup) {
       const cc = this.comments.find(x => x.id === g.id);
       if (!cc) continue;
@@ -5298,6 +5838,7 @@ export class FormulaGraph {
     if (!c) return;
     const dx = (ev.clientX - r.mx) / this._zoom;
     const dy = (ev.clientY - r.my) / this._zoom;
+    if (Math.abs(dx) + Math.abs(dy) > 1) r._moved = true;
     c.w = Math.max(120, Math.round(r.ow + dx));
     c.h = Math.max(80,  Math.round(r.oh + dy));
     const el = this.commentsEl.querySelector(`[data-cid="${c.id}"]`);
@@ -5311,10 +5852,6 @@ export class FormulaGraph {
 
     const el=document.createElement("div");
     el.dataset.nid=node.id;
-    // Width adapts to node type -- wider for actions/attack branches that have more fields
-    // Base width by node category; then expand to fit field values stored in node.data.
-    // UE-style: nodes use min-width + shrink-to-fit so connecting a pin (which hides its
-    // matching field) lets the node collapse back down.
     const W_MIN = def.wideNode ? 380 : def.isAttackBranch ? 320 : def.isBranch ? 270 : def.isAction ? 300 : (def.isOutput||def.isAttrOutput) ? 220 : 240;
     const _longestDataVal = Object.values(node.data ?? {}).reduce((max, v) => {
       const len = typeof v === "string" ? v.length : 0;
@@ -5323,7 +5860,6 @@ export class FormulaGraph {
     const W_DATA = _longestDataVal > 0 ? Math.min(520, 100 + Math.ceil(_longestDataVal * 7.5)) : 0;
     const W = Math.max(W_MIN, W_DATA);
 
-    // Kind-based accent border: pure=green, imperative=orange, event=red.
     const _kind   = getNodeKind(def);
     const _accent = SD_NODE_KIND_COLOURS[_kind] ?? "rgba(255,255,255,.08)";
 
@@ -5337,7 +5873,6 @@ export class FormulaGraph {
       overflow:hidden;
       transform:translateZ(0);`;
 
-    // Build header color from def.color -- use as a gradient
     const _hc = def.color ?? "#555";
     el.innerHTML=`
       <div class="gnhdr" data-nid="${node.id}" style="
@@ -5358,8 +5893,6 @@ export class FormulaGraph {
     const outputPins = def.outputs??[];
     const fields     = def.fields??[];
 
-    // Passive-widget OUTPUT node: hide the exec input -- nothing to click on
-    // in a text / derived / image / section / richtext / tags widget.
     if (def.isOutput) {
       const PASSIVE = new Set(["text","derived","image","section","richtext","tags"]);
       if (this.widget && PASSIVE.has(this.widget.type)) {
@@ -5367,50 +5900,40 @@ export class FormulaGraph {
       }
     }
 
-    // Dynamic pins -- supports both single object and array of groups
     if(def.dynamicPins) {
       const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [{ ...def.dynamicPins, label: "Text" }];
       const dynPins = [];
       for(const grp of groups) {
-        const {base, label, max} = grp;
+        const {base, label, max, type} = grp;
         let connected = -1;
         for(let i=0;i<max;i++){
           if(this.edges.some(e=>e.toNode===node.id&&e.toPin===`${base}${i}`)) connected=i;
         }
         const show = Math.min(connected+2, max);
-        for(let i=0;i<show;i++) dynPins.push({id:`${base}${i}`,label:`${label} ${i+1}`,type:"value"});
+        const pinType = type ?? "value.any";
+        for(let i=0;i<show;i++) dynPins.push({id:`${base}${i}`,label:`${label} ${i+1}`,type:pinType});
       }
-      inputPins = [...inputPins.filter(p=>p.type==="exec"), ...dynPins];
+      inputPins = [...inputPins, ...dynPins];
     }
 
-    // Exec inputs first (left-aligned full row)
     for(const p of inputPins.filter(p=>p.type==="exec"))
       body.appendChild(this._pinRow(node,p,"input"));
 
-    // Value rows -- each input pin + matching output pin side by side.
-    // UE-style: when a value pin shares a key with a field AND that pin is connected,
-    // the field is replaced by the pin (only the pin label is shown). This keeps the
-    // node visually concise when data flows dynamically.
     const valIns  = inputPins.filter(p=>p.type!=="exec");
     const valOuts = outputPins.filter(p=>p.type!=="exec");
 
     const _pinConnected = (pinId) =>
       this.edges.some(e => e.toNode === node.id && e.toPin === pinId);
 
-    // Build the list of field slots to render, skipping any field that is "shadowed"
-    // by a connected value-input pin with the same key.
     const pinKeys      = new Set(valIns.map(p => p.id));
     const connectedKeys = new Set(valIns.filter(p => _pinConnected(p.id)).map(p => p.id));
-    const visibleFields = fields.filter(f => !connectedKeys.has(f.key));
+    const visibleFields = fields.filter(f => !connectedKeys.has(f.key) && (!f.visibleIf || f.visibleIf(node.data)));
 
-    // Value-input rows: always show pin; show field inline only when NOT connected
-    // and the field shares the pin's key (inline-edit like UE's embedded literals).
     const rows = [];
     for (const p of valIns) {
       const inlineFld = fields.find(f => f.key === p.id);
       rows.push({ inp:p, fld: (inlineFld && !connectedKeys.has(p.id)) ? inlineFld : null });
     }
-    // Any remaining fields (no matching pin) render on their own row.
     const usedKeys = new Set(rows.filter(r => r.fld).map(r => r.fld.key));
     for (const f of visibleFields) {
       if (!pinKeys.has(f.key) && !usedKeys.has(f.key)) rows.push({ inp:null, fld:f });
@@ -5444,8 +5967,6 @@ export class FormulaGraph {
       body.appendChild(row);
     }
 
-    // Exec outputs last.  `dialog_switch` and `sequence` use a `count` field
-    // to limit how many exec branches are visible -- matches UE's "Add pin".
     let activeExecOuts = outputPins.filter(p=>p.type==="exec");
     if (def.isDialogSwitch) {
       const count = Math.max(2, Math.min(8, parseInt(node.data?.count) || 2));
@@ -5466,24 +5987,17 @@ export class FormulaGraph {
       if(ev.target.classList.contains("ndel")) return;
       ev.stopPropagation();
 
-      // Shift-click toggles this node in the multi-selection and does NOT
-      // start a drag -- mirrors node-editor conventions (Blueprint, Blender…).
       if (ev.shiftKey) {
         this._toggleSelectNode(node.id);
         return;
       }
 
-      // Non-additive click: if this node is already part of a multi-select
-      // keep the existing set so the user can drag the whole group at once.
-      // Otherwise, replace selection with just this node.
       if (!this._selected.has(node.id)) {
         this._selected.clear();
         this._selected.add(node.id);
       }
       this._refreshSelectionHighlights();
 
-      // Capture starting positions of every selected node so group-drag
-      // moves them all by the same screen-space delta.
       const group = Array.from(this._selected).map(id => {
         const n = this.nodes.find(x => x.id === id);
         return n ? { id: n.id, ox: n.x, oy: n.y } : null;
@@ -5499,8 +6013,6 @@ export class FormulaGraph {
 
     this.nodesEl.appendChild(el);
 
-    // Live value badge on Number / Text source nodes
-    // Shows the value that will be emitted so the designer can verify instantly.
     if (node.type === "literal" || node.type === "literal_str") {
       const _refreshNodeLive = () => {
         let badge = el.querySelector(".gn-src-live");
@@ -5514,14 +6026,11 @@ export class FormulaGraph {
         badge.textContent = v !== "" ? `out: ${v}` : "";
       };
       _refreshNodeLive();
-      // Re-run whenever the node's value field changes
       el.addEventListener("input", _refreshNodeLive);
     }
 
-    // Attr Score Val node: big live score display
     if (node.type === "attr_score_val" || node.type === "attr_score") {
       const body = el.querySelector(".gnbody");
-      // Scorecard display -- shows the live number from the document prominently
       const card = document.createElement("div");
       card.className = "gn-attr-card";
       card.style.cssText = "margin:4px 8px 5px;border:1px solid #4a3a1a;border-radius:5px;background:#0e0a04;padding:5px 8px;display:flex;flex-direction:column;gap:3px;align-items:center";
@@ -5549,13 +6058,10 @@ export class FormulaGraph {
       };
       _refreshAttrCard();
 
-      // Re-refresh when the path field changes
       el.addEventListener("input", _refreshAttrCard);
-      // Expose refresh so _updatePreview can call it
       el._refreshAttrCard = _refreshAttrCard;
     }
 
-    // UUID fields -- accept item drop
     el.querySelectorAll("input[placeholder*='drag']").forEach(inp=>{
       inp.addEventListener("dragover",ev=>{ev.preventDefault();inp.style.borderColor="#7b68ee";});
       inp.addEventListener("dragleave",()=>inp.style.borderColor="");
@@ -5602,7 +6108,6 @@ export class FormulaGraph {
     const dot=document.createElement("div");
     dot.className="gpin";
     dot.dataset.nid=node.id; dot.dataset.pid=pin.id; dot.dataset.side=side;
-    // Exec pins = orange squares; value pins = colored circles matching preview.html
     const _pinBg  = isExec ? "#ffca6b" : (side==="output" ? "#22d48a" : "#497efb");
     const _pinBdr = isExec ? "#c09020" : (side==="output" ? "#16a864" : "#2a5ab0");
     dot.style.cssText=`width:13px;height:13px;border-radius:${isExec?"3px":"50%"};
@@ -5614,12 +6119,10 @@ export class FormulaGraph {
       ev.stopPropagation();
       if(side==="output") this._startConn(node.id,pin.id,isExec,ev,pin.type);
     });
-    // Right-click on pin → disconnect all edges attached to it
     dot.addEventListener("contextmenu",ev=>{
       ev.preventDefault();
       ev.stopPropagation();
       const before = this.edges.length;
-      // Collect which target nodes need a re-render so UE-style fields can reappear.
       const touchedTargets = new Set();
       if(side==="output") {
         for (const e of this.edges) {
@@ -5662,11 +6165,7 @@ export class FormulaGraph {
       l.title=lbl;
       wrap.appendChild(l);
     }
-    // UE-style autosize: `field-sizing:content` lets text inputs grow to their
-    // content (Chromium 123+, available in Foundry v13+ Electron). We keep a
-    // sensible min-width and cap max-width so very long strings don't blow up
-    // the node; the node container itself uses min-width + max-width so it
-    // follows the largest field.
+    // UE-style autosize
     const IS="background:#1a1e2e;border:1px solid rgba(120,100,220,.35);border-radius:6px;color:#eef3ff;font-size:12px;padding:5px 10px;font-family:monospace;outline:none;min-width:80px;max-width:420px;width:auto;box-sizing:border-box;height:28px;field-sizing:content";
     const SI=IS+";cursor:pointer";
     const idx=this._smartIndex??{slots:[],ownedItems:[],effects:[],widgets:[],invItemSlots:[]};
@@ -5689,7 +6188,6 @@ export class FormulaGraph {
           const o=document.createElement("option"); o.value=s.id;
           o.textContent=`${s.id} — ${s.label}`;
           if(s.slotPath!=null) o.dataset.slotPath=s.slotPath;
-          // Match by both id AND slotPath so the correct option stays selected
           const isMatch = s.id===cur && (curPath==null || curPath===s.slotPath || (!s.slotPath && curPath==null));
           if(isMatch) o.selected=true;
           g.appendChild(o);
@@ -5703,7 +6201,6 @@ export class FormulaGraph {
       sel.addEventListener("change",()=>{
         node.data[field.key]=sel.value;
         const selOpt=sel.options[sel.selectedIndex];
-        // Persist the full slot path so compile() can generate the right formula token
         node.data.slotPath = selOpt?.dataset?.slotPath ?? null;
         this._updatePreview();
       });
@@ -5769,7 +6266,6 @@ export class FormulaGraph {
       wrap.appendChild(sel); return wrap;
     }
 
-    // inv-item-slot: cascading item picker → slot picker
     if(field.type==="inv-item-slot"){
       const itemKey=field.itemKey??"itemName";
       const slotKey=field.slotKey??"slotId";
@@ -5804,13 +6300,11 @@ export class FormulaGraph {
       container.appendChild(selItem); container.appendChild(selSlot); wrap.appendChild(container); return wrap;
     }
 
-    // item-uuid-drag: drag-and-drop zone + owned-item picker
     if(field.type==="item-uuid-drag"){
       const curUuid=node.data[field.key]??"";
       const curName=node.data["itemName"]??"";
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0";
 
-      // Owned-item dropdown (sets itemName + resolves uuid from index)
       const selItem=document.createElement("select"); selItem.style.cssText=SI; selItem.title="Pick owned item by name";
       { const o=document.createElement("option"); o.value=""; o.textContent="— pick owned item —"; if(!curName)o.selected=true; selItem.appendChild(o); }
       const byType2={};
@@ -5894,21 +6388,22 @@ export class FormulaGraph {
       node.data[field.key]=inp.type==="number"?Number(ev.target.value):ev.target.value;
       this._updatePreview();
       if(field.type==="path" && liveBadge) _refreshLiveBadge();
-      // Re-render for dialog_switch / sequence: count changes show/hide output pins; label changes update pin text
+      if (field.type === "select") {
+        const _defV = NODE_DEFS[node.type];
+        if (_defV?.fields?.some(f => typeof f.visibleIf === "function")) {
+          this._renderNode(node); this._scheduleEdges?.(); return;
+        }
+      }
       const _def2 = NODE_DEFS[node.type];
       if (_def2?.isSequence && field.key === "count") {
-        // Clamp count on the node immediately, then re-render (edges to
-        // invisible pins are dropped on save if the user shrinks count).
         const c = Math.max(2, Math.min(12, Number(ev.target.value) || 2));
         node.data.count = c;
         this._renderNode(node);
         this._scheduleEdges?.();
       } else if (_def2?.isDialogSwitch) {
         if (field.key === "count") {
-          // Count changed -- re-render the whole node to show/hide output pins
           this._renderNode(node);
         } else if (field.key.startsWith("label")) {
-          // Label changed -- update the pin span text in-place so the input keeps focus
           const pinIdx = parseInt(field.key.replace("label", ""), 10);
           const _nodeEl2 = this.nodesEl?.querySelector(`[data-nid="${node.id}"]`);
           const dot = _nodeEl2?.querySelector(`[data-pid="out${pinIdx}"][data-side="output"]`);
@@ -5918,7 +6413,6 @@ export class FormulaGraph {
           }
         }
       }
-      // Live-resize the node element to fit the new value
       const _nodeEl = this.nodesEl?.querySelector(`[data-nid="${node.id}"]`);
       if (_nodeEl) {
         const _longestNow = Object.values(node.data ?? {}).reduce((max, v) => {
@@ -5933,8 +6427,6 @@ export class FormulaGraph {
     });
     wrap.appendChild(inp);
 
-    // Live value badge for path-type fields
-    // Shows the current doc value so the designer can see what the node resolves to.
     let liveBadge = null;
     const _refreshLiveBadge = () => {
       const doc = this.doc;
@@ -5955,12 +6447,10 @@ export class FormulaGraph {
     return wrap;
   }
 
-  // Edge rendering (screen-space bezier, no transform)
 
   _redrawEdges() {
     const svg=this.edgeSVG; if(!svg) return;
 
-    // Preserve <defs>, remove rendered paths
     const defs = svg.querySelector("defs");
     while(svg.lastChild && svg.lastChild !== defs) svg.removeChild(svg.lastChild);
     if (!defs) {
@@ -5980,7 +6470,6 @@ export class FormulaGraph {
       const def = NODE_DEFS[this.nodes.find(n=>n.id===edge.fromNode)?.type??""];
       const fromPinDef = [...(def?.outputs??[])].find(p=>p.id===edge.fromPin);
       const isExec = fromPinDef?.type==="exec";
-      // Wire colour follows output-pin subtype; `null` → legacy gradient (value.any).
       const subColor = subtypeColor(fromPinDef?.type);
 
       const bez = this._bez(from,to);
@@ -5998,7 +6487,6 @@ export class FormulaGraph {
       });
       svg.appendChild(hit);
 
-      // Visible stroke: exec → orange, typed value → subtype colour, untyped → gradient.
       const path=document.createElementNS("http://www.w3.org/2000/svg","path");
       path.setAttribute("d",bez);
       path.setAttribute("fill","none");
@@ -6017,7 +6505,6 @@ export class FormulaGraph {
     return `M${a.x},${a.y} C${a.x+c},${a.y} ${b.x-c},${b.y} ${b.x},${b.y}`;
   }
 
-  // Get pin position in SCREEN coordinates
   _pinScreen(nodeId,pinId,side) {
     const el=this.nodesEl.querySelector(`[data-nid="${nodeId}"] [data-pid="${pinId}"][data-side="${side}"]`);
     if(!el) return null;
@@ -6055,9 +6542,15 @@ export class FormulaGraph {
     const conn=this._conn; this._conn=null;
     conn.line.remove();
     const pin=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".gpin");
-    if(!pin||pin.dataset.side!=="input"||pin.dataset.nid===conn.fromNode) return;
-    // Compatibility check -- reject exec↔value and mismatched value.X ↔ value.Y.
-    // value.any on either side is universally compatible.
+    if (!pin) {
+      const wrap = this.win?.querySelector("#gwrap");
+      const overWrap = wrap?.contains(ev.target) || (document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.("#gwrap"));
+      if (overWrap) {
+        this._showQuickInsertMenu(conn, ev);
+      }
+      return;
+    }
+    if (pin.dataset.side !== "input" || pin.dataset.nid === conn.fromNode) return;
     const targetNode = this.nodes.find(n=>n.id===pin.dataset.nid);
     const targetDef  = NODE_DEFS[targetNode?.type??""];
     const targetPinDef = (targetDef?.inputs??[]).find(p=>p.id===pin.dataset.pid);
@@ -6069,15 +6562,99 @@ export class FormulaGraph {
     this._addEdge(conn.fromNode,conn.fromPin,pin.dataset.nid,pin.dataset.pid);
   }
 
+  _showQuickInsertMenu(conn, ev) {
+    const wrap = this.win?.querySelector("#gwrap");
+    if (!wrap) return;
+    const r = wrap.getBoundingClientRect();
+    const gx = (ev.clientX - r.left - this._pan.x) / this._zoom;
+    const gy = (ev.clientY - r.top  - this._pan.y) / this._zoom;
+
+    const fromType = conn.fromType;
+    const candidates = [];
+    for (const [type, def] of Object.entries(NODE_DEFS)) {
+      if (def.hidden) continue;
+      const inputs = def.inputs ?? [];
+      const compat = inputs.find(p => {
+        if (fromType === "exec") return p.type === "exec";
+        return p.type !== "exec" && arePinsCompatible(fromType, p.type);
+      });
+      if (!compat) continue;
+      candidates.push({ type, def, pin: compat });
+    }
+    candidates.sort((a, b) => (a.def.cat ?? "").localeCompare(b.def.cat ?? "") || (a.def.title ?? a.type).localeCompare(b.def.title ?? b.type));
+
+    document.getElementById("sd-quick-insert-menu")?.remove();
+    const menu = document.createElement("div");
+    menu.id = "sd-quick-insert-menu";
+    menu.style.cssText = `position:fixed;left:${ev.clientX}px;top:${ev.clientY}px;
+      min-width:240px;max-width:340px;max-height:60vh;overflow:auto;
+      background:#121220;border:1px solid #2a2a3e;border-radius:8px;
+      box-shadow:0 12px 40px rgba(0,0,0,.8);z-index:25000;
+      font-family:'Signika',sans-serif;color:#e0e0ee;padding:6px 0`;
+
+    const head = document.createElement("div");
+    head.textContent = `Insert node compatible with ${pinSubtype(fromType) || "exec"}`;
+    head.style.cssText = "padding:6px 12px;font-size:11px;color:#98a6c6;border-bottom:1px solid #2a2a3e";
+    menu.appendChild(head);
+
+    if (!candidates.length) {
+      const empty = document.createElement("div");
+      empty.textContent = "No compatible nodes";
+      empty.style.cssText = "padding:8px 12px;color:#666";
+      menu.appendChild(empty);
+    } else {
+      let lastCat = null;
+      for (const c of candidates.slice(0, 80)) {
+        if (c.def.cat !== lastCat) {
+          lastCat = c.def.cat;
+          const sec = document.createElement("div");
+          sec.textContent = lastCat ?? "Other";
+          sec.style.cssText = "padding:4px 12px 2px;font-size:10px;color:#74a7ff;text-transform:uppercase;letter-spacing:.5px";
+          menu.appendChild(sec);
+        }
+        const item = document.createElement("div");
+        item.textContent = c.def.title ?? c.type;
+        item.style.cssText = "padding:5px 14px;font-size:12px;cursor:pointer";
+        item.addEventListener("mouseenter", () => item.style.background = "#1f2538");
+        item.addEventListener("mouseleave", () => item.style.background = "");
+        item.addEventListener("click", () => {
+          menu.remove();
+          this._suppressHistory = true;
+          let added;
+          try {
+            added = this._addNode(c.type, gx, gy);
+            if (added) this._addEdge(conn.fromNode, conn.fromPin, added.id, c.pin.id);
+          } finally {
+            this._suppressHistory = false;
+          }
+          if (added) this._pushHistory();
+        });
+        menu.appendChild(item);
+      }
+    }
+    document.body.appendChild(menu);
+
+    const close = (e) => {
+      if (e && menu.contains(e.target)) return;
+      menu.remove();
+      document.removeEventListener("mousedown", close, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    setTimeout(() => {
+      document.addEventListener("mousedown", close, true);
+      document.addEventListener("keydown", onKey, true);
+    }, 0);
+  }
+
   // Node drag
 
   _doDrag(ev) {
     if(!this._drag) return;
     const dx = (ev.clientX - this._drag.mx) / this._zoom;
     const dy = (ev.clientY - this._drag.my) / this._zoom;
+    if (Math.abs(dx) + Math.abs(dy) > 1) this._drag._moved = true;
 
-    // Group drag -- move every node captured at mousedown by the same delta.
-    // Falls back to single-node drag when `group` wasn't recorded.
     const group = this._drag.group?.length
       ? this._drag.group
       : [{ id: this._drag.nodeId, ox: this._drag.ox, oy: this._drag.oy }];
@@ -6090,11 +6667,9 @@ export class FormulaGraph {
       const el = this.nodesEl.querySelector(`[data-nid="${n.id}"]`);
       if (el) { el.style.left = n.x + "px"; el.style.top = n.y + "px"; }
     }
-    // Schedule edge redraw (RAF-throttled) instead of calling synchronously
     this._scheduleEdges?.();
   }
 
-  // Marquee (Shift + drag on empty canvas)
 
   _doMarquee(ev) {
     if (!this._marquee) return;
@@ -6119,7 +6694,6 @@ export class FormulaGraph {
     this._marquee = null;
     m.el?.remove();
 
-    // Marquee in screen-space (relative to wrap). Convert to graph-space.
     const x1s = Math.min(m.sx, m.cx);
     const y1s = Math.min(m.sy, m.cy);
     const x2s = Math.max(m.sx, m.cx);
@@ -6129,12 +6703,10 @@ export class FormulaGraph {
     const gx2 = (x2s - this._pan.x) / this._zoom;
     const gy2 = (y2s - this._pan.y) / this._zoom;
 
-    // Treat tiny marquees as a simple click -- do nothing.
     if ((x2s - x1s) < 4 && (y2s - y1s) < 4) return;
 
     if (!m.additive) this._selected.clear();
     for (const n of this.nodes) {
-      // Approximate node bounds from rendered element (falls back to 220×80).
       const el = this.nodesEl.querySelector(`[data-nid="${n.id}"]`);
       const w  = el ? el.offsetWidth  : 220;
       const h  = el ? el.offsetHeight : 80;
@@ -6151,7 +6723,6 @@ export class FormulaGraph {
     const tf = `translate(${this._pan.x}px,${this._pan.y}px) scale(${this._zoom})`;
     if(this.nodesEl)    this.nodesEl.style.transform    = tf;
     if(this.commentsEl) this.commentsEl.style.transform = tf;
-    // CSS background-based grid -- update offset so it pans with the canvas
     const wrap = this.win?.querySelector("#gwrap");
     if (wrap) {
       const ox = ((this._pan.x % 32) + 32) % 32;

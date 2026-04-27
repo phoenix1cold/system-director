@@ -1,7 +1,3 @@
-/**
- * module/data/item-inventory.mjs  (System Director)
- */
-
 import { RollConfigField }    from "./common.mjs";
 import { SlotDefinitionField, SlotContentField } from "./item-slots.mjs";
 import { ButtonDefinitionField } from "../helpers/button-executor.mjs";
@@ -30,15 +26,8 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
       price:    new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
       currency: new StringField({ initial: "gp", blank: false }),
       equipped:    new BooleanField({ initial: false }),
-      // PR14: mark item as wearable/wieldable -- gates the sheet's Equip button
-      // and the on_equip / on_unequip event triggers.  Default true for
-      // gear-like categories, false for the rest (see migrateData below).
       equippable:  new BooleanField({ initial: false }),
-      // Optional GM-authored formula/predicate; evaluated before Equip runs.
-      // Empty string ⇒ no restriction.
       equipRequirements: new StringField({ initial: "", blank: true }),
-      // Flag set while equipping -- blocks another concentration item being
-      // equipped at the same time without manual unequip.
       concentration: new BooleanField({ initial: false }),
       identified:  new BooleanField({ initial: true }),
       attuned:     new BooleanField({ initial: false }),
@@ -85,27 +74,30 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
       description: new HTMLField({ initial: "", blank: true }),
       unidentifiedName: new StringField({ initial: "", blank: true }),
       source:      new StringField({ initial: "", blank: true }),
-      // Declared Attributes (for attribute reference system)
       declaredAttrs: new ArrayField(new ObjectField()),
 
       customTabs:  new ArrayField(new ObjectField()),
-      // Sheet-level trigger graph -- event nodes only, scanned by event-bus.
       sdTriggerGraph: new ObjectField({ initial: {} }),
       flags:       new ObjectField({ initial: {} })
     };
   }
 
   static migrateData(source) {
-    // PR14: back-fill equippable for pre-existing items by category.
     if (source && source.equippable === undefined) {
       const cat = source.category ?? "gear";
       source.equippable = ["weapon","armor","shield","tool"].includes(cat);
+    }
+    if (source?.equippable && !(source.hiddenFields?.equippable)) {
+      source.hiddenFields ??= {};
+      source.hiddenFields.equippable = true;
     }
     return super.migrateData(source);
   }
 
   prepareDerivedData() {
     super.prepareDerivedData();
+    const hfEq = this.hiddenFields?.equippable;
+    if (hfEq !== undefined) this.equippable = !!hfEq;
     this.totalWeight = this.weight * this.quantity;
     this.totalValue  = this.price  * this.quantity;
     for (const def of (this.slotDefinitions ?? [])) {

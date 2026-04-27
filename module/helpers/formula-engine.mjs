@@ -1,39 +1,6 @@
-/**
- * module/helpers/formula-engine.mjs  -- System Director
- *
- * Evaluates formula strings against a document context.
- *
- * Syntax reference
- *
- *  {path}                        → value at foundry path on the actor/item
- *  {item:Name.system.field}      → field on actor-owned item named "Name"
- *  {item:id:ITEMID.system.field} → field on item by id
- *  {slotCount:slotId}            → number of items in slot (self/actor)
- *  {nestedSlotCount:itemId/sId/nestedId/sId2/...} → slot count on a deeply nested item
- *  {slot:slotId.0.system.field}  → field inside slot contents[0]
- *  floor({...})                  → math function
- *  ceil({...})                   → math function
- *  round({...})                  → math function
- *  max(a, b)                     → math function
- *  min(a, b)                     → math function
- *  abs({...})                    → math function
- *  ({cond} ? {then} : {else})    → ternary
- *  Standard dice: 1d20, 2d6+3    → kept as-is for Roll (in roll mode)
- *
- * Two evaluation modes
- *
- *  FormulaEngine.evaluate(formula, doc)
- *    → resolves all {refs} and evaluates math → returns a number or string
- *    → used for widget value display
- *
- *  FormulaEngine.resolveForRoll(formula, doc)
- *    → resolves {refs} to numbers → returns a dice formula string
- *    → used for Roll button formulas like "1d20 + {system.attributes.attr1.mod}"
- */
-
 export class FormulaEngine {
 
-  // Public API
+  // Публичный API
 
   /**
    * Resolve all {refs} and evaluate math.
@@ -66,8 +33,6 @@ export class FormulaEngine {
   static resolveForRoll(formula, doc) {
     if (!formula) return "1d20";
     try {
-      // Normalize Cyrillic lookalike letters → Latin equivalents.
-      // These are visually identical but cause "Unresolved StringTerm" errors in Foundry's Roll parser.
       let result = String(formula)
         .replace(/А/g,"A").replace(/а/g,"a")
         .replace(/В/g,"B")
@@ -79,14 +44,9 @@ export class FormulaEngine {
         .replace(/К/g,"K").replace(/М/g,"M").replace(/Т/g,"T");
       result = this._resolveRefs(result, doc, true);
 
-      // Warn if bare dot-paths remain (no braces) -- detect "word.word.word" not dice
-      // Attempt to auto-resolve them as a fallback
       result = result.replace(/\b([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*){1,})\b/gi, (match) => {
-        // Skip dice notation like "1d20" patterns already resolved
         if (/^\d+d\d+/i.test(match)) return match;
-        // Skip JS keywords / Foundry roll terms
         if (/^(Math|floor|ceil|round|abs|max|min)$/.test(match)) return match;
-        // Try resolving as path on the doc
         const val = foundry.utils.getProperty(doc, match);
         if (val !== undefined && val !== null && typeof val !== "object") {
           console.debug(`SD | Formula: bare path "${match}" resolved to ${val}. Wrap in {curly braces} for clarity.`);
@@ -98,13 +58,11 @@ export class FormulaEngine {
         if (rdVal !== undefined && rdVal !== null && typeof rdVal !== "object") {
           return String(rdVal);
         }
-        return match; // leave as-is, Roll will handle or error
+        return match;
       });
 
-      // Final pass: remove any remaining unresolved {ref} tokens and stray braces
-      // that would cause Foundry's Roll parser to fail
-      result = result.replace(/\{[^}]*\}/g, "0"); // {unresolved} → 0
-      result = result.replace(/[{}]/g, "");        // stray { or } → strip
+      result = result.replace(/\{[^}]*\}/g, "0");
+      result = result.replace(/[{}]/g, "");
 
       return result;
     } catch(e) {
@@ -113,14 +71,11 @@ export class FormulaEngine {
     }
   }
 
-  /**
-   * Check if a string contains any formula refs (i.e. is a formula, not a plain path).
-   */
   static isFormula(str) {
     return /[{}+\-*\/]|floor|ceil|round|max|min|abs|item:|slot/.test(str ?? "");
   }
 
-  // Internal
+  // Внутреннее
 
   /** Find a widget anywhere in doc.system.customTabs by its widgetKey. */
   static _findWidgetByKey(doc, key) {
@@ -136,7 +91,7 @@ export class FormulaEngine {
   }
 
   static _resolveRefs(formula, doc, rollMode = false) {
-    // Replace all {...} tokens
+    // Резолвим {...}-токены
     return formula.replace(/\{([^}]+)\}/g, (match, inner) => {
       const val = this._resolveToken(inner.trim(), doc);
       if (val === undefined || val === null) return "0";
@@ -145,12 +100,10 @@ export class FormulaEngine {
   }
 
   static _resolveToken(token, doc) {
-    // widget:keyName -- resolve from doc's customTabs widgets by widgetKey
     if (token.startsWith("widget:")) {
       const key    = token.slice("widget:".length);
       const w      = this._findWidgetByKey(doc, key);
       if (!w) return 0;
-      // Evaluate this widget's own valueFormula or read its path
       if (w.valueFormula && this.isFormula(w.valueFormula)) {
         return this.evaluate(w.valueFormula, doc);
       }
@@ -159,9 +112,6 @@ export class FormulaEngine {
       return 0;
     }
 
-    // widgetPath:keyName -- resolve to the widget's bound data path (as a string token
-    // wrapped in braces so other nodes can treat it as a live path). This lets the
-    // graph WRITE back to whatever path the widget is wired to.
     if (token.startsWith("widgetPath:")) {
       const key = token.slice("widgetPath:".length);
       const w   = this._findWidgetByKey(doc, key);
@@ -191,8 +141,6 @@ export class FormulaEngine {
       return item ? (foundry.utils.getProperty(item, path) ?? 0) : 0;
     }
 
-    // slotCount:slotId
-    // Searches: (1) doc itself, (2) actor, (3) any actor-owned item that has the slot.
     if (token.startsWith("slotCount:")) {
       const slotId = token.slice("slotCount:".length);
       const _cnt = (t) => t?.system?.slotContents?.[slotId]?.contents?.length
@@ -206,7 +154,6 @@ export class FormulaEngine {
       if (actor) {
         const actorVal = _cnt(actor);
         if (actorVal !== null) return actorVal;
-        // Search actor-owned items for one that has this slot
         for (const item of (actor.items ?? [])) {
           const itemVal = _cnt(item);
           if (itemVal !== null) return itemVal;
@@ -215,7 +162,6 @@ export class FormulaEngine {
       return 0;
     }
 
-    // spellSlots:level -- remaining spell slots of that level on actor
     if (token.startsWith("spellSlots:")) {
       const level  = token.slice("spellSlots:".length);
       const actor  = doc instanceof Actor ? doc : doc.actor ?? null;
@@ -223,7 +169,6 @@ export class FormulaEngine {
       return actor.system?.spellSlots?.[level]?.value ?? 0;
     }
 
-    // invItemSlotCount:itemNameOrUuid.slotId -- slot count on an actor-owned item
     if (token.startsWith("invItemSlotCount:")) {
       const rest   = token.slice("invItemSlotCount:".length);
       const dotIdx = rest.lastIndexOf(".");
@@ -239,35 +184,23 @@ export class FormulaEngine {
           ?? 0;
     }
 
-    // nestedSlotCount:root/slotId/nestedItemId/slotId2/.../finalSlotId
-    // root is "self" (the item), "actor", or a Foundry item id.
-    // Path layout: [ root, slotId, nestedItemId, slotId, nestedItemId, ..., finalSlotId ]
-    // At every step we prefer the LIVE actor item (up-to-date data) over the
-    // stale snapshot copy stored inside parent's slotContents.
+    // nestedSlotCount
     if (token.startsWith("nestedSlotCount:")) {
       const parts = token.slice("nestedSlotCount:".length).split("/");
       if (parts.length < 3) return 0;
       const actor = doc instanceof Actor ? doc : doc.actor ?? null;
-      // Resolve root. New paths use real item ids so actor.items.get() works from
-      // both the item sheet and the actor sheet. "self"/"actor" are legacy/special cases.
       let current;
       const root = parts[0];
       if (root === "actor") {
         current = actor;
       } else if (root === "self") {
-        // Legacy: try doc if it is an item; if doc is an actor the path is unresolvable
         current = (doc instanceof Actor) ? null : doc;
       } else {
-        // Real item id -- resolve via live actor items (works regardless of who fired the button)
         current = actor?.items.get(root) ?? null;
-        // Edge-case: doc itself might be the item (button fired from item sheet, actor not linked)
         if (!current && doc && !(doc instanceof Actor) && doc.id === root) current = doc;
       }
       if (!current) return 0;
-      // Walk pairs: slotId at i, nestedItemId at i+1.
-      // ALWAYS follow the snapshot chain -- the slot UI widget and button actions
-      // both read/write the snapshot stored in slotContents, so we must read from
-      // the same source for consistency.
+      // Walk pairs
       let i = 1;
       while (i + 1 < parts.length) {
         const slotId   = parts[i];
@@ -298,15 +231,12 @@ export class FormulaEngine {
       return slotItem ? (foundry.utils.getProperty(slotItem, path) ?? 0) : 0;
     }
 
-    // slotUuid:slotId.index -- returns UUID string of the item at that slot index
-    // (actor slots or item slots; searches actor first, then doc)
     if (token.startsWith("slotUuid:")) {
       const rest   = token.slice("slotUuid:".length);
       const dot    = rest.lastIndexOf(".");
       if (dot < 0) return "";
       const slotId = rest.slice(0, dot);
       const idx    = parseInt(rest.slice(dot + 1));
-      // Try actor slots first, then item (doc) slots
       const actor  = doc instanceof Actor ? doc : doc.actor;
       const targets = [doc instanceof Actor ? null : doc, actor].filter(Boolean);
       for (const t of targets) {
@@ -317,7 +247,6 @@ export class FormulaEngine {
       return "";
     }
 
-    // invcat:category.index.path -- read field from actor inventory item by category+index
     if (token.startsWith("invcat:")) {
       const rest   = token.slice("invcat:".length);
       const parts  = rest.split(".");
@@ -332,7 +261,6 @@ export class FormulaEngine {
       return item ? (foundry.utils.getProperty(item, path) ?? 0) : 0;
     }
 
-    // target.path -- read from first targeted/selected token's actor
     if (token.startsWith("target.")) {
       const path   = token.slice("target.".length);
       const tActor = (typeof game !== "undefined")
@@ -344,14 +272,243 @@ export class FormulaEngine {
       return v;
     }
 
-    // var:name -- read from actor.flags.sd.vars.NAME
+    if (token.startsWith("tokenField:")) {
+      const rest = token.slice("tokenField:".length);
+      const dot  = rest.indexOf(".");
+      if (dot < 0) return 0;
+      const tokenId = rest.slice(0, dot).trim();
+      const path    = rest.slice(dot + 1);
+      if (!tokenId) return 0;
+      const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tokenId) : null;
+      const a  = tk?.actor;
+      if (!a) return 0;
+      const v = foundry.utils.getProperty(a, path);
+      if (v === undefined || v === null || typeof v === "object") return 0;
+      return v;
+    }
+
+    if (token.startsWith("arrayLength:")) {
+      const rest = token.slice("arrayLength:".length);
+      if (!rest) return 0;
+      return rest.split(",").map(s => s.trim()).filter(Boolean).length;
+    }
+
+    if (token.startsWith("arrayAt:")) {
+      const rest = token.slice("arrayAt:".length);
+      const sep  = rest.indexOf("|");
+      if (sep < 0) return "";
+      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const idx  = Math.floor(Number(rest.slice(sep + 1)) || 0);
+      return list[idx] ?? "";
+    }
+
+    if (token.startsWith("arrayMapField:")) {
+      const rest = token.slice("arrayMapField:".length);
+      const sep  = rest.indexOf("|");
+      if (sep < 0) return "";
+      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const path = rest.slice(sep + 1);
+      if (!path) return "";
+      const out = [];
+      for (const tid of list) {
+        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
+        const a  = tk?.actor;
+        if (!a) { out.push(""); continue; }
+        const v = foundry.utils.getProperty(a, path);
+        out.push(v === undefined || v === null || typeof v === "object" ? "" : String(v));
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("arrayAgg:")) {
+      const parts = token.slice("arrayAgg:".length).split("|");
+      if (parts.length < 3) return 0;
+      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const path = parts[1];
+      const op   = parts[2];
+      const nums = [];
+      for (const tid of list) {
+        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
+        const a  = tk?.actor;
+        if (!a) continue;
+        const v = Number(foundry.utils.getProperty(a, path));
+        if (!isNaN(v)) nums.push(v);
+      }
+      if (op === "count") return nums.length;
+      if (!nums.length)   return 0;
+      if (op === "sum")   return nums.reduce((s,n)=>s+n,0);
+      if (op === "avg")   return nums.reduce((s,n)=>s+n,0) / nums.length;
+      if (op === "min")   return Math.min(...nums);
+      if (op === "max")   return Math.max(...nums);
+      return 0;
+    }
+
+    if (token.startsWith("arrayFindExtreme:")) {
+      const parts = token.slice("arrayFindExtreme:".length).split("|");
+      if (parts.length < 3) return "";
+      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const path = parts[1];
+      const op   = parts[2];
+      let bestId  = "";
+      let bestVal = null;
+      for (const tid of list) {
+        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
+        const a  = tk?.actor;
+        if (!a) continue;
+        const v = Number(foundry.utils.getProperty(a, path));
+        if (isNaN(v)) continue;
+        if (bestVal === null || (op === "min" ? v < bestVal : v > bestVal)) {
+          bestVal = v;
+          bestId  = tid;
+        }
+      }
+      return bestId;
+    }
+
+    if (token.startsWith("arraySort:")) {
+      const parts = token.slice("arraySort:".length).split("|");
+      if (parts.length < 3) return "";
+      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const path = parts[1];
+      const op   = parts[2];
+      const annotated = list.map(tid => {
+        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
+        const a  = tk?.actor;
+        const v  = a ? Number(foundry.utils.getProperty(a, path)) : NaN;
+        return { tid, v: isNaN(v) ? null : v };
+      });
+      annotated.sort((x, y) => {
+        if (x.v === null && y.v === null) return 0;
+        if (x.v === null) return  1;
+        if (y.v === null) return -1;
+        return op === "asc" ? (x.v - y.v) : (y.v - x.v);
+      });
+      return annotated.map(e => e.tid).join(",");
+    }
+
+    if (token.startsWith("arraySlice:")) {
+      const parts = token.slice("arraySlice:".length).split("|");
+      if (parts.length < 3) return "";
+      const list  = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const start = Math.max(0, Math.floor(Number(parts[1]) || 0));
+      const cnt   = Math.floor(Number(parts[2]));
+      const end   = (cnt < 0) ? list.length : Math.min(list.length, start + cnt);
+      return list.slice(start, end).join(",");
+    }
+
+    if (token.startsWith("arrayConcat:")) {
+      const parts = token.slice("arrayConcat:".length).split("|");
+      if (parts.length < 2) return "";
+      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const b = parts[1].split(",").map(s => s.trim()).filter(Boolean);
+      return [...a, ...b].join(",");
+    }
+
+    if (token.startsWith("arrayUnion:")) {
+      const parts = token.slice("arrayUnion:".length).split("|");
+      if (parts.length < 2) return "";
+      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const b = parts[1].split(",").map(s => s.trim()).filter(Boolean);
+      const seen = new Set();
+      const out  = [];
+      for (const id of [...a, ...b]) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("arrayIntersect:")) {
+      const parts = token.slice("arrayIntersect:".length).split("|");
+      if (parts.length < 2) return "";
+      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const b = new Set(parts[1].split(",").map(s => s.trim()).filter(Boolean));
+      const seen = new Set();
+      const out  = [];
+      for (const id of a) {
+        if (!b.has(id) || seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("arrayDifference:")) {
+      const parts = token.slice("arrayDifference:".length).split("|");
+      if (parts.length < 2) return "";
+      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const b = new Set(parts[1].split(",").map(s => s.trim()).filter(Boolean));
+      const seen = new Set();
+      const out  = [];
+      for (const id of a) {
+        if (b.has(id) || seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("arrayContains:")) {
+      const parts = token.slice("arrayContains:".length).split("|");
+      if (parts.length < 2) return 0;
+      const list = new Set(parts[0].split(",").map(s => s.trim()).filter(Boolean));
+      const id   = String(parts.slice(1).join("|")).trim();
+      return list.has(id) ? 1 : 0;
+    }
+
+    if (token.startsWith("arrayDistinct:")) {
+      const rest = token.slice("arrayDistinct:".length);
+      const list = rest.split(",").map(s => s.trim()).filter(Boolean);
+      const seen = new Set();
+      const out  = [];
+      for (const id of list) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("arrayFilter:")) {
+      const parts = token.slice("arrayFilter:".length).split("|");
+      if (parts.length < 4) return "";
+      const list   = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const path   = parts[1];
+      const op     = parts[2];
+      const cmpRaw = parts.slice(3).join("|");
+      const cmpNum = Number(cmpRaw);
+      const isNum  = cmpRaw.trim() !== "" && !isNaN(cmpNum);
+      const out = [];
+      for (const tid of list) {
+        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
+        const a  = tk?.actor;
+        if (!a) continue;
+        const fv = foundry.utils.getProperty(a, path);
+        if (fv === undefined || fv === null || typeof fv === "object") continue;
+        const lv = isNum ? Number(fv)  : String(fv);
+        const rv = isNum ? cmpNum      : String(cmpRaw);
+        let ok = false;
+        switch (op) {
+          case "==": ok = (lv === rv); break;
+          case "!=": ok = (lv !== rv); break;
+          case ">":  ok = (lv >   rv); break;
+          case "<":  ok = (lv <   rv); break;
+          case ">=": ok = (lv >=  rv); break;
+          case "<=": ok = (lv <=  rv); break;
+          default:   ok = false;
+        }
+        if (ok) out.push(tid);
+      }
+      return out.join(",");
+    }
+
     if (token.startsWith("var:")) {
       const varName = token.slice("var:".length).trim();
       const a = doc instanceof Actor ? doc : (doc.actor ?? null);
       return a?.getFlag?.("sd", `vars.${varName}`) ?? 0;
     }
 
-    // hasCondition:target.effectName -- 1 if AE with that name exists and is enabled
     if (token.startsWith("hasCondition:")) {
       const rest = token.slice("hasCondition:".length);
       const dotIdx = rest.indexOf(".");
@@ -369,40 +526,31 @@ export class FormulaEngine {
       return found ? 1 : 0;
     }
 
-    // __loopIndex / __lastRoll / __lastRollTableResult -- runtime context
     if (token.startsWith("__")) {
-      // These are resolved at runtime by the executor via _injectRuntime;
-      // if they appear in a pure-evaluate context, return 0 as safe default.
       return 0;
     }
 
-    // @shorthand (Foundry roll data)
+    // @shorthand
     if (token.startsWith("@")) {
       const key    = token.slice(1);
       const rd     = (doc instanceof Actor ? doc : doc.actor)?.getRollData?.() ?? {};
       return foundry.utils.getProperty(rd, key) ?? 0;
     }
 
-    // random -- built-in: used by random_num node compile output
     if (token === "random") return Math.random();
 
-    // plain path on doc -- try the doc first, then its parent actor as fallback.
-    // This lets {system.attributes.str.value} (an actor path) work correctly
-    // even when the formula is evaluated in an item context (e.g. ability spell).
     const val = foundry.utils.getProperty(doc, token);
     if (val !== undefined && val !== null && typeof val !== "object") return val;
-    // Fallback: if doc is an item, try the owning actor
     const _actor2 = (doc instanceof Actor) ? null : (doc?.actor ?? null);
     if (_actor2) {
       const val2 = foundry.utils.getProperty(_actor2, token);
       if (val2 !== undefined && val2 !== null && typeof val2 !== "object") return val2;
     }
-    if (val !== undefined && val !== null) return 0; // path found but was object
+    if (val !== undefined && val !== null) return 0;
     return 0;
   }
 
   static _evalMath(expr) {
-    // Replace math functions with JS equivalents
     let e = expr
       .replace(/floor\s*\(/g, "Math.floor(")
       .replace(/ceil\s*\(/g,  "Math.ceil(")
@@ -411,13 +559,11 @@ export class FormulaEngine {
       .replace(/max\s*\(/g,   "Math.max(")
       .replace(/min\s*\(/g,   "Math.min(");
 
-    // Pure numeric/boolean math -- safe chars only
     const isNumericMath = !/[^0-9+\-*/()., %MathflorceiabsundxN\s?:<>!=&|]/.test(e);
-    // String expression -- contains quoted string literals
     const hasStrings = e.includes('"') || e.includes("'");
 
     if (!isNumericMath && !hasStrings) {
-      return e; // Unknown content — return as-is
+      return e;
     }
 
     try {
@@ -433,10 +579,9 @@ export class FormulaEngine {
   }
 }
 
-// Blueprint node definitions (used by Toolbox + config popup)
 
 export const BLUEPRINT_NODES = [
-  // Sources
+  // Источники
   { cat: "Sources", id: "get_path",    label: "Get Path",       icon: "fa-database",       color: "#5a8ae0",
     syntax: "{system.path.here}",      hint: "Read any field from the sheet",
     desc: "Reads a value from the actor or item at the given path." },
@@ -465,7 +610,7 @@ export const BLUEPRINT_NODES = [
     syntax: "{@attr1}",                hint: "Actor roll data shorthand (@attr1, @level…)",
     desc: "Uses Foundry roll data shorthands: @attr1=attr1.mod, @level, @prof." },
 
-  // Dice
+  // Кубы
   { cat: "Dice", id: "d4",   label: "d4",   icon: "fa-dice-d6",  color: "#e0a85a", syntax: "1d4",   hint: "Roll a d4" },
   { cat: "Dice", id: "d6",   label: "d6",   icon: "fa-dice-d6",  color: "#e0a85a", syntax: "1d6",   hint: "Roll a d6" },
   { cat: "Dice", id: "d8",   label: "d8",   icon: "fa-dice",     color: "#e0a85a", syntax: "1d8",   hint: "Roll a d8" },
@@ -474,7 +619,7 @@ export const BLUEPRINT_NODES = [
   { cat: "Dice", id: "d20",  label: "d20",  icon: "fa-dice-d20", color: "#e0a85a", syntax: "1d20",  hint: "Roll a d20" },
   { cat: "Dice", id: "d100", label: "d100", icon: "fa-dice",     color: "#e0a85a", syntax: "1d100", hint: "Roll percentile" },
 
-  // Math
+  // Математика
   { cat: "Math", id: "add",   label: "Add",      icon: "fa-plus",        color: "#5ae07a", syntax: " + ",             hint: "Addition" },
   { cat: "Math", id: "sub",   label: "Subtract", icon: "fa-minus",       color: "#5ae07a", syntax: " - ",             hint: "Subtraction" },
   { cat: "Math", id: "mul",   label: "Multiply", icon: "fa-xmark",       color: "#5ae07a", syntax: " * ",             hint: "Multiplication" },
@@ -486,7 +631,7 @@ export const BLUEPRINT_NODES = [
   { cat: "Math", id: "min",   label: "Min",      icon: "fa-angle-down",  color: "#5ae07a", syntax: "min({|cursor|}, 0)", hint: "Minimum of two values" },
   { cat: "Math", id: "abs",   label: "Abs",      icon: "fa-circle",      color: "#5ae07a", syntax: "abs({|cursor|})",    hint: "Absolute value" },
 
-  // Compare
+  // Сравнения
   { cat: "Compare", id: "eq",  label: "Equals",     icon: "fa-equals",    color: "#ee68ee", syntax: " == ", hint: "Equal to" },
   { cat: "Compare", id: "neq", label: "Not Equal",  icon: "fa-not-equal", color: "#ee68ee", syntax: " != ", hint: "Not equal to" },
   { cat: "Compare", id: "gt",  label: "Greater >",  icon: "fa-chevron-right", color: "#ee68ee", syntax: " > ", hint: "Greater than" },
@@ -494,7 +639,7 @@ export const BLUEPRINT_NODES = [
   { cat: "Compare", id: "gte", label: "Greater >=", icon: "fa-chevron-right", color: "#ee68ee", syntax: " >= ", hint: "Greater or equal" },
   { cat: "Compare", id: "lte", label: "Less <=",    icon: "fa-chevron-left",  color: "#ee68ee", syntax: " <= ", hint: "Less or equal" },
 
-  // Logic / Control
+  // Логика
   { cat: "Logic", id: "if_else", label: "If/Else", icon: "fa-code-branch",  color: "#e05a5a",
     syntax: "({condition} ? {true_val} : {false_val})",   hint: "Ternary — if condition then value_a else value_b",
     desc: "Returns true_val if condition is truthy, otherwise false_val." },

@@ -1,10 +1,3 @@
-/**
- * module/data/actor-character.mjs
- *
- * TypeDataModel for Actor subtype: "character"
- * Handles: attributes, derived stats, resources, skills, currency, biography.
- */
-
 import {
   ResourceField, AttributeField, SkillField,
   RollConfigField, BiographyField, CurrencyField
@@ -21,8 +14,6 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
 
-      // Core Attributes
-      // Six universal attributes -- rename via Active Effects or subclass.
       attributes: new SchemaField({
         attr1: AttributeField({ initial: 10, label: "Attribute 1" }),
         attr2: AttributeField({ initial: 10, label: "Attribute 2" }),
@@ -41,8 +32,6 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
         custom2: ResourceField({ initial: 0,  label: "Custom 2" })
       }),
 
-      // Derived / Combat stats
-      // These are computed in prepareDerivedData but can be overridden by AE.
       defense: new SchemaField({
         armor:   new NumberField({ required: true, integer: true, initial: 10, nullable: false }),
         bonus:   new NumberField({ required: true, integer: true, initial: 0,  nullable: false }),
@@ -67,15 +56,11 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
     proficiencyBonus: new NumberField({ required: true, integer: true, initial: 2, nullable: false })
   }),
 
-  // Skill Points
-  // Spent on acquiring nodes in the Skill Tree tab.
   skillPoints: new SchemaField({
     value: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
     max: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false })
   }),
 
-  // Skills
-      // 10 generic skill slots -- rename/repurpose per game.
       skills: new SchemaField({
         skill1:  SkillField({ label: "Skill 1" }),
         skill2:  SkillField({ label: "Skill 2" }),
@@ -107,36 +92,23 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
         max:     new NumberField({ required: true, integer: false, initial: 150, min: 0, nullable: false })
       }),
 
-      // Declared Attributes (for attribute reference system)
       declaredAttrs: new ArrayField(new ObjectField()),
 
       // Custom Tabs (Visual Builder)
       customTabs: new ArrayField(new ObjectField()),
 
       // Sheet-level Trigger Graph
-      // Stores a single compiled graph payload (same shape as a multi-trigger
-      // widget button) that only hosts event nodes (on_update / on_turn_*).
-      // Empty by default; event-bus scans this alongside widget graphs.
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
-      // Damage Resistances
-      // Free-form map of damageType → "immune" | "resist" | "normal" |
-      // "vulnerable" | numeric factor (e.g. 0.5).  Consumed by act_damage.
       resistances: new ObjectField({ initial: {} }),
 
-      // Flags / Custom Fields
-      // Free-form object for system-specific or house-rule additions.
       flags: new ObjectField({ initial: {} }),
 
-      // Slot System (Sheet Builder slot widgets)
       slotDefinitions: new ArrayField(SlotDefinitionField()),
       slotContents:    new ObjectField({ initial: {} }),
 
-      // Spell Slots (Spellbook widget -- D&D-style per-level slots)
-      // Keys are string level numbers: { "1": {value:4, max:4}, ... }
       spellSlots: new ObjectField({ initial: {} }),
 
-      // Hidden Fields (GM-only key/value pairs)
       hiddenFields: new ObjectField({ initial: {} }),
 
       // Biography
@@ -147,12 +119,10 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
   // Migrations
 
   static migrateData(source) {
-    // Example: v0.1 → v0.2 renamed "stats" to "attributes"
     if (source.stats && !source.attributes) {
       source.attributes = source.stats;
       delete source.stats;
     }
-    // v0.x → skillPoints introduced: ensure defaults
     if (!source.skillPoints) {
       source.skillPoints = { value: 0, max: 0 };
     }
@@ -207,8 +177,6 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
 
   /** Sum up inventory weight (handled by Item preparation, cached here). */
   _prepareEncumbrance() {
-    // Actual weight summation is done in CharacterActor.prepareDerivedData
-    // after embedded items are available. This just ensures the field exists.
     this.encumbrance.current = this.encumbrance.current ?? 0;
   }
 

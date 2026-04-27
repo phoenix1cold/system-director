@@ -1,10 +1,3 @@
-/**
- * module/data/common.mjs
- *
- * Shared schema fragments reused across Actor and Item DataModels.
- * Import these in individual model files to avoid repetition.
- */
-
 const {
   StringField, NumberField, BooleanField, SchemaField,
   HTMLField, ArrayField, ObjectField, FilePathField, ColorField
@@ -12,10 +5,6 @@ const {
 
 // Resource (value / max / min)
 
-/**
- * A tracked resource bar: value, max, optional min.
- * Used for HP, MP, stamina, sanity, etc.
- */
 export function ResourceField({ initial = 0, label = "" } = {}) {
   return new SchemaField({
     value: new NumberField({ required: true, integer: true, initial, nullable: false, label: `${label} Value` }),
@@ -24,12 +13,7 @@ export function ResourceField({ initial = 0, label = "" } = {}) {
   }, { label });
 }
 
-// Attribute (score / modifier / bonus)
 
-/**
- * A classic RPG attribute: raw score + computed modifier + proficiency/bonus.
- * The modifier is derived in prepareDerivedData.
- */
 export function AttributeField({ initial = 10, label = "" } = {}) {
   return new SchemaField({
     value:   new NumberField({ required: true, integer: true, initial, nullable: false, min: 1, label: `${label} Score` }),
@@ -40,9 +24,6 @@ export function AttributeField({ initial = 10, label = "" } = {}) {
 
 // Skill
 
-/**
- * A single skill entry: base rank, governing attribute reference, total bonus.
- */
 export function SkillField({ label = "" } = {}) {
   return new SchemaField({
     rank:      new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
@@ -54,16 +35,12 @@ export function SkillField({ label = "" } = {}) {
 
 // Roll Config
 
-/**
- * Stores a configurable dice formula as parts so it can be built dynamically.
- * e.g. { quantity: 2, die: "d6", bonus: 3 } → "2d6+3"
- */
 export function RollConfigField({ label = "Roll" } = {}) {
   return new SchemaField({
     quantity: new NumberField({ required: true, integer: true, initial: 1, min: 1, nullable: false }),
     die:      new StringField({ initial: "d20", choices: ["d4","d6","d8","d10","d12","d20","d100"], blank: false }),
     bonus:    new NumberField({ required: true, integer: true, initial: 0, nullable: false }),
-    formula:  new StringField({ initial: "", blank: true })   // override raw formula
+    formula:  new StringField({ initial: "", blank: true })
   }, { label });
 }
 
@@ -86,14 +63,15 @@ export function BiographyField() {
 }
 
 // Currency
-
+//
+// Free-form key→balance map.  Keys (e.g. "primary", "gold", "gems") are
+// driven by the world-level System Config (cfg.currencies = [{key,label}]),
+// not the actor schema.  Old actors stored {primary, secondary, tertiary,
+// label1, label2, label3} — those keys still validate (ObjectField is
+// permissive), and the labels are simply ignored by the renderer (labels
+// now live in world settings).
 export function CurrencyField() {
-  return new SchemaField({
-    primary:   new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
-    secondary: new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
-    tertiary:  new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
-    label1:    new StringField({ initial: "Gold",   blank: false }),
-    label2:    new StringField({ initial: "Silver", blank: false }),
-    label3:    new StringField({ initial: "Copper", blank: false })
+  return new ObjectField({
+    initial: () => ({ primary: 0, secondary: 0, tertiary: 0 })
   });
 }

@@ -1,14 +1,3 @@
-/**
- * module/builder/widget-renderer.mjs
- *
- * Renders widget definitions into HTML for Handlebars templates.
- * Returns a plain HTML string that is injected as {{{widget.html}}}.
- *
- * Each widget reads live values from the document via foundry.utils.getProperty.
- * When w.valueFormula is set, FormulaEngine evaluates it instead of w.path.
- * When w.formula is set on a dice widget, FormulaEngine resolves {refs} before Roll.
- */
-
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 
 export class WidgetRenderer {
@@ -22,33 +11,26 @@ export class WidgetRenderer {
    */
   static render(widgetDef, doc, editMode = false) {
     try {
-      // showIf guard
-      // New format: showIfKey (widget:key or hidden:fieldName) + showIfValue
-      // Legacy format: showIf as a raw formula (still supported as fallback)
       if (widgetDef.showIfKey && String(widgetDef.showIfKey).trim()) {
         let actualVal;
         const src = widgetDef.showIfKey.trim();
         try {
           if (src.startsWith("widget:")) {
-            // resolve via formula engine widget:key mechanism
             actualVal = String(FormulaEngine.evaluate(`{${src}}`, doc) ?? "");
           } else if (src.startsWith("hidden:")) {
             const fieldName = src.slice("hidden:".length);
             const direct = doc?.system?.hiddenFields?.[fieldName];
             actualVal = String(direct !== undefined ? direct : "");
           } else {
-            // bare path fallback
             actualVal = String(foundry.utils.getProperty(doc, src) ?? "");
           }
         } catch { actualVal = ""; }
         const expected = String(widgetDef.showIfValue ?? "").trim();
-        // Loose equality: "true"==true, "1"==1, etc.
         const visible = expected === ""
           ? (!!actualVal && actualVal !== "0" && actualVal !== "false")
           : actualVal === expected || String(Number(actualVal)) === expected;
         if (!visible) return `<!-- widget hidden by showIf: ${this._esc(src)}=${this._esc(expected)} -->`;
       } else if (widgetDef.showIf && String(widgetDef.showIf).trim()) {
-        // Legacy formula-based showIf (backward compat)
         let visible = true;
         try {
           const result = FormulaEngine.evaluate(widgetDef.showIf, doc);
@@ -60,8 +42,16 @@ export class WidgetRenderer {
       let html = this[`_render_${widgetDef.type}`]?.(widgetDef, doc) ?? this._renderUnknown(widgetDef);
       // extra CSS classes
       if (widgetDef.cssClass) {
-        // Inject extra classes onto the outermost element
         html = html.replace(/^(<[^>]+class=")/, `$1${this._esc(widgetDef.cssClass)} `);
+      }
+      // common style overrides (width/height/colors/border/padding)
+      const styleStr = this._buildStyle(widgetDef);
+      if (styleStr) {
+        if (/^<[^>]+style="/.test(html)) {
+          html = html.replace(/^(<[^>]+style=")/, `$1${styleStr};`);
+        } else {
+          html = html.replace(/^(<[^>]+)(>)/, `$1 style="${styleStr}"$2`);
+        }
       }
       return html;
     } catch(e) {
@@ -72,8 +62,6 @@ export class WidgetRenderer {
 
   static _get(doc, path, fallback = "") {
     if (!path) return fallback;
-    // Fast-path: for hiddenFields, bypass getProperty's DataModel Proxy traversal
-    // and read directly from the plain object stored in system.hiddenFields
     const HF_PREFIX = "system.hiddenFields.";
     if (path.startsWith(HF_PREFIX)) {
       const key = path.slice(HF_PREFIX.length);
@@ -96,6 +84,49 @@ export class WidgetRenderer {
   static _getRollFormula(w, doc) {
     const raw = w.formula ?? "1d20";
     return FormulaEngine.resolveForRoll(raw, doc);
+  }
+
+  static _buildStyle(w) {
+    const parts = [];
+    const px = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? `${n}px` : null;
+    };
+    const colour = (v) => {
+      if (typeof v !== "string") return null;
+      const t = v.trim();
+      return /^#[0-9a-f]{3,8}$/i.test(t) || /^rgb/i.test(t) || /^[a-z]+$/i.test(t) ? t : null;
+    };
+
+    const wPx = px(w.boxW);    if (wPx) parts.push(`width:${wPx}`);
+    const hPx = px(w.boxH);    if (hPx) parts.push(`min-height:${hPx}`);
+    const bg  = colour(w.boxBg);      if (bg) parts.push(`background:${bg}`);
+    const fg  = colour(w.boxFg);      if (fg) parts.push(`color:${fg}`);
+    const bd  = colour(w.boxBorder);  if (bd && w.type !== "image") parts.push(`border:1px solid ${bd}`);
+    const br  = px(w.boxRadius);      if (br) parts.push(`border-radius:${br}`);
+    const pd  = px(w.boxPad);         if (pd) parts.push(`padding:${pd}`);
+
+    const cvar = (name, val) => { if (val) parts.push(`${name}:${val}`); };
+    cvar("--sd-w-bar-h",     px(w.barH));
+    cvar("--sd-w-bar-track", colour(w.barTrack));
+    cvar("--sd-w-btn-bg",    colour(w.btnBg));
+    cvar("--sd-w-btn-fg",    colour(w.btnFg));
+    cvar("--sd-w-btn-bd",    colour(w.btnBorder));
+    cvar("--sd-w-icon",      colour(w.iconColor));
+    cvar("--sd-w-num-btn",   colour(w.btnColor));
+    cvar("--sd-w-on",        colour(w.onColor));
+    cvar("--sd-w-off",       colour(w.offColor));
+    cvar("--sd-w-line",      colour(w.lineColor));
+    cvar("--sd-w-title",     colour(w.titleColor));
+    cvar("--sd-w-line-th",   px(w.lineThickness));
+    cvar("--sd-w-pip-size",  px(w.pipSize));
+    cvar("--sd-w-pip-bd",    px(w.pipBorder));
+    cvar("--sd-w-empty",     colour(w.emptyColor));
+    cvar("--sd-w-header",    colour(w.headerColor));
+    cvar("--sd-w-tag-fg",    colour(w.tagFg));
+    cvar("--sd-w-bw",        px(w.borderWidth));
+
+    return parts.join(";");
   }
 
   static _esc(str) {
@@ -122,16 +153,13 @@ export class WidgetRenderer {
     const val  = this._getValue(w, doc, "");
     const esc  = this._esc;
     const hasFormula = w.valueFormula && FormulaEngine.isFormula(w.valueFormula);
-    // Normalise readOnly -- Foundry may serialise boolean as string
     const isReadOnly = w.readOnly === true || w.readOnly === "true";
-    // If formula-driven: show as read-only display, not editable input
     if (hasFormula) {
       return `<div class="widget widget-text">
   <div class="widget-label">${esc(w.label)} <span style="color:#5a4ec0;font-size:9px" title="Formula: ${esc(w.valueFormula)}">ƒ</span></div>
   <div class="widget-formula-val">${esc(String(val))}</div>
 </div>`;
     }
-    // If readOnly: display as non-editable label + value, no <input>
     if (isReadOnly) {
       return `<div class="widget widget-text widget-text--readonly">
   <div class="widget-label">${esc(w.label)} <span style="color:#555;font-size:9px;margin-left:2px" title="Read only">🔒</span></div>
@@ -140,7 +168,7 @@ export class WidgetRenderer {
     }
     return `<div class="widget widget-text">
   <div class="widget-label" style="display:flex;align-items:center">${esc(w.label)}${w.path ? this._copyBtn(w.path, "text value") : ""}</div>
-  <input type="text" name="${esc(w.path)}" value="${esc(val)}" placeholder="${esc(w.placeholder ?? "")}">
+  <input type="text" name="${esc(w.path)}" value="${esc(val)}">
 </div>`;
   }
 
@@ -174,11 +202,14 @@ export class WidgetRenderer {
   // resource
 
   static _render_resource(w, doc) {
-    const val   = Number(this._get(doc, w.pathValue, 0));
-    const max   = Number(this._get(doc, w.pathMax,   0));
-    const pct   = max > 0 ? Math.round(Math.clamp(val / max, 0, 1) * 100) : 0;
-    const color = w.color ?? "#7b68ee";
-    const e     = this._esc;
+    const val    = Number(this._get(doc, w.pathValue, 0));
+    const max    = Number(this._get(doc, w.pathMax,   0));
+    const pct    = max > 0 ? Math.round(Math.clamp(val / max, 0, 1) * 100) : 0;
+    const color  = w.color ?? "#7b68ee";
+    const e      = this._esc;
+    const barH   = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "";
+    const barTrk = (typeof w.barTrack === "string" && w.barTrack.trim()) ? w.barTrack.trim() : "";
+    const barStyle = [barH ? `height:${barH}` : "", barTrk ? `background:${e(barTrk)}` : ""].filter(Boolean).join(";");
     return `<div class="widget widget-resource">
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.pathValue ? this._copyBtn(w.pathValue, "value") : ""}${w.pathMax ? this._copyBtn(w.pathMax, "max") : ""}</div>
   <div class="res-row">
@@ -186,7 +217,7 @@ export class WidgetRenderer {
     <span class="res-sep">/</span>
     <input type="number" name="${e(w.pathMax)}" value="${e(max)}" class="res-max">
   </div>
-  <div class="res-bar"><div class="res-bar-fill" style="width:${pct}%;background:${e(color)}"></div></div>
+  <div class="res-bar"${barStyle ? ` style="${barStyle}"` : ""}><div class="res-bar-fill" style="width:${pct}%;background:${e(color)}"></div></div>
 </div>`;
   }
 
@@ -196,15 +227,20 @@ export class WidgetRenderer {
     const e          = this._esc;
     const rawFormula = w.formula ?? "1d20";
     const hasRefs    = FormulaEngine.isFormula(rawFormula);
-    // Pre-resolve for display; store raw in data-formula-raw for re-resolve on click
     const displayFml = hasRefs ? FormulaEngine.resolveForRoll(rawFormula, doc) : rawFormula;
+    const btnParts = [];
+    if (typeof w.btnBg === "string"     && w.btnBg.trim())     btnParts.push(`background:${e(w.btnBg)}`);
+    if (typeof w.btnFg === "string"     && w.btnFg.trim())     btnParts.push(`color:${e(w.btnFg)}`);
+    if (typeof w.btnBorder === "string" && w.btnBorder.trim()) btnParts.push(`border-color:${e(w.btnBorder)}`);
+    const btnStyle = btnParts.join(";");
+    const iconStyle = (typeof w.iconColor === "string" && w.iconColor.trim()) ? ` style="color:${e(w.iconColor)}"` : "";
     return `<div class="widget widget-dice">
   <div class="widget-label">${e(w.label)}${hasRefs ? ` <span style="color:#5a4ec0;font-size:9px" title="Formula with refs">ƒ</span>` : ""}</div>
   <button type="button" class="dice-btn" data-action="widgetRoll"
           data-formula="${e(displayFml)}"
           data-formula-raw="${e(rawFormula)}"
-          data-flavor="${e(w.flavor ?? "")}">
-    <i class="fas ${e(w.icon ?? "fa-dice-d20")}"></i>
+          data-flavor="${e(w.flavor ?? "")}"${btnStyle ? ` style="${btnStyle}"` : ""}>
+    <i class="fas ${e(w.icon ?? "fa-dice-d20")}"${iconStyle}></i>
     ${e(w.label)}
     <span style="opacity:.6;font-size:10px">(${e(displayFml)})</span>
   </button>
@@ -215,16 +251,20 @@ export class WidgetRenderer {
 
   static _render_button(w, doc) {
     const e       = this._esc;
-    const color   = w.color ?? "#7b68ee";
+    const accent  = w.btnBg || "#7b68ee";
+    const fgColor = w.btnFg || accent;
+    const bdColor = w.boxBorder || accent;
+    const iconCol = w.iconColor || fgColor;
     const icon    = w.icon  ?? "fa-bolt";
+    const bg      = w.btnBg ? e(w.btnBg) : `${e(accent)}22`;
     const formula = w.formula ? (FormulaEngine.isFormula(w.formula) ? FormulaEngine.resolveForRoll(w.formula, doc) : w.formula) : "";
     return `<div class="widget widget-button">
   <button type="button" class="sd-action-btn" data-action="widgetButton"
           data-formula-raw="${e(w.formula ?? "")}"
           data-formula="${e(formula)}"
           data-flavor="${e(w.flavor ?? w.label ?? "")}"
-          style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:${e(color)}22;border:1px solid ${e(color)};border-radius:5px;color:${e(color)};cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">
-    <i class="fas ${e(icon)}"></i>
+          style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:${bg};border:1px solid ${e(bdColor)};border-radius:5px;color:${e(fgColor)};cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">
+    <i class="fas ${e(icon)}" style="color:${e(iconCol)}"></i>
     <span>${e(w.label)}</span>
   </button>
 </div>`;
@@ -293,7 +333,6 @@ export class WidgetRenderer {
     const categories = w.categories ?? [];
     const columns = w.columns ?? [];
 
-    // Filter by categories if specified
     if (categories.length > 0) {
       items = items.filter(item => categories.includes(item.system?.category));
     }
@@ -321,8 +360,6 @@ export class WidgetRenderer {
     if (w.showCurrency) {
       const c = doc.system?.currency ?? {};
       if (w.currencyPath) {
-        // Single custom money field
-        // Derive a display label from the last segment of the path
         const pathLabel = w.currencyPath.split(".").pop()
           .replace(/([A-Z])/g, " $1")
           .replace(/^./, s => s.toUpperCase());
@@ -342,16 +379,26 @@ export class WidgetRenderer {
     </button>
   </div>`;
       } else {
-        // Default three-column currency
-        html += `
-  <div class="currency-row">
-    <label>${e(c.label1 ?? "Gold")}</label>
-    <input type="number" name="system.currency.primary" value="${c.primary ?? 0}" placeholder="0">
-    <label>${e(c.label2 ?? "Silver")}</label>
-    <input type="number" name="system.currency.secondary" value="${c.secondary ?? 0}" placeholder="0">
-    <label>${e(c.label3 ?? "Copper")}</label>
-    <input type="number" name="system.currency.tertiary" value="${c.tertiary ?? 0}" placeholder="0">
-  </div>`;
+        // Dynamic currency row — driven by world settings (cfg.currencies).
+        // Labels come from CONFIG.SD.currencies; balances live on
+        // doc.system.currency.<key>.  Falls back to legacy 3 slots if no
+        // world config has been applied yet.
+        const _curList = (Array.isArray(CONFIG?.SD?.currencies) && CONFIG.SD.currencies.length)
+          ? CONFIG.SD.currencies
+          : [
+              { key: "primary",   label: "Gold"   },
+              { key: "secondary", label: "Silver" },
+              { key: "tertiary",  label: "Copper" }
+            ];
+        let row = `<div class="currency-row currency-row--multi">`;
+        for (const cur of _curList) {
+          const val = Number(c?.[cur.key] ?? 0);
+          row += `
+    <label>${e(cur.label ?? cur.key)}</label>
+    <input type="number" name="system.currency.${e(cur.key)}" value="${val}" placeholder="0">`;
+        }
+        row += `</div>`;
+        html += row;
       }
     }
 
@@ -377,16 +424,20 @@ export class WidgetRenderer {
         const qty = item.system?.quantity ?? 1;
         const weight = w.showWeight ? (item.system?.weight ?? 0) : null;
         const equipped = item.system?.equipped ? "equipped" : "";
+        const isInv    = item.type === "inventory";
 
         // Build extra columns
         let extraCols = "";
         if (columns.length > 0) {
           for (const col of columns) {
-            // hiddenFields stores plain values (string/number), not {value:...} objects
             const val = item.system?.hiddenFields?.[col] ?? item.system?.[col] ?? "";
             extraCols += `<span class="item-col">${e(String(val))}</span>`;
           }
         }
+
+        const equipBtn = isInv
+          ? `<button type="button" class="item-btn item-equip-btn ${item.system?.equipped ? "on" : ""}" data-action="itemEquip" data-item-id="${item.id}" title="${item.system?.equipped ? "Unequip" : "Equip"}"${item.system?.equippable ? "" : ' style="opacity:.45"'}><i class="fas ${item.system?.equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>`
+          : "";
 
         html += `
       <li class="item-row ${equipped}" data-item-id="${item.id}" data-item-drag>
@@ -397,6 +448,7 @@ export class WidgetRenderer {
         ${extraCols}
         <div class="item-controls">
           <button type="button" class="item-btn item-use-btn" data-action="itemUse" data-item-id="${item.id}" title="Use"><i class="fas fa-play"></i></button>
+          ${equipBtn}
           <button type="button" class="item-btn" data-action="itemEdit" data-item-id="${item.id}"><i class="fas fa-edit"></i></button>
           <button type="button" class="item-btn" data-action="itemDelete" data-item-id="${item.id}"><i class="fas fa-trash"></i></button>
         </div>
@@ -424,8 +476,6 @@ export class WidgetRenderer {
     const score = Number(this._get(doc, w.path, 10));
     const e     = this._esc;
 
-    // Compute displayed modifier value:
-    // Use compiled modValueFormula from graph if present; fallback to floor((score-10)/2)
     let mod;
     if (w.modValueFormula) {
       const resolved = Number(FormulaEngine.evaluate(w.modValueFormula, doc));
@@ -435,11 +485,8 @@ export class WidgetRenderer {
     }
     const ms = mod >= 0 ? `+${mod}` : `${mod}`;
 
-    // onClickFormula: compiled exec action graph from on_click → attr_output exec chain
-    // If present, clicking the modifier runs ButtonExecutor; otherwise falls back to 1d20+mod roll
     const onClickFml = w.onClickFormula ?? null;
 
-    // data attributes for the click handler in character-sheet
     const dataOnClick = onClickFml
       ? `data-attr-onclick="${e(onClickFml)}"`
       : `data-attr-roll="1d20+(${mod})" data-flavor="${e(w.flavor || w.label)}"`;
@@ -456,10 +503,6 @@ export class WidgetRenderer {
   }
 
   // skill
-  // Rendered identically to `attribute` but with an editable rank field and
-  // a bonus formula.  If an onClickFormula exec graph is wired (same as
-  // attribute), that runs on click; otherwise falls back to a plain roll.
-
   static _render_skill(w, doc) {
     const rank   = Number(this._get(doc, w.path, 0));
     const attrMod = Number(w.attrMod ?? 0);
@@ -467,7 +510,6 @@ export class WidgetRenderer {
     const bs     = bonus >= 0 ? `+${bonus}` : `${bonus}`;
     const e      = this._esc;
 
-    // onClickFormula works exactly like attribute widget -- wired from graph editor
     const onClickFml = w.onClickFormula ?? null;
     const rawFml     = w.formula || `1d20+${bonus}`;
     const dispFml    = FormulaEngine.isFormula(rawFml)
@@ -479,8 +521,6 @@ export class WidgetRenderer {
       ? `data-attr-onclick="${e(onClickFml)}"`
       : `data-formula="${e(dispFml)}" data-formula-raw="${e(rawFml)}" data-flavor="${e(flavor)}"`;
 
-    // Use attrModClick (same handler as attribute) when graph is wired,
-    // otherwise widgetRoll for the plain formula path.
     const action = onClickFml ? "attrModClick" : "widgetRoll";
 
     return `<div class="widget widget-skill">
@@ -498,10 +538,31 @@ export class WidgetRenderer {
 
   static _render_section(w, doc) {
     const e = this._esc;
+    const titleStyle = w.titleColor ? `color:${e(w.titleColor)}` : "";
+    const lineCol = w.lineColor ? e(w.lineColor) : "";
+    const lineTh  = Number(w.lineThickness) > 0 ? Number(w.lineThickness) : 0;
+    const hrStyle = (lineCol || lineTh) ? `style="${lineCol ? `border-top-color:${lineCol};` : ""}${lineTh ? `border-top-width:${lineTh}px;` : ""}"` : "";
     return `<div class="widget widget-section">
-  <div class="sec-title">${e(w.label)}</div>
-  <hr class="sec-divider">
+  <div class="sec-title"${titleStyle ? ` style="${titleStyle}"` : ""}>${e(w.label)}</div>
+  <hr class="sec-divider" ${hrStyle}>
 </div>`;
+  }
+
+  static _render_vsection(w, doc) {
+    const e = this._esc;
+    const titleCol = w.titleColor || "#7b68ee";
+    const bdCol    = w.boxBorder  || "rgba(123,104,238,.18)";
+    const bdStyle  = w.boxBorder  ? "solid" : "dashed";
+    const bg       = w.boxBg      || "rgba(123,104,238,.03)";
+    const radius   = Number(w.boxRadius) > 0 ? `${Number(w.boxRadius)}px` : "5px";
+    const header = w.label
+      ? `<div class="vsection-title" style="font-size:10px;font-weight:700;color:${e(titleCol)};text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px">${e(w.label)}</div>`
+      : "";
+    const children = (w.widgets ?? []).map(cw => {
+      try { return this.render(cw, doc) ?? ""; }
+      catch { return ""; }
+    }).join("");
+    return `<div class="widget widget-vsection" style="display:flex;flex-direction:column;gap:6px;padding:6px;border:1px ${bdStyle} ${e(bdCol)};border-radius:${radius};background:${e(bg)}">${header}${children}</div>`;
   }
 
   // richtext
@@ -531,10 +592,8 @@ export class WidgetRenderer {
 
   static _render_effects(w, doc) {
     const e = this._esc;
-    // Works on both Actor and Item -- Item.effects stores its own AEs
     const effects = [...(doc.effects ?? [])];
 
-    // Filter by transfer flag if widget is on an actor and user only wants non-passive
     const showPassive  = w.showPassive  !== false;
     const showDisabled = w.showDisabled !== false;
     const filtered = effects.filter(ef => {
@@ -590,12 +649,8 @@ export class WidgetRenderer {
       return `<div class="widget widget-spellbook"><p class="sb-only-actor">Spellbook works on Actor sheets only</p></div>`;
     }
 
-    // `abilityType` is the new key. `w.type` would be the widget's own type
-    // ("spellbook") -- older saved widgets used it for the filter value, so
-    // fall back to it only when abilityType is absent.
     const wantType = String(w.abilityType ?? (w.type && w.type !== "spellbook" ? w.type : "") ?? "").trim();
 
-    // Filter actor items down to abilities of the widget's configured type.
     let abilities = [...(doc.items ?? [])].filter(i => i.type === "ability");
     if (wantType) {
       abilities = abilities.filter(i => {
@@ -631,10 +686,6 @@ export class WidgetRenderer {
 </div>`;
     return html;
   }
-  // fallback
-
-  // showIf guard -- injected at top of render()
-  // (handled by patching the render() method itself below)
 
   // progress
   static _render_progress(w, doc) {
@@ -643,18 +694,18 @@ export class WidgetRenderer {
     const max  = Number(this._get(doc, w.pathMax,   1)) || 1;
     const pct  = Math.round(Math.min(100, Math.max(0, (val / max) * 100)));
     const col  = esc(w.color   ?? "#5a8aff");
+    const trk  = esc(w.barTrack ?? "#1a1a28");
+    const barH = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "10px";
     const lbl  = esc(w.label   ?? "Progress");
     const showLabel = w.showLabel !== false && w.showLabel !== "false";
     const showPct   = w.showPct   !== false && w.showPct   !== "false";
-    // progress is always read-only (values driven by data paths / formulas).
-    // Show a small lock badge so users understand they cannot click to edit.
     return `<div class="widget widget-progress">
   <div class="widget-label-row" style="display:flex;align-items:baseline;gap:4px;margin-bottom:3px">
     ${showLabel ? `<span class="widget-label">${lbl}</span>` : ""}
     <span title="Read-only — edit via the source field" style="font-size:9px;color:#555;margin-left:3px;cursor:default">🔒</span>
     ${showPct   ? `<span style="margin-left:auto;font-size:10px;color:#888">${val}/${max} (${pct}%)</span>` : ""}
   </div>
-  <div style="background:#1a1a28;border-radius:3px;height:10px;overflow:hidden;border:1px solid #2a2a38;opacity:.85">
+  <div style="background:${trk};border-radius:3px;height:${barH};overflow:hidden;border:1px solid #2a2a38;opacity:.85">
     <div style="height:100%;width:${pct}%;background:${col};border-radius:3px;transition:width .3s"></div>
   </div>
 </div>`;
@@ -688,7 +739,9 @@ export class WidgetRenderer {
     const filled = Number(this._get(doc, w.path, 0)) || 0;
     const col   = esc(w.color   ?? "#e0a020");
     const bg    = esc(w.bgColor ?? "#1a1a2a");
-    const size  = 64;
+    const pipSz = Number(w.pipSize) > 0 ? Number(w.pipSize) : 0;
+    const size  = pipSz > 0 ? Math.max(20, pipSz * Math.min(segs, 6)) : 64;
+    const sw    = Number(w.pipBorder) > 0 ? Number(w.pipBorder) : 1.5;
     const cx = size / 2, cy = size / 2, r = size / 2 - 3;
 
     // Build SVG pie segments
@@ -704,7 +757,7 @@ export class WidgetRenderer {
       const fill = i < filled ? col : bg;
       slices.push(
         `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z"
-          fill="${fill}" stroke="#2a2a3a" stroke-width="1.5"
+          fill="${fill}" stroke="#2a2a3a" stroke-width="${sw}"
           class="sd-clock-segment" data-path="${path}" data-index="${i}" data-segs="${segs}"
           style="cursor:pointer;transition:opacity .1s" />`
       );
@@ -729,10 +782,6 @@ export class WidgetRenderer {
   }
 
   // tracker
-  // v2 (PR6): rewritten from scratch to mirror the clock widget's simple fill
-  // semantics.  Click pip N → fill to N+1; click already-filled pip N → unfill
-  // back to N.  One reset button.  No shift/right-click overloads -- they made
-  // the old tracker feel inconsistent versus the clock widget.
   static _render_tracker(w, doc) {
     const esc     = this._esc.bind(this);
     const lbl     = esc(w.label ?? "Tracker");
@@ -741,9 +790,6 @@ export class WidgetRenderer {
 
     const filled = Math.max(0, Number(this._get(doc, rawPath, 0)) || 0);
 
-    // Max: live-path takes priority; fall back to configured maxCount (2..50).
-    // Guards against hiddenFields defaulting to "" -- Number("") = 0 would hide
-    // every pip.
     const defaultMax = Number(w.maxCount ?? 6) || 6;
     let maxVal = defaultMax;
     if (w.maxPath) {
@@ -753,10 +799,10 @@ export class WidgetRenderer {
     }
     maxVal = Math.min(Math.max(1, Math.round(maxVal)), 50);
 
-    const col   = esc(w.color   ?? "#e04040");
-    const bg    = esc(w.bgColor ?? "#2a2a3a");
-    const icon  = esc(w.icon    ?? "fa-circle");
-    const size  = Math.min(24, Math.max(10, Number(w.pipSize ?? 14)));
+    const col   = esc(w.color      ?? "#e04040");
+    const bg    = esc(w.emptyColor ?? w.bgColor ?? "#2a2a3a");
+    const icon  = esc(w.icon       ?? "fa-circle");
+    const size  = Math.min(48, Math.max(8, Number(w.pipSize) > 0 ? Number(w.pipSize) : 14));
 
     const pips = [];
     for (let i = 0; i < maxVal; i++) {
@@ -791,10 +837,6 @@ export class WidgetRenderer {
   }
 
   // counter
-  // PR6: big ± stepper for metacurrencies.  Backed by a plain integer path.
-  // Click handlers are wired by the existing `widgetNumStep` action
-  // (character-sheet.mjs: widget-action dispatcher), so no new wiring is
-  // required -- just emit the same data-* attributes as `number`.
   static _render_counter(w, doc) {
     const e    = this._esc;
     const val  = Number(this._get(doc, w.path, 0)) || 0;
@@ -826,9 +868,6 @@ export class WidgetRenderer {
   }
 
   // rollButton
-  // PR6: pre-configured dice roll button.  Reuses the existing `widgetRoll`
-  // dispatcher so no new click wiring is required -- it is just a nicer visual
-  // variant of the `dice` widget with a coloured accent and explicit flavor.
   static _render_rollButton(w, doc) {
     const e    = this._esc;
     const raw  = w.formula ?? "1d20";
@@ -858,9 +897,6 @@ export class WidgetRenderer {
   }
 
   // tokenPool
-  // PR7: row of metacurrency token icons + integrated spend/gain buttons.
-  // Visually similar to tracker but with stepper controls instead of a reset.
-  // Backed by a single integer path; +/- buttons reuse widgetNumStep dispatch.
   static _render_tokenPool(w, doc) {
     const e       = this._esc;
     const rawPath = w.path ?? "";
@@ -876,10 +912,10 @@ export class WidgetRenderer {
     }
     maxVal = Math.min(Math.max(1, Math.round(maxVal)), 50);
 
-    const col   = e(w.color   ?? "#f0c040");
-    const bg    = e(w.bgColor ?? "#2a2a3a");
-    const icon  = e(w.icon    ?? "fa-coins");
-    const size  = Math.min(24, Math.max(10, Number(w.pipSize ?? 16)));
+    const col   = e(w.color      ?? "#f0c040");
+    const bg    = e(w.emptyColor ?? w.bgColor ?? "#2a2a3a");
+    const icon  = e(w.icon       ?? "fa-coins");
+    const size  = Math.min(48, Math.max(8, Number(w.pipSize) > 0 ? Number(w.pipSize) : 16));
 
     const pips = [];
     for (let i = 0; i < maxVal; i++) {
@@ -919,13 +955,9 @@ export class WidgetRenderer {
   }
 
   // diceTray
-  // PR7: passive display of the last roll's total + formula + flavor.
-  // Reads from `<flagPath>` (default `flags.sd.lastRoll`) which is written
-  // by ButtonExecutor rollValue.  No click handlers -- purely informative.
   static _render_diceTray(w, doc) {
     const e       = this._esc;
     const flagPath = w.flagPath ?? "flags.sd.lastRoll";
-    // support both "flags.sd.lastRoll" and "system.flags.sd.lastRoll"
     const data   = this._get(doc, flagPath, null) ?? this._get(doc, `system.${flagPath}`, null);
     const col    = e(w.color ?? "#7ef0c3");
     const compact = w.compact === true;
@@ -973,10 +1005,11 @@ export class WidgetRenderer {
     const path  = esc(w.path  ?? "");
     const raw   = String(this._get(doc, w.path, ""));
     const col   = esc(w.color ?? "#5a6a9a");
+    const fg    = esc(w.tagFg ?? "#c0c0d8");
     const tags  = raw.split(",").map(t => t.trim()).filter(Boolean);
     const pills = tags.map(t =>
       `<span class="sd-tag-pill" style="background:${col}22;border:1px solid ${col}55;
-        border-radius:10px;padding:1px 8px;font-size:10px;color:#c0c0d8;white-space:nowrap">${esc(t)}
+        border-radius:10px;padding:1px 8px;font-size:10px;color:${fg};white-space:nowrap">${esc(t)}
         <span class="sd-tag-remove" data-path="${path}" data-tag="${esc(t)}"
           style="cursor:pointer;margin-left:3px;color:#888;font-size:9px" title="Remove">✕</span>
       </span>`
@@ -998,27 +1031,28 @@ export class WidgetRenderer {
   // image
   static _render_image(w, doc) {
     const esc = this._esc.bind(this);
-    const src = esc(w.staticSrc || (w.path ? String(this._get(doc, w.path, "")) : ""));
+    const fromPath = w.path ? String(this._get(doc, w.path, "")) : "";
+    const src = esc(w.staticSrc || fromPath || "");
     const lbl = esc(w.label ?? "");
-    const ww  = Number(w.width  ?? 64);
-    const hh  = Number(w.height ?? 64);
-    const br  = Number(w.borderRadius ?? 4);
-    const imgStyle  = `width:${ww}px;height:${hh}px;object-fit:cover;border-radius:${br}px;display:block`;
+    const ww  = Number(w.width)        || 64;
+    const hh  = Number(w.height)       || 64;
+    const br  = Number(w.borderRadius);
+    const brCSS = Number.isFinite(br) && br >= 0 ? `border-radius:${br}px;` : "";
+    const bd  = (typeof w.boxBorder === "string" && w.boxBorder.trim()) ? w.boxBorder.trim() : null;
+    const bw  = Number(w.borderWidth) > 0 ? Number(w.borderWidth) : (bd ? 1 : 0);
+    const borderCSS = bd ? `border:${bw}px solid ${esc(bd)};` : "";
+    const imgStyle  = `width:${ww}px;height:${hh}px;object-fit:cover;${brCSS}display:block;${borderCSS}box-sizing:border-box`;
     const imgEl     = src
       ? `<img src="${src}" style="${imgStyle}" alt="${lbl || "image"}">`
-      : `<div style="${imgStyle};background:#1a1a28;border:1px dashed #3a3a52;display:flex;align-items:center;justify-content:center;color:#3a3a52;font-size:20px"><i class="fas fa-image"></i></div>`;
+      : `<div style="${imgStyle};background:#1a1a28;${bd ? "" : "border:1px dashed #3a3a52;"}display:flex;align-items:center;justify-content:center;color:#3a3a52;font-size:20px"><i class="fas fa-image"></i></div>`;
 
-    // Always show a pencil overlay when a path is set, so users can change the
-    // image without needing to know about the hidden `clickable` config flag.
-    const pencilBtn = w.path
-      ? `<button type="button" class="sd-img-pick sd-img-pencil"
-           data-path="${esc(w.path ?? "")}"
-           title="Change image"
-           style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);
-                  border:none;border-radius:3px;color:#c0c0d8;cursor:pointer;
-                  padding:1px 5px;font-size:10px;line-height:14px;opacity:0;
-                  transition:opacity .15s">✎</button>`
-      : "";
+    const pencilBtn = `<button type="button" class="sd-img-pick sd-img-pencil"
+         data-static="1" data-current="${src}"
+         title="Выбрать изображение"
+         style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);
+                border:none;border-radius:3px;color:#c0c0d8;cursor:pointer;
+                padding:1px 5px;font-size:11px;line-height:16px;opacity:0;
+                transition:opacity .15s"><i class="fas fa-folder-open"></i></button>`;
 
     const wrapper = `<div style="position:relative;display:inline-block;line-height:0"
         onmouseenter="this.querySelector('.sd-img-pencil')&&(this.querySelector('.sd-img-pencil').style.opacity='1')"
@@ -1101,7 +1135,6 @@ export class WidgetRenderer {
   }
 }
 
-// Make SlotManager available lazily at render time
 Hooks.once("ready", () => {
   import("../data/item-slots.mjs").then(m => {
     globalThis._SD_SLOTS = { SlotManager: m.SlotManager };

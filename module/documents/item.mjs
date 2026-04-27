@@ -1,20 +1,9 @@
-/**
- * module/documents/item.mjs
- *
- * Extends the base Item document.
- * - Roll methods for attacks and abilities
- * - Use tracking (charges/uses)
- * - Active Effects application from items
- */
-
 export class SDItem extends Item {
 
   /** @override */
   prepareData() {
     super.prepareData();
   }
-
-  // PR14: Equip / Unequip
 
   /**
    * Check whether this item can currently be equipped.  Runs any configured
@@ -29,7 +18,6 @@ export class SDItem extends Item {
     }
     const actor = this.parent instanceof Actor ? this.parent : null;
 
-    // Concentration conflict: another concentration item already equipped?
     if (this.system.concentration && actor) {
       const conflict = actor.items.find(i =>
         i.id !== this.id &&
@@ -46,7 +34,6 @@ export class SDItem extends Item {
       }
     }
 
-    // Optional requirements formula -- non-empty means "evaluate and require truthy".
     const req = String(this.system.equipRequirements ?? "").trim();
     if (req && actor) {
       try {
@@ -64,22 +51,17 @@ export class SDItem extends Item {
 
   /** @override — emit sdItemEquipped / sdItemUnequipped and cascade flag-based ActiveEffect toggling. */
   async _onUpdate(changed, options, userId) {
-    // Detect equipped transition before delegating (parent _onUpdate may not preserve diff shape).
     const equippedDiff = foundry.utils.getProperty(changed, "system.equipped");
     const hadEquipChange = equippedDiff !== undefined;
     await this._origOnUpdate(changed, options, userId);
 
-    // PR15: only the originating client runs the cascade + hook to avoid
-    // duplicate ActiveEffect writes from every connected client.
     if (hadEquipChange && game.user?.id === userId) {
       const nowEquipped = Boolean(equippedDiff);
-      // Toggle ActiveEffect.disabled for effects flagged activateOnEquip.
       const effects = this.effects?.contents ?? [];
       const effUpdates = [];
       for (const ef of effects) {
         const flag = ef.flags?.sd?.activateOnEquip;
         if (!flag) continue;
-        // When equipped → enable (disabled:false); when unequipped → disable (disabled:true).
         const wantDisabled = !nowEquipped;
         if (ef.disabled !== wantDisabled) effUpdates.push({ _id: ef.id, disabled: wantDisabled });
       }
@@ -87,13 +69,10 @@ export class SDItem extends Item {
         try { await this.updateEmbeddedDocuments("ActiveEffect", effUpdates); }
         catch (e) { console.warn("SD | activate-on-equip cascade failed:", e); }
       }
-      // Fire the system hook so event-bus can dispatch on_equip / on_unequip.
       Hooks.callAll(nowEquipped ? "sdItemEquipped" : "sdItemUnequipped", this, this.parent ?? null);
     }
   }
 
-  // Delegate to the original snapshot-sync logic (was the previous _onUpdate
-  // implementation).  Moved into a named helper so we can wrap it above.
   async _origOnUpdate(changed, options, userId) {
     await super._onUpdate(changed, options, userId);
     const actor = this.parent instanceof Actor ? this.parent : null;
@@ -132,29 +111,15 @@ export class SDItem extends Item {
 
   // Roll Methods
 
-  /**
-   * Activate/use this item.
-   * Handles:
-   *  - use count decrement
-   *  - MP/resource cost
-   *  - attack roll
-   *  - damage roll
-   *  - chat card
-   */
   async use({ event } = {}) {
     const system = this.system;
 
-    // Run onClick node graph if one is configured
     const formula = system.onClickFormula;
     if (formula && formula !== "0") {
       try {
         const { ButtonExecutor } = await import("../helpers/button-executor.mjs");
         const parsed = JSON.parse(formula);
-        // Supported shapes:
-        //   - plain array (saveCtx output)
-        //   - { _trigger:"onClick", actions:[...] }
-        //   - { _trigger:"multi", _events:{ onClick:{actions,...}, ... }, _macros? }
-        //   - { _trigger:"macrosOnly", _macros:{...} }
+        // Supported shapes
         let actions = [];
         let macros  = null;
         if (Array.isArray(parsed)) actions = parsed;
@@ -166,8 +131,6 @@ export class SDItem extends Item {
           macros = parsed._macros ?? null;
         }
         if (!Array.isArray(actions)) actions = [];
-        // Shared buttonDef + runtime so actions can pass data to each other
-        // (e.g. rollValue stores __lastRoll, chatDamage reads it)
         const buttonDef = { label: this.name, __macros: macros };
         const runtime = {};
         for (const action of actions) {
@@ -188,7 +151,6 @@ export class SDItem extends Item {
       await this.update({ "system.uses.value": system.uses.value - 1 });
     }
 
-    // Consume resource cost from parent actor
     if (this.parent && system.cost?.resource && system.cost.value > 0) {
       const resourcePath = `system.${system.cost.resource}.value`;
       const current = foundry.utils.getProperty(this.parent, resourcePath) ?? 0;
@@ -199,7 +161,6 @@ export class SDItem extends Item {
       await this.parent.update({ [resourcePath]: current - system.cost.value });
     }
 
-    // Apply effect templates (autoApply: true) to appropriate targets
     if (this.type === "ability" && (system.effectTemplates ?? []).length > 0) {
       await this._applyEffectTemplates(system.effectTemplates);
     }
@@ -208,14 +169,10 @@ export class SDItem extends Item {
     return this._rollToChat({ event });
   }
 
-  /**
-   * Post this item as a chat message, optionally rolling attack/damage.
-   */
   async _rollToChat({ event } = {}) {
     const system = this.system;
     const rolls  = [];
 
-    // Attack roll for inventory weapons
     if (this.type === "inventory" && system.attack?.enabled) {
       const formula = system.attackFormula;
       const roll    = new Roll(formula, this.actor?.getRollData() ?? {});
@@ -241,8 +198,6 @@ export class SDItem extends Item {
       }
     }
 
-    // Render chat card
-    // v13: renderTemplate is now namespaced
     const _renderTpl = foundry.applications?.handlebars?.renderTemplate ?? renderTemplate;
     const html = await _renderTpl("systems/sd/templates/chat/item-card.hbs", {
       item:   this,
@@ -305,7 +260,6 @@ export class SDItem extends Item {
 
       for (const a of targets) {
         if (!a) continue;
-        // Replace existing effect of same name+origin rather than stacking
         const existing = a.effects.find(e => e.name === name && e.flags?.sd?.sourceItemId === this.id);
         if (existing) await existing.update({ ...effectData, disabled: false });
         else          await a.createEmbeddedDocuments("ActiveEffect", [effectData]);
@@ -313,23 +267,12 @@ export class SDItem extends Item {
     }
   }
 
-  /**
-   * Returns roll data merged with parent actor's roll data.
-   */
   getRollData() {
     const data = this.actor?.getRollData() ?? {};
     data.item = { ...this.system };
     return data;
   }
   // Transfer Effects
-  // When this item is created/deleted on an actor, transfer/remove its effects.
-  // Only effects with transfer !== false are synced (Foundry default is true).
-  //
-  // Design mirrors dnd5e:
-  //  - Each transferred effect gets flags.sd.sourceItemId = item.id
-  //  - On item delete we find & remove all actor effects with that sourceItemId
-  //  - On item update we refresh transferred effects if the effect collection changed
-
   /** Returns the effects on this item that should transfer to the owning actor. */
   get transferrableEffects() {
     return [...(this.effects ?? [])].filter(ef => ef.transfer !== false && !ef.disabled);
@@ -353,10 +296,6 @@ export class SDItem extends Item {
     await this._removeTransferredEffects(actor);
   }
 
-  /**
-   * Create transferred effects on the actor.
-   * Skips effects that already exist (identified by flags.sd.sourceItemId + name).
-   */
   async _applyTransferredEffects(actor) {
     const toCreate = [];
     for (const ef of this.transferrableEffects) {
@@ -376,9 +315,6 @@ export class SDItem extends Item {
     }
   }
 
-  /**
-   * Remove all actor effects that were transferred from this item.
-   */
   async _removeTransferredEffects(actor) {
     const toDelete = actor.effects
       .filter(e => e.flags?.sd?.sourceItemId === this.id)
@@ -388,17 +324,12 @@ export class SDItem extends Item {
     }
   }
 
-  /**
-   * @override -- when item effects change, refresh what's on the actor.
-   * Only runs for the triggering user to avoid double-execution.
-   */
   async _onUpdateDescendantDocuments(parent, collection, documents, changes, options, userId) {
     await super._onUpdateDescendantDocuments?.(parent, collection, documents, changes, options, userId);
     if (collection !== "effects") return;
     if (game.user.id !== userId) return;
     const actor = this.parent instanceof Actor ? this.parent : null;
     if (!actor) return;
-    // Full refresh: remove old, apply current
     await this._removeTransferredEffects(actor);
     await this._applyTransferredEffects(actor);
   }

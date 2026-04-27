@@ -1,18 +1,3 @@
-/**
- * module/data/item-class.mjs
- *
- * TypeDataModel for Item subtype: "class"
- *
- * A "class" item is a reusable progression template.
- * It stores an ordered list of level definitions -- each level
- * can grant items, active effects, and field-change instructions
- * (e.g. system.resources.hp.max +5).
- *
- * A class item can be dragged onto the Progression App (per-actor)
- * to be used as that actor's level-up source.  Multiple actors can
- * reference the same class item; changes propagate automatically.
- */
-
 import { SlotDefinitionField } from "./item-slots.mjs";
 import { ButtonDefinitionField } from "../helpers/button-executor.mjs";
 
@@ -48,8 +33,6 @@ export class ClassData extends foundry.abstract.TypeDataModel {
       // Description
       description: new HTMLField({ required: false, blank: true, initial: "" }),
 
-      // Levels
-      // Ordered array of per-level reward definitions.
       levels: new ArrayField(
         new SchemaField({
           /** Stable unique id so re-ordering doesn't break references. */
@@ -68,7 +51,6 @@ export class ClassData extends foundry.abstract.TypeDataModel {
         { initial: [] }
       ),
 
-      // Optional slot / button support (same as other item types)
       customTabs: new ArrayField(new ObjectField(), { initial: [] }),
       slotDefs:   new ArrayField(SlotDefinitionField(),  { initial: [] }),
       slotContents: new ObjectField({ initial: {} }),

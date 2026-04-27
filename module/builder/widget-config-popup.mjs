@@ -1,27 +1,12 @@
-/**
- * module/builder/widget-config-popup.mjs  -- System Director
- *
- * Shared widget config popup used by both CharacterSheet and SDItemSheet.
- * Features:
- *   - All widget fields editable inline
- *   - valueFormula field for text/number (formula overrides path for display)
- *   - Blueprint panel: draggable/clickable nodes insert formula syntax
- *   - Autocomplete for path/formula fields
- *   - Drag-drop from Toolbox or inventory to insert references
- */
-
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { FormulaGraph }  from "./formula-graph.mjs";
 
-// Field definitions per widget type
-// [label, key, type]
-// type: "text" | "path" | "formula" | "number" | "color" | "array"
 const FIELD_DEFS = {
-  text:      [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Placeholder","placeholder"],["Read Only","readOnly","boolean"]],
+  text:      [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Read Only","readOnly","boolean"]],
   number:    [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Min","min","number"],["Max","max","number"],["Step","step","number"]],
-  resource:  [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"],["Bar Color","color","color"]],
-  dice:      [["Label","label"],["Widget Key","widgetKey","text"],["Roll Formula","formula","formula"],["FA Icon (e.g. fa-gun)","icon","text"],["Chat Flavor","flavor","text"]],
-  button:    [["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-bolt)","icon","text"],["Color","color","color"],["Roll Formula (optional)","formula","formula"],["Chat Flavor / Message","flavor","text"]],
+  resource:  [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"]],
+  dice:      [["Label","label"],["Widget Key","widgetKey","text"],["Roll Formula","formula","formula"],["Chat Flavor","flavor","text"]],
+  button:    [["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-bolt)","icon","text"],["Roll Formula (optional)","formula","formula"],["Chat Flavor / Message","flavor","text"]],
   toggle:    [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["On Label","onLabel","text"],["Off Label","offLabel","text"]],
   section:   [["Section Title","label"]],
   richtext:  [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"]],
@@ -33,13 +18,42 @@ const FIELD_DEFS = {
   spellbook: [["Label","label"],["Ability type filter (empty = all)","abilityType","text"]],
 
   // New widget types
-  progress: [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"],["Bar Colour","color","color"],["Show label","showLabel","boolean"],["Show percentage","showPct","boolean"]],
+  progress: [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"],["Show label","showLabel","boolean"],["Show percentage","showPct","boolean"]],
   select:   [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Choices (comma-separated)","choices","text"]],
-  clock:    [["Label","label"],["Widget Key","widgetKey","text"],["Filled count path","path","path"],["Segments (2–12)","segments","number"],["Filled colour","color","color"],["Empty colour","bgColor","color"]],
-  tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon","icon","text"],["Filled colour","color","color"]],
-  tags:     [["Label","label"],["Widget Key","widgetKey","text"],["Data path","path","path"],["Pill colour","color","color"]],
-  image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Static URL (blank=use path)","staticSrc","text"],["Document path to image","path","path"],["Width px","width","number"],["Height px","height","number"],["Border radius px","borderRadius","number"],["Click to change","clickable","boolean"]],
+  clock:    [["Label","label"],["Widget Key","widgetKey","text"],["Filled count path","path","path"],["Segments (2–12)","segments","number"]],
+  tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon","icon","text"]],
+  tags:     [["Label","label"],["Widget Key","widgetKey","text"],["Data path","path","path"]],
+  image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
   derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]]
+};
+
+const STYLE_DEFS = {
+  text:      [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
+  number:    [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"],["± Buttons color","btnColor","style-color"]],
+  counter:   [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["± Buttons color","btnColor","style-color"]],
+  resource:  [["Width (px)","boxW","style-px"],["Bar height (px)","barH","style-px"],["Fill color","color","style-color"],["Track color","barTrack","style-color"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
+  dice:      [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Button border","btnBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Icon color","iconColor","style-color"]],
+  button:    [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Icon color","iconColor","style-color"]],
+  rollButton:[["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
+  toggle:    [["Width (px)","boxW","style-px"],["On color","onColor","style-color"],["Off color","offColor","style-color"],["Border radius (px)","boxRadius","style-px"]],
+  section:   [["Line color","lineColor","style-color"],["Title color","titleColor","style-color"],["Thickness (px)","lineThickness","style-px"]],
+  vsection:  [["Border color","boxBorder","style-color"],["Background","boxBg","style-color"],["Title color","titleColor","style-color"],["Border radius (px)","boxRadius","style-px"]],
+  richtext:  [["Min height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
+  attribute: [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Number color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
+  skill:     [["Width (px)","boxW","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
+  slot:      [["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
+  inventory: [["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Header color","headerColor","style-color"],["Border","boxBorder","style-color"]],
+  effects:   [["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"]],
+  spellbook: [["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"]],
+  progress:  [["Width (px)","boxW","style-px"],["Bar height (px)","barH","style-px"],["Fill color","color","style-color"],["Track color","barTrack","style-color"],["Border radius (px)","boxRadius","style-px"]],
+  select:    [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"]],
+  clock:     [["Segment size (px)","pipSize","style-px"],["Stroke width (px)","pipBorder","style-px"],["Filled color","color","style-color"],["Empty color","bgColor","style-color"]],
+  tracker:   [["Pip size (px)","pipSize","style-px"],["Filled color","color","style-color"],["Empty color","emptyColor","style-color"]],
+  tokenPool: [["Pip size (px)","pipSize","style-px"],["Filled color","color","style-color"],["Empty color","emptyColor","style-color"]],
+  diceTray:  [["Background","boxBg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
+  tags:      [["Width (px)","boxW","style-px"],["Background","boxBg","style-color"],["Pill color","color","style-color"],["Text color","tagFg","style-color"],["Border","boxBorder","style-color"]],
+  image:     [["Width (px)","width","style-px"],["Height (px)","height","style-px"],["Border radius (px)","borderRadius","style-px"],["Border","boxBorder","style-color"],["Border width (px)","borderWidth","style-px"]],
+  derived:   [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]]
 };
 
 const FIELD_HINTS = {
@@ -53,15 +67,14 @@ const FIELD_HINTS = {
   segments:     "Number of clock segments (2–12). The path stores the filled count as an integer.",
   icon:         "FontAwesome icon class. Examples: fa-circle, fa-heart, fa-star",
   bgColor:      "Colour of empty/unfilled segments",
-  staticSrc:    "Static image URL. Leave blank to use the document path instead.",
+  staticSrc:    "Path to the image. Click the folder to pick via FilePicker.",
   decimalPlaces:"Decimal places to show for derived numeric values (0 = whole number)",
-  // per-field hints (looked up by field key)
   showCurrency: "Show a currency row at the top of the inventory. " +
-                "Leave Currency Path blank to use the built-in system.currency (primary / secondary / tertiary). " +
+                "Leave Currency Path blank to use the world's configured currencies (Settings → System Configuration → Currency). " +
                 "Set Currency Path to show a single custom money field instead.",
   currencyPath: "Path to a single money field — e.g. system.currency.primary or system.flags.gold. " +
                 "When set, the currency row shows one labelled input bound to this path. " +
-                "Leave blank to use the default three-column currency (primary / secondary / tertiary).",
+                "Leave blank to use the world's configured currency list (Settings → System Configuration → Currency).",
   costField:    "HiddenField key on each ability item that stores its activation cost. " +
                 "Create a HiddenField named «cost» on every ability item — its value will be deducted " +
                 "from the Mana Path when the ability is activated. Default key: cost",
@@ -73,11 +86,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   document.querySelector(".sd-wcfg-popup")?.remove();
 
   const _typeFields = FIELD_DEFS[w.type] ?? [["Label","label"]];
-  // Common fields appended to every widget type
-  // NB: "Extra CSS class(es)" hidden per user request -- stored values are
-  // preserved on save (whatever is already on w.cssClass remains untouched).
   const _commonFields = [
-    // ["Extra CSS class(es)", "cssClass", "text"]
   ];
   const fields = [..._typeFields, ..._commonFields];
   const allPaths = _buildPathList(doc);
@@ -87,7 +96,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   const IS = "width:100%;background:#1a1a2e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
   const MONO = ";font-family:'Courier New',monospace;font-size:11px";
 
-  // Attribute widgets get a dedicated Graph button (no formula field to attach to)
   const attrGraphRow = (w.type === "attribute" || w.type === "skill") ? `
     <div class="wcfg-f" style="margin-bottom:10px">
       <label class="wcfg-lbl">Node Graph</label>
@@ -99,10 +107,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </button>
     </div>` : "";
 
-  // showIf: collect all widgetKeys + hiddenFields on this doc for dropdown
   const _showIfSources = (() => {
     const list = [];
-    // widget keys from same doc's customTabs
     for (const t of (doc.system?.customTabs ?? [])) {
       for (const r of (t.rows ?? [])) {
         for (const ww of (r.widgets ?? [])) {
@@ -121,6 +127,41 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   const _showIfKey   = w.showIfKey   ?? "";
   const _showIfValue = w.showIfValue ?? "";
+
+  const _styleDefs = STYLE_DEFS[w.type] ?? [];
+  const _stylePxCell = (key, label, cur) => `
+    <div class="wcfg-style-field">
+      <label class="wcfg-style-lbl">${esc(label)}</label>
+      <input type="number" min="0" step="1" data-field="${esc(key)}" data-ftype="style-px"
+        value="${esc(cur ?? "")}" placeholder="auto" class="wcfg-style-num">
+    </div>`;
+  const _isHexColor = v => typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v.trim());
+  const _styleColorCell = (key, label, cur) => {
+    const valid = _isHexColor(cur);
+    return `
+    <div class="wcfg-style-field">
+      <label class="wcfg-style-lbl">${esc(label)}</label>
+      <div class="wcfg-style-color-wrap">
+        <input type="color" data-field="${esc(key)}" data-ftype="style-color"
+          value="${valid ? esc(cur.trim()) : "#000000"}" class="wcfg-style-color"
+          ${valid ? "" : 'data-empty="1"'}>
+        <button type="button" class="wcfg-style-clear" data-clear-style="${esc(key)}" title="Reset">✕</button>
+      </div>
+    </div>`;
+  };
+
+  const styleRow = _styleDefs.length ? `
+    <div class="wcfg-style-section">
+      <div class="wcfg-style-title"><i class="fas fa-palette"></i> Style</div>
+      <div class="wcfg-style-grid">
+        ${_styleDefs.map(([lbl, key, type]) =>
+          type === "style-px"
+            ? _stylePxCell(key, lbl, w[key])
+            : _styleColorCell(key, lbl, w[key])
+        ).join("")}
+      </div>
+      <div class="wcfg-style-hint">All fields are optional. Blank = default.</div>
+    </div>` : "";
 
   const showIfRow = `
     <div class="wcfg-f" style="margin-top:10px;border-top:1px solid #2a2a3e;padding-top:10px">
@@ -146,10 +187,29 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     const hint = FIELD_HINTS[key] ?? FIELD_HINTS[type] ?? "";
     const noteColor = type === "formula" ? "#5a4ec0" : type === "path" ? "#5a8ae0" : "";
 
-    if (type === "color") return `
+    if (type === "color") {
+      const safeColor = _isHexColor(cur) ? cur.trim() : "#7b68ee";
+      return `
       <div class="wcfg-f" style="margin-bottom:10px">
         <label class="wcfg-lbl">${esc(lbl)}</label>
-        <input type="color" data-field="${esc(key)}" value="${esc(cur||"#7b68ee")}" style="height:32px;width:56px;padding:2px;border:1px solid #3a3a52;border-radius:4px;background:#1a1a2e;cursor:pointer">
+        <input type="color" data-field="${esc(key)}" value="${esc(safeColor)}" style="height:32px;width:56px;padding:2px;border:1px solid #3a3a52;border-radius:4px;background:#1a1a2e;cursor:pointer">
+      </div>`;
+    }
+
+    if (type === "image-pick") return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(lbl)}</label>
+        <div style="display:flex;gap:5px;align-items:center">
+          <input type="text" data-field="${esc(key)}" data-ftype="text"
+            value="${esc(cur ?? "")}" placeholder="path/to/image.png or icon/svg/..."
+            style="${IS}flex:1">
+          <button type="button" class="wcfg-fp-btn" data-fp-target="${esc(key)}"
+            title="Pick file"
+            style="height:28px;padding:0 9px;background:#1a1a2e;border:1px solid #3a3a52;border-radius:4px;color:#9d8fff;cursor:pointer;font-size:11px;flex-shrink:0">
+            <i class="fas fa-folder-open"></i>
+          </button>
+          ${cur ? `<img src="${esc(cur)}" alt="preview" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid #3a3a52;flex-shrink:0">` : ""}
+        </div>
       </div>`;
 
     if (type === "boolean") return `
@@ -170,7 +230,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>`;
 
     if (type === "slotconfig") {
-      // Per-level slot editor -- renders a mini table; saves as JSON to a hidden input
       const rows = (Array.isArray(w[key]) ? w[key] : []).map((entry, i) => {
         const lvl  = esc(String(entry.level   ?? i + 1));
         const maxP = esc(String(entry.maxPath  ?? ""));
@@ -226,7 +285,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>`;
   }).join("");
 
-  // Blueprint panel removed -- use Graph editor instead
 
   // Path picker
   const pathPickerOpts = allPaths.map(p => `<option value="${esc(p.path)}">${esc(p.label)}</option>`).join("");
@@ -256,24 +314,15 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       <span style="font-size:12px;font-weight:700;text-transform:uppercase;color:#9d8fff">
         <i class="fas ${ICON_MAP[w.type]??'fa-gear'}" style="margin-right:7px;opacity:.8"></i>Configure: ${esc(w.label || w.type)}
       </span>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button type="button" id="wcfg-tab-fields" class="wcfg-tab-btn active" style="font-size:10px;padding:3px 10px;border-radius:4px;border:1px solid #5a4ec0;background:#5a4ec0;color:#fff;cursor:pointer">Fields</button>
-
-        <button type="button" id="wcfg-x" style="background:none;border:none;color:#555;cursor:pointer;font-size:16px;padding:0;margin-left:4px">✕</button>
-      </div>
+      <button type="button" id="wcfg-x" style="background:none;border:none;color:#555;cursor:pointer;font-size:16px;padding:0">✕</button>
     </div>
 
     <!-- Fields panel -->
     <div id="wcfg-panel-fields" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:0">
       ${attrGraphRow}
       ${fieldRows}
+      ${styleRow}
       ${showIfRow}
-
-      <!-- Drag-drop zone (hidden per user request — kept for drag-drop support) -->
-      <div style="display:none">
-        <div id="wcfg-drop"></div>
-        <div id="wcfg-drop-chips"></div>
-      </div>
 
       <!-- Known paths picker -->
       <div style="border-top:1px solid #2a2a38;padding-top:10px;margin-top:8px">
@@ -288,9 +337,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>
     </div>
 
-    <!-- Blueprints panel (hidden initially) -->
-    
-
     <!-- Footer -->
     <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid #2a2a38;flex-shrink:0;background:#13131d">
       <button type="button" id="wcfg-cancel" class="wcfg-footer-btn" style="padding:7px 16px;font-size:12px;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid #3a3a52;background:#2a2a38;color:#a0a0c0">Cancel</button>
@@ -304,16 +350,43 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   // State
   let _lastFocused = null;
 
-  // Tab switching (Fields ↔ Blueprints)
-  const panelFields = popup.querySelector("#wcfg-panel-fields");
-    const tabFields   = popup.querySelector("#wcfg-tab-fields");
-  
-  tabFields.addEventListener("click", () => {
-    panelFields.style.display = "flex"; panelBP.style.display = "none";
-    tabFields.style.background="#5a4ec0"; tabFields.style.borderColor="#5a4ec0"; tabFields.style.color="#fff";
-    tabBP.style.background="transparent"; tabBP.style.borderColor="#3a3a52"; tabBP.style.color="#888";
+  popup.querySelectorAll("button[data-clear-style]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.clearStyle;
+      const inp = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`);
+      if (!inp) return;
+      if (inp.type === "color") {
+        inp.value = "#000000";
+      } else {
+        inp.value = "";
+      }
+      inp.dataset.empty = "1";
+    });
   });
 
+  popup.querySelectorAll("input.wcfg-style-color").forEach(inp => {
+    inp.addEventListener("input", () => { delete inp.dataset.empty; });
+  });
+
+  popup.querySelectorAll("button.wcfg-fp-btn[data-fp-target]").forEach(btn => {
+    btn.addEventListener("click", ev => {
+      ev.preventDefault();
+      const key = btn.dataset.fpTarget;
+      const inp = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`);
+      if (!inp) return;
+      const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+      if (!FP) { ui.notifications?.error?.("FilePicker is not available"); return; }
+      new FP({
+        type: "image",
+        current: inp.value || "",
+        callback: src => {
+          inp.value = src;
+          inp.dispatchEvent(new Event("input", { bubbles: true }));
+          inp.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }).render(true);
+    });
+  });
 
   // Focus tracking
   popup.querySelectorAll("input[data-field]").forEach(inp => {
@@ -326,9 +399,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     inp.addEventListener("input",  () => _refreshSug(inp));
   });
 
-  // showIf live validation
-  // Show a red border + error hint if the user types a formula that fails to
-  // evaluate, so they get instant feedback instead of silent misbehaviour.
   const _showIfInp = popup.querySelector("input[data-field='showIf']");
   if (_showIfInp) {
     const _errEl = document.createElement("div");
@@ -343,7 +413,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         return;
       }
       try {
-        // Try a dry-run evaluation against an empty doc; catches most syntax errors
         FormulaEngine.evaluate(val, {});
         _showIfInp.style.borderColor = "#3a3a52"; // reset to normal
         _errEl.style.display = "none";
@@ -355,7 +424,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     };
     _showIfInp.addEventListener("input", _validateShowIf);
     _showIfInp.addEventListener("blur",  _validateShowIf);
-    _validateShowIf(); // run once on open in case field pre-populated
+    _validateShowIf();
   }
 
   function _refreshSug(inp) {
@@ -382,7 +451,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     });
   }
 
-  // Close suggestions on outside click
   document.addEventListener("click", ev => {
     if (!popup.contains(ev.target)) return;
     popup.querySelectorAll(".wcfg-sug").forEach(l => { if (!l.contains(ev.target)) l.style.display = "none"; });
@@ -425,7 +493,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   };
 
   if (slotRowsContainer) {
-    // Wire up existing delete buttons
     slotRowsContainer.addEventListener("click", ev => {
       if (ev.target.closest(".wcfg-slot-del")) {
         ev.target.closest(".wcfg-slotrow").remove();
@@ -470,7 +537,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     });
   });
 
-  // Attribute dedicated Graph button
   popup.querySelector("#wcfg-attr-graph-btn")?.addEventListener("click", () => {
     const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc });
     graph.open();
@@ -493,92 +559,13 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   popup.querySelector("#wcfg-pi").addEventListener("click", () => {
     const val = popup.querySelector("#wcfg-ps").value;
     if (!val || !_lastFocused) return;
-    // For formula fields, wrap in {}, for path fields insert as-is
     const wrap = _lastFocused.dataset.ftype === "formula" ? `{${val}}` : val;
     _insertAt(_lastFocused, wrap);
     popup.querySelector("#wcfg-ps").value = "";
   });
 
-  // Drop zone
-  const dropZone  = popup.querySelector("#wcfg-drop");
-  const dropChips = popup.querySelector("#wcfg-drop-chips");
-
-  dropZone.addEventListener("dragover",  ev => { ev.preventDefault(); dropZone.style.background="rgba(123,104,238,.1)"; dropZone.style.color="#9d8fff"; dropZone.style.borderColor="#7b68ee"; });
-  dropZone.addEventListener("dragleave", () => { dropZone.style.background="#1a1a24"; dropZone.style.color="#555"; dropZone.style.borderColor="#4b3e9e"; });
-  dropZone.addEventListener("drop", async ev => {
-    ev.preventDefault();
-    dropZone.style.background="#1a1a24"; dropZone.style.color="#555"; dropZone.style.borderColor="#4b3e9e";
-    try {
-      const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
-
-      if (data.sdType === "path") {
-        if (_lastFocused) {
-          const wrap = _lastFocused.dataset.ftype === "formula" ? `{${data.path}}` : data.path;
-          _insertAt(_lastFocused, wrap);
-        }
-        return;
-      }
-
-      // Blueprint node dropped
-      if (data.sdType === "blueprint") {
-        if (_lastFocused) {
-          const clean = (data.syntax ?? "").replace(/\{\|cursor\|\}/g, "");
-          _insertAt(_lastFocused, clean);
-        }
-        dropZone.innerHTML = `<i class="fas fa-check-circle" style="color:#5ae07a;margin-right:5px"></i>Blueprint inserted into focused field`;
-        return;
-      }
-
-      const item = data.uuid ? await fromUuid(data.uuid) : null;
-      if (!item) return;
-
-      const paths = [];
-      const sys = item.system ?? {};
-
-      for (const [k] of Object.entries(sys.hiddenFields ?? {})) {
-        const p = `system.hiddenFields.${k}`;
-        paths.push({ path: p, formula: `{item:${item.name}.${p}}`, label: `${item.name}: hidden.${k}` });
-      }
-      for (const a of (sys.declaredAttrs ?? [])) {
-        if (a.path) paths.push({ path: a.path, formula: `{item:${item.name}.${a.path}}`, label: `${item.name}: ${a.name||a.id}` });
-      }
-      for (const f of ["quantity","weight","price","uses.value","uses.max","slotContents"]) {
-        const v = foundry.utils.getProperty(sys, f);
-        if (v !== undefined) paths.push({ path: `system.${f}`, formula: `{item:${item.name}.system.${f}}`, label: `${item.name}: ${f}` });
-      }
-      for (const def of (sys.slotDefinitions ?? [])) {
-        paths.push({ path: `system.slotContents.${def.id}.count`, formula: `{slotCount:${def.id}}`, label: `${item.name}: slot '${def.label}' count` });
-        paths.push({ path: `system.slotContents.${def.id}.contents.0`, formula: `{slot:${def.id}.0.system.hiddenFields.field}`, label: `${item.name}: slot '${def.label}' item[0]` });
-      }
-
-      if (!paths.length) {
-        dropZone.innerHTML = `<i class="fas fa-circle-exclamation" style="color:#e05a5a;margin-right:5px"></i>"${item.name}" has no accessible paths. Add Hidden Fields first.`;
-        return;
-      }
-
-      dropZone.innerHTML = `<i class="fas fa-check-circle" style="color:#5ae07a;margin-right:5px"></i>Found paths from <strong style="color:#9d8fff">${item.name}</strong> — click to insert:`;
-      dropChips.innerHTML = paths.map(p => `
-        <div style="display:flex;gap:4px;align-items:center">
-          <button type="button" data-path="${esc(p.path)}" class="wcfg-path-chip" style="flex:1;background:#1a1a2e;border:1px solid #3a3a52;border-radius:3px;padding:3px 7px;color:#9d8fff;cursor:pointer;font-family:'Courier New',monospace;font-size:10px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Insert direct path: ${esc(p.path)}">
-            ${esc(p.path)}
-          </button>
-          <button type="button" data-path="${esc(p.formula)}" class="wcfg-path-chip wcfg-chip-formula" style="flex-shrink:0;background:#1a1a2e;border:1px solid #5a4ec0;border-radius:3px;padding:3px 7px;color:#5a4ec0;cursor:pointer;font-size:10px" title="Insert formula reference: ${esc(p.formula)}">ƒ</button>
-        </div>
-        <div style="font-size:10px;color:#444;margin-top:-1px;padding:0 2px">${esc(p.label)}</div>`).join("");
-
-      dropChips.querySelectorAll(".wcfg-path-chip").forEach(chip => {
-        chip.addEventListener("click", () => {
-          if (_lastFocused) _insertAt(_lastFocused, chip.dataset.path);
-          chip.style.background = "#1a2e1a"; chip.style.borderColor = "#5ae07a";
-          setTimeout(() => { chip.style.background=""; chip.style.borderColor=""; }, 800);
-        });
-      });
-    } catch(e) { console.warn("SD | wcfg drop:", e); }
-  });
-
   // Save
   const doSave = async () => {
-    // Sync slotconfig JSON from the live sub-form rows before saving
     const slotRowsEl = popup.querySelector("#wcfg-slotrows");
     const slotJsonEl = popup.querySelector("#wcfg-slotconfig-json");
     if (slotRowsEl && slotJsonEl) {
@@ -596,25 +583,41 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     popup.querySelectorAll("input[data-field]").forEach(el => {
       const key  = el.dataset.field;
       const type = el.dataset.ftype ?? el.type;
-      let val = type === "number" ? (parseFloat(el.value) || 0) : el.value;
-      if (type === "array")  val = String(val).split(",").map(s => s.trim()).filter(Boolean);
+      let val;
+      if (type === "color" || type === "style-color") {
+        val = el.dataset.empty === "1" ? "" : el.value;
+      } else if (type === "number" || type === "style-px") {
+        const raw = el.value;
+        val = raw === "" || raw == null ? "" : (parseFloat(raw) || 0);
+      } else {
+        val = el.value;
+      }
+      if (type === "array")   val = String(val).split(",").map(s => s.trim()).filter(Boolean);
       if (type === "boolean") val = el.type === "checkbox" ? el.checked : val === "true";
-      if (type === "json") { try { val = JSON.parse(el.value || "[]"); } catch { val = []; } }
+      if (type === "json")    { try { val = JSON.parse(el.value || "[]"); } catch { val = []; } }
       changes[key] = val;
     });
-    // Handle <select data-field> elements (e.g. castingMode)
     popup.querySelectorAll("select[data-field]").forEach(el => {
       changes[el.dataset.field] = el.value;
     });
 
     const tabs   = foundry.utils.deepClone(doc.system.customTabs ?? []);
-    const widget = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id);
+    const _findWidgetDeep = (list, id) => {
+      if (!Array.isArray(list)) return null;
+      for (const ww of list) {
+        if (ww.id === id) return ww;
+        if (ww.type === "vsection") {
+          const nested = _findWidgetDeep(ww.widgets, id);
+          if (nested) return nested;
+        }
+      }
+      return null;
+    };
+    const freshRow = tabs.find(t => t.id === tab.id)?.rows?.find(r => r.id === row.id);
+    const widget   = freshRow ? _findWidgetDeep(freshRow.widgets, w.id) : null;
     if (widget) {
       Object.assign(widget, changes);
 
-      // Slot widget: sync maxCount (and label) into slotDefinitions
-      // slotDefinitions is the authoritative source for SlotManager capacity checks.
-      // The widget config popup only writes to customTabs, so we must keep both in sync.
       if (widget.type === "slot" && widget.slotId != null) {
         const sid   = String(widget.slotId);
         const defs  = foundry.utils.deepClone(doc.system.slotDefinitions ?? []);
@@ -631,6 +634,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       }
 
       ui.notifications?.info?.(`Widget "${widget.label || widget.type}" saved.`);
+    } else {
+      ui.notifications?.warn?.(`Widget "${w.label || w.type}" not found in document data — save aborted.`);
+      console.warn("[sd] widget-config-popup: failed to locate widget", { tabId: tab?.id, rowId: row?.id, widgetId: w?.id });
     }
     popup.remove();
   };
@@ -647,7 +653,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   // Draggable header
   let ds = null;
   popup.querySelector("#wcfg-hdr").addEventListener("mousedown", ev => {
-    if (["wcfg-x","wcfg-tab-fields"].includes(ev.target.id)) return;
+    if (ev.target.id === "wcfg-x") return;
     ds = { x: ev.clientX - popup.offsetLeft, y: ev.clientY - popup.offsetTop };
   });
   document.addEventListener("mousemove", ev => {
@@ -663,7 +669,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   return popup;
 }
 
-// Helper: build path suggestions list
 
 function _buildPathList(doc) {
   const paths = [];
@@ -676,7 +681,6 @@ function _buildPathList(doc) {
     }
   } catch {}
 
-  // 2. Actor/item own hidden fields
   const ownHF = Object.entries(doc.system?.hiddenFields ?? {});
   for (const [k] of ownHF) {
     paths.push({ path: `system.hiddenFields.${k}`, label: `Hidden: ${k}` });
@@ -692,7 +696,6 @@ function _buildPathList(doc) {
     paths.push({ path: `system.slotContents.${def.id}.count`, label: `Slot count: ${def.label}` });
   }
 
-  // 5. If actor -- items' hidden fields, declared attrs, slot counts
   if (doc instanceof Actor) {
     for (const item of (doc.items ?? [])) {
       for (const [k] of Object.entries(item.system?.hiddenFields ?? {})) {
@@ -710,7 +713,6 @@ function _buildPathList(doc) {
       paths.push({ path: `system.slotContents.${def.id}.count`, label: `Actor slot: ${def.label}` });
     }
   } else {
-    // Item -- also expose actor's items' hidden fields
     const actor = doc.actor;
     if (actor) {
       for (const item of (actor.items ?? [])) {

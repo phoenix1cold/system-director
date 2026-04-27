@@ -1,12 +1,3 @@
-/**
- * module/helpers/system-config.mjs
- *
- * SystemConfig -- in-game GM configuration panel.
- * Lets you add/remove/rename: attributes, resources.
- * Skills removed - skill is now an item.
- * Rolls are defined directly in sheets.
- */
-
 import { TabManager } from "./tabs.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -15,7 +6,6 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 export function getDefaultSettings() {
   return {
-    // Attribute labels (key → display name)
     attributes: {
       attr1: "Strength",
       attr2: "Dexterity",
@@ -37,14 +27,16 @@ export function getDefaultSettings() {
       stamina: { label: "Stamina",     enabled: false, color: "#5ae07a" }
     },
 
-    // Currency labels
-    currency: {
-      primary:   "Gold",
-      secondary: "Silver",
-      tertiary:  "Copper"
-    },
+    // Currency labels — dynamic list. Each entry has a stable key used as
+    // the path on actor (system.currency.<key>) and a display label.
+    // Default 3 entries map 1:1 to the legacy primary/secondary/tertiary
+    // keys for backward compatibility with existing actors.
+    currencies: [
+      { key: "primary",   label: "Gold"   },
+      { key: "secondary", label: "Silver" },
+      { key: "tertiary",  label: "Copper" }
+    ],
 
-    // Modifier formula: "halved" (floor((v-10)/2)) or "direct" (raw value)
     modifierFormula: "halved",
 
     // Global UI scale as a percentage (50-200). Applied via CSS zoom to all sheet content.
@@ -60,26 +52,21 @@ export function loadSettings() {
   try {
     stored = game.settings.get("sd", "systemSettings") ?? {};
   } catch(e) {
-    // settings not yet registered during early init
   }
 
-  // If nothing stored, return defaults
   if (Object.keys(stored).length === 0) {
     return foundry.utils.deepClone(getDefaultSettings());
   }
 
-  // Return stored settings, but fill in any missing top-level keys from defaults
   const defaults = getDefaultSettings();
   const result = foundry.utils.deepClone(stored);
 
-  // Only fill missing top-level keys, don't merge arrays/objects
   for (const [key, val] of Object.entries(defaults)) {
     if (result[key] === undefined) {
       result[key] = foundry.utils.deepClone(val);
     }
   }
 
-  // Ensure attributesEnabled exists and has entries for all attributes
   if (result.attributes && !result.attributesEnabled) {
     result.attributesEnabled = {};
   }
@@ -89,15 +76,25 @@ export function loadSettings() {
     }
   }
 
-  // Migration: old uiFontSize/uiBtnFontSize → uiScale
-  // If saved data has the old fields but no uiScale yet, derive a rough scale
-  // from the old font size (13px = 100%, so scale% = fontSize/13 * 100).
+  // Migrate legacy currency shape { primary, secondary, tertiary } → array
+  if (!Array.isArray(result.currencies)) {
+    if (result.currency && typeof result.currency === "object") {
+      result.currencies = [
+        { key: "primary",   label: result.currency.primary   ?? "Gold"   },
+        { key: "secondary", label: result.currency.secondary ?? "Silver" },
+        { key: "tertiary",  label: result.currency.tertiary  ?? "Copper" }
+      ];
+    } else {
+      result.currencies = foundry.utils.deepClone(defaults.currencies);
+    }
+  }
+  delete result.currency;
+
   if (result.uiScale === undefined) {
     const oldSize = Number(result.uiFontSize ?? 13);
     result.uiScale = Math.round((oldSize / 13) * 100 / 5) * 5; // snap to step-5
     result.uiScale = Math.min(Math.max(result.uiScale, 50), 200);
   }
-  // Clean up obsolete keys so they don't persist
   delete result.uiFontSize;
   delete result.uiBtnFontSize;
 
@@ -125,14 +122,17 @@ export function applySettings(cfg) {
     game.i18n.translations[`SD.Resources.${key.toUpperCase()}`] = res.label ?? key;
   }
 
-  // Currency
-  CONFIG.SD.currencyConfig = cfg.currency;
+  // Currency — dynamic list. Renderers should read CONFIG.SD.currencies.
+  CONFIG.SD.currencies = Array.isArray(cfg.currencies) ? cfg.currencies : [];
+  // Back-compat shim for old reads (CONFIG.SD.currencyConfig.{primary,…})
+  const _ccLegacy = {};
+  for (const c of (cfg.currencies ?? [])) _ccLegacy[c.key] = c.label;
+  CONFIG.SD.currencyConfig = _ccLegacy;
 
   // Modifier formula
   CONFIG.SD.modifierFormula = cfg.modifierFormula ?? "halved";
 
   // Global UI scale -- set --sd-ui-scale on :root so CSS zoom picks it up on all SD sheets.
-  // Stored as an integer percentage (50-200); converted to a decimal for CSS (e.g. 120 → 1.2).
   const scale = Math.min(Math.max(Number(cfg.uiScale ?? 100), 50), 200) / 100;
   document.documentElement.style.setProperty("--sd-ui-scale", scale);
 
@@ -160,6 +160,8 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       removeAttribute:  SystemConfig._onRemoveAttribute,
       addResource:      SystemConfig._onAddResource,
       removeResource:   SystemConfig._onRemoveResource,
+      addCurrency:      SystemConfig._onAddCurrency,
+      removeCurrency:   SystemConfig._onRemoveCurrency,
       resetDefaults:    SystemConfig._onResetDefaults,
       saveAndClose:     SystemConfig._onSaveAndClose
     }
@@ -201,43 +203,61 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       attrEntries: Object.entries(cfg.attributes).map(([key, val]) => ({
         key, label: val, enabled: cfg.attributesEnabled?.[key] ?? true
       })),
-      resourceEntries: Object.entries(cfg.resources).map(([key, val]) => ({ key, ...val }))
+      resourceEntries: Object.entries(cfg.resources).map(([key, val]) => ({ key, ...val })),
+      currencyEntries: (cfg.currencies ?? []).map(c => ({ key: c.key, label: c.label }))
     };
+  }
+
+  /**
+   * Read the current state of the form (renames, toggles, colors, etc.) and
+   * merge it into a fresh cfg snapshot. Used both by Save and by Add/Remove
+   * handlers so that pending edits aren't lost on re-render.
+   */
+  _collectFormCfg() {
+    const cfg  = loadSettings();
+    const form = this.element?.querySelector?.("form");
+    if (!form) return cfg;
+
+    const FDE = foundry.applications?.ux?.FormDataExtended ?? FormDataExtended;
+    const raw = new FDE(form).object;
+
+    // Attributes
+    for (const key of Object.keys(cfg.attributes ?? {})) {
+      const labelKey = `attr_label_${key}`;
+      if (raw[labelKey] !== undefined) cfg.attributes[key] = raw[labelKey];
+      cfg.attributesEnabled[key] = !!raw[`attr_enabled_${key}`];
+    }
+
+    // Resources
+    for (const key of Object.keys(cfg.resources ?? {})) {
+      const lbl = `res_label_${key}`;
+      const en  = `res_enabled_${key}`;
+      const col = `res_color_${key}`;
+      if (raw[lbl] !== undefined) cfg.resources[key].label   = raw[lbl];
+      cfg.resources[key].enabled = !!raw[en];
+      if (raw[col] !== undefined) cfg.resources[key].color   = raw[col];
+    }
+
+    // Currencies (dynamic list — read label for each entry; keys are stable)
+    for (const c of (cfg.currencies ?? [])) {
+      const lblKey = `currency_label_${c.key}`;
+      if (raw[lblKey] !== undefined) c.label = raw[lblKey];
+    }
+
+    // Modifier Formula
+    if (raw.modifierFormula !== undefined) cfg.modifierFormula = raw.modifierFormula;
+
+    // UI Scale
+    if (raw.uiScale !== undefined) {
+      cfg.uiScale = Math.min(Math.max(Number(raw.uiScale) || 100, 50), 200);
+    }
+
+    return cfg;
   }
 
   // Collect form data and save
   static async _onSaveAndClose(event, target) {
-    const form  = this.element.querySelector("form");
-    const FDE  = foundry.applications?.ux?.FormDataExtended ?? FormDataExtended;
-    const fd   = new FDE(form);
-    const raw  = fd.object;
-
-    const cfg   = loadSettings();
-
-    // Attributes
-    for (const key of Object.keys(cfg.attributes)) {
-      cfg.attributes[key]           = raw[`attr_label_${key}`]   ?? cfg.attributes[key];
-      cfg.attributesEnabled[key]    = !!raw[`attr_enabled_${key}`];
-    }
-
-    // Resources
-    for (const key of Object.keys(cfg.resources)) {
-      cfg.resources[key].label   = raw[`res_label_${key}`]   ?? cfg.resources[key].label;
-      cfg.resources[key].enabled = !!raw[`res_enabled_${key}`];
-      cfg.resources[key].color   = raw[`res_color_${key}`]   ?? cfg.resources[key].color;
-    }
-
-    // Currency
-    cfg.currency.primary   = raw.currency_primary   ?? cfg.currency.primary;
-    cfg.currency.secondary = raw.currency_secondary ?? cfg.currency.secondary;
-    cfg.currency.tertiary  = raw.currency_tertiary  ?? cfg.currency.tertiary;
-
-    // Modifier Formula
-    cfg.modifierFormula = raw.modifierFormula ?? cfg.modifierFormula;
-
-    // UI Scale
-    cfg.uiScale = Math.min(Math.max(Number(raw.uiScale ?? 100) || 100, 50), 200);
-
+    const cfg = this._collectFormCfg();
     await saveSettings(cfg);
     applySettings(cfg);
 
@@ -257,7 +277,9 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static async _onAddAttribute(event, target) {
-    const cfg   = loadSettings();
+    // Capture pending form edits BEFORE re-rendering, otherwise unsaved
+    // attribute renames / resource changes would be wiped.
+    const cfg   = this._collectFormCfg();
     const count = Object.keys(cfg.attributes).length + 1;
     const key   = `attr${count}`;
     cfg.attributes[key] = `Attribute ${count}`;
@@ -269,7 +291,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   static async _onRemoveAttribute(event, target) {
     const key = target.dataset.key;
     if (!key) return;
-    const cfg = loadSettings();
+    const cfg = this._collectFormCfg();
     delete cfg.attributes[key];
     delete cfg.attributesEnabled[key];
     await saveSettings(cfg);
@@ -277,7 +299,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static async _onAddResource(event, target) {
-    const cfg   = loadSettings();
+    const cfg   = this._collectFormCfg();
     const count = Object.keys(cfg.resources).length + 1;
     const key   = `resource${count}`;
     const colors = ["#e05a5a", "#5a8ae0", "#5ae07a", "#e0c05a", "#c05ae0", "#e07a5a"];
@@ -293,8 +315,31 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   static async _onRemoveResource(event, target) {
     const key = target.dataset.key;
     if (!key) return;
-    const cfg = loadSettings();
+    const cfg = this._collectFormCfg();
     delete cfg.resources[key];
+    await saveSettings(cfg);
+    this.render();
+  }
+
+  static async _onAddCurrency(event, target) {
+    const cfg = this._collectFormCfg();
+    if (!Array.isArray(cfg.currencies)) cfg.currencies = [];
+    // Find a unique key
+    const existing = new Set(cfg.currencies.map(c => c.key));
+    let n = cfg.currencies.length + 1;
+    let key = `currency${n}`;
+    while (existing.has(key)) { n++; key = `currency${n}`; }
+    cfg.currencies.push({ key, label: `Currency ${n}` });
+    await saveSettings(cfg);
+    this.render();
+  }
+
+  static async _onRemoveCurrency(event, target) {
+    const key = target.dataset.key;
+    if (!key) return;
+    const cfg = this._collectFormCfg();
+    if (!Array.isArray(cfg.currencies)) return;
+    cfg.currencies = cfg.currencies.filter(c => c.key !== key);
     await saveSettings(cfg);
     this.render();
   }

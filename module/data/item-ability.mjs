@@ -1,10 +1,3 @@
-/**
- * module/data/item-ability.mjs
- *
- * TypeDataModel for Item subtype: "ability"
- * Covers spells, powers, techniques -- anything that is activated and rolled.
- */
-
 import { RollConfigField }    from "./common.mjs";
 import { SlotDefinitionField } from "./item-slots.mjs";
 import { ButtonDefinitionField } from "../helpers/button-executor.mjs";
@@ -81,7 +74,7 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
 
       // Resource Cost
       cost: new SchemaField({
-        resource:  new StringField({ initial: "", blank: true }),  // e.g. "resources.mp"
+        resource:  new StringField({ initial: "", blank: true }),
         value:     new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
         slotLevel: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false })
       }),
@@ -105,14 +98,11 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
       components: new ArrayField(new StringField({ blank: false })),
       tags:       new ArrayField(new StringField({ blank: false })),
 
-      // Declared Attributes (for attribute reference system)
       declaredAttrs: new ArrayField(new ObjectField()),
 
       // Custom Tabs (Visual Builder)
       customTabs: new ArrayField(new ObjectField()),
 
-      // Sheet-level Trigger Graph
-      // Event-node-only graph scanned by event-bus alongside widget graphs.
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
       // SLOTS
@@ -126,9 +116,6 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
       onClickGraph:   new ObjectField({ initial: {} }),
       onClickFormula: new StringField({ initial: "", blank: true }),
 
-      // Effect Templates
-      // AE templates applied automatically (or via node) when ability is used.
-      // Each entry: { id, name, icon, target, durationRounds, changes, autoApply }
       effectTemplates: new ArrayField(new ObjectField()),
 
       // Description
@@ -172,12 +159,6 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
 }
 
 
-/**
- * module/data/item-feature.mjs (inlined here for convenience)
- *
- * TypeDataModel for Item subtype: "feature"
- * Passive traits, racial features, class features, talents, perks.
- */
 export class FeatureData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {

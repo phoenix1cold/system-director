@@ -1,10 +1,3 @@
-/**
- * module/builder/widget-registry.mjs
- *
- * Defines all available widget types for the Visual Sheet Builder.
- * Each entry describes: icon, label, default config, config fields.
- */
-
 export const WIDGET_TYPES = {
 
   text: {
@@ -14,14 +7,12 @@ export const WIDGET_TYPES = {
     desc:  "Single-line text",
     defaultSpan: 1,
     defaults: {
-      label:       "Label",
-      path:        "system.flags.myField",
-      placeholder: ""
+      label: "Label",
+      path:  "system.flags.myField"
     },
     configFields: [
-      { key: "label",       type: "text",   label: "Label" },
-      { key: "path",        type: "path",   label: "Data Path" },
-      { key: "placeholder", type: "text",   label: "Placeholder" }
+      { key: "label", type: "text", label: "Label" },
+      { key: "path",  type: "path", label: "Data Path" }
     ]
   },
 
@@ -276,7 +267,6 @@ export const WIDGET_TYPES = {
       { key: "path",  type: "path", label: "Data Path" }
     ]
   },
-  // NEW WIDGET TYPES -- System Director patch
 
   /** Progress bar — read-only bar bound to value/max, configurable colour */
   progress: {
@@ -345,10 +335,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Token Tracker -- clickable pip/token counters (stress, fate, momentum).
-   * PR6 rewrite: click-to-fill semantics identical to the Clock widget.
-   */
   tracker: {
     id:    "tracker",
     label: "Token Tracker",
@@ -377,12 +363,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Counter -- large ±N stepper with optional min/max clamp and custom step.
-   * PR6 addition.  Different from `number` in that there is no inline label
-   * input -- just the big number with ± buttons, suitable for metacurrencies
-   * (Fate points, Momentum, Hold, Devil's Bargains, etc.).
-   */
   counter: {
     id:    "counter",
     label: "Counter",
@@ -407,11 +387,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Roll Button -- pre-configured dice-roll button with label + formula + flavor
-   * + icon.  Different from the generic `button` in that it is guaranteed to
-   * output a chat message with a roll, without needing a graph.  PR6 addition.
-   */
   rollButton: {
     id:    "rollButton",
     label: "Roll Button",
@@ -434,13 +409,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Token Pool -- row of metacurrency/token icons with an integrated spend / gain
-   * button pair.  Visually a tracker + stepper combo, but semantically always
-   * acts on a single counter value (no reset-to-0 button).  PR7 addition.
-   *
-   * Typical uses: Fate points, Momentum, Blades Stress, Apocalypse Hold, etc.
-   */
   tokenPool: {
     id:    "tokenPool",
     label: "Token Pool",
@@ -469,11 +437,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /**
-   * Dice Tray -- passive display of the last roll made via any SD action.
-   * Reads from `actor.flags.sd.lastRoll` (written by Button Executor after
-   * every rollValue / rollCheck / tieredRoll / dicePool).  PR7 addition.
-   */
   diceTray: {
     id:    "diceTray",
     label: "Dice Tray",
@@ -513,29 +476,38 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /** Image Display — shows a static image or one from an actor/item path */
+  /** Image Display — shows a static image (FilePicker). */
   image: {
     id:    "image",
     label: "Image",
     icon:  "fa-image",
-    desc:  "Displays a static image URL or resolves an image path from the document (e.g. actor portrait, item icon).",
+    desc:  "Displays a static image. Size and border are configured in the “Style” section.",
     defaultSpan: 1,
     defaults: {
       label:       "",
       staticSrc:   "",
-      path:        "",
       width:       64,
       height:      64,
-      borderRadius: 4,
-      clickable:   false
+      borderRadius: 4
     },
     configFields: [
-      { key: "staticSrc",    type: "text",     label: "Static URL (blank = use path)" },
-      { key: "path",         type: "path",     label: "Document path to image URL" },
-      { key: "width",        type: "number",   label: "Width (px)" },
-      { key: "height",       type: "number",   label: "Height (px)" },
-      { key: "borderRadius", type: "number",   label: "Border radius (px)" },
-      { key: "clickable",    type: "checkbox", label: "Click to change (filepicker)" }
+      { key: "staticSrc", type: "text", label: "Image" }
+    ]
+  },
+
+  /** Vertical Section — takes one grid cell, stacks child widgets vertically */
+  vsection: {
+    id:    "vsection",
+    label: "Vertical Section",
+    icon:  "fa-bars",
+    desc:  "Replaces one grid cell with a vertical stack of widgets",
+    defaultSpan: 1,
+    defaults: {
+      label:   "",
+      widgets: []
+    },
+    configFields: [
+      { key: "label", type: "text", label: "Heading (optional)" }
     ]
   },
 
@@ -561,21 +533,10 @@ export const WIDGET_TYPES = {
 
 /** Ordered list for palette display */
 export const WIDGET_PALETTE_ORDER = [
-  "text", "number", "counter", "resource", "derived", "dice", "rollButton", "diceTray", "button",
+  "text", "number", "counter", "resource", "derived", "dice", "button",
   "toggle", "attribute", "skill", "progress", "tracker", "tokenPool", "clock",
   "slot", "inventory", "effects", "spellbook",
-  "select", "tags", "image", "section", "richtext"
-];
-
-/**
- * Common configField appended to every widget in the builder UI.
- * showIf: a formula (same syntax as FormulaEngine) that controls visibility.
- * If blank the widget is always shown.
- */
-export const WIDGET_COMMON_FIELDS = [
-  { key: "showIf",    type: "text",     label: "Show if (formula, blank=always)", mono: true, placeholder: "{system.advancement.level} >= 5" },
-  { key: "widgetKey", type: "text",     label: "Widget Key (for Get Widget node)", placeholder: "myUniqueKey" },
-  { key: "cssClass",  type: "text",     label: "Extra CSS class(es)", placeholder: "my-class another-class" }
+  "select", "tags", "image", "section", "vsection", "richtext"
 ];
 
 /** Create a fresh widget definition with a random id */

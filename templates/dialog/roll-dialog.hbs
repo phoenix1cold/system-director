@@ -38,7 +38,6 @@
   <div class="roll-mode-row">
     <label>{{localize "CHAT.RollType"}}</label>
     <select name="rollMode">
-      {{!-- rollModes is now an array of {value, label} objects --}}
       {{#each rollModes as |mode|}}
       <option value="{{mode.value}}" {{#if (eq ../currentMode mode.value)}}selected{{/if}}>
         {{mode.label}}

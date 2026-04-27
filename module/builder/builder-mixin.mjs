@@ -1,20 +1,3 @@
-/**
- * module/builder/builder-mixin.mjs
- *
- * BuilderMixin -- applied to CharacterSheet, NPCSheet, SDItemSheet.
- *
- * Adds:
- *  - Custom tabs rendering (from system.customTabs)
- *  - Edit Mode toggle
- *  - Drop zones for New Tab / Widget drops from Toolbox
- *  - Widget interactions: roll, toggle, number step
- *  - Widget config popup on gear click
- *  - Row/widget CRUD forwarding to GridManager
- *
- * Usage:
- *   class CharacterSheet extends BuilderMixin(HandlebarsApplicationMixin(ActorSheetV2)) { ... }
- */
-
 import { GridManager }    from "./grid-manager.mjs";
 import { WidgetRenderer } from "./widget-renderer.mjs";
 import { WIDGET_TYPES, KNOWN_PATHS } from "./widget-registry.mjs";
@@ -23,7 +6,6 @@ import { FormulaGraph }   from "./formula-graph.mjs";
 export function BuilderMixin(Base) {
   return class extends Base {
 
-    // Edit mode state (per-instance, not persisted)
     _editMode = false;
 
     // Context: add customTabs data
@@ -35,7 +17,6 @@ export function BuilderMixin(Base) {
       const rawTabs  = GridManager.getTabs(doc);
       const editMode = this._editMode;
 
-      // Render widget HTML for each tab/row/widget
       const customTabs = rawTabs.map(tab => ({
         ...tab,
         rows: tab.rows.map(row => ({
@@ -50,7 +31,6 @@ export function BuilderMixin(Base) {
       return { ...ctx, customTabs, editMode };
     }
 
-    // _onRender: wire tabs, drag-drop, interactions
 
     _onRender(context, options) {
       super._onRender?.(context, options);
@@ -102,7 +82,6 @@ export function BuilderMixin(Base) {
         nav.appendChild(a);
       });
 
-      // "+" drop zone on nav for New Tab
       let addZone = root.querySelector(".add-tab-btn");
       if (!addZone) {
         addZone = document.createElement("a");
@@ -120,7 +99,6 @@ export function BuilderMixin(Base) {
         nav.appendChild(addZone);
       }
 
-      // Inject custom tab content panels after sheet tabs part
       this._renderCustomTabPanels(customTabs, editMode);
 
       // Edit-mode class on sheet
@@ -141,7 +119,6 @@ export function BuilderMixin(Base) {
         this._addEditModeSaveButton(root);
       }
 
-      // Wire formula drop zones for drag & drop attribute references
       this._wireFormulaDropZones(root);
     }
 
@@ -165,7 +142,6 @@ export function BuilderMixin(Base) {
     }
 
     _wireFormulaDropZones(root) {
-      // Wire all formula input fields for drag & drop
       root.querySelectorAll('input[data-config-key="formula"], input.formula-input, input[data-formula-drop]').forEach(inp => {
         inp.addEventListener("dragover", ev => {
           ev.preventDefault();
@@ -178,7 +154,6 @@ export function BuilderMixin(Base) {
           const data = this._parseDrop(ev);
           if (!data) return;
 
-          // Handle item drop - show attribute selector
           if (data.type === "Item" || data.uuid?.startsWith("Item")) {
             const item = await fromUuid(data.uuid);
             if (item) {
@@ -190,7 +165,6 @@ export function BuilderMixin(Base) {
     }
 
     async _insertItemReference(input, item) {
-      // Collect available attributes from the item
       const attrs = this._collectItemAttributes(item);
 
       if (attrs.length === 0) {
@@ -198,7 +172,6 @@ export function BuilderMixin(Base) {
         return;
       }
 
-      // Show dialog to select attribute
       const attrOptions = attrs.map(a => `<option value="${a.path}">${a.label} (${a.path})</option>`).join("");
 
       const result = await foundry.applications.api.DialogV2.wait({
@@ -244,14 +217,12 @@ export function BuilderMixin(Base) {
         }
       }
 
-      // Add slot contents if item has slots
       if (system.slotDefinitions) {
         for (const slot of system.slotDefinitions) {
           attrs.push({ path: `slots.${slot.id}`, label: `Slot: ${slot.label}` });
         }
       }
 
-      // Add any numeric/string system fields
       for (const [key, val] of Object.entries(system)) {
         if (typeof val === "number" && !attrs.find(a => a.path === `system.${key}`)) {
           attrs.push({ path: `system.${key}`, label: key.charAt(0).toUpperCase() + key.slice(1) });
@@ -367,13 +338,9 @@ export function BuilderMixin(Base) {
     }
 
     _wireWidgetInteractions() {
-      // Widget text/number inputs use name= attributes → handled by AppV2 form (submitOnChange).
-      // Dice/toggle/step buttons use data-action= → handled by _onBuilderClick click delegation.
-      // This method is a hook for any extra wiring needed per sheet type.
       const root = this.element;
       if (!root) return;
 
-      // Wire any input that has data-path but no name= (fallback for widgets not using form names)
       root.querySelectorAll(".widget input[data-path]:not([name])").forEach(inp => {
         inp.addEventListener("change", async () => {
           const path = inp.dataset.path;
@@ -389,7 +356,6 @@ export function BuilderMixin(Base) {
       const root = this.element;
       if (!root) return;
 
-      // Drop zones inside custom tab panels
       root.querySelectorAll(".widget-drop-zone[data-drop-type='widget']").forEach(dz => {
         dz.addEventListener("dragover", ev => { ev.preventDefault(); dz.classList.add("drag-over"); });
         dz.addEventListener("dragleave", () => dz.classList.remove("drag-over"));
@@ -435,7 +401,6 @@ export function BuilderMixin(Base) {
         });
       });
 
-      // Action buttons inside custom panels
       root.addEventListener("click", this._onBuilderClick.bind(this));
     }
 
@@ -487,7 +452,6 @@ export function BuilderMixin(Base) {
           return;
         }
 
-        // Check if document is an Item with slots
         if (this.document instanceof Item && this.document.system.slotDefinitions) {
           const { SlotManager } = await import("../data/item-slots.mjs");
           await SlotManager.addToSlot(this.document, slotId, item);
@@ -633,7 +597,6 @@ export function BuilderMixin(Base) {
       const cellEl = this.element.querySelector(`[data-widget-id="${widgetId}"]`);
       if (cellEl) {
         const rect = cellEl.getBoundingClientRect();
-        // Position below the widget, but ensure it stays on screen
         let top = rect.bottom + 8;
         let left = rect.left;
 
@@ -649,7 +612,6 @@ export function BuilderMixin(Base) {
         popup.style.top  = `${Math.max(10, top)}px`;
         popup.style.left = `${left}px`;
       } else {
-        // Center of screen as fallback
         popup.style.top  = "50%";
         popup.style.left = "50%";
         popup.style.transform = "translate(-50%, -50%)";
@@ -682,19 +644,16 @@ export function BuilderMixin(Base) {
 
       document.body.appendChild(popup);
 
-      // Path autocomplete and drop handling
       popup.querySelectorAll("[data-config-type='path'], [data-config-type='text']").forEach(inp => {
         this._wirePathAutocomplete(inp, popup);
         this._wirePathDrop(inp, popup);
       });
 
-      // Number and formula fields also accept drops
       popup.querySelectorAll("[data-config-type='number'], [data-config-type='formula']").forEach(inp => {
         this._wirePathDrop(inp, popup);
       });
 
       return new Promise(resolve => {
-        // "Configure via Graph" button -- opens node graph editor in config mode
         popup.querySelector("#popup-graph")?.addEventListener("click", async () => {
           popup.remove();
           resolve(null);
@@ -703,7 +662,6 @@ export function BuilderMixin(Base) {
           const row    = tab?.rows.find(r => r.id === rowId);
           const widget = row?.widgets.find(w => w.id === widgetId);
           if (!widget) return;
-          // Preload any unsaved inline-field changes (config node will mirror widget data)
           const graph = new FormulaGraph(
             null,
             this.document,
@@ -712,7 +670,6 @@ export function BuilderMixin(Base) {
             null,
             { mode: "config" }
           );
-          // Re-render sheet after graph is closed so changes appear immediately
           const origClose = graph.close.bind(graph);
           graph.close = (...args) => {
             origClose(...args);
@@ -743,7 +700,6 @@ export function BuilderMixin(Base) {
               } else if (type === "number") {
                 changes[key] = parseFloat(el.value) || 0;
               } else if (type === "tags") {
-                // Collect tags from tag-chip elements
                 const tags = [];
                 el.querySelectorAll(".tag-chip").forEach(chip => {
                   const tagText = chip.textContent.replace("×", "").trim();
@@ -761,7 +717,6 @@ export function BuilderMixin(Base) {
           });
         }
 
-        // Tag removal and addition handlers
         popup.querySelectorAll("[data-remove-tag]").forEach(btn => {
           btn.addEventListener("click", (ev) => {
             ev.stopPropagation();
@@ -896,7 +851,6 @@ export function BuilderMixin(Base) {
           return;
         }
 
-        // Item dropped - show attribute selector
         if (data.type === "Item" || data.uuid?.startsWith("Item")) {
           const item = await fromUuid(data.uuid);
           if (item) {

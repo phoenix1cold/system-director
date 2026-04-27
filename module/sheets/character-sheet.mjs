@@ -1,15 +1,3 @@
-/**
- * module/sheets/character-sheet.mjs
- *
- * Blank canvas sheet. No preset tabs.
- * Everything is built via the Toolbox drag-drop builder.
- *
- * PARTS:
- *   header  -- portrait, name, basic token bars
- *   tabnav  -- nav bar (built tabs + "+" drop zone)
- *   canvas  -- custom tab panels rendered via JS
- */
-
 import { TabManager } from "../helpers/tabs.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { GridManager }    from "../builder/grid-manager.mjs";
@@ -18,12 +6,6 @@ import { ButtonExecutor } from "../helpers/button-executor.mjs";
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
-/**
- * Shared prompt for tab rename dialogs used by _addTab and _renameTab.
- * Returns the trimmed name on Save, or null on Cancel / empty.
- * `modal:true` keeps the dialog in the browser top-layer so it renders above
- * the sheet and any graph windows.
- */
 function _promptTabName(current = "") {
   return new Promise(resolve => {
     const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
@@ -41,7 +23,7 @@ function _promptTabName(current = "") {
         { action:"cancel", label:"Cancel", icon:"fas fa-xmark",
           callback:()=>resolve(null) }
       ],
-      submit: () => {}   // prevent default "submit" behaviour — we already resolved
+      submit: () => {}
     }).render(true);
   });
 }
@@ -97,7 +79,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     };
   }
 
-  // Render: build tab nav + panels from customTabs
 
   _onRender(context, options) {
     this._buildTabNav();
@@ -109,15 +90,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     TabManager.activate(this);
   }
 
-  /**
-   * Delegated listener for tracker / clock interactions -- survives partial
-   * re-renders of nested widgets (slot rows, inventory rows, spellbook rows)
-   * where _wireWidget() is not called again for the inner cell.
-   *
-   * v2 (PR6): tracker click semantics match the clock widget -- click pip N
-   * fills to N+1; click already-filled pip N unfills back to N.  No more
-   * shift/right-click overloads.  Reset button always sets to 0.
-   */
   _wireTrackerDelegation() {
     const root = this.element;
     if (!root || root.dataset.sdTrackerDelegated === "1") return;
@@ -171,7 +143,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       nav = document.createElement("nav");
       nav.className = "sd-tab-nav";
       nav.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;padding:5px 12px 0;background:#22222e;border-bottom:1px solid #3a3a52;flex-shrink:0;";
-      // Always append to window-content -- it will appear after the header PART div
       root.querySelector(".window-content")?.appendChild(nav);
     }
 
@@ -224,7 +195,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       nav.appendChild(plus);
     }
 
-    // Right side: system tab + Save as Template button
     const spacer = document.createElement("div");
     spacer.style.cssText = "flex:1";
     nav.appendChild(spacer);
@@ -238,7 +208,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     hfTab.innerHTML = `<i class='fas fa-eye-slash'></i>`;
     hfTab.title = "Hidden Fields";
     hfTab.addEventListener("click", () => {
-      // Toggle: if already active, go back to first custom tab (or close)
       if (this.tabGroups.sheet === "_sys_hidden") {
         const tabs = this.document.system.customTabs ?? [];
         this._switchTab(tabs[0]?.id ?? "");
@@ -265,7 +234,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const root = this.element;
     if (!root) return;
 
-    // Use or create a single dedicated container for all panels
     let container = root.querySelector(".sd-panels-container");
     if (!container) {
       container = document.createElement("div");
@@ -279,13 +247,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const tabs = this.document.system.customTabs ?? [];
 
-    // Ensure active tab is valid -- includes _sys_hidden
     const validIds = [...tabs.map(t => t.id), "_sys_hidden"];
     if (!this.tabGroups.sheet || !validIds.includes(this.tabGroups.sheet)) {
       this.tabGroups.sheet = tabs[0]?.id ?? "";
     }
 
-    // Hidden Fields panel -- built first so it's part of the container flow
     container.appendChild(this._buildHiddenFieldsPanel(this.tabGroups.sheet === "_sys_hidden"));
 
     tabs.forEach(tab => {
@@ -310,7 +276,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       container.appendChild(panel);
     });
 
-    // Empty state -- only when no tabs
     if (tabs.length === 0) {
       const empty = document.createElement("div");
       empty.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#444;";
@@ -364,18 +329,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Shared helper: replace entire hiddenFields object (avoids all
-    //   ForcedDeletion / dotted-path deletion quirks in Foundry v14) ──────────
     const _hfReplace = async (newFields) => {
-      // Foundry's ObjectField merge will only ADD/UPDATE keys via dotted paths.
-      // To remove a key we must first null every existing key then set the new set.
       const current = this.document.system.hiddenFields ?? {};
       const patch = {};
-      // Null-out every key that should disappear
       for (const k of Object.keys(current)) {
         if (!(k in newFields)) patch[`system.hiddenFields.-=${k}`] = null;
       }
-      // Set every surviving / new key
       for (const [k, v] of Object.entries(newFields)) {
         patch[`system.hiddenFields.${k}`] = v;
       }
@@ -456,7 +415,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const doc = this.document;
     const sys = doc.system ?? {};
 
-    // Save full sheet builder state to game.settings -- NOT as an Actor copy
     const stored = foundry.utils.deepClone(game.settings.get("sd", "sheetTemplates") ?? {});
     stored[name] = {
       name,
@@ -466,13 +424,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       hiddenFields:    foundry.utils.deepClone(sys.hiddenFields     ?? {}),
       declaredAttrs:   foundry.utils.deepClone(sys.declaredAttrs    ?? []),
       slotDefinitions: foundry.utils.deepClone(sys.slotDefinitions  ?? []),
-      // Sheet-level event trigger graph -- preserves actor-wide on_* hooks
       sdTriggerGraph:  foundry.utils.deepClone(sys.sdTriggerGraph   ?? {}),
       created: Date.now()
     };
     await game.settings.set("sd", "sheetTemplates", stored);
 
-    // Refresh Toolbox panel if it is open
     try {
       const tb = Object.values(foundry.applications.instances ?? {})
         .find(a => a.constructor?.name === "Toolbox");
@@ -483,17 +439,31 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   _buildRow(tab, row) {
+    const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
     const rowEl = document.createElement("div");
     rowEl.dataset.rowId  = row.id;
+    rowEl.dataset.tabId  = tab.id;
+    rowEl.dataset.cols   = cols;
     rowEl.style.cssText  = `
-      display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+      display:grid; grid-template-columns:repeat(${cols},1fr); gap:8px;
       align-items:start; position:relative;
       padding:8px 8px 8px 8px;
       border:1px dashed rgba(123,104,238,.12); border-radius:6px;
     `;
 
-    // Row delete button (edit mode only)
     if (this._editMode) {
+      const cfg = document.createElement("button");
+      cfg.type = "button";
+      cfg.innerHTML = `<i class="fas fa-cog"></i> ${cols}`;
+      cfg.title = "Row columns (1-9)";
+      cfg.style.cssText = `
+        position:absolute; top:-9px; right:32px; z-index:10;
+        background:#1a1a24; border:1px solid #3a3a52; border-radius:3px;
+        color:#7b68ee; cursor:pointer; font-size:10px; padding:0 6px; line-height:17px;
+      `;
+      cfg.addEventListener("click", () => this._configRow(tab.id, row.id));
+      rowEl.appendChild(cfg);
+
       const del = document.createElement("button");
       del.type = "button";
       del.innerHTML = "✕";
@@ -507,12 +477,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       rowEl.appendChild(del);
     }
 
-    // Widgets
-    (row.widgets ?? []).forEach(w => {
-      rowEl.appendChild(this._buildWidget(tab, row, w));
+    (row.widgets ?? []).forEach((w, idx) => {
+      rowEl.appendChild(this._buildWidget(tab, row, w, idx));
     });
 
-    // Intra-row drop zone
     if (this._editMode) {
       rowEl.appendChild(this._makeDropZone(tab, row, "Drop widget here"));
     }
@@ -520,54 +488,119 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     return rowEl;
   }
 
-  _buildWidget(tab, row, w) {
-    const span = w.span ?? 1;
+  _buildWidget(tab, row, w, idx = 0, parentVS = null) {
+    const rowCols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+    const rawSpan = Math.max(1, Math.min(parentVS ? 1 : rowCols, Number(w.span) || 1));
+    const span = rawSpan;
     const cell = document.createElement("div");
     cell.dataset.widgetId = w.id;
-    cell.style.cssText    = `grid-column:span ${span}; position:relative; min-width:0;`;
+    cell.dataset.rowId    = row.id;
+    cell.dataset.tabId    = tab.id;
+    if (parentVS) cell.dataset.parentVsId = parentVS.id;
+    cell.dataset.widgetIdx = idx;
+    cell.style.cssText    = `grid-column:${parentVS ? "auto" : `span ${span}`}; position:relative; min-width:0;`;
 
-    // Widget body -- honour showIf: if hidden, collapse cell to zero size
+    if (w.type === "vsection") {
+      cell.innerHTML = "";
+      cell.appendChild(this._buildVSection(tab, row, w));
+      if (this._editMode) {
+        this._makeWidgetDraggable(cell, tab, row, w, parentVS);
+        this._attachWidgetOverlay(cell, tab, row, w, span, parentVS);
+      }
+      return cell;
+    }
+
     const val = this._getVal(w);
     const html = this._widgetHTML(w, val);
     if (!html && !this._editMode) {
-      // showIf evaluated false -- remove from layout entirely
       cell.style.display = "none";
       return cell;
     }
     cell.innerHTML = html || "";
+    const styleStr = WidgetRenderer._buildStyle(w);
+    if (styleStr) cell.style.cssText += `;${styleStr};box-sizing:border-box`;
     this._wireWidget(cell, w);
 
-    // Edit overlay (visible on hover in edit mode)
     if (this._editMode) {
-      const ov = document.createElement("div");
-      ov.className = "sd-widget-ov";
-      ov.style.cssText = `
-        display:none; position:absolute; top:2px; right:2px; z-index:20;
-        flex-direction:row; gap:2px;
-      `;
-      ov.innerHTML = `
-        <button type="button" title="Configure" data-action="wcfg"
-          style="background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">⚙</button>
-        <button type="button" title="Width (${span})" data-action="wspan"
-          style="background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">↔${span}</button>
-        <button type="button" title="Remove" data-action="wdel"
-          style="background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">✕</button>
-      `;
-      ov.querySelector('[data-action="wcfg"]').addEventListener("click",  ev => { ev.stopPropagation(); this._configWidget(tab, row, w); });
-      ov.querySelector('[data-action="wspan"]').addEventListener("click", ev => { ev.stopPropagation(); this._cycleSpan(tab, row, w); });
-      ov.querySelector('[data-action="wdel"]').addEventListener("click",  ev => { ev.stopPropagation(); this._deleteWidget(tab, row, w); });
-
-      cell.addEventListener("mouseenter", () => ov.style.display = "flex");
-      cell.addEventListener("mouseleave", () => ov.style.display = "none");
-      cell.appendChild(ov);
+      this._makeWidgetDraggable(cell, tab, row, w, parentVS);
+      this._attachWidgetOverlay(cell, tab, row, w, span, parentVS);
     }
 
     return cell;
   }
 
+  _buildVSection(tab, row, vs) {
+    const box = document.createElement("div");
+    box.dataset.vsId = vs.id;
+    box.style.cssText = `
+      display:flex; flex-direction:column; gap:6px;
+      padding:6px; border:1px dashed rgba(123,104,238,.18); border-radius:5px;
+      background:rgba(123,104,238,.03); min-height:40px;
+    `;
+    if (vs.label) {
+      const h = document.createElement("div");
+      h.textContent = vs.label;
+      h.style.cssText = "font-size:10px;font-weight:700;color:#7b68ee;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px";
+      box.appendChild(h);
+    }
+    (vs.widgets ?? []).forEach((cw, idx) => {
+      box.appendChild(this._buildWidget(tab, row, cw, idx, vs));
+    });
+    if (this._editMode) {
+      box.appendChild(this._makeDropZone(tab, row, "Drop widget into section", vs));
+    }
+    return box;
+  }
+
+  _makeWidgetDraggable(cell, tab, row, w, parentVS) {
+    cell.draggable = true;
+    cell.addEventListener("dragstart", ev => {
+      ev.stopPropagation();
+      try {
+        ev.dataTransfer.setData("text/plain", JSON.stringify({
+          sdType: "widget-move",
+          tabId: tab.id,
+          rowId: row.id,
+          widgetId: w.id,
+          parentVsId: parentVS?.id ?? null
+        }));
+        ev.dataTransfer.effectAllowed = "move";
+      } catch {}
+      cell.style.opacity = "0.4";
+    });
+    cell.addEventListener("dragend", () => { cell.style.opacity = ""; });
+  }
+
+  _attachWidgetOverlay(cell, tab, row, w, span, parentVS) {
+    const ov = document.createElement("div");
+    ov.className = "sd-widget-ov";
+    ov.style.cssText = `
+      display:none; position:absolute; top:2px; right:2px; z-index:20;
+      flex-direction:row; gap:2px;
+    `;
+    const spanBtn = parentVS
+      ? ""
+      : `<button type="button" title="Width (${span})" data-action="wspan"
+          style="background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">↔${span}</button>`;
+    ov.innerHTML = `
+      <span title="Drag to move" style="cursor:grab;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span>
+      <button type="button" title="Configure" data-action="wcfg"
+        style="background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">⚙</button>
+      ${spanBtn}
+      <button type="button" title="Remove" data-action="wdel"
+        style="background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">✕</button>
+    `;
+    ov.querySelector('[data-action="wcfg"]').addEventListener("click",  ev => { ev.stopPropagation(); this._configWidget(tab, row, w, parentVS); });
+    ov.querySelector('[data-action="wspan"]')?.addEventListener("click", ev => { ev.stopPropagation(); this._cycleSpan(tab, row, w); });
+    ov.querySelector('[data-action="wdel"]').addEventListener("click",  ev => { ev.stopPropagation(); this._deleteWidget(tab, row, w, parentVS); });
+
+    cell.addEventListener("mouseenter", () => ov.style.display = "flex");
+    cell.addEventListener("mouseleave", () => ov.style.display = "none");
+    cell.appendChild(ov);
+  }
+
   _getVal(w) {
     const doc = this.document;
-    // valueFormula takes priority -- evaluated synchronously by FormulaEngine
     if (w.valueFormula?.trim()) {
       try {
         const FE = globalThis._SD_FE?.FormulaEngine;
@@ -582,7 +615,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _widgetHTML(w, val) {
     const e   = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 
-    // showIf guard -- hide widget when formula evaluates to false/0
     if (w.showIf && String(w.showIf).trim()) {
       try {
         const FE = globalThis._SD_FE?.FormulaEngine;
@@ -603,16 +635,18 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (w.readOnly === true || w.readOnly === "true") return `${lbl}<div style="width:100%;background:#111120;border:1px solid #2a2a38;border-radius:4px;color:#8888aa;font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0">${e(String(val))} <span style="float:right;opacity:.4" title="Read only">🔒</span></div>`;
         return `${lbl}<input type="text" data-path="${e(w.path)}" value="${e(val)}" ${inp}>`;
 
-      case "number":
+      case "number": {
         if (hasFormula) return `${lbl}<div style="text-align:center;font-weight:700;font-size:18px;color:#e0e0ee;padding:4px 2px;background:#22222e;border:1px solid #2a2a42;border-radius:4px" title="Formula: ${e(w.valueFormula)}">${e(String(val))}<span style="font-size:9px;color:#5a4ec0;margin-left:4px">ƒ</span></div>`;
+        const btnCol = (typeof w.btnColor === "string" && w.btnColor.trim()) ? w.btnColor.trim() : "#a0a0c0";
         return `${lbl}<div style="display:flex;align-items:center;gap:3px">
           <button data-step="-${w.step||1}" data-path="${e(w.path)}"
-            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;cursor:pointer;font-size:16px;line-height:1">−</button>
+            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">−</button>
           <input type="number" data-path="${e(w.path)}" value="${e(val)}"
             style="flex:1;text-align:center;font-weight:700;font-size:15px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;padding:2px;box-sizing:border-box;min-width:0">
           <button data-step="${w.step||1}" data-path="${e(w.path)}"
-            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;cursor:pointer;font-size:16px;line-height:1">+</button>
+            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">+</button>
         </div>`;
+      }
 
       case "resource": {
         const doc = this.document;
@@ -620,6 +654,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const mx  = Number(foundry.utils.getProperty(doc, w.pathMax)   ?? 0);
         const pct = mx > 0 ? Math.round(Math.clamp(vv / mx, 0, 1) * 100) : 0;
         const clr = w.color ?? "#7b68ee";
+        const barH = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "5px";
+        const barTrk = (typeof w.barTrack === "string" && w.barTrack.trim()) ? w.barTrack.trim() : "#111";
         return `${lbl}
           <div style="display:flex;align-items:center;gap:4px">
             <input type="number" data-path="${e(w.pathValue)}" value="${e(vv)}"
@@ -628,7 +664,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             <input type="number" data-path="${e(w.pathMax)}" value="${e(mx)}"
               style="width:46px;text-align:center;font-size:13px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;padding:2px;box-sizing:border-box">
           </div>
-          <div style="height:5px;background:#111;border-radius:3px;overflow:hidden;margin-top:3px">
+          <div style="height:${barH};background:${e(barTrk)};border-radius:3px;overflow:hidden;margin-top:3px">
             <div style="height:100%;width:${pct}%;background:${e(clr)};border-radius:3px;transition:width .3s"></div>
           </div>`;
       }
@@ -636,10 +672,14 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       case "dice": {
         const diceFormula = w.formula ?? "1d20";
         const diceMacroScript = `// ${e(w.label ?? "Roll")}\\nconst actor = token?.actor ?? game.user.character;\\nconst roll = new Roll("${e(diceFormula)}", actor?.getRollData() ?? {});\\nawait roll.evaluate();\\nawait roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${e(w.label ?? "Roll")}" });`;
+        const dBg = (typeof w.btnBg     === "string" && w.btnBg.trim())     ? w.btnBg.trim()     : "#22222e";
+        const dFg = (typeof w.btnFg     === "string" && w.btnFg.trim())     ? w.btnFg.trim()     : "#e0e0ee";
+        const dBd = (typeof w.btnBorder === "string" && w.btnBorder.trim()) ? w.btnBorder.trim() : "#3a3a52";
+        const dIc = (typeof w.iconColor === "string" && w.iconColor.trim()) ? w.iconColor.trim() : "#7b68ee";
         return `${lbl}<div style="display:flex;align-items:center;gap:4px">
           <button type="button" data-roll="${e(diceFormula)}" data-flavor="${e(w.label ?? "Roll")}"
-            style="flex:1;padding:6px 8px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;transition:border-color .15s">
-            <i class="fas fa-dice-d20" style="color:#7b68ee"></i>
+            style="flex:1;padding:6px 8px;background:${e(dBg)};border:1px solid ${e(dBd)};border-radius:4px;color:${e(dFg)};cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;transition:border-color .15s">
+            <i class="fas fa-dice-d20" style="color:${e(dIc)}"></i>
             ${e(w.label ?? "Roll")}
             <span style="opacity:.4;font-size:10px;margin-left:2px">${e(diceFormula)}</span>
           </button>
@@ -654,20 +694,26 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       case "toggle": {
         const on  = !!val;
         const lv  = on ? (w.onLabel ?? "On") : (w.offLabel ?? "Off");
+        const onC  = (typeof w.onColor  === "string" && w.onColor.trim())  ? w.onColor.trim()  : "#7b68ee";
+        const offC = (typeof w.offColor === "string" && w.offColor.trim()) ? w.offColor.trim() : "#22222e";
         return `${lbl}<div data-toggle="${e(w.path)}" data-on="${on}"
           style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;user-select:none">
-          <div style="width:36px;height:20px;flex-shrink:0;background:${on ? "#7b68ee" : "#22222e"};border:1px solid ${on ? "#7b68ee" : "#3a3a52"};border-radius:10px;position:relative;transition:background .2s">
+          <div style="width:36px;height:20px;flex-shrink:0;background:${on ? e(onC) : e(offC)};border:1px solid ${on ? e(onC) : "#3a3a52"};border-radius:10px;position:relative;transition:background .2s">
             <div style="position:absolute;top:2px;left:${on ? "18px" : "2px"};width:14px;height:14px;background:${on ? "#fff" : "#555"};border-radius:50%;transition:left .2s"></div>
           </div>
           <span style="font-size:12px;color:#a0a0c0">${e(lv)}</span>
         </div>`;
       }
 
-      case "section":
+      case "section": {
+        const lineCol = (typeof w.lineColor  === "string" && w.lineColor.trim())  ? w.lineColor.trim()  : "#3a3a52";
+        const titleCol= (typeof w.titleColor === "string" && w.titleColor.trim()) ? w.titleColor.trim() : "#a0a0c0";
+        const lineTh  = Number(w.lineThickness) > 0 ? `${Number(w.lineThickness)}px` : "1px";
         return `<div style="grid-column:span 3;display:flex;align-items:center;gap:8px;padding:4px 0">
-          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a0a0c0;white-space:nowrap">${e(w.label)}</span>
-          <div style="flex:1;height:1px;background:#3a3a52"></div>
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${e(titleCol)};white-space:nowrap">${e(w.label)}</span>
+          <div style="flex:1;height:${lineTh};background:${e(lineCol)}"></div>
         </div>`;
+      }
 
       case "richtext":
         return WidgetRenderer._render_richtext(w, this.document);
@@ -687,7 +733,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           mod = Math.floor((score - 10) / 2);
         }
         const ms = mod >= 0 ? `+${mod}` : `${mod}`;
-        // onClickFormula -- exec graph wired from on_click node; falls back to plain roll
         const onClickFml = w.onClickFormula ?? null;
         const clickAttrs = onClickFml
           ? `data-attr-onclick="${e(onClickFml)}"`
@@ -706,7 +751,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const rank = Number(foundry.utils.getProperty(this.document, w.path) ?? 0);
         const bonus = rank + (w.attrMod ?? 0);
         const bs = bonus >= 0 ? `+${bonus}` : `${bonus}`;
-        // Use custom formula if set, otherwise default 1d20+bonus
         const skillRollFormula = (w.rollFormula && w.rollFormula.trim()) ? w.rollFormula.trim() : `1d20+${bonus}`;
         const skillMacroScript = `// ${e(w.label)} skill roll\\nconst actor = token?.actor ?? game.user.character;\\nif (!actor) return ui.notifications.warn("No actor selected");\\nconst rank = foundry.utils.getProperty(actor, "${e(w.path)}") ?? 0;\\nconst bonus = rank + ${w.attrMod ?? 0};\\nconst formula = ${w.rollFormula?.trim() ? `"${e(w.rollFormula.trim())}"` : "`1d20+${bonus}`"};\\nconst roll = new Roll(formula, actor.getRollData());\\nawait roll.evaluate();\\nawait roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${e(w.label)}" });`;
         return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;position:relative">
@@ -725,7 +769,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       }
 
       case "slot": {
-        // Shows contents of a slot defined on this actor/item
         const slotId   = w.slotId ?? "";
         const contents = this.document.system?.slotContents?.[slotId]?.contents ?? [];
         const defs     = this.document.system?.slotDefinitions ?? [];
@@ -760,11 +803,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       }
 
       case "button":
-        // Delegate to WidgetRenderer -- it produces the sd-action-btn with data-action="widgetButton"
         return WidgetRenderer._render_button(w, this.document);
 
       case "inventory": {
-        // Delegate to WidgetRenderer for full inventory rendering
         return WidgetRenderer._render_inventory(w, this.document);
       }
 
@@ -776,7 +817,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         return WidgetRenderer._render_spellbook(w, this.document);
       }
 
-      // New widget types -- delegate to WidgetRenderer
       case "progress":
       case "select":
       case "clock":
@@ -791,7 +831,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         return WidgetRenderer.render(w, this.document);
 
       default:
-        // Any unknown widget type: try WidgetRenderer first, fall back to placeholder
         return WidgetRenderer.render(w, this.document)
           ?? `${lbl}<span style="font-size:11px;color:#555;font-style:italic">[${e(w.type)}]</span>`;
     }
@@ -808,11 +847,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // ± step buttons.  Also dispatches for widgets that use
-    // `data-action="widgetNumStep"` (counter, tokenPool) -- per-button
-    // `data-min` / `data-max` attributes take precedence over `w.min` /
-    // `w.max`, so those widgets get proper clamping without needing a
-    // second listener (which caused duplicate doc.update()s in PR6).
+    // ± step buttons
     cell.querySelectorAll("[data-step]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const step   = parseFloat(btn.dataset.step);
@@ -828,11 +863,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Roll button / modifier click (legacy data-roll attribute from widget renderer)
     cell.querySelectorAll("[data-roll]").forEach(el => {
       el.addEventListener("click", async () => {
         let formula = el.dataset.roll;
-        if (!formula || formula.trim().startsWith("[")) return; // action graph — not a roll formula
+        if (!formula || formula.trim().startsWith("[")) return;
         try {
           const { FormulaEngine } = await import("../helpers/formula-engine.mjs");
           formula = FormulaEngine.resolveForRoll(formula, doc);
@@ -857,7 +891,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Attribute modifier click -- runs onClickFormula (exec graph) or falls back to roll
     cell.querySelectorAll("[data-action='attrModClick']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const onClickFml = btn.dataset.attrOnclick;
@@ -869,8 +902,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
               const actions = JSON.parse(trimmed);
               const actorCtx = doc instanceof Actor ? doc : doc.actor ?? null;
               const itemCtx = doc instanceof Actor ? null : doc;
-              // Shared buttonDef + runtime so actions can pass data to each other
-              // (e.g. rollValue stores __lastRoll, chatDamage reads it)
               const fakeBtnDef = { label: btn.dataset.flavor ?? "" };
               const runtime = {};
               for (const action of actions) {
@@ -880,7 +911,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             return;
           }
         }
-        // Fallback: plain roll via data-attr-roll
         let formula = btn.dataset.attrRoll || "1d20";
         try {
           const { FormulaEngine } = await import("../helpers/formula-engine.mjs");
@@ -894,11 +924,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // WidgetRenderer action buttons (widgetRoll, widgetNumStep, widgetToggle)
     cell.querySelectorAll("[data-action='widgetRoll']").forEach(btn => {
       btn.addEventListener("click", async () => {
         let formula = btn.dataset.formulaRaw || btn.dataset.formula || "1d20";
-        // JSON action graph -- delegate to ButtonExecutor instead of Roll
           if (formula.trim().startsWith("[")) {
             try {
               const actions = JSON.parse(formula.trim());
@@ -923,9 +951,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         } catch(e) { console.error("SD | widgetRoll error:", e, "formula:", formula); }
       });
     });
-    // widgetNumStep dispatch is now handled by the generic [data-step] loop
-    // above (PR7 fix for Devin Review BUG_0001 on PR6 -- double doc.update per
-    // click when both selectors matched the same button).
     cell.querySelectorAll("[data-action='widgetToggle']").forEach(btn => {
       btn.addEventListener("click", async () => {
         await doc.update({ [btn.dataset.path]: !_readPath(btn.dataset.path) });
@@ -937,14 +962,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       btn.addEventListener("click", async () => {
         const rawFormula = btn.dataset.formulaRaw || btn.dataset.formula;
         if (!rawFormula) {
-          // No formula -- just post a plain chat message with the flavor label
           if (btn.dataset.flavor) {
             ChatMessage.create({ content: btn.dataset.flavor, speaker: ChatMessage.getSpeaker({ actor: doc }) });
           }
           return;
         }
 
-        // Detect compiled action graph (array "[" or multi-trigger object "{")
         const trimmed = rawFormula.trim();
         if (trimmed.startsWith("[") || trimmed.startsWith("{\"_trigger\"")) {
           try {
@@ -990,7 +1013,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Slot widget: use button (fires item.use() on slotted item data)
     cell.querySelectorAll("[data-action='slotItemUse']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const slotId = btn.dataset.slotId;
@@ -1000,20 +1022,13 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const itemData = contents[idx];
         if (!itemData) return;
         const actor = doc instanceof Actor ? doc : doc.actor;
-        // 1. Live actor item by stored _id
         let item = actor?.items?.get(itemData._id) ?? null;
         // 2. Live actor item by name
         if (!item) item = actor?.items?.find(i => i.name === itemData.name) ?? null;
-        // 3. Live source item via _sourceUuid (stored by SlotManager.addToSlot).
-        //    This is the primary path for slotted items that are NOT in actor.items
-        //    (e.g. a world item like "gun" dropped into a character slot).
-        //    fromUuid() returns the live document with up-to-date slotContents, so
-        //    any ammo/clip changes made after the snapshot was taken are visible.
+        // 3
         if (!item && itemData._sourceUuid) {
           try { item = await fromUuid(itemData._sourceUuid); } catch {}
         }
-        // 4. Build a temporary Item from the stored snapshot only as last resort.
-        //    NOTE: the snapshot may be stale -- it was frozen at addToSlot time.
         let isSnapshot = false;
         if (!item) {
           try {
@@ -1022,21 +1037,16 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             isSnapshot = true;
           } catch(e) { console.warn("SD | slotItemUse: could not build temp item:", e); }
         }
-        // When item came from _sourceUuid (live world/compendium item) or is a snapshot,
-        // intercept update() so mutations are written back to doc's slotContents.
         if (item && (isSnapshot || itemData._sourceUuid)) {
           const _snapSlotId = slotId;
           const _snapIdx    = idx;
           const _origUpdate = item.update.bind(item);
           item.update = async function(changes, _opts = {}) {
             const expanded = foundry.utils.expandObject(changes);
-            // Keep in-memory system in sync for the rest of this use() call.
             if (this.system && expanded.system) {
               foundry.utils.mergeObject(this.system, expanded.system,
                 { insertKeys: true, insertValues: true, overwrite: true });
             }
-            // Write back: take the LIVE current data (fresh from doc), apply changes on
-            // top so we never lose mutations made by earlier steps in the same action chain.
             const currentSnap = foundry.utils.deepClone(
               SlotManager.getContents(doc, _snapSlotId)[_snapIdx] ?? {}
             );
@@ -1065,17 +1075,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const itemData = contents[idx];
         if (!itemData) return;
         const actor = doc instanceof Actor ? doc : doc.actor;
-        // 1. Live actor item by stored _id
         let liveItem = actor?.items?.get(itemData._id) ?? null;
         // 2. Live actor item by name
         if (!liveItem) liveItem = actor?.items?.find(i => i.name === itemData.name) ?? null;
-        // 3. Live source item via _sourceUuid (stored by SlotManager.addToSlot).
-        //    This is the primary path for slotted items not embedded in actor.items.
-        //    Returns the live document with up-to-date nested slotContents.
         if (!liveItem && itemData._sourceUuid) {
           try { liveItem = await fromUuid(itemData._sourceUuid); } catch {}
         }
-        // 4. Build a temporary Item from the stored snapshot only as last resort.
         let isSnapshot = false;
         if (!liveItem) {
           try {
@@ -1084,21 +1089,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             isSnapshot = true;
           } catch(e) { console.warn("SD | slot use: could not build temp item:", e); }
         }
-        // When item came from _sourceUuid or is a snapshot, intercept update() so
-        // mutations are written back to doc's slotContents and not just the world item.
         if (liveItem && (isSnapshot || itemData._sourceUuid)) {
           const _snapSlotId = slotId;
           const _snapIdx    = idx;
           liveItem.update = async function(changes, _opts = {}) {
             const expanded = foundry.utils.expandObject(changes);
-            // Keep in-memory system in sync for the rest of this use() call.
             if (this.system && expanded.system) {
               foundry.utils.mergeObject(this.system, expanded.system,
                 { insertKeys: true, insertValues: true, overwrite: true });
             }
-            // Write back into character slot: base on the current live snapshot from
-            // doc (not from this._source) so we don't lose changes made between
-            // addToSlot time and now (e.g. ammo manually added after first use).
             const currentSnap = foundry.utils.deepClone(
               SlotManager.getContents(doc, _snapSlotId)[_snapIdx] ?? {}
             );
@@ -1118,7 +1117,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Slot widget: remove button (legacy direct SlotManager call -- only for top-level slots on doc)
     cell.querySelectorAll("[data-sd-slot-remove]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const { SlotManager } = await import("../data/item-slots.mjs");
@@ -1127,19 +1125,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Shared helper: resolve a live Item from slotted snapshot data
     const _resolveSlottedItem = async (itemId, itemUuid, snapshot, parentDoc) => {
       const actor = parentDoc instanceof Actor ? parentDoc : parentDoc?.actor ?? null;
       CONFIG.debug?.sd && console.log("[SD] _resolveSlottedItem | itemId:", itemId, "itemUuid:", itemUuid, "snapshot:", snapshot?.name, "_sourceUuid:", snapshot?._sourceUuid, "actor:", actor?.id);
-      // 1. Live actor-embedded item by stored _id
       let item = itemId ? (actor?.items?.get(itemId) ?? null) : null;
       CONFIG.debug?.sd && console.log("[SD]   step1 by _id:", item?.name ?? "null");
-      // 2. Via stored _sourceUuid (most reliable -- set by SlotManager.addToSlot)
       if (!item && itemUuid) {
         try { item = await fromUuid(itemUuid); } catch(e) { console.warn("[SD]   step2 fromUuid error:", e.message); }
         CONFIG.debug?.sd && console.log("[SD]   step2 by itemUuid:", item?.name ?? "null");
       }
-      // 3. Snapshot has _sourceUuid field directly
       if (!item && snapshot?._sourceUuid) {
         try { item = await fromUuid(snapshot._sourceUuid); } catch(e) { console.warn("[SD]   step3 fromUuid error:", e.message); }
         CONFIG.debug?.sd && console.log("[SD]   step3 by snapshot._sourceUuid:", item?.name ?? "null");
@@ -1149,7 +1143,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         try { item = await fromUuid("Item." + itemId); } catch(e) { console.warn("[SD]   step4 fromUuid error:", e.message); }
         CONFIG.debug?.sd && console.log("[SD]   step4 by world Item._id:", item?.name ?? "null");
       }
-      // 5. Actor-embedded search by name
       if (!item && snapshot?.name) {
         item = actor?.items?.find(i => i.name === snapshot.name) ?? null;
         CONFIG.debug?.sd && console.log("[SD]   step5 by name:", item?.name ?? "null");
@@ -1158,7 +1151,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return item ?? null;
     };
 
-    // Slot widget: edit button (legacy data-sd-slot-edit from _widgetHTML)
     cell.querySelectorAll("[data-sd-slot-edit]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const { SlotManager } = await import("../data/item-slots.mjs");
@@ -1171,7 +1163,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Slot widget: edit button -- opens snapshot editor, saves back to slot
     cell.querySelectorAll("[data-action='slotItemEdit']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const { SlotManager } = await import("../data/item-slots.mjs");
@@ -1184,7 +1175,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Draggable items: inventory rows + slot items (sets UUID in drag data for slot drops)
     cell.querySelectorAll("[data-item-drag], [data-slot-item-drag]").forEach(el => {
       el.setAttribute("draggable", "true");
       el.addEventListener("dragstart", ev => {
@@ -1199,7 +1189,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Spellbook ability rows: make draggable
     cell.querySelectorAll(".sb-ability-row[draggable]").forEach(row => {
       row.addEventListener("dragstart", ev => {
         const actor  = doc instanceof Actor ? doc : doc.actor;
@@ -1236,7 +1225,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             const { SlotManager } = await import("../data/item-slots.mjs");
             const slotId = dz.dataset.sdSlotDrop;
 
-            // Auto-create slot definition on actor if missing
             const defs = doc.system.slotDefinitions ?? [];
             if (!defs.find(d => d.id === slotId)) {
               const allWidgets = (doc.system.customTabs ?? [])
@@ -1263,11 +1251,29 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Inventory widget: item edit/delete/use actions (from WidgetRenderer HTML)
     cell.querySelectorAll("[data-action='itemUse']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const item = doc.items?.get(btn.dataset.itemId);
         if (item) await item.use({});
+      });
+    });
+    cell.querySelectorAll("[data-action='itemEquip']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const item = doc.items?.get(btn.dataset.itemId);
+        if (!item || item.type !== "inventory") return;
+        if (!item.system?.equippable) {
+          ui.notifications?.warn(`"${item.name}" is not marked Equippable. Open the item → Hidden Fields and enable it.`);
+          return;
+        }
+        const next = !item.system.equipped;
+        if (next && typeof item.canEquip === "function") {
+          const { ok, reason } = await item.canEquip();
+          if (!ok) {
+            ui.notifications?.warn(reason ?? game.i18n.localize("SD.EquipBlocked") ?? "Cannot equip.");
+            return;
+          }
+        }
+        await item.update({ "system.equipped": next });
       });
     });
     cell.querySelectorAll("[data-action='itemEdit']").forEach(btn => {
@@ -1288,7 +1294,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Effects widget: create / toggle / edit / delete
     cell.querySelectorAll("[data-action='effectCreate']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const cls = foundry.utils.getDocumentClass("ActiveEffect");
@@ -1329,8 +1334,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const pathUses = String(hf.pathUses ?? "").trim();
 
         if (cost > 0 && pathUses) {
-          // Resolve ".value" shortcut -- if path points at {value,max} object,
-          // use .value; otherwise treat pathUses as the value path directly.
           let valuePath = pathUses;
           const atPath = foundry.utils.getProperty(doc, pathUses);
           if (atPath && typeof atPath === "object" && "value" in atPath) {
@@ -1344,7 +1347,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           await doc.update({ [valuePath]: cur - cost });
         }
 
-        // Use the ability (runs onClick graph, fires chat card, etc.)
         await item.use({});
       });
     });
@@ -1357,9 +1359,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Slot pip toggle -- clicking pip at index i sets value = i+1 (fill up to here),
-    // or i if that pip was already the last filled (tap last filled pip to reduce by 1).
-    // data-value-path overrides the default spellSlots path (used in config-driven mode).
     cell.querySelectorAll("[data-action='slotToggle'], [data-action='slotRestore']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const lvl       = btn.dataset.level;
@@ -1372,7 +1371,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Spell slot max editor (slots mode: inline number input per level)
     cell.querySelectorAll("[data-action='slotSetMax']").forEach(inp => {
       inp.addEventListener("change", async () => {
         const lvl     = inp.dataset.level;
@@ -1397,7 +1395,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Remove a spell slot level (uses -= Foundry deletion syntax for ObjectField)
     cell.querySelectorAll("[data-action='slotRemoveLevel']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const lvl = btn.dataset.level;
@@ -1405,7 +1402,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Mana bar inputs (mana mode) -- save on change
     cell.querySelectorAll(".sb-mana-input").forEach(inp => {
       inp.addEventListener("change", async () => {
         const v = Math.max(0, parseInt(inp.value) || 0);
@@ -1413,7 +1409,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Delete ability from actor (spellbook widget)
     cell.querySelectorAll("[data-action='abilityDelete']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const item = doc.items?.get(btn.dataset.itemId);
@@ -1426,9 +1421,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Spellbook drop zone -- drag ability items from sidebar to add to actor.
-    // If the widget has a `type` filter, dropped abilities inherit that type
-    // in their hiddenFields so they show up immediately.
     cell.querySelectorAll(".sb-drop-zone").forEach(dz => {
       dz.addEventListener("dragover", ev => {
         ev.preventDefault();
@@ -1464,9 +1456,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
               type:     "",
               ...(obj.system.hiddenFields ?? {})
             };
-            // If the widget has a type filter, stamp the dropped ability with
-            // that type (unless it already has a non-empty, non-matching type
-            // -- respect manually set values).
             if (wantType && !String(obj.system.hiddenFields.type ?? "").trim()) {
               obj.system.hiddenFields.type = wantType;
             }
@@ -1477,7 +1466,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Copy roll formula as macro script
     cell.querySelectorAll("[data-copy-macro]").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1497,7 +1485,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           }
           ui.notifications.info("Macro script copied to clipboard!");
         } catch {
-          // Fallback: open a small dialog with the script text for manual copy
           await foundry.applications.api.DialogV2.prompt({
             window: { title: "Macro Script" },
             content: `<p style="font-size:11px;color:#888;margin-bottom:6px">Copy the script below into a new Macro (type: Script):</p>
@@ -1530,8 +1517,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Helper: read a path value, bypassing DataModel Proxy for hiddenFields
-    // (foundry.utils.getProperty does not traverse DataModel proxies reliably)
     const _readPath = (path) => {
       if (!path) return 0;
       if (path.startsWith("system.hiddenFields.")) {
@@ -1541,7 +1526,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return foundry.utils.getProperty(this.document, path) ?? 0;
     };
 
-    // Clock segments (sd-clock-segment)
     cell.querySelectorAll(".sd-clock-segment").forEach(seg => {
       seg.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1550,18 +1534,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const segs  = Number(seg.dataset.segs ?? 4);
         if (!path) return;
         const cur   = Number(_readPath(path)) || 0;
-        // Click filled → unfill (set to index), click unfilled → fill (set to index+1)
         const next  = cur > index ? index : index + 1;
         await this.document.update({ [path]: Math.min(segs, Math.max(0, next)) });
       });
     });
 
-    // Tracker pip clicks are handled by the root-level delegated listener
-    // installed in _wireTrackerDelegation() so that partial re-renders of
-    // inner cells (inventory rows, slot rows, spellbook rows) don't lose
-    // their handlers.
-
-    // Clock reset (sd-clock-reset)
     cell.querySelectorAll(".sd-clock-reset[data-path]").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1571,7 +1548,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Tracker reset (sd-tracker-reset)
     cell.querySelectorAll(".sd-tracker-reset[data-path]").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1581,7 +1557,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Select widget (widget-select-input)
     cell.querySelectorAll(".widget-select-input[data-path]").forEach(sel => {
       sel.addEventListener("change", async () => {
         const path = sel.dataset.path;
@@ -1624,19 +1599,53 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Image widget -- click to pick (sd-img-pick)
-    cell.querySelectorAll(".sd-img-pick[data-path]").forEach(btn => {
+    cell.querySelectorAll(".sd-img-pick").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
+        const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+        if (!FP) return ui.notifications?.error?.("FilePicker недоступен");
+
+        if (btn.dataset.static === "1") {
+          const widgetCell = btn.closest("[data-widget-id]");
+          const tabId = widgetCell?.dataset.tabId;
+          const rowId = widgetCell?.dataset.rowId;
+          const widgetId = widgetCell?.dataset.widgetId;
+          if (!tabId || !rowId || !widgetId) return;
+          const cur = btn.dataset.current ?? "";
+          new FP({
+            type: "image",
+            current: cur,
+            callback: src => {
+              const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+              const tab = tabs.find(t => t.id === tabId);
+              const row = tab?.rows?.find(r => r.id === rowId);
+              if (!row) return;
+              const findIn = (arr) => {
+                for (const w of arr) {
+                  if (w.id === widgetId) return w;
+                  if (w.type === "vsection" && Array.isArray(w.widgets)) {
+                    const f = findIn(w.widgets); if (f) return f;
+                  }
+                }
+                return null;
+              };
+              const widget = findIn(row.widgets ?? []);
+              if (!widget) return;
+              widget.staticSrc = src;
+              this.document.update({ "system.customTabs": tabs });
+            }
+          }).render(true);
+          return;
+        }
+
         const path = btn.dataset.path;
         if (!path) return;
         const cur  = String(foundry.utils.getProperty(this.document, path) ?? "");
-        const fp   = new FilePicker({
+        new FP({
           type:     "image",
           current:  cur,
           callback: src => this.document.update({ [path]: src })
-        });
-        fp.render(true);
+        }).render(true);
       });
     });
 
@@ -1688,10 +1697,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
   }
 
-  _makeDropZone(tab, row, label = "Drop here") {
+  _makeDropZone(tab, row, label = "Drop here", parentVS = null) {
+    const rowCols = Math.max(1, Math.min(9, Number(row?.cols) || 3));
     const dz = document.createElement("div");
     dz.style.cssText = `
-      ${row ? "" : "grid-column:span 3;"}
+      ${(row && !parentVS) ? "" : (parentVS ? "" : `grid-column:span ${rowCols};`)}
       border:1px dashed rgba(123,104,238,.2); border-radius:5px;
       padding:8px; text-align:center; font-size:11px; color:#444; cursor:pointer;
       transition:background .15s,color .15s,border-color .15s;
@@ -1712,13 +1722,16 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
     dz.addEventListener("drop", async ev => {
       ev.preventDefault();
+      ev.stopPropagation();
       dz.style.background  = "";
       dz.style.color       = "#444";
       dz.style.borderColor = "rgba(123,104,238,.2)";
       try {
         const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
         if (data.sdType === "widget") {
-          await this._addWidget(tab.id, row?.id ?? null, data.widgetType);
+          await this._addWidget(tab.id, row?.id ?? null, data.widgetType, parentVS?.id ?? null);
+        } else if (data.sdType === "widget-move") {
+          await this._moveWidget(data, { tabId: tab.id, rowId: row?.id ?? null, parentVsId: parentVS?.id ?? null, toEnd: true });
         }
       } catch(e) { console.warn("SD | drop:", e); }
     });
@@ -1750,8 +1763,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const id   = foundry.utils.randomID(8);
     tabs.push({ id, label, icon: "", rows: [] });
     await this.document.update({ "system.customTabs": tabs });
-    // Immediately open the rename dialog so the new tab gets a real name.
-    // User can still hit Cancel and keep the "New Tab" default.
     this._renameTab(id);
   }
 
@@ -1781,7 +1792,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await this.document.update({ "system.customTabs": tabs });
   }
 
-  async _addWidget(tabId, rowId, widgetType) {
+  async _addWidget(tabId, rowId, widgetType, parentVsId = null) {
     const defaults = {
       text:      { label: "Label",    path: "system.flags.myField" },
       number:    { label: "Number",   path: "system.flags.myNumber" },
@@ -1790,6 +1801,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       button:    { label: "Action",   icon: "fa-bolt", color: "#7b68ee", formula: "", flavor: "" },
       toggle:    { label: "Toggle",   path: "system.flags.myToggle", onLabel: "On", offLabel: "Off" },
       section:   { label: "Section",  span: 3 },
+      vsection:  { label: "",         widgets: [], span: 1 },
       richtext:  { label: "Notes",    path: "system.biography.notes", span: 3 },
       attribute: { label: "Attribute", path: "system.attributes.attr1.value" },
       skill:     { label: "Skill",    path: "system.skills.skill1.rank" },
@@ -1803,7 +1815,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       id:   foundry.utils.randomID(8),
       span: 1,
       ...(defaults[widgetType] ?? { label: widgetType }),
-      type: widgetType   // after spread: defaults can't clobber widget.type
+      type: widgetType
     };
 
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
@@ -1812,52 +1824,166 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     if (rowId) {
       const row = tab.rows?.find(r => r.id === rowId);
-      if (row) { row.widgets ??= []; row.widgets.push(widget); }
+      if (!row) return;
+      row.widgets ??= [];
+      if (parentVsId) {
+        const vs = this._findVs(row.widgets, parentVsId);
+        if (vs) { vs.widgets ??= []; vs.widgets.push(widget); }
+      } else {
+        row.widgets.push(widget);
+      }
     } else {
       tab.rows ??= [];
-      tab.rows.push({ id: foundry.utils.randomID(8), widgets: [widget] });
+      tab.rows.push({ id: foundry.utils.randomID(8), cols: 3, widgets: [widget] });
     }
 
     await this.document.update({ "system.customTabs": tabs });
   }
 
+  _findVs(widgets, vsId) {
+    if (!Array.isArray(widgets)) return null;
+    for (const w of widgets) {
+      if (w.id === vsId && w.type === "vsection") return w;
+      if (w.type === "vsection") {
+        const nested = this._findVs(w.widgets, vsId);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
   async _cycleSpan(tab, row, w) {
-    const newSpan = (w.span ?? 1) >= 3 ? 1 : (w.span ?? 1) + 1;
-    const tabs    = foundry.utils.deepClone(this.document.system.customTabs ?? []);
-    const widget  = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id);
+    const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+    const cur  = Math.max(1, Number(w.span) || 1);
+    const newSpan = cur >= cols ? 1 : cur + 1;
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const fresh = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+    if (!fresh) return;
+    const widget = this._findWidgetDeep(fresh.widgets, w.id);
     if (widget) { widget.span = newSpan; await this.document.update({ "system.customTabs": tabs }); }
   }
 
-  async _deleteWidget(tab, row, w) {
-    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
-    const r    = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
-    if (r) { r.widgets = r.widgets.filter(x => x.id !== w.id); await this.document.update({ "system.customTabs": tabs }); }
+  _findWidgetDeep(widgets, id) {
+    if (!Array.isArray(widgets)) return null;
+    for (const w of widgets) {
+      if (w.id === id) return w;
+      if (w.type === "vsection") {
+        const nested = this._findWidgetDeep(w.widgets, id);
+        if (nested) return nested;
+      }
+    }
+    return null;
   }
 
-  async _configWidget(tab, row, w) {
+  _removeWidgetDeep(widgets, id) {
+    if (!Array.isArray(widgets)) return null;
+    const i = widgets.findIndex(w => w.id === id);
+    if (i >= 0) return widgets.splice(i, 1)[0];
+    for (const w of widgets) {
+      if (w.type === "vsection") {
+        const r = this._removeWidgetDeep(w.widgets, id);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+
+  async _deleteWidget(tab, row, w, parentVS = null) {
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const r    = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+    if (!r) return;
+    const removed = this._removeWidgetDeep(r.widgets, w.id);
+    if (removed) await this.document.update({ "system.customTabs": tabs });
+  }
+
+  async _configWidget(tab, row, w, parentVS = null) {
     const { openWidgetConfigPopup } = await import("../builder/widget-config-popup.mjs");
-    // Always read fresh from doc so graphData is not stale after a previous save
     const freshTabs   = this.document.system.customTabs ?? [];
     const freshTab    = freshTabs.find(t => t.id === tab.id) ?? tab;
     const freshRow    = freshTab.rows?.find(r => r.id === row.id) ?? row;
-    const freshWidget = freshRow.widgets?.find(x => x.id === w.id) ?? w;
+    const freshWidget = this._findWidgetDeep(freshRow.widgets, w.id) ?? w;
     await openWidgetConfigPopup(freshWidget, freshTab, freshRow, this.document);
   }
 
+  async _configRow(tabId, rowId) {
+    const row = this.document.system.customTabs?.find(t => t.id === tabId)?.rows?.find(r => r.id === rowId);
+    const cur = Math.max(1, Math.min(9, Number(row?.cols) || 3));
+    const n = await foundry.applications.api.DialogV2.prompt({
+      window: { title: "Row Columns" },
+      content: `<div style="padding:8px 0">
+        <label style="font-size:12px;color:#888">Columns (1-9):</label>
+        <input type="number" min="1" max="9" name="cols" value="${cur}"
+          style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
+      </div>`,
+      ok: {
+        label: "Apply",
+        callback: (event, button, dialog) =>
+          Number(dialog.element.querySelector("input[name='cols']")?.value)
+      },
+      rejectClose: false
+    }).catch(() => null);
+    if (!n || !Number.isFinite(n)) return;
+    const cols = Math.max(1, Math.min(9, Math.round(n)));
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const r = tabs.find(t => t.id === tabId)?.rows?.find(r => r.id === rowId);
+    if (!r) return;
+    r.cols = cols;
+    (r.widgets ?? []).forEach(w => {
+      if (w.type !== "vsection" && Number(w.span) > cols) w.span = cols;
+    });
+    await this.document.update({ "system.customTabs": tabs });
+  }
 
-  // Wire inventory + slot drop zones via event delegation
+  async _moveWidget(src, dst) {
+    if (!src || !dst) return;
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const srcTab = tabs.find(t => t.id === src.tabId);
+    const dstTab = tabs.find(t => t.id === dst.tabId);
+    if (!srcTab || !dstTab) return;
+    const srcRow = srcTab.rows?.find(r => r.id === src.rowId);
+    if (!srcRow) return;
+    const srcContainer = src.parentVsId
+      ? (this._findVs(srcRow.widgets, src.parentVsId)?.widgets ?? [])
+      : srcRow.widgets;
+    const wIdx = srcContainer.findIndex(w => w.id === src.widgetId);
+    if (wIdx < 0) return;
+    const [moved] = srcContainer.splice(wIdx, 1);
+    if (!moved) return;
+
+    if (moved.type === "vsection" && dst.parentVsId) {
+      srcContainer.splice(wIdx, 0, moved);
+      return;
+    }
+
+    let dstContainer;
+    if (dst.rowId) {
+      const dstRow = dstTab.rows?.find(r => r.id === dst.rowId);
+      if (!dstRow) { srcContainer.splice(wIdx, 0, moved); return; }
+      dstContainer = dst.parentVsId
+        ? (this._findVs(dstRow.widgets, dst.parentVsId)?.widgets ?? null)
+        : dstRow.widgets;
+      if (!dstContainer) { srcContainer.splice(wIdx, 0, moved); return; }
+    } else {
+      const newRow = { id: foundry.utils.randomID(8), cols: 3, widgets: [] };
+      dstTab.rows ??= [];
+      dstTab.rows.push(newRow);
+      dstContainer = newRow.widgets;
+    }
+
+    const insertIdx = dst.toEnd ? dstContainer.length : Math.max(0, Math.min(dstContainer.length, dst.index ?? dstContainer.length));
+    dstContainer.splice(insertIdx, 0, moved);
+    await this.document.update({ "system.customTabs": tabs });
+  }
+
 
   _wireInventoryDropZones() {
     const root = this.element;
     if (!root) return;
 
-    // Use a single delegated drop handler on the panels container
-    // This survives tab switches and mode toggles without re-wiring
     const con = root.querySelector(".sd-panels-container") ?? root.querySelector(".window-content");
     if (!con || con._sdDropWired) return;
     con._sdDropWired = true;
 
-    // dragover: highlight the nearest droppable zone
     con.addEventListener("dragover", ev => {
       const zone = ev.target.closest("[data-drop-zone='inventory'], [data-sd-slot-drop], .inventory-drop-zone");
       if (!zone) return;
@@ -1893,8 +2019,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (item) {
           const { SlotManager } = await import("../data/item-slots.mjs");
 
-          // Auto-create the slot definition on the actor if it doesn't exist yet.
-          // The widget config itself holds the label/maxCount so we use it as the definition.
           const defs = this.document.system.slotDefinitions ?? [];
           if (!defs.find(d => d.id === slotId)) {
             const allWidgets = (this.document.system.customTabs ?? [])
@@ -1920,7 +2044,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         return;
       }
 
-      // Inventory drop -- add item to actor
       if (this.document instanceof Actor) {
         let item = null;
         if (data.uuid)    item = await fromUuid(data.uuid);
@@ -1942,7 +2065,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       await this.document.update({ name: ev.target.value });
     });
     root.querySelector(".portrait-img")?.addEventListener("click", () => {
-      new FilePicker({ type: "image", current: this.document.img, callback: p => this.document.update({ img: p }) }).browse();
+      const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+      new FP({ type: "image", current: this.document.img, callback: p => this.document.update({ img: p }) }).render(true);
     });
   }
 
@@ -1953,19 +2077,16 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     root.querySelector(".sd-edit-badge")?.remove();
     if (!this._editMode) return;
 
-    // Find window header to place badge there instead of root
     const windowHeader = root.querySelector(".window-header") ?? root.querySelector("header");
     const badge = document.createElement("div");
     badge.className = "sd-edit-badge";
     badge.style.cssText = "position:absolute;top:4px;right:48px;background:#7b68ee;color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;z-index:100;pointer-events:none";
     badge.textContent = "EDIT MODE";
 
-    // Only set position relative on a container that won't affect window layout
     if (windowHeader) {
       windowHeader.style.position = "relative";
       windowHeader.appendChild(badge);
     } else {
-      // Fallback: use a wrapper inside window-content
       const content = root.querySelector(".window-content");
       if (content) {
         content.style.position = "relative";
@@ -1977,7 +2098,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // Static actions
 
   static async _onEditImage(event, target) {
-    new FilePicker({ type: "image", current: this.document.img, callback: p => this.document.update({ img: p }) }).browse();
+    const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+    new FP({ type: "image", current: this.document.img, callback: p => this.document.update({ img: p }) }).render(true);
   }
 
   static async _onOpenRollDialog(event, target) {
@@ -1995,12 +2117,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     Toolbox.toggle();
   }
 
-  /**
-   * Open the sheet-level trigger graph editor.  Events placed here fire for
-   * the actor itself (on_update, on_turn_*, on_damage_taken, …) and are
-   * persisted on `system.sdTriggerGraph`.  Widget graphs no longer host
-   * event nodes -- they live here instead.
-   */
   static async _onOpenSheetTriggers(event, target) {
     const { FormulaGraph } = await import("../builder/formula-graph.mjs");
     const graph = new FormulaGraph(null, this.document, null, null, null,
@@ -2010,7 +2126,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   static async _onToggleEditMode(event, target) {
     this._editMode = !this._editMode;
-    // Update DOM in-place -- no re-render, no window position reset
     this._buildTabNav();
     this._buildTabPanels();
     this._showEditModeBadge();

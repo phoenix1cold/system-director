@@ -1,17 +1,3 @@
-/**
- * module/builder/grid-manager.mjs
- *
- * Manages the customTabs array on Actor/Item documents.
- * All mutations go through here so sheets never touch customTabs directly.
- *
- * Data shape on document:
- *   system.customTabs: Array<TabDef>
- *
- * TabDef: { id, label, icon, order, rows: RowDef[] }
- * RowDef: { id, widgets: WidgetDef[] }
- * WidgetDef: { id, type, span, label, path, ... }
- */
-
 import { createWidget } from "./widget-registry.mjs";
 
 export class GridManager {
@@ -159,7 +145,6 @@ export class GridManager {
     const stored = game.settings.get("sd", "sheetTemplates") ?? {};
     const tmpl   = stored[templateName];
     if (!tmpl) return ui.notifications.warn(`Template "${templateName}" not found.`);
-    // Re-generate fresh IDs so multiple actors don't share ids
     const freshTabs = this._freshenIds(foundry.utils.deepClone(tmpl.tabs));
     await doc.update({ "system.customTabs": freshTabs });
     ui.notifications.info(`Template "${templateName}" applied.`);

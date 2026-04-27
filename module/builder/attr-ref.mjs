@@ -1,18 +1,3 @@
-/**
- * module/builder/attr-ref.mjs
- *
- * Hidden Fields & Attribute Reference System.
- *
- * Each item/actor carries system.hiddenFields: Record<string, string|number|boolean>
- * These are GM-visible key/value pairs that can be:
- *   1. Displayed as a widget on the sheet (type "text", "number" etc pointing to system.hiddenFields.key)
- *   2. Used as slot filters: drop an item → pick its hidden field → slot only accepts matching items
- *   3. Referenced in button conditions: field value comparisons
- *
- * The "declared attrs" concept: any field path on a doc can be named for easy reference.
- * hiddenFields ARE the primary storage for custom per-item attributes.
- */
-
 export const FILTER_OPERATORS = [
   { value: "==",         label: "= equals" },
   { value: "!=",         label: "≠ not equals" },
@@ -24,7 +9,6 @@ export const FILTER_OPERATORS = [
   { value: "startsWith", label: "starts with" }
 ];
 
-// Read hidden fields from a document
 
 export class HiddenFields {
 
@@ -156,7 +140,6 @@ export class AttrFilter {
           {
             label: "Add Filter", icon: "fas fa-filter",
             callback: (ev, btn) => {
-              // btn.form may be null in some v13 builds -- query directly
               const dlgRoot      = btn.closest?.("[data-application]") ?? document;
               const idxEl        = dlgRoot.querySelector("select[name='fieldIdx']");
               const opEl         = dlgRoot.querySelector("select[name='operator']");
@@ -176,39 +159,5 @@ export class AttrFilter {
         ]
       }).render(true);
     });
-  }
-}
-
-// AttrRef -- declared attribute CRUD helper
-// Provides: addAttr, removeAttr, updateAttr -- used by SDItemSheet action handlers.
-
-export class AttrRef {
-
-  /** Add a new declared attribute (auto-named) */
-  static async addAttr(doc) {
-    const attrs = foundry.utils.deepClone(doc.system.declaredAttrs ?? []);
-    attrs.push({
-      id:    foundry.utils.randomID(8),
-      name:  `attr${attrs.length + 1}`,
-      label: "",
-      path:  ""
-    });
-    await doc.update({ "system.declaredAttrs": attrs });
-  }
-
-  /** Remove a declared attribute by id */
-  static async removeAttr(doc, attrId) {
-    const attrs = (doc.system.declaredAttrs ?? []).filter(a => a.id !== attrId);
-    await doc.update({ "system.declaredAttrs": attrs });
-  }
-
-  /** Update fields of a declared attribute */
-  static async updateAttr(doc, attrId, changes) {
-    const attrs = foundry.utils.deepClone(doc.system.declaredAttrs ?? []);
-    const attr  = attrs.find(a => a.id === attrId);
-    if (attr) {
-      Object.assign(attr, changes);
-      await doc.update({ "system.declaredAttrs": attrs });
-    }
   }
 }

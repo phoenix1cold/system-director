@@ -1,8 +1,3 @@
-/**
- * module/data/item-slots.mjs
- * Slot system for System Director.
- */
-
 const {
   StringField, NumberField, BooleanField,
   ArrayField, ObjectField, SchemaField
@@ -16,7 +11,6 @@ export function SlotDefinitionField() {
     label:             new StringField({ initial: "Slot", blank: false }),
     allowedTypes:      new ArrayField(new StringField({ blank: false })),
     allowedCategories: new ArrayField(new StringField({ blank: false })),
-    // Attribute filters: check hidden fields on dropped items
     attrFilters: new ArrayField(new SchemaField({
       id:            new StringField({ required: true, blank: false, initial: () => foundry.utils.randomID(8) }),
       fieldPath:     new StringField({ initial: "", blank: true }),
@@ -57,8 +51,6 @@ export class SlotManager {
     }
 
     const itemData = droppedItem instanceof Item ? droppedItem.toObject() : droppedItem;
-    // uuid is a computed getter -- toObject() doesn't include it, so store it explicitly
-    // so edit/use buttons can always find the live document via fromUuid()
     if (droppedItem instanceof Item && droppedItem.uuid) {
       itemData._sourceUuid = droppedItem.uuid;
     }
@@ -75,7 +67,6 @@ export class SlotManager {
       return null;
     }
 
-    // Attribute filter check (hidden fields)
     if ((def.attrFilters ?? []).length > 0) {
       const { AttrFilter } = await import("../builder/attr-ref.mjs");
       const { pass, failed } = AttrFilter.check(itemData, def);
@@ -121,7 +112,6 @@ export class SlotManager {
   }
 
   static getDefinition(parentItem, slotId) {
-    // Normalize to string -- widget slotId can be configured as "33" (string) or 33 (number)
     const sid = String(slotId ?? "");
     return (parentItem?.system?.slotDefinitions ?? []).find(d => String(d.id) === sid);
   }

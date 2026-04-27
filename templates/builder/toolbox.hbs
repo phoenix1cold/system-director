@@ -36,9 +36,17 @@
 
       {{!-- Widget palette ──────────────────────────────────────────────── --}}
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#666;padding:4px 2px;border-bottom:1px solid #3a3a52;margin-bottom:6px">Widgets — drag onto a tab</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">
+      <div style="position:relative;margin-bottom:6px">
+        <i class="fas fa-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#555;font-size:10px;pointer-events:none"></i>
+        <input type="text" id="tb-search-widgets" placeholder="Filter widgets…" autocomplete="off"
+          style="width:100%;padding:5px 22px 5px 24px;background:#13131d;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;box-sizing:border-box;outline:none">
+        <button type="button" data-action="clearWidgetSearch" tabindex="-1"
+          style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:#666;cursor:pointer;font-size:13px;padding:0 4px;line-height:1">×</button>
+      </div>
+      <div id="tb-widget-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">
         {{#each widgets as |w|}}
         <div data-drag-type="widget" data-widget-type="{{w.id}}"
+             data-widget-label="{{w.label}}" data-widget-desc="{{w.desc}}"
              style="display:flex;align-items:center;gap:7px;padding:8px 9px;background:#2a2a38;border:1px solid #3a3a52;border-radius:5px;cursor:grab;user-select:none;transition:background .15s"
              title="{{w.desc}}">
           <div style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:rgba(123,104,238,.2);border-radius:5px;color:#7b68ee;font-size:13px;flex-shrink:0">
@@ -51,6 +59,7 @@
         </div>
         {{/each}}
       </div>
+      <div id="tb-widget-empty" style="display:none;font-size:11px;color:#555;font-style:italic;text-align:center;padding:8px 0 12px">No widgets match the search.</div>
 
       {{!-- Custom Fields ──────────────────────────────────────────────── --}}
       <div style="display:flex;align-items:center;justify-content:space-between;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#666;padding:4px 2px;border-bottom:1px solid #3a3a52;margin-bottom:6px">
@@ -80,9 +89,6 @@
             style="background:transparent;border:1px solid #3a3a52;border-radius:4px;color:#7b68ee;cursor:pointer;font-size:10px;padding:1px 6px"><i class="fas fa-file-import"></i></button>
           <button data-action="exportAllTemplates" title="Export all sheet templates as one JSON bundle"
             style="background:transparent;border:1px solid #3a3a52;border-radius:4px;color:#7b68ee;cursor:pointer;font-size:10px;padding:1px 6px"{{#unless templates.length}} disabled{{/unless}}><i class="fas fa-file-export"></i></button>
-          {{!-- Save-template button hidden per user request — saveTemplate
-               action is still wired via character-sheet / item-sheet "Save as
-               Template" entry points. --}}
         </span>
       </div>
       {{#if templates.length}}
@@ -123,9 +129,16 @@
           style="flex-shrink:0;background:none;border:1px solid #3a3a52;border-radius:4px;color:#888;cursor:pointer;font-size:10px;padding:2px 7px"
           title="Re-scan the currently focused sheet">↺ Refresh</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:3px">
+      <div style="position:relative;margin-bottom:6px">
+        <i class="fas fa-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#555;font-size:10px;pointer-events:none"></i>
+        <input type="text" id="tb-search-paths" placeholder="Filter paths…" autocomplete="off"
+          style="width:100%;padding:5px 22px 5px 24px;background:#13131d;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;box-sizing:border-box;outline:none">
+        <button type="button" data-action="clearPathSearch" tabindex="-1"
+          style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:#666;cursor:pointer;font-size:13px;padding:0 4px;line-height:1">×</button>
+      </div>
+      <div id="tb-path-list" style="display:flex;flex-direction:column;gap:3px">
         {{#each knownPaths as |path|}}
-        <div data-drag-type="path" data-path="{{path.path}}" data-action="copyPath"
+        <div data-drag-type="path" data-path="{{path.path}}" data-path-label="{{path.label}}" data-action="copyPath"
              style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#2a2a38;border:1px solid #3a3a52;border-radius:4px;cursor:pointer;user-select:none;transition:background .15s"
              title="Click to copy path to clipboard — drag to insert into a field">
           <i class="fas fa-code" style="color:#5a8ae0;font-size:10px;flex-shrink:0"></i>

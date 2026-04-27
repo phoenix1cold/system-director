@@ -1,11 +1,3 @@
-/**
- * module/sheets/item-sheet.mjs  (System Director)
- *
- * Blank-canvas item sheet -- same approach as CharacterSheet.
- * Custom tabs built via Toolbox drag-drop. Three permanent system tabs
- * (_sys_attrs, _sys_slots, _sys_buttons) always at the right.
- */
-
 import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
@@ -13,7 +5,6 @@ import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
-// Make SlotManager available at render time
 Hooks.once("ready", () => {
   globalThis._SD_SLOTS = { SlotManager };
 });
@@ -89,7 +80,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
   async _prepareContext(options) {
     const base = await super._prepareContext(options);
-    return { ...base, item: this.document, system: this.document.system, isEditable: this.isEditable, editMode: this._editMode };
+    return { ...base, item: this.document, system: this.document.system, isEditable: this.isEditable, editMode: this._editMode, isInventory: this.document.type === "inventory", isAbility: this.document.type === "ability" };
   }
 
   _onRender(context, options) {
@@ -175,8 +166,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         {id:"_sys_graph", label:"<i class='fas fa-project-diagram' style='margin-right:4px'></i>On Click"},
       ]),
     ];
-    // Show Effects tab for ability items and for inventory items (needed for
-    // Activate-on-Equip toggling introduced in PR14).
     if (this.document.type === "ability" || this.document.type === "inventory") {
       sysNavItems.push({id:"_sys_effects", label:"<i class='fas fa-sparkles' style='margin-right:4px'></i>Effects"});
     }
@@ -259,50 +248,106 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   _buildRow(tab, row) {
+    const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
     const el = document.createElement("div");
-    el.dataset.rowId=row.id;
-    el.style.cssText="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:start;position:relative;padding:8px;border:1px dashed rgba(123,104,238,.1);border-radius:6px;";
+    el.dataset.rowId=row.id; el.dataset.tabId=tab.id; el.dataset.cols=cols;
+    el.style.cssText=`display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;align-items:start;position:relative;padding:8px;border:1px dashed rgba(123,104,238,.1);border-radius:6px;`;
     if (this._editMode) {
+      const cfg=document.createElement("button"); cfg.type="button"; cfg.innerHTML=`<i class="fas fa-cog"></i> ${cols}`; cfg.title="Row columns (1-9)";
+      cfg.style.cssText="position:absolute;top:-9px;right:32px;z-index:10;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 6px;line-height:17px;";
+      cfg.addEventListener("click",()=>this._configRow(tab.id,row.id)); el.appendChild(cfg);
       const del=document.createElement("button"); del.type="button"; del.textContent="✕"; del.title="Delete row";
       del.style.cssText="position:absolute;top:-9px;right:4px;z-index:10;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#555;cursor:pointer;font-size:10px;padding:0 5px;line-height:17px;";
       del.addEventListener("click",()=>this._deleteRow(tab.id,row.id)); el.appendChild(del);
     }
-    (row.widgets??[]).forEach(w=>el.appendChild(this._buildCell(tab,row,w)));
+    (row.widgets??[]).forEach((w, idx)=>el.appendChild(this._buildCell(tab,row,w,idx)));
     if (this._editMode) el.appendChild(this._mkWidgetDZ(tab,row,"Drop widget here"));
     return el;
   }
 
-  _buildCell(tab, row, w) {
+  _buildCell(tab, row, w, idx = 0, parentVS = null) {
+    const rowCols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+    const span = Math.max(1, Math.min(parentVS ? 1 : rowCols, Number(w.span) || 1));
     const cell=document.createElement("div");
-    cell.dataset.widgetId=w.id; cell.style.cssText=`grid-column:span ${w.span??1};position:relative;min-width:0;`;
+    cell.dataset.widgetId=w.id; cell.dataset.rowId=row.id; cell.dataset.tabId=tab.id;
+    if (parentVS) cell.dataset.parentVsId = parentVS.id;
+    cell.dataset.widgetIdx = idx;
+    cell.style.cssText=`grid-column:${parentVS ? "auto" : `span ${span}`};position:relative;min-width:0;`;
+
+    if (w.type === "vsection") {
+      cell.innerHTML = "";
+      cell.appendChild(this._buildVSection(tab, row, w));
+      if (this._editMode) {
+        this._makeCellDraggable(cell, tab, row, w, parentVS);
+        this._attachCellOverlay(cell, tab, row, w, span, parentVS);
+      }
+      return cell;
+    }
+
     let renderedHtml = "";
     try { renderedHtml = WidgetRenderer.render(w,this.document,this._editMode) ?? ""; }
     catch(e) { renderedHtml = `<div style="color:#e05a5a;font-size:11px">Error: ${e.message}</div>`; }
-    // showIf: if hidden and not in edit mode, collapse cell
     if (!renderedHtml?.trim() && !this._editMode) {
       cell.style.display = "none";
       return cell;
     }
     cell.innerHTML = renderedHtml;
     if (this._editMode) {
-      const ov=document.createElement("div");
-      ov.style.cssText="display:none;position:absolute;top:2px;right:2px;z-index:20;flex-direction:row;gap:2px;";
-      ov.innerHTML=`<button type="button" data-wcfg="1" style="background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Configure">⚙</button><button type="button" data-wspan="1" style="background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Cycle width">↔${w.span??1}</button><button type="button" data-wdel="1" style="background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Remove">✕</button>`;
-      ov.querySelector("[data-wcfg]").addEventListener("click",ev=>{ev.stopPropagation();this._configWidget(tab,row,w);});
-      ov.querySelector("[data-wspan]").addEventListener("click",ev=>{ev.stopPropagation();this._cycleSpan(tab,row,w);});
-      ov.querySelector("[data-wdel]").addEventListener("click", ev=>{ev.stopPropagation();this._deleteWidget(tab,row,w);});
-      cell.addEventListener("mouseenter",()=>ov.style.display="flex");
-      cell.addEventListener("mouseleave",()=>ov.style.display="none");
-      cell.appendChild(ov);
+      this._makeCellDraggable(cell, tab, row, w, parentVS);
+      this._attachCellOverlay(cell, tab, row, w, span, parentVS);
     }
     return cell;
+  }
+
+  _buildVSection(tab, row, vs) {
+    const box = document.createElement("div");
+    box.dataset.vsId = vs.id;
+    box.style.cssText = "display:flex;flex-direction:column;gap:6px;padding:6px;border:1px dashed rgba(123,104,238,.18);border-radius:5px;background:rgba(123,104,238,.03);min-height:40px;";
+    if (vs.label) {
+      const h=document.createElement("div"); h.textContent = vs.label;
+      h.style.cssText="font-size:10px;font-weight:700;color:#7b68ee;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px";
+      box.appendChild(h);
+    }
+    (vs.widgets ?? []).forEach((cw, idx) => { box.appendChild(this._buildCell(tab, row, cw, idx, vs)); });
+    if (this._editMode) box.appendChild(this._mkWidgetDZ(tab, row, "Drop widget into section", vs));
+    return box;
+  }
+
+  _makeCellDraggable(cell, tab, row, w, parentVS) {
+    cell.draggable = true;
+    cell.addEventListener("dragstart", ev => {
+      ev.stopPropagation();
+      try {
+        ev.dataTransfer.setData("text/plain", JSON.stringify({
+          sdType: "widget-move",
+          tabId: tab.id, rowId: row.id, widgetId: w.id,
+          parentVsId: parentVS?.id ?? null
+        }));
+        ev.dataTransfer.effectAllowed = "move";
+      } catch {}
+      cell.style.opacity = "0.4";
+    });
+    cell.addEventListener("dragend", () => { cell.style.opacity = ""; });
+  }
+
+  _attachCellOverlay(cell, tab, row, w, span, parentVS) {
+    const ov=document.createElement("div");
+    ov.style.cssText="display:none;position:absolute;top:2px;right:2px;z-index:20;flex-direction:row;gap:2px;";
+    const spanBtn = parentVS ? ""
+      : `<button type="button" data-wspan="1" style="background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Cycle width">↔${span}</button>`;
+    ov.innerHTML=`<span title="Drag to move" style="cursor:grab;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span><button type="button" data-wcfg="1" style="background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Configure">⚙</button>${spanBtn}<button type="button" data-wdel="1" style="background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Remove">✕</button>`;
+    ov.querySelector("[data-wcfg]").addEventListener("click",ev=>{ev.stopPropagation();this._configWidget(tab,row,w);});
+    ov.querySelector("[data-wspan]")?.addEventListener("click",ev=>{ev.stopPropagation();this._cycleSpan(tab,row,w);});
+    ov.querySelector("[data-wdel]").addEventListener("click", ev=>{ev.stopPropagation();this._deleteWidget(tab,row,w);});
+    cell.addEventListener("mouseenter",()=>ov.style.display="flex");
+    cell.addEventListener("mouseleave",()=>ov.style.display="none");
+    cell.appendChild(ov);
   }
 
   //  SYSTEM PANELS
 
   _e(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
 
-  //  CLASS ITEM PANEL -- level editor
 
   _buildClassPanel(isActive) {
     const p   = this._mkSysPanel("_sys_class", isActive);
@@ -587,7 +632,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     );
   }
 
-  //  SKILLTREE ITEM PANEL -- visual node grid editor
 
   _buildSkilltreePanel(isActive) {
     const p   = this._mkSysPanel("_sys_skilltree", isActive);
@@ -770,7 +814,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         await this.document.update({ "system.rows": Math.max(2, Math.min(20, parseInt(ev.target.value)||5)) });
       });
 
-      // Node click -- connect or select
       canvas.querySelectorAll("[data-node-id]").forEach(el => {
         el.addEventListener("click", async ev => {
           if (ev.target.closest(".sti-cfg-node,.sti-del-node")) return;
@@ -909,7 +952,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const locked  = LOCKED_HIDDEN_FIELDS[this.document.type] ?? [];
     const lockedKeys = new Set(locked.map(f=>f.key));
     const stored  = sys.hiddenFields ?? {};
-    // Rows = (locked fields, always first and un-deletable) + (user-added).
     const userRows = Object.entries(stored).filter(([k])=>!lockedKeys.has(k));
     const hfEmpty  = locked.length === 0 && userRows.length === 0;
 
@@ -932,8 +974,18 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     ${ed?`<button data-sys-action="removeHiddenField" data-key="${e(k)}" style="background:none;border:none;color:#444;cursor:pointer;font-size:13px;padding:0 5px">✕</button>`:""}
   </div>`;
 
+    const isInv = this.document.type === "inventory";
     const da=sys.declaredAttrs??[];
     p.innerHTML=`
+${isInv ? `<div class="sys-section" style="margin-bottom:12px">
+  <div class="sys-section-header"><i class="fas fa-shield-halved"></i> Inventory Flags</div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:4px 0">
+    <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:#e0e0ee">
+      <input type="checkbox" data-sys-hf-val="equippable" ${(sys.hiddenFields?.equippable ?? sys.equippable)?"checked":""} ${!ed?"disabled":""} style="accent-color:#7b68ee;width:15px;height:15px;cursor:inherit">
+      ${e(game.i18n?.localize?.("SD.Equippable") ?? "Equippable")}
+    </label>
+  </div>
+</div>` : ""}
 <div class="sys-section">
   <div class="sys-section-header"><i class="fas fa-eye-slash"></i> Hidden Fields
     ${ed?`<button data-sys-action="addHiddenField" style="margin-left:auto" class="sys-add-btn"><i class="fas fa-plus"></i> Add</button>`:""}
@@ -1139,7 +1191,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       return "";
     };
 
-    // PR14: Activate-on-Equip badge visibility limited to equippable items.
     const isEquippable = doc?.type === "inventory" && doc.system?.equippable === true;
 
     let rows = "";
@@ -1147,7 +1198,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const disabled  = ef.disabled ? "effect-disabled" : "";
       const dur       = _durLabel(ef);
       const eyeIcon   = ef.disabled ? "fa-eye-slash" : "fa-eye";
-      const transfers = ef.transfer !== false;  // default true in Foundry
+      const transfers = ef.transfer !== false;
       const tColor    = transfers ? "#2e8b46" : "#7a4a1a";
       const tIcon     = transfers ? "fa-arrow-right-to-bracket" : "fa-lock";
       const tTitle    = transfers ? "Transfers to actor when item is owned" : "Does NOT transfer to actor";
@@ -1248,7 +1299,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           break;
         }
         case "sysEffectActivateOnEquip": {
-          // PR14: toggle flags.sd.activateOnEquip; sync disabled state immediately.
           const ef = doc.effects?.get(efId);
           if (!ef) break;
           const next = !(ef.flags?.sd?.activateOnEquip);
@@ -1273,16 +1323,15 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     });
   }
 
-  //  INTERACTIONS (delegated)
-  //  INTERACTIONS (delegated)
 
   _wireAllInteractions() {
     const root=this.element; if (!root) return;
     const con=root.querySelector(".sd-panels-container"); if (!con) return;
+    if (con._sdWired) return;
+    con._sdWired = true;
     con.addEventListener("click", this._onPanelClick.bind(this));
     con.addEventListener("change", this._onPanelChange.bind(this));
 
-    // Delegated slot-widget remove button (data-action="removeFromSlot" from WidgetRenderer)
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='removeFromSlot']");
       if (!btn) return;
@@ -1292,7 +1341,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       await SlotManager.removeFromSlot(this.document, slotId, idx);
     });
 
-    // Delegated slot-widget Use button (data-action="slotItemUse" from WidgetRenderer)
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='slotItemUse']");
       if (!btn) return;
@@ -1303,42 +1351,32 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const itemData = contents[idx];
       if (!itemData) return;
       const actor = this.document.actor;
-      // 1. Live actor item by stored _id
       let item = actor?.items?.get(itemData._id) ?? null;
       // 2. Live actor item by name
       if (!item) item = actor?.items?.find(i => i.name === itemData.name) ?? null;
-      // 3. World/compendium item by uuid
       if (!item && itemData.uuid) { try { item = await fromUuid(itemData.uuid); } catch {} }
-      // 4. Build a temporary Item from the stored snapshot
       if (!item) {
         try {
           const ItemCls = foundry.utils.getDocumentClass("Item");
-          item = new ItemCls(itemData, { parent: null }) // parent:null prevents registration in actor.items EmbeddedCollection
+          item = new ItemCls(itemData, { parent: null })
         } catch(e) { console.warn("SD | slotItemUse (item-sheet): could not build temp item:", e); }
       }
       if (item) await item.use({});
     });
 
-    // Shared helper: resolve a live Item from slotted snapshot data
     const _resolveSlottedItem = async (itemId, itemUuid, snapshot, parentDoc) => {
       const actor = parentDoc instanceof Actor ? parentDoc : (parentDoc?.actor ?? null);
-      // 1. Live actor-embedded item by stored _id
       let item = itemId ? (actor?.items?.get(itemId) ?? null) : null;
-      // 2. Via stored _sourceUuid (set by SlotManager.addToSlot)
       if (!item && itemUuid) { try { item = await fromUuid(itemUuid); } catch {} }
-      // 3. Snapshot has _sourceUuid field directly
       if (!item && snapshot?._sourceUuid) { try { item = await fromUuid(snapshot._sourceUuid); } catch {} }
       // 4. Try as world item by _id
       if (!item && itemId) { try { item = await fromUuid("Item." + itemId); } catch {} }
-      // 5. Actor-embedded search by name
       if (!item && snapshot?.name) {
         item = actor?.items?.find(i => i.name === snapshot.name) ?? null;
       }
       return item ?? null;
     };
 
-    // Delegated slot-widget Edit button (data-action="slotItemEdit" from WidgetRenderer)
-    // Opens a snapshot editor -- edits go back to the slot, not the world item.
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='slotItemEdit']");
       if (!btn) return;
@@ -1351,7 +1389,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       await SnapshotItem.openForSnapshot(snapshot, this.document, slotId, idx);
     });
 
-    // Effects widget actions (data-action="effectCreate/Toggle/Edit/Delete")
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action^='effect']");
       if (!btn) return;
@@ -1387,8 +1424,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       }
     });
 
-    // Widget renderer interactions
-    // Copy path buttons
     con.querySelectorAll(".widget-copy-path").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1413,7 +1448,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     con.querySelectorAll("[data-action='widgetRoll']").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         let formula = btn.dataset.formulaRaw || btn.dataset.formula || "1d20";
-        // JSON action graph -- delegate to ButtonExecutor
         if (formula.trim().startsWith("[")) {
           try {
             const { ButtonExecutor } = await import("../helpers/button-executor.mjs");
@@ -1462,7 +1496,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           return;
         }
         const trimmed = rawFormula.trim();
-        // Detect compiled action graph (array "[" or multi-trigger object "{")
         if (trimmed.startsWith("[") || trimmed.startsWith("{\"_trigger\"")) {
           try {
             const { ButtonExecutor } = await import("../helpers/button-executor.mjs");
@@ -1520,8 +1553,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       });
     });
 
-    // Tracker pips
-    // click=step ±1 (PbtA/Blades style); shift+click=jump to index; right-click=decrement.
     con.querySelectorAll(".sd-tracker-pip").forEach(pip => {
       const _apply = async (mode) => {
         const path  = pip.dataset.path;
@@ -1606,19 +1637,54 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       });
     });
 
-    // Image widget -- click to pick
-    con.querySelectorAll(".sd-img-pick[data-path]").forEach(btn => {
+    // Image widget — picker (path или staticSrc)
+    con.querySelectorAll(".sd-img-pick").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
+        const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+        if (!FP) return ui.notifications?.error?.("FilePicker недоступен");
+
+        if (btn.dataset.static === "1") {
+          const widgetCell = btn.closest("[data-widget-id]");
+          const tabId = widgetCell?.dataset.tabId;
+          const rowId = widgetCell?.dataset.rowId;
+          const widgetId = widgetCell?.dataset.widgetId;
+          if (!tabId || !rowId || !widgetId) return;
+          const cur = btn.dataset.current ?? "";
+          new FP({
+            type: "image",
+            current: cur,
+            callback: src => {
+              const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+              const tab = tabs.find(t => t.id === tabId);
+              const row = tab?.rows?.find(r => r.id === rowId);
+              if (!row) return;
+              const findIn = (arr) => {
+                for (const w of arr) {
+                  if (w.id === widgetId) return w;
+                  if (w.type === "vsection" && Array.isArray(w.widgets)) {
+                    const f = findIn(w.widgets); if (f) return f;
+                  }
+                }
+                return null;
+              };
+              const widget = findIn(row.widgets ?? []);
+              if (!widget) return;
+              widget.staticSrc = src;
+              this.document.update({ "system.customTabs": tabs });
+            }
+          }).render(true);
+          return;
+        }
+
         const path = btn.dataset.path;
         if (!path) return;
         const cur  = String(foundry.utils.getProperty(this.document, path) ?? "");
-        new FilePicker({ type: "image", current: cur,
+        new FP({ type: "image", current: cur,
           callback: src => this.document.update({ [path]: src }) }).render(true);
       });
     });
 
-    // Richtext widget: click display → show edit wrap; Save/Cancel buttons handle persistence
     con.querySelectorAll(".richtext-display").forEach(display => {
       const widget   = display.closest(".widget-richtext");
       const editWrap = widget?.querySelector(".richtext-edit-wrap");
@@ -1669,7 +1735,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     // Spellbook widget actions
 
-    // abilityDelete -- remove ability item from actor
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='abilityDelete']");
       if (!btn) return;
@@ -1685,7 +1750,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       if (ok) await item.delete();
     });
 
-    // abilityEdit -- open ability item sheet
     con.addEventListener("click", ev => {
       const btn = ev.target.closest("[data-action='abilityEdit']");
       if (!btn) return;
@@ -1705,7 +1769,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       if (item) await item.use({});
     });
 
-    // slotRestore -- toggle spell slot pip
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='slotRestore']");
       if (!btn) return;
@@ -1723,7 +1786,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       await actor.update({ [`${slotPath}.value`]: newVal });
     });
 
-    // slotSetMax -- set spell slot max for a level
     con.addEventListener("change", async ev => {
       const inp = ev.target.closest("[data-action='slotSetMax']");
       if (!inp) return;
@@ -1850,7 +1912,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         [`system.hiddenFields.${nk}`]: val
       }); return;
     }
-    if (el.dataset.sysHfVal!==undefined) { await this.document.update({[`system.hiddenFields.${el.dataset.sysHfVal}`]:el.value}); return; }
+    if (el.dataset.sysHfVal!==undefined) { const val=el.type==="checkbox"?el.checked:el.value; await this.document.update({[`system.hiddenFields.${el.dataset.sysHfVal}`]:val}); return; }
     if (el.dataset.sysDaName!==undefined) { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); const a=attrs.find(x=>x.id===el.dataset.sysDaName); if(a){a.name=el.value; await this.document.update({"system.declaredAttrs":attrs});} return; }
     if (el.dataset.sysDaPath!==undefined) { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); const a=attrs.find(x=>x.id===el.dataset.sysDaPath); if(a){a.path=el.value; await this.document.update({"system.declaredAttrs":attrs});} return; }
     if (el.dataset.sysSlot!==undefined) {
@@ -1884,8 +1946,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const root=this.element; if (!root) return;
     const con=root.querySelector(".sd-panels-container");
 
-    // Delegated handler covers slot-drop-mini (WidgetRenderer), slot-contents-area (sys panel),
-    // sd-widget-dropzone, slot-drop-filter-zone -- all in one place, survives tab switches.
     if (con && !con._sdItemDropWired) {
       con._sdItemDropWired = true;
 
@@ -1910,12 +1970,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         let data;
         try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return; }
 
-        // Slot contents drop (widget renderer: data-drop-slot, sys panel: data-drop-slot)
         if (zone.dataset.dropSlot !== undefined) {
           const item = data.uuid ? await fromUuid(data.uuid) : null;
           if (item) {
             const slotId = zone.dataset.dropSlot;
-            // Auto-create slot definition on item if missing (mirrors character-sheet behaviour)
             const defs = this.document.system.slotDefinitions ?? [];
             if (!defs.find(d => String(d.id) === String(slotId))) {
               const allWidgets = (this.document.system.customTabs ?? [])
@@ -1969,12 +2027,16 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     });
   }
 
-  _mkWidgetDZ(tab, row, label) {
+  _mkWidgetDZ(tab, row, label, parentVS = null) {
+    const rowCols = Math.max(1, Math.min(9, Number(row?.cols) || 3));
     const dz=document.createElement("div");
     dz.className="sd-widget-dropzone"; dz.dataset.tabId=tab.id; if (row) dz.dataset.rowId=row.id;
-    dz.style.cssText=`${row?"":"grid-column:span 3;"}border:1px dashed rgba(123,104,238,.2);border-radius:5px;padding:8px;text-align:center;font-size:11px;color:#444;cursor:pointer;transition:background .15s,color .15s,border-color .15s;user-select:none;`;
+    dz.style.cssText=`${(row && !parentVS) ? "" : (parentVS ? "" : `grid-column:span ${rowCols};`)}border:1px dashed rgba(123,104,238,.2);border-radius:5px;padding:8px;text-align:center;font-size:11px;color:#444;cursor:pointer;transition:background .15s,color .15s,border-color .15s;user-select:none;`;
     dz.innerHTML=`<i class="fas fa-arrow-circle-down" style="margin-right:5px;opacity:.5"></i>${label}`;
-    this._attachDrop(dz, async data=>{ if(data.sdType==="widget") await this._addWidget(tab.id, row?.id??null, data.widgetType); });
+    this._attachDrop(dz, async data=>{
+      if (data.sdType==="widget") await this._addWidget(tab.id, row?.id??null, data.widgetType, parentVS?.id ?? null);
+      else if (data.sdType==="widget-move") await this._moveWidget(data, { tabId: tab.id, rowId: row?.id ?? null, parentVsId: parentVS?.id ?? null, toEnd: true });
+    });
     return dz;
   }
 
@@ -1985,7 +2047,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const id   = foundry.utils.randomID(8);
     tabs.push({ id, label: "New Tab", rows: [] });
     await this.document.update({ "system.customTabs": tabs });
-    // Immediately open rename dialog so the user can set a real label.
     this._renameTab(id);
   }
   async _renameTab(tabId) {
@@ -2004,22 +2065,115 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
   async _deleteRow(tabId,rowId){ const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(tab) tab.rows=(tab.rows??[]).filter(r=>r.id!==rowId); await this.document.update({"system.customTabs":tabs}); }
 
-  async _addWidget(tabId, rowId, widgetType) {
-    const defaults={ text:{label:"Label",path:"system.hiddenFields.myField"}, number:{label:"Number",path:"system.hiddenFields.myNum"}, resource:{label:"Resource",pathValue:"system.uses.value",pathMax:"system.uses.max",color:"#e05a5a"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"#7b68ee",formula:"",flavor:""}, toggle:{label:"Toggle",path:"system.hiddenFields.myToggle",onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, richtext:{label:"Notes",path:"system.description",span:3}, attribute:{label:"Attr",path:"system.hiddenFields.myAttr"}, skill:{label:"Skill",path:"system.hiddenFields.mySkill"}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
+  _findVs(widgets, vsId) {
+    if (!Array.isArray(widgets)) return null;
+    for (const w of widgets) {
+      if (w.id === vsId && w.type === "vsection") return w;
+      if (w.type === "vsection") { const n = this._findVs(w.widgets, vsId); if (n) return n; }
+    }
+    return null;
+  }
+  _findWidgetDeep(widgets, id) {
+    if (!Array.isArray(widgets)) return null;
+    for (const w of widgets) {
+      if (w.id === id) return w;
+      if (w.type === "vsection") { const n = this._findWidgetDeep(w.widgets, id); if (n) return n; }
+    }
+    return null;
+  }
+  _removeWidgetDeep(widgets, id) {
+    if (!Array.isArray(widgets)) return null;
+    const i = widgets.findIndex(w => w.id === id);
+    if (i >= 0) return widgets.splice(i, 1)[0];
+    for (const w of widgets) {
+      if (w.type === "vsection") { const r = this._removeWidgetDeep(w.widgets, id); if (r) return r; }
+    }
+    return null;
+  }
+
+  async _addWidget(tabId, rowId, widgetType, parentVsId = null) {
+    const defaults={ text:{label:"Label",path:"system.hiddenFields.myField"}, number:{label:"Number",path:"system.hiddenFields.myNum"}, resource:{label:"Resource",pathValue:"system.uses.value",pathMax:"system.uses.max",color:"#e05a5a"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"#7b68ee",formula:"",flavor:""}, toggle:{label:"Toggle",path:"system.hiddenFields.myToggle",onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:"system.description",span:3}, attribute:{label:"Attr",path:"system.hiddenFields.myAttr"}, skill:{label:"Skill",path:"system.hiddenFields.mySkill"}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
     const widget={id:foundry.utils.randomID(8),span:1,...(defaults[widgetType]??{label:widgetType}),type:widgetType};
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(!tab) return;
-    if (rowId) { const row=tab.rows?.find(r=>r.id===rowId); if(row){row.widgets??=[];row.widgets.push(widget);} } else { tab.rows??=[]; tab.rows.push({id:foundry.utils.randomID(8),widgets:[widget]}); }
+    if (rowId) {
+      const row=tab.rows?.find(r=>r.id===rowId); if(!row) return;
+      row.widgets??=[];
+      if (parentVsId) { const vs=this._findVs(row.widgets, parentVsId); if (vs){ vs.widgets??=[]; vs.widgets.push(widget); } }
+      else row.widgets.push(widget);
+    } else { tab.rows??=[]; tab.rows.push({id:foundry.utils.randomID(8),cols:3,widgets:[widget]}); }
     await this.document.update({"system.customTabs":tabs});
   }
-  async _cycleSpan(tab,row,w){ const s=(w.span??1)>=3?1:(w.span??1)+1; const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const ww=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id)?.widgets?.find(x=>x.id===w.id); if(ww){ww.span=s; await this.document.update({"system.customTabs":tabs});} }
-  async _deleteWidget(tab,row,w){ const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const r=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id); if(r){r.widgets=r.widgets.filter(x=>x.id!==w.id); await this.document.update({"system.customTabs":tabs});} }
+  async _cycleSpan(tab,row,w){
+    const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+    const cur = Math.max(1, Number(w.span) || 1);
+    const s = cur >= cols ? 1 : cur + 1;
+    const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]);
+    const r = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+    if (!r) return;
+    const ww = this._findWidgetDeep(r.widgets, w.id);
+    if(ww){ww.span=s; await this.document.update({"system.customTabs":tabs});}
+  }
+  async _deleteWidget(tab,row,w){
+    const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]);
+    const r=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+    if(!r) return;
+    const removed=this._removeWidgetDeep(r.widgets, w.id);
+    if (removed) await this.document.update({"system.customTabs":tabs});
+  }
+  async _configRow(tabId, rowId) {
+    const row = this.document.system.customTabs?.find(t => t.id === tabId)?.rows?.find(r => r.id === rowId);
+    const cur = Math.max(1, Math.min(9, Number(row?.cols) || 3));
+    const n = await foundry.applications.api.DialogV2.prompt({
+      window: { title: "Row Columns" },
+      content: `<div style="padding:8px 0"><label style="font-size:12px;color:#888">Columns (1-9):</label><input type="number" min="1" max="9" name="cols" value="${cur}" style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box"></div>`,
+      ok: { label: "Apply", callback: (event, button, dialog) => Number(dialog.element.querySelector("input[name='cols']")?.value) },
+      rejectClose: false
+    }).catch(() => null);
+    if (!n || !Number.isFinite(n)) return;
+    const cols = Math.max(1, Math.min(9, Math.round(n)));
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const r = tabs.find(t => t.id === tabId)?.rows?.find(r => r.id === rowId);
+    if (!r) return;
+    r.cols = cols;
+    (r.widgets ?? []).forEach(w => { if (w.type !== "vsection" && Number(w.span) > cols) w.span = cols; });
+    await this.document.update({ "system.customTabs": tabs });
+  }
+  async _moveWidget(src, dst) {
+    if (!src || !dst) return;
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const srcTab = tabs.find(t => t.id === src.tabId);
+    const dstTab = tabs.find(t => t.id === dst.tabId);
+    if (!srcTab || !dstTab) return;
+    const srcRow = srcTab.rows?.find(r => r.id === src.rowId);
+    if (!srcRow) return;
+    const srcContainer = src.parentVsId ? (this._findVs(srcRow.widgets, src.parentVsId)?.widgets ?? []) : srcRow.widgets;
+    const wIdx = srcContainer.findIndex(w => w.id === src.widgetId);
+    if (wIdx < 0) return;
+    const [moved] = srcContainer.splice(wIdx, 1);
+    if (!moved) return;
+    if (moved.type === "vsection" && dst.parentVsId) { srcContainer.splice(wIdx, 0, moved); return; }
+    let dstContainer;
+    if (dst.rowId) {
+      const dstRow = dstTab.rows?.find(r => r.id === dst.rowId);
+      if (!dstRow) { srcContainer.splice(wIdx, 0, moved); return; }
+      dstContainer = dst.parentVsId ? (this._findVs(dstRow.widgets, dst.parentVsId)?.widgets ?? null) : dstRow.widgets;
+      if (!dstContainer) { srcContainer.splice(wIdx, 0, moved); return; }
+    } else {
+      const newRow = { id: foundry.utils.randomID(8), cols: 3, widgets: [] };
+      dstTab.rows ??= []; dstTab.rows.push(newRow);
+      dstContainer = newRow.widgets;
+    }
+    const insertIdx = dst.toEnd ? dstContainer.length : Math.max(0, Math.min(dstContainer.length, dst.index ?? dstContainer.length));
+    dstContainer.splice(insertIdx, 0, moved);
+    await this.document.update({ "system.customTabs": tabs });
+  }
 
   async _configWidget(tab, row, w) {
     const { openWidgetConfigPopup } = await import("../builder/widget-config-popup.mjs");
     const freshTabs   = this.document.system.customTabs ?? [];
     const freshTab    = freshTabs.find(t => t.id === tab.id) ?? tab;
     const freshRow    = freshTab.rows?.find(r => r.id === row.id) ?? row;
-    const freshWidget = freshRow.widgets?.find(x => x.id === w.id) ?? w;
+    const freshWidget = this._findWidgetDeep(freshRow.widgets, w.id) ?? w;
     await openWidgetConfigPopup(freshWidget, freshTab, freshRow, this.document);
   }
 
@@ -2029,7 +2183,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   _wireHeaderInputs() {
     const root=this.element; if(!root||!this.isEditable) return;
     root.querySelector(".item-name-input")?.addEventListener("change",async ev=>await this.document.update({name:ev.target.value}));
-    root.querySelector(".item-img")?.addEventListener("click",()=>new FilePicker({type:"image",current:this.document.img,callback:p=>this.document.update({img:p})}).browse());
+    root.querySelector(".item-img")?.addEventListener("click",()=>{
+      const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+      new FP({type:"image",current:this.document.img,callback:p=>this.document.update({img:p})}).render(true);
+    });
   }
 
   _showEditModeBadge() {
@@ -2056,10 +2213,12 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     this._editMode=!this._editMode;
     this._buildTabNav(); this._buildTabPanels(); this._wireAllDropZones(); this._wireAllInteractions(); this._showEditModeBadge();
   }
-  static async _onEditImage() { new FilePicker({type:"image",current:this.document.img,callback:p=>this.document.update({img:p})}).browse(); }
+  static async _onEditImage() {
+    const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+    new FP({type:"image",current:this.document.img,callback:p=>this.document.update({img:p})}).render(true);
+  }
   static async _onUseItem(event) { await this.document.use?.({ event }); }
 
-  // PR14: Equip / Unequip toggle from the item-sheet header.
   static async _onToggleEquipped(event) {
     event?.preventDefault?.();
     const doc = this.document;
@@ -2102,7 +2261,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const doc = this.document;
     const sys = doc.system ?? {};
 
-    // Save FULL sheet builder state to game.settings (not as an Item copy).
     const stored = foundry.utils.deepClone(game.settings.get("sd", "sheetTemplates") ?? {});
     stored[name] = {
       name,
@@ -2110,25 +2268,20 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       itemType:        doc.type ?? "ability",
       // Sheet Builder layout
       customTabs:      foundry.utils.deepClone(sys.customTabs      ?? []),
-      // Hidden fields (GM key/value pairs used by widgets)
       hiddenFields:    foundry.utils.deepClone(sys.hiddenFields     ?? {}),
-      // Declared attributes (attribute reference system)
       declaredAttrs:   foundry.utils.deepClone(sys.declaredAttrs    ?? []),
       // Slot widget definitions
       slotDefinitions: foundry.utils.deepClone(sys.slotDefinitions  ?? []),
       // Custom action buttons
       buttons:         foundry.utils.deepClone(sys.buttons          ?? []),
-      // On-click action graph (formula graph)
       onClickGraph:    foundry.utils.deepClone(sys.onClickGraph      ?? {}),
       // Active Effect templates
       effectTemplates: foundry.utils.deepClone(sys.effectTemplates   ?? []),
-      // Sheet-level event trigger graph
       sdTriggerGraph:  foundry.utils.deepClone(sys.sdTriggerGraph    ?? {}),
       created: Date.now()
     };
     await game.settings.set("sd", "sheetTemplates", stored);
 
-    // Refresh Toolbox panel if it is open
     try {
       const tb = Object.values(foundry.applications.instances ?? {})
         .find(a => a.constructor?.name === "Toolbox");
@@ -2146,7 +2299,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const name   = item.name;
     const img    = item.img ?? "icons/svg/dice-target.svg";
 
-    // Script: resolve the item by UUID (works for owned items and world items)
     const command = [
       `// Quick-use: ${name}`,
       `const item = await fromUuid("${uuid}");`,
@@ -2154,11 +2306,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       `await item.use({});`
     ].join("\n");
 
-    // Reuse existing SD macro for this item if one was already created
     let macro = game.macros.find(m => m.flags?.sd?.itemUuid === uuid);
 
     if (macro) {
-      // Update in case name/img changed
       await macro.update({ name, img, command });
       ui.notifications.info(`Macro "${name}" updated.`);
     } else {
@@ -2172,7 +2322,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       ui.notifications.info(`Macro "${name}" created! Drag it to your hotbar from the Macros directory.`);
     }
 
-    // Try to place in first free hotbar slot automatically
     try {
       const freeSlot = Array.from({ length: 50 }, (_, i) => i + 1)
         .find(slot => !game.user.hotbar[slot]);
@@ -2182,7 +2331,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       }
     } catch { /* hotbar assignment is a nice-to-have */ }
 
-    // Open the macro sheet so the user can see / drag it
     macro.sheet.render(true);
   }
 }

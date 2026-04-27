@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-/**
- * tools/gen-readme.mjs
- *
- * Generates readme.html from module/builder/formula-graph.mjs by importing
- * NODE_DEFS + CATS + helper flags and rendering a single self-contained
- * HTML document: sticky sidebar TOC, per-node sections with field / pin
- * tables, and a handful of worked-example graph pipelines.
- *
- * Run: node tools/gen-readme.mjs
- * Output: readme.html at repo root.
- */
-
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -18,8 +6,6 @@ import { readFileSync, writeFileSync } from "node:fs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot  = resolve(__dirname, "..");
 
-// Stub the Foundry-specific globals that formula-graph.mjs may touch at
-// import time.  We only need the module's exports, not its side effects.
 globalThis.foundry     = globalThis.foundry     ?? { utils: { randomID: () => "xxx" } };
 globalThis.game        = globalThis.game        ?? {};
 globalThis.Hooks       = globalThis.Hooks       ?? { on:()=>{}, once:()=>{}, call:()=>{}, callAll:()=>{} };
@@ -43,9 +29,6 @@ globalThis.window      = globalThis.window      ?? globalThis;
 const mod = await import(resolve(repoRoot, "module/builder/formula-graph.mjs"));
 const { NODE_DEFS } = mod;
 
-// CATS / helper constants are defined at module scope but NOT exported.
-// We re-import the raw source and eval just the CATS literal.  (Keeping
-// the file ESM-clean avoids adding exports we don't actually want runtime.)
 const src = readFileSync(resolve(repoRoot, "module/builder/formula-graph.mjs"), "utf8");
 function extractArrayLiteral(name) {
   const m = new RegExp(`const\\s+${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`, "m").exec(src);
@@ -117,20 +100,18 @@ const byCategory = {};
 
 const nodeEntries = Object.entries(NODE_DEFS);
 for (const [id, def] of nodeEntries) {
-  if (!def || def.hidden) continue;             // skip legacy/hidden defs
+  if (!def || def.hidden) continue;
   const cat = def.cat && def.cat !== "_system" ? def.cat : "System";
   if (!byCategory[cat]) byCategory[cat] = [];
   byCategory[cat].push([id, def]);
 }
 
-// Stable order: CATS first, then any extras alphabetically.
 const orderedCats = [
   "System",
   ...categoryOrder.filter(c => byCategory[c]),
   ...Object.keys(byCategory).filter(c => c !== "System" && !categoryOrder.includes(c)).sort()
 ].filter((c, i, a) => byCategory[c] && a.indexOf(c) === i);
 
-// Sort nodes inside each category alphabetically by title for readability.
 for (const c of orderedCats) {
   byCategory[c].sort((a, b) => (a[1].title ?? a[0]).localeCompare(b[1].title ?? b[0]));
 }
