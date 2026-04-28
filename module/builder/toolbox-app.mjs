@@ -94,6 +94,12 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         _add(`system.resources.${key}.value`, `${lbl} — Current`);
         _add(`system.resources.${key}.max`,   `${lbl} — Max`);
       }
+
+      for (const c of (cfg.currencies ?? [])) {
+        if (!c?.key) continue;
+        const lbl = c.label && String(c.label).trim() ? c.label : c.key;
+        _add(`system.currency.${c.key}`, `Currency — ${lbl}`);
+      }
     } catch {}
 
     _add("system.advancement.level",        "Level");
@@ -136,6 +142,19 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         const cfgLabel = cfg?.resources?.[key]?.label ?? key.toUpperCase();
         if (res?.value !== undefined) _add(`system.resources.${key}.value`, `${cfgLabel} — Current`);
         if (res?.max   !== undefined) _add(`system.resources.${key}.max`,   `${cfgLabel} — Max`);
+      }
+      const _seenCur = new Set();
+      for (const [key, val] of Object.entries(sys.currency ?? {})) {
+        if (val === null || typeof val === "object") continue;
+        const cfgLabel = (cfg?.currencies ?? []).find(c => c.key === key)?.label;
+        const lbl = cfgLabel && String(cfgLabel).trim() ? cfgLabel : key;
+        _add(`system.currency.${key}`, `Currency — ${lbl}`);
+        _seenCur.add(key);
+      }
+      for (const c of (cfg?.currencies ?? [])) {
+        if (!c?.key || _seenCur.has(c.key)) continue;
+        const lbl = c.label && String(c.label).trim() ? c.label : c.key;
+        _add(`system.currency.${c.key}`, `Currency — ${lbl}`);
       }
       // Advancement
       if (sys.advancement?.level !== undefined) _add("system.advancement.level", "Level");

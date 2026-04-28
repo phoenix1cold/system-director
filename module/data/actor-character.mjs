@@ -141,10 +141,12 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
     this._prepareEncumbrance();
   }
 
-  /** Compute modifier from score (classic floor((score-10)/2)). */
+  /** Compute modifier from score, honouring the world setting `modifierFormula`. */
   _prepareAttributes() {
+    const compute = CONFIG?.SD?.computeModifier
+      ?? (s => Math.floor((Number(s) - 10) / 2));
     for (const attr of Object.values(this.attributes)) {
-      attr.mod = Math.floor((attr.value - 10) / 2);
+      attr.mod = compute(attr.value);
     }
   }
 

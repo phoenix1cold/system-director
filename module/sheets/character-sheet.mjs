@@ -16,7 +16,7 @@ function _promptTabName(current = "") {
     new foundry.applications.api.DialogV2({
       modal: true,
       window: { title: "Tab Name" },
-      content: `<div style="padding:6px 0"><input type="text" name="tabName" value="${esc(current)}" style="width:100%;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px" autofocus></div>`,
+      content: `<div style="padding:6px 0"><input type="text" name="tabName" value="${esc(current)}" style="width:100%;background:var(--sd-w-bg,#2a2a38);border:1px solid var(--sd-w-bd,#3a3a52);color:var(--sd-w-fg,#e0e0ee);border-radius:4px;padding:4px 8px;font-size:13px" autofocus></div>`,
       buttons: [
         { action:"save", label:"Save", icon:"fas fa-floppy-disk", default:true,
           callback:(ev,btn)=>{ resolve(readInput(btn)); } },
@@ -142,7 +142,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (!nav) {
       nav = document.createElement("nav");
       nav.className = "sd-tab-nav";
-      nav.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;padding:5px 12px 0;background:#22222e;border-bottom:1px solid #3a3a52;flex-shrink:0;";
+      nav.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;padding:5px 12px 0;background:var(--sd-w-bg,#22222e);border-bottom:1px solid var(--sd-w-bd,#3a3a52);flex-shrink:0;";
       root.querySelector(".window-content")?.appendChild(nav);
     }
 
@@ -219,7 +219,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     // Save as Template button
     const tplBtn = document.createElement("a");
-    tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid #3a3a52;border-bottom:none;color:#888;background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;";
+    tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-w-bd,#3a3a52);border-bottom:none;color:var(--sd-w-label,#888);background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;";
     tplBtn.innerHTML = `<i class="fas fa-floppy-disk"></i> Template`;
     tplBtn.title = "Save sheet layout as template (use Sheet Builder → Templates → Create)";
     tplBtn.addEventListener("click", () => this._saveAsTemplate());
@@ -302,7 +302,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     let html = `<div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.6">
       GM-only key/value pairs attached to this actor. Path: <code style="background:#1e1e2a;padding:1px 5px;border-radius:3px;font-size:10px;color:#9d8fff">system.hiddenFields.name</code>
-      ${ed ? `<button data-hf-action="add" style="margin-left:8px;background:#2a2a38;border:1px solid #3a3a52;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}
+      ${ed ? `<button data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,#2a2a38);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}
     </div>`;
 
     if (!hf.length) {
@@ -310,8 +310,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     } else {
       for (const [k, v] of hf) {
         html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #1e1e2a">
-          <input type="text" data-hf-key="${e(k)}" data-hf-rename value="${e(k)}" style="width:130px;background:#1e1e2a;border:1px solid #2a2a38;border-radius:4px;color:#9d8fff;font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>
-          <input type="text" data-hf-key="${e(k)}" data-hf-val value="${e(String(v))}" style="flex:1;background:#1e1e2a;border:1px solid #2a2a38;border-radius:4px;color:#e0e0ee;font-size:11px;padding:3px 6px" ${!ed?"disabled":""}>
+          <input type="text" data-hf-key="${e(k)}" data-hf-rename value="${e(k)}" style="width:130px;background:#1e1e2a;border:1px solid var(--sd-w-bd,#2a2a38);border-radius:4px;color:#9d8fff;font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>
+          <input type="text" data-hf-key="${e(k)}" data-hf-val value="${e(String(v))}" style="flex:1;background:#1e1e2a;border:1px solid var(--sd-w-bd,#2a2a38);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);font-size:11px;padding:3px 6px" ${!ed?"disabled":""}>
           <button type="button" data-hf-action="copy-path" data-hf-key="${e(k)}" title="Copy path: system.hiddenFields.${e(k)}" style="background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
           ${ed?`<button data-hf-action="remove" data-hf-key="${e(k)}" style="background:none;border:none;color:#444;cursor:pointer;font-size:12px;padding:0 4px">✕</button>`:""}
         </div>`;
@@ -393,9 +393,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const name = await foundry.applications.api.DialogV2.wait({
       window: { title: "Save as Template" },
       content: `<div style="padding:8px 0">
-        <label style="font-size:12px;color:#888">Template name:</label>
+        <label style="font-size:12px;color:var(--sd-w-label,#888)">Template name:</label>
         <input type="text" name="tplName" value="${this.document.name} Template"
-          style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
+          style="width:100%;margin-top:4px;background:var(--sd-w-bg,#2a2a38);border:1px solid var(--sd-w-bd,#3a3a52);color:var(--sd-w-fg,#e0e0ee);border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
       </div>`,
       buttons: [
         {
@@ -458,7 +458,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       cfg.title = "Row columns (1-9)";
       cfg.style.cssText = `
         position:absolute; top:-9px; right:32px; z-index:10;
-        background:#1a1a24; border:1px solid #3a3a52; border-radius:3px;
+        background:#1a1a24; border:1px solid var(--sd-w-bd,#3a3a52); border-radius:3px;
         color:#7b68ee; cursor:pointer; font-size:10px; padding:0 6px; line-height:17px;
       `;
       cfg.addEventListener("click", () => this._configRow(tab.id, row.id));
@@ -470,7 +470,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       del.title = "Delete row";
       del.style.cssText = `
         position:absolute; top:-9px; right:4px; z-index:10;
-        background:#1a1a24; border:1px solid #3a3a52; border-radius:3px;
+        background:#1a1a24; border:1px solid var(--sd-w-bd,#3a3a52); border-radius:3px;
         color:#555; cursor:pointer; font-size:10px; padding:0 5px; line-height:17px;
       `;
       del.addEventListener("click", () => this._deleteRow(tab.id, row.id));
@@ -575,20 +575,25 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const ov = document.createElement("div");
     ov.className = "sd-widget-ov";
     ov.style.cssText = `
-      display:none; position:absolute; top:2px; right:2px; z-index:20;
-      flex-direction:row; gap:2px;
+      display:none; position:absolute; top:2px; left:2px; right:2px; z-index:20;
+      flex-direction:row; align-items:center; justify-content:space-between; gap:6px;
+      pointer-events:none;
     `;
     const spanBtn = parentVS
       ? ""
       : `<button type="button" title="Width (${span})" data-action="wspan"
-          style="background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">↔${span}</button>`;
+          style="pointer-events:auto;background:#1a1a24;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:var(--sd-w-label,#888);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">↔${span}</button>`;
     ov.innerHTML = `
-      <span title="Drag to move" style="cursor:grab;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span>
-      <button type="button" title="Configure" data-action="wcfg"
-        style="background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">⚙</button>
-      ${spanBtn}
-      <button type="button" title="Remove" data-action="wdel"
-        style="background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">✕</button>
+      <div style="display:flex;flex-direction:row;gap:2px;align-items:center">
+        <span title="Drag to move" style="pointer-events:auto;cursor:grab;background:#1a1a24;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:var(--sd-w-label,#888);font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span>
+        <button type="button" title="Configure" data-action="wcfg"
+          style="pointer-events:auto;background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">⚙</button>
+        ${spanBtn}
+      </div>
+      <div style="display:flex;flex-direction:row;gap:2px;align-items:center">
+        <button type="button" title="Remove" data-action="wdel"
+          style="pointer-events:auto;background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">✕</button>
+      </div>
     `;
     ov.querySelector('[data-action="wcfg"]').addEventListener("click",  ev => { ev.stopPropagation(); this._configWidget(tab, row, w, parentVS); });
     ov.querySelector('[data-action="wspan"]')?.addEventListener("click", ev => { ev.stopPropagation(); this._cycleSpan(tab, row, w); });
@@ -625,26 +630,26 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       } catch { /* show on error */ }
     }
 
-    const lbl = w.label ? `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(w.label)}</div>` : "";
-    const inp = `style="width:100%;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0"`;
+    const lbl = w.label ? `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--sd-w-label,#888);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(w.label)}</div>` : "";
+    const inp = `style="width:100%;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0"`;
     const hasFormula = !!w.valueFormula?.trim();
 
     switch (w.type) {
       case "text":
-        if (hasFormula) return `${lbl}<div style="width:100%;background:#22222e;border:1px solid #2a2a42;border-radius:4px;color:#e0e0ee;font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0" title="Formula: ${e(w.valueFormula)}">${e(String(val))}<span style="float:right;color:#5a4ec0;font-size:9px">ƒ</span></div>`;
-        if (w.readOnly === true || w.readOnly === "true") return `${lbl}<div style="width:100%;background:#111120;border:1px solid #2a2a38;border-radius:4px;color:#8888aa;font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0">${e(String(val))} <span style="float:right;opacity:.4" title="Read only">🔒</span></div>`;
+        if (hasFormula) return `${lbl}<div style="width:100%;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#2a2a42);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0" title="Formula: ${e(w.valueFormula)}">${e(String(val))}<span style="float:right;color:#5a4ec0;font-size:9px">ƒ</span></div>`;
+        if (w.readOnly === true || w.readOnly === "true") return `${lbl}<div style="width:100%;background:var(--sd-w-bg,#111120);border:1px solid var(--sd-w-bd,#2a2a38);border-radius:4px;color:var(--sd-w-fg,#8888aa);font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0">${e(String(val))} <span style="float:right;opacity:.4" title="Read only">🔒</span></div>`;
         return `${lbl}<input type="text" data-path="${e(w.path)}" value="${e(val)}" ${inp}>`;
 
       case "number": {
-        if (hasFormula) return `${lbl}<div style="text-align:center;font-weight:700;font-size:18px;color:#e0e0ee;padding:4px 2px;background:#22222e;border:1px solid #2a2a42;border-radius:4px" title="Formula: ${e(w.valueFormula)}">${e(String(val))}<span style="font-size:9px;color:#5a4ec0;margin-left:4px">ƒ</span></div>`;
+        if (hasFormula) return `${lbl}<div style="text-align:center;font-weight:700;font-size:18px;color:var(--sd-w-fg,#e0e0ee);padding:4px 2px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#2a2a42);border-radius:4px" title="Formula: ${e(w.valueFormula)}">${e(String(val))}<span style="font-size:9px;color:#5a4ec0;margin-left:4px">ƒ</span></div>`;
         const btnCol = (typeof w.btnColor === "string" && w.btnColor.trim()) ? w.btnColor.trim() : "#a0a0c0";
         return `${lbl}<div style="display:flex;align-items:center;gap:3px">
           <button data-step="-${w.step||1}" data-path="${e(w.path)}"
-            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">−</button>
+            style="width:26px;height:26px;flex-shrink:0;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">−</button>
           <input type="number" data-path="${e(w.path)}" value="${e(val)}"
-            style="flex:1;text-align:center;font-weight:700;font-size:15px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;padding:2px;box-sizing:border-box;min-width:0">
+            style="flex:1;text-align:center;font-weight:700;font-size:15px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);padding:2px;box-sizing:border-box;min-width:0">
           <button data-step="${w.step||1}" data-path="${e(w.path)}"
-            style="width:26px;height:26px;flex-shrink:0;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">+</button>
+            style="width:26px;height:26px;flex-shrink:0;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">+</button>
         </div>`;
       }
 
@@ -659,10 +664,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         return `${lbl}
           <div style="display:flex;align-items:center;gap:4px">
             <input type="number" data-path="${e(w.pathValue)}" value="${e(vv)}"
-              style="width:46px;text-align:center;font-weight:700;font-size:14px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;padding:2px;box-sizing:border-box">
+              style="width:46px;text-align:center;font-weight:700;font-size:14px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);padding:2px;box-sizing:border-box">
             <span style="color:#555;flex-shrink:0">/</span>
             <input type="number" data-path="${e(w.pathMax)}" value="${e(mx)}"
-              style="width:46px;text-align:center;font-size:13px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;padding:2px;box-sizing:border-box">
+              style="width:46px;text-align:center;font-size:13px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#a0a0c0);padding:2px;box-sizing:border-box">
           </div>
           <div style="height:${barH};background:${e(barTrk)};border-radius:3px;overflow:hidden;margin-top:3px">
             <div style="height:100%;width:${pct}%;background:${e(clr)};border-radius:3px;transition:width .3s"></div>
@@ -684,7 +689,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             <span style="opacity:.4;font-size:10px;margin-left:2px">${e(diceFormula)}</span>
           </button>
           <button type="button" data-copy-macro="${e(diceMacroScript)}" title="Copy as Macro"
-            style="background:none;border:1px solid #3a3a52;border-radius:4px;color:#444;cursor:pointer;font-size:10px;padding:4px 6px;flex-shrink:0;transition:color .15s,border-color .15s"
+            style="background:none;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:#444;cursor:pointer;font-size:10px;padding:4px 6px;flex-shrink:0;transition:color .15s,border-color .15s"
             onmouseover="this.style.color='#7b68ee';this.style.borderColor='#7b68ee'" onmouseout="this.style.color='#444';this.style.borderColor='#3a3a52'">
             <i class="fas fa-scroll"></i>
           </button>
@@ -701,7 +706,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           <div style="width:36px;height:20px;flex-shrink:0;background:${on ? e(onC) : e(offC)};border:1px solid ${on ? e(onC) : "#3a3a52"};border-radius:10px;position:relative;transition:background .2s">
             <div style="position:absolute;top:2px;left:${on ? "18px" : "2px"};width:14px;height:14px;background:${on ? "#fff" : "#555"};border-radius:50%;transition:left .2s"></div>
           </div>
-          <span style="font-size:12px;color:#a0a0c0">${e(lv)}</span>
+          <span style="font-size:12px;color:var(--sd-w-fg,#a0a0c0)">${e(lv)}</span>
         </div>`;
       }
 
@@ -720,6 +725,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
       case "attribute": {
         const score = Number(foundry.utils.getProperty(this.document, w.path) ?? 10);
+        const compute = CONFIG?.SD?.computeModifier
+          ?? (s => Math.floor((Number(s) - 10) / 2));
         let mod;
         if (w.modValueFormula) {
           try {
@@ -727,10 +734,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
               const v = foundry.utils.getProperty(this.document, p);
               return v !== undefined && v !== null ? v : 0;
             }));
-            mod = isNaN(resolved) ? Math.floor((score - 10) / 2) : resolved;
-          } catch { mod = Math.floor((score - 10) / 2); }
+            mod = isNaN(resolved) ? compute(score) : resolved;
+          } catch { mod = compute(score); }
         } else {
-          mod = Math.floor((score - 10) / 2);
+          mod = compute(score);
         }
         const ms = mod >= 0 ? `+${mod}` : `${mod}`;
         const onClickFml = w.onClickFormula ?? null;
@@ -738,9 +745,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           ? `data-attr-onclick="${e(onClickFml)}"`
           : `data-attr-roll="1d20+(${mod})" data-flavor="${e(w.flavor || w.label)}"`;
         return `${lbl}
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;background:#22222e;border:1px solid #3a3a52;border-radius:6px;padding:6px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:6px;padding:6px">
             <input type="number" data-path="${e(w.path)}" value="${e(score)}"
-              style="width:52px;text-align:center;font-size:18px;font-weight:700;background:transparent;border:none;border-bottom:1px solid #3a3a52;color:#e0e0ee;padding:0;box-sizing:border-box">
+              style="width:52px;text-align:center;font-size:18px;font-weight:700;background:transparent;border:none;border-bottom:1px solid var(--sd-w-bd,#3a3a52);color:var(--sd-w-fg,#e0e0ee);padding:0;box-sizing:border-box">
             <button type="button" data-action="attrModClick" ${clickAttrs}
               style="font-size:14px;font-weight:700;color:#7b68ee;cursor:pointer;padding:2px 8px;border-radius:4px;background:none;border:none"
               title="${onClickFml ? "Click to execute action" : "Click to roll"}">${ms}</button>
@@ -754,9 +761,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const skillRollFormula = (w.rollFormula && w.rollFormula.trim()) ? w.rollFormula.trim() : `1d20+${bonus}`;
         const skillMacroScript = `// ${e(w.label)} skill roll\\nconst actor = token?.actor ?? game.user.character;\\nif (!actor) return ui.notifications.warn("No actor selected");\\nconst rank = foundry.utils.getProperty(actor, "${e(w.path)}") ?? 0;\\nconst bonus = rank + ${w.attrMod ?? 0};\\nconst formula = ${w.rollFormula?.trim() ? `"${e(w.rollFormula.trim())}"` : "`1d20+${bonus}`"};\\nconst roll = new Roll(formula, actor.getRollData());\\nawait roll.evaluate();\\nawait roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${e(w.label)}" });`;
         return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;position:relative">
-          <span style="flex:1;font-size:12px;color:#e0e0ee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(w.label)}</span>
+          <span style="flex:1;font-size:12px;color:var(--sd-w-fg,#e0e0ee);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(w.label)}</span>
           <input type="number" data-path="${e(w.path)}" value="${e(rank)}"
-            style="width:36px;text-align:center;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:12px;padding:2px;box-sizing:border-box">
+            style="width:36px;text-align:center;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);font-size:12px;padding:2px;box-sizing:border-box">
           <span data-roll="${e(skillRollFormula)}" data-flavor="${e(w.label)}"
             style="font-size:12px;font-weight:700;color:#7b68ee;cursor:pointer;min-width:28px;text-align:right;padding:2px 4px;border-radius:4px"
             title="Roll check (${e(skillRollFormula)})">${bs}</span>
@@ -792,7 +799,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
               style="background:none;border:none;color:#555;cursor:pointer;padding:0 4px;font-size:11px;flex-shrink:0" title="Remove">✕</button>
           </div>`).join('');
         return `${lbl}
-          <div style="background:#22222e;border:1px solid #3a3a52;border-radius:4px;padding:5px">
+          <div style="background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;padding:5px">
             <div style="font-size:10px;color:#555;margin-bottom:${items ? '4' : '0'}px">${contents.length}/${max}</div>
             ${items}
             <div data-sd-slot-drop="${e(slotId)}"
@@ -1009,6 +1016,257 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         } catch(e) {
           console.error("SD | widgetButton roll error:", e, "formula:", formula);
           ui.notifications.error(`Roll failed: "${formula}" — ${e.message}`);
+        }
+      });
+    });
+
+    /* ────────  CARDS  widget interactions  ──────── */
+
+    const _sdCardBusy = async (el, fn) => {
+      if (!el) return;
+      if (el.dataset.sdBusy === "1") return;
+      el.dataset.sdBusy = "1";
+      const wasDisabled = el.disabled;
+      if ("disabled" in el) el.disabled = true;
+      try { await fn(); }
+      finally {
+        delete el.dataset.sdBusy;
+        if ("disabled" in el) el.disabled = wasDisabled;
+      }
+    };
+
+    const _sdRunCardGraph = async (el, stack, card) => {
+      const raw = el.dataset.actionGraph ?? "";
+      if (!raw) {
+        ui.notifications.warn("SD | runGraph clicked but no action graph is configured on this Card Hand widget.");
+        return;
+      }
+      let actions = null;
+      let macros  = null;
+      try {
+        const trimmed = raw.trim();
+        if (trimmed.startsWith("[")) {
+          actions = JSON.parse(trimmed);
+        } else if (trimmed.startsWith("{")) {
+          const payload = JSON.parse(trimmed);
+          if (payload?._trigger === "onClick")     actions = payload.actions ?? [];
+          else if (payload?._trigger === "multi")  actions = payload._events?.onClick ?? payload.onClick ?? [];
+          macros = payload?._macros ?? null;
+        }
+      } catch (e) {
+        console.error("SD | cardRunGraph parse:", e);
+        ui.notifications.error("Card action graph parse failed: " + (e?.message ?? e));
+        return;
+      }
+      if (!Array.isArray(actions) || !actions.length) return;
+
+      let _cardValue = (typeof card?.value === "number") ? card.value : null;
+      if (_cardValue === null && typeof card?.face === "number" && card?.faces?.[card.face]?.value !== undefined) {
+        _cardValue = Number(card.faces[card.face].value);
+      }
+      if (_cardValue === null || isNaN(_cardValue)) _cardValue = 0;
+      const _faceIdx = (card?.face === null || card?.face === undefined) ? -1 : Number(card.face);
+      const _faceImg = (typeof card?.face === "number" && card?.faces?.[card.face]?.img)
+        ? card.faces[card.face].img
+        : (card?.faces?.[0]?.img ?? card?.back?.img ?? "");
+
+      const fakeBtnDef = {
+        label:    "cardClick:runGraph",
+        formula:  raw,
+        __macros: macros,
+        __eventRuntime: {
+          __cardClickedId:        card?.id ?? "",
+          __cardClickedName:      card?.name ?? "",
+          __cardClickedFace:      isNaN(_faceIdx) ? -1 : _faceIdx,
+          __cardClickedFaceImg:   _faceImg,
+          __cardClickedValue:     _cardValue,
+          __cardClickedStackId:   stack?.id   ?? "",
+          __cardClickedStackUuid: stack?.uuid ?? "",
+          __cardClickedStackName: stack?.name ?? ""
+        }
+      };
+      const actorCtx = doc instanceof Actor ? doc : doc.actor ?? null;
+      const itemCtx  = doc instanceof Actor ? null : doc;
+      const runtime  = {};
+      try {
+        for (const action of actions) {
+          await ButtonExecutor._runAction(action, itemCtx ?? { system: {}, actor: actorCtx }, actorCtx, fakeBtnDef, runtime);
+        }
+      } catch (e) {
+        console.error("SD | cardRunGraph exec:", e);
+        ui.notifications.error("Card action graph failed: " + (e?.message ?? e));
+      }
+    };
+
+    cell.querySelectorAll("[data-action='cardClick']").forEach(el => {
+      const mode  = el.dataset.clickMode || "inspect";
+      const runOn = el.dataset.runOn      || "click";
+
+      if (mode === "runGraph") {
+        const evName = runOn === "dblclick" ? "dblclick" : runOn === "rightclick" ? "contextmenu" : "click";
+        el.addEventListener(evName, async (ev) => {
+          if (ev.target?.closest?.("[data-action='cardFlip']")) return;
+          if (evName === "contextmenu") ev.preventDefault();
+          const stackUuid = el.dataset.stackUuid;
+          const cardId    = el.dataset.cardId;
+          await _sdCardBusy(el, async () => {
+            try {
+              const stack = await fromUuid(stackUuid);
+              const card  = stack?.cards?.get?.(cardId);
+              if (!stack || !card) return;
+              await _sdRunCardGraph(el, stack, card);
+            } catch (e) {
+              console.error("SD | cardClick:runGraph:", e);
+              ui.notifications.error("Card action failed: " + (e?.message ?? e));
+            }
+          });
+        });
+        return;
+      }
+
+      el.addEventListener("click", async (ev) => {
+        if (ev.target?.closest?.("[data-action='cardFlip']")) return;
+        if (mode === "none") return;
+        const stackUuid = el.dataset.stackUuid;
+        const cardId    = el.dataset.cardId;
+        await _sdCardBusy(el, async () => {
+          try {
+            const stack = await fromUuid(stackUuid);
+            const card  = stack?.cards?.get?.(cardId);
+            if (!stack || !card) return;
+            if (mode === "inspect") {
+              card.sheet?.render(true);
+            } else if (mode === "play") {
+              if (typeof stack.playDialog === "function") {
+                await stack.playDialog(card);
+              } else if (typeof stack.passDialog === "function") {
+                await stack.passDialog(card);
+              } else {
+                ui.notifications.warn("SD | Cards#playDialog is not available on this stack — pick a destination via the right-click menu.");
+              }
+            } else if (mode === "discard") {
+              if (typeof stack.passDialog === "function") {
+                await stack.passDialog(card);
+              } else {
+                ui.notifications.warn("SD | Cards#passDialog is not available on this stack.");
+              }
+            } else if (mode === "flip") {
+              await card.update({ face: card.face === null ? 0 : null });
+            }
+          } catch(e) {
+            console.error("SD | cardClick:", e);
+            ui.notifications.error("Card action failed: " + (e?.message ?? e));
+          }
+        });
+      });
+    });
+
+    cell.querySelectorAll("[data-action='cardFlip']").forEach(btn => {
+      btn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const stackUuid = btn.dataset.stackUuid;
+        const cardId    = btn.dataset.cardId;
+        await _sdCardBusy(btn, async () => {
+          try {
+            const stack = await fromUuid(stackUuid);
+            const card  = stack?.cards?.get?.(cardId);
+            if (!card) return;
+            await card.update({ face: card.face === null ? 0 : null });
+          } catch(e) {
+            console.error("SD | cardFlip:", e);
+            ui.notifications.error("Card flip failed: " + (e?.message ?? e));
+          }
+        });
+      });
+    });
+
+    cell.querySelectorAll("[data-action='cardStripScroll']").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const dir = Number(btn.dataset.dir) || 1;
+        const strip = btn.parentElement?.querySelector(".sd-cardhand-strip");
+        if (strip) strip.scrollBy({ left: dir * 200, behavior: "smooth" });
+      });
+    });
+
+    cell.querySelectorAll("[data-action='cardStackShuffle']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try {
+          const stack = await fromUuid(btn.dataset.stackUuid);
+          if (stack) await stack.shuffle({ chatNotification: true });
+        } catch(e) { console.error("SD | cardStackShuffle:", e); }
+      });
+    });
+
+    cell.querySelectorAll("[data-action='cardStackRecall']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try {
+          const stack = await fromUuid(btn.dataset.stackUuid);
+          if (stack) await stack.recall({ chatNotification: true });
+        } catch(e) { console.error("SD | cardStackRecall:", e); }
+      });
+    });
+
+    cell.querySelectorAll("[data-action='cardStackFlipAll']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try {
+          const stack = await fromUuid(btn.dataset.stackUuid);
+          if (!stack) return;
+          const updates = stack.cards.map(c => ({ _id: c.id, face: c.face === null ? 0 : null }));
+          await stack.updateEmbeddedDocuments("Card", updates);
+        } catch(e) { console.error("SD | cardStackFlipAll:", e); }
+      });
+    });
+
+    cell.querySelectorAll("[data-action='cardWidgetDraw']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (btn.dataset.sdBusy === "1") return;
+        btn.dataset.sdBusy = "1";
+        const wasDisabled = btn.disabled;
+        btn.disabled = true;
+        const fromUuidVal = btn.dataset.fromUuid || "";
+        const fromName    = btn.dataset.fromName || "";
+        const toUuidVal   = btn.dataset.toUuid   || "";
+        const toName      = btn.dataset.toName   || "";
+        const count       = Math.max(1, Number(btn.dataset.count) || 1);
+        const how         = btn.dataset.how || "top";
+        try {
+          const from = (fromUuidVal && await fromUuid(fromUuidVal)) || (fromName && game.cards?.getName?.(fromName));
+          const to   = (toUuidVal   && await fromUuid(toUuidVal))   || (toName   && game.cards?.getName?.(toName));
+          if (!from || !to) { ui.notifications.warn("SD | Card Draw widget: stack not found"); return; }
+          if (from === to || from.uuid === to.uuid) {
+            ui.notifications.warn("SD | Card Draw widget: source and destination must differ");
+            return;
+          }
+          const mode = how === "bottom" ? CONST.CARD_DRAW_MODES.BOTTOM
+                     : how === "random" ? CONST.CARD_DRAW_MODES.RANDOM
+                     : CONST.CARD_DRAW_MODES.TOP;
+          const available = from.availableCards?.length ?? from.cards?.size ?? 0;
+          if (available <= 0) { ui.notifications.info(`SD | Deck "${from.name}" is empty.`); return; }
+          const n = Math.min(count, available);
+
+          let attempts = 0;
+          while (true) {
+            try {
+              await to.draw(from, n, { how: mode, chatNotification: true });
+              break;
+            } catch (err) {
+              const msg = String(err?.message ?? err ?? "");
+              const m = /_id \[([A-Za-z0-9]+)\] already exists/.exec(msg);
+              if (m && to.cards?.has?.(m[1]) && attempts < 8) {
+                attempts++;
+                console.warn(`SD | cardWidgetDraw: removing stale duplicate card ${m[1]} from "${to.name}" and retrying (attempt ${attempts})`);
+                try { await to.deleteEmbeddedDocuments("Card", [m[1]]); } catch (e2) { console.error("SD | cardWidgetDraw cleanup:", e2); throw err; }
+                continue;
+              }
+              throw err;
+            }
+          }
+        } catch(e) {
+          console.error("SD | cardWidgetDraw:", e);
+          ui.notifications.error("Card draw failed: " + e.message);
+        } finally {
+          delete btn.dataset.sdBusy;
+          btn.disabled = wasDisabled;
         }
       });
     });
@@ -1487,8 +1745,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         } catch {
           await foundry.applications.api.DialogV2.prompt({
             window: { title: "Macro Script" },
-            content: `<p style="font-size:11px;color:#888;margin-bottom:6px">Copy the script below into a new Macro (type: Script):</p>
-              <textarea style="width:100%;height:160px;font-family:monospace;font-size:11px;background:#1a1a24;color:#c0c0e0;border:1px solid #3a3a52;border-radius:4px;padding:6px;box-sizing:border-box;resize:vertical"
+            content: `<p style="font-size:11px;color:var(--sd-w-label,#888);margin-bottom:6px">Copy the script below into a new Macro (type: Script):</p>
+              <textarea style="width:100%;height:160px;font-family:monospace;font-size:11px;background:#1a1a24;color:#c0c0e0;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;padding:6px;box-sizing:border-box;resize:vertical"
                 readonly onclick="this.select()">${script}</textarea>`,
             ok: { label: "Close" }
           });
@@ -1911,9 +2169,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const n = await foundry.applications.api.DialogV2.prompt({
       window: { title: "Row Columns" },
       content: `<div style="padding:8px 0">
-        <label style="font-size:12px;color:#888">Columns (1-9):</label>
+        <label style="font-size:12px;color:var(--sd-w-label,#888)">Columns (1-9):</label>
         <input type="number" min="1" max="9" name="cols" value="${cur}"
-          style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
+          style="width:100%;margin-top:4px;background:var(--sd-w-bg,#2a2a38);border:1px solid var(--sd-w-bd,#3a3a52);color:var(--sd-w-fg,#e0e0ee);border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
       </div>`,
       ok: {
         label: "Apply",

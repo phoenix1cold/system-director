@@ -146,7 +146,7 @@ export const WIDGET_TYPES = {
     id:    "effects",
     label: "Effects",
     icon:  "fa-sparkles",
-    desc:  "Active Effects list with toggle/edit/delete",
+    desc:  "Active Effects list",
     defaultSpan: 3,
     defaults: {
       label:        "Effects",
@@ -164,7 +164,7 @@ export const WIDGET_TYPES = {
     id:    "spellbook",
     label: "Spellbook",
     icon:  "fa-book-sparkles",
-    desc:  "List of ability items filtered by type",
+    desc:  "Abilities filtered by type",
     defaultSpan: 3,
     defaults: {
       label: "Spellbook",
@@ -233,7 +233,7 @@ export const WIDGET_TYPES = {
     id:    "button",
     label: "Button",
     icon:  "fa-square-bolt",
-    desc:  "Action button (roll, modify field, etc.)",
+    desc:  "Action button (roll/modify/etc.)",
     defaultSpan: 1,
     defaults: {
       label:   "Action",
@@ -273,7 +273,7 @@ export const WIDGET_TYPES = {
     id:    "progress",
     label: "Progress Bar",
     icon:  "fa-chart-bar",
-    desc:  "Read-only horizontal bar (XP, reputation, charge level)",
+    desc:  "Read-only horizontal bar",
     defaultSpan: 2,
     defaults: {
       label:     "Progress",
@@ -298,7 +298,7 @@ export const WIDGET_TYPES = {
     id:    "select",
     label: "Select",
     icon:  "fa-list",
-    desc:  "Dropdown bound to a string field. Choices defined as comma-separated values.",
+    desc:  "Dropdown from comma-separated choices",
     defaultSpan: 1,
     defaults: {
       label:   "Pick",
@@ -317,7 +317,7 @@ export const WIDGET_TYPES = {
     id:    "clock",
     label: "Progress Clock",
     icon:  "fa-clock",
-    desc:  "Pie-chart clock widget. Click segments to fill/unfill (Blades in the Dark, PbtA style).",
+    desc:  "Pie-chart clock (PbtA / Blades)",
     defaultSpan: 1,
     defaults: {
       label:     "Clock",
@@ -339,7 +339,7 @@ export const WIDGET_TYPES = {
     id:    "tracker",
     label: "Token Tracker",
     icon:  "fa-circle-dot",
-    desc:  "Row of N clickable pip icons — click to fill, click filled to unfill (same model as the Clock widget).",
+    desc:  "Row of clickable pip icons",
     defaultSpan: 2,
     defaults: {
       label:    "Stress",
@@ -367,7 +367,7 @@ export const WIDGET_TYPES = {
     id:    "counter",
     label: "Counter",
     icon:  "fa-plus-minus",
-    desc:  "Big ± stepper for metacurrencies (Fate, Momentum, Hold). Clamps to min/max.",
+    desc:  "Big ± stepper with min/max",
     defaultSpan: 1,
     defaults: {
       label: "Counter",
@@ -391,7 +391,7 @@ export const WIDGET_TYPES = {
     id:    "rollButton",
     label: "Roll Button",
     icon:  "fa-dice-d20",
-    desc:  "One-click dice roll button. Formula → chat message. No graph needed.",
+    desc:  "One-click dice roll → chat",
     defaultSpan: 1,
     defaults: {
       label:   "Roll",
@@ -413,7 +413,7 @@ export const WIDGET_TYPES = {
     id:    "tokenPool",
     label: "Token Pool",
     icon:  "fa-coins",
-    desc:  "Visual token pool with spend / gain buttons. Best for Fate, Momentum, Hold, metacurrencies.",
+    desc:  "Token pool with spend / gain",
     defaultSpan: 2,
     defaults: {
       label:    "Tokens",
@@ -441,7 +441,7 @@ export const WIDGET_TYPES = {
     id:    "diceTray",
     label: "Dice Tray",
     icon:  "fa-dice",
-    desc:  "Passive display of the last dice roll (total, formula, flavor) made by any SD action.",
+    desc:  "Shows the last dice roll",
     defaultSpan: 2,
     defaults: {
       label:     "Last Roll",
@@ -462,7 +462,7 @@ export const WIDGET_TYPES = {
     id:    "tags",
     label: "Tags / Traits",
     icon:  "fa-tags",
-    desc:  "Editable comma-separated list of traits, languages, or keywords displayed as pills.",
+    desc:  "Pill list of traits / keywords",
     defaultSpan: 3,
     defaults: {
       label: "Tags",
@@ -481,7 +481,7 @@ export const WIDGET_TYPES = {
     id:    "image",
     label: "Image",
     icon:  "fa-image",
-    desc:  "Displays a static image. Size and border are configured in the “Style” section.",
+    desc:  "Static image",
     defaultSpan: 1,
     defaults: {
       label:       "",
@@ -500,7 +500,7 @@ export const WIDGET_TYPES = {
     id:    "vsection",
     label: "Vertical Section",
     icon:  "fa-bars",
-    desc:  "Replaces one grid cell with a vertical stack of widgets",
+    desc:  "Vertical stack inside a cell",
     defaultSpan: 1,
     defaults: {
       label:   "",
@@ -516,7 +516,7 @@ export const WIDGET_TYPES = {
     id:    "derived",
     label: "Derived Value",
     icon:  "fa-function",
-    desc:  "Shows a computed read-only number from a formula. Value is not stored — computed at render time only.",
+    desc:  "Read-only computed value",
     defaultSpan: 1,
     defaults: {
       label:         "Derived",
@@ -528,6 +528,71 @@ export const WIDGET_TYPES = {
       { key: "formula",       type: "text",   label: "Formula", mono: true, placeholder: "{system.attributes.attr1.value} * 2" },
       { key: "decimalPlaces", type: "number", label: "Decimal places (0 = integer)" }
     ]
+  },
+
+  cardHand: {
+    id:    "cardHand",
+    label: "Card Hand",
+    icon:  "fa-cards",
+    desc:  "Hand / deck visualizer",
+    defaultSpan: 4,
+    defaults: {
+      label:        "Hand",
+      sourceName:   "",
+      sourceUuid:   "",
+      layout:       "strip",
+      clickAction:  "inspect",
+      runGraphOn:   "click",
+      actionGraph:  "",
+      showCount:    "yes",
+      showActions:  "yes",
+      cardWidth:    96,
+      maxVisible:   12
+    },
+    configFields: [
+      { key: "label",       type: "text",   label: "Label" },
+      { key: "sourceName",  type: "text",   label: "Cards stack name", placeholder: "e.g. Aelyn's Hand" },
+      { key: "sourceUuid",  type: "text",   label: "…or Cards UUID",   placeholder: "Cards.xxxx" },
+      { key: "layout",      type: "select", label: "Layout",
+        options: ["fan","strip","grid"] },
+      { key: "clickAction", type: "select", label: "Click on card",
+        options: ["inspect","play","discard","flip","runGraph","none"] },
+      { key: "runGraphOn",  type: "select", label: "Run graph on (when clickAction=runGraph)",
+        options: ["click","dblclick","rightclick"] },
+      { key: "actionGraph", type: "actionGraph", label: "Action graph (when clickAction=runGraph)" },
+      { key: "showCount",   type: "select", label: "Show count",      options: ["yes","no"] },
+      { key: "showActions", type: "select", label: "Show actions bar (Shuffle/Recall/Flip All)", options: ["yes","no"] },
+      { key: "cardWidth",   type: "number", label: "Card width (px)" },
+      { key: "maxVisible",  type: "number", label: "Max visible (0 = all)" }
+    ]
+  },
+
+  cardDrawButton: {
+    id:    "cardDrawButton",
+    label: "Card Draw Button",
+    icon:  "fa-square-caret-up",
+    desc:  "Draw cards from a deck",
+    defaultSpan: 2,
+    defaults: {
+      label:       "Draw",
+      fromName:    "",
+      fromUuid:    "",
+      toName:      "",
+      toUuid:      "",
+      count:       1,
+      how:         "top",
+      showCount:   "yes"
+    },
+    configFields: [
+      { key: "label",     type: "text",   label: "Label" },
+      { key: "fromName",  type: "text",   label: "From deck name" },
+      { key: "fromUuid",  type: "text",   label: "…or Deck UUID" },
+      { key: "toName",    type: "text",   label: "To hand name" },
+      { key: "toUuid",    type: "text",   label: "…or Hand UUID" },
+      { key: "count",     type: "number", label: "Cards per click" },
+      { key: "how",       type: "select", label: "Take from", options: ["top","bottom","random"] },
+      { key: "showCount", type: "select", label: "Show count badge", options: ["yes","no"] }
+    ]
   }
 };
 
@@ -536,7 +601,8 @@ export const WIDGET_PALETTE_ORDER = [
   "text", "number", "counter", "resource", "derived", "dice", "button",
   "toggle", "attribute", "skill", "progress", "tracker", "tokenPool", "clock",
   "slot", "inventory", "effects", "spellbook",
-  "select", "tags", "image", "section", "vsection", "richtext"
+  "select", "tags", "image", "section", "vsection", "richtext",
+  "cardHand", "cardDrawButton"
 ];
 
 /** Create a fresh widget definition with a random id */
@@ -587,3 +653,35 @@ export const KNOWN_PATHS = {
   "system.advancement.xp.max":     "XP — Max",
   "system.advancement.proficiencyBonus": "Proficiency Bonus"
 };
+
+export function getKnownPaths() {
+  const out = { ...KNOWN_PATHS };
+  try {
+    const cfg = (typeof CONFIG !== "undefined") ? CONFIG?.SD : null;
+    for (const c of (Array.isArray(cfg?.currencies) ? cfg.currencies : [])) {
+      if (!c?.key) continue;
+      const label = c.label && String(c.label).trim() ? c.label : c.key;
+      out[`system.currency.${c.key}`] = `Currency — ${label}`;
+    }
+    if (typeof game !== "undefined") {
+      let stored = null;
+      try { stored = game.settings?.get?.("sd", "systemSettings") ?? null; } catch {}
+      const attrs = stored?.attributes ?? {};
+      const attrsEnabled = stored?.attributesEnabled ?? {};
+      for (const [key, label] of Object.entries(attrs)) {
+        if (attrsEnabled[key] === false) continue;
+        const lbl = label && String(label).trim() ? label : key;
+        out[`system.attributes.${key}.value`] = `${lbl} — Score`;
+        out[`system.attributes.${key}.mod`]   = `${lbl} — Modifier`;
+      }
+      const ress = stored?.resources ?? {};
+      for (const [key, res] of Object.entries(ress)) {
+        if (res?.enabled === false) continue;
+        const lbl = res?.label && String(res.label).trim() ? res.label : key;
+        out[`system.resources.${key}.value`] = `${lbl} — Current`;
+        out[`system.resources.${key}.max`]   = `${lbl} — Max`;
+      }
+    }
+  } catch {}
+  return out;
+}

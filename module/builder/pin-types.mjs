@@ -1,16 +1,17 @@
-/** Map subtype → colour used when rendering the wire. */
 export const PIN_SUBTYPE_COLORS = Object.freeze({
   "exec":          "#ffca6b",
   "value.any":     null,
-  "value.number":  "#74c0ff", // blue
-  "value.string":  "#e06bff", // magenta
-  "value.bool":    "#ff7b7b", // red
-  "value.path":    "#c8a268", // tan
-  "value.uuid":    "#a76bff", // purple
-  "value.actor":   "#5dd6a8", // green
-  "value.item":    "#ffd94a", // yellow
-  "value.token":   "#3ec8e0", // cyan
-  "value.array":   "#d0d0d0"  // grey
+  "value.number":  "#74c0ff",
+  "value.string":  "#e06bff",
+  "value.bool":    "#ff7b7b",
+  "value.path":    "#c8a268",
+  "value.uuid":    "#a76bff",
+  "value.actor":   "#5dd6a8",
+  "value.item":    "#ffd94a",
+  "value.token":   "#3ec8e0",
+  "value.array":   "#d0d0d0",
+  "value.card":    "#ff9b3a",
+  "value.cards":   "#ffb877"
 });
 
 export function pinSubtype(t) {

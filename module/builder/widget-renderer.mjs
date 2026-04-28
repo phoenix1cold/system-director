@@ -100,9 +100,9 @@ export class WidgetRenderer {
 
     const wPx = px(w.boxW);    if (wPx) parts.push(`width:${wPx}`);
     const hPx = px(w.boxH);    if (hPx) parts.push(`min-height:${hPx}`);
-    const bg  = colour(w.boxBg);      if (bg) parts.push(`background:${bg}`);
-    const fg  = colour(w.boxFg);      if (fg) parts.push(`color:${fg}`);
-    const bd  = colour(w.boxBorder);  if (bd && w.type !== "image") parts.push(`border:1px solid ${bd}`);
+    const bg  = colour(w.boxBg);      if (bg) { parts.push(`background:${bg}`); parts.push(`--sd-w-bg:${bg}`); }
+    const fg  = colour(w.boxFg);      if (fg) { parts.push(`color:${fg}`);      parts.push(`--sd-w-fg:${fg}`); parts.push(`--sd-w-label:${fg}`); }
+    const bd  = colour(w.boxBorder);  if (bd && w.type !== "image") { parts.push(`border:1px solid ${bd}`); parts.push(`--sd-w-bd:${bd}`); }
     const br  = px(w.boxRadius);      if (br) parts.push(`border-radius:${br}`);
     const pd  = px(w.boxPad);         if (pd) parts.push(`padding:${pd}`);
 
@@ -163,7 +163,7 @@ export class WidgetRenderer {
     if (isReadOnly) {
       return `<div class="widget widget-text widget-text--readonly">
   <div class="widget-label">${esc(w.label)} <span style="color:#555;font-size:9px;margin-left:2px" title="Read only">🔒</span></div>
-  <div class="widget-text-readonly-val" style="background:#111120;border:1px solid #2a2a38;border-radius:4px;padding:3px 7px;font-size:12px;color:#8888aa;min-height:22px;word-break:break-word">${esc(String(val))}</div>
+  <div class="widget-text-readonly-val" style="background:var(--sd-w-bg,#111120);border:1px solid var(--sd-w-bd,#2a2a38);border-radius:4px;padding:3px 7px;font-size:12px;color:var(--sd-w-fg,#8888aa);min-height:22px;word-break:break-word">${esc(String(val))}</div>
 </div>`;
     }
     return `<div class="widget widget-text">
@@ -476,12 +476,14 @@ export class WidgetRenderer {
     const score = Number(this._get(doc, w.path, 10));
     const e     = this._esc;
 
+    const compute = CONFIG?.SD?.computeModifier
+      ?? (s => Math.floor((Number(s) - 10) / 2));
     let mod;
     if (w.modValueFormula) {
       const resolved = Number(FormulaEngine.evaluate(w.modValueFormula, doc));
-      mod = isNaN(resolved) ? Math.floor((score - 10) / 2) : resolved;
+      mod = isNaN(resolved) ? compute(score) : resolved;
     } else {
-      mod = Math.floor((score - 10) / 2);
+      mod = compute(score);
     }
     const ms = mod >= 0 ? `+${mod}` : `${mod}`;
 
@@ -573,12 +575,12 @@ export class WidgetRenderer {
     return `<div class="widget widget-richtext">
   <div class="widget-label">${e(w.label)}</div>
   <div class="richtext-display" data-path="${e(w.path)}"
-       style="min-height:60px;cursor:text;padding:6px 8px;background:#1e1e2a;border:1px solid #3a3a52;border-radius:4px;font-size:12px;color:#a0a0c0;line-height:1.6;word-break:break-word">
+       style="min-height:60px;cursor:text;padding:6px 8px;background:#1e1e2a;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;font-size:12px;color:var(--sd-w-fg,#a0a0c0);line-height:1.6;word-break:break-word">
     ${val || "<span style='opacity:.35;font-style:italic'>Click to edit…</span>"}
   </div>
   <div class="richtext-edit-wrap" style="display:none;position:relative">
     <textarea class="richtext-editor" data-path="${e(w.path)}"
-      style="width:100%;min-height:80px;resize:vertical;background:#1e1e2a;border:1px solid #7b68ee;border-radius:4px 4px 0 0;color:#e0e0ee;font-size:12px;padding:6px 8px;box-sizing:border-box;font-family:inherit;line-height:1.6;display:block"
+      style="width:100%;min-height:80px;resize:vertical;background:#1e1e2a;border:1px solid #7b68ee;border-radius:4px 4px 0 0;color:var(--sd-w-fg,#e0e0ee);font-size:12px;padding:6px 8px;box-sizing:border-box;font-family:inherit;line-height:1.6;display:block"
       placeholder="Enter text…">${e(val)}</textarea>
     <div style="display:flex;gap:6px;padding:4px 0 2px">
       <button type="button" class="richtext-save" style="flex:1;background:#2a4a2a;border:1px solid #3a7a3a;border-radius:4px;color:#5ae07a;cursor:pointer;font-size:11px;padding:4px 8px">✓ Save</button>
@@ -703,9 +705,9 @@ export class WidgetRenderer {
   <div class="widget-label-row" style="display:flex;align-items:baseline;gap:4px;margin-bottom:3px">
     ${showLabel ? `<span class="widget-label">${lbl}</span>` : ""}
     <span title="Read-only — edit via the source field" style="font-size:9px;color:#555;margin-left:3px;cursor:default">🔒</span>
-    ${showPct   ? `<span style="margin-left:auto;font-size:10px;color:#888">${val}/${max} (${pct}%)</span>` : ""}
+    ${showPct   ? `<span style="margin-left:auto;font-size:10px;color:var(--sd-w-label,#888)">${val}/${max} (${pct}%)</span>` : ""}
   </div>
-  <div style="background:${trk};border-radius:3px;height:${barH};overflow:hidden;border:1px solid #2a2a38;opacity:.85">
+  <div style="background:${trk};border-radius:3px;height:${barH};overflow:hidden;border:1px solid var(--sd-w-bd,#2a2a38);opacity:.85">
     <div style="height:100%;width:${pct}%;background:${col};border-radius:3px;transition:width .3s"></div>
   </div>
 </div>`;
@@ -767,7 +769,7 @@ export class WidgetRenderer {
     <span class="widget-label">${lbl}</span>
     <button type="button" class="sd-clock-reset" data-path="${path}" data-segs="${segs}"
       title="Reset clock to 0"
-      style="background:none;border:1px solid #3a3a52;border-radius:3px;color:#555;
+      style="background:none;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:#555;
              cursor:pointer;font-size:9px;padding:0 5px;line-height:1.6;
              transition:color .15s,border-color .15s"
       onmouseover="this.style.color='#e05050';this.style.borderColor='#e05050'"
@@ -824,7 +826,7 @@ export class WidgetRenderer {
     <span style="font-size:9px;color:#777">${filled}/${maxVal}</span>
     <button type="button" class="sd-tracker-reset" data-path="${path}"
       title="Reset tracker to 0"
-      style="background:none;border:1px solid #3a3a52;border-radius:3px;color:#555;
+      style="background:none;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:#555;
              cursor:pointer;font-size:9px;padding:0 5px;line-height:1.6;margin-left:auto;
              transition:color .15s,border-color .15s"
       onmouseover="this.style.color='#e05050';this.style.borderColor='#e05050'"
@@ -1011,14 +1013,14 @@ export class WidgetRenderer {
       `<span class="sd-tag-pill" style="background:${col}22;border:1px solid ${col}55;
         border-radius:10px;padding:1px 8px;font-size:10px;color:${fg};white-space:nowrap">${esc(t)}
         <span class="sd-tag-remove" data-path="${path}" data-tag="${esc(t)}"
-          style="cursor:pointer;margin-left:3px;color:#888;font-size:9px" title="Remove">✕</span>
+          style="cursor:pointer;margin-left:3px;color:var(--sd-w-label,#888);font-size:9px" title="Remove">✕</span>
       </span>`
     ).join("\n    ");
     return `<div class="widget widget-tags">
   <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
     <span class="widget-label">${lbl}</span>
     <button type="button" class="sd-tag-add" data-path="${path}"
-      style="background:none;border:1px solid #3a3a52;border-radius:3px;color:#888;
+      style="background:none;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:var(--sd-w-label,#888);
              font-size:9px;padding:0 5px;cursor:pointer;line-height:1.6" title="Add tag">+</button>
   </div>
   <div class="sd-tag-container" data-path="${path}"
@@ -1083,6 +1085,162 @@ export class WidgetRenderer {
 </div>`;
   }
 
+  static _resolveCardsStackSync(w) {
+    if (w.sourceUuid) {
+      try { const d = fromUuidSync?.(w.sourceUuid); if (d) return d; } catch {}
+    }
+    if (w.sourceName) {
+      const byName = game.cards?.getName?.(w.sourceName);
+      if (byName) return byName;
+    }
+    return null;
+  }
+
+  static _cardFaceImg(card) {
+    if (!card) return "";
+    if (typeof card.face === "number" && card.faces?.[card.face]?.img) return card.faces[card.face].img;
+    if (card.face === null) return card.back?.img ?? card.faces?.[0]?.img ?? "";
+    return card.faces?.[0]?.img ?? card.back?.img ?? "";
+  }
+
+  static _render_cardHand(w, doc) {
+    const e = this._esc;
+    const stack = this._resolveCardsStackSync(w);
+    const lbl = e(w.label ?? "Hand");
+    if (!stack) {
+      return `<div class="widget widget-cardhand">
+        <div class="widget-label">${lbl}</div>
+        <div style="opacity:.6;font-size:11px;padding:6px 0">Stack not found — set <code>sourceName</code> or <code>sourceUuid</code> in widget config.</div>
+      </div>`;
+    }
+    const cards = Array.from(stack.cards ?? []);
+    const visibleLimit = Number(w.maxVisible ?? 0);
+    const shown = visibleLimit > 0 ? cards.slice(0, visibleLimit) : cards;
+    const cardW = Math.max(40, Number(w.cardWidth ?? 96));
+    const layout = ["fan","strip","grid"].includes(w.layout) ? w.layout : "strip";
+    const click = w.clickAction ?? "inspect";
+    const stackUuid = stack.uuid;
+    const stackName = stack.name ?? "";
+    const runOn     = (click === "runGraph")
+      ? (["click","dblclick","rightclick"].includes(w.runGraphOn) ? w.runGraphOn : "click")
+      : "click";
+    const actionGraphRaw = (click === "runGraph") ? (w.actionGraph ?? "") : "";
+
+    const cardEl = (c, i) => {
+      const img = this._cardFaceImg(c);
+      const isBack = c.face === null;
+      const flippedIco = isBack ? "fa-eye" : "fa-eye-slash";
+      const flippedTitle = isBack ? "Flip to face" : "Flip to back";
+      return `
+      <div class="sd-card" data-card-id="${e(c.id)}" data-card-index="${i}"
+           data-stack-uuid="${e(stackUuid)}" data-stack-name="${e(stackName)}"
+           data-card-name="${e(c.name ?? "")}" data-card-face="${e(c.face === null || c.face === undefined ? -1 : c.face)}"
+           data-card-img="${e(img)}"
+           data-action="cardClick"
+           data-click-mode="${e(click)}" data-run-on="${e(runOn)}"
+           data-action-graph="${e(actionGraphRaw)}"
+           style="position:relative;display:inline-block;flex:0 0 ${cardW}px;width:${cardW}px;height:${Math.round(cardW*1.4)}px;border-radius:6px;overflow:hidden;background:#0c0c14;border:1px solid #2a2a3a;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:${click==='none'?'default':'pointer'};transition:transform .1s">
+        <img src="${e(img)}" alt="${e(c.name ?? "Card")}" loading="lazy"
+             style="width:100%;height:100%;object-fit:cover;display:block;${isBack?'filter:brightness(.85)':''}">
+        <button type="button" class="sd-card-flip" data-action="cardFlip"
+                data-stack-uuid="${e(stackUuid)}" data-card-id="${e(c.id)}"
+                title="${e(flippedTitle)}"
+                style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:1px solid #555;background:rgba(0,0,0,.55);color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+          <i class="fas ${flippedIco}"></i>
+        </button>
+        <div class="sd-card-name" title="${e(c.name ?? "")}"
+             style="position:absolute;left:0;right:0;bottom:0;padding:2px 4px;background:linear-gradient(transparent,rgba(0,0,0,.85));color:#fff;font-size:10px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e(c.name ?? "")}</div>
+      </div>`;
+    };
+
+    let body = "";
+    if (layout === "fan") {
+      const N = shown.length;
+      body = `<div class="sd-cardhand-fan" style="position:relative;height:${Math.round(cardW*1.6)}px;display:flex;justify-content:center">
+        ${shown.map((c, i) => {
+          const t = N <= 1 ? 0 : (i - (N - 1) / 2);
+          const rot = t * 8;
+          const tx  = t * (cardW * 0.4);
+          const ty  = Math.abs(t) * 4;
+          return `<div style="position:absolute;left:50%;top:0;transform:translateX(calc(-50% + ${tx}px)) translateY(${ty}px) rotate(${rot}deg);transform-origin:bottom center;z-index:${100 + i}">${cardEl(c, i)}</div>`;
+        }).join("")}
+      </div>`;
+    } else if (layout === "grid") {
+      body = `<div class="sd-cardhand-grid" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0">${shown.map(cardEl).join("")}</div>`;
+    } else {
+      // strip — horizontal scroller with buttons
+      body = `<div class="sd-cardhand-strip-wrap" style="position:relative;display:flex;align-items:center;gap:6px">
+        <button type="button" class="sd-card-strip-prev" data-action="cardStripScroll" data-dir="-1"
+                style="flex-shrink:0;width:24px;height:36px;background:rgba(20,20,30,.85);border:1px solid #2a2a3a;border-radius:4px;color:#aaa;cursor:pointer;font-size:11px;padding:0">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <div class="sd-cardhand-strip" style="flex:1;display:flex;gap:6px;overflow-x:auto;scroll-behavior:smooth;padding:4px 2px;scrollbar-width:thin">
+          ${shown.map(cardEl).join("")}
+        </div>
+        <button type="button" class="sd-card-strip-next" data-action="cardStripScroll" data-dir="1"
+                style="flex-shrink:0;width:24px;height:36px;background:rgba(20,20,30,.85);border:1px solid #2a2a3a;border-radius:4px;color:#aaa;cursor:pointer;font-size:11px;padding:0">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>`;
+    }
+
+    const totalCount = stack.cards?.size ?? cards.length;
+    const showCount = w.showCount !== "no";
+    const showActions = w.showActions !== "no";
+
+    const actionBar = !showActions ? "" : `
+      <div class="sd-cardhand-actions" style="display:flex;gap:4px;margin-top:4px">
+        <button type="button" data-action="cardStackShuffle" data-stack-uuid="${e(stackUuid)}" title="Shuffle"
+                style="background:#1a1a2a;border:1px solid #2a2a3a;border-radius:3px;color:#aaa;cursor:pointer;font-size:11px;padding:3px 8px">
+          <i class="fas fa-shuffle"></i> Shuffle
+        </button>
+        <button type="button" data-action="cardStackRecall" data-stack-uuid="${e(stackUuid)}" title="Recall"
+                style="background:#1a1a2a;border:1px solid #2a2a3a;border-radius:3px;color:#aaa;cursor:pointer;font-size:11px;padding:3px 8px">
+          <i class="fas fa-arrow-rotate-left"></i> Recall
+        </button>
+        <button type="button" data-action="cardStackFlipAll" data-stack-uuid="${e(stackUuid)}" title="Flip all"
+                style="background:#1a1a2a;border:1px solid #2a2a3a;border-radius:3px;color:#aaa;cursor:pointer;font-size:11px;padding:3px 8px">
+          <i class="fas fa-arrows-rotate"></i> Flip All
+        </button>
+      </div>`;
+
+    return `<div class="widget widget-cardhand">
+      <div class="widget-label" style="display:flex;align-items:center;gap:6px">
+        <span>${lbl}</span>
+        ${showCount ? `<span style="opacity:.55;font-size:11px">${shown.length}${visibleLimit>0&&totalCount>visibleLimit?`/${totalCount}`:""}</span>` : ""}
+      </div>
+      ${body}
+      ${actionBar}
+    </div>`;
+  }
+
+  static _render_cardDrawButton(w, doc) {
+    const e = this._esc;
+    const deck = this._resolveCardsStackSync({ sourceName: w.fromName, sourceUuid: w.fromUuid });
+    const lbl  = e(w.label ?? "Draw");
+    if (!deck) {
+      return `<div class="widget widget-card-draw">
+        <div class="widget-label">${lbl}</div>
+        <div style="opacity:.6;font-size:11px">Deck not found.</div>
+      </div>`;
+    }
+    const remain = deck.availableCards?.length ?? deck.cards?.size ?? 0;
+    const thumb  = deck.img || deck.cards?.contents?.[0]?.back?.img || "icons/svg/card-cards.svg";
+    const showCount = w.showCount !== "no";
+    return `<div class="widget widget-card-draw">
+      <div class="widget-label">${lbl}</div>
+      <button type="button" data-action="cardWidgetDraw"
+              data-from-uuid="${e(deck.uuid)}" data-from-name="${e(w.fromName ?? "")}"
+              data-to-uuid="${e(w.toUuid ?? "")}" data-to-name="${e(w.toName ?? "")}"
+              data-count="${Number(w.count ?? 1)}" data-how="${e(w.how ?? "top")}"
+              style="position:relative;display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;background:#1a1a2a;border:1px solid #4a3a6a;border-radius:5px;color:#bcb1d4;cursor:pointer">
+        <img src="${e(thumb)}" alt="" style="width:38px;height:54px;object-fit:cover;border-radius:3px;flex-shrink:0">
+        <span style="flex:1;text-align:left;font-size:12px;font-weight:600">${lbl}</span>
+        ${showCount ? `<span style="font-size:10px;opacity:.7;padding:2px 6px;background:rgba(0,0,0,.35);border-radius:8px">${remain}</span>` : ""}
+      </button>
+    </div>`;
+  }
+
   static _sbAbilityRow(ab, esc) {
     const hf       = ab.system?.hiddenFields ?? {};
     const cost     = Number(hf.cost ?? 0) || 0;
@@ -1116,7 +1274,7 @@ export class WidgetRenderer {
                   data-item-id="${esc(ab.id)}"
                   title="Edit"
                   style="background:#1a1a2a;border:1px solid #2a2a3a;border-radius:3px;
-                         color:#888;cursor:pointer;font-size:10px;padding:1px 6px;line-height:16px">
+                         color:var(--sd-w-label,#888);cursor:pointer;font-size:10px;padding:1px 6px;line-height:16px">
             <i class="fas fa-pen"></i>
           </button>
           <button type="button" data-action="abilityDelete"

@@ -123,8 +123,10 @@ export class NPCData extends foundry.abstract.TypeDataModel {
   }
 
   _prepareAttributes() {
+    const compute = CONFIG?.SD?.computeModifier
+      ?? (s => Math.floor((Number(s) - 10) / 2));
     for (const attr of Object.values(this.attributes)) {
-      attr.mod = Math.floor((attr.value - 10) / 2);
+      attr.mod = compute(attr.value);
     }
   }
 

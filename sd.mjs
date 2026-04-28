@@ -33,7 +33,7 @@ import { SDItemSheet }         from "./module/sheets/item-sheet.mjs";
 
 import { runMigrations }       from "./module/helpers/migrations.mjs";
 import { EFFECT_PATHS }        from "./module/helpers/effects.mjs";
-import { SystemConfig }        from "./module/helpers/system-config.mjs";
+import { SystemConfig, applySettings } from "./module/helpers/system-config.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 
 // CONFIG Namespace
@@ -194,7 +194,24 @@ Hooks.once("init", () => {
     scope:  "world",
     config: false,
     type:   Object,
-    default: {}
+    default: {},
+    onChange: (cfg) => {
+      try {
+        applySettings(cfg ?? {});
+        // Re-prepare all actor data so attr.mod values reflect the new formula.
+        for (const a of game.actors ?? []) {
+          try { a.reset(); } catch (e) {}
+        }
+        // Re-render any open SD sheets so widgets pick up the new modifier.
+        for (const app of Object.values(ui.windows ?? {})) {
+          if (app?.constructor?.name?.startsWith("SDActor") || app?.constructor?.name?.startsWith("SDItem")) {
+            try { app.render(false); } catch (e) {}
+          }
+        }
+      } catch (e) {
+        console.warn("SD | systemSettings onChange handler failed:", e);
+      }
+    }
   });
 
   // Builder: sheet templates store
@@ -425,6 +442,62 @@ Hooks.on("updateSetting", (setting) => {
     CONFIG.Combat.initiative.formula = formula;
   }
 });
+
+// When a Cards stack is mutated (shuffle, draw, flip, deal, recall) — re-render
+// any actor sheets that show that stack via cardHand / cardDrawButton widgets.
+function _sdRerenderForCardsStack(cardsDoc) {
+  try {
+    const stackUuid = cardsDoc?.uuid;
+    const stackName = cardsDoc?.name;
+    if (!stackUuid && !stackName) return;
+
+    const usesStack = (doc) => {
+      if (!doc?.system?.customTabs) return false;
+      return doc.system.customTabs.some(tab =>
+        (tab.rows ?? []).some(row =>
+          (row.widgets ?? []).some(w => {
+            if (!w) return false;
+            if (w.type === "cardHand") {
+              return w.sourceUuid === stackUuid || w.sourceName === stackName;
+            }
+            if (w.type === "cardDrawButton") {
+              return w.fromUuid === stackUuid || w.fromName === stackName
+                  || w.toUuid   === stackUuid || w.toName   === stackName;
+            }
+            if (w.type === "vsection" && Array.isArray(w.widgets)) {
+              return w.widgets.some(cw => {
+                if (cw?.type === "cardHand") return cw.sourceUuid === stackUuid || cw.sourceName === stackName;
+                if (cw?.type === "cardDrawButton") return cw.fromUuid === stackUuid || cw.fromName === stackName
+                    || cw.toUuid === stackUuid || cw.toName === stackName;
+                return false;
+              });
+            }
+            return false;
+          })
+        )
+      );
+    };
+
+    const seen = new Set();
+    const apps = [];
+    for (const app of Object.values(ui.windows ?? {})) apps.push(app);
+    const v2 = foundry.applications?.instances;
+    if (v2?.values) for (const app of v2.values()) apps.push(app);
+    else if (v2 && typeof v2 === "object") for (const app of Object.values(v2)) apps.push(app);
+
+    for (const app of apps) {
+      if (!app || seen.has(app)) continue;
+      seen.add(app);
+      const doc = app.document ?? app.object ?? null;
+      if (!usesStack(doc)) continue;
+      try { app.render(false); } catch (e) { /* ignore individual render failures */ }
+    }
+  } catch(e) { console.warn("SD | _sdRerenderForCardsStack:", e); }
+}
+Hooks.on("updateCards", _sdRerenderForCardsStack);
+Hooks.on("createCard", (card) => _sdRerenderForCardsStack(card?.parent));
+Hooks.on("updateCard", (card) => _sdRerenderForCardsStack(card?.parent));
+Hooks.on("deleteCard", (card) => _sdRerenderForCardsStack(card?.parent));
 
 // Chat card interactions
 Hooks.on("renderChatMessageHTML", (message, html) => {

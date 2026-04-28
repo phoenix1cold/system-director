@@ -101,6 +101,7 @@ and react to it from a node graph.** No system-specific assumptions.
   system saved you time and you'd like to chip in toward continued
   development. Donations do not grant a commercial license (see
   [LICENSE](LICENSE)).
+- **Wiki** https://phoenix1cold.github.io/system-director/
 
 ---
 

@@ -8,7 +8,8 @@ const HOOK_MAP = {
   hpDecrease:         ["updateActor"],
   restFlag:           ["updateActor"],
   itemEquipped:       ["sdItemEquipped"],
-  itemUnequipped:     ["sdItemUnequipped"]
+  itemUnequipped:     ["sdItemUnequipped"],
+  cardDrawn:          ["createCard"]
 };
 
 class EventBus {
@@ -160,6 +161,23 @@ class EventBus {
         if (entry.docUuid && item?.uuid && entry.docUuid !== item.uuid) return false;
         return true;
       }
+      case "createCard": {
+        const card  = firstDoc;
+        const stack = card?.parent;
+        if (!stack) return false;
+        const wantUuid = (entry.data?.stackUuid ?? "").trim();
+        const wantName = (entry.data?.stackName ?? "").trim();
+        if (wantUuid) {
+          const tail = wantUuid.split(".").pop();
+          const sid  = stack.id ?? "";
+          if (sid !== tail && stack.uuid !== wantUuid) return false;
+        } else if (wantName) {
+          if ((stack.name ?? "") !== wantName) return false;
+        } else {
+          return false;
+        }
+        return true;
+      }
       default: return false;
     }
   }
@@ -258,6 +276,22 @@ class EventBus {
         const [item] = args;
         rt.__eventItemId   = item?.id   ?? "";
         rt.__eventItemName = item?.name ?? "";
+        break;
+      }
+      case "cardDrawn": {
+        const card  = args[0];
+        const stack = card?.parent;
+        rt.__cardDrawnId        = card?.id   ?? card?._id ?? "";
+        rt.__cardDrawnName      = card?.name ?? "";
+        const _faceIdx          = (card?.face === null || card?.face === undefined) ? -1 : Number(card.face);
+        rt.__cardDrawnFace      = isNaN(_faceIdx) ? -1 : _faceIdx;
+        let _value              = (typeof card?.value === "number") ? card.value : null;
+        if (_value === null && typeof card?.face === "number" && card?.faces?.[card.face]?.value !== undefined) {
+          _value = Number(card.faces[card.face].value);
+        }
+        rt.__cardDrawnValue     = (_value === null || isNaN(_value)) ? 0 : _value;
+        rt.__cardDrawnStackId   = stack?.id   ?? "";
+        rt.__cardDrawnStackName = stack?.name ?? "";
         break;
       }
     }

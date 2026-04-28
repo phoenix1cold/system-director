@@ -106,6 +106,40 @@ export async function saveSettings(data) {
   await game.settings.set("sd", "systemSettings", data);
 }
 
+/**
+ * Compute an attribute modifier from a numeric score, honouring the
+ * world setting `modifierFormula` (`halved` / `direct` / `none`).
+ * Defaults to "halved" when CONFIG.SD is uninitialised so it stays safe to
+ * call from data-prep paths during early init.
+ */
+export function computeModifier(score) {
+  const n = Number(score);
+  if (!Number.isFinite(n)) return 0;
+  const mode = CONFIG?.SD?.modifierFormula ?? "halved";
+  switch (mode) {
+    case "direct": return Math.floor(n);
+    case "none":   return 0;
+    case "halved":
+    default:       return Math.floor((n - 10) / 2);
+  }
+}
+
+/**
+ * Same logic as `computeModifier` but returns a compilable expression string
+ * for use inside generated formulas (e.g. node graph compilation).
+ * `scoreExpr` is interpolated as the score sub-expression.
+ */
+export function compileModifierExpr(scoreExpr) {
+  const expr = String(scoreExpr ?? "0");
+  const mode = CONFIG?.SD?.modifierFormula ?? "halved";
+  switch (mode) {
+    case "direct": return `floor(${expr})`;
+    case "none":   return `0`;
+    case "halved":
+    default:       return `floor((${expr}-10)/2)`;
+  }
+}
+
 // Apply settings to CONFIG
 
 export function applySettings(cfg) {
@@ -131,6 +165,9 @@ export function applySettings(cfg) {
 
   // Modifier formula
   CONFIG.SD.modifierFormula = cfg.modifierFormula ?? "halved";
+  // Expose globally for other modules to consume (compileModifierExpr)
+  CONFIG.SD.computeModifier = computeModifier;
+  CONFIG.SD.compileModifierExpr = compileModifierExpr;
 
   // Global UI scale -- set --sd-ui-scale on :root so CSS zoom picks it up on all SD sheets.
   const scale = Math.min(Math.max(Number(cfg.uiScale ?? 100), 50), 200) / 100;

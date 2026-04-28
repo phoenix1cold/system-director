@@ -1,6 +1,6 @@
 import { GridManager }    from "./grid-manager.mjs";
 import { WidgetRenderer } from "./widget-renderer.mjs";
-import { WIDGET_TYPES, KNOWN_PATHS } from "./widget-registry.mjs";
+import { WIDGET_TYPES, KNOWN_PATHS, getKnownPaths } from "./widget-registry.mjs";
 import { FormulaGraph }   from "./formula-graph.mjs";
 
 export function BuilderMixin(Base) {
@@ -276,9 +276,14 @@ export function BuilderMixin(Base) {
               const overlay = document.createElement("div");
               overlay.className = "widget-overlay";
               overlay.innerHTML = `
-                <button type="button" class="wo-btn" data-action="configWidget" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}"><i class="fas fa-gear"></i></button>
-                <button type="button" class="wo-btn" data-action="changeWidgetSpan" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}"><i class="fas fa-arrows-left-right"></i></button>
-                <button type="button" class="wo-btn danger" data-action="removeWidget" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}"><i class="fas fa-trash"></i></button>`;
+                <div class="wo-group wo-left">
+                  <button type="button" class="wo-btn wo-drag" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}" draggable="true" title="Drag to move"><i class="fas fa-up-down-left-right"></i></button>
+                  <button type="button" class="wo-btn" data-action="configWidget" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}" title="Settings"><i class="fas fa-gear"></i></button>
+                  <button type="button" class="wo-btn" data-action="changeWidgetSpan" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}" title="Change width"><i class="fas fa-arrows-left-right"></i></button>
+                </div>
+                <div class="wo-group wo-right">
+                  <button type="button" class="wo-btn danger" data-action="removeWidget" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}" title="Remove"><i class="fas fa-trash"></i></button>
+                </div>`;
               cell.appendChild(overlay);
             }
 
@@ -356,15 +361,31 @@ export function BuilderMixin(Base) {
       const root = this.element;
       if (!root) return;
 
+      root.querySelectorAll(".wo-drag").forEach(handle => {
+        handle.addEventListener("dragstart", ev => {
+          ev.dataTransfer.setData("text/plain", JSON.stringify({
+            sdType:    "moveWidget",
+            tabId:     handle.dataset.tabId,
+            fromRowId: handle.dataset.rowId,
+            widgetId:  handle.dataset.widgetId
+          }));
+          ev.dataTransfer.effectAllowed = "move";
+        });
+        handle.addEventListener("click", ev => ev.preventDefault());
+      });
+
       root.querySelectorAll(".widget-drop-zone[data-drop-type='widget']").forEach(dz => {
         dz.addEventListener("dragover", ev => { ev.preventDefault(); dz.classList.add("drag-over"); });
         dz.addEventListener("dragleave", () => dz.classList.remove("drag-over"));
-        dz.addEventListener("drop", ev => {
+        dz.addEventListener("drop", async ev => {
           dz.classList.remove("drag-over");
           const data = this._parseDrop(ev);
           if (!data) return;
           if (data.sdType === "widget") {
             GridManager.addWidget(this.document, dz.dataset.tabId, dz.dataset.rowId, data.widgetType);
+          } else if (data.sdType === "moveWidget" && data.tabId === dz.dataset.tabId) {
+            await GridManager.moveWidget(this.document, data.tabId, data.fromRowId, dz.dataset.rowId, data.widgetId);
+            this.render();
           }
         });
       });
@@ -803,7 +824,7 @@ export function BuilderMixin(Base) {
 
       const refresh = () => {
         const q = input.value.toLowerCase();
-        const matches = Object.entries(KNOWN_PATHS).filter(([p, l]) =>
+        const matches = Object.entries(getKnownPaths()).filter(([p, l]) =>
           p.includes(q) || l.toLowerCase().includes(q)
         ).slice(0, 8);
         list.innerHTML = matches.map(([p, l]) =>

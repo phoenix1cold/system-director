@@ -24,7 +24,34 @@ const FIELD_DEFS = {
   tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon","icon","text"]],
   tags:     [["Label","label"],["Widget Key","widgetKey","text"],["Data path","path","path"]],
   image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
-  derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]]
+  derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]],
+
+  // Card widgets
+  cardHand: [
+    ["Label","label"],
+    ["Widget Key","widgetKey","text"],
+    ["Cards stack name","sourceName","text"],
+    ["…or Cards UUID","sourceUuid","text"],
+    ["Layout","layout","select",["fan","strip","grid"]],
+    ["Click on card","clickAction","select",["inspect","play","discard","flip","runGraph","none"]],
+    ["Run graph on (when clickAction=runGraph)","runGraphOn","select",["click","dblclick","rightclick"]],
+    ["Action graph (when clickAction=runGraph)","actionGraph","actionGraph"],
+    ["Show count","showCount","select",["yes","no"]],
+    ["Show actions bar (Shuffle/Recall/Flip All)","showActions","select",["yes","no"]],
+    ["Card width (px)","cardWidth","number"],
+    ["Max visible (0 = all)","maxVisible","number"]
+  ],
+  cardDrawButton: [
+    ["Label","label"],
+    ["Widget Key","widgetKey","text"],
+    ["From deck name","fromName","text"],
+    ["…or Deck UUID","fromUuid","text"],
+    ["To hand name","toName","text"],
+    ["…or Hand UUID","toUuid","text"],
+    ["Cards per click","count","number"],
+    ["Take from","how","select",["top","bottom","random"]],
+    ["Show count badge","showCount","select",["yes","no"]]
+  ]
 };
 
 const STYLE_DEFS = {
@@ -53,7 +80,9 @@ const STYLE_DEFS = {
   diceTray:  [["Background","boxBg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
   tags:      [["Width (px)","boxW","style-px"],["Background","boxBg","style-color"],["Pill color","color","style-color"],["Text color","tagFg","style-color"],["Border","boxBorder","style-color"]],
   image:     [["Width (px)","width","style-px"],["Height (px)","height","style-px"],["Border radius (px)","borderRadius","style-px"],["Border","boxBorder","style-color"],["Border width (px)","borderWidth","style-px"]],
-  derived:   [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]]
+  derived:   [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
+  cardHand:  [["Min height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
+  cardDrawButton:[["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]]
 };
 
 const FIELD_HINTS = {
@@ -243,6 +272,28 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           ${opts.map(o => `<option value="${esc(o)}" ${String(cur)===String(o)?"selected":""}>${esc(o)}</option>`).join("")}
         </select>
       </div>`;
+
+    if (type === "actionGraph") {
+      const hasGraph = !!(w.graphData && Array.isArray(w.graphData.nodes) && w.graphData.nodes.length);
+      const status = hasGraph
+        ? `<span style="color:#7af07a;font-size:10px">graph: ${w.graphData.nodes.length} node${w.graphData.nodes.length===1?"":"s"}</span>`
+        : `<span style="color:#888;font-size:10px;font-style:italic">no graph yet</span>`;
+      return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">
+          ${esc(lbl)}
+          <span style="background:#5a2a7a;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">action</span>
+        </label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button type="button" data-open-action-graph="${esc(key)}"
+            style="background:#2a1a4e;border:1px solid #7b68ee;border-radius:4px;color:#9d8fff;cursor:pointer;font-size:11px;padding:5px 10px;line-height:1;transition:background .15s">
+            🔷 Edit Action Graph
+          </button>
+          ${status}
+          <input type="hidden" data-field="${esc(key)}" data-ftype="text" value="${esc(cur ?? "")}">
+        </div>
+      </div>`;
+    }
 
     if (type === "slotconfig") {
       const rows = (Array.isArray(w[key]) ? w[key] : []).map((entry, i) => {
@@ -561,6 +612,18 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       const inp = popup.querySelector(`input[data-field="${key}"]`);
       if (!inp) return;
       const graph = new FormulaGraph(inp, doc, w, { tab, row, w, doc });
+      graph.open();
+    });
+  });
+
+  popup.querySelectorAll("[data-open-action-graph]").forEach(btn => {
+    btn.addEventListener("mouseenter", () => btn.style.background = "#3a2a6e");
+    btn.addEventListener("mouseleave", () => btn.style.background = "#2a1a4e");
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.openActionGraph;
+      const inp = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`);
+      if (!inp) return;
+      const graph = new FormulaGraph(inp, doc, w, { tab, row, w, doc }, null, { mode: "actionGraph" });
       graph.open();
     });
   });

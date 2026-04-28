@@ -91,12 +91,125 @@ export class FormulaEngine {
   }
 
   static _resolveRefs(formula, doc, rollMode = false) {
-    // Резолвим {...}-токены
-    return formula.replace(/\{([^}]+)\}/g, (match, inner) => {
-      const val = this._resolveToken(inner.trim(), doc);
-      if (val === undefined || val === null) return "0";
-      return String(val);
-    });
+    let prev = null;
+    let cur  = String(formula);
+    let pass = 0;
+    while (cur !== prev && pass++ < 8 && /\{[^{}]+\}/.test(cur)) {
+      prev = cur;
+      cur = cur.replace(/\{([^{}]+)\}/g, (match, inner) => {
+        const val = this._resolveToken(inner.trim(), doc);
+        if (val === undefined || val === null) return "0";
+        return String(val);
+      });
+    }
+    return cur;
+  }
+
+  static _sdResolveCardForToken(payload) {
+    if (!payload) return null;
+    const stack = this._sdResolveStackForToken(payload);
+    if (!stack) return null;
+    const all = Array.from(stack.cards ?? []);
+    if (!all.length) return null;
+    const avail = stack.availableCards?.length ? stack.availableCards : all;
+    const sel = String(payload.selector ?? "top").toLowerCase();
+    if (sel === "specific" && payload.cardId) {
+      return stack.cards.get(String(payload.cardId)) ?? null;
+    }
+    if (sel === "by_name" && payload.cardName) {
+      const want = String(payload.cardName);
+      return all.find(c => c.name === want) ?? avail.find(c => c.name === want) ?? null;
+    }
+    if (sel === "random") return avail[Math.floor(Math.random() * avail.length)] ?? null;
+    if (sel === "bottom") return avail[avail.length - 1] ?? null;
+    if (sel === "first")  return avail[0] ?? null;
+    return avail[0] ?? null;
+  }
+
+  static _sdResolveStackForToken(payload) {
+    if (!payload) return null;
+    if (payload.stackUuid) {
+      try {
+        const id = String(payload.stackUuid);
+        const direct = game.cards?.get?.(id.replace(/^Cards\./, ""));
+        if (direct) return direct;
+        const tail = id.split(".").pop();
+        if (tail) {
+          const byTail = game.cards?.get?.(tail);
+          if (byTail) return byTail;
+        }
+      } catch {}
+    }
+    if (payload.stackName) {
+      const byName = game.cards?.getName?.(String(payload.stackName));
+      if (byName) return byName;
+    }
+    return null;
+  }
+
+  static _sdReadCardProp(card, prop) {
+    if (!card) return "";
+    switch (String(prop)) {
+      case "cardId":
+      case "_id":
+      case "id":      return card.id ?? card._id ?? "";
+      case "name":    return card.name ?? "";
+      case "face":    return card.face === null || card.face === undefined ? -1 : card.face;
+      case "faceImg": {
+        if (typeof card.face === "number" && card.faces?.[card.face]?.img) return card.faces[card.face].img;
+        return card.faces?.[0]?.img ?? card.back?.img ?? "";
+      }
+      case "backImg": return card.back?.img ?? "";
+      case "drawn":   return card.drawn ? 1 : 0;
+      case "value": {
+        if (typeof card.value === "number") return card.value;
+        if (typeof card.face === "number" && card.faces?.[card.face]?.value !== undefined) return Number(card.faces[card.face].value) || 0;
+        return Number(card.value) || 0;
+      }
+      case "suit":    return card.suit ?? card.system?.suit ?? "";
+      case "type":    return card.type ?? "";
+      default:
+        try {
+          const v = foundry.utils.getProperty(card, prop);
+          if (v === undefined || v === null || typeof v === "object") return "";
+          return v;
+        } catch { return ""; }
+    }
+  }
+
+  static _sdReadStackProp(stack, prop) {
+    if (!stack) return "";
+    const all = Array.from(stack.cards ?? []);
+    const avail = stack.availableCards?.length ? stack.availableCards : all.filter(c => !c.drawn);
+    switch (String(prop)) {
+      case "count":          return all.length;
+      case "availableCount": return avail.length;
+      case "drawnCount":     return all.filter(c => c.drawn).length;
+      case "isEmpty":        return avail.length ? 0 : 1;
+      case "topCardId":      return avail[0]?.id ?? avail[0]?._id ?? "";
+      case "bottomCardId":   return avail[avail.length - 1]?.id ?? avail[avail.length - 1]?._id ?? "";
+      case "name":           return stack.name ?? "";
+      case "uuid":           return stack.uuid ?? "";
+      default: {
+        try {
+          const v = foundry.utils.getProperty(stack, prop);
+          if (v === undefined || v === null || typeof v === "object") return "";
+          return v;
+        } catch { return ""; }
+      }
+    }
+  }
+
+  /** SD | Cards: decode a base64 token payload into a JS object. */
+  static _sdDecodeCardPayload(b64) {
+    if (!b64) return null;
+    try {
+      const json = (typeof atob === "function") ? atob(b64) : Buffer.from(b64, "base64").toString("utf8");
+      return JSON.parse(json);
+    } catch (e) {
+      console.warn("SD | Cards: failed to decode token payload", e);
+      return null;
+    }
   }
 
   static _resolveToken(token, doc) {
@@ -524,6 +637,28 @@ export class FormulaEngine {
         !e.disabled && e.name?.toLowerCase() === effectName
       );
       return found ? 1 : 0;
+    }
+
+    if (token.startsWith("cardGet:")) {
+      const rest = token.slice("cardGet:".length);
+      const colon = rest.lastIndexOf(":");
+      if (colon < 0) return "";
+      const b64  = rest.slice(0, colon);
+      const prop = rest.slice(colon + 1);
+      const payload = this._sdDecodeCardPayload(b64);
+      const card = this._sdResolveCardForToken(payload);
+      return this._sdReadCardProp(card, prop);
+    }
+
+    if (token.startsWith("stackInfo:")) {
+      const rest = token.slice("stackInfo:".length);
+      const colon = rest.lastIndexOf(":");
+      if (colon < 0) return "";
+      const b64  = rest.slice(0, colon);
+      const prop = rest.slice(colon + 1);
+      const payload = this._sdDecodeCardPayload(b64);
+      const stack = this._sdResolveStackForToken(payload);
+      return this._sdReadStackProp(stack, prop);
     }
 
     if (token.startsWith("__")) {

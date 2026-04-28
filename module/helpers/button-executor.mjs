@@ -360,6 +360,35 @@ function _resolveTarget(mode, actor) {
   return targeted ?? selected ?? actor ?? null;
 }
 
+/** Resolve a Cards stack by uuid or by name (priority: uuid). */
+async function _sdResolveCards({ uuid, name } = {}) {
+  if (uuid) { try { const d = await fromUuid(uuid); if (d) return d; } catch {} }
+  if (name) {
+    const byName = game.cards?.getName?.(name);
+    if (byName) return byName;
+  }
+  return null;
+}
+
+/** Resolve a single Card document inside a stack. selectorMode = "specific"|"top"|"bottom"|"random"|"by_name"|"first". */
+async function _sdResolveCard(stack, action) {
+  if (!stack) return null;
+  const cards = stack.availableCards?.length ? stack.availableCards : Array.from(stack.cards ?? []);
+  if (!cards.length) return null;
+  const mode = action.cardSelector || (action.cardId ? "specific" : "top");
+  if (mode === "specific" && action.cardId) {
+    return stack.cards.get(action.cardId) ?? null;
+  }
+  if (mode === "by_name" && action.cardName) {
+    return cards.find(c => c.name === action.cardName) ?? null;
+  }
+  if (mode === "random") return cards[Math.floor(Math.random() * cards.length)] ?? null;
+  if (mode === "bottom") return cards[cards.length - 1] ?? null;
+  if (mode === "first")  return cards[0] ?? null;
+  /* top (default) — take first available drawn order */
+  return cards[0] ?? null;
+}
+
 function _resolveAllTargets(mode, actor) {
   const list = _sdResolveActorsList(mode, actor);
   if (list.length) return list;
@@ -3576,6 +3605,195 @@ export class ButtonExecutor {
           }
         }
       });
+      break;
+    }
+
+    case "journalShow": {
+      let uuid = _injectRuntime(String(action.uuid ?? ""));
+      try {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        uuid = String(FormulaEngine.evaluate(uuid, item ?? actor ?? {}));
+      } catch { /* raw */ }
+      if (!uuid) { ui.notifications.warn("SD | Show Journal: empty UUID"); break; }
+      try {
+        const doc = await fromUuid(uuid);
+        if (!doc) { ui.notifications.warn(`SD | Show Journal: not found — ${uuid}`); break; }
+        if (action.pageId) {
+          doc.sheet?.render(true, { pageId: action.pageId });
+        } else {
+          doc.sheet?.render(true);
+        }
+        if (action.force === true && game.user.isGM) {
+          try { await doc.show?.(true); } catch(e) { console.warn("SD | journal.show:", e); }
+        }
+      } catch(e) { console.error("SD | journalShow:", e); }
+      break;
+    }
+
+    case "journalShowPage": {
+      let entryUuid = _injectRuntime(String(action.entryUuid ?? ""));
+      let pageId    = _injectRuntime(String(action.pageId ?? ""));
+      try {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        entryUuid = String(FormulaEngine.evaluate(entryUuid, item ?? actor ?? {}));
+        pageId    = String(FormulaEngine.evaluate(pageId,    item ?? actor ?? {}));
+      } catch { /* raw */ }
+      try {
+        const entry = await fromUuid(entryUuid);
+        if (!entry) { ui.notifications.warn(`SD | Show Page: entry not found — ${entryUuid}`); break; }
+        const page = pageId ? entry.pages.get(pageId) : entry.pages.contents?.[0];
+        if (!page) { ui.notifications.warn(`SD | Show Page: page not found in ${entry.name}`); break; }
+        entry.sheet?.render(true, { pageId: page.id });
+        if (action.force === true && game.user.isGM) {
+          try { await entry.show?.(true); } catch(e) { console.warn("SD | journal.show:", e); }
+        }
+      } catch(e) { console.error("SD | journalShowPage:", e); }
+      break;
+    }
+
+    /* ─────────  CARDS  ───────── */
+
+    case "cardShuffle": {
+      const stack = await _sdResolveCards(action);
+      if (!stack) { ui.notifications.warn(`SD | Card Shuffle: stack not found`); break; }
+      try {
+        await stack.shuffle({ chatNotification: action.toChat !== false });
+      } catch(e) { console.error("SD | cardShuffle:", e); }
+      break;
+    }
+
+    case "cardDraw": {
+      const from = await _sdResolveCards({ uuid: action.fromUuid, name: action.fromName });
+      const to   = await _sdResolveCards({ uuid: action.toUuid,   name: action.toName });
+      if (!from || !to) {
+        ui.notifications.warn(`SD | Card Draw: stack not found (from="${action.fromName||action.fromUuid}", to="${action.toName||action.toUuid}")`);
+        for (const sub of (action.emptyActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
+        break;
+      }
+      const count = Math.max(1, Math.round(Number(action.count ?? 1)) || 1);
+      const how = action.how === "bottom" ? CONST.CARD_DRAW_MODES.BOTTOM
+                : action.how === "random" ? CONST.CARD_DRAW_MODES.RANDOM
+                : CONST.CARD_DRAW_MODES.TOP;
+      const available = from.availableCards?.length ?? from.cards?.size ?? 0;
+      if (available <= 0) {
+        runtime.__lastDrawnCards = [];
+        for (const sub of (action.emptyActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
+        break;
+      }
+      let drawn = [];
+      try {
+        drawn = await to.draw(from, Math.min(count, available), { how, chatNotification: action.toChat !== false });
+      } catch(e) { console.error("SD | cardDraw:", e); }
+      runtime.__lastDrawnCards = drawn ?? [];
+      runtime.__lastDrawnCard  = drawn?.[0] ?? null;
+      for (const sub of (action.foundActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
+      runtime.__lastDrawnCards = undefined;
+      runtime.__lastDrawnCard  = undefined;
+      break;
+    }
+
+    case "cardPlay":
+    case "cardDiscard":
+    case "cardReveal": {
+      const stack = await _sdResolveCards({ uuid: action.stackUuid, name: action.stackName });
+      if (!stack) { ui.notifications.warn(`SD | Card ${action.type}: stack not found`); break; }
+      const card = await _sdResolveCard(stack, action);
+      if (!card) { ui.notifications.warn(`SD | Card ${action.type}: card not found`); break; }
+      try {
+        if (action.type === "cardPlay") {
+          await card.pass(stack, { action: "play", chatNotification: true });
+        } else if (action.type === "cardDiscard") {
+          await card.pass(stack, { action: "discard", chatNotification: action.toChat !== false });
+        } else {
+          // reveal — chat-only, no movement
+          await ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor: actor ?? null }),
+            content: `<div class="sd-card-reveal" style="display:flex;gap:8px;align-items:center"><img src="${card.face >= 0 ? card.faces?.[card.face]?.img ?? card.back?.img ?? "" : card.back?.img ?? ""}" style="height:96px;border-radius:6px"><div><strong>${actor?.name ?? game.user.name} reveals:</strong><br><em>${card.name ?? ""}</em>${card.description ? `<div style="opacity:.8;margin-top:4px">${card.description}</div>` : ""}</div></div>`
+          });
+        }
+      } catch(e) { console.error(`SD | ${action.type}:`, e); }
+      break;
+    }
+
+    case "cardPass": {
+      const from = await _sdResolveCards({ uuid: action.fromUuid, name: action.fromName });
+      const to   = await _sdResolveCards({ uuid: action.toUuid,   name: action.toName });
+      if (!from || !to) { ui.notifications.warn(`SD | Card Pass: stack not found`); break; }
+      const card = await _sdResolveCard(from, action);
+      if (!card) { ui.notifications.warn(`SD | Card Pass: card not found`); break; }
+      try {
+        await card.pass(to, { chatNotification: action.toChat !== false });
+      } catch(e) { console.error("SD | cardPass:", e); }
+      break;
+    }
+
+    case "cardRecall": {
+      const stack = await _sdResolveCards(action);
+      if (!stack) { ui.notifications.warn(`SD | Card Recall: deck not found`); break; }
+      try {
+        await stack.recall({ chatNotification: action.toChat !== false });
+      } catch(e) { console.error("SD | cardRecall:", e); }
+      break;
+    }
+
+    case "cardDeal": {
+      const from = await _sdResolveCards({ uuid: action.fromUuid, name: action.fromName });
+      if (!from) { ui.notifications.warn(`SD | Card Deal: deck not found`); break; }
+      const targets = [];
+      const list = Array.isArray(action.toList) ? action.toList : String(action.toList ?? "").split(/\s*[;,]\s*/).filter(Boolean);
+      for (const t of list) {
+        const stack = await _sdResolveCards(t.startsWith("Cards.") ? { uuid: t } : { name: t });
+        if (stack) targets.push(stack);
+      }
+      if (!targets.length) { ui.notifications.warn(`SD | Card Deal: no targets resolved`); break; }
+      const count = Math.max(1, Math.round(Number(action.count ?? 1)) || 1);
+      const how = action.how === "bottom" ? CONST.CARD_DRAW_MODES.BOTTOM
+                : action.how === "random" ? CONST.CARD_DRAW_MODES.RANDOM
+                : CONST.CARD_DRAW_MODES.TOP;
+      try {
+        await from.deal(targets, count, { how, chatNotification: action.toChat !== false });
+      } catch(e) { console.error("SD | cardDeal:", e); }
+      break;
+    }
+
+    case "cardFlip": {
+      const stack = await _sdResolveCards({ uuid: action.stackUuid, name: action.stackName });
+      if (!stack) { ui.notifications.warn(`SD | Card Flip: stack not found`); break; }
+      try {
+        if (action.cardId === "*" || !action.cardId) {
+          // flip all
+          const ids = stack.cards.map(c => c.id);
+          const updates = ids.map(id => {
+            const c = stack.cards.get(id);
+            const newFace = c.face === null ? 0 : null;
+            return { _id: id, face: newFace };
+          });
+          await stack.updateEmbeddedDocuments("Card", updates);
+        } else {
+          const card = await _sdResolveCard(stack, action);
+          if (!card) break;
+          const newFace = card.face === null ? 0 : (action.face ?? null);
+          await card.update({ face: newFace });
+        }
+      } catch(e) { console.error("SD | cardFlip:", e); }
+      break;
+    }
+
+    case "rollTableReset": {
+      let table = null;
+      if (action.tableUuid) { try { table = await fromUuid(action.tableUuid); } catch {} }
+      if (!table && action.tableName) table = game.tables.getName(action.tableName);
+      if (!table) { ui.notifications.warn(`SD | Roll Table Reset: not found`); break; }
+      try { await table.resetResults(); } catch(e) { console.error("SD | rollTableReset:", e); }
+      break;
+    }
+
+    case "rollTableShow": {
+      let table = null;
+      if (action.tableUuid) { try { table = await fromUuid(action.tableUuid); } catch {} }
+      if (!table && action.tableName) table = game.tables.getName(action.tableName);
+      if (!table) { ui.notifications.warn(`SD | Roll Table Show: not found`); break; }
+      try { table.sheet?.render(true); if (game.user.isGM) await table.show?.(true); } catch(e) { console.error("SD | rollTableShow:", e); }
       break;
     }
 

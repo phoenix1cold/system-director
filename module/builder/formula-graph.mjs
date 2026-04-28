@@ -67,10 +67,9 @@ export const NODE_DEFS = {
   },
   attr_output: {
     title:"ATTR OUTPUT", color:"#7a4a1a", cat:"_attr",
-    desc:"Attribute widget output. Wire modValue to set what the modifier button shows and rolls. Wire exec to set what happens on click.",
+    desc:"Attribute widget output. Wire modValue to set what the modifier button shows and rolls.",
     inputs:[
-      {id:"modValue", label:"Mod Value",   type:"value.number"},
-      {id:"exec",     label:"On Click",    type:"exec"}
+      {id:"modValue", label:"Mod Value",   type:"value.number"}
     ],
     outputs:[],
     fields:[],
@@ -218,13 +217,14 @@ export const NODE_DEFS = {
 
   attr_mod: {
     title:"Attr Modifier", color:"#7a4a1a", cat:"Attribute",
-    desc:"Calculates the modifier from an attribute score. Default formula: floor((score − 10) / 2). Connect Attr Score → score pin.",
+    desc:"Calculates the modifier from an attribute score using the world setting `modifierFormula` (halved / direct / none). Default: floor((score − 10) / 2). Connect Attr Score → score pin.",
     inputs:[{id:"score",label:"Score",type:"value.number"}],
     outputs:[{id:"mod",label:"Mod",type:"value.number"}],
     fields:[],
     compile:(_,i)=>{
       const s = i.score ?? "0";
-      return `floor((${s}-10)/2)`;
+      const compile = (typeof CONFIG !== "undefined") && CONFIG?.SD?.compileModifierExpr;
+      return compile ? compile(s) : `floor((${s}-10)/2)`;
     }
   },
 
@@ -3345,6 +3345,408 @@ export const NODE_DEFS = {
     })
   },
 
+  /* ─────────  JOURNAL  ───────── */
+
+  act_show_journal: {
+    title:"Show Journal", color:"#3a5a8a", cat:"Journal",
+    desc:"Render a JournalEntry to the player. If 'Force show to all' is enabled, GM pushes the entry to every connected player.",
+    inputs:[
+      {id:"exec", label:"", type:"exec"},
+      {id:"uuid", label:"Journal UUID", type:"value.uuid"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",   label:"Journal UUID (or drag here)", type:"text", default:"", placeholder:"JournalEntry.xxxx"},
+      {key:"pageId", label:"Open at page id (optional)", type:"text", default:"", placeholder:"Leave blank for first page"},
+      {key:"force",  label:"Force show to all", type:"select", default:"no", options:["yes","no"]}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:    "journalShow",
+      uuid:    inp.uuid ?? n.data.uuid ?? "",
+      pageId:  n.data.pageId ?? "",
+      force:   n.data.force === "yes"
+    })
+  },
+
+  act_journal_show_page: {
+    title:"Show Journal Page", color:"#3a5a8a", cat:"Journal",
+    desc:"Open a specific JournalEntryPage. If the page is an image type — Foundry shows it as a popup handout; text/markdown opens the journal sheet at that page.",
+    inputs:[
+      {id:"exec",      label:"", type:"exec"},
+      {id:"entryUuid", label:"Journal UUID", type:"value.uuid"},
+      {id:"pageId",    label:"Page id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"entryUuid", label:"Journal UUID", type:"text", default:"", placeholder:"JournalEntry.xxxx"},
+      {key:"pageId",    label:"Page id", type:"text", default:"", placeholder:"page _id (leave blank → first page)"},
+      {key:"force",     label:"Force show to all", type:"select", default:"no", options:["yes","no"]}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:      "journalShowPage",
+      entryUuid: inp.entryUuid ?? n.data.entryUuid ?? "",
+      pageId:    inp.pageId    ?? n.data.pageId    ?? "",
+      force:     n.data.force === "yes"
+    })
+  },
+
+  /* ─────────  ROLL TABLE EXTRAS  ───────── */
+
+  act_reset_roll_table: {
+    title:"Reset Roll Table", color:"#7a4500", cat:"Actions",
+    desc:"Resets the 'drawn' state of all results in a RollTable. Useful for no-replacement tables — once exhausted, call this to make every result available again.",
+    inputs:[{id:"exec", label:"", type:"exec"}],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"tableName", label:"Table name (exact)", type:"text", default:"", placeholder:"exact table name"},
+      {key:"tableUuid", label:"…or Table UUID",    type:"text", default:"", placeholder:"RollTable.xxxx"}
+    ],
+    isAction:true,
+    toAction:(n)=>({ type:"rollTableReset", tableName:n.data.tableName ?? "", tableUuid:n.data.tableUuid ?? "" })
+  },
+
+  act_show_roll_table: {
+    title:"Show Roll Table", color:"#7a4500", cat:"Actions",
+    desc:"Open a RollTable's sheet for inspection. GM additionally pushes it to all players (handy for shared 'fortune' or 'omen' tables).",
+    inputs:[{id:"exec", label:"", type:"exec"}],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"tableName", label:"Table name (exact)", type:"text", default:"", placeholder:"exact table name"},
+      {key:"tableUuid", label:"…or Table UUID",    type:"text", default:"", placeholder:"RollTable.xxxx"}
+    ],
+    isAction:true,
+    toAction:(n)=>({ type:"rollTableShow", tableName:n.data.tableName ?? "", tableUuid:n.data.tableUuid ?? "" })
+  },
+
+  /* ─────────  CARDS  ───────── */
+
+  act_card_shuffle: {
+    title:"Shuffle Deck", color:"#5a2a7a", cat:"Cards",
+    desc:"Shuffle a Cards stack (deck or discard pile). Posts a chat notification by default.",
+    inputs:[{id:"exec", label:"", type:"exec"}],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"name",   label:"Stack name (exact)", type:"text", default:"", placeholder:"e.g. Tarot Deck"},
+      {key:"uuid",   label:"…or Cards UUID",    type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"toChat", label:"Post to chat",       type:"select", default:"yes", options:["yes","no"]}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n)=>({ type:"cardShuffle", name:n.data.name ?? "", uuid:n.data.uuid ?? "", toChat:n.data.toChat !== "no" })
+  },
+
+  act_card_draw: {
+    title:"Draw Cards", color:"#5a2a7a", cat:"Cards",
+    desc:"Draw N cards from one stack (deck) into another (hand). Found→ fires when at least one card was drawn — exposes {__lastDrawnCard} and {__lastDrawnCards}. Empty→ fires when the source stack has no available cards.",
+    inputs:[
+      {id:"exec",  label:"",      type:"exec"},
+      {id:"count", label:"Count", type:"value.number"}
+    ],
+    outputs:[
+      {id:"found", label:"Drawn →", type:"exec"},
+      {id:"empty", label:"Empty →", type:"exec"},
+      {id:"card",  label:"Card",    type:"value.any"},
+      {id:"cards", label:"Cards",   type:"value.any"}
+    ],
+    fields:[
+      {key:"fromName", label:"From (deck name)",  type:"text", default:"", placeholder:"e.g. Tarot Deck"},
+      {key:"fromUuid", label:"…or From UUID",     type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"toName",   label:"To (hand name)",    type:"text", default:"", placeholder:"e.g. Aelyn's Hand"},
+      {key:"toUuid",   label:"…or To UUID",       type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"count",    label:"Default count",     type:"number", default:1},
+      {key:"how",      label:"Take from",         type:"select", default:"top", options:["top","bottom","random"]},
+      {key:"toChat",   label:"Post to chat",      type:"select", default:"yes", options:["yes","no"]}
+    ],
+    isRollTableBranch:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:     "cardDraw",
+      fromName: n.data.fromName ?? "",
+      fromUuid: n.data.fromUuid ?? "",
+      toName:   n.data.toName   ?? "",
+      toUuid:   n.data.toUuid   ?? "",
+      count:    inp.count ?? n.data.count ?? 1,
+      how:      n.data.how ?? "top",
+      toChat:   n.data.toChat !== "no"
+    })
+  },
+
+  act_card_play: {
+    title:"Play Card", color:"#5a2a7a", cat:"Cards",
+    desc:"Play (publicly reveal & discard) a card from a hand or pile. Posts a chat card showing the face. Selector: top / random / first / by_name / specific (cardId).",
+    inputs:[
+      {id:"exec",   label:"",          type:"exec"},
+      {id:"cardId", label:"Card id",    type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"stackName",    label:"Hand name (exact)", type:"text", default:"", placeholder:"e.g. Aelyn's Hand"},
+      {key:"stackUuid",    label:"…or Hand UUID",     type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"cardSelector", label:"Which card",        type:"select", default:"top", options:["top","random","first","by_name","specific"]},
+      {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""},
+      {key:"cardId",       label:"Card id (if specific)",  type:"text", default:""}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:         "cardPlay",
+      stackName:    n.data.stackName ?? "",
+      stackUuid:    n.data.stackUuid ?? "",
+      cardSelector: n.data.cardSelector ?? "top",
+      cardName:     n.data.cardName ?? "",
+      cardId:       inp.cardId ?? n.data.cardId ?? ""
+    })
+  },
+
+  act_card_discard: {
+    title:"Discard Card", color:"#5a2a7a", cat:"Cards",
+    desc:"Silently move a card from a hand to its source deck's discard pile (no public chat-card). Useful for resource-as-cards (reagents, hero points).",
+    inputs:[
+      {id:"exec",   label:"",       type:"exec"},
+      {id:"cardId", label:"Card id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"stackName",    label:"Hand name (exact)", type:"text", default:""},
+      {key:"stackUuid",    label:"…or Hand UUID",     type:"text", default:""},
+      {key:"cardSelector", label:"Which card",        type:"select", default:"top", options:["top","random","first","by_name","specific"]},
+      {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""},
+      {key:"toChat",       label:"Post to chat",      type:"select", default:"no", options:["yes","no"]}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:         "cardDiscard",
+      stackName:    n.data.stackName ?? "",
+      stackUuid:    n.data.stackUuid ?? "",
+      cardSelector: n.data.cardSelector ?? "top",
+      cardName:     n.data.cardName ?? "",
+      cardId:       inp.cardId ?? "",
+      toChat:       n.data.toChat === "yes"
+    })
+  },
+
+  act_card_reveal: {
+    title:"Reveal Card", color:"#5a2a7a", cat:"Cards",
+    desc:"Post a chat-card showing a card's face (image + name + description) WITHOUT moving it. The card stays where it is.",
+    inputs:[
+      {id:"exec",   label:"",       type:"exec"},
+      {id:"cardId", label:"Card id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"stackName",    label:"Stack name (exact)", type:"text", default:""},
+      {key:"stackUuid",    label:"…or Stack UUID",     type:"text", default:""},
+      {key:"cardSelector", label:"Which card",         type:"select", default:"top", options:["top","random","first","by_name","specific"]},
+      {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:         "cardReveal",
+      stackName:    n.data.stackName ?? "",
+      stackUuid:    n.data.stackUuid ?? "",
+      cardSelector: n.data.cardSelector ?? "top",
+      cardName:     n.data.cardName ?? "",
+      cardId:       inp.cardId ?? ""
+    })
+  },
+
+  act_card_pass: {
+    title:"Pass Card", color:"#5a2a7a", cat:"Cards",
+    desc:"Pass a card from one stack to another (e.g. give a card to another player). Posts a chat notification by default.",
+    inputs:[
+      {id:"exec",   label:"",       type:"exec"},
+      {id:"cardId", label:"Card id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"fromName",     label:"From stack name", type:"text", default:""},
+      {key:"fromUuid",     label:"…or From UUID",   type:"text", default:""},
+      {key:"toName",       label:"To stack name",   type:"text", default:""},
+      {key:"toUuid",       label:"…or To UUID",     type:"text", default:""},
+      {key:"cardSelector", label:"Which card",      type:"select", default:"top", options:["top","random","first","by_name","specific"]},
+      {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""},
+      {key:"toChat",       label:"Post to chat",    type:"select", default:"yes", options:["yes","no"]}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:         "cardPass",
+      fromName:     n.data.fromName ?? "",
+      fromUuid:     n.data.fromUuid ?? "",
+      toName:       n.data.toName   ?? "",
+      toUuid:       n.data.toUuid   ?? "",
+      cardSelector: n.data.cardSelector ?? "top",
+      cardName:     n.data.cardName ?? "",
+      cardId:       inp.cardId ?? "",
+      toChat:       n.data.toChat !== "no"
+    })
+  },
+
+  act_card_recall: {
+    title:"Recall Cards", color:"#5a2a7a", cat:"Cards",
+    desc:"Return all cards (from hands and piles) back to this deck — Foundry's Cards.recall(). Use to reset the game between sessions or shuffle a fresh starting deck.",
+    inputs:[{id:"exec", label:"", type:"exec"}],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"name",   label:"Deck name (exact)", type:"text", default:""},
+      {key:"uuid",   label:"…or Deck UUID",     type:"text", default:""},
+      {key:"toChat", label:"Post to chat",      type:"select", default:"yes", options:["yes","no"]}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n)=>({ type:"cardRecall", name:n.data.name ?? "", uuid:n.data.uuid ?? "", toChat:n.data.toChat !== "no" })
+  },
+
+  act_card_deal: {
+    title:"Deal Cards", color:"#5a2a7a", cat:"Cards",
+    desc:"Deal N cards from a source deck to multiple destination hands (comma- or semicolon-separated names/UUIDs). E.g. 'Aelyn's Hand, Boric's Hand, Lyra's Hand'.",
+    inputs:[
+      {id:"exec",  label:"",      type:"exec"},
+      {id:"count", label:"Count", type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"fromName", label:"From (deck name)", type:"text", default:""},
+      {key:"fromUuid", label:"…or From UUID",    type:"text", default:""},
+      {key:"toList",   label:"To stacks (CSV of names or UUIDs)", type:"text", default:"", placeholder:"Hand A, Hand B, Cards.xxxx"},
+      {key:"count",    label:"Cards per target", type:"number", default:1},
+      {key:"how",      label:"Take from",        type:"select", default:"top", options:["top","bottom","random"]},
+      {key:"toChat",   label:"Post to chat",     type:"select", default:"yes", options:["yes","no"]}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:     "cardDeal",
+      fromName: n.data.fromName ?? "",
+      fromUuid: n.data.fromUuid ?? "",
+      toList:   n.data.toList   ?? "",
+      count:    inp.count ?? n.data.count ?? 1,
+      how:      n.data.how ?? "top",
+      toChat:   n.data.toChat !== "no"
+    })
+  },
+
+  act_card_flip: {
+    title:"Flip Card(s)", color:"#5a2a7a", cat:"Cards",
+    desc:"Toggle a card's face vs back. Use cardId='*' (or leave blank with selector='*') to flip ALL cards in the stack at once.",
+    inputs:[
+      {id:"exec",   label:"",       type:"exec"},
+      {id:"cardId", label:"Card id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"stackName",    label:"Stack name (exact)", type:"text", default:""},
+      {key:"stackUuid",    label:"…or Stack UUID",     type:"text", default:""},
+      {key:"cardSelector", label:"Which card",         type:"select", default:"top", options:["top","random","first","by_name","specific","all"]},
+      {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""},
+      {key:"face",         label:"Target face index (blank → toggle)", type:"number", default:null}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:         "cardFlip",
+      stackName:    n.data.stackName ?? "",
+      stackUuid:    n.data.stackUuid ?? "",
+      cardSelector: n.data.cardSelector ?? "top",
+      cardName:     n.data.cardName ?? "",
+      cardId:       (n.data.cardSelector === "all") ? "*" : (inp.cardId ?? n.data.cardId ?? ""),
+      face:         n.data.face === null || n.data.face === undefined || n.data.face === "" ? null : Number(n.data.face)
+    })
+  },
+
+  /* ─────  Pure: Get Card  ───── */
+  get_card: {
+    title:"Get Card", color:"#5a2a7a", cat:"Cards", wideNode:true,
+    desc:"Pure source — read properties of a single card from a Cards stack. Pick the stack by name or UUID and choose which card to read via the selector. All outputs reflect the same card. cardId field is used only when selector=specific; cardName when selector=by_name.",
+    inputs:[],
+    outputs:[
+      {id:"cardId",  label:"Card Id",   type:"value.string"},
+      {id:"name",    label:"Name",      type:"value.string"},
+      {id:"face",    label:"Face Idx",  type:"value.number"},
+      {id:"faceImg", label:"Face Img",  type:"value.string"},
+      {id:"backImg", label:"Back Img",  type:"value.string"},
+      {id:"drawn",   label:"Drawn?",    type:"value.bool"},
+      {id:"value",   label:"Value",     type:"value.number"},
+      {id:"suit",    label:"Suit",      type:"value.string"},
+      {id:"type",    label:"Type",      type:"value.string"},
+      {id:"card",    label:"Card",      type:"value.card"}
+    ],
+    fields:[
+      {key:"stackName", label:"Stack name (exact)", type:"text", default:"", placeholder:"e.g. Tarot Deck / Aelyn's Hand"},
+      {key:"stackUuid", label:"…or Stack UUID",     type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"selector",  label:"Which card",         type:"select", default:"top", options:["top","first","bottom","random","by_name","specific"]},
+      {key:"cardName",  label:"Card name (by_name)", type:"text", default:""},
+      {key:"cardId",    label:"Card id (specific)",  type:"text", default:""}
+    ],
+    /** Per-pin compile: emit a static {cardGet:b64:prop} token. */
+    compilePin:(n, _i, fromPin) => {
+      const payload = {
+        stackName: n.data?.stackName ?? "",
+        stackUuid: n.data?.stackUuid ?? "",
+        selector:  n.data?.selector  ?? "top",
+        cardName:  n.data?.cardName  ?? "",
+        cardId:    n.data?.cardId    ?? ""
+      };
+      let b64 = "";
+      try {
+        const json = JSON.stringify(payload);
+        b64 = (typeof btoa === "function") ? btoa(json) : Buffer.from(json, "utf8").toString("base64");
+      } catch { b64 = ""; }
+      const prop = String(fromPin ?? "cardId").replace(/[^A-Za-z0-9_]/g, "");
+      return `{cardGet:${b64}:${prop || "cardId"}}`;
+    }
+  },
+
+  /* ─────  Pure: Stack Info  ───── */
+  stack_info: {
+    title:"Stack Info", color:"#5a2a7a", cat:"Cards", wideNode:true,
+    desc:"Pure source — read statistics for a Cards stack. count = total cards, availableCount = cards with drawn=false, drawnCount = drawn=true count, isEmpty = 1 when nothing available, topCardId / bottomCardId = current first/last available card id.",
+    inputs:[],
+    outputs:[
+      {id:"count",          label:"Count",          type:"value.number"},
+      {id:"availableCount", label:"Available",      type:"value.number"},
+      {id:"drawnCount",     label:"Drawn",          type:"value.number"},
+      {id:"isEmpty",        label:"Empty?",         type:"value.bool"},
+      {id:"topCardId",      label:"Top Card Id",    type:"value.string"},
+      {id:"bottomCardId",   label:"Bottom Card Id", type:"value.string"},
+      {id:"name",           label:"Name",           type:"value.string"},
+      {id:"uuid",           label:"UUID",           type:"value.string"}
+    ],
+    fields:[
+      {key:"stackName", label:"Stack name (exact)", type:"text", default:"", placeholder:"e.g. Tarot Deck"},
+      {key:"stackUuid", label:"…or Stack UUID",     type:"text", default:"", placeholder:"Cards.xxxx"}
+    ],
+    compilePin:(n, _i, fromPin) => {
+      const payload = {
+        stackName: n.data?.stackName ?? "",
+        stackUuid: n.data?.stackUuid ?? ""
+      };
+      let b64 = "";
+      try {
+        const json = JSON.stringify(payload);
+        b64 = (typeof btoa === "function") ? btoa(json) : Buffer.from(json, "utf8").toString("base64");
+      } catch { b64 = ""; }
+      const prop = String(fromPin ?? "count").replace(/[^A-Za-z0-9_]/g, "");
+      return `{stackInfo:${b64}:${prop || "count"}}`;
+    }
+  },
+
+  /* ─────  Event: On Card Drawn  ───── */
+  on_card_drawn: {
+    title:"On Card Drawn", color:"#c04040", cat:"Events", wideNode:true,
+    desc:"Fires when a Card document is created in the configured Cards stack (i.e. when a card is drawn into this hand / pile). Filter by stack name or UUID. Outputs expose the drawn card's id, name, face index, value, and parent stack info.",
+    inputs:[],
+    outputs:[
+      {id:"exec",      label:"→ On Drawn",  type:"exec"},
+      {id:"cardId",    label:"Card Id",     type:"value.string"},
+      {id:"name",      label:"Name",        type:"value.string"},
+      {id:"face",      label:"Face Idx",    type:"value.number"},
+      {id:"value",     label:"Value",       type:"value.number"},
+      {id:"stackId",   label:"Stack Id",    type:"value.string"},
+      {id:"stackName", label:"Stack Name",  type:"value.string"}
+    ],
+    fields:[
+      {key:"stackName", label:"Filter — stack name (exact)", type:"text", default:"", placeholder:"e.g. Aelyn's Hand"},
+      {key:"stackUuid", label:"…or stack UUID",              type:"text", default:"", placeholder:"Cards.xxxx"}
+    ],
+    isEvent:true, eventHook:"cardDrawn"
+  },
+
 };
 
 const EVENT_PIN_TOKENS = {
@@ -3355,7 +3757,15 @@ const EVENT_PIN_TOKENS = {
   on_damage_taken: { amount: "{__eventAmount}", newHp: "{__eventNewHp}" },
   on_rest:         { type: "{__eventRestType}" },
   on_equip:        { itemId: "{__eventItemId}", itemName: "{__eventItemName}" },
-  on_unequip:      { itemId: "{__eventItemId}", itemName: "{__eventItemName}" }
+  on_unequip:      { itemId: "{__eventItemId}", itemName: "{__eventItemName}" },
+  on_card_drawn:   {
+    cardId:    "{__cardDrawnId}",
+    name:      "{__cardDrawnName}",
+    face:      "{__cardDrawnFace}",
+    value:     "{__cardDrawnValue}",
+    stackId:   "{__cardDrawnStackId}",
+    stackName: "{__cardDrawnStackName}"
+  }
 };
 
 const BRANCH_PIN_TOKENS = {
@@ -3397,6 +3807,10 @@ const BRANCH_PIN_TOKENS = {
   },
   dialog_text_input: {
     text: "{__sdInputText}"
+  },
+  act_card_draw: {
+    card:  "{__lastDrawnCard}",
+    cards: "{__lastDrawnCards}"
   }
 };
 
@@ -3415,7 +3829,9 @@ const CATS = [
   {id:"Actions",   color:"#5a3a7a"},
   {id:"Effects",   color:"#1a4a8a"},
   {id:"AoE",       color:"#7a3a8a"},
-  {id:"Targeting", color:"#8a3a6a"}
+  {id:"Targeting", color:"#8a3a6a"},
+  {id:"Journal",   color:"#3a5a8a"},
+  {id:"Cards",     color:"#5a2a7a"}
 ];
 
 // Категории нод
@@ -3575,6 +3991,7 @@ export class FormulaGraph {
     this.itemSaveCtx  = itemSaveCtx;
     this.configMode   = opts.mode === "config";
     this.sheetTrigger = opts.mode === "sheetTrigger";
+    this.actionGraph  = opts.mode === "actionGraph";
     this.win          = null;
     this.edgeSVG      = null;
     this.nodesEl      = null;
@@ -4260,7 +4677,9 @@ export class FormulaGraph {
       const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
       this._id = (Math.max(0,...numIds) + 2) || 2;
     } else {
-      if (this.widget?.type === "button") {
+      if (this.actionGraph) {
+        this._addTriggerOutputNodes();
+      } else if (this.widget?.type === "button") {
         this._addTriggerOutputNodes();
       } else if (this.widget?.type === "attribute") {
         this._addAttributeDefaultGraph();
@@ -4501,7 +4920,8 @@ export class FormulaGraph {
           rest:         "restFlag",
           equip:        "itemEquipped",
           unequip:      "itemUnequipped",
-          effectApply:  "createActiveEffect"
+          effectApply:  "createActiveEffect",
+          cardDrawn:    "cardDrawn"
         };
         return EVENT_HOOK_MAP[ev.data?.event ?? "update"] ?? "updateDocument";
       };
@@ -4579,6 +4999,7 @@ export class FormulaGraph {
     if (BRANCH_PIN_TOKENS[node.type]?.[fromPin]) {
       return BRANCH_PIN_TOKENS[node.type][fromPin];
     }
+    if (def?.compilePin) return def.compilePin(node, {}, fromPin);
     if (!def||def.isAction) return "0";
     const ins = {};
     for (const pin of (def.inputs??[])) {
@@ -5248,6 +5669,7 @@ export class FormulaGraph {
         if (hidesEvents && d.isEvent) return false;
         if (hidesOnClick && type === "on_click") return false;
         if (isSheetTrigger && type === "output") return false;
+        if (this.actionGraph && type === "output") return false;
         return d.cat === cat.id;
       });
       if (!nodes.length) return "";
@@ -5610,23 +6032,26 @@ export class FormulaGraph {
   /** Migrate old attribute graphData (attr_score/output) to new layout. */
   _migrateAttrGraph() {
     const hasNew = this.nodes.some(n => n.type === "attr_score_val" || n.type === "attr_output");
-    if (hasNew) return;
-
-    const scorePath = this.widget?.path ?? "system.attributes.attr1.value";
-    this.nodes = this.nodes.filter(n => n.type !== "output");
-    this.edges = this.edges.filter(e => e.toNode !== "output" && e.fromNode !== "output");
-    for (const n of this.nodes) {
-      if (n.type === "attr_score") { n.type = "attr_score_val"; if (!n.data.path) n.data.path = scorePath; }
+    if (!hasNew) {
+      const scorePath = this.widget?.path ?? "system.attributes.attr1.value";
+      this.nodes = this.nodes.filter(n => n.type !== "output");
+      this.edges = this.edges.filter(e => e.toNode !== "output" && e.fromNode !== "output");
+      for (const n of this.nodes) {
+        if (n.type === "attr_score") { n.type = "attr_score_val"; if (!n.data.path) n.data.path = scorePath; }
+      }
+      if (!this.nodes.find(n => n.type === "attr_score_val")) {
+        this.nodes.unshift({ id:"attr_score_val", type:"attr_score_val", x:60, y:160, data:{ path: scorePath } });
+      }
+      if (!this.nodes.find(n => n.type === "on_click")) {
+        this.nodes.push({ id:"attr_on_click", type:"on_click", x:60, y:330, data:{} });
+      }
+      if (!this.nodes.find(n => n.type === "attr_output")) {
+        this.nodes.push({ id:"attr_output", type:"attr_output", x:500, y:240, data:{} });
+      }
     }
-    // Add locked nodes if missing
-    if (!this.nodes.find(n => n.type === "attr_score_val")) {
-      this.nodes.unshift({ id:"attr_score_val", type:"attr_score_val", x:60, y:160, data:{ path: scorePath } });
-    }
-    if (!this.nodes.find(n => n.type === "on_click")) {
-      this.nodes.push({ id:"attr_on_click", type:"on_click", x:60, y:330, data:{} });
-    }
-    if (!this.nodes.find(n => n.type === "attr_output")) {
-      this.nodes.push({ id:"attr_output", type:"attr_output", x:500, y:240, data:{} });
+    const attrOut = this.nodes.find(n => n.type === "attr_output");
+    if (attrOut) {
+      this.edges = this.edges.filter(e => !(e.toNode === attrOut.id && e.toPin === "exec"));
     }
   }
 
