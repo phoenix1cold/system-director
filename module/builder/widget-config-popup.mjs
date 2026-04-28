@@ -82,8 +82,23 @@ const FIELD_HINTS = {
 
 // Main export
 
+// Module-level state for multi-popup support.  We DON'T close existing
+// popups when a new one opens — users can have several side-by-side
+// (e.g. to compare or copy values between widgets).  The counter just
+// offsets each new popup so they don't perfectly overlap.
+let _wcfgOpenCount = 0;
+let _wcfgZTop      = 10000;
+
 export async function openWidgetConfigPopup(w, tab, row, doc) {
-  document.querySelector(".sd-wcfg-popup")?.remove();
+  // Reuse an existing popup for the SAME widget instance (so re-clicking
+  // the gear icon focuses the open one rather than spawning a duplicate).
+  const existingForSameWidget = [...document.querySelectorAll(".sd-wcfg-popup")]
+    .find(el => el.dataset.wcfgWidgetId && w?.id && el.dataset.wcfgWidgetId === w.id);
+  if (existingForSameWidget) {
+    existingForSameWidget.style.zIndex = String(++_wcfgZTop);
+    existingForSameWidget.querySelector("input,select,textarea")?.focus?.();
+    return;
+  }
 
   const _typeFields = FIELD_DEFS[w.type] ?? [["Label","label"]];
   const _commonFields = [
@@ -292,19 +307,32 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   // Full popup HTML
   const popup = document.createElement("div");
   popup.className = "sd-wcfg-popup";
+  if (w?.id)        popup.dataset.wcfgWidgetId = w.id;
+  if (w?.widgetKey) popup.dataset.wcfgWidgetKey = w.widgetKey;
 
   const sheetRect = document.querySelector(".app.sd.sheet.item, .app.sd.sheet.actor, [id^='sd-']")?.getBoundingClientRect()
     ?? { right: 400, top: 80, width: 0 };
-  const popLeft = Math.min(Math.max(sheetRect.right + 10, 20), window.innerWidth - 440);
-  const popTop  = Math.max(sheetRect.top + 40, 10);
+  // Offset each subsequent popup so they don't perfectly overlap.
+  const _wcfgIndex = _wcfgOpenCount++ % 8;
+  const _wcfgOffX = _wcfgIndex * 24;
+  const _wcfgOffY = _wcfgIndex * 24;
+  const popLeft = Math.min(Math.max(sheetRect.right + 10 + _wcfgOffX, 20), window.innerWidth  - 440);
+  const popTop  = Math.min(Math.max(sheetRect.top  + 40 + _wcfgOffY, 10), window.innerHeight - 200);
+  const _wcfgZ  = ++_wcfgZTop;
 
   popup.style.cssText = `
     position:fixed;left:${popLeft}px;top:${popTop}px;
     width:430px;max-height:92vh;overflow:hidden;
     background:#13131d;border:1px solid #5a4ec0;border-radius:8px;
-    box-shadow:0 8px 40px rgba(0,0,0,.85);z-index:10000;
+    box-shadow:0 8px 40px rgba(0,0,0,.85);z-index:${_wcfgZ};
     font-family:'Signika','Palatino Linotype',serif;color:#e0e0ee;
     display:flex;flex-direction:column;`;
+
+  // Bring this popup to front on any click inside it (so users can flip
+  // between several open popups easily).
+  popup.addEventListener("mousedown", () => {
+    popup.style.zIndex = String(++_wcfgZTop);
+  }, true);
 
   const ICON_MAP = { text:"fa-font", number:"fa-hashtag", resource:"fa-heart-pulse", dice:"fa-dice-d20", button:"fa-square-bolt", toggle:"fa-toggle-on", section:"fa-minus", richtext:"fa-align-left", attribute:"fa-chart-bar", skill:"fa-list-check", slot:"fa-layer-group", inventory:"fa-backpack", effects:"fa-sparkles", spellbook:"fa-book-sparkles" };
 
