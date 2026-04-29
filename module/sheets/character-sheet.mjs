@@ -557,14 +557,30 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     cell.addEventListener("dragstart", ev => {
       ev.stopPropagation();
       try {
+        // Always include srcDocUuid + a deep snapshot of the widget so
+        // drops on a different sheet (or any document the dragstart sheet
+        // doesn't own) can copy instead of move. Same-doc drops ignore
+        // the snapshot and use the move-by-id path.
+        //
+        // The payload carries BOTH the character-sheet's native fields
+        // (widgetSnapshot, sdType="widget-move") AND the builder-mixin /
+        // item-sheet alias (widget, sdType="moveWidget"). Either drop
+        // handler can pick its preferred field — this makes cross-sheet
+        // drag work in both directions (item ↔ character).
+        const snapshot = foundry.utils.deepClone(w);
         ev.dataTransfer.setData("text/plain", JSON.stringify({
-          sdType: "widget-move",
-          tabId: tab.id,
-          rowId: row.id,
-          widgetId: w.id,
-          parentVsId: parentVS?.id ?? null
+          sdType:         "widget-move",
+          sdTypeAlt:      "moveWidget",
+          tabId:          tab.id,
+          rowId:          row.id,
+          fromRowId:      row.id,
+          widgetId:       w.id,
+          parentVsId:     parentVS?.id ?? null,
+          srcDocUuid:     this.document?.uuid ?? null,
+          widget:         snapshot,
+          widgetSnapshot: snapshot
         }));
-        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.effectAllowed = "copyMove";
       } catch {}
       cell.style.opacity = "0.4";
     });
@@ -588,6 +604,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         <span title="Drag to move" style="pointer-events:auto;cursor:grab;background:#1a1a24;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:var(--sd-w-label,#888);font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span>
         <button type="button" title="Configure" data-action="wcfg"
           style="pointer-events:auto;background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">⚙</button>
+        <button type="button" title="Duplicate" data-action="wdup"
+          style="pointer-events:auto;background:#1a1a24;border:1px solid #6a9a55;border-radius:3px;color:#9bd07f;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px"><i class="fas fa-clone"></i></button>
         ${spanBtn}
       </div>
       <div style="display:flex;flex-direction:row;gap:2px;align-items:center">
@@ -596,6 +614,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       </div>
     `;
     ov.querySelector('[data-action="wcfg"]').addEventListener("click",  ev => { ev.stopPropagation(); this._configWidget(tab, row, w, parentVS); });
+    ov.querySelector('[data-action="wdup"]').addEventListener("click",  ev => { ev.stopPropagation(); this._duplicateWidget(tab, row, w, parentVS); });
     ov.querySelector('[data-action="wspan"]')?.addEventListener("click", ev => { ev.stopPropagation(); this._cycleSpan(tab, row, w); });
     ov.querySelector('[data-action="wdel"]').addEventListener("click",  ev => { ev.stopPropagation(); this._deleteWidget(tab, row, w, parentVS); });
 
@@ -620,7 +639,40 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _widgetHTML(w, val) {
     const e   = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 
-    if (w.showIf && String(w.showIf).trim()) {
+    // Show-If — supports both the modern key/value pair (used by the
+    // widget config popup) and the legacy single-formula `showIf` field.
+    // The key/value form previously was ignored on the character sheet,
+    // so widgets configured via the gear icon never actually hid.
+    //
+    // In edit mode the GM is configuring the layout, so we intentionally
+    // skip Show-If filtering — every widget remains visible (with overlay)
+    // regardless of the current data so the GM can still click their gear
+    // to tweak it. Players (and GMs in view mode) see Show-If applied.
+    if (this._editMode) { /* no-op: render everything */ }
+    else if (w.showIfKey && String(w.showIfKey).trim()) {
+      const src = String(w.showIfKey).trim();
+      let actualVal;
+      try {
+        if (src.startsWith("widget:")) {
+          const FE = globalThis._SD_FE?.FormulaEngine;
+          actualVal = FE ? String(FE.evaluate(`{${src}}`, this.document) ?? "") : "";
+        } else if (src.startsWith("hidden:")) {
+          const fieldName = src.slice("hidden:".length);
+          const direct = this.document?.system?.hiddenFields?.[fieldName];
+          actualVal = String(direct !== undefined ? direct : "");
+        } else {
+          // Treat as a direct property path on the document (e.g.
+          // system.attributes.attr1.value).
+          const direct = foundry.utils.getProperty(this.document, src);
+          actualVal = String(direct ?? "");
+        }
+      } catch { actualVal = ""; }
+      const expected = String(w.showIfValue ?? "").trim();
+      const visible = expected === ""
+        ? (!!actualVal && actualVal !== "0" && actualVal !== "false")
+        : actualVal === expected || String(Number(actualVal)) === expected;
+      if (!visible) return "";
+    } else if (w.showIf && String(w.showIf).trim()) {
       try {
         const FE = globalThis._SD_FE?.FormulaEngine;
         if (FE) {
@@ -835,10 +887,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       case "rollButton":
       case "tokenPool":
       case "diceTray":
-        return WidgetRenderer.render(w, this.document);
+        return WidgetRenderer.render(w, this.document, this._editMode);
 
       default:
-        return WidgetRenderer.render(w, this.document)
+        return WidgetRenderer.render(w, this.document, this._editMode)
           ?? `${lbl}<span style="font-size:11px;color:#555;font-style:italic">[${e(w.type)}]</span>`;
     }
   }
@@ -1988,8 +2040,35 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
         if (data.sdType === "widget") {
           await this._addWidget(tab.id, row?.id ?? null, data.widgetType, parentVS?.id ?? null);
-        } else if (data.sdType === "widget-move") {
-          await this._moveWidget(data, { tabId: tab.id, rowId: row?.id ?? null, parentVsId: parentVS?.id ?? null, toEnd: true });
+        } else if (data.sdType === "widget-move" || data.sdType === "moveWidget") {
+          // Accept both character-sheet ("widget-move") and item-sheet/
+          // builder-mixin ("moveWidget") payload shapes — they carry the
+          // same information but use different field names. The snapshot
+          // is in `widgetSnapshot` (character source) or `widget` (item
+          // source). Cross-document drops always copy via snapshot;
+          // same-document drops fall through to the legacy move path.
+          const myUuid = this.document?.uuid ?? null;
+          const isCrossDoc = data.srcDocUuid && myUuid && data.srcDocUuid !== myUuid;
+          const snapshot = data.widgetSnapshot ?? data.widget ?? null;
+          if ((isCrossDoc || data.sdType === "moveWidget") && snapshot) {
+            await this._insertWidgetSnapshot(snapshot, {
+              tabId:      tab.id,
+              rowId:      row?.id ?? null,
+              parentVsId: parentVS?.id ?? null,
+              toEnd:      true
+            });
+          } else if (data.tabId && data.rowId && data.widgetId) {
+            await this._moveWidget(data, { tabId: tab.id, rowId: row?.id ?? null, parentVsId: parentVS?.id ?? null, toEnd: true });
+          } else if (snapshot) {
+            // Last-resort fallback — payload didn't include enough info to
+            // splice from the source, but we have a snapshot to copy.
+            await this._insertWidgetSnapshot(snapshot, {
+              tabId:      tab.id,
+              rowId:      row?.id ?? null,
+              parentVsId: parentVS?.id ?? null,
+              toEnd:      true
+            });
+          }
         }
       } catch(e) { console.warn("SD | drop:", e); }
     });
@@ -2152,6 +2231,85 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (!r) return;
     const removed = this._removeWidgetDeep(r.widgets, w.id);
     if (removed) await this.document.update({ "system.customTabs": tabs });
+  }
+
+  /**
+   * Re-randomise the `id` of a widget and every nested widget in vsections.
+   * Used after deep-cloning a widget so the clone doesn't collide with the
+   * original (or with other clones in the same row).
+   */
+  _refreshWidgetIdsDeep(widget) {
+    if (!widget) return;
+    widget.id = foundry.utils.randomID(8);
+    if (widget.type === "vsection" && Array.isArray(widget.widgets)) {
+      for (const child of widget.widgets) this._refreshWidgetIdsDeep(child);
+    }
+  }
+
+  /**
+   * Duplicate a widget right next to its original (same row / same parent
+   * vsection). Deep clone preserves all formula graphs, labels, slot
+   * configs, color overrides, etc. — but every `id` is regenerated so the
+   * clone is independently addressable.
+   */
+  async _duplicateWidget(tab, row, w, parentVS = null) {
+    const tabs    = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const freshTab = tabs.find(t => t.id === tab.id);
+    const freshRow = freshTab?.rows?.find(r => r.id === row.id);
+    if (!freshRow) return;
+
+    const container = parentVS
+      ? (this._findVs(freshRow.widgets, parentVS.id)?.widgets ?? null)
+      : freshRow.widgets;
+    if (!container) return;
+
+    const idx = container.findIndex(x => x.id === w.id);
+    if (idx < 0) return;
+
+    const clone = foundry.utils.deepClone(container[idx]);
+    this._refreshWidgetIdsDeep(clone);
+    container.splice(idx + 1, 0, clone);
+
+    await this.document.update({ "system.customTabs": tabs });
+  }
+
+  /**
+   * Insert a snapshot from a foreign sheet (cross-document drag & drop).
+   * The snapshot is deep-cloned and re-IDed so it's independent of any
+   * other widget tree (including its source).
+   */
+  async _insertWidgetSnapshot(snapshot, dst) {
+    if (!snapshot || !dst?.tabId) return;
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const dstTab = tabs.find(t => t.id === dst.tabId);
+    if (!dstTab) return;
+
+    const clone = foundry.utils.deepClone(snapshot);
+    this._refreshWidgetIdsDeep(clone);
+
+    let dstContainer;
+    if (dst.rowId) {
+      const dstRow = dstTab.rows?.find(r => r.id === dst.rowId);
+      if (!dstRow) return;
+      dstContainer = dst.parentVsId
+        ? (this._findVs(dstRow.widgets, dst.parentVsId)?.widgets ?? null)
+        : dstRow.widgets;
+      if (!dstContainer) return;
+    } else {
+      const newRow = { id: foundry.utils.randomID(8), cols: 3, widgets: [] };
+      dstTab.rows ??= [];
+      dstTab.rows.push(newRow);
+      dstContainer = newRow.widgets;
+    }
+
+    if (clone.type === "vsection" && dst.parentVsId) {
+      // Don't allow nesting vsections inside vsections.
+      return;
+    }
+
+    const insertIdx = dst.toEnd ? dstContainer.length : Math.max(0, Math.min(dstContainer.length, dst.index ?? dstContainer.length));
+    dstContainer.splice(insertIdx, 0, clone);
+    await this.document.update({ "system.customTabs": tabs });
   }
 
   async _configWidget(tab, row, w, parentVS = null) {

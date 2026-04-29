@@ -19,12 +19,20 @@ export function getDefaultSettings() {
       attr1: true, attr2: true, attr3: true,
       attr4: true, attr5: true, attr6: true
     },
+    // Per-attribute base score used when a NEW actor is created.
+    // Existing actors are NOT mutated when these change.
+    attributesInitial: {
+      attr1: 10, attr2: 10, attr3: 10,
+      attr4: 10, attr5: 10, attr6: 10
+    },
 
-    // Resource bars
+    // Resource bars. `initialValue/initialMax/initialMin` are applied at
+    // actor creation time only — editing them does not retroactively change
+    // existing actors.
     resources: {
-      hp:      { label: "Hit Points",  enabled: true,  color: "#e05a5a" },
-      mp:      { label: "Mana Points", enabled: true,  color: "#5a8ae0" },
-      stamina: { label: "Stamina",     enabled: false, color: "#5ae07a" }
+      hp:      { label: "Hit Points",  enabled: true,  color: "#e05a5a", initialValue: 10, initialMax: 10, initialMin: 0 },
+      mp:      { label: "Mana Points", enabled: true,  color: "#5a8ae0", initialValue: 10, initialMax: 10, initialMin: 0 },
+      stamina: { label: "Stamina",     enabled: false, color: "#5ae07a", initialValue: 10, initialMax: 10, initialMin: 0 }
     },
 
     // Currency labels — dynamic list. Each entry has a stable key used as
@@ -70,10 +78,24 @@ export function loadSettings() {
   if (result.attributes && !result.attributesEnabled) {
     result.attributesEnabled = {};
   }
+  if (!result.attributesInitial || typeof result.attributesInitial !== "object") {
+    result.attributesInitial = {};
+  }
   for (const key of Object.keys(result.attributes ?? {})) {
     if (result.attributesEnabled[key] === undefined) {
       result.attributesEnabled[key] = true;
     }
+    if (result.attributesInitial[key] === undefined) {
+      result.attributesInitial[key] = 10;
+    }
+  }
+
+  // Backfill resource initial fields for entries that pre-date them.
+  for (const [, res] of Object.entries(result.resources ?? {})) {
+    if (!res || typeof res !== "object") continue;
+    if (res.initialValue === undefined) res.initialValue = 10;
+    if (res.initialMax   === undefined) res.initialMax   = res.initialValue ?? 10;
+    if (res.initialMin   === undefined) res.initialMin   = 0;
   }
 
   // Migrate legacy currency shape { primary, secondary, tertiary } → array
@@ -104,6 +126,57 @@ export function loadSettings() {
 /** Save settings. */
 export async function saveSettings(data) {
   await game.settings.set("sd", "systemSettings", data);
+}
+
+/**
+ * Build the override updates that should be applied at actor-creation time
+ * based on the user-configured base values in the System Config window.
+ *
+ * Returns a flat update object suitable for `Actor#updateSource(...)`.
+ * Returns `null` if there's nothing to apply (e.g. settings are unavailable
+ * during very early init).
+ *
+ * Existing actors are intentionally NOT mutated — these defaults only fire
+ * during `preCreateActor`. Editing the settings later does not retroactively
+ * change already-created characters.
+ *
+ * @param {string} [actorType] "character" / "npc" / etc. Reserved for future
+ *   per-type overrides; currently the same defaults apply to all actor types.
+ */
+export function buildActorBaseDefaults(actorType) {
+  let cfg;
+  try {
+    cfg = loadSettings();
+  } catch {
+    return null;
+  }
+  if (!cfg) return null;
+
+  const updates = {};
+
+  // Attributes — only set scores for keys that are enabled in settings AND
+  // exist on the actor's data model (we don't know that here, so write all
+  // keys; unknown ones are silently ignored by the schema).
+  for (const [key, score] of Object.entries(cfg.attributesInitial ?? {})) {
+    const enabled = cfg.attributesEnabled?.[key] ?? true;
+    if (!enabled) continue;
+    const n = Number(score);
+    if (!Number.isFinite(n)) continue;
+    updates[`system.attributes.${key}.value`] = Math.trunc(n);
+  }
+
+  // Resources — set value/max/min using the configured initials.
+  for (const [key, res] of Object.entries(cfg.resources ?? {})) {
+    if (!res || res.enabled === false) continue;
+    const v = Number(res.initialValue);
+    const mx = Number(res.initialMax);
+    const mn = Number(res.initialMin);
+    if (Number.isFinite(v))  updates[`system.resources.${key}.value`] = Math.trunc(v);
+    if (Number.isFinite(mx)) updates[`system.resources.${key}.max`]   = Math.max(0, Math.trunc(mx));
+    if (Number.isFinite(mn)) updates[`system.resources.${key}.min`]   = Math.trunc(mn);
+  }
+
+  return Object.keys(updates).length ? updates : null;
 }
 
 /**
@@ -238,9 +311,18 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       ...base,
       cfg,
       attrEntries: Object.entries(cfg.attributes).map(([key, val]) => ({
-        key, label: val, enabled: cfg.attributesEnabled?.[key] ?? true
+        key,
+        label:   val,
+        enabled: cfg.attributesEnabled?.[key] ?? true,
+        initial: Number(cfg.attributesInitial?.[key] ?? 10)
       })),
-      resourceEntries: Object.entries(cfg.resources).map(([key, val]) => ({ key, ...val })),
+      resourceEntries: Object.entries(cfg.resources).map(([key, val]) => ({
+        key,
+        ...val,
+        initialValue: Number(val?.initialValue ?? 10),
+        initialMax:   Number(val?.initialMax   ?? val?.initialValue ?? 10),
+        initialMin:   Number(val?.initialMin   ?? 0)
+      })),
       currencyEntries: (cfg.currencies ?? []).map(c => ({ key: c.key, label: c.label }))
     };
   }
@@ -259,20 +341,45 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const raw = new FDE(form).object;
 
     // Attributes
+    if (!cfg.attributesInitial || typeof cfg.attributesInitial !== "object") {
+      cfg.attributesInitial = {};
+    }
     for (const key of Object.keys(cfg.attributes ?? {})) {
-      const labelKey = `attr_label_${key}`;
+      const labelKey   = `attr_label_${key}`;
+      const initialKey = `attr_initial_${key}`;
       if (raw[labelKey] !== undefined) cfg.attributes[key] = raw[labelKey];
       cfg.attributesEnabled[key] = !!raw[`attr_enabled_${key}`];
+      if (raw[initialKey] !== undefined) {
+        const n = Number(raw[initialKey]);
+        cfg.attributesInitial[key] = Number.isFinite(n) ? Math.trunc(n) : 10;
+      } else if (cfg.attributesInitial[key] === undefined) {
+        cfg.attributesInitial[key] = 10;
+      }
     }
 
     // Resources
     for (const key of Object.keys(cfg.resources ?? {})) {
-      const lbl = `res_label_${key}`;
-      const en  = `res_enabled_${key}`;
-      const col = `res_color_${key}`;
+      const lbl  = `res_label_${key}`;
+      const en   = `res_enabled_${key}`;
+      const col  = `res_color_${key}`;
+      const iVal = `res_initial_value_${key}`;
+      const iMax = `res_initial_max_${key}`;
+      const iMin = `res_initial_min_${key}`;
       if (raw[lbl] !== undefined) cfg.resources[key].label   = raw[lbl];
       cfg.resources[key].enabled = !!raw[en];
       if (raw[col] !== undefined) cfg.resources[key].color   = raw[col];
+      if (raw[iVal] !== undefined) {
+        const n = Number(raw[iVal]);
+        cfg.resources[key].initialValue = Number.isFinite(n) ? Math.trunc(n) : 0;
+      }
+      if (raw[iMax] !== undefined) {
+        const n = Number(raw[iMax]);
+        cfg.resources[key].initialMax = Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+      }
+      if (raw[iMin] !== undefined) {
+        const n = Number(raw[iMin]);
+        cfg.resources[key].initialMin = Number.isFinite(n) ? Math.trunc(n) : 0;
+      }
     }
 
     // Currencies (dynamic list — read label for each entry; keys are stable)
@@ -321,6 +428,8 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const key   = `attr${count}`;
     cfg.attributes[key] = `Attribute ${count}`;
     cfg.attributesEnabled[key] = true;
+    if (!cfg.attributesInitial) cfg.attributesInitial = {};
+    cfg.attributesInitial[key] = 10;
     await saveSettings(cfg);
     this.render();
   }
@@ -331,6 +440,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const cfg = this._collectFormCfg();
     delete cfg.attributes[key];
     delete cfg.attributesEnabled[key];
+    if (cfg.attributesInitial) delete cfg.attributesInitial[key];
     await saveSettings(cfg);
     this.render();
   }
@@ -341,9 +451,12 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const key   = `resource${count}`;
     const colors = ["#e05a5a", "#5a8ae0", "#5ae07a", "#e0c05a", "#c05ae0", "#e07a5a"];
     cfg.resources[key] = {
-      label:   `Resource ${count}`,
-      enabled: true,
-      color:   colors[(count - 1) % colors.length]
+      label:        `Resource ${count}`,
+      enabled:      true,
+      color:        colors[(count - 1) % colors.length],
+      initialValue: 10,
+      initialMax:   10,
+      initialMin:   0
     };
     await saveSettings(cfg);
     this.render();

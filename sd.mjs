@@ -33,7 +33,7 @@ import { SDItemSheet }         from "./module/sheets/item-sheet.mjs";
 
 import { runMigrations }       from "./module/helpers/migrations.mjs";
 import { EFFECT_PATHS }        from "./module/helpers/effects.mjs";
-import { SystemConfig, applySettings } from "./module/helpers/system-config.mjs";
+import { SystemConfig, applySettings, buildActorBaseDefaults } from "./module/helpers/system-config.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 
 // CONFIG Namespace
@@ -255,11 +255,38 @@ Hooks.once("init", () => {
 // Default new player-character actors to a linked prototype token so a single
 // world Actor is shared across all of its scene tokens. NPCs intentionally
 // remain unlinked so duplicates can diverge between encounters.
+//
+// At creation time we also stamp in the user-configured base attribute /
+// resource values from the System Config window. This is a *base value* —
+// existing actors are never mutated; only freshly-created actors are seeded.
 Hooks.on("preCreateActor", (actor, data, _options, _userId) => {
-  if (data?.type !== "character") return;
-  const ptLink = foundry.utils.getProperty(data, "prototypeToken.actorLink");
-  if (ptLink === undefined) {
-    actor.updateSource({ "prototypeToken.actorLink": true });
+  if (data?.type === "character") {
+    const ptLink = foundry.utils.getProperty(data, "prototypeToken.actorLink");
+    if (ptLink === undefined) {
+      actor.updateSource({ "prototypeToken.actorLink": true });
+    }
+  }
+
+  if (data?.type === "character" || data?.type === "npc") {
+    try {
+      const updates = buildActorBaseDefaults(data?.type);
+      if (!updates) return;
+      // Only seed paths that aren't already explicitly carried by the input
+      // data (e.g. duplicates / compendium imports). Schema defaults aren't
+      // considered "explicit", but anything the user actually typed in the
+      // creation dialog or any cloned source value will be present here and
+      // is preserved as-is.
+      const filtered = {};
+      for (const [path, value] of Object.entries(updates)) {
+        const existing = foundry.utils.getProperty(data, path);
+        if (existing === undefined || existing === null) {
+          filtered[path] = value;
+        }
+      }
+      if (Object.keys(filtered).length) actor.updateSource(filtered);
+    } catch (e) {
+      console.warn("SD | Failed to apply base actor defaults:", e);
+    }
   }
 });
 

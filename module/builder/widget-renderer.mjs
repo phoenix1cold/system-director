@@ -11,7 +11,13 @@ export class WidgetRenderer {
    */
   static render(widgetDef, doc, editMode = false) {
     try {
-      if (widgetDef.showIfKey && String(widgetDef.showIfKey).trim()) {
+      // In edit mode (typically only shown to GMs configuring the sheet),
+      // always show widgets regardless of Show-If, so the GM can still
+      // click their gear icon, drag-handle and trash button. View mode
+      // (for both GM and players) honours Show-If normally.
+      if (editMode) {
+        // intentionally fall through to render
+      } else if (widgetDef.showIfKey && String(widgetDef.showIfKey).trim()) {
         let actualVal;
         const src = widgetDef.showIfKey.trim();
         try {

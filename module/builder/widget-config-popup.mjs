@@ -153,6 +153,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   const _showIfSources = (() => {
     const list = [];
+
+    // 1) Other widgets on this document (must have a widgetKey).
     for (const t of (doc.system?.customTabs ?? [])) {
       for (const r of (t.rows ?? [])) {
         for (const ww of (r.widgets ?? [])) {
@@ -162,11 +164,78 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         }
       }
     }
-    // hidden fields
+
+    // 2) Hidden fields on this document.
     for (const [k] of Object.entries(doc.system?.hiddenFields ?? {})) {
       list.push({ value: `hidden:${k}`, label: `Hidden Field: ${k}` });
     }
-    return list;
+
+    // 3) Document data paths — schema-known fields on the actor / item plus
+    //    everything `_buildPathList` already discovers (custom fields,
+    //    declared attrs, slot counts, item-side hidden fields …). Without
+    //    these the dropdown was effectively unusable for normal sheets.
+    const sys = doc?.system;
+    if (sys && typeof sys === "object") {
+      // Core attributes
+      for (const [key, attr] of Object.entries(sys.attributes ?? {})) {
+        if (attr && typeof attr === "object" && "value" in attr) {
+          list.push({ value: `system.attributes.${key}.value`, label: `Attr: ${key} score` });
+          if ("mod" in attr) list.push({ value: `system.attributes.${key}.mod`, label: `Attr: ${key} mod` });
+          if ("proficient" in attr) list.push({ value: `system.attributes.${key}.proficient`, label: `Attr: ${key} proficient` });
+        }
+      }
+      // Resources (HP/MP/etc.)
+      for (const [key, res] of Object.entries(sys.resources ?? {})) {
+        if (res && typeof res === "object") {
+          if ("value" in res) list.push({ value: `system.resources.${key}.value`, label: `Resource: ${key} value` });
+          if ("max"   in res) list.push({ value: `system.resources.${key}.max`,   label: `Resource: ${key} max`   });
+          if ("min"   in res) list.push({ value: `system.resources.${key}.min`,   label: `Resource: ${key} min`   });
+        }
+      }
+      // Skills
+      for (const [key, skl] of Object.entries(sys.skills ?? {})) {
+        if (skl && typeof skl === "object" && "rank" in skl) {
+          list.push({ value: `system.skills.${key}.rank`,  label: `Skill: ${key} rank`  });
+          if ("bonus" in skl) list.push({ value: `system.skills.${key}.bonus`, label: `Skill: ${key} bonus` });
+        }
+      }
+      // Advancement / Currency / Defense — flat numeric fields
+      const flatGroups = {
+        "system.advancement": ["level", "proficiencyBonus"],
+        "system.advancement.xp": ["value", "max"],
+        "system.skillPoints":   ["value", "max"],
+        "system.defense":       ["armor", "bonus", "total"],
+        "system.movement":      ["walk", "swim", "fly", "climb"]
+      };
+      for (const [base, keys] of Object.entries(flatGroups)) {
+        const obj = foundry.utils.getProperty(doc, base);
+        if (!obj || typeof obj !== "object") continue;
+        for (const k of keys) {
+          if (!(k in obj)) continue;
+          list.push({ value: `${base}.${k}`, label: `${base.replace(/^system\./, "").replace(/\./g, " › ")} › ${k}` });
+        }
+      }
+    }
+
+    // 4) Anything _buildPathList already enumerates (custom fields, declared
+    //    attrs, slot counts, item-side hidden fields). These often aren't
+    //    representable from the schema alone.
+    try {
+      for (const p of (_buildPathList(doc) ?? [])) {
+        if (!p?.path) continue;
+        list.push({ value: p.path, label: p.label || p.path });
+      }
+    } catch { /* ignore — picker just won't have these entries */ }
+
+    // De-duplicate by value while preserving order.
+    const seen = new Set();
+    const out  = [];
+    for (const entry of list) {
+      if (!entry?.value || seen.has(entry.value)) continue;
+      seen.add(entry.value);
+      out.push(entry);
+    }
+    return out;
   })();
 
   const _showIfKey   = w.showIfKey   ?? "";
@@ -221,7 +290,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           style="background:#1a1a2e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;padding:4px 6px;width:100%;box-sizing:border-box">
       </div>
       <div style="font-size:9px;color:#444;margin-top:4px;line-height:1.4">
-        Select a widget key or hidden field, then set the value it must equal to show this widget.
+        Select a widget key, hidden field, or document data path, then set the
+        value it must equal to show this widget. Leave the value empty to show
+        only when the source is truthy (non-zero / non-empty).
       </div>
     </div>`;
 

@@ -40,6 +40,33 @@ function _NL(text) {
   return text;
 }
 
+/**
+ * Wrap a compiled expression in floor()/ceil() based on the node's per-node
+ * `round` field. Used by every Math node so users can opt-in to round-down /
+ * round-up at the operation level (default = no rounding for back-compat).
+ *
+ * @param {string} expr      Inner expression already wrapped in parens by caller.
+ * @param {object} nodeData  The node's `data` object — reads `data.round`.
+ * @returns {string}
+ */
+function _round(expr, nodeData) {
+  const mode = String(nodeData?.round ?? "none");
+  if (mode === "floor") return `floor(${expr})`;
+  if (mode === "ceil")  return `ceil(${expr})`;
+  return expr;
+}
+
+/** Reusable field definition appended to every Math node so the inspector
+ *  shows a Rounding dropdown. `none` = pass-through (legacy behaviour). */
+const _ROUND_FIELD = {
+  key:"round", label:"Round", type:"select", default:"none",
+  options:[
+    { value:"none",  label:"No rounding" },
+    { value:"floor", label:"Down (floor)" },
+    { value:"ceil",  label:"Up (ceil)" }
+  ]
+};
+
 // Каталог нод
 
 export const NODE_DEFS = {
@@ -268,20 +295,20 @@ export const NODE_DEFS = {
   },
 
   // Математика
-  add:  {title:"Add",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[{key:"sep",label:"Sep",type:"text",default:""}],compile:(n,i)=>{ const sep=n.data.sep??""; return sep ? `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})` : `(${i.a??"0"}+${i.b??"0"})`; }},
-  sub:  {title:"Sub",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}-${i.b??"0"})`},
-  mul:  {title:"Mul",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}*${i.b??"0"})`},
-  div:  {title:"Div",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`(${i.a??"0"}/${i.b??"1"})`},
+  add:  {title:"Add",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[{key:"sep",label:"Sep",type:"text",default:""},_ROUND_FIELD],compile:(n,i)=>{ const sep=n.data.sep??""; if (sep) return `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})`; return _round(`(${i.a??"0"}+${i.b??"0"})`, n.data); }},
+  sub:  {title:"Sub",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}-${i.b??"0"})`, n.data)},
+  mul:  {title:"Mul",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}*${i.b??"0"})`, n.data)},
+  div:  {title:"Div",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}/${i.b??"1"})`, n.data)},
   floor:{title:"Floor", color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`floor(${i.a??"0"})`},
   ceil: {title:"Ceil",  color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`ceil(${i.a??"0"})`},
   round:{title:"Round", color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`round(${i.a??"0"})`},
-  max2: {title:"Max",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`max(${i.a??"0"},${i.b??"0"})`},
-  min2: {title:"Min",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`min(${i.a??"0"},${i.b??"0"})`},
-  abs:  {title:"Abs",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`abs(${i.a??"0"})`},
+  max2: {title:"Max",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`max(${i.a??"0"},${i.b??"0"})`, n.data)},
+  min2: {title:"Min",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`min(${i.a??"0"},${i.b??"0"})`, n.data)},
+  abs:  {title:"Abs",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`abs(${i.a??"0"})`, n.data)},
   clamp:{title:"Clamp", color:"#1a5c2a",cat:"Math",
          inputs:[{id:"v",label:"Val",type:"value.number"},{id:"lo",label:"Min",type:"value.number"},{id:"hi",label:"Max",type:"value.number"}],
-         outputs:[{id:"v",label:"",type:"value.number"}],fields:[],
-         compile:(_,i)=>`max(${i.lo??"0"},min(${i.hi??"0"},${i.v??"0"}))`},
+         outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],
+         compile:(n,i)=>_round(`max(${i.lo??"0"},min(${i.hi??"0"},${i.v??"0"}))`, n.data)},
 
   // Сравнения
   eq: {title:"==",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}==${i.b??"0"})`},
@@ -799,15 +826,16 @@ export const NODE_DEFS = {
 
   act_modify: {
     title:"Modify Field", color:"#4a2a6a", cat:"Actions",
-    desc:"Add / subtract / set any field on self, actor or target. Path can be fed dynamically (e.g. from Get Widget Path).",
+    desc:"Add / subtract / set any field on self, actor or target. The Actor pin (when wired) overrides the Where dropdown — feed it a UUID, a Get Actor / Get All Targets node, or any actor expression. An array of actors loops the change over each. Path can be fed dynamically (e.g. from Get Widget Path).",
     inputs:[
       {id:"exec",  label:"",        type:"exec"},
+      {id:"actor", label:"Actor",   type:"value.actor"},
       {id:"amount",label:"Amount",  type:"value.number"},
       {id:"path",  label:"Path",    type:"value.path"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"},{id:"newValue",label:"New Value",type:"value.any"}],
     fields:[
-      {key:"where",label:"Where",type:"select",default:"self",options:["self","actor","token_target"]},
+      {key:"where",label:"Where",type:"select",default:"self",options:["self","actor","token_target","selected_token","all_targets","user_character"]},
       {key:"path", label:"Field",type:"path",default:"system.uses.value"},
       {key:"op",   label:"Op",type:"select",default:"add",options:["add","subtract","set"]}
     ],
@@ -817,7 +845,7 @@ export const NODE_DEFS = {
       const amt=inp.amount??0;
       const delta=n.data.op==="set"?null:n.data.op==="subtract"?`-(${amt})`:`+(${amt})`;
       const p = (inp.path!=null && inp.path!=="") ? String(inp.path) : (n.data.path??"");
-      return {
+      const out = {
         type:"modifyField",
         target:`${pfx}${p}`,
         rawPath:p,
@@ -825,20 +853,27 @@ export const NODE_DEFS = {
         delta,
         setValue:n.data.op==="set"?String(amt):null
       };
+      // When the Actor pin is wired, it wins over the Where dropdown — the
+      // executor will resolve it (UUID / mode-string / array) and loop.
+      if (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) {
+        out.actorOverride = inp.actor;
+      }
+      return out;
     }
   },
 
   act_set_text_field: {
     title:"Set Text Field", color:"#4a2a6a", cat:"Actions",
-    desc:"Write a string/text value to any path on self / actor / target. Use this for non-numeric writes — chat AI responses to a notes field, paste a label, fill a description, etc. Modify Field is for numbers; this is for text. Value supports module tokens ({widget:KEY}, {@attr1}, {item:Sword.system.notes}) and runtime tokens ({__lastAiResponse}, {__lastAiError}, {__lastRoll}).",
+    desc:"Write a string/text value to any path on self / actor / target. The Actor pin (when wired) overrides the Where dropdown — feed it a UUID, a Get Actor / Get All Targets node, or any actor expression. An array of actors loops the write over each. Use this for non-numeric writes — chat AI responses to a notes field, paste a label, fill a description, etc. Modify Field is for numbers; this is for text. Value supports module tokens ({widget:KEY}, {@attr1}, {item:Sword.system.notes}) and runtime tokens ({__lastAiResponse}, {__lastAiError}, {__lastRoll}).",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
+      {id:"actor", label:"Actor",  type:"value.actor"},
       {id:"value", label:"Value",  type:"value.string"},
       {id:"path",  label:"Path",   type:"value.path"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
-      {key:"where", label:"Where",  type:"select", default:"self", options:["self","actor","token_target"]},
+      {key:"where", label:"Where",  type:"select", default:"self", options:["self","actor","token_target","selected_token","all_targets","user_character"]},
       {key:"path",  label:"Field",  type:"path",   default:"",
         placeholder:"e.g. system.notes.story or system.hiddenFields.aiAnswer"},
       {key:"value", label:"Value",  type:"text",   default:"",
@@ -849,13 +884,17 @@ export const NODE_DEFS = {
       const pfx = n.data.where==="token_target" ? "target." : n.data.where==="actor" ? "actor." : "self.";
       const p   = (inp.path  != null && inp.path  !== "") ? String(inp.path)  : (n.data.path  ?? "");
       const v   = (inp.value != null && inp.value !== "") ? String(inp.value) : (n.data.value ?? "");
-      return {
+      const out = {
         type:"setTextField",
         target:`${pfx}${p}`,
         rawPath:p,
         where:n.data.where,
         value:v
       };
+      if (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) {
+        out.actorOverride = inp.actor;
+      }
+      return out;
     }
   },
 
@@ -1038,8 +1077,12 @@ export const NODE_DEFS = {
 
   act_modify_inv_item_field: {
     title:"Modify Inventory Item Field", color:"#4a2a6a", cat:"Actions",
-    desc:"Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"amount",label:"Amount",type:"value.number"}],
+    desc:"Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory. Wire the Actor pin to look up the item on a different actor (UUID / Get Actor / Get All Targets — array loops over each actor).",
+    inputs:[
+      {id:"exec",  label:"",       type:"exec"},
+      {id:"actor", label:"Actor",  type:"value.actor"},
+      {id:"amount",label:"Amount", type:"value.number"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"itemName", label:"Item",               type:"item-picker", default:""},
@@ -1050,16 +1093,22 @@ export const NODE_DEFS = {
       {key:"op",       label:"Operation",          type:"select",      default:"add", options:["add","subtract","set"]}
     ],
     isAction:true, wideNode:true,
-    toAction:(n,inp)=>({
-      type:"modifyInvItemField",
-      itemName: n.data.itemName??"",
-      uuid:     n.data.uuid??"",
-      category: n.data.category??"",
-      index:    Number(n.data.index??0),
-      path:     n.data.path??"",
-      op:       n.data.op??"add",
-      amount:   inp.amount??0
-    })
+    toAction:(n,inp)=>{
+      const out = {
+        type:"modifyInvItemField",
+        itemName: n.data.itemName??"",
+        uuid:     n.data.uuid??"",
+        category: n.data.category??"",
+        index:    Number(n.data.index??0),
+        path:     n.data.path??"",
+        op:       n.data.op??"add",
+        amount:   inp.amount??0
+      };
+      if (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) {
+        out.actorOverride = inp.actor;
+      }
+      return out;
+    }
   },
 
 
@@ -2606,16 +2655,16 @@ export const NODE_DEFS = {
   mod: {
     title:"Mod %", color:"#1a5c2a", cat:"Math",
     inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
-    fields:[], desc:"Integer remainder of A ÷ B",
-    compile:(_,i)=>`(${i.a??"0"}%${i.b??"1"})`
+    fields:[_ROUND_FIELD], desc:"Integer remainder of A ÷ B",
+    compile:(n,i)=>_round(`(${i.a??"0"}%${i.b??"1"})`, n.data)
   },
 
   /** Pow — exponentiation */
   pow: {
     title:"Pow ^", color:"#1a5c2a", cat:"Math",
     inputs:[{id:"a",label:"Base",type:"value.number"},{id:"b",label:"Exp",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
-    fields:[], desc:"A raised to the power of B",
-    compile:(_,i)=>`(${i.a??"0"}**${i.b??"2"})`
+    fields:[_ROUND_FIELD], desc:"A raised to the power of B",
+    compile:(n,i)=>_round(`(${i.a??"0"}**${i.b??"2"})`, n.data)
   },
 
   /** Sign — returns -1, 0 or +1 */
@@ -2979,10 +3028,26 @@ export const NODE_DEFS = {
   },
   get_actor: {
     title:"Get Actor", color:"#2a5a7a", cat:"Targeting",
-    desc:"Reference to the actor owning the graph (self for actor graphs, owner for item graphs).",
-    inputs:[], outputs:[{id:"v", label:"Actor", type:"value.actor"}],
-    fields:[],
-    compile:()=>`"actor"`
+    desc:"Reference to one or more actors. If a UUID is filled in, it takes priority and the Mode dropdown is ignored. Otherwise the Mode resolves at runtime: self/actor (the graph's owner), targeted/selected token, all targets (array), or the user's character.",
+    inputs:[], outputs:[{id:"v", label:"Actor(s)", type:"value.actor"}],
+    fields:[
+      {key:"uuid", label:"UUID", type:"text", default:"",
+        placeholder:"Actor.abc123 (priority — Mode is ignored when filled)"},
+      {key:"mode", label:"Mode", type:"select", default:"actor", options:[
+        {value:"actor",          label:"Self / context actor"},
+        {value:"token_target",   label:"First targeted token"},
+        {value:"selected_token", label:"First selected token"},
+        {value:"all_targets",    label:"All targeted tokens (array)"},
+        {value:"user_character", label:"User's assigned character"}
+      ]}
+    ],
+    compile:(n)=>{
+      // UUID wins over the mode dropdown when present so users can pin a
+      // specific actor without losing the dropdown for the empty case.
+      const uuid = String(n.data.uuid ?? "").trim();
+      if (uuid) return `"${uuid.replace(/"/g, '\\"')}"`;
+      return `"${n.data.mode ?? "actor"}"`;
+    }
   },
   get_target: {
     title:"Get Target", color:"#2a5a7a", cat:"Targeting",
@@ -6792,10 +6857,17 @@ export class FormulaGraph {
     if(field.type==="select"){
       inp=document.createElement("select");
       inp.style.cssText=IS+";cursor:pointer";
+      // `options` may be either a flat array of strings or an array of
+      // `{value,label}` pairs — supporting both keeps existing nodes intact
+      // while letting newer nodes (e.g. Math/Round) provide friendlier text.
+      const cur = node.data[field.key]??field.default;
       for(const o of (field.options??[])){
         const oel=document.createElement("option");
-        oel.value=oel.textContent=o;
-        if(o===(node.data[field.key]??field.default)) oel.selected=true;
+        const val = (o && typeof o === "object") ? String(o.value ?? "") : String(o);
+        const lbl = (o && typeof o === "object") ? String(o.label ?? o.value ?? "") : String(o);
+        oel.value       = val;
+        oel.textContent = _NL(lbl);
+        if(val === String(cur ?? "")) oel.selected = true;
         inp.appendChild(oel);
       }
     } else {

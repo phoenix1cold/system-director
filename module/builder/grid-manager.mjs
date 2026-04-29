@@ -109,6 +109,66 @@ export class GridManager {
     await doc.update({ "system.customTabs": tabs });
   }
 
+  /**
+   * Recursively assign fresh `id`s to a widget and any nested children
+   * (e.g. `vsection` widgets contain their own `widgets[]` array). Node
+   * IDs inside `graphData` / `configGraph` are *not* changed because they
+   * are local to the graph and never collide outside it.
+   */
+  static _refreshWidgetIds(widget) {
+    if (!widget || typeof widget !== "object") return widget;
+    widget.id = foundry.utils.randomID(8);
+    if (Array.isArray(widget.widgets)) {
+      for (const child of widget.widgets) this._refreshWidgetIds(child);
+    }
+    return widget;
+  }
+
+  /**
+   * Duplicate a widget in-place inside the same row. The clone keeps every
+   * field, formula, graph, and nested widget; only the widget id (and the
+   * ids of any nested children) are regenerated to avoid collisions.
+   * Returns the new widget object.
+   */
+  static async duplicateWidget(doc, tabId, rowId, widgetId) {
+    const tabs = foundry.utils.deepClone(this.getTabs(doc));
+    const tab  = tabs.find(t => t.id === tabId);
+    if (!tab) return null;
+    const row  = tab.rows.find(r => r.id === rowId);
+    if (!row) return null;
+    const idx  = row.widgets.findIndex(w => w.id === widgetId);
+    if (idx < 0) return null;
+    const clone = foundry.utils.deepClone(row.widgets[idx]);
+    this._refreshWidgetIds(clone);
+    row.widgets.splice(idx + 1, 0, clone);
+    await doc.update({ "system.customTabs": tabs });
+    return clone;
+  }
+
+  /**
+   * Insert a fully-formed widget object (e.g. one received via cross-sheet
+   * drag & drop) into a row. The widget's id tree is regenerated so it
+   * never clashes with existing widgets on the target document.
+   * Returns the inserted widget.
+   */
+  static async insertWidgetData(doc, tabId, rowId, widgetData, atIndex = null) {
+    if (!widgetData || typeof widgetData !== "object") return null;
+    const tabs = foundry.utils.deepClone(this.getTabs(doc));
+    const tab  = tabs.find(t => t.id === tabId);
+    if (!tab) return null;
+    const row  = tab.rows.find(r => r.id === rowId);
+    if (!row) return null;
+    const clone = foundry.utils.deepClone(widgetData);
+    this._refreshWidgetIds(clone);
+    if (atIndex == null || atIndex < 0 || atIndex > row.widgets.length) {
+      row.widgets.push(clone);
+    } else {
+      row.widgets.splice(atIndex, 0, clone);
+    }
+    await doc.update({ "system.customTabs": tabs });
+    return clone;
+  }
+
   /** Move widget from one row/position to another */
   static async moveWidget(doc, tabId, fromRowId, toRowId, widgetId, toIndex) {
     const tabs    = foundry.utils.deepClone(this.getTabs(doc));

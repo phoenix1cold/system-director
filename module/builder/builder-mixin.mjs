@@ -279,6 +279,7 @@ export function BuilderMixin(Base) {
                 <div class="wo-group wo-left">
                   <button type="button" class="wo-btn wo-drag" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}" draggable="true" title="Drag to move"><i class="fas fa-up-down-left-right"></i></button>
                   <button type="button" class="wo-btn" data-action="configWidget" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}" title="Settings"><i class="fas fa-gear"></i></button>
+                  <button type="button" class="wo-btn" data-action="duplicateWidget" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}" title="Duplicate"><i class="fas fa-clone"></i></button>
                   <button type="button" class="wo-btn" data-action="changeWidgetSpan" data-tab-id="${tab.id}" data-row-id="${row.id}" data-widget-id="${w.id}" title="Change width"><i class="fas fa-arrows-left-right"></i></button>
                 </div>
                 <div class="wo-group wo-right">
@@ -363,13 +364,27 @@ export function BuilderMixin(Base) {
 
       root.querySelectorAll(".wo-drag").forEach(handle => {
         handle.addEventListener("dragstart", ev => {
+          // Embed both the source doc uuid and a deep snapshot of the
+          // widget so cross-sheet drops can copy it without needing the
+          // source document to still be open. Same-document drops still
+          // use the lightweight `widgetId` for in-place moves.
+          const tabId    = handle.dataset.tabId;
+          const fromRow  = handle.dataset.rowId;
+          const widgetId = handle.dataset.widgetId;
+          let snapshot   = null;
+          try {
+            const tabs = GridManager.getTabs(this.document);
+            const row  = tabs.find(t => t.id === tabId)?.rows?.find(r => r.id === fromRow);
+            const w    = row?.widgets?.find(w => w.id === widgetId);
+            if (w) snapshot = foundry.utils.deepClone(w);
+          } catch { /* keep snapshot null */ }
           ev.dataTransfer.setData("text/plain", JSON.stringify({
             sdType:    "moveWidget",
-            tabId:     handle.dataset.tabId,
-            fromRowId: handle.dataset.rowId,
-            widgetId:  handle.dataset.widgetId
+            srcDocUuid: this.document?.uuid ?? null,
+            tabId, fromRowId: fromRow, widgetId,
+            widget:    snapshot
           }));
-          ev.dataTransfer.effectAllowed = "move";
+          ev.dataTransfer.effectAllowed = "copyMove";
         });
         handle.addEventListener("click", ev => ev.preventDefault());
       });
@@ -383,8 +398,24 @@ export function BuilderMixin(Base) {
           if (!data) return;
           if (data.sdType === "widget") {
             GridManager.addWidget(this.document, dz.dataset.tabId, dz.dataset.rowId, data.widgetType);
-          } else if (data.sdType === "moveWidget" && data.tabId === dz.dataset.tabId) {
-            await GridManager.moveWidget(this.document, data.tabId, data.fromRowId, dz.dataset.rowId, data.widgetId);
+          } else if (data.sdType === "moveWidget" || data.sdType === "widget-move") {
+            // Accept both the item-sheet/builder ("moveWidget") and the
+            // character-sheet ("widget-move") payload shapes — character
+            // sheets emit a parallel-named alias so cross-sheet drag in
+            // either direction works without needing the source open.
+            const snapshot = data.widget ?? data.widgetSnapshot ?? null;
+            const fromRowId = data.fromRowId ?? data.rowId ?? null;
+            const sameDoc = data.srcDocUuid && this.document?.uuid
+              ? data.srcDocUuid === this.document.uuid
+              : data.tabId === dz.dataset.tabId; // legacy fallback
+            if (sameDoc && data.tabId === dz.dataset.tabId && fromRowId && data.widgetId) {
+              await GridManager.moveWidget(this.document, data.tabId, fromRowId, dz.dataset.rowId, data.widgetId);
+            } else if (snapshot) {
+              await GridManager.insertWidgetData(this.document, dz.dataset.tabId, dz.dataset.rowId, snapshot);
+            } else {
+              ui.notifications?.warn?.("Cannot copy widget: source data unavailable");
+              return;
+            }
             this.render();
           }
         });
@@ -513,6 +544,10 @@ export function BuilderMixin(Base) {
 
         case "removeWidget":
           await GridManager.removeWidget(this.document, tabId, rowId, widgetId);
+          this.render(); break;
+
+        case "duplicateWidget":
+          await GridManager.duplicateWidget(this.document, tabId, rowId, widgetId);
           this.render(); break;
 
         case "configWidget":

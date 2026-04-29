@@ -16,7 +16,10 @@ export function ResourceField({ initial = 0, label = "" } = {}) {
 
 export function AttributeField({ initial = 10, label = "" } = {}) {
   return new SchemaField({
-    value:   new NumberField({ required: true, integer: true, initial, nullable: false, min: 1, label: `${label} Score` }),
+    // No `min` constraint: scores must be allowed to be 0, negative, or any
+    // user-defined value so the modifier (especially in `direct` mode where
+    // mod === score) isn't artificially clamped at +1.
+    value:   new NumberField({ required: true, integer: true, initial, nullable: false, label: `${label} Score` }),
     mod:     new NumberField({ required: true, integer: true, initial: 0, nullable: false, label: `${label} Modifier` }),
     proficient: new BooleanField({ initial: false, label: `${label} Proficient` })
   }, { label });

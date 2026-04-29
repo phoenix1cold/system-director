@@ -15,11 +15,13 @@
       <div class="attr-config-grid">
         {{#each attrEntries as |attr|}}
         <div class="attr-config-row">
-          <span class="attr-key-badge">{{attr.key}}</span>
-          <input type="text"
-                 name="attr_label_{{attr.key}}"
-                 value="{{attr.label}}"
-                 placeholder="Attribute name" />
+          <span class="attr-key-badge" title="Attribute key (used in data paths like system.attributes.{{attr.key}}.value)">{{attr.key}}</span>
+          <label class="number-wrap" title="Base score applied to NEW actors only">
+            <span class="initial-lbl">Base</span>
+            <input type="number" step="1"
+                   name="attr_initial_{{attr.key}}"
+                   value="{{attr.initial}}" />
+          </label>
           <label class="toggle-wrap">
             <input type="checkbox"
                    name="attr_enabled_{{attr.key}}"
@@ -34,6 +36,11 @@
         </div>
         {{/each}}
       </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        Base score is the default value seeded into newly created characters and NPCs.
+        Existing actors are never modified — change a stat on an existing sheet directly.
+      </p>
     </div>
 
     {{!-- ══ RESOURCES ═════════════════════════════════════════════════════════ --}}
@@ -45,11 +52,14 @@
           <i class="fas fa-plus"></i> Add
         </button>
       </h3>
-      <div class="resource-config-table">
+      <div class="resource-config-table resource-config-table-with-base">
         <div class="resource-config-header">
           <span>Key</span>
           <span>Display Name</span>
           <span>Color</span>
+          <span title="Starting current value for NEW actors">Base Value</span>
+          <span title="Starting maximum for NEW actors">Base Max</span>
+          <span title="Lower bound for NEW actors">Base Min</span>
           <span>Enabled</span>
           <span></span>
         </div>
@@ -64,6 +74,21 @@
                  name="res_color_{{res.key}}"
                  value="{{res.color}}"
                  class="color-picker" />
+          <input type="number" step="1"
+                 name="res_initial_value_{{res.key}}"
+                 value="{{res.initialValue}}"
+                 class="resource-initial-input"
+                 title="Starting current value for new actors" />
+          <input type="number" step="1" min="0"
+                 name="res_initial_max_{{res.key}}"
+                 value="{{res.initialMax}}"
+                 class="resource-initial-input"
+                 title="Starting maximum for new actors" />
+          <input type="number" step="1"
+                 name="res_initial_min_{{res.key}}"
+                 value="{{res.initialMin}}"
+                 class="resource-initial-input"
+                 title="Lower bound for new actors" />
           <label class="toggle-wrap">
             <input type="checkbox"
                    name="res_enabled_{{res.key}}"
@@ -78,6 +103,11 @@
         </div>
         {{/each}}
       </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        Base values are applied only when a NEW actor is created.
+        Editing them later does not change existing actors' resources.
+      </p>
     </div>
 
     {{!-- ══ CURRENCY ══════════════════════════════════════════════════════════ --}}

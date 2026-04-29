@@ -777,7 +777,8 @@ export class ButtonExecutor {
           ...action,
           delta: _injectRuntime(action.delta),
           setValue: action.setValue != null && action.setValue !== "" ? _injectRuntime(String(action.setValue)) : action.setValue,
-          targetMode: action.targetMode != null && typeof action.targetMode === "string" ? _injectRuntime(action.targetMode) : action.targetMode
+          targetMode: action.targetMode != null && typeof action.targetMode === "string" ? _injectRuntime(action.targetMode) : action.targetMode,
+          actorOverride: action.actorOverride != null && typeof action.actorOverride === "string" ? _injectRuntime(action.actorOverride) : action.actorOverride
         };
         const target = action.target;
         if (!target) break;
@@ -799,6 +800,36 @@ export class ButtonExecutor {
             return Number(FormulaEngine.evaluate(s, item ?? actor)) || 0;
           } catch { return parseFloat(s) || 0; }
         };
+
+        // ─── Actor pin override ────────────────────────────────────────
+        // If the graph wired an Actor into the input pin, it wins over the
+        // Where dropdown. The override may resolve to a single actor, an
+        // array (e.g. all_targets), or nothing (UUID couldn't be found).
+        // The path is stripped of any self./actor./target. prefix so it's
+        // applied raw to whatever actors we resolve.
+        if (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '""' && action.actorOverride !== "0") {
+          const targets = _sdResolveActorsList(action.actorOverride, actor);
+          if (targets.length) {
+            const path = action.rawPath
+              || target.replace(/^(?:self|actor|target)\./, "");
+            for (const tActor of targets) {
+              let newVal;
+              if (action.setValue !== "" && action.setValue !== null && action.setValue !== undefined) {
+                newVal = Number(action.setValue);
+              } else {
+                const delta = action.delta != null ? await _resolveDelta(action.delta) : -1;
+                const cur   = Number(foundry.utils.getProperty(tActor, path) ?? 0);
+                newVal = cur + delta;
+              }
+              if (action.clampMin !== null && action.clampMin !== undefined) newVal = Math.max(newVal, action.clampMin);
+              if (action.clampMax !== null && action.clampMax !== undefined) newVal = Math.min(newVal, action.clampMax);
+              try { await tActor.update({ [path]: newVal }); } catch (e) { console.warn("SD modifyField (actorOverride) failed for", tActor?.name, e); }
+            }
+            break;
+          }
+          // Override was set but resolved to nothing — fall through to legacy
+          // behaviour rather than silently skipping the action.
+        }
 
         if (target.startsWith("target.")) {
           const path   = target.slice(7);
@@ -899,6 +930,22 @@ export class ButtonExecutor {
         let stfValue = String(action.value ?? "");
         try { stfValue = _injectRuntime(stfValue); } catch {}
         stfValue = _stfResolveTokens(stfValue);
+
+        // Actor pin override — wins over the Where dropdown. Loops over
+        // every resolved actor (so all_targets writes to each).
+        if (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '""' && action.actorOverride !== "0") {
+          const stfOverride = typeof action.actorOverride === "string"
+            ? _injectRuntime(action.actorOverride)
+            : action.actorOverride;
+          const targets = _sdResolveActorsList(stfOverride, actor);
+          if (targets.length) {
+            const path = action.rawPath || stfTarget.replace(/^(?:self|actor|target)\./, "");
+            for (const tActor of targets) {
+              try { await tActor.update({ [path]: stfValue }); } catch (e) { console.warn("SD setTextField (actorOverride) failed for", tActor?.name, e); }
+            }
+            break;
+          }
+        }
 
         if (stfTarget.startsWith("target.")) {
           const path   = stfTarget.slice(7);
@@ -1103,31 +1150,50 @@ export class ButtonExecutor {
       }
 
       case "modifyInvItemField": {
-        if (!actor) break;
-        let _invItem = null;
-        if (action.uuid) {
-          try {
-            const src = await fromUuid(action.uuid);
-            if (src) _invItem = actor.items.find(i => i.name === src.name) ?? null;
-          } catch {}
+        // Resolve the list of source actors. The Actor pin (actorOverride)
+        // wins over the implicit context actor and supports both single
+        // actors (UUID, mode-strings) and arrays (all_targets, comma-list).
+        let _invSourceActors;
+        if (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '""' && action.actorOverride !== "0") {
+          const ovr = typeof action.actorOverride === "string"
+            ? _injectRuntime(action.actorOverride)
+            : action.actorOverride;
+          _invSourceActors = _sdResolveActorsList(ovr, actor);
+          if (!_invSourceActors.length) _invSourceActors = actor ? [actor] : [];
+        } else {
+          _invSourceActors = actor ? [actor] : [];
         }
-        if (!_invItem && action.itemName) {
-          _invItem = actor.items.find(i => i.name === action.itemName) ?? null;
-        }
-        if (!_invItem && action.category) {
-          const catItems = [...actor.items].filter(i => i.system?.category === action.category);
-          _invItem = catItems[Number(action.index ?? 0)] ?? null;
-        }
-        if (!_invItem) { ui.notifications.warn(`modifyInvItemField: item not found on ${actor.name}.`); break; }
+        if (!_invSourceActors.length) break;
 
-        const _fPath   = action.path ?? "";
-        const _fCur    = Number(foundry.utils.getProperty(_invItem, _fPath) ?? 0);
-        const _fAmt    = Number(action.amount ?? 0);
-        let   _fResult;
-        if      (action.op === "subtract") _fResult = _fCur - _fAmt;
-        else if (action.op === "set")      _fResult = _fAmt;
-        else                               _fResult = _fCur + _fAmt;
-        await _invItem.update({ [_fPath]: _fResult });
+        for (const _srcActor of _invSourceActors) {
+          let _invItem = null;
+          if (action.uuid) {
+            try {
+              const src = await fromUuid(action.uuid);
+              if (src) _invItem = _srcActor.items.find(i => i.name === src.name) ?? null;
+            } catch {}
+          }
+          if (!_invItem && action.itemName) {
+            _invItem = _srcActor.items.find(i => i.name === action.itemName) ?? null;
+          }
+          if (!_invItem && action.category) {
+            const catItems = [...(_srcActor.items ?? [])].filter(i => i.system?.category === action.category);
+            _invItem = catItems[Number(action.index ?? 0)] ?? null;
+          }
+          if (!_invItem) {
+            ui.notifications.warn(`modifyInvItemField: item not found on ${_srcActor.name}.`);
+            continue;
+          }
+
+          const _fPath = action.path ?? "";
+          const _fCur  = Number(foundry.utils.getProperty(_invItem, _fPath) ?? 0);
+          const _fAmt  = Number(action.amount ?? 0);
+          let   _fResult;
+          if      (action.op === "subtract") _fResult = _fCur - _fAmt;
+          else if (action.op === "set")      _fResult = _fAmt;
+          else                               _fResult = _fCur + _fAmt;
+          try { await _invItem.update({ [_fPath]: _fResult }); } catch (e) { console.warn("SD modifyInvItemField failed for", _srcActor?.name, e); }
+        }
         break;
       }
 

@@ -235,6 +235,15 @@ export class ProgressionApp extends ApplicationV2 {
         </button>`;
       } else if (!em && applied) {
         html += `<span class="sd-prog-applied-badge"><i class="fas fa-check-circle"></i> ${loc("SD.Progression.Applied")}</span>`;
+        // Rollback is offered only on the highest applied level — once we
+        // unwind that one, the *next* level down becomes the latest and
+        // shows its own rollback button. This keeps the apply/rollback
+        // history strictly linear.
+        if (lv.level === appliedLevel) {
+          html += `<button type="button" class="sd-prog-rollback-btn" data-action="rollbackLevel" data-idx="${i}" title="${loc("SD.Progression.Rollback") || "Rollback"}">
+            <i class="fas fa-rotate-left"></i> ${loc("SD.Progression.Rollback") || "Rollback"}
+          </button>`;
+        }
       }
 
       if (em && isGM) {
@@ -704,6 +713,10 @@ export class ProgressionApp extends ApplicationV2 {
         await this._applyLevel(+target.dataset.idx);
         break;
 
+      case "rollbackLevel":
+        await this._rollbackLevel(+target.dataset.idx);
+        break;
+
       case "addFieldChange":
         if (!isGM) return;
         await this._addFieldChange(+target.dataset.levelIdx);
@@ -877,25 +890,119 @@ export class ProgressionApp extends ApplicationV2 {
 
     const actor = this._actor;
 
-    /* Field changes */
+    // Snapshot every value we are about to overwrite so a future rollback
+    // can put the actor back exactly where it was. We also remember the
+    // previous applied-level so a chain of rollbacks unwinds correctly.
+    const snapshot = {
+      level:            lv.level,
+      prevAppliedLevel: this._state.appliedLevel ?? 0,
+      prevValues:       {},
+      grantedItemIds:   [],
+      grantedEffectIds: []
+    };
+
+    /* Field changes — record current value of each touched path before update */
     const updates = {};
-    for (const fc of (lv.fieldChanges ?? [])) Object.assign(updates, buildFieldUpdate(actor, fc));
+    for (const fc of (lv.fieldChanges ?? [])) {
+      if (!(fc.path in snapshot.prevValues)) {
+        snapshot.prevValues[fc.path] = getNestedValue(actor, fc.path);
+      }
+      Object.assign(updates, buildFieldUpdate(actor, fc));
+    }
+
+    // Always advance system.advancement.level so the leveling rewards are
+    // tied to the actor's actual level — independent of whether the user
+    // remembered to add a field-change for it. We snapshot the previous
+    // value first so rollback restores it cleanly.
+    if (!("system.advancement.level" in snapshot.prevValues)) {
+      snapshot.prevValues["system.advancement.level"] = actor.system?.advancement?.level ?? null;
+    }
+    updates["system.advancement.level"] = lv.level;
+
     if (Object.keys(updates).length) await actor.update(updates);
 
     /* Grant items */
     const itemDatas = (lv.items ?? []).map(snap => { const d = dc(snap); delete d._id; return d; });
-    if (itemDatas.length) await actor.createEmbeddedDocuments("Item", itemDatas);
+    if (itemDatas.length) {
+      const created = await actor.createEmbeddedDocuments("Item", itemDatas);
+      snapshot.grantedItemIds = (created ?? []).map(d => d.id);
+    }
 
     /* Apply effects */
     const effectDatas = (lv.effects ?? []).map(ef => { const d = dc(ef); delete d._id; return d; });
-    if (effectDatas.length) await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
+    if (effectDatas.length) {
+      const created = await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
+      snapshot.grantedEffectIds = (created ?? []).map(d => d.id);
+    }
 
     /* Update state */
     const state = dc(this._state);
     state.appliedLevel = lv.level;
+    state.history ??= {};
+    state.history[String(lv.level)] = snapshot;
     await actor.setFlag("sd", "progression.state", state);
 
     ui.notifications.info(loc("SD.Progression.LevelApplied").replace("{level}", lv.level));
+    this.render();
+  }
+
+  /**
+   * Undo a previously applied level: restores any system fields to the
+   * value they held before Apply ran, deletes the items/effects that were
+   * granted by the level, and rolls `state.appliedLevel` back to whatever
+   * was applied just before this one.
+   *
+   * Only the most-recently-applied level offers a rollback button (see
+   * `_buildLevelUpHTML`), so we don't have to reason about out-of-order
+   * unwinds.
+   */
+  async _rollbackLevel(levelIdx) {
+    const levels = this._levels;
+    const lv     = levels[levelIdx];
+    if (!lv) return;
+
+    const state    = dc(this._state);
+    const snapshot = state.history?.[String(lv.level)] ?? null;
+
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window:  { title: loc("SD.Progression.ConfirmRollbackTitle") || "Rollback level" },
+      content: `<p>${(loc("SD.Progression.ConfirmRollbackMsg") || "Rollback level {level}? Granted items and effects will be removed and field changes reverted.").replace("{level}", lv.level)}</p>`,
+      yes:     { label: loc("SD.Progression.Rollback") || "Rollback", icon: "fas fa-rotate-left" }
+    });
+    if (!confirmed) return;
+
+    const actor = this._actor;
+
+    if (snapshot) {
+      // Restore previous field values.
+      const restore = {};
+      for (const [path, value] of Object.entries(snapshot.prevValues ?? {})) {
+        restore[path] = value;
+      }
+      if (Object.keys(restore).length) await actor.update(restore);
+
+      // Delete items granted by this level (skip ones the user already
+      // removed manually).
+      const itemIds = (snapshot.grantedItemIds ?? []).filter(id => actor.items.has(id));
+      if (itemIds.length) await actor.deleteEmbeddedDocuments("Item", itemIds);
+
+      // Delete effects granted by this level.
+      const effectIds = (snapshot.grantedEffectIds ?? []).filter(id => actor.effects.has(id));
+      if (effectIds.length) await actor.deleteEmbeddedDocuments("ActiveEffect", effectIds);
+
+      state.appliedLevel = snapshot.prevAppliedLevel ?? 0;
+      delete state.history[String(lv.level)];
+    } else {
+      // No snapshot exists (e.g. the level was applied by an old build that
+      // didn't record one). Best-effort: just decrement the applied-level
+      // marker so the UI no longer treats it as applied. Nothing else can
+      // be safely undone without a snapshot.
+      state.appliedLevel = Math.max(0, lv.level - 1);
+    }
+
+    await actor.setFlag("sd", "progression.state", state);
+
+    ui.notifications.info((loc("SD.Progression.LevelRolledBack") || "Level {level} rolled back").replace("{level}", lv.level));
     this.render();
   }
 
