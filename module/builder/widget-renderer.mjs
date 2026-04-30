@@ -35,17 +35,39 @@ export class WidgetRenderer {
         const visible = expected === ""
           ? (!!actualVal && actualVal !== "0" && actualVal !== "false")
           : actualVal === expected || String(Number(actualVal)) === expected;
-        if (!visible) return `<!-- widget hidden by showIf: ${this._esc(src)}=${this._esc(expected)} -->`;
+        // Return an empty string (not an HTML comment) so callers that
+        // hide their cell wrapper via `if (!html.trim()) cell.style.display
+        // = "none"` actually do hide it. The previous comment marker meant
+        // hidden widgets still occupied a grid slot.
+        if (!visible) return "";
       } else if (widgetDef.showIf && String(widgetDef.showIf).trim()) {
         let visible = true;
         try {
           const result = FormulaEngine.evaluate(widgetDef.showIf, doc);
           visible = !!result && result !== "0" && result !== 0 && result !== false;
         } catch { visible = true; }
-        if (!visible) return `<!-- widget hidden by showIf(legacy): ${this._esc(widgetDef.showIf)} -->`;
+        if (!visible) return "";
       }
       // render
       let html = this[`_render_${widgetDef.type}`]?.(widgetDef, doc) ?? this._renderUnknown(widgetDef);
+      // visual variant ("skin") selected from the variant dropdown or pin.
+      // Adds an `sd-v-<id>` class to the root element. Falls through cleanly
+      // when the variant is missing, empty or "default" — the widget keeps
+      // its legacy look.
+      // Inject a stable registry-key class (`sd-w-<type>`) onto the root so
+      // that variant CSS selectors (`.sd-w-counter.sd-v-chunky …`) always
+      // match — the legacy `.widget-<type>` classes are kebab-cased
+      // (`widget-roll-button`, `widget-card-draw`, …) and don't align with
+      // the camelCase registry keys (`rollButton`, `cardDrawButton`), so
+      // authoring variant CSS against them would quietly miss those types.
+      const stableType = String(widgetDef.type || "").replace(/[^A-Za-z0-9-]/g, "").toLowerCase();
+      if (stableType) {
+        html = html.replace(/^(<[^>]+class=")/, `$1sd-w-${stableType} `);
+      }
+      const variantId = this._sanitizeVariant(widgetDef.variant);
+      if (variantId) {
+        html = html.replace(/^(<[^>]+class=")/, `$1sd-v-${variantId} `);
+      }
       // extra CSS classes
       if (widgetDef.cssClass) {
         html = html.replace(/^(<[^>]+class=")/, `$1${this._esc(widgetDef.cssClass)} `);
@@ -144,6 +166,54 @@ export class WidgetRenderer {
   }
 
   /**
+   * Normalise a widget variant id. Returns a lowercase a-z/0-9/dash token
+   * suitable for emitting straight into a class attribute, or "" when the
+   * input is empty, "default" or invalid (in which case the widget should
+   * render with its legacy look — no `sd-v-*` class added).
+   */
+  static _sanitizeVariant(v) {
+    const raw = String(v ?? "").trim().toLowerCase();
+    if (!raw || raw === "default") return "";
+    const safe = raw.replace(/[^a-z0-9-]/g, "");
+    return safe.length > 0 ? safe : "";
+  }
+
+  /**
+   * Normalise an FA icon spec to a full class string that can be dropped
+   * straight into `<i class="...">`. Accepts any of:
+   *   "fa-heart"           → "fas fa-heart"           (default to Solid)
+   *   "fab fa-github"      → "fab fa-github"          (pass-through)
+   *   "far fa-heart"       → "far fa-heart"
+   *   "fa-solid fa-heart"  → "fa-solid fa-heart"
+   *   "fas fa-heart fa-beat" → preserves extra FA modifier classes (spin / beat / bounce…)
+   *
+   * Returns a sanitised value with dangerous characters stripped so it's
+   * safe to render without additional escaping in the `class` attribute.
+   */
+  static _faClass(icon, defaultStyle = "fas") {
+    const raw = String(icon ?? "").trim();
+    if (!raw) return `${defaultStyle} fa-circle`;
+    // Strip anything that isn't a letter / digit / dash / space / colon — keeps
+    // valid FontAwesome class tokens while blocking " and > injection attempts.
+    const safe = raw.replace(/[^a-zA-Z0-9\-\s:]/g, "").trim();
+    if (!safe) return `${defaultStyle} fa-circle`;
+    const tokens = safe.split(/\s+/).filter(Boolean);
+    const hasStyle = tokens.some(t =>
+      /^(fa|fas|far|fab|fad|fal|fat)$/i.test(t) ||
+      /^fa-(solid|regular|brands|duotone|light|thin|sharp)$/i.test(t)
+    );
+    if (!hasStyle) tokens.unshift(defaultStyle);
+    // Make sure at least one `fa-*` token exists (the icon itself); if the
+    // user typed just "heart" promote it to "fa-heart".
+    const hasIcon = tokens.some(t => /^fa-/.test(t) && !/^fa-(solid|regular|brands|duotone|light|thin|sharp)$/i.test(t));
+    if (!hasIcon) {
+      const plain = tokens.find(t => !/^fa[-s]?/i.test(t));
+      if (plain) tokens.push("fa-" + plain);
+    }
+    return tokens.join(" ");
+  }
+
+  /**
    * Returns HTML for a small "copy path" button.
    * data-copy-path is picked up by the sheet's delegated click handler.
    * @param {string} path   -- the dot-path to copy (e.g. "system.resources.hp.value")
@@ -152,7 +222,7 @@ export class WidgetRenderer {
   static _copyBtn(path, tip = "") {
     const e = this._esc;
     const title = e(path + (tip ? "  —  " + tip : ""));
-    return `<button type="button" class="widget-copy-path" data-copy-path="${e(path)}" title="Copy path: ${title}" tabindex="-1" style="background:none;border:none;padding:0 0 0 4px;cursor:pointer;color:#3a3a52;font-size:9px;line-height:1;flex-shrink:0;transition:color .15s" onmouseenter="this.style.color='#7b68ee'" onmouseleave="this.style.color='#3a3a52'"><i class="fas fa-copy"></i></button>`;
+    return `<button type="button" class="widget-copy-path" data-copy-path="${e(path)}" title="Copy path: ${title}" tabindex="-1" style="background:none;border:none;padding:0 0 0 4px;cursor:pointer;color:var(--sd-border);font-size:9px;line-height:1;flex-shrink:0;transition:color .15s" onmouseenter="this.style.color='var(--sd-accent)'" onmouseleave="this.style.color='var(--sd-border)'"><i class="fas fa-copy"></i></button>`;
   }
 
   // text
@@ -164,14 +234,14 @@ export class WidgetRenderer {
     const isReadOnly = w.readOnly === true || w.readOnly === "true";
     if (hasFormula) {
       return `<div class="widget widget-text">
-  <div class="widget-label">${esc(w.label)} <span style="color:#5a4ec0;font-size:9px" title="Formula: ${esc(w.valueFormula)}">ƒ</span></div>
+  <div class="widget-label">${esc(w.label)} <span style="color:var(--sd-accent-2);font-size:9px" title="Formula: ${esc(w.valueFormula)}">ƒ</span></div>
   <div class="widget-formula-val">${esc(String(val))}</div>
 </div>`;
     }
     if (isReadOnly) {
       return `<div class="widget widget-text widget-text--readonly">
-  <div class="widget-label">${esc(w.label)} <span style="color:#555;font-size:9px;margin-left:2px" title="Read only">🔒</span></div>
-  <div class="widget-text-readonly-val" style="background:var(--sd-w-bg,#111120);border:1px solid var(--sd-w-bd,#2a2a38);border-radius:4px;padding:3px 7px;font-size:12px;color:var(--sd-w-fg,#8888aa);min-height:22px;word-break:break-word">${esc(String(val))}</div>
+  <div class="widget-label">${esc(w.label)} <span style="color:var(--sd-text-3);font-size:9px;margin-left:2px" title="Read only">🔒</span></div>
+  <div class="widget-text-readonly-val" style="background:var(--sd-w-bg,var(--sd-bg-2));border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;padding:3px 7px;font-size:12px;color:var(--sd-w-fg,var(--sd-text-3));min-height:22px;word-break:break-word">${esc(String(val))}</div>
 </div>`;
     }
     return `<div class="widget widget-text">
@@ -188,7 +258,7 @@ export class WidgetRenderer {
     const hasFormula = w.valueFormula && FormulaEngine.isFormula(w.valueFormula);
     if (hasFormula) {
       return `<div class="widget widget-number">
-  <div class="widget-label">${e(w.label)} <span style="color:#5a4ec0;font-size:9px" title="Formula: ${e(w.valueFormula)}">ƒ</span></div>
+  <div class="widget-label">${e(w.label)} <span style="color:var(--sd-accent-2);font-size:9px" title="Formula: ${e(w.valueFormula)}">ƒ</span></div>
   <div class="widget-formula-val" style="font-size:18px;font-weight:700;text-align:center">${e(String(val))}</div>
 </div>`;
     }
@@ -213,7 +283,7 @@ export class WidgetRenderer {
     const val    = Number(this._get(doc, w.pathValue, 0));
     const max    = Number(this._get(doc, w.pathMax,   0));
     const pct    = max > 0 ? Math.round(Math.clamp(val / max, 0, 1) * 100) : 0;
-    const color  = w.color ?? "#7b68ee";
+    const color  = w.color ?? "var(--sd-accent)";
     const e      = this._esc;
     const barH   = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "";
     const barTrk = (typeof w.barTrack === "string" && w.barTrack.trim()) ? w.barTrack.trim() : "";
@@ -242,28 +312,62 @@ export class WidgetRenderer {
     if (typeof w.btnBorder === "string" && w.btnBorder.trim()) btnParts.push(`border-color:${e(w.btnBorder)}`);
     const btnStyle = btnParts.join(";");
     const iconStyle = (typeof w.iconColor === "string" && w.iconColor.trim()) ? ` style="color:${e(w.iconColor)}"` : "";
+    const macroBtn  = this._copyMacroBtn_dice(w);
     return `<div class="widget widget-dice">
-  <div class="widget-label">${e(w.label)}${hasRefs ? ` <span style="color:#5a4ec0;font-size:9px" title="Formula with refs">ƒ</span>` : ""}</div>
-  <button type="button" class="dice-btn" data-action="widgetRoll"
-          data-formula="${e(displayFml)}"
-          data-formula-raw="${e(rawFormula)}"
-          data-flavor="${e(w.flavor ?? "")}"${btnStyle ? ` style="${btnStyle}"` : ""}>
-    <i class="fas ${e(w.icon ?? "fa-dice-d20")}"${iconStyle}></i>
-    ${e(w.label)}
-    <span style="opacity:.6;font-size:10px">(${e(displayFml)})</span>
-  </button>
+  <div class="widget-label">${e(w.label)}${hasRefs ? ` <span style="color:var(--sd-accent-2);font-size:9px" title="Formula with refs">ƒ</span>` : ""}</div>
+  <div class="dice-row" style="display:flex;align-items:center;gap:4px">
+    <button type="button" class="dice-btn" data-action="widgetRoll"
+            data-formula="${e(displayFml)}"
+            data-formula-raw="${e(rawFormula)}"
+            data-flavor="${e(w.flavor ?? w.label ?? "")}"
+            style="flex:1;${btnStyle}">
+      <i class="${e(this._faClass(w.icon ?? "fa-dice-d20"))}"${iconStyle}></i>
+      ${e(w.label)}
+      <span style="opacity:.6;font-size:10px">(${e(displayFml)})</span>
+    </button>
+    ${macroBtn}
+  </div>
 </div>`;
+  }
+
+  /**
+   * "Copy as Macro" companion button for the dice widget. Produces a
+   * `<button data-copy-macro="…">` whose script body, when executed
+   * inside Foundry, performs the same roll as the main dice button.
+   * Wired by `character-sheet._wireWidget` (and item-sheet's wiring)
+   * via the shared `[data-copy-macro]` click listener.
+   */
+  static _copyMacroBtn_dice(w) {
+    const e = this._esc;
+    const formula = w.formula ?? "1d20";
+    const flavor  = w.flavor ?? w.label ?? "Roll";
+    // Build the script source first, then HTML-escape the whole thing.
+    // Escaping each interpolation individually wouldn't be enough — the
+    // script body itself contains raw `"` quote characters that need to
+    // be turned into `&quot;` for the HTML attribute.
+    const script  =
+      `// ${flavor}\\n` +
+      `const actor = token?.actor ?? game.user.character;\\n` +
+      `const roll  = new Roll("${formula}", actor?.getRollData() ?? {});\\n` +
+      `await roll.evaluate();\\n` +
+      `await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${flavor}" });`;
+    return `<button type="button" class="widget-copy-macro" data-copy-macro="${e(script)}" title="Copy as Macro" tabindex="-1"
+      style="background:none;border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:4px 6px;flex-shrink:0;transition:color .15s,border-color .15s"
+      onmouseover="this.style.color='var(--sd-accent)';this.style.borderColor='var(--sd-accent)'"
+      onmouseout="this.style.color='';this.style.borderColor=''">
+      <i class="fas fa-scroll"></i>
+    </button>`;
   }
 
   // button
 
   static _render_button(w, doc) {
     const e       = this._esc;
-    const accent  = w.btnBg || "#7b68ee";
+    const accent  = w.btnBg || "var(--sd-accent)";
     const fgColor = w.btnFg || accent;
     const bdColor = w.boxBorder || accent;
     const iconCol = w.iconColor || fgColor;
-    const icon    = w.icon  ?? "fa-bolt";
+    const iconCls = this._faClass(w.icon ?? "fa-bolt");
     const bg      = w.btnBg ? e(w.btnBg) : `${e(accent)}22`;
     const formula = w.formula ? (FormulaEngine.isFormula(w.formula) ? FormulaEngine.resolveForRoll(w.formula, doc) : w.formula) : "";
     return `<div class="widget widget-button">
@@ -272,7 +376,7 @@ export class WidgetRenderer {
           data-formula="${e(formula)}"
           data-flavor="${e(w.flavor ?? w.label ?? "")}"
           style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:${bg};border:1px solid ${e(bdColor)};border-radius:5px;color:${e(fgColor)};cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">
-    <i class="fas ${e(icon)}" style="color:${e(iconCol)}"></i>
+    <i class="${e(iconCls)}" style="color:${e(iconCol)}"></i>
     <span>${e(w.label)}</span>
   </button>
 </div>`;
@@ -450,7 +554,7 @@ export class WidgetRenderer {
       class="widget-copy-path currency-path-copy"
       data-copy-path="${e(w.currencyPath)}"
       title="Copy path: ${e(w.currencyPath)}"
-      style="background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:0 4px;flex-shrink:0">
+      style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px;flex-shrink:0">
       <i class="fas fa-copy"></i>
     </button>
   </div>`;
@@ -589,7 +693,14 @@ export class WidgetRenderer {
     const e      = this._esc;
 
     const onClickFml = w.onClickFormula ?? null;
-    const rawFml     = w.formula || `1d20+${bonus}`;
+    // The widget registry defines the configurable field as `rollFormula`
+    // (see widget-registry.mjs:229). Fall back to `formula` for any older
+    // documents that may have been migrated from the previous renderer.
+    const rawFml     = (w.rollFormula && String(w.rollFormula).trim())
+      ? String(w.rollFormula).trim()
+      : (w.formula && String(w.formula).trim())
+        ? String(w.formula).trim()
+        : `1d20+${bonus}`;
     const dispFml    = FormulaEngine.isFormula(rawFml)
       ? FormulaEngine.resolveForRoll(rawFml, doc)
       : rawFml;
@@ -600,6 +711,7 @@ export class WidgetRenderer {
       : `data-formula="${e(dispFml)}" data-formula-raw="${e(rawFml)}" data-flavor="${e(flavor)}"`;
 
     const action = onClickFml ? "attrModClick" : "widgetRoll";
+    const macroBtn = this._copyMacroBtn_skill(w);
 
     return `<div class="widget widget-skill">
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.path ? this._copyBtn(w.path, "rank") : ""}</div>
@@ -608,8 +720,46 @@ export class WidgetRenderer {
     <button type="button" class="skill-roll attr-mod" data-action="${action}"
             ${dataOnClick}
             title="Roll ${e(w.label)}">${bs}</button>
+    ${macroBtn}
   </div>
 </div>`;
+  }
+
+  /**
+   * "Copy as Macro" companion button for the skill widget. Mirrors the
+   * dice-widget helper but resolves rank from the actor at run-time so
+   * the resulting macro stays correct across stat changes. Wired via
+   * the shared `[data-copy-macro]` listener in `_wireWidget`.
+   */
+  static _copyMacroBtn_skill(w) {
+    const e = this._esc;
+    const path    = w.path ?? "";
+    const attrMod = Number(w.attrMod ?? 0);
+    const flavor  = w.flavor || w.label || "Skill";
+    const rawFml  = (w.rollFormula && String(w.rollFormula).trim())
+      ? String(w.rollFormula).trim()
+      : (w.formula && String(w.formula).trim())
+        ? String(w.formula).trim()
+        : "";
+    const formulaLine = rawFml
+      ? `const formula = "${rawFml}";`
+      : "const formula = `1d20+${bonus}`;";
+    const script  =
+      `// ${flavor} skill roll\\n` +
+      `const actor = token?.actor ?? game.user.character;\\n` +
+      `if (!actor) return ui.notifications.warn("No actor selected");\\n` +
+      `const rank   = foundry.utils.getProperty(actor, "${path}") ?? 0;\\n` +
+      `const bonus  = rank + ${attrMod};\\n` +
+      `${formulaLine}\\n` +
+      `const roll   = new Roll(formula, actor.getRollData());\\n` +
+      `await roll.evaluate();\\n` +
+      `await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${flavor}" });`;
+    return `<button type="button" class="widget-copy-macro skill-copy-macro" data-copy-macro="${e(script)}" title="Copy as Macro" tabindex="-1"
+      style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:9px;padding:1px 3px;flex-shrink:0;border-radius:3px;transition:color .15s"
+      onmouseover="this.style.color='var(--sd-accent)'"
+      onmouseout="this.style.color=''">
+      <i class="fas fa-scroll"></i>
+    </button>`;
   }
 
   // section
@@ -628,8 +778,8 @@ export class WidgetRenderer {
 
   static _render_vsection(w, doc) {
     const e = this._esc;
-    const titleCol = w.titleColor || "#7b68ee";
-    const bdCol    = w.boxBorder  || "rgba(123,104,238,.18)";
+    const titleCol = w.titleColor || "var(--sd-accent)";
+    const bdCol    = w.boxBorder  || "var(--sd-accent-glow)";
     const bdStyle  = w.boxBorder  ? "solid" : "dashed";
     const bg       = w.boxBg      || "rgba(123,104,238,.03)";
     const radius   = Number(w.boxRadius) > 0 ? `${Number(w.boxRadius)}px` : "5px";
@@ -658,16 +808,16 @@ export class WidgetRenderer {
     return `<div class="widget widget-richtext">
   <div class="widget-label">${e(w.label)}</div>
   <div class="richtext-display" data-path="${e(w.path)}"
-       style="min-height:60px;cursor:text;padding:6px 8px;background:#1e1e2a;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;font-size:12px;color:var(--sd-w-fg,#a0a0c0);line-height:1.6;word-break:break-word">
+       style="min-height:60px;cursor:text;padding:6px 8px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;font-size:12px;color:var(--sd-w-fg,var(--sd-text-2));line-height:1.6;word-break:break-word">
     ${val || "<span style='opacity:.35;font-style:italic'>Click to edit…</span>"}
   </div>
   <div class="richtext-edit-wrap" style="display:none;position:relative">
     <textarea class="richtext-editor" data-path="${e(w.path)}"
-      style="width:100%;min-height:80px;resize:vertical;background:#1e1e2a;border:1px solid #7b68ee;border-radius:4px 4px 0 0;color:var(--sd-w-fg,#e0e0ee);font-size:12px;padding:6px 8px;box-sizing:border-box;font-family:inherit;line-height:1.6;display:block"
+      style="width:100%;min-height:80px;resize:vertical;background:var(--sd-bg);border:1px solid var(--sd-accent);border-radius:4px 4px 0 0;color:var(--sd-w-fg,var(--sd-text));font-size:12px;padding:6px 8px;box-sizing:border-box;font-family:inherit;line-height:1.6;display:block"
       placeholder="Enter text…">${e(val)}</textarea>
     <div style="display:flex;gap:6px;padding:4px 0 2px">
-      <button type="button" class="richtext-save" style="flex:1;background:#2a4a2a;border:1px solid #3a7a3a;border-radius:4px;color:#5ae07a;cursor:pointer;font-size:11px;padding:4px 8px">✓ Save</button>
-      <button type="button" class="richtext-cancel" style="background:#2a1a1a;border:1px solid #5a2a2a;border-radius:4px;color:#c07070;cursor:pointer;font-size:11px;padding:4px 10px">✕</button>
+      <button type="button" class="richtext-save" style="flex:1;background:rgba(76,175,80,.18);border:1px solid var(--sd-success);border-radius:4px;color:var(--sd-success);cursor:pointer;font-size:11px;padding:4px 8px">✓ Save</button>
+      <button type="button" class="richtext-cancel" style="background:var(--sd-danger-dim);border:1px solid var(--sd-danger);border-radius:4px;color:var(--sd-danger);cursor:pointer;font-size:11px;padding:4px 10px">✕</button>
     </div>
   </div>
 </div>`;
@@ -753,7 +903,7 @@ export class WidgetRenderer {
     }
 
     const typeBadge = wantType
-      ? `<span class="sb-type-badge" style="margin-left:8px;padding:1px 7px;border-radius:3px;background:rgba(123,104,238,.18);color:#9d8fff;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">${e(wantType)}</span>`
+      ? `<span class="sb-type-badge" style="margin-left:8px;padding:1px 7px;border-radius:3px;background:var(--sd-accent-glow);color:var(--sd-accent);font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">${e(wantType)}</span>`
       : "";
 
     let html = `<div class="widget widget-spellbook">
@@ -773,7 +923,7 @@ export class WidgetRenderer {
 
     html += `
   <div class="sb-drop-zone" data-action="spellbookDrop" data-want-type="${e(wantType)}"
-    style="margin-top:8px;border:1px dashed rgba(123,104,238,.25);border-radius:4px;padding:6px 10px;text-align:center;font-size:11px;color:#555;cursor:pointer">
+    style="margin-top:8px;border:1px dashed var(--sd-accent-dim);border-radius:4px;padding:6px 10px;text-align:center;font-size:11px;color:var(--sd-text-3);cursor:pointer">
     <i class="fas fa-arrow-down-to-line" style="margin-right:4px;opacity:.5"></i>Drop ability items here
   </div>
 </div>`;
@@ -787,7 +937,7 @@ export class WidgetRenderer {
     const max  = Number(this._get(doc, w.pathMax,   1)) || 1;
     const pct  = Math.round(Math.min(100, Math.max(0, (val / max) * 100)));
     const col  = esc(w.color   ?? "#5a8aff");
-    const trk  = esc(w.barTrack ?? "#1a1a28");
+    const trk  = esc(w.barTrack ?? "var(--sd-bg)");
     const barH = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "10px";
     const lbl  = esc(w.label   ?? "Progress");
     const showLabel = w.showLabel !== false && w.showLabel !== "false";
@@ -795,10 +945,10 @@ export class WidgetRenderer {
     return `<div class="widget widget-progress">
   <div class="widget-label-row" style="display:flex;align-items:baseline;gap:4px;margin-bottom:3px">
     ${showLabel ? `<span class="widget-label">${lbl}</span>` : ""}
-    <span title="Read-only — edit via the source field" style="font-size:9px;color:#555;margin-left:3px;cursor:default">🔒</span>
-    ${showPct   ? `<span style="margin-left:auto;font-size:10px;color:var(--sd-w-label,#888)">${val}/${max} (${pct}%)</span>` : ""}
+    <span title="Read-only — edit via the source field" style="font-size:9px;color:var(--sd-text-3);margin-left:3px;cursor:default">🔒</span>
+    ${showPct   ? `<span style="margin-left:auto;font-size:10px;color:var(--sd-w-label, var(--sd-text-3))">${val}/${max} (${pct}%)</span>` : ""}
   </div>
-  <div style="background:${trk};border-radius:3px;height:${barH};overflow:hidden;border:1px solid var(--sd-w-bd,#2a2a38);opacity:.85">
+  <div style="background:${trk};border-radius:3px;height:${barH};overflow:hidden;border:1px solid var(--sd-w-bd,var(--sd-bg-3));opacity:.85">
     <div style="height:100%;width:${pct}%;background:${col};border-radius:3px;transition:width .3s"></div>
   </div>
 </div>`;
@@ -815,11 +965,25 @@ export class WidgetRenderer {
     const optsHtml = opts.map(o =>
       `<option value="${esc(o)}"${cur === o ? " selected" : ""}>${esc(o)}</option>`
     ).join("");
+    // Pills / radio markup is rendered alongside the native <select> and
+    // hidden by default (display:none). Variant CSS in
+    // `sd-widget-variants.css` toggles which UI is visible:
+    //   sd-v-pills    → hide select, show .widget-select-pills (chip row)
+    //   sd-v-radio    → hide select, show .widget-select-radios (column)
+    //   sd-v-segmented→ keeps the select but flat-styles it
+    //   default       → keep the native dropdown
+    // Click on a pill / radio fires `data-action="widgetSelectPill"`,
+    // wired by character-sheet/_wireWidget and item-sheet's wiring loop
+    // (`doc.update({ [path]: value })`).
+    const pillsHtml = opts.map(o => `<button type="button" class="widget-select-pill${cur === o ? " is-active" : ""}" data-action="widgetSelectPill" data-path="${path}" data-value="${esc(o)}">${esc(o)}</button>`).join("");
+    const radiosHtml = opts.map(o => `<label class="widget-select-radio${cur === o ? " is-active" : ""}"><input type="radio" name="__sel_${path}" value="${esc(o)}"${cur === o ? " checked" : ""} data-action="widgetSelectPill" data-path="${path}" data-value="${esc(o)}"><span>${esc(o)}</span></label>`).join("");
     return `<div class="widget widget-select">
   <label class="widget-label">${lbl}</label>
-  <select class="widget-select-input" name="${path}" data-path="${path}" style="width:100%;background:#0c0c18;border:1px solid #2a2a40;border-radius:4px;color:#c0c0d8;padding:3px 6px;font-size:12px">
+  <select class="widget-select-input" name="${path}" data-path="${path}" style="width:100%;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);padding:3px 6px;font-size:12px">
     ${optsHtml}
   </select>
+  <div class="widget-select-pills" style="display:none">${pillsHtml}</div>
+  <div class="widget-select-radios" style="display:none">${radiosHtml}</div>
 </div>`;
   }
 
@@ -830,8 +994,8 @@ export class WidgetRenderer {
     const path  = esc(w.path  ?? "");
     const segs  = Math.min(12, Math.max(2, Number(w.segments ?? 4)));
     const filled = Number(this._get(doc, w.path, 0)) || 0;
-    const col   = esc(w.color   ?? "#e0a020");
-    const bg    = esc(w.bgColor ?? "#1a1a2a");
+    const col   = esc(w.color   ?? "var(--sd-warn)");
+    const bg    = esc(w.bgColor ?? "var(--sd-bg)");
     const pipSz = Number(w.pipSize) > 0 ? Number(w.pipSize) : 0;
     const size  = pipSz > 0 ? Math.max(20, pipSz * Math.min(segs, 6)) : 64;
     const sw    = Number(w.pipBorder) > 0 ? Number(w.pipBorder) : 1.5;
@@ -850,7 +1014,7 @@ export class WidgetRenderer {
       const fill = i < filled ? col : bg;
       slices.push(
         `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z"
-          fill="${fill}" stroke="#2a2a3a" stroke-width="${sw}"
+          fill="${fill}" stroke="var(--sd-bg-3)" stroke-width="${sw}"
           class="sd-clock-segment" data-path="${path}" data-index="${i}" data-segs="${segs}"
           style="cursor:pointer;transition:opacity .1s" />`
       );
@@ -860,15 +1024,15 @@ export class WidgetRenderer {
     <span class="widget-label">${lbl}</span>
     <button type="button" class="sd-clock-reset" data-path="${path}" data-segs="${segs}"
       title="Reset clock to 0"
-      style="background:none;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:#555;
+      style="background:none;border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-text-3);
              cursor:pointer;font-size:9px;padding:0 5px;line-height:1.6;
              transition:color .15s,border-color .15s"
-      onmouseover="this.style.color='#e05050';this.style.borderColor='#e05050'"
-      onmouseout="this.style.color='#555';this.style.borderColor='#3a3a52'">↺</button>
+      onmouseover="this.style.color='var(--sd-danger)';this.style.borderColor='var(--sd-danger)'"
+      onmouseout="this.style.color='#555';this.style.borderColor='var(--sd-border)'">↺</button>
   </div>
   <svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="overflow:visible">
     ${slices.join("\n    ")}
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#3a3a52" stroke-width="1.5"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--sd-border)" stroke-width="1.5"/>
     <text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="11" fill="#ccc" pointer-events="none">${filled}/${segs}</text>
   </svg>
 </div>`;
@@ -892,36 +1056,67 @@ export class WidgetRenderer {
     }
     maxVal = Math.min(Math.max(1, Math.round(maxVal)), 50);
 
-    const col   = esc(w.color      ?? "#e04040");
-    const bg    = esc(w.emptyColor ?? w.bgColor ?? "#2a2a3a");
-    const icon  = esc(w.icon       ?? "fa-circle");
-    const size  = Math.min(48, Math.max(8, Number(w.pipSize) > 0 ? Number(w.pipSize) : 14));
+    const col       = esc(w.color      ?? "#e04040");
+    const bg        = esc(w.emptyColor ?? w.bgColor ?? "var(--sd-bg-3)");
+    const iconFull  = esc(this._faClass(w.icon ?? "fa-circle"));
+    // Optional alternate icon rendered on empty pips (blank = use same glyph).
+    const iconEmptyFull = w.emptyIcon
+      ? esc(this._faClass(w.emptyIcon))
+      : iconFull;
+    // Optional custom images. When `iconImg` is set the filled pip is
+    // rendered as an `<img>` instead of an FA glyph; same for
+    // `emptyIconImg` on the empty side. Picking happens via the
+    // `image-pick` field in widget-registry.mjs (FilePicker callback in
+    // widget-config-popup.mjs).
+    const iconImg      = w.iconImg      ? esc(String(w.iconImg))      : "";
+    const emptyIconImg = w.emptyIconImg ? esc(String(w.emptyIconImg)) : "";
+    const glow      = w.glow === false ? 0 : 1;
+    const size      = Math.min(48, Math.max(8, Number(w.pipSize) > 0 ? Number(w.pipSize) : 14));
 
     const pips = [];
     for (let i = 0; i < maxVal; i++) {
       const active = i < filled;
-      pips.push(
-        `<i class="fas ${icon} sd-tracker-pip"
-            data-path="${path}" data-index="${i}" data-max="${maxVal}"
-            title="${i+1}/${maxVal} — click to fill, click filled to unfill"
-            style="font-size:${size}px;cursor:pointer;
-                   color:${active ? col : bg};
-                   text-shadow:${active ? `0 0 ${Math.round(size*0.45)}px ${col}` : "none"};
-                   transition:color .12s ease, text-shadow .12s ease, transform .08s ease"></i>`
-      );
+      const useImg = active ? iconImg : (emptyIconImg || iconImg);
+      const shadow = (active && glow)
+        ? `0 0 ${Math.round(size*0.45)}px ${col}`
+        : "none";
+      if (useImg) {
+        pips.push(
+          `<img src="${useImg}" class="sd-tracker-pip" draggable="false"
+              data-path="${path}" data-index="${i}" data-max="${maxVal}"
+              title="${i+1}/${maxVal} — click to fill, click filled to unfill"
+              style="width:${size}px;height:${size}px;cursor:pointer;border-radius:3px;
+                     opacity:${active ? 1 : .35};
+                     filter:${active ? "none" : "grayscale(.85)"};
+                     box-shadow:${shadow};
+                     transition:opacity .12s ease, filter .12s ease, box-shadow .12s ease, transform .08s ease;
+                     object-fit:cover;-webkit-user-drag:none;user-select:none">`
+        );
+      } else {
+        const iconCls = active ? iconFull : iconEmptyFull;
+        pips.push(
+          `<i class="${iconCls} sd-tracker-pip"
+              data-path="${path}" data-index="${i}" data-max="${maxVal}"
+              title="${i+1}/${maxVal} — click to fill, click filled to unfill"
+              style="font-size:${size}px;cursor:pointer;
+                     color:${active ? col : bg};
+                     text-shadow:${shadow};
+                     transition:color .12s ease, text-shadow .12s ease, transform .08s ease"></i>`
+        );
+      }
     }
 
     return `<div class="widget widget-tracker" style="display:flex;flex-direction:column;gap:2px">
   <div style="display:flex;align-items:center;gap:6px">
     <span class="widget-label">${lbl}</span>
-    <span style="font-size:9px;color:#777">${filled}/${maxVal}</span>
+    <span style="font-size:9px;color:var(--sd-text-3)">${filled}/${maxVal}</span>
     <button type="button" class="sd-tracker-reset" data-path="${path}"
       title="Reset tracker to 0"
-      style="background:none;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:#555;
+      style="background:none;border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-text-3);
              cursor:pointer;font-size:9px;padding:0 5px;line-height:1.6;margin-left:auto;
              transition:color .15s,border-color .15s"
-      onmouseover="this.style.color='#e05050';this.style.borderColor='#e05050'"
-      onmouseout="this.style.color='#555';this.style.borderColor='#3a3a52'">↺</button>
+      onmouseover="this.style.color='var(--sd-danger)';this.style.borderColor='var(--sd-danger)'"
+      onmouseout="this.style.color='#555';this.style.borderColor='var(--sd-border)'">↺</button>
   </div>
   <div class="sd-tracker-row" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:2px 0">
     ${pips.join("\n    ")}
@@ -933,29 +1128,39 @@ export class WidgetRenderer {
   static _render_counter(w, doc) {
     const e    = this._esc;
     const val  = Number(this._get(doc, w.path, 0)) || 0;
-    const col  = e(w.color ?? "#e0a020");
+    const col  = e(w.color ?? "var(--sd-warn)");
     const step = Number(w.step ?? 1) || 1;
-    return `<div class="widget widget-counter" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0">
-  <div class="widget-label" style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#98a6c6">${e(w.label ?? "Counter")}</div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <button type="button" class="num-btn" data-action="widgetNumStep"
+    // Compute the fill percentage so the `wheel` variant (and any future
+    // gauge-style skin) can reflect the current value via the
+    // `--sd-progress` CSS variable. Falls back to 0% when min/max are
+    // not configured or non-numeric.
+    const minN = (w.min === "" || w.min == null) ? null : Number(w.min);
+    const maxN = (w.max === "" || w.max == null) ? null : Number(w.max);
+    const hasRange = Number.isFinite(minN) && Number.isFinite(maxN) && maxN > minN;
+    const pct = hasRange
+      ? Math.round(Math.clamp((val - minN) / (maxN - minN), 0, 1) * 100)
+      : 0;
+    return `<div class="widget widget-counter" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;--sd-progress:${pct}%">
+  <div class="widget-label cnt-lbl" style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--sd-text-2)">${e(w.label ?? "Counter")}</div>
+  <div class="cnt-row" style="display:flex;align-items:center;gap:8px">
+    <button type="button" class="num-btn cnt-btn cnt-btn-dec" data-action="widgetNumStep"
             data-path="${e(w.path)}" data-step="-${step}"
             data-min="${w.min ?? ""}" data-max="${w.max ?? ""}"
             style="font-size:16px;width:28px;height:28px;border-radius:6px;
-                   background:#1a1a24;border:1px solid ${col}66;color:${col};
+                   background:var(--sd-bg);border:1px solid ${col}66;color:${col};
                    cursor:pointer;transition:all .12s"
             onmouseover="this.style.background='${col}22'"
-            onmouseout="this.style.background='#1a1a24'">−</button>
-    <div style="font-size:22px;font-weight:700;min-width:38px;text-align:center;color:${col};
-                text-shadow:0 0 8px ${col}55">${val}</div>
-    <button type="button" class="num-btn" data-action="widgetNumStep"
+            onmouseout="this.style.background='var(--sd-bg)'">−</button>
+    <div class="cnt-val" data-progress="${pct}" style="font-size:22px;font-weight:700;min-width:38px;text-align:center;color:${col};
+                text-shadow:0 0 8px ${col}55;--sd-progress:${pct}%">${val}</div>
+    <button type="button" class="num-btn cnt-btn cnt-btn-inc" data-action="widgetNumStep"
             data-path="${e(w.path)}" data-step="${step}"
             data-min="${w.min ?? ""}" data-max="${w.max ?? ""}"
             style="font-size:16px;width:28px;height:28px;border-radius:6px;
-                   background:#1a1a24;border:1px solid ${col}66;color:${col};
+                   background:var(--sd-bg);border:1px solid ${col}66;color:${col};
                    cursor:pointer;transition:all .12s"
             onmouseover="this.style.background='${col}22'"
-            onmouseout="this.style.background='#1a1a24'">+</button>
+            onmouseout="this.style.background='var(--sd-bg)'">+</button>
   </div>
 </div>`;
   }
@@ -965,7 +1170,7 @@ export class WidgetRenderer {
     const e    = this._esc;
     const raw  = w.formula ?? "1d20";
     const col  = e(w.color ?? "#5a9ae0");
-    const icon = e(w.icon ?? "fa-dice-d20");
+    const icon = e(this._faClass(w.icon ?? "fa-dice-d20"));
     const hasRefs = FormulaEngine.isFormula(raw);
     const display = hasRefs ? FormulaEngine.resolveForRoll(raw, doc) : raw;
     return `<div class="widget widget-roll-button" style="display:flex;flex-direction:column;align-items:stretch;padding:2px 0">
@@ -982,7 +1187,7 @@ export class WidgetRenderer {
                  transition:all .15s; box-shadow:0 1px 2px #0006"
           onmouseover="this.style.background='linear-gradient(135deg, ${col}55, ${col}22)';this.style.borderColor='${col}';this.style.transform='translateY(-1px)'"
           onmouseout="this.style.background='linear-gradient(135deg, ${col}33, ${col}11)';this.style.borderColor='${col}88';this.style.transform='none'">
-    <i class="fas ${icon}" style="color:${col};font-size:16px"></i>
+    <i class="${icon}" style="color:${col};font-size:16px"></i>
     <span style="flex:1">${e(w.label ?? "Roll")}</span>
     <span style="opacity:.7;font-size:10px;font-weight:400">${e(display)}</span>
   </button>
@@ -1005,23 +1210,51 @@ export class WidgetRenderer {
     }
     maxVal = Math.min(Math.max(1, Math.round(maxVal)), 50);
 
-    const col   = e(w.color      ?? "#f0c040");
-    const bg    = e(w.emptyColor ?? w.bgColor ?? "#2a2a3a");
-    const icon  = e(w.icon       ?? "fa-coins");
-    const size  = Math.min(48, Math.max(8, Number(w.pipSize) > 0 ? Number(w.pipSize) : 16));
+    const col       = e(w.color      ?? "#f0c040");
+    const bg        = e(w.emptyColor ?? w.bgColor ?? "var(--sd-bg-3)");
+    const iconFull  = e(this._faClass(w.icon ?? "fa-coins"));
+    const iconEmptyFull = w.emptyIcon
+      ? e(this._faClass(w.emptyIcon))
+      : iconFull;
+    // See `_render_tracker` — same image-override semantics: when set,
+    // `iconImg` (and optionally `emptyIconImg`) replace the FA glyph
+    // with a user-picked image.
+    const iconImg      = w.iconImg      ? e(String(w.iconImg))      : "";
+    const emptyIconImg = w.emptyIconImg ? e(String(w.emptyIconImg)) : "";
+    const glow      = w.glow === false ? 0 : 1;
+    const size      = Math.min(48, Math.max(8, Number(w.pipSize) > 0 ? Number(w.pipSize) : 16));
 
     const pips = [];
     for (let i = 0; i < maxVal; i++) {
       const active = i < filled;
-      pips.push(
-        `<i class="fas ${icon} sd-tracker-pip"
-            data-path="${path}" data-index="${i}" data-max="${maxVal}"
-            title="${i+1}/${maxVal}"
-            style="font-size:${size}px;cursor:pointer;
-                   color:${active ? col : bg};
-                   text-shadow:${active ? `0 0 ${Math.round(size*0.45)}px ${col}` : "none"};
-                   transition:color .12s ease, text-shadow .12s ease"></i>`
-      );
+      const useImg = active ? iconImg : (emptyIconImg || iconImg);
+      const shadow = (active && glow)
+        ? `0 0 ${Math.round(size*0.45)}px ${col}`
+        : "none";
+      if (useImg) {
+        pips.push(
+          `<img src="${useImg}" class="sd-tracker-pip" draggable="false"
+              data-path="${path}" data-index="${i}" data-max="${maxVal}"
+              title="${i+1}/${maxVal}"
+              style="width:${size}px;height:${size}px;cursor:pointer;border-radius:3px;
+                     opacity:${active ? 1 : .35};
+                     filter:${active ? "none" : "grayscale(.85)"};
+                     box-shadow:${shadow};
+                     transition:opacity .12s ease, filter .12s ease, box-shadow .12s ease;
+                     object-fit:cover;-webkit-user-drag:none;user-select:none">`
+        );
+      } else {
+        const iconCls = active ? iconFull : iconEmptyFull;
+        pips.push(
+          `<i class="${iconCls} sd-tracker-pip"
+              data-path="${path}" data-index="${i}" data-max="${maxVal}"
+              title="${i+1}/${maxVal}"
+              style="font-size:${size}px;cursor:pointer;
+                     color:${active ? col : bg};
+                     text-shadow:${shadow};
+                     transition:color .12s ease, text-shadow .12s ease"></i>`
+        );
+      }
     }
 
     return `<div class="widget widget-token-pool" style="display:flex;flex-direction:column;gap:3px">
@@ -1033,12 +1266,12 @@ export class WidgetRenderer {
               data-path="${path}" data-step="-1" data-min="0" data-max="${maxVal}"
               title="Spend one"
               style="width:22px;height:22px;font-size:12px;border-radius:4px;
-                     background:#1a1a24;border:1px solid ${col}66;color:${col};cursor:pointer">−</button>
+                     background:var(--sd-bg);border:1px solid ${col}66;color:${col};cursor:pointer">−</button>
       <button type="button" class="num-btn" data-action="widgetNumStep"
               data-path="${path}" data-step="1" data-min="0" data-max="${maxVal}"
               title="Gain one"
               style="width:22px;height:22px;font-size:12px;border-radius:4px;
-                     background:#1a1a24;border:1px solid ${col}66;color:${col};cursor:pointer">+</button>
+                     background:var(--sd-bg);border:1px solid ${col}66;color:${col};cursor:pointer">+</button>
     </div>
   </div>
   <div class="sd-token-row" style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;padding:2px 0">
@@ -1056,7 +1289,7 @@ export class WidgetRenderer {
     const compact = w.compact === true;
 
     if (!data || typeof data !== "object") {
-      return `<div class="widget widget-dice-tray" style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:#1a1a24;border:1px dashed ${col}44;border-radius:6px;color:#777;font-size:11px">
+      return `<div class="widget widget-dice-tray" style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--sd-bg);border:1px dashed ${col}44;border-radius:6px;color:var(--sd-text-3);font-size:11px">
   <i class="fas fa-dice" style="color:${col}"></i>
   <span>${e(w.label ?? "Last Roll")}: <em>no rolls yet</em></span>
 </div>`;
@@ -1072,7 +1305,7 @@ export class WidgetRenderer {
   <i class="fas fa-dice" style="color:${col}"></i>
   <span style="font-size:10px;color:#98a6c6">${e(w.label ?? "Last Roll")}</span>
   <span style="font-size:16px;font-weight:700;color:${col}">${total}</span>
-  <span style="font-size:10px;color:#777;margin-left:auto">${formula}${flavor ? ` · ${flavor}` : ""}</span>
+  <span style="font-size:10px;color:var(--sd-text-3);margin-left:auto">${formula}${flavor ? ` · ${flavor}` : ""}</span>
 </div>`;
     }
 
@@ -1087,7 +1320,7 @@ export class WidgetRenderer {
     <span style="font-size:22px;font-weight:700;color:${col};margin-left:auto;text-shadow:0 0 8px ${col}88">${total}</span>
   </div>
   ${diceHtml ? `<div style="display:flex;flex-wrap:wrap;gap:3px">${diceHtml}</div>` : ""}
-  <div style="font-size:9px;color:#777;font-family:monospace">${formula}${flavor ? ` · ${flavor}` : ""}</div>
+  <div style="font-size:9px;color:var(--sd-text-3);font-family:monospace">${formula}${flavor ? ` · ${flavor}` : ""}</div>
 </div>`;
   }
 
@@ -1098,20 +1331,20 @@ export class WidgetRenderer {
     const path  = esc(w.path  ?? "");
     const raw   = String(this._get(doc, w.path, ""));
     const col   = esc(w.color ?? "#5a6a9a");
-    const fg    = esc(w.tagFg ?? "#c0c0d8");
+    const fg    = esc(w.tagFg ?? "var(--sd-text-2)");
     const tags  = raw.split(",").map(t => t.trim()).filter(Boolean);
     const pills = tags.map(t =>
       `<span class="sd-tag-pill" style="background:${col}22;border:1px solid ${col}55;
         border-radius:10px;padding:1px 8px;font-size:10px;color:${fg};white-space:nowrap">${esc(t)}
         <span class="sd-tag-remove" data-path="${path}" data-tag="${esc(t)}"
-          style="cursor:pointer;margin-left:3px;color:var(--sd-w-label,#888);font-size:9px" title="Remove">✕</span>
+          style="cursor:pointer;margin-left:3px;color:var(--sd-w-label, var(--sd-text-3));font-size:9px" title="Remove">✕</span>
       </span>`
     ).join("\n    ");
     return `<div class="widget widget-tags">
   <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
     <span class="widget-label">${lbl}</span>
     <button type="button" class="sd-tag-add" data-path="${path}"
-      style="background:none;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:var(--sd-w-label,#888);
+      style="background:none;border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-w-label, var(--sd-text-3));
              font-size:9px;padding:0 5px;cursor:pointer;line-height:1.6" title="Add tag">+</button>
   </div>
   <div class="sd-tag-container" data-path="${path}"
@@ -1137,13 +1370,13 @@ export class WidgetRenderer {
     const imgStyle  = `width:${ww}px;height:${hh}px;object-fit:cover;${brCSS}display:block;${borderCSS}box-sizing:border-box`;
     const imgEl     = src
       ? `<img src="${src}" style="${imgStyle}" alt="${lbl || "image"}">`
-      : `<div style="${imgStyle};background:#1a1a28;${bd ? "" : "border:1px dashed #3a3a52;"}display:flex;align-items:center;justify-content:center;color:#3a3a52;font-size:20px"><i class="fas fa-image"></i></div>`;
+      : `<div style="${imgStyle};background:var(--sd-bg);${bd ? "" : "border:1px dashed var(--sd-border);"}display:flex;align-items:center;justify-content:center;color:var(--sd-border);font-size:20px"><i class="fas fa-image"></i></div>`;
 
     const pencilBtn = `<button type="button" class="sd-img-pick sd-img-pencil"
          data-static="1" data-current="${src}"
          title="Выбрать изображение"
          style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);
-                border:none;border-radius:3px;color:#c0c0d8;cursor:pointer;
+                border:none;border-radius:3px;color:var(--sd-text-2);cursor:pointer;
                 padding:1px 5px;font-size:11px;line-height:16px;opacity:0;
                 transition:opacity .15s"><i class="fas fa-folder-open"></i></button>`;
 
@@ -1172,7 +1405,7 @@ export class WidgetRenderer {
       : String(val);
     return `<div class="widget widget-derived">
   <div class="widget-label">${lbl}</div>
-  <div class="widget-derived-value" style="font-size:18px;font-weight:700;text-align:center;color:#c0c0e8;letter-spacing:.02em">${esc(String(disp))}</div>
+  <div class="widget-derived-value" style="font-size:18px;font-weight:700;text-align:center;color:var(--sd-text);letter-spacing:.02em">${esc(String(disp))}</div>
 </div>`;
   }
 
@@ -1230,7 +1463,7 @@ export class WidgetRenderer {
            data-action="cardClick"
            data-click-mode="${e(click)}" data-run-on="${e(runOn)}"
            data-action-graph="${e(actionGraphRaw)}"
-           style="position:relative;display:inline-block;flex:0 0 ${cardW}px;width:${cardW}px;height:${Math.round(cardW*1.4)}px;border-radius:6px;overflow:hidden;background:#0c0c14;border:1px solid #2a2a3a;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:${click==='none'?'default':'pointer'};transition:transform .1s">
+           style="position:relative;display:inline-block;flex:0 0 ${cardW}px;width:${cardW}px;height:${Math.round(cardW*1.4)}px;border-radius:6px;overflow:hidden;background:#0c0c14;border:1px solid var(--sd-bg-3);box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:${click==='none'?'default':'pointer'};transition:transform .1s">
         <img src="${e(img)}" alt="${e(c.name ?? "Card")}" loading="lazy"
              style="width:100%;height:100%;object-fit:cover;display:block;${isBack?'filter:brightness(.85)':''}">
         <button type="button" class="sd-card-flip" data-action="cardFlip"
@@ -1262,14 +1495,14 @@ export class WidgetRenderer {
       // strip — horizontal scroller with buttons
       body = `<div class="sd-cardhand-strip-wrap" style="position:relative;display:flex;align-items:center;gap:6px">
         <button type="button" class="sd-card-strip-prev" data-action="cardStripScroll" data-dir="-1"
-                style="flex-shrink:0;width:24px;height:36px;background:rgba(20,20,30,.85);border:1px solid #2a2a3a;border-radius:4px;color:#aaa;cursor:pointer;font-size:11px;padding:0">
+                style="flex-shrink:0;width:24px;height:36px;background:rgba(20,20,30,.85);border:1px solid var(--sd-bg-3);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:0">
           <i class="fas fa-chevron-left"></i>
         </button>
         <div class="sd-cardhand-strip" style="flex:1;display:flex;gap:6px;overflow-x:auto;scroll-behavior:smooth;padding:4px 2px;scrollbar-width:thin">
           ${shown.map(cardEl).join("")}
         </div>
         <button type="button" class="sd-card-strip-next" data-action="cardStripScroll" data-dir="1"
-                style="flex-shrink:0;width:24px;height:36px;background:rgba(20,20,30,.85);border:1px solid #2a2a3a;border-radius:4px;color:#aaa;cursor:pointer;font-size:11px;padding:0">
+                style="flex-shrink:0;width:24px;height:36px;background:rgba(20,20,30,.85);border:1px solid var(--sd-bg-3);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:0">
           <i class="fas fa-chevron-right"></i>
         </button>
       </div>`;
@@ -1282,15 +1515,15 @@ export class WidgetRenderer {
     const actionBar = !showActions ? "" : `
       <div class="sd-cardhand-actions" style="display:flex;gap:4px;margin-top:4px">
         <button type="button" data-action="cardStackShuffle" data-stack-uuid="${e(stackUuid)}" title="Shuffle"
-                style="background:#1a1a2a;border:1px solid #2a2a3a;border-radius:3px;color:#aaa;cursor:pointer;font-size:11px;padding:3px 8px">
+                style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:3px 8px">
           <i class="fas fa-shuffle"></i> Shuffle
         </button>
         <button type="button" data-action="cardStackRecall" data-stack-uuid="${e(stackUuid)}" title="Recall"
-                style="background:#1a1a2a;border:1px solid #2a2a3a;border-radius:3px;color:#aaa;cursor:pointer;font-size:11px;padding:3px 8px">
+                style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:3px 8px">
           <i class="fas fa-arrow-rotate-left"></i> Recall
         </button>
         <button type="button" data-action="cardStackFlipAll" data-stack-uuid="${e(stackUuid)}" title="Flip all"
-                style="background:#1a1a2a;border:1px solid #2a2a3a;border-radius:3px;color:#aaa;cursor:pointer;font-size:11px;padding:3px 8px">
+                style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:3px 8px">
           <i class="fas fa-arrows-rotate"></i> Flip All
         </button>
       </div>`;
@@ -1324,7 +1557,7 @@ export class WidgetRenderer {
               data-from-uuid="${e(deck.uuid)}" data-from-name="${e(w.fromName ?? "")}"
               data-to-uuid="${e(w.toUuid ?? "")}" data-to-name="${e(w.toName ?? "")}"
               data-count="${Number(w.count ?? 1)}" data-how="${e(w.how ?? "top")}"
-              style="position:relative;display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;background:#1a1a2a;border:1px solid #4a3a6a;border-radius:5px;color:#bcb1d4;cursor:pointer">
+              style="position:relative;display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;background:var(--sd-bg);border:1px solid #4a3a6a;border-radius:5px;color:#bcb1d4;cursor:pointer">
         <img src="${e(thumb)}" alt="" style="width:38px;height:54px;object-fit:cover;border-radius:3px;flex-shrink:0">
         <span style="flex:1;text-align:left;font-size:12px;font-weight:600">${lbl}</span>
         ${showCount ? `<span style="font-size:10px;opacity:.7;padding:2px 6px;background:rgba(0,0,0,.35);border-radius:8px">${remain}</span>` : ""}
@@ -1339,7 +1572,7 @@ export class WidgetRenderer {
     const equipped = ab.system?.equipped ? "equipped" : "";
 
     const costBadge = (cost > 0)
-      ? `<span class="sb-ability-cost" style="font-size:10px;color:#9d8fff;white-space:nowrap" title="${esc(pathUses || "no resource path")}">${cost}</span>`
+      ? `<span class="sb-ability-cost" style="font-size:10px;color:var(--sd-accent);white-space:nowrap" title="${esc(pathUses || "no resource path")}">${cost}</span>`
       : "";
 
     return `
@@ -1358,14 +1591,14 @@ export class WidgetRenderer {
                   data-item-id="${esc(ab.id)}"
                   title="Use ${esc(ab.name)}"
                   style="background:#1a3a1a;border:1px solid #2a5a2a;border-radius:3px;
-                         color:#5ae07a;cursor:pointer;font-size:10px;padding:1px 6px;line-height:16px">
+                         color:var(--sd-stamina);cursor:pointer;font-size:10px;padding:1px 6px;line-height:16px">
             <i class="fas fa-play"></i>
           </button>
           <button type="button" data-action="abilityEdit"
                   data-item-id="${esc(ab.id)}"
                   title="Edit"
-                  style="background:#1a1a2a;border:1px solid #2a2a3a;border-radius:3px;
-                         color:var(--sd-w-label,#888);cursor:pointer;font-size:10px;padding:1px 6px;line-height:16px">
+                  style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;
+                         color:var(--sd-w-label, var(--sd-text-3));cursor:pointer;font-size:10px;padding:1px 6px;line-height:16px">
             <i class="fas fa-pen"></i>
           </button>
           <button type="button" data-action="abilityDelete"
@@ -1391,10 +1624,10 @@ export class WidgetRenderer {
   static _render_inventory_compact(w, doc, items) {
     const e   = this._esc;
     const lbl = e(w.label || "Inventory");
-    const ic  = e(w.icon || "fa-backpack");
+    const ic  = e(this._faClass(w.icon || "fa-backpack"));
     if (!items || items.length === 0) {
       return `<div class="widget widget-inventory widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
   <div class="sd-hud-pop-body sd-hud-pop-empty"><i class="fas fa-backpack"></i> No items</div>
 </details></div>`;
     }
@@ -1416,7 +1649,7 @@ export class WidgetRenderer {
       </li>`;
     }
     return `<div class="widget widget-inventory widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${items.length}</span></summary>
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${items.length}</span></summary>
   <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
 </details></div>`;
   }
@@ -1424,10 +1657,10 @@ export class WidgetRenderer {
   static _render_effects_compact(w, doc, effects, canEdit) {
     const e   = this._esc;
     const lbl = e(w.label || "Effects");
-    const ic  = e(w.icon || "fa-sparkles");
+    const ic  = e(this._faClass(w.icon || "fa-sparkles"));
     if (!effects || effects.length === 0) {
       return `<div class="widget widget-effects widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
   <div class="sd-hud-pop-body sd-hud-pop-empty"><i class="fas fa-sparkles"></i> No effects</div>
 </details></div>`;
     }
@@ -1442,7 +1675,7 @@ export class WidgetRenderer {
       </li>`;
     }
     return `<div class="widget widget-effects widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${effects.length}</span></summary>
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${effects.length}</span></summary>
   <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
 </details></div>`;
   }
@@ -1450,10 +1683,10 @@ export class WidgetRenderer {
   static _render_spellbook_compact(w, doc, abilities, wantType) {
     const e   = this._esc;
     const lbl = e(w.label || (wantType ? wantType : "Spellbook"));
-    const ic  = e(w.icon || "fa-book-sparkles");
+    const ic  = e(this._faClass(w.icon || "fa-book-sparkles"));
     if (!abilities || abilities.length === 0) {
       return `<div class="widget widget-spellbook widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
   <div class="sd-hud-pop-body sd-hud-pop-empty"><i class="fas fa-book-sparkles"></i> No abilities</div>
 </details></div>`;
     }
@@ -1469,7 +1702,7 @@ export class WidgetRenderer {
       </li>`;
     }
     return `<div class="widget widget-spellbook widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${abilities.length}</span></summary>
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${abilities.length}</span></summary>
   <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
 </details></div>`;
   }
@@ -1479,57 +1712,139 @@ export class WidgetRenderer {
   static _render_attributeGroup(w, doc) {
     const e   = this._esc;
     const lbl = e(w.label || "Attributes");
-    const ic  = e(w.icon || "fa-dice-d20");
+    const ic  = e(this._faClass(w.icon || "fa-dice-d20"));
     if (!(doc instanceof Actor)) {
       return `<div class="widget widget-attribute-group widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span></summary>
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span></summary>
   <div class="sd-hud-pop-body sd-hud-pop-empty">Actor required</div>
 </details></div>`;
     }
 
-    // Source: explicit list, or all keys under system.attributes
-    const explicit = String(w.attributeKeys ?? "").trim();
-    let keys = [];
+    // Source: explicit list, or all enabled keys from CONFIG.SD.attributes
+    // (the per-system label map populated from System Settings; this is
+    // what the user means by "real attributes" — Strength/Dexterity/...
+    // not the raw schema keys attr1..attr6).
+    const cfgLabels  = CONFIG?.SD?.attributes ?? {};
+    const cfgEnabled = CONFIG?.SD?.attributesEnabled ?? {};
+    const explicit   = String(w.attributeKeys ?? "").trim();
+
+    /**
+     * Normalise a single token from the comma list. Accepts either a bare
+     * key (`attr1`, `strength`) or a full data-path
+     * (`system.attributes.attr1.value` / `system.attributes.str.score`).
+     * Returns `{ key, scorePath }` where `key` is the key under
+     * `system.attributes` (used to look up the display name in
+     * `CONFIG.SD.attributes`) and `scorePath` is the writable path the
+     * input binds to.
+     */
+    const parseToken = (raw) => {
+      const s = String(raw).trim();
+      if (!s) return null;
+      // Full path?
+      if (s.includes(".")) {
+        let p = s.replace(/^\.+|\.+$/g, "");
+        // Strip a leaf segment if it's score/value/mod so we can derive
+        // the attribute key from the segment immediately before it.
+        let key = "";
+        const m = p.match(/^system\.attributes\.([^.]+)(?:\.(?:value|score|mod))?$/);
+        if (m) {
+          key = m[1];
+          // Always render against `.value` for editability.
+          return { key, scorePath: `system.attributes.${key}.value` };
+        }
+        // Non-attribute path (e.g. `system.combat.strength`). Use the last
+        // segment as the key, and the path verbatim as the score path.
+        const segs = p.split(".");
+        key = segs[segs.length - 1];
+        return { key, scorePath: p };
+      }
+      // Bare key — assume it lives under system.attributes.<key>
+      return { key: s, scorePath: `system.attributes.${s}.value` };
+    };
+
+    let tokens;
     if (explicit) {
-      keys = explicit.split(",").map(s => s.trim()).filter(Boolean);
+      tokens = explicit.split(",").map(parseToken).filter(Boolean);
     } else {
-      const attrs = doc.system?.attributes ?? {};
-      keys = Object.keys(attrs).filter(k => {
-        const v = attrs[k];
-        return v && (typeof v === "number" || typeof v === "object");
-      });
+      // Auto: every enabled, configured attribute. Fall back to the
+      // schema keys present on the actor when CONFIG.SD has no entries
+      // (e.g. on early init or for a non-character document).
+      const cfgKeys = Object.keys(cfgLabels);
+      const sourceKeys = cfgKeys.length
+        ? cfgKeys.filter(k => cfgEnabled[k] !== false)
+        : Object.keys(doc.system?.attributes ?? {});
+      tokens = sourceKeys.map(k => ({ key: k, scorePath: `system.attributes.${k}.value` }));
     }
+
     const compute = CONFIG?.SD?.computeModifier ?? (s => Math.floor((Number(s) - 10) / 2));
 
-    let rows = "";
-    for (const key of keys) {
-      // Resolve the value: support both shapes — system.attributes.str (number)
-      // and system.attributes.str.value / .score
-      let scorePath = `system.attributes.${key}`;
+    // Resolve each attribute's score + display name. The expanded layout
+    // renders an editable `<input type="number">` bound to `scorePath`.
+    const items = tokens.map(({ key, scorePath }) => {
+      // The renderer accepts both `system.attributes.<k>` (object form,
+      // common in older configs) and `system.attributes.<k>.value`.
       let score = foundry.utils.getProperty(doc, scorePath);
       if (score && typeof score === "object") {
-        if ("score" in score) { scorePath += ".score"; score = score.score; }
-        else if ("value" in score) { scorePath += ".value"; score = score.value; }
-        else { score = 10; }
+        if ("value" in score) { scorePath = `${scorePath}.value`; score = score.value; }
+        else if ("score" in score) { scorePath = `${scorePath}.score`; score = score.score; }
       }
       score = Number(score);
       if (!Number.isFinite(score)) score = 10;
-      const mod = compute(score);
-      const ms  = mod >= 0 ? `+${mod}` : `${mod}`;
-      const dispName = key.charAt(0).toUpperCase() + key.slice(1);
-      rows += `<li class="sd-hud-pop-row" data-attr-key="${e(key)}">
-        <span class="sd-hud-pop-name">${e(dispName)}</span>
-        <span class="sd-hud-pop-qty">${e(String(score))}</span>
+      const mod    = compute(score);
+      // Prefer the System Settings label; fall back to a Title-cased key.
+      const name   = cfgLabels[key]
+        || (key.charAt(0).toUpperCase() + key.slice(1));
+      return {
+        key,
+        path:   scorePath,
+        score,
+        mod,
+        modStr: mod >= 0 ? `+${mod}` : `${mod}`,
+        name
+      };
+    });
+
+    // Compact (HUD) rendering: collapsed popover with rows. Only used
+    // when the widget is explicitly marked compact (action HUD / a
+    // small-form context); the character sheet path falls through to
+    // the expanded layout below.
+    if (w.compact) {
+      const rows = items.map(it => `<li class="sd-hud-pop-row" data-attr-key="${e(it.key)}">
+        <span class="sd-hud-pop-name">${e(it.name)}</span>
+        <span class="sd-hud-pop-qty">${e(String(it.score))}</span>
         <button type="button" data-action="widgetRoll"
-                data-formula="1d20+(${mod})" data-formula-raw="1d20+(${mod})"
-                data-flavor="${e(dispName)}"
-                title="Roll ${e(dispName)} (${ms})">${ms}</button>
-      </li>`;
-    }
-    return `<div class="widget widget-attribute-group widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${keys.length}</span></summary>
+                data-formula="1d20+(${it.mod})" data-formula-raw="1d20+(${it.mod})"
+                data-flavor="${e(it.name)}"
+                title="Roll ${e(it.name)} (${it.modStr})">${it.modStr}</button>
+      </li>`).join("");
+      return `<div class="widget widget-attribute-group widget-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${keys.length}</span></summary>
   <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
 </details></div>`;
+    }
+
+    // Expanded rendering (character sheet, item sheet body). Each item
+    // is an `.attr-item` card with the attribute name, an editable
+    // score input and a clickable modifier button. Variants in
+    // `sd-widget-variants.css` reshape the container:
+    //   sd-v-row    → flex row, cards wrap horizontally
+    //   sd-v-grid   → CSS grid, equal-width cards
+    //   sd-v-dice   → dice-style modifier buttons
+    const cards = items.map(it => `<div class="attr-item" data-attr-key="${e(it.key)}">
+    <span class="attr-item-name">${e(it.name)}</span>
+    <input type="number" class="attr-item-score" name="${e(it.path)}" value="${e(it.score)}">
+    <button type="button" class="attr-item-mod" data-action="widgetRoll"
+            data-formula="1d20+(${it.mod})" data-formula-raw="1d20+(${it.mod})"
+            data-flavor="${e(it.name)}"
+            title="Roll ${e(it.name)} (${it.modStr})">${it.modStr}</button>
+  </div>`).join("");
+    const header = w.label
+      ? `<div class="widget-label" style="display:flex;align-items:center;gap:6px"><i class="${ic}"></i>${lbl}</div>`
+      : "";
+    return `<div class="widget widget-attribute-group">
+  ${header}
+  <div class="attr-group-body">${cards}</div>
+</div>`;
   }
 }
 

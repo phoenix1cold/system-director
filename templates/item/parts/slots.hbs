@@ -27,7 +27,7 @@
                  data-action="updateSlotDef" data-index="{{slotIdx}}" data-field="maxCount"
                  value="{{slot.def.maxCount}}" min="1"
                  style="width:52px;text-align:center" title="Max items" />
-          <label style="display:flex;align-items:center;gap:4px;font-size:11px;text-transform:none;color:#a0a0c0;cursor:pointer">
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;text-transform:none;color:var(--sd-text-2);cursor:pointer">
             <input type="checkbox" data-action="updateSlotDef" data-index="{{slotIdx}}" data-field="removable"
                    {{#if slot.def.removable}}checked{{/if}} />
             Removable
@@ -80,7 +80,7 @@
           <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
             {{#each slot.def.attrFilters as |f fIdx|}}
             <div class="attr-filter-row">
-              <span style="font-size:10px;color:#7b68ee;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px" title="{{f.fieldPath}}">
+              <span style="font-size:10px;color:var(--sd-accent);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px" title="{{f.fieldPath}}">
                 {{#if f.fieldLabel}}{{f.fieldLabel}}{{else}}{{f.fieldPath}}{{/if}}
               </span>
               <select data-action="updateAttrFilter"
@@ -109,7 +109,7 @@
             {{/each}}
           </div>
           {{else}}
-          <p style="font-size:11px;color:#444;font-style:italic;margin:4px 0 0">
+          <p style="font-size:11px;color:var(--sd-text-3);font-style:italic;margin:4px 0 0">
             No filters — accepts any item matching type/category.
           </p>
           {{/if}}

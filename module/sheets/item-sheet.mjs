@@ -31,7 +31,7 @@ function _promptTabName(current = "") {
     new foundry.applications.api.DialogV2({
       modal: true,
       window: { title: "Tab Name" },
-      content: `<div style="padding:6px 0"><input type="text" name="tabName" value="${esc(current)}" style="width:100%;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px" autofocus></div>`,
+      content: `<div style="padding:6px 0"><input type="text" name="tabName" value="${esc(current)}" style="width:100%;background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text);border-radius:4px;padding:4px 8px;font-size:13px" autofocus></div>`,
       buttons: [
         { action:"save", label:"Save", icon:"fas fa-floppy-disk", default:true,
           callback:(ev,btn)=>{ resolve(readInput(btn)); } },
@@ -101,7 +101,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     if (!nav) {
       nav = document.createElement("nav");
       nav.className = "sd-tab-nav";
-      nav.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;padding:5px 12px 0;background:#22222e;border-bottom:1px solid #3a3a52;flex-shrink:0;align-items:flex-end;";
+      nav.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;padding:5px 12px 0;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;align-items:flex-end;";
       root.querySelector(".window-content")?.appendChild(nav);
     }
     nav.innerHTML = "";
@@ -127,11 +127,11 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     if (this._editMode) {
       const plus = document.createElement("a");
-      plus.style.cssText = "padding:4px 10px;font-size:11px;cursor:pointer;border-radius:4px 4px 0 0;border:1px dashed #7b68ee;border-bottom:none;color:#7b68ee;opacity:.6;display:inline-flex;align-items:center;transition:opacity .15s;";
+      plus.style.cssText = "padding:4px 10px;font-size:11px;cursor:pointer;border-radius:4px 4px 0 0;border:1px dashed var(--sd-accent);border-bottom:none;color:var(--sd-accent);opacity:.6;display:inline-flex;align-items:center;transition:opacity .15s;";
       plus.innerHTML = '<i class="fas fa-plus"></i>';
       plus.title = "Add tab";
       plus.addEventListener("click",     () => this._addTab());
-      plus.addEventListener("dragover",  ev => { ev.preventDefault(); plus.style.opacity="1"; plus.style.background="rgba(123,104,238,.15)"; });
+      plus.addEventListener("dragover",  ev => { ev.preventDefault(); plus.style.opacity="1"; plus.style.background="var(--sd-accent-glow)"; });
       plus.addEventListener("dragleave", () => { plus.style.opacity=".6"; plus.style.background=""; });
       plus.addEventListener("drop",      ev => { ev.preventDefault(); plus.style.opacity=".6"; plus.style.background=""; try { const d=JSON.parse(ev.dataTransfer.getData("text/plain")); if(d.sdType==="newTab") this._addTab(); } catch { this._addTab(); }});
       nav.appendChild(plus);
@@ -141,7 +141,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     // Save as template button
     const tplBtn = document.createElement("a");
-    tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid #3a3a52;border-bottom:none;color:#888;background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:4px;";
+    tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-border);border-bottom:none;color:var(--sd-text-2);background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:4px;";
     tplBtn.innerHTML = `<i class="fas fa-floppy-disk"></i> Template`;
     tplBtn.title = "Save sheet layout as template (use Sheet Builder → Templates → Create)";
     tplBtn.addEventListener("click", () => this._saveAsTemplate());
@@ -151,7 +151,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     if (!hidesExtras) {
       const macroBtn = document.createElement("a");
-      macroBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid #3a3a52;border-bottom:none;color:#888;background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:4px;";
+      macroBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-border);border-bottom:none;color:var(--sd-text-2);background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:4px;";
       macroBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i> Macro`;
       macroBtn.title = "Create a hotbar macro to quickly use this item";
       macroBtn.addEventListener("click", () => this._createMacro());
@@ -177,7 +177,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     a.className     = "sd-tab-btn" + (isSys?" sd-tab-sys":"");
     a.dataset.tabId = tabId;
     a.innerHTML     = labelHTML;
-    a.style.cssText = `padding:4px ${isSys?"9":"10"}px;font-size:${isSys?"10":"11"}px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid ${isActive?"#3a3a52":"transparent"};border-bottom:none;color:${isActive?(isSys?"#5ae07a":"#7b68ee"):(isSys?"#444":"#666")};background:${isActive?"#1a1a24":"transparent"};display:inline-flex;align-items:center;gap:2px;white-space:nowrap;user-select:none;`;
+    a.style.cssText = `padding:4px ${isSys?"9":"10"}px;font-size:${isSys?"10":"11"}px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid ${isActive?"var(--sd-border)":"transparent"};border-bottom:none;color:${isActive?(isSys?"var(--sd-stamina)":"var(--sd-accent)"):(isSys?"#444":"#666")};background:${isActive?"var(--sd-bg)":"transparent"};display:inline-flex;align-items:center;gap:2px;white-space:nowrap;user-select:none;`;
     if (this._editMode && !isSys) {
       a.innerHTML += ` <span data-rename="${tabId}" style="opacity:.3;font-size:9px;cursor:pointer" title="Rename">✎</span><span data-deltab="${tabId}" style="opacity:.3;font-size:9px;cursor:pointer" title="Delete">✕</span>`;
     }
@@ -195,9 +195,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     root.querySelectorAll(".sd-tab-btn").forEach(a => {
       const on   = a.dataset.tabId === tabId;
       const isSys = a.classList.contains("sd-tab-sys");
-      a.style.color       = on ? (isSys?"#5ae07a":"#7b68ee") : (isSys?"#444":"#666");
-      a.style.background  = on ? "#1a1a24" : "transparent";
-      a.style.borderColor = on ? "#3a3a52" : "transparent";
+      a.style.color       = on ? (isSys?"var(--sd-stamina)":"var(--sd-accent)") : (isSys?"#444":"#666");
+      a.style.background  = on ? "var(--sd-bg)" : "transparent";
+      a.style.borderColor = on ? "var(--sd-border)" : "transparent";
     });
     root.querySelectorAll(".sd-tab-panel").forEach(p => {
       p.style.display = p.dataset.tabId===tabId ? "flex" : "none";
@@ -223,8 +223,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     if (customTabs.length===0 && active==="" ) {
       const emp = document.createElement("div");
-      emp.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#444;";
-      emp.innerHTML = `<i class="fas fa-toolbox" style="font-size:36px;opacity:.3"></i><p style="font-size:13px;text-align:center;max-width:240px;line-height:1.6;margin:0">Click <strong style="color:#7b68ee">Builder</strong> → drag <strong>New Tab</strong> onto <strong style="color:#7b68ee">+</strong></p>`;
+      emp.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--sd-text-3);";
+      emp.innerHTML = `<i class="fas fa-toolbox" style="font-size:36px;opacity:.3"></i><p style="font-size:13px;text-align:center;max-width:240px;line-height:1.6;margin:0">Click <strong style="color:var(--sd-accent)">Builder</strong> → drag <strong>New Tab</strong> onto <strong style="color:var(--sd-accent)">+</strong></p>`;
       con.appendChild(emp);
     }
 
@@ -251,13 +251,13 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
     const el = document.createElement("div");
     el.dataset.rowId=row.id; el.dataset.tabId=tab.id; el.dataset.cols=cols;
-    el.style.cssText=`display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;align-items:start;position:relative;padding:8px;border:1px dashed rgba(123,104,238,.1);border-radius:6px;`;
+    el.style.cssText=`display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;align-items:start;position:relative;padding:8px;border:1px dashed var(--sd-accent-glow);border-radius:6px;`;
     if (this._editMode) {
       const cfg=document.createElement("button"); cfg.type="button"; cfg.innerHTML=`<i class="fas fa-cog"></i> ${cols}`; cfg.title="Row columns (1-9)";
-      cfg.style.cssText="position:absolute;top:-9px;right:32px;z-index:10;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 6px;line-height:17px;";
+      cfg.style.cssText="position:absolute;top:-9px;right:32px;z-index:10;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:0 6px;line-height:17px;";
       cfg.addEventListener("click",()=>this._configRow(tab.id,row.id)); el.appendChild(cfg);
       const del=document.createElement("button"); del.type="button"; del.textContent="✕"; del.title="Delete row";
-      del.style.cssText="position:absolute;top:-9px;right:4px;z-index:10;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#555;cursor:pointer;font-size:10px;padding:0 5px;line-height:17px;";
+      del.style.cssText="position:absolute;top:-9px;right:4px;z-index:10;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:0 5px;line-height:17px;";
       del.addEventListener("click",()=>this._deleteRow(tab.id,row.id)); el.appendChild(del);
     }
     (row.widgets??[]).forEach((w, idx)=>el.appendChild(this._buildCell(tab,row,w,idx)));
@@ -286,12 +286,17 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     let renderedHtml = "";
     try { renderedHtml = WidgetRenderer.render(w,this.document,this._editMode) ?? ""; }
-    catch(e) { renderedHtml = `<div style="color:#e05a5a;font-size:11px">Error: ${e.message}</div>`; }
+    catch(e) { renderedHtml = `<div style="color:var(--sd-hp);font-size:11px">Error: ${e.message}</div>`; }
     if (!renderedHtml?.trim() && !this._editMode) {
       cell.style.display = "none";
       return cell;
     }
     cell.innerHTML = renderedHtml;
+    // Item-sheet always routes through `WidgetRenderer.render`, so the
+    // inner widget div already carries `sd-w-<type>` / `sd-v-<variant>`
+    // / cssClass. Re-applying them to the cell would double-fire the
+    // root-level variant rules (padding / border / background) and
+    // produce nested boxes — leave the cell un-decorated.
     if (this._editMode) {
       this._makeCellDraggable(cell, tab, row, w, parentVS);
       this._attachCellOverlay(cell, tab, row, w, span, parentVS);
@@ -302,10 +307,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   _buildVSection(tab, row, vs) {
     const box = document.createElement("div");
     box.dataset.vsId = vs.id;
-    box.style.cssText = "display:flex;flex-direction:column;gap:6px;padding:6px;border:1px dashed rgba(123,104,238,.18);border-radius:5px;background:rgba(123,104,238,.03);min-height:40px;";
+    box.style.cssText = "display:flex;flex-direction:column;gap:6px;padding:6px;border:1px dashed var(--sd-accent-glow);border-radius:5px;background:rgba(123,104,238,.03);min-height:40px;";
     if (vs.label) {
       const h=document.createElement("div"); h.textContent = vs.label;
-      h.style.cssText="font-size:10px;font-weight:700;color:#7b68ee;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px";
+      h.style.cssText="font-size:10px;font-weight:700;color:var(--sd-accent);text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px";
       box.appendChild(h);
     }
     (vs.widgets ?? []).forEach((cw, idx) => { box.appendChild(this._buildCell(tab, row, cw, idx, vs)); });
@@ -334,8 +339,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const ov=document.createElement("div");
     ov.style.cssText="display:none;position:absolute;top:2px;left:2px;right:2px;z-index:20;flex-direction:row;align-items:center;justify-content:space-between;gap:6px;pointer-events:none;";
     const spanBtn = parentVS ? ""
-      : `<button type="button" data-wspan="1" style="pointer-events:auto;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Cycle width">↔${span}</button>`;
-    ov.innerHTML=`<div style="display:flex;flex-direction:row;gap:2px;align-items:center"><span title="Drag to move" style="pointer-events:auto;cursor:grab;background:#1a1a24;border:1px solid #3a3a52;border-radius:3px;color:#888;font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span><button type="button" data-wcfg="1" style="pointer-events:auto;background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Configure">⚙</button>${spanBtn}</div><div style="display:flex;flex-direction:row;gap:2px;align-items:center"><button type="button" data-wdel="1" style="pointer-events:auto;background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Remove">✕</button></div>`;
+      : `<button type="button" data-wspan="1" style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Cycle width">↔${span}</button>`;
+    ov.innerHTML=`<div style="display:flex;flex-direction:row;gap:2px;align-items:center"><span title="Drag to move" style="pointer-events:auto;cursor:grab;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span><button type="button" data-wcfg="1" style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-accent);border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Configure">⚙</button>${spanBtn}</div><div style="display:flex;flex-direction:row;gap:2px;align-items:center"><button type="button" data-wdel="1" style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-hp);border-radius:3px;color:var(--sd-hp);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Remove">✕</button></div>`;
     ov.querySelector("[data-wcfg]").addEventListener("click",ev=>{ev.stopPropagation();this._configWidget(tab,row,w);});
     ov.querySelector("[data-wspan]")?.addEventListener("click",ev=>{ev.stopPropagation();this._cycleSpan(tab,row,w);});
     ov.querySelector("[data-wdel]").addEventListener("click", ev=>{ev.stopPropagation();this._deleteWidget(tab,row,w);});
@@ -360,11 +365,11 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const toolbar = document.createElement("div");
     toolbar.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;";
     toolbar.innerHTML = `
-      <span style="font-size:12px;font-weight:700;color:#c0c0d8;flex:1">
-        <i class="fas fa-arrow-circle-up" style="color:#7b68ee;margin-right:5px"></i>Level Progression</span>
+      <span style="font-size:12px;font-weight:700;color:var(--sd-text-2);flex:1">
+        <i class="fas fa-arrow-circle-up" style="color:var(--sd-accent);margin-right:5px"></i>Level Progression</span>
       ${ed ? `<button type="button" id="cls-add-level"
-        style="padding:4px 10px;background:#2a1f4a;border:1px solid #7b68ee;border-radius:4px;
-               color:#7b68ee;cursor:pointer;font-size:11px;font-weight:600">
+        style="padding:4px 10px;background:var(--sd-accent-glow);border:1px solid var(--sd-accent);border-radius:4px;
+               color:var(--sd-accent);cursor:pointer;font-size:11px;font-weight:600">
         <i class="fas fa-plus"></i> Add Level</button>` : ""}`;
     p.appendChild(toolbar);
 
@@ -374,7 +379,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     list.style.cssText = "display:flex;flex-direction:column;gap:8px;";
 
     if (!levels.length) {
-      list.innerHTML = `<p style="color:#555;font-size:12px;font-style:italic;text-align:center;padding:20px 0">
+      list.innerHTML = `<p style="color:var(--sd-text-3);font-size:12px;font-style:italic;text-align:center;padding:20px 0">
         ${ed ? "Click \"Add Level\" to create the first level." : "No levels defined yet."}</p>`;
     }
 
@@ -398,25 +403,25 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const e    = this._e.bind(this);
     const wrap = document.createElement("div");
     wrap.dataset.levelIdx = idx;
-    wrap.style.cssText = "background:#1e1e2e;border:1px solid #3a3a52;border-radius:6px;overflow:hidden;";
+    wrap.style.cssText = "background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;overflow:hidden;";
 
     // header row
     const hdr = document.createElement("div");
-    hdr.style.cssText = "display:flex;align-items:center;gap:8px;padding:7px 10px;background:rgba(123,104,238,.08);border-bottom:1px solid #2a2a3a;";
+    hdr.style.cssText = "display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--sd-accent-glow);border-bottom:1px solid var(--sd-bg-3);";
     hdr.innerHTML = `
-      <span style="font-size:11px;font-weight:700;color:#7b68ee;white-space:nowrap">
+      <span style="font-size:11px;font-weight:700;color:var(--sd-accent);white-space:nowrap">
         <i class="fas fa-chevron-up"></i> Level ${lv.level}</span>
       ${ed ? `<input type="number" class="cls-lv-num" data-idx="${idx}" value="${lv.level}" min="1"
-                style="width:52px;background:#13131d;border:1px solid #3a3a52;border-radius:3px;
-                       color:#e0e0ee;font-size:11px;padding:2px 5px;text-align:center">
+                style="width:52px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;
+                       color:var(--sd-text);font-size:11px;padding:2px 5px;text-align:center">
                <input type="text" class="cls-lv-label" data-idx="${idx}" value="${e(lv.label ?? "")}"
                 placeholder="Label…"
-                style="flex:1;background:#13131d;border:1px solid #3a3a52;border-radius:3px;
-                       color:#e0e0ee;font-size:11px;padding:2px 6px">
+                style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;
+                       color:var(--sd-text);font-size:11px;padding:2px 6px">
                <button type="button" class="cls-del-level" data-idx="${idx}"
-                 style="background:none;border:none;color:#555;cursor:pointer;font-size:12px;padding:0 4px">
+                 style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 4px">
                  <i class="fas fa-trash"></i></button>`
-             : `<span style="flex:1;font-size:11px;color:#9090a8;font-style:italic">${e(lv.label ?? "")}</span>`}`;
+             : `<span style="flex:1;font-size:11px;color:var(--sd-text-3);font-style:italic">${e(lv.label ?? "")}</span>`}`;
     wrap.appendChild(hdr);
 
     // 3-column rewards
@@ -425,20 +430,20 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     // items column
     const itemsCol = document.createElement("div");
-    itemsCol.innerHTML = `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#7070a0;letter-spacing:.06em;margin-bottom:5px">
+    itemsCol.innerHTML = `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sd-text-3);letter-spacing:.06em;margin-bottom:5px">
       <i class="fas fa-backpack"></i> Items</div>`;
     const itemsZone = document.createElement("div");
     itemsZone.className = "cls-items-zone";
     itemsZone.dataset.levelIdx = idx;
-    itemsZone.style.cssText = `min-height:36px;border:1px dashed ${ed ? "#3a3a52" : "transparent"};border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:3px;`;
-    if (ed) itemsZone.innerHTML = `<span style="font-size:10px;color:#444;text-align:center;padding:4px">Drop items here</span>`;
+    itemsZone.style.cssText = `min-height:36px;border:1px dashed ${ed ? "var(--sd-border)" : "transparent"};border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:3px;`;
+    if (ed) itemsZone.innerHTML = `<span style="font-size:10px;color:var(--sd-text-3);text-align:center;padding:4px">Drop items here</span>`;
     (lv.items ?? []).forEach((it, j) => {
       const chip = document.createElement("div");
-      chip.style.cssText = "display:flex;align-items:center;gap:4px;background:#13131d;border:1px solid #2a2a3a;border-radius:3px;padding:2px 5px;font-size:10px;color:#c0c0d8;";
+      chip.style.cssText = "display:flex;align-items:center;gap:4px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;padding:2px 5px;font-size:10px;color:var(--sd-text-2);";
       chip.innerHTML = `<img src="${e(it.img ?? "icons/svg/item-bag.svg")}" style="width:14px;height:14px;border-radius:2px;object-fit:cover">
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(it.name ?? "Item")}</span>
         ${ed ? `<button type="button" class="cls-del-item" data-level-idx="${idx}" data-item-idx="${j}"
-          style="background:none;border:none;color:#555;cursor:pointer;font-size:10px;padding:0 1px">✕</button>` : ""}`;
+          style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:0 1px">✕</button>` : ""}`;
       itemsZone.appendChild(chip);
       if (ed) { const hint = itemsZone.querySelector("span"); if (hint) hint.remove(); }
     });
@@ -446,10 +451,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     // field changes column
     const fcCol = document.createElement("div");
-    fcCol.innerHTML = `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#7070a0;letter-spacing:.06em;margin-bottom:5px;display:flex;align-items:center;gap:4px">
+    fcCol.innerHTML = `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sd-text-3);letter-spacing:.06em;margin-bottom:5px;display:flex;align-items:center;gap:4px">
       <i class="fas fa-sliders-h"></i> Field Changes
       ${ed ? `<button type="button" class="cls-add-fc" data-level-idx="${idx}"
-        style="margin-left:auto;background:none;border:none;color:#7b68ee;cursor:pointer;font-size:11px">+</button>` : ""}</div>`;
+        style="margin-left:auto;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+</button>` : ""}</div>`;
     const fcList = document.createElement("div");
     fcList.style.cssText = "display:flex;flex-direction:column;gap:3px;";
     (lv.fieldChanges ?? []).forEach((fc, j) => {
@@ -459,47 +464,47 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         row.innerHTML = `
           <input type="text" class="cls-fc-path" data-level-idx="${idx}" data-fc-idx="${j}" value="${e(fc.path)}"
             placeholder="system.resources.hp.max"
-            style="flex:1;min-width:0;background:#13131d;border:1px solid #2a2a3a;border-radius:3px;color:#9d8fff;font-size:9px;font-family:monospace;padding:2px 4px">
+            style="flex:1;min-width:0;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-accent);font-size:9px;font-family:monospace;padding:2px 4px">
           <select class="cls-fc-mode" data-level-idx="${idx}" data-fc-idx="${j}"
-            style="background:#13131d;border:1px solid #2a2a3a;border-radius:3px;color:#7b68ee;font-size:11px;font-weight:700;padding:2px 2px">
+            style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px 2px">
             <option value="add" ${fc.mode==="add"?"selected":""}>+</option>
             <option value="set" ${fc.mode==="set"?"selected":""}>=</option>
             <option value="multiply" ${fc.mode==="multiply"?"selected":""}>×</option>
           </select>
           <input type="text" class="cls-fc-val" data-level-idx="${idx}" data-fc-idx="${j}" value="${e(fc.value)}"
-            style="width:36px;background:#13131d;border:1px solid #2a2a3a;border-radius:3px;color:#e0e0ee;font-size:10px;padding:2px 3px;text-align:center">
+            style="width:36px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
           <button type="button" class="cls-del-fc" data-level-idx="${idx}" data-fc-idx="${j}"
-            style="background:none;border:none;color:#555;cursor:pointer;font-size:10px;padding:0 1px">✕</button>`;
+            style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:0 1px">✕</button>`;
         row.innerHTML = row.innerHTML.replace('%', '');
       } else {
         const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
-        row.innerHTML = `<code style="font-size:9px;color:#9d8fff;flex:1">${e(fc.path)}</code>
-          <span style="color:#7b68ee;font-weight:700;padding:0 3px">${sym}</span>
+        row.innerHTML = `<code style="font-size:9px;color:var(--sd-accent);flex:1">${e(fc.path)}</code>
+          <span style="color:var(--sd-accent);font-weight:700;padding:0 3px">${sym}</span>
           <strong style="font-size:11px">${e(fc.value)}</strong>`;
       }
       fcList.appendChild(row);
     });
-    if (!(lv.fieldChanges ?? []).length) fcList.innerHTML = `<span style="font-size:10px;color:#444;font-style:italic">—</span>`;
+    if (!(lv.fieldChanges ?? []).length) fcList.innerHTML = `<span style="font-size:10px;color:var(--sd-text-3);font-style:italic">—</span>`;
     fcCol.appendChild(fcList);
 
     // effects column
     const efCol = document.createElement("div");
-    efCol.innerHTML = `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#7070a0;letter-spacing:.06em;margin-bottom:5px;display:flex;align-items:center;gap:4px">
+    efCol.innerHTML = `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sd-text-3);letter-spacing:.06em;margin-bottom:5px;display:flex;align-items:center;gap:4px">
       <i class="fas fa-magic"></i> Effects
       ${ed ? `<button type="button" class="cls-add-ef" data-level-idx="${idx}"
-        style="margin-left:auto;background:none;border:none;color:#7b68ee;cursor:pointer;font-size:11px">+</button>` : ""}</div>`;
+        style="margin-left:auto;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+</button>` : ""}</div>`;
     const efList = document.createElement("div");
     efList.style.cssText = "display:flex;flex-direction:column;gap:3px;";
     (lv.effects ?? []).forEach((ef, j) => {
       const chip = document.createElement("div");
-      chip.style.cssText = "display:flex;align-items:center;gap:4px;background:#13131d;border:1px solid #2a2a3a;border-radius:3px;padding:2px 5px;font-size:10px;color:#c0c0d8;";
+      chip.style.cssText = "display:flex;align-items:center;gap:4px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;padding:2px 5px;font-size:10px;color:var(--sd-text-2);";
       chip.innerHTML = `<img src="${e(ef.icon ?? "icons/svg/aura.svg")}" style="width:14px;height:14px;border-radius:2px">
         <span style="flex:1">${e(ef.name ?? "Effect")}</span>
         ${ed ? `<button type="button" class="cls-del-ef" data-level-idx="${idx}" data-ef-idx="${j}"
-          style="background:none;border:none;color:#555;cursor:pointer;font-size:10px">✕</button>` : ""}`;
+          style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px">✕</button>` : ""}`;
       efList.appendChild(chip);
     });
-    if (!(lv.effects ?? []).length) efList.innerHTML = `<span style="font-size:10px;color:#444;font-style:italic">—</span>`;
+    if (!(lv.effects ?? []).length) efList.innerHTML = `<span style="font-size:10px;color:var(--sd-text-3);font-style:italic">—</span>`;
     efCol.appendChild(efList);
 
     grid.appendChild(itemsCol); grid.appendChild(fcCol); grid.appendChild(efCol);
@@ -510,10 +515,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   _wireClassDropZones(panel) {
     if (!this.isEditable) return;
     panel.querySelectorAll(".cls-items-zone").forEach(zone => {
-      zone.addEventListener("dragover",  ev => { ev.preventDefault(); zone.style.borderColor = "#7b68ee"; });
-      zone.addEventListener("dragleave", ()  => zone.style.borderColor = "#3a3a52");
+      zone.addEventListener("dragover",  ev => { ev.preventDefault(); zone.style.borderColor = "var(--sd-accent)"; });
+      zone.addEventListener("dragleave", ()  => zone.style.borderColor = "var(--sd-border)");
       zone.addEventListener("drop",      async ev => {
-        zone.style.borderColor = "#3a3a52";
+        zone.style.borderColor = "var(--sd-border)";
         ev.preventDefault();
         const data = TextEditor.getDragEventData(ev);
         if (data?.type !== "Item") return;
@@ -651,23 +656,23 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const toolbar = document.createElement("div");
     toolbar.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;";
     toolbar.innerHTML = `
-      <span style="font-size:12px;font-weight:700;color:#c0c0d8;flex:1">
-        <i class="fas fa-project-diagram" style="color:#7b68ee;margin-right:5px"></i>Skill Tree</span>
+      <span style="font-size:12px;font-weight:700;color:var(--sd-text-2);flex:1">
+        <i class="fas fa-project-diagram" style="color:var(--sd-accent);margin-right:5px"></i>Skill Tree</span>
       ${ed ? `
-        <label style="font-size:11px;color:#9090a8;display:flex;align-items:center;gap:4px">Cols
+        <label style="font-size:11px;color:var(--sd-text-3);display:flex;align-items:center;gap:4px">Cols
           <input id="st-cols" type="number" value="${cols}" min="2" max="20"
-            style="width:44px;background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:11px;padding:2px 4px;text-align:center"></label>
-        <label style="font-size:11px;color:#9090a8;display:flex;align-items:center;gap:4px">Rows
+            style="width:44px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;padding:2px 4px;text-align:center"></label>
+        <label style="font-size:11px;color:var(--sd-text-3);display:flex;align-items:center;gap:4px">Rows
           <input id="st-rows" type="number" value="${rows}" min="2" max="20"
-            style="width:44px;background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:11px;padding:2px 4px;text-align:center"></label>
+            style="width:44px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;padding:2px 4px;text-align:center"></label>
         <button type="button" id="st-connect-btn"
-          style="padding:4px 10px;background:rgba(123,104,238,.12);border:1px solid #7b68ee;border-radius:4px;color:#7b68ee;cursor:pointer;font-size:11px;font-weight:600">
+          style="padding:4px 10px;background:var(--sd-accent-glow);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:11px;font-weight:600">
           <i class="fas fa-link"></i> Connect</button>` : ""}`;
     p.appendChild(toolbar);
 
     // canvas scroll wrapper
     const scroll = document.createElement("div");
-    scroll.style.cssText = "overflow:auto;border:1px solid #2a2a3a;border-radius:5px;background:#13131d;padding:8px;";
+    scroll.style.cssText = "overflow:auto;border:1px solid var(--sd-bg-3);border-radius:5px;background:var(--sd-bg);padding:8px;";
 
     const canvas = document.createElement("div");
     canvas.style.cssText = `position:relative;width:${W}px;height:${H}px;`;
@@ -679,7 +684,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     svg.style.cssText = "position:absolute;top:0;left:0;pointer-events:none;z-index:1;overflow:visible;";
     svg.innerHTML = `<defs>
       <marker id="sti-arrow" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
-        <path d="M0,0 L7,3.5 L0,7 Z" fill="#7b68ee" opacity=".8"/>
+        <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--sd-accent)" opacity=".8"/>
       </marker></defs>`;
     for (const conn of conns) {
       const fn = nodes.find(n => n.id === conn.from), tn = nodes.find(n => n.id === conn.to);
@@ -690,7 +695,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const line = document.createElementNS("http://www.w3.org/2000/svg","line");
       line.setAttribute("x1", x1+(dx/dist)*pad); line.setAttribute("y1", y1+(dy/dist)*pad);
       line.setAttribute("x2", x2-(dx/dist)*pad); line.setAttribute("y2", y2-(dy/dist)*pad);
-      line.setAttribute("stroke","#7b68ee"); line.setAttribute("stroke-width","2");
+      line.setAttribute("stroke","var(--sd-accent)"); line.setAttribute("stroke-width","2");
       line.setAttribute("marker-end","url(#sti-arrow)");
       line.setAttribute("opacity",".6");
       if (ed) {
@@ -712,21 +717,21 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
         if (node) {
           const el = document.createElement("div");
-          el.style.cssText = st + `background:${node.color||"#1e1e2e"};border:2px solid #7b68ee;border-radius:8px;
+          el.style.cssText = st + `background:${node.color||"var(--sd-bg)"};border:2px solid var(--sd-accent);border-radius:8px;
             display:flex;flex-direction:column;align-items:center;justify-content:center;
             gap:3px;overflow:hidden;z-index:2;box-sizing:border-box;padding:4px;`;
           el.dataset.nodeId = node.id;
           if (node.item?.img) {
             el.innerHTML += `<img src="${e(node.item.img)}" style="width:34px;height:34px;object-fit:cover;border-radius:4px;pointer-events:none">`;
           } else {
-            el.innerHTML += `<i class="fas fa-star" style="font-size:20px;color:#7b68ee;opacity:.5"></i>`;
+            el.innerHTML += `<i class="fas fa-star" style="font-size:20px;color:var(--sd-accent);opacity:.5"></i>`;
           }
           const lbl = node.label || node.item?.name || "";
-          if (lbl) el.innerHTML += `<div style="font-size:9px;color:#9090a8;text-align:center;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px">${e(lbl)}</div>`;
+          if (lbl) el.innerHTML += `<div style="font-size:9px;color:var(--sd-text-3);text-align:center;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px">${e(lbl)}</div>`;
           if ((node.fieldChanges?.length || node.effects?.length) && !ed) {
             el.innerHTML += `<div style="display:flex;gap:2px;position:absolute;bottom:2px;left:2px">
-              ${node.fieldChanges?.length ? `<span style="font-size:8px;background:rgba(0,0,0,.4);padding:1px 3px;border-radius:2px;color:#9090a8"><i class="fas fa-sliders-h"></i>${node.fieldChanges.length}</span>` : ""}
-              ${node.effects?.length      ? `<span style="font-size:8px;background:rgba(0,0,0,.4);padding:1px 3px;border-radius:2px;color:#9090a8"><i class="fas fa-magic"></i>${node.effects.length}</span>` : ""}
+              ${node.fieldChanges?.length ? `<span style="font-size:8px;background:rgba(0,0,0,.4);padding:1px 3px;border-radius:2px;color:var(--sd-text-3)"><i class="fas fa-sliders-h"></i>${node.fieldChanges.length}</span>` : ""}
+              ${node.effects?.length      ? `<span style="font-size:8px;background:rgba(0,0,0,.4);padding:1px 3px;border-radius:2px;color:var(--sd-text-3)"><i class="fas fa-magic"></i>${node.effects.length}</span>` : ""}
             </div>`;
           }
           if (ed) {
@@ -735,7 +740,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
             tools.style.cssText = "position:absolute;top:2px;right:2px;display:none;flex-direction:column;gap:2px;";
             tools.innerHTML = `
               <button type="button" class="sti-cfg-node" data-node-id="${e(node.id)}"
-                style="width:16px;height:16px;background:rgba(0,0,0,.6);border:none;border-radius:2px;color:#a0a0c0;cursor:pointer;font-size:8px;display:flex;align-items:center;justify-content:center">
+                style="width:16px;height:16px;background:rgba(0,0,0,.6);border:none;border-radius:2px;color:var(--sd-text-2);cursor:pointer;font-size:8px;display:flex;align-items:center;justify-content:center">
                 <i class="fas fa-cog"></i></button>
               <button type="button" class="sti-del-node" data-node-id="${e(node.id)}"
                 style="width:16px;height:16px;background:rgba(0,0,0,.6);border:none;border-radius:2px;color:#c04040;cursor:pointer;font-size:8px;display:flex;align-items:center;justify-content:center">
@@ -745,9 +750,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
             el.addEventListener("mouseleave", () => tools.style.display = "none");
             // Accept item drops onto node
             el.addEventListener("dragover",  ev => { ev.preventDefault(); el.style.borderColor="#c0b0ff"; });
-            el.addEventListener("dragleave", ()  => el.style.borderColor="#7b68ee");
+            el.addEventListener("dragleave", ()  => el.style.borderColor="var(--sd-accent)");
             el.addEventListener("drop",      async ev => {
-              ev.preventDefault(); el.style.borderColor="#7b68ee";
+              ev.preventDefault(); el.style.borderColor="var(--sd-accent)";
               const data = TextEditor.getDragEventData(ev);
               if (data?.type !== "Item") return;
               let item; try { item = await fromUuid(data.uuid); } catch { return; }
@@ -763,11 +768,11 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
         } else if (ed) {
           const cell = document.createElement("div");
-          cell.style.cssText = st + "border:1px dashed rgba(123,104,238,.2);border-radius:6px;z-index:2;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:default;transition:border-color .15s,background .15s;";
+          cell.style.cssText = st + "border:1px dashed var(--sd-accent-dim);border-radius:6px;z-index:2;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:default;transition:border-color .15s,background .15s;";
           cell.dataset.col = col; cell.dataset.row = row;
           cell.classList.add("sti-empty-cell");
-          cell.innerHTML = `<i class="fas fa-plus" style="color:rgba(123,104,238,.2);font-size:13px;transition:color .15s"></i>`;
-          cell.addEventListener("dragover",  ev => { ev.preventDefault(); cell.style.borderColor="#7b68ee"; cell.style.background="rgba(123,104,238,.08)"; });
+          cell.innerHTML = `<i class="fas fa-plus" style="color:var(--sd-accent-dim);font-size:13px;transition:color .15s"></i>`;
+          cell.addEventListener("dragover",  ev => { ev.preventDefault(); cell.style.borderColor="var(--sd-accent)"; cell.style.background="var(--sd-accent-glow)"; });
           cell.addEventListener("dragleave", ()  => { cell.style.borderColor=""; cell.style.background=""; });
           cell.addEventListener("drop",      async ev => {
             ev.preventDefault(); cell.style.borderColor=""; cell.style.background="";
@@ -797,10 +802,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         if (!btn) return;
         if (connectFrom) {
           btn.textContent = "✕ Cancel";
-          btn.style.borderColor = "#ef4444"; btn.style.color = "#ef4444"; btn.style.background = "rgba(239,68,68,.1)";
+          btn.style.borderColor = "var(--sd-danger)"; btn.style.color = "var(--sd-danger)"; btn.style.background = "rgba(239,68,68,.1)";
         } else {
           btn.innerHTML = '<i class="fas fa-link"></i> Connect';
-          btn.style.borderColor = "#7b68ee"; btn.style.color = "#7b68ee"; btn.style.background = "rgba(123,104,238,.12)";
+          btn.style.borderColor = "var(--sd-accent)"; btn.style.color = "var(--sd-accent)"; btn.style.background = "var(--sd-accent-glow)";
         }
       };
 
@@ -874,25 +879,25 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           const fcRows = (node.fieldChanges ?? []).map((fc, j) => `
             <div class="stn-fc-row" style="display:flex;align-items:center;gap:3px;margin-bottom:3px">
               <input type="text" class="stn-fc-path" value="${this._e(fc.path)}" placeholder="system.advancement.level"
-                style="flex:1;min-width:0;background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#9d8fff;font-size:10px;font-family:monospace;padding:2px 4px">
-              <select class="stn-fc-mode" style="background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#7b68ee;font-size:11px;font-weight:700;padding:2px">
+                style="flex:1;min-width:0;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;font-family:monospace;padding:2px 4px">
+              <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
                 <option value="add" ${fc.mode==="add"?"selected":""}>+</option>
                 <option value="set" ${fc.mode==="set"?"selected":""}>=</option>
                 <option value="multiply" ${fc.mode==="multiply"?"selected":""}>×</option>
               </select>
-              <input type="text" class="stn-fc-val" value="${this._e(fc.value)}" style="width:40px;background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:10px;padding:2px 3px;text-align:center">
-              <button type="button" class="stn-del-fc" style="background:none;border:none;color:#555;cursor:pointer;font-size:11px">✕</button>
+              <input type="text" class="stn-fc-val" value="${this._e(fc.value)}" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
+              <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>
             </div>`).join("");
           const content = `<div style="display:flex;flex-direction:column;gap:10px;padding:8px">
-            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:#9090a8">Label
-              <input id="stn-label" type="text" value="${this._e(node.label??'')}" style="background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:12px;padding:4px 6px"></label>
-            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:#9090a8">Max Acquires
-              <input id="stn-max" type="number" value="${node.maxAcquire??1}" min="1" style="width:80px;background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:12px;padding:4px 6px"></label>
-            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:#9090a8">Cell Color
-              <input id="stn-color" type="color" value="${node.color||'#1e1e2e'}" style="width:56px;height:28px"></label>
+            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Label
+              <input id="stn-label" type="text" value="${this._e(node.label??'')}" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
+            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Max Acquires
+              <input id="stn-max" type="number" value="${node.maxAcquire??1}" min="1" style="width:80px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
+            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Cell Color
+              <input id="stn-color" type="color" value="${node.color||'var(--sd-bg)'}" style="width:56px;height:28px"></label>
             <div>
-              <div style="font-size:11px;font-weight:600;color:#9090a8;margin-bottom:5px"><i class="fas fa-sliders-h"></i> Field Changes
-                <button type="button" id="stn-add-fc" style="margin-left:8px;background:none;border:none;color:#7b68ee;cursor:pointer;font-size:11px">+ Add</button></div>
+              <div style="font-size:11px;font-weight:600;color:var(--sd-text-3);margin-bottom:5px"><i class="fas fa-sliders-h"></i> Field Changes
+                <button type="button" id="stn-add-fc" style="margin-left:8px;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+ Add</button></div>
               <div id="stn-fcs">${fcRows}</div>
             </div>
           </div>`;
@@ -924,12 +929,12 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
                 div.style.cssText = "display:flex;align-items:center;gap:3px;margin-bottom:3px";
                 div.innerHTML = `
                   <input type="text" class="stn-fc-path" value="system.advancement.level" placeholder="system...."
-                    style="flex:1;min-width:0;background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#9d8fff;font-size:10px;font-family:monospace;padding:2px 4px">
-                  <select class="stn-fc-mode" style="background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#7b68ee;font-size:11px;font-weight:700;padding:2px">
+                    style="flex:1;min-width:0;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;font-family:monospace;padding:2px 4px">
+                  <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
                     <option value="add">+</option><option value="set">=</option><option value="multiply">×</option>
                   </select>
-                  <input type="text" class="stn-fc-val" value="1" style="width:40px;background:#13131d;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:10px;padding:2px 3px;text-align:center">
-                  <button type="button" class="stn-del-fc" style="background:none;border:none;color:#555;cursor:pointer;font-size:11px">✕</button>`;
+                  <input type="text" class="stn-fc-val" value="1" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
+                  <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>`;
                 dlg.querySelector("#stn-fcs")?.appendChild(div);
               });
             },
@@ -958,20 +963,20 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const renderLockedRow = ({key,placeholder}) => {
       const v = stored[key] ?? "";
       return `<div class="hf-row" data-locked="1"><div style="flex:0 0 130px;position:relative">
-      <input type="text" value="${e(key)}" disabled title="Required field — cannot be renamed or removed" style="font-family:monospace;font-size:11px;width:100%;background:#141420;border:1px solid #2a2a3a;border-radius:4px;color:#7b68ee;padding:3px 6px;box-sizing:border-box;cursor:not-allowed">
-      <i class="fas fa-lock" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:9px;color:#3a3a52" title="Locked"></i>
+      <input type="text" value="${e(key)}" disabled title="Required field — cannot be renamed or removed" style="font-family:monospace;font-size:11px;width:100%;background:#141420;border:1px solid var(--sd-bg-3);border-radius:4px;color:var(--sd-accent);padding:3px 6px;box-sizing:border-box;cursor:not-allowed">
+      <i class="fas fa-lock" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:9px;color:var(--sd-border)" title="Locked"></i>
     </div>
-    <input type="text" data-sys-hf-val="${e(key)}" value="${e(v)}" placeholder="${e(placeholder??"")}" style="flex:1;background:#1e1e2a;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:12px;padding:3px 7px;min-width:0" ${!ed?"disabled":""}>
-    <button type="button" data-sys-action="copyHiddenFieldPath" data-key="${e(key)}" title="Copy path: system.hiddenFields.${e(key)}" style="background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
+    <input type="text" data-sys-hf-val="${e(key)}" value="${e(v)}" placeholder="${e(placeholder??"")}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px;min-width:0" ${!ed?"disabled":""}>
+    <button type="button" data-sys-action="copyHiddenFieldPath" data-key="${e(key)}" title="Copy path: system.hiddenFields.${e(key)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
   </div>`;
     };
     const renderUserRow = ([k,v]) =>
       `<div class="hf-row"><div style="flex:0 0 130px;position:relative">
-      <input type="text" data-sys-hf-key="${e(k)}" value="${e(k)}" style="font-family:monospace;font-size:11px;width:100%;background:#1e1e2a;border:1px solid #3a3a52;border-radius:4px;color:#9d8fff;padding:3px 6px;box-sizing:border-box" ${!ed?"disabled":""}>
+      <input type="text" data-sys-hf-key="${e(k)}" value="${e(k)}" style="font-family:monospace;font-size:11px;width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-accent);padding:3px 6px;box-sizing:border-box" ${!ed?"disabled":""}>
     </div>
-    <input type="text" data-sys-hf-val="${e(k)}" value="${e(v)}" style="flex:1;background:#1e1e2a;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:12px;padding:3px 7px;min-width:0" ${!ed?"disabled":""}>
-    <button type="button" data-sys-action="copyHiddenFieldPath" data-key="${e(k)}" title="Copy path: system.hiddenFields.${e(k)}" style="background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
-    ${ed?`<button data-sys-action="removeHiddenField" data-key="${e(k)}" style="background:none;border:none;color:#444;cursor:pointer;font-size:13px;padding:0 5px">✕</button>`:""}
+    <input type="text" data-sys-hf-val="${e(k)}" value="${e(v)}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px;min-width:0" ${!ed?"disabled":""}>
+    <button type="button" data-sys-action="copyHiddenFieldPath" data-key="${e(k)}" title="Copy path: system.hiddenFields.${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
+    ${ed?`<button data-sys-action="removeHiddenField" data-key="${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:13px;padding:0 5px">✕</button>`:""}
   </div>`;
 
     const isInv = this.document.type === "inventory";
@@ -980,8 +985,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
   <div class="sys-section-header"><i class="fas fa-shield-halved"></i> Inventory Flags</div>
   <div style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:4px 0">
-    <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:#e0e0ee">
-      <input type="checkbox" data-sys-hf-val="equippable" ${(sys.hiddenFields?.equippable ?? sys.equippable)?"checked":""} ${!ed?"disabled":""} style="accent-color:#7b68ee;width:15px;height:15px;cursor:inherit">
+    <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:var(--sd-text)">
+      <input type="checkbox" data-sys-hf-val="equippable" ${(sys.hiddenFields?.equippable ?? sys.equippable)?"checked":""} ${!ed?"disabled":""} style="accent-color:var(--sd-accent);width:15px;height:15px;cursor:inherit">
       ${e(game.i18n?.localize?.("SD.Equippable") ?? "Equippable")}
     </label>
   </div>
@@ -990,8 +995,8 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
   <div class="sys-section-header"><i class="fas fa-eye-slash"></i> Hidden Fields
     ${ed?`<button data-sys-action="addHiddenField" style="margin-left:auto" class="sys-add-btn"><i class="fas fa-plus"></i> Add</button>`:""}
   </div>
-  <p style="font-size:11px;color:#555;margin:0 0 8px;line-height:1.6">GM-only key/value pairs. Path: <code style="background:#1e1e2a;padding:1px 5px;border-radius:3px;font-size:10px;color:#9d8fff">system.hiddenFields.name</code>${locked.length?` — <span style="color:#7b68ee">locked fields (<i class="fas fa-lock" style="font-size:9px"></i>) are required for this item type</span>`:""}</p>
-  ${hfEmpty?`<div style="color:#444;font-size:11px;padding:8px 0;font-style:italic">No hidden fields yet.</div>`:`<div style="display:flex;flex-direction:column;gap:4px">
+  <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.6">GM-only key/value pairs. Path: <code style="background:var(--sd-bg);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--sd-accent)">system.hiddenFields.name</code>${locked.length?` — <span style="color:var(--sd-accent)">locked fields (<i class="fas fa-lock" style="font-size:9px"></i>) are required for this item type</span>`:""}</p>
+  ${hfEmpty?`<div style="color:var(--sd-text-3);font-size:11px;padding:8px 0;font-style:italic">No hidden fields yet.</div>`:`<div style="display:flex;flex-direction:column;gap:4px">
     ${locked.map(renderLockedRow).join("")}
     ${userRows.map(renderUserRow).join("")}
   </div>`}
@@ -1000,14 +1005,14 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
   <div class="sys-section-header"><i class="fas fa-tag"></i> Declared Attributes
     ${ed?`<button data-sys-action="addDeclaredAttr" style="margin-left:auto" class="sys-add-btn"><i class="fas fa-plus"></i> Add</button>`:""}
   </div>
-  <p style="font-size:11px;color:#555;margin:0 0 8px;line-height:1.6">Named path references — used in slot filters and button conditions.</p>
+  <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.6">Named path references — used in slot filters and button conditions.</p>
   ${da.length?`<div style="display:flex;flex-direction:column;gap:4px">
     ${da.map(a=>`<div style="display:flex;gap:5px;align-items:center">
-      <input type="text" data-sys-da-name="${e(a.id)}" value="${e(a.name??a.id)}" placeholder="attr_name" style="flex:0 0 100px;background:#1e1e2a;border:1px solid #3a3a52;border-radius:4px;color:#9d8fff;font-size:11px;font-family:monospace;padding:3px 6px;box-sizing:border-box" ${!ed?"disabled":""}>
-      <input type="text" data-sys-da-path="${e(a.id)}" value="${e(a.path??"")}" placeholder="system.hiddenFields.key" style="flex:1;background:#1e1e2a;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;font-family:monospace;padding:3px 6px;min-width:0" ${!ed?"disabled":""}>
-      ${ed?`<button data-sys-action="removeDeclaredAttr" data-attr-id="${e(a.id)}" style="background:none;border:none;color:#444;cursor:pointer;font-size:13px;padding:0 5px">✕</button>`:""}
+      <input type="text" data-sys-da-name="${e(a.id)}" value="${e(a.name??a.id)}" placeholder="attr_name" style="flex:0 0 100px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-accent);font-size:11px;font-family:monospace;padding:3px 6px;box-sizing:border-box" ${!ed?"disabled":""}>
+      <input type="text" data-sys-da-path="${e(a.id)}" value="${e(a.path??"")}" placeholder="system.hiddenFields.key" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 6px;min-width:0" ${!ed?"disabled":""}>
+      ${ed?`<button data-sys-action="removeDeclaredAttr" data-attr-id="${e(a.id)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:13px;padding:0 5px">✕</button>`:""}
     </div>`).join("")}
-  </div>`:`<div style="color:#444;font-size:11px;padding:8px 0;font-style:italic">No declared attributes yet.</div>`}
+  </div>`:`<div style="color:var(--sd-text-3);font-size:11px;padding:8px 0;font-style:italic">No declared attributes yet.</div>`}
 </div>`;
     return p;
   }
@@ -1023,17 +1028,17 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
         <div class="sys-section-header">
           <i class="fas fa-project-diagram"></i> On Click Graph
         </div>
-        <p style="font-size:11px;color:#555;margin:0 0 10px;line-height:1.6">
+        <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 10px;line-height:1.6">
           Define what happens when this item is <strong>Used</strong> — from inventory, item slots, or the Use button.
           Build a node graph with an <strong>On Click</strong> trigger node.
         </p>
         <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px 0">
-          <div style="font-size:11px;color:${hasGraph ? '#5ae07a' : '#555'};display:flex;align-items:center;gap:6px">
+          <div style="font-size:11px;color:${hasGraph ? 'var(--sd-stamina)' : '#555'};display:flex;align-items:center;gap:6px">
             <i class="fas fa-${hasGraph ? 'check-circle' : 'circle'}" style="font-size:14px"></i>
             ${hasGraph ? `Graph configured (${sys.onClickGraph.nodes.length} nodes)` : 'No graph configured — uses default roll behaviour'}
           </div>
           <button type="button" data-sys-action="openOnClickGraph"
-            style="padding:8px 20px;background:#5a4ec0;border:1px solid #7b68ee;border-radius:5px;color:#fff;cursor:pointer;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px">
+            style="padding:8px 20px;background:var(--sd-accent-2);border:1px solid var(--sd-accent);border-radius:5px;color:#fff;cursor:pointer;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px">
             <i class="fas fa-project-diagram"></i>
             ${hasGraph ? 'Edit On Click Graph' : 'Create On Click Graph'}
           </button>
@@ -1070,48 +1075,48 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
     let html=`<div class="sys-section"><div class="sys-section-header"><i class="fas fa-layer-group"></i> Slots
       ${ed?`<button data-sys-action="addSlot" style="margin-left:auto" class="sys-add-btn"><i class="fas fa-plus"></i> Add Slot</button>`:""}
     </div>`;
-    if (!defs.length) html+=`<div style="color:#444;font-size:11px;padding:16px 0;font-style:italic;text-align:center"><i class="fas fa-layer-group" style="opacity:.3;font-size:28px;display:block;margin-bottom:8px"></i>No slots. Add one to nest items inside this item.</div>`;
+    if (!defs.length) html+=`<div style="color:var(--sd-text-3);font-size:11px;padding:16px 0;font-style:italic;text-align:center"><i class="fas fa-layer-group" style="opacity:.3;font-size:28px;display:block;margin-bottom:8px"></i>No slots. Add one to nest items inside this item.</div>`;
     defs.forEach((def,idx)=>{
       const contents=SlotManager.getContents(this.document,def.id);
-      html+=`<div class="slot-def-block" style="margin-bottom:10px;background:#1e1e2a;border:1px solid #2a2a38;border-radius:6px;padding:10px">
+      html+=`<div class="slot-def-block" style="margin-bottom:10px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:6px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-          <span style="font-size:10px;font-family:monospace;background:#2a2a38;border:1px solid #3a3a52;border-radius:3px;padding:2px 6px;color:#9d8fff;flex-shrink:0">${e(def.id)}</span>
-          <input type="text" data-sys-slot="label" data-slot-idx="${idx}" value="${e(def.label)}" style="flex:1;background:#13131d;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:13px;font-weight:600;padding:3px 7px" ${!ed?"disabled":""}>
-          <input type="number" data-sys-slot="maxCount" data-slot-idx="${idx}" value="${def.maxCount??1}" min="1" style="width:50px;text-align:center;background:#13131d;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:12px;padding:3px" title="Max items" ${!ed?"disabled":""}>
-          <label style="font-size:11px;color:#888;text-transform:none;display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0"><input type="checkbox" data-sys-slot="removable" data-slot-idx="${idx}" ${def.removable?"checked":""} ${!ed?"disabled":""}> Removable</label>
-          ${ed?`<button data-sys-action="removeSlot" data-slot-idx="${idx}" style="background:none;border:none;color:#444;cursor:pointer;font-size:14px;padding:0 4px" title="Remove">✕</button>`:""}
+          <span style="font-size:10px;font-family:monospace;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:3px;padding:2px 6px;color:var(--sd-accent);flex-shrink:0">${e(def.id)}</span>
+          <input type="text" data-sys-slot="label" data-slot-idx="${idx}" value="${e(def.label)}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:13px;font-weight:600;padding:3px 7px" ${!ed?"disabled":""}>
+          <input type="number" data-sys-slot="maxCount" data-slot-idx="${idx}" value="${def.maxCount??1}" min="1" style="width:50px;text-align:center;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px" title="Max items" ${!ed?"disabled":""}>
+          <label style="font-size:11px;color:var(--sd-text-2);text-transform:none;display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0"><input type="checkbox" data-sys-slot="removable" data-slot-idx="${idx}" ${def.removable?"checked":""} ${!ed?"disabled":""}> Removable</label>
+          ${ed?`<button data-sys-action="removeSlot" data-slot-idx="${idx}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:14px;padding:0 4px" title="Remove">✕</button>`:""}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
-          <div><div style="font-size:10px;color:#555;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Allowed Types</div>
-          <input type="text" data-sys-slot="allowedTypes" data-slot-idx="${idx}" value="${e((def.allowedTypes??[]).join(', '))}" placeholder="inventory (empty=any)" style="width:100%;background:#13131d;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;font-family:monospace;padding:3px 7px;box-sizing:border-box" ${!ed?"disabled":""}></div>
-          <div><div style="font-size:10px;color:#555;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Allowed Categories</div>
-          <input type="text" data-sys-slot="allowedCategories" data-slot-idx="${idx}" value="${e((def.allowedCategories??[]).join(', '))}" placeholder="ammo, magazine (empty=any)" style="width:100%;background:#13131d;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;font-family:monospace;padding:3px 7px;box-sizing:border-box" ${!ed?"disabled":""}></div>
+          <div><div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Allowed Types</div>
+          <input type="text" data-sys-slot="allowedTypes" data-slot-idx="${idx}" value="${e((def.allowedTypes??[]).join(', '))}" placeholder="inventory (empty=any)" style="width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 7px;box-sizing:border-box" ${!ed?"disabled":""}></div>
+          <div><div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Allowed Categories</div>
+          <input type="text" data-sys-slot="allowedCategories" data-slot-idx="${idx}" value="${e((def.allowedCategories??[]).join(', '))}" placeholder="ammo, magazine (empty=any)" style="width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 7px;box-sizing:border-box" ${!ed?"disabled":""}></div>
         </div>
         <div style="margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-            <span style="font-size:10px;color:#555;text-transform:uppercase;letter-spacing:.05em"><i class="fas fa-filter"></i> Attr Filters</span>
-            ${ed?`<button data-sys-action="addAttrFilter" data-slot-idx="${idx}" style="background:#2a2a38;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:1px 7px">+ Add</button>`:""}
-            <div class="slot-drop-filter-zone" data-slot-idx="${idx}" style="flex:1;border:1px dashed #2a2a38;border-radius:4px;padding:3px 8px;font-size:10px;color:#444;text-align:center;cursor:pointer;transition:background .15s"><i class="fas fa-arrow-down-to-line" style="opacity:.4;margin-right:3px"></i>Drop item to add filter</div>
+            <span style="font-size:10px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.05em"><i class="fas fa-filter"></i> Attr Filters</span>
+            ${ed?`<button data-sys-action="addAttrFilter" data-slot-idx="${idx}" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:1px 7px">+ Add</button>`:""}
+            <div class="slot-drop-filter-zone" data-slot-idx="${idx}" style="flex:1;border:1px dashed var(--sd-bg-3);border-radius:4px;padding:3px 8px;font-size:10px;color:var(--sd-text-3);text-align:center;cursor:pointer;transition:background .15s"><i class="fas fa-arrow-down-to-line" style="opacity:.4;margin-right:3px"></i>Drop item to add filter</div>
           </div>
-          ${(def.attrFilters??[]).map((f,fIdx)=>`<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;background:#13131d;border:1px solid #2a2a38;border-radius:4px;padding:3px 6px">
-            <span style="flex:1;font-size:10px;color:#9d8fff;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(f.fieldLabel||f.fieldPath)}</span>
-            <select data-sys-af="operator" data-slot-idx="${idx}" data-filter-idx="${fIdx}" style="font-size:11px;background:#1e1e2a;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;padding:2px" ${!ed?"disabled":""}>
+          ${(def.attrFilters??[]).map((f,fIdx)=>`<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:4px;padding:3px 6px">
+            <span style="flex:1;font-size:10px;color:var(--sd-accent);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(f.fieldLabel||f.fieldPath)}</span>
+            <select data-sys-af="operator" data-slot-idx="${idx}" data-filter-idx="${fIdx}" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);padding:2px" ${!ed?"disabled":""}>
               ${[["==","= eq"],["!=","≠"],[">" ,">"],["<","<"],[">=","≥"],["<=","≤"]].map(([v,l])=>`<option value="${v}" ${f.operator===v?"selected":""}>${l}</option>`).join("")}
             </select>
-            <input type="text" data-sys-af="expectedValue" data-slot-idx="${idx}" data-filter-idx="${fIdx}" value="${e(f.expectedValue??'')}" style="width:65px;background:#1e1e2a;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:11px;padding:2px 5px" ${!ed?"disabled":""}>
-            ${ed?`<button data-sys-action="removeAttrFilter" data-slot-idx="${idx}" data-filter-idx="${fIdx}" style="background:none;border:none;color:#444;cursor:pointer;font-size:12px;padding:0 3px">✕</button>`:""}
+            <input type="text" data-sys-af="expectedValue" data-slot-idx="${idx}" data-filter-idx="${fIdx}" value="${e(f.expectedValue??'')}" style="width:65px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;padding:2px 5px" ${!ed?"disabled":""}>
+            ${ed?`<button data-sys-action="removeAttrFilter" data-slot-idx="${idx}" data-filter-idx="${fIdx}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 3px">✕</button>`:""}
           </div>`).join("")}
         </div>
-        <div class="slot-contents-area" data-drop-slot="${e(def.id)}" style="border:1px dashed ${contents.length?'#4b3e9e':'#2a2a38'};border-radius:5px;padding:6px;min-height:32px">
-          <div style="font-size:10px;color:#555;margin-bottom:${contents.length?'5':'0'}px;display:flex;align-items:center;gap:5px"><i class="fas fa-layer-group" style="opacity:.4"></i>
-            Contents <strong style="color:${contents.length>=def.maxCount?'#e05a5a':'#5ae07a'}">${contents.length}/${def.maxCount}</strong>
-            ${contents.length<def.maxCount?`<span style="color:#555;font-size:10px">— drop item here</span>`:""}
+        <div class="slot-contents-area" data-drop-slot="${e(def.id)}" style="border:1px dashed ${contents.length?'#4b3e9e':'var(--sd-bg-3)'};border-radius:5px;padding:6px;min-height:32px">
+          <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:${contents.length?'5':'0'}px;display:flex;align-items:center;gap:5px"><i class="fas fa-layer-group" style="opacity:.4"></i>
+            Contents <strong style="color:${contents.length>=def.maxCount?'var(--sd-hp)':'var(--sd-stamina)'}">${contents.length}/${def.maxCount}</strong>
+            ${contents.length<def.maxCount?`<span style="color:var(--sd-text-3);font-size:10px">— drop item here</span>`:""}
           </div>
-          ${contents.map((c,ci)=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;border-bottom:1px solid #1e1e2a">
+          ${contents.map((c,ci)=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;border-bottom:1px solid var(--sd-bg)">
             <img src="${e(c.img??'icons/svg/item-bag.svg')}" style="width:20px;height:20px;object-fit:cover;border-radius:3px;flex-shrink:0">
             <span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(c.name??'?')}</span>
-            ${Object.entries(c.system?.hiddenFields??{}).map(([k,v])=>`<span style="font-size:10px;color:#555;font-family:monospace;flex-shrink:0">${e(k)}=${e(String(v))}</span>`).join('')}
-            ${ed&&def.removable?`<button data-sys-action="removeFromSlot" data-slot-id="${e(def.id)}" data-slot-idx="${ci}" style="background:none;border:none;color:#444;cursor:pointer;font-size:12px;padding:0 4px" title="Remove">⏏</button>`:""}
+            ${Object.entries(c.system?.hiddenFields??{}).map(([k,v])=>`<span style="font-size:10px;color:var(--sd-text-3);font-family:monospace;flex-shrink:0">${e(k)}=${e(String(v))}</span>`).join('')}
+            ${ed&&def.removable?`<button data-sys-action="removeFromSlot" data-slot-id="${e(def.id)}" data-slot-idx="${ci}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 4px" title="Remove">⏏</button>`:""}
           </div>`).join("")}
         </div>
       </div>`;
@@ -1126,30 +1131,30 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
     let html=`<div class="sys-section"><div class="sys-section-header"><i class="fas fa-bolt"></i> Custom Buttons
       ${ed?`<button data-sys-action="addButton" style="margin-left:auto" class="sys-add-btn"><i class="fas fa-plus"></i> Add Button</button>`:""}
     </div>
-    <p style="font-size:11px;color:#555;margin:0 0 10px;line-height:1.6">Buttons appear on item rows in inventory. Chain conditions + actions.</p>`;
-    if (!btns.length) html+=`<div style="color:#444;font-size:11px;padding:16px 0;font-style:italic;text-align:center"><i class="fas fa-bolt" style="opacity:.3;font-size:28px;display:block;margin-bottom:8px"></i>No buttons yet.</div>`;
+    <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 10px;line-height:1.6">Buttons appear on item rows in inventory. Chain conditions + actions.</p>`;
+    if (!btns.length) html+=`<div style="color:var(--sd-text-3);font-size:11px;padding:16px 0;font-style:italic;text-align:center"><i class="fas fa-bolt" style="opacity:.3;font-size:28px;display:block;margin-bottom:8px"></i>No buttons yet.</div>`;
     btns.forEach((btn,bIdx)=>{
-      html+=`<div style="background:#1e1e2a;border:1px solid #2a2a38;border-radius:6px;padding:10px;margin-bottom:10px">
+      html+=`<div style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:6px;padding:10px;margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-          <i class="fas ${e(btn.icon??'fa-bolt')}" style="color:${e(btn.color??'#7b68ee')};font-size:16px;flex-shrink:0"></i>
-          <input type="text" data-sys-btn="label" data-btn-idx="${bIdx}" value="${e(btn.label)}" placeholder="Button label" style="flex:1;background:#13131d;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:13px;font-weight:600;padding:3px 7px" ${!ed?"disabled":""}>
-          <input type="text" data-sys-btn="icon" data-btn-idx="${bIdx}" value="${e(btn.icon??'fa-bolt')}" placeholder="fa-bolt" style="width:88px;background:#13131d;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>
-          <input type="color" data-sys-btn="color" data-btn-idx="${bIdx}" value="${e(btn.color??'#7b68ee')}" style="width:34px;height:28px;padding:2px;border:1px solid #3a3a52;border-radius:4px;background:#13131d;cursor:pointer" ${!ed?"disabled":""}>
-          <select data-sys-btn="showIn" data-btn-idx="${bIdx}" style="background:#13131d;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;padding:3px;height:28px" ${!ed?"disabled":""}>
+          <i class="fas ${e(btn.icon??'fa-bolt')}" style="color:${e(btn.color??'var(--sd-accent)')};font-size:16px;flex-shrink:0"></i>
+          <input type="text" data-sys-btn="label" data-btn-idx="${bIdx}" value="${e(btn.label)}" placeholder="Button label" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:13px;font-weight:600;padding:3px 7px" ${!ed?"disabled":""}>
+          <input type="text" data-sys-btn="icon" data-btn-idx="${bIdx}" value="${e(btn.icon??'fa-bolt')}" placeholder="fa-bolt" style="width:88px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>
+          <input type="color" data-sys-btn="color" data-btn-idx="${bIdx}" value="${e(btn.color??'var(--sd-accent)')}" style="width:34px;height:28px;padding:2px;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg);cursor:pointer" ${!ed?"disabled":""}>
+          <select data-sys-btn="showIn" data-btn-idx="${bIdx}" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:3px;height:28px" ${!ed?"disabled":""}>
             <option value="inline" ${btn.showIn==="inline"?"selected":""}>Item row</option>
             <option value="sheet"  ${btn.showIn==="sheet"?"selected":""}>Sheet</option>
             <option value="both"   ${btn.showIn==="both"?"selected":""}>Both</option>
           </select>
-          ${ed?`<button data-sys-action="removeButton" data-btn-idx="${bIdx}" style="background:none;border:none;color:#444;cursor:pointer;font-size:14px;padding:0 4px">✕</button>`:""}
+          ${ed?`<button data-sys-action="removeButton" data-btn-idx="${bIdx}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:14px;padding:0 4px">✕</button>`:""}
         </div>
-        <div style="background:#13131d;border:1px solid #2a2a38;border-radius:5px;padding:6px 8px;margin-bottom:6px">
+        <div style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:5px;padding:6px 8px;margin-bottom:6px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-            <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#555"><i class="fas fa-list"></i> Actions</span>
-            ${ed?`<button data-sys-action="addAction" data-btn-idx="${bIdx}" style="background:#2a2a38;border:1px solid #3a3a52;border-radius:3px;color:#888;cursor:pointer;font-size:10px;padding:1px 8px">+ Action</button>`:""}
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sd-text-3)"><i class="fas fa-list"></i> Actions</span>
+            ${ed?`<button data-sys-action="addAction" data-btn-idx="${bIdx}" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:1px 8px">+ Action</button>`:""}
           </div>
           ${!(btn.actions??[]).length?`<div style="color:#333;font-size:11px;font-style:italic">No actions yet.</div>`:""}
-          ${(btn.actions??[]).map((act,aIdx)=>`<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;background:#1a1a24;border:1px solid #2a2a38;border-radius:4px;padding:4px 6px">
-            <select data-sys-act="type" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" style="flex:0 0 110px;background:#1e1e2a;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:11px;padding:2px" ${!ed?"disabled":""}>
+          ${(btn.actions??[]).map((act,aIdx)=>`<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:4px;padding:4px 6px">
+            <select data-sys-act="type" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" style="flex:0 0 110px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;padding:2px" ${!ed?"disabled":""}>
               <option value="roll"        ${act.type==="roll"?"selected":""}>🎲 Roll</option>
               <option value="modifyField" ${act.type==="modifyField"?"selected":""}>📝 Modify Field</option>
               <option value="message"     ${act.type==="message"?"selected":""}>💬 Message</option>
@@ -1157,14 +1162,14 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
               <option value="removeItem"  ${act.type==="removeItem"?"selected":""}>➖ Remove Item</option>
               <option value="playSound"   ${act.type==="playSound"?"selected":""}>🔊 Sound</option>
             </select>
-            ${act.type==="roll"?`<input type="text" data-sys-act="formula" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" value="${e(act.formula??'1d6')}" placeholder="1d6+@attr1" style="flex:1;background:#1e1e2a;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:11px;font-family:monospace;padding:2px 6px;min-width:0" ${!ed?"disabled":""}>`:""}
-            ${act.type==="modifyField"?`<input type="text" data-sys-act="target" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" value="${e(act.target??'self.system.uses.value')}" placeholder="self.system.field" style="flex:1;background:#1e1e2a;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:11px;font-family:monospace;padding:2px 6px;min-width:0" ${!ed?"disabled":""}><input type="number" data-sys-act="delta" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" value="${act.delta??-1}" style="width:55px;background:#1e1e2a;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:11px;padding:2px;text-align:center;flex-shrink:0" ${!ed?"disabled":""}>`:""}
-            ${act.type==="message"?`<input type="text" data-sys-act="messageText" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" value="${e(act.messageText??'')}" placeholder="Message text…" style="flex:1;background:#1e1e2a;border:1px solid #3a3a52;border-radius:3px;color:#e0e0ee;font-size:12px;padding:2px 6px;min-width:0" ${!ed?"disabled":""}>`:""}
-            ${!["roll","modifyField","message"].includes(act.type)?`<span style="flex:1;font-size:11px;color:#444;font-style:italic">name/data fields in JSON</span>`:""}
-            ${ed?`<button data-sys-action="removeAction" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" style="background:none;border:none;color:#444;cursor:pointer;font-size:12px;padding:0 4px;flex-shrink:0">✕</button>`:""}
+            ${act.type==="roll"?`<input type="text" data-sys-act="formula" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" value="${e(act.formula??'1d6')}" placeholder="1d6+@attr1" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:2px 6px;min-width:0" ${!ed?"disabled":""}>`:""}
+            ${act.type==="modifyField"?`<input type="text" data-sys-act="target" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" value="${e(act.target??'self.system.uses.value')}" placeholder="self.system.field" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:2px 6px;min-width:0" ${!ed?"disabled":""}><input type="number" data-sys-act="delta" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" value="${act.delta??-1}" style="width:55px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;padding:2px;text-align:center;flex-shrink:0" ${!ed?"disabled":""}>`:""}
+            ${act.type==="message"?`<input type="text" data-sys-act="messageText" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" value="${e(act.messageText??'')}" placeholder="Message text…" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:2px 6px;min-width:0" ${!ed?"disabled":""}>`:""}
+            ${!["roll","modifyField","message"].includes(act.type)?`<span style="flex:1;font-size:11px;color:var(--sd-text-3);font-style:italic">name/data fields in JSON</span>`:""}
+            ${ed?`<button data-sys-action="removeAction" data-btn-idx="${bIdx}" data-act-idx="${aIdx}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 4px;flex-shrink:0">✕</button>`:""}
           </div>`).join("")}
         </div>
-        <button type="button" data-sys-action="fireButton" data-btn-idx="${bIdx}" style="width:100%;padding:5px;background:#2a2a38;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;cursor:pointer;font-size:11px;transition:background .15s"><i class="fas fa-play" style="color:#7b68ee;margin-right:5px"></i>Test: ${e(btn.label)}</button>
+        <button type="button" data-sys-action="fireButton" data-btn-idx="${bIdx}" style="width:100%;padding:5px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:11px;transition:background .15s"><i class="fas fa-play" style="color:var(--sd-accent);margin-right:5px"></i>Test: ${e(btn.label)}</button>
       </div>`;
     });
     html+="</div>"; p.innerHTML=html; return p;
@@ -1199,24 +1204,24 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
       const dur       = _durLabel(ef);
       const eyeIcon   = ef.disabled ? "fa-eye-slash" : "fa-eye";
       const transfers = ef.transfer !== false;
-      const tColor    = transfers ? "#2e8b46" : "#7a4a1a";
+      const tColor    = transfers ? "var(--sd-success)" : "var(--sd-warn)";
       const tIcon     = transfers ? "fa-arrow-right-to-bracket" : "fa-lock";
       const tTitle    = transfers ? "Transfers to actor when item is owned" : "Does NOT transfer to actor";
       const aoe       = !!(ef.flags?.sd?.activateOnEquip);
-      const aoeColor  = aoe ? "#b58a2a" : "#555";
+      const aoeColor  = aoe ? "var(--sd-warn,#b58a2a)" : "var(--sd-text-3)";
       const aoeTitle  = aoe ? "Active only while equipped" : "Toggle: Activate on Equip";
       rows += `
-      <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;background:#1a1a28;margin-bottom:5px;border-left:3px solid ${transfers ? "#2e8b46" : "#3a3a52"}">
+      <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;background:var(--sd-bg-2);margin-bottom:5px;border-left:3px solid ${transfers ? "var(--sd-success)" : "var(--sd-border)"}">
         <img src="${e(ef.img ?? ef.icon ?? "icons/svg/aura.svg")}" alt="${e(ef.name)}"
              style="width:28px;height:28px;object-fit:cover;border-radius:4px;flex-shrink:0;opacity:${ef.disabled ? ".35" : "1"}">
         <div style="flex:1;min-width:0">
-          <div style="font-size:12px;color:${ef.disabled ? "#555" : "#d0d0e8"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">${e(ef.name)}</div>
+          <div style="font-size:12px;color:${ef.disabled ? "var(--sd-text-3)" : "var(--sd-text)"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">${e(ef.name)}</div>
           <div style="display:flex;gap:6px;margin-top:2px;align-items:center">
             <span title="${tTitle}" style="font-size:9px;color:${tColor};display:flex;align-items:center;gap:3px;cursor:default">
               <i class="fas ${tIcon}"></i>${transfers ? "transfers to actor" : "item only"}
             </span>
-            ${dur ? `<span style="font-size:9px;color:#7a7a9a">⏱ ${e(dur)}</span>` : ""}
-            ${ef.changes?.length ? `<span style="font-size:9px;color:#5a7aaa">${ef.changes.length} change${ef.changes.length!==1?"s":""}</span>` : ""}
+            ${dur ? `<span style="font-size:9px;color:var(--sd-text-3)">⏱ ${e(dur)}</span>` : ""}
+            ${ef.changes?.length ? `<span style="font-size:9px;color:var(--sd-accent-2,var(--sd-accent))">${ef.changes.length} change${ef.changes.length!==1?"s":""}</span>` : ""}
           </div>
         </div>
         <div style="display:flex;gap:2px;flex-shrink:0">
@@ -1232,15 +1237,15 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
           </button>` : ""}
           <button type="button" data-action="sysEffectToggle" data-effect-id="${e(ef.id)}"
             title="${ef.disabled ? "Enable" : "Disable"}"
-            style="background:none;border:none;color:${ef.disabled ? "#555" : "#7b68ee"};cursor:pointer;font-size:12px;padding:2px 5px">
+            style="background:none;border:none;color:${ef.disabled ? "var(--sd-text-3)" : "var(--sd-accent)"};cursor:pointer;font-size:12px;padding:2px 5px">
             <i class="fas ${eyeIcon}"></i>
           </button>
           <button type="button" data-action="sysEffectEdit" data-effect-id="${e(ef.id)}"
-            title="Edit" style="background:none;border:none;color:#888;cursor:pointer;font-size:12px;padding:2px 5px">
+            title="Edit" style="background:none;border:none;color:var(--sd-text-2);cursor:pointer;font-size:12px;padding:2px 5px">
             <i class="fas fa-pen"></i>
           </button>
           <button type="button" data-action="sysEffectDelete" data-effect-id="${e(ef.id)}"
-            title="Delete" style="background:none;border:none;color:#6a3a3a;cursor:pointer;font-size:12px;padding:2px 5px">
+            title="Delete" style="background:none;border:none;color:var(--sd-danger);cursor:pointer;font-size:12px;padding:2px 5px;opacity:.65">
             <i class="fas fa-trash"></i>
           </button>
         </div>
@@ -1248,20 +1253,20 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
     }
 
     p.innerHTML = `
-      <div style="background:#111120;border:1px solid #252535;border-radius:5px;padding:8px 10px;margin-bottom:10px;font-size:10px;color:#6a6a8a;line-height:1.6">
-        <i class="fas fa-circle-info" style="color:#7b68ee;margin-right:4px"></i>
-        Effects marked <strong style="color:#2e8b46">transfers to actor</strong> are automatically applied to the owning actor when this item is in their inventory, and removed when the item is deleted.
+      <div style="background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:5px;padding:8px 10px;margin-bottom:10px;font-size:10px;color:var(--sd-text-3);line-height:1.6">
+        <i class="fas fa-circle-info" style="color:var(--sd-accent);margin-right:4px"></i>
+        Effects marked <strong style="color:var(--sd-success)">transfers to actor</strong> are automatically applied to the owning actor when this item is in their inventory, and removed when the item is deleted.
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:11px;color:#555">${effects.length} effect${effects.length !== 1 ? "s" : ""}</span>
+        <span style="font-size:11px;color:var(--sd-text-3)">${effects.length} effect${effects.length !== 1 ? "s" : ""}</span>
         <button type="button" data-action="sysEffectCreate"
-          style="background:#2a1a4e;border:1px solid #7b68ee;border-radius:4px;color:#9d8fff;cursor:pointer;font-size:11px;font-weight:600;padding:4px 12px;display:flex;align-items:center;gap:5px">
+          style="background:var(--sd-accent-glow);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:11px;font-weight:600;padding:4px 12px;display:flex;align-items:center;gap:5px">
           <i class="fas fa-plus"></i> Add Effect
         </button>
       </div>
       ${effects.length
         ? `<ul style="list-style:none;margin:0;padding:0">${rows}</ul>`
-        : `<div style="text-align:center;padding:24px 0;color:#3a3a52;font-size:12px"><i class="fas fa-sparkles" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>No active effects</div>`
+        : `<div style="text-align:center;padding:24px 0;color:var(--sd-border);font-size:12px"><i class="fas fa-sparkles" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>No active effects</div>`
       }`;
 
     this._wireSysEffectsPanel(p);
@@ -1436,7 +1441,7 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
           if (icon) {
             const prev = icon.className;
             icon.className = "fas fa-check";
-            btn.style.color = "#5ae07a";
+            btn.style.color = "var(--sd-stamina)";
             setTimeout(() => { icon.className = prev; btn.style.color = ""; }, 1200);
           }
         } catch {
@@ -1484,6 +1489,18 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
       btn.addEventListener("click", async ()=>{
         await this.document.update({ [btn.dataset.path]: !foundry.utils.getProperty(this.document,btn.dataset.path) });
       });
+    });
+    // Select pills / radios — `widgetSelectPill` fires when the user
+    // clicks a pill button or selects a radio from the visible variant.
+    con.querySelectorAll("[data-action='widgetSelectPill']").forEach(el => {
+      const handler = async ev => {
+        ev.stopPropagation();
+        const path = el.dataset.path;
+        const val  = el.dataset.value ?? el.value ?? "";
+        if (!path) return;
+        await this.document.update({ [path]: val });
+      };
+      el.addEventListener(el.tagName === "INPUT" ? "change" : "click", handler);
     });
     // Plain action button
     con.querySelectorAll("[data-action='widgetButton']").forEach(btn=>{
@@ -1815,16 +1832,16 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
       const dz = ev.target.closest(".sb-drop-zone");
       if (!dz) return;
       ev.preventDefault();
-      dz.style.background  = "rgba(123,104,238,.12)";
-      dz.style.color       = "#9d8fff";
-      dz.style.borderColor = "#7b68ee";
+      dz.style.background  = "var(--sd-accent-glow)";
+      dz.style.color       = "var(--sd-accent)";
+      dz.style.borderColor = "var(--sd-accent)";
     });
     con.addEventListener("dragleave", ev => {
       const dz = ev.target.closest(".sb-drop-zone");
       if (!dz) return;
       dz.style.background  = "";
       dz.style.color       = "#555";
-      dz.style.borderColor = "rgba(123,104,238,.25)";
+      dz.style.borderColor = "var(--sd-accent-dim)";
     });
     con.addEventListener("drop", async ev => {
       const dz = ev.target.closest(".sb-drop-zone");
@@ -1832,7 +1849,7 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
       ev.preventDefault();
       dz.style.background  = "";
       dz.style.color       = "#555";
-      dz.style.borderColor = "rgba(123,104,238,.25)";
+      dz.style.borderColor = "var(--sd-accent-dim)";
       try {
         const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
         const item = data.uuid ? await fromUuid(data.uuid) : null;
@@ -1884,7 +1901,7 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
       case "addAttrFilter":    { const si=parseInt(btn.dataset.slotIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d[si].attrFilters??=[]; d[si].attrFilters.push({id:foundry.utils.randomID(8),fieldPath:"",fieldLabel:"",operator:"==",expectedValue:""}); await this.document.update({"system.slotDefinitions":d}); break; }
       case "removeAttrFilter": { const si=parseInt(btn.dataset.slotIdx),fi=parseInt(btn.dataset.filterIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d[si].attrFilters.splice(fi,1); await this.document.update({"system.slotDefinitions":d}); break; }
       case "removeFromSlot":   { await SlotManager.removeFromSlot(this.document,btn.dataset.slotId,parseInt(btn.dataset.slotIdx)); break; }
-      case "addButton":        { const b=foundry.utils.deepClone(this.document.system.buttons??[]); b.push({id:foundry.utils.randomID(8),label:"New Button",icon:"fa-bolt",color:"#7b68ee",showIn:"inline",conditions:[],actions:[]}); await this.document.update({"system.buttons":b}); break; }
+      case "addButton":        { const b=foundry.utils.deepClone(this.document.system.buttons??[]); b.push({id:foundry.utils.randomID(8),label:"New Button",icon:"fa-bolt",color:"var(--sd-accent)",showIn:"inline",conditions:[],actions:[]}); await this.document.update({"system.buttons":b}); break; }
       case "removeButton":     { const b=foundry.utils.deepClone(this.document.system.buttons??[]); b.splice(parseInt(btn.dataset.btnIdx),1); await this.document.update({"system.buttons":b}); break; }
       case "addAction":        { const b=foundry.utils.deepClone(this.document.system.buttons??[]); const i=parseInt(btn.dataset.btnIdx); b[i].actions??=[]; b[i].actions.push({type:"roll",formula:"1d6",flavor:"",target:"self.system.uses.value",delta:-1,messageText:""}); await this.document.update({"system.buttons":b}); break; }
       case "removeAction":     { const b=foundry.utils.deepClone(this.document.system.buttons??[]); const bi=parseInt(btn.dataset.btnIdx),ai=parseInt(btn.dataset.actIdx); b[bi].actions.splice(ai,1); await this.document.update({"system.buttons":b}); break; }
@@ -1953,9 +1970,9 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
         const zone = ev.target.closest("[data-drop-slot], .sd-widget-dropzone, .slot-drop-filter-zone");
         if (!zone) return;
         ev.preventDefault();
-        zone.style.background  = "rgba(123,104,238,.12)";
-        zone.style.borderColor = "#7b68ee";
-        zone.style.color       = "#9d8fff";
+        zone.style.background  = "var(--sd-accent-glow)";
+        zone.style.borderColor = "var(--sd-accent)";
+        zone.style.color       = "var(--sd-accent)";
       });
       con.addEventListener("dragleave", ev => {
         const zone = ev.target.closest("[data-drop-slot], .sd-widget-dropzone, .slot-drop-filter-zone");
@@ -2018,7 +2035,7 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
   }
 
   _attachDrop(el, handler) {
-    el.addEventListener("dragover", ev=>{ ev.preventDefault(); el.style.background="rgba(123,104,238,.12)"; el.style.borderColor="#7b68ee"; el.style.color="#9d8fff"; });
+    el.addEventListener("dragover", ev=>{ ev.preventDefault(); el.style.background="var(--sd-accent-glow)"; el.style.borderColor="var(--sd-accent)"; el.style.color="var(--sd-accent)"; });
     el.addEventListener("dragleave",()=>{ el.style.background=""; el.style.borderColor=""; el.style.color=""; });
     el.addEventListener("drop", async ev=>{
       ev.preventDefault(); el.style.background=""; el.style.borderColor=""; el.style.color="";
@@ -2031,7 +2048,7 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
     const rowCols = Math.max(1, Math.min(9, Number(row?.cols) || 3));
     const dz=document.createElement("div");
     dz.className="sd-widget-dropzone"; dz.dataset.tabId=tab.id; if (row) dz.dataset.rowId=row.id;
-    dz.style.cssText=`${(row && !parentVS) ? "" : (parentVS ? "" : `grid-column:span ${rowCols};`)}border:1px dashed rgba(123,104,238,.2);border-radius:5px;padding:8px;text-align:center;font-size:11px;color:#444;cursor:pointer;transition:background .15s,color .15s,border-color .15s;user-select:none;`;
+    dz.style.cssText=`${(row && !parentVS) ? "" : (parentVS ? "" : `grid-column:span ${rowCols};`)}border:1px dashed var(--sd-accent-dim);border-radius:5px;padding:8px;text-align:center;font-size:11px;color:var(--sd-text-3);cursor:pointer;transition:background .15s,color .15s,border-color .15s;user-select:none;`;
     dz.innerHTML=`<i class="fas fa-arrow-circle-down" style="margin-right:5px;opacity:.5"></i>${label}`;
     this._attachDrop(dz, async data=>{
       if (data.sdType==="widget") await this._addWidget(tab.id, row?.id??null, data.widgetType, parentVS?.id ?? null);
@@ -2092,7 +2109,7 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
   }
 
   async _addWidget(tabId, rowId, widgetType, parentVsId = null) {
-    const defaults={ text:{label:"Label",path:"system.hiddenFields.myField"}, number:{label:"Number",path:"system.hiddenFields.myNum"}, resource:{label:"Resource",pathValue:"system.uses.value",pathMax:"system.uses.max",color:"#e05a5a"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"#7b68ee",formula:"",flavor:""}, toggle:{label:"Toggle",path:"system.hiddenFields.myToggle",onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:"system.description",span:3}, attribute:{label:"Attr",path:"system.hiddenFields.myAttr"}, skill:{label:"Skill",path:"system.hiddenFields.mySkill"}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
+    const defaults={ text:{label:"Label",path:"system.hiddenFields.myField"}, number:{label:"Number",path:"system.hiddenFields.myNum"}, resource:{label:"Resource",pathValue:"system.uses.value",pathMax:"system.uses.max",color:"var(--sd-hp)"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"var(--sd-accent)",formula:"",flavor:""}, toggle:{label:"Toggle",path:"system.hiddenFields.myToggle",onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:"system.description",span:3}, attribute:{label:"Attr",path:"system.hiddenFields.myAttr"}, skill:{label:"Skill",path:"system.hiddenFields.mySkill"}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
     const widget={id:foundry.utils.randomID(8),span:1,...(defaults[widgetType]??{label:widgetType}),type:widgetType};
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(!tab) return;
     if (rowId) {
@@ -2125,7 +2142,7 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
     const cur = Math.max(1, Math.min(9, Number(row?.cols) || 3));
     const n = await foundry.applications.api.DialogV2.prompt({
       window: { title: "Row Columns" },
-      content: `<div style="padding:8px 0"><label style="font-size:12px;color:#888">Columns (1-9):</label><input type="number" min="1" max="9" name="cols" value="${cur}" style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box"></div>`,
+      content: `<div style="padding:8px 0"><label style="font-size:12px;color:var(--sd-text-2)">Columns (1-9):</label><input type="number" min="1" max="9" name="cols" value="${cur}" style="width:100%;margin-top:4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text);border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box"></div>`,
       ok: { label: "Apply", callback: (event, button, dialog) => Number(dialog.element.querySelector("input[name='cols']")?.value) },
       rejectClose: false
     }).catch(() => null);
@@ -2194,7 +2211,7 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
     root.querySelector(".sd-edit-badge")?.remove(); if(!this._editMode) return;
     const header=root.querySelector(".window-header")??root.querySelector("header");
     const badge=document.createElement("div"); badge.className="sd-edit-badge";
-    badge.style.cssText="position:absolute;top:4px;right:48px;background:#7b68ee;color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;z-index:100;pointer-events:none"; badge.textContent="EDIT MODE";
+    badge.style.cssText="position:absolute;top:4px;right:48px;background:var(--sd-accent);color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;z-index:100;pointer-events:none"; badge.textContent="EDIT MODE";
     if(header){header.style.position="relative";header.appendChild(badge);}
   }
 
@@ -2239,9 +2256,9 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
     const name = await foundry.applications.api.DialogV2.wait({
       window: { title: "Save as Template" },
       content: `<div style="padding:8px 0">
-        <label style="font-size:12px;color:#888">Template name:</label>
+        <label style="font-size:12px;color:var(--sd-text-2)">Template name:</label>
         <input type="text" name="tplName" value="${this.document.name} Template"
-          style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
+          style="width:100%;margin-top:4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text);border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
       </div>`,
       buttons: [
         {

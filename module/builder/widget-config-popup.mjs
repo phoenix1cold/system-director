@@ -1,5 +1,6 @@
-import { FormulaEngine } from "../helpers/formula-engine.mjs";
-import { FormulaGraph }  from "./formula-graph.mjs";
+import { FormulaEngine }   from "../helpers/formula-engine.mjs";
+import { FormulaGraph }    from "./formula-graph.mjs";
+import { WIDGET_VARIANTS } from "./widget-registry.mjs";
 
 const FIELD_DEFS = {
   text:      [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Read Only","readOnly","boolean"]],
@@ -17,7 +18,7 @@ const FIELD_DEFS = {
   inventory: [["Label","label"],["Widget Key","widgetKey","text"],["Filter Categories","categories","array"],["Extra Columns (hidden field names)","columns","array"],["Show Currency Section","showCurrency","boolean"],["Currency Path (optional)","currencyPath","path"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   effects:   [["Label","label"],["Widget Key","widgetKey","text"],["Show Disabled","showDisabled","boolean"],["Show Passive","showPassive","boolean"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   spellbook: [["Label","label"],["Widget Key","widgetKey","text"],["Ability type filter (empty = all)","abilityType","text"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
-  attributeGroup: [["Button Label","label"],["Widget Key","widgetKey","text"],["Attribute keys (comma, blank = all)","attributeKeys","text"],["FA icon","icon","text"]],
+  attributeGroup: [["Button Label","label"],["Widget Key","widgetKey","text"],["Attribute keys or paths (comma, blank = all enabled)","attributeKeys","text"],["FA icon","icon","text"]],
 
   // Numeric counter widget
   counter:   [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Step","step","number"],["Min","min","number"],["Max","max","number"]],
@@ -26,7 +27,7 @@ const FIELD_DEFS = {
   rollButton:[["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-dice-d20)","icon","text"],["Roll Formula","formula","formula"],["Chat Flavor","flavor","text"]],
 
   // Token pool (filled pip array)
-  tokenPool: [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon","icon","text"]],
+  tokenPool: [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
 
   // Dice tray
   diceTray:  [["Label","label"],["Widget Key","widgetKey","text"],["Flag Path (default flags.sd.lastRoll)","flagPath","text"]],
@@ -35,7 +36,7 @@ const FIELD_DEFS = {
   progress: [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"],["Show label","showLabel","boolean"],["Show percentage","showPct","boolean"]],
   select:   [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Choices (comma-separated)","choices","text"]],
   clock:    [["Label","label"],["Widget Key","widgetKey","text"],["Filled count path","path","path"],["Segments (2–12)","segments","number"]],
-  tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon","icon","text"]],
+  tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
   tags:     [["Label","label"],["Widget Key","widgetKey","text"],["Data path","path","path"]],
   image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
   derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]],
@@ -67,6 +68,15 @@ const FIELD_DEFS = {
     ["Show count badge","showCount","select",["yes","no"]]
   ]
 };
+
+// For every widget type that has visual variants registered, append a
+// "Variant" dropdown to its FIELD_DEFS entry. Keeps FIELD_DEFS authoring
+// flat while centralising the variant list in WIDGET_VARIANTS.
+for (const [type, variants] of Object.entries(WIDGET_VARIANTS)) {
+  if (!variants?.length) continue;
+  if (!Array.isArray(FIELD_DEFS[type])) FIELD_DEFS[type] = [];
+  FIELD_DEFS[type].push(["Variant", "variant", "variant", variants]);
+}
 
 const STYLE_DEFS = {
   text:      [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
@@ -151,16 +161,16 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   const esc      = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 
   // Build field HTML
-  const IS = "width:100%;background:#1a1a2e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
+  const IS = "width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
   const MONO = ";font-family:'Courier New',monospace;font-size:11px";
 
   const attrGraphRow = (w.type === "attribute" || w.type === "skill") ? `
     <div class="wcfg-f" style="margin-bottom:10px">
       <label class="wcfg-lbl">Node Graph</label>
-      <div style="font-size:10px;color:#555;margin-bottom:5px;line-height:1.4">${w.type === "skill" ? "Wire Roll Formula output and On Click exec chain for this skill." : "Wire Attr Score → modValue output, and On Click exec chain."}</div>
+      <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.4">${w.type === "skill" ? "Wire Roll Formula output and On Click exec chain for this skill." : "Wire Attr Score → modValue output, and On Click exec chain."}</div>
       <button type="button" id="wcfg-attr-graph-btn"
-        style="width:100%;background:#2a1a4e;border:1px solid #7b68ee;border-radius:5px;color:#9d8fff;cursor:pointer;font-size:11px;padding:7px 12px;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s"
-        onmouseover="this.style.background='#3a2a6e'" onmouseout="this.style.background='#2a1a4e'">
+        style="width:100%;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:5px;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:7px 12px;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s"
+        onmouseover="this.style.background='var(--sd-accent-2)'" onmouseout="this.style.background='var(--sd-bg-4)'">
         <i class="fas fa-diagram-project"></i> Open Graph Editor
       </button>
     </div>` : "";
@@ -291,19 +301,19 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     </div>` : "";
 
   const showIfRow = `
-    <div class="wcfg-f" style="margin-top:10px;border-top:1px solid #2a2a3e;padding-top:10px">
+    <div class="wcfg-f" style="margin-top:10px;border-top:1px solid var(--sd-bg-3);padding-top:10px">
       <label class="wcfg-lbl" style="margin-bottom:4px;display:block">Show if…</label>
       <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:5px;align-items:center">
-        <select id="wcfg-showif-key" style="background:#1a1a2e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;padding:4px 6px">
+        <select id="wcfg-showif-key" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px">
           <option value="">— Always show —</option>
           ${_showIfSources.map(s => `<option value="${esc(s.value)}" ${_showIfKey===s.value?"selected":""}>${esc(s.label)}</option>`).join("")}
         </select>
-        <span style="color:#555;font-size:11px;flex-shrink:0">=</span>
+        <span style="color:var(--sd-text-3);font-size:11px;flex-shrink:0">=</span>
         <input id="wcfg-showif-value" type="text" placeholder="e.g. true, 1, sword"
           value="${esc(_showIfValue)}"
-          style="background:#1a1a2e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;padding:4px 6px;width:100%;box-sizing:border-box">
+          style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px;width:100%;box-sizing:border-box">
       </div>
-      <div style="font-size:9px;color:#444;margin-top:4px;line-height:1.4">
+      <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">
         Select a widget key, hidden field, or document data path, then set the
         value it must equal to show this widget. Leave the value empty to show
         only when the source is truthy (non-zero / non-empty).
@@ -314,14 +324,14 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     let cur = w[key] ?? ""; if (Array.isArray(cur) && type !== "select") cur = cur.join(", ");
     const isPF = type === "path" || type === "formula";
     const hint = FIELD_HINTS[key] ?? FIELD_HINTS[type] ?? "";
-    const noteColor = type === "formula" ? "#5a4ec0" : type === "path" ? "#5a8ae0" : "";
+    const noteColor = type === "formula" ? "var(--sd-accent-2)" : type === "path" ? "var(--sd-mp)" : "";
 
     if (type === "color") {
-      const safeColor = _isHexColor(cur) ? cur.trim() : "#7b68ee";
+      const safeColor = _isHexColor(cur) ? cur.trim() : "var(--sd-accent)";
       return `
       <div class="wcfg-f" style="margin-bottom:10px">
         <label class="wcfg-lbl">${esc(lbl)}</label>
-        <input type="color" data-field="${esc(key)}" value="${esc(safeColor)}" style="height:32px;width:56px;padding:2px;border:1px solid #3a3a52;border-radius:4px;background:#1a1a2e;cursor:pointer">
+        <input type="color" data-field="${esc(key)}" value="${esc(safeColor)}" style="height:32px;width:56px;padding:2px;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg);cursor:pointer">
       </div>`;
     }
 
@@ -334,10 +344,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
             style="${IS}flex:1">
           <button type="button" class="wcfg-fp-btn" data-fp-target="${esc(key)}"
             title="Pick file"
-            style="height:28px;padding:0 9px;background:#1a1a2e;border:1px solid #3a3a52;border-radius:4px;color:#9d8fff;cursor:pointer;font-size:11px;flex-shrink:0">
+            style="height:28px;padding:0 9px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:11px;flex-shrink:0">
             <i class="fas fa-folder-open"></i>
           </button>
-          ${cur ? `<img src="${esc(cur)}" alt="preview" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid #3a3a52;flex-shrink:0">` : ""}
+          ${cur ? `<img src="${esc(cur)}" alt="preview" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid var(--sd-border);flex-shrink:0">` : ""}
         </div>
       </div>`;
 
@@ -345,7 +355,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       <div class="wcfg-f" style="margin-bottom:10px;display:flex;align-items:center;gap:8px">
         <input type="checkbox" data-field="${esc(key)}" data-ftype="boolean"
           id="wcfg-bool-${esc(key)}" ${cur === true || cur === "true" ? "checked" : ""}
-          style="width:15px;height:15px;accent-color:#7b68ee;cursor:pointer;flex-shrink:0">
+          style="width:15px;height:15px;accent-color:var(--sd-accent);cursor:pointer;flex-shrink:0">
         <label for="wcfg-bool-${esc(key)}" class="wcfg-lbl" style="margin:0;cursor:pointer">${esc(lbl)}</label>
       </div>`;
 
@@ -358,20 +368,48 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         </select>
       </div>`;
 
+    if (type === "variant") {
+      const i18n = globalThis.game?.i18n;
+      const selected = String(cur || "default");
+      const renderOpt = id => {
+        const k = `SD.WidgetVariants.${w.type}.${id}`;
+        let label = id === "default" ? "Default" : id;
+        try {
+          if (i18n?.has?.(k)) label = i18n.localize(k);
+          else if (i18n?.localize) {
+            const v = i18n.localize(k);
+            if (v && v !== k) label = v;
+          }
+        } catch { /* fall back to id */ }
+        return `<option value="${esc(id)}" ${selected===id?"selected":""}>${esc(label)}</option>`;
+      };
+      return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(lbl)}</label>
+        <select data-field="${esc(key)}" data-ftype="variant"
+          style="${IS}">
+          ${opts.map(renderOpt).join("")}
+        </select>
+        <div style="font-size:9px;color:var(--sd-text-3);margin-top:3px;line-height:1.4">
+          Visual skin for this widget. Data and behaviour are unaffected.
+        </div>
+      </div>`;
+    }
+
     if (type === "actionGraph") {
       const hasGraph = !!(w.graphData && Array.isArray(w.graphData.nodes) && w.graphData.nodes.length);
       const status = hasGraph
-        ? `<span style="color:#7af07a;font-size:10px">graph: ${w.graphData.nodes.length} node${w.graphData.nodes.length===1?"":"s"}</span>`
-        : `<span style="color:#888;font-size:10px;font-style:italic">no graph yet</span>`;
+        ? `<span style="color:var(--sd-success);font-size:10px">graph: ${w.graphData.nodes.length} node${w.graphData.nodes.length===1?"":"s"}</span>`
+        : `<span style="color:var(--sd-text-2);font-size:10px;font-style:italic">no graph yet</span>`;
       return `
       <div class="wcfg-f" style="margin-bottom:10px">
         <label class="wcfg-lbl">
           ${esc(lbl)}
-          <span style="background:#5a2a7a;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">action</span>
+          <span style="background:var(--sd-accent-2);color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">action</span>
         </label>
         <div style="display:flex;gap:8px;align-items:center">
           <button type="button" data-open-action-graph="${esc(key)}"
-            style="background:#2a1a4e;border:1px solid #7b68ee;border-radius:4px;color:#9d8fff;cursor:pointer;font-size:11px;padding:5px 10px;line-height:1;transition:background .15s">
+            style="background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:5px 10px;line-height:1;transition:background .15s">
             🔷 Edit Action Graph
           </button>
           ${status}
@@ -388,29 +426,29 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         return `
         <div class="wcfg-slotrow" style="display:grid;grid-template-columns:32px 1fr 1fr 22px;gap:4px;align-items:center;margin-bottom:5px" data-idx="${i}">
           <input type="number" class="wcfg-slot-level" value="${lvl}" min="0" max="20"
-            style="background:#1a1a2e;border:1px solid #3a3a52;border-radius:3px;color:#9d8fff;font-size:11px;padding:2px 4px;text-align:center;width:100%"
+            style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;padding:2px 4px;text-align:center;width:100%"
             title="Level number">
           <input type="text" class="wcfg-slot-maxpath" value="${maxP}"
-            style="background:#1a1a2e;border:1px solid #2a3a5a;border-radius:3px;color:#7aaaf0;font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
+            style="background:var(--sd-bg);border:1px solid var(--sd-mp);border-radius:3px;color:var(--sd-mp);font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
             placeholder="system.hiddenFields.l1max">
           <input type="text" class="wcfg-slot-valpath" value="${valP}"
-            style="background:#1a1a2e;border:1px solid #2a4a2a;border-radius:3px;color:#7af07a;font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
+            style="background:var(--sd-bg);border:1px solid var(--sd-success);border-radius:3px;color:var(--sd-success);font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
             placeholder="system.spellSlots.1.value">
-          <button type="button" class="wcfg-slot-del" style="background:none;border:none;color:#5a2a2a;cursor:pointer;font-size:13px;padding:0;line-height:1" title="Remove level">✕</button>
+          <button type="button" class="wcfg-slot-del" style="background:none;border:none;color:var(--sd-danger-dim);cursor:pointer;font-size:13px;padding:0;line-height:1" title="Remove level">✕</button>
         </div>`;
       }).join("");
 
       return `
       <div class="wcfg-f" style="margin-bottom:10px">
         <label class="wcfg-lbl">${esc(lbl)}</label>
-        <div style="font-size:10px;color:#555;margin-bottom:6px;line-height:1.4">
-          Lv · <span style="color:#7aaaf0">Max path (hiddenField or spellSlots.N.max)</span> · <span style="color:#7af07a">Value path (hiddenField or spellSlots.N.value)</span>
+        <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:6px;line-height:1.4">
+          Lv · <span style="color:var(--sd-mp)">Max path (hiddenField or spellSlots.N.max)</span> · <span style="color:var(--sd-success)">Value path (hiddenField or spellSlots.N.value)</span>
         </div>
         <div id="wcfg-slotrows" style="max-height:220px;overflow-y:auto">
-          ${rows || "<div style='font-size:10px;color:#444;font-style:italic'>No levels — click Add Level below</div>"}
+          ${rows || "<div style='font-size:10px;color:var(--sd-text-3);font-style:italic'>No levels — click Add Level below</div>"}
         </div>
         <button type="button" id="wcfg-slot-add"
-          style="margin-top:6px;background:#1a1a3a;border:1px solid #5a4ec0;border-radius:4px;color:#9d8fff;cursor:pointer;font-size:10px;padding:3px 10px">
+          style="margin-top:6px;background:var(--sd-bg);border:1px solid var(--sd-accent-2);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:3px 10px">
           + Add Level
         </button>
         <input type="hidden" id="wcfg-slotconfig-json" data-field="${esc(key)}" data-ftype="json" value="${esc(JSON.stringify(Array.isArray(w[key]) ? w[key] : []))}">
@@ -423,16 +461,16 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           ${esc(lbl)}
           ${noteColor ? `<span style="background:${noteColor};color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">${type}</span>` : ""}
         </label>
-        ${hint ? `<div style="font-size:10px;color:#555;margin-bottom:3px;line-height:1.4">${esc(hint)}</div>` : ""}
+        ${hint ? `<div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;line-height:1.4">${esc(hint)}</div>` : ""}
         <div style="display:flex;gap:5px;align-items:center">
           <input type="${type==="number"?"number":"text"}" data-field="${esc(key)}" data-ftype="${type}"
             value="${esc(cur)}"
             style="${IS}${isPF?MONO:""};flex:1"
             placeholder="${type==="path"?"system.resources.hp.value":type==="formula"?"1d20 + {system.attributes.attr1.mod}":type==="array"?"ammo, magazine":""}">
-          ${type === "formula" ? `<button type="button" data-open-graph="${esc(key)}" style="flex-shrink:0;background:#2a1a4e;border:1px solid #7b68ee;border-radius:4px;color:#9d8fff;cursor:pointer;font-size:10px;padding:4px 8px;white-space:nowrap;line-height:1;transition:background .15s" title="Open Blueprint Graph">🔷 Graph</button>` : ""}
+          ${type === "formula" ? `<button type="button" data-open-graph="${esc(key)}" style="flex-shrink:0;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:4px 8px;white-space:nowrap;line-height:1;transition:background .15s" title="Open Blueprint Graph">🔷 Graph</button>` : ""}
           ${isPF ? `<button type="button" data-clear-field="${esc(key)}" class="wcfg-clear-btn" title="Clear">✕</button>` : ""}
         </div>
-        ${isPF ? `<div class="wcfg-sug" data-for="${esc(key)}" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:9999;background:#1a1a2e;border:1px solid #5a4ec0;border-top:none;border-radius:0 0 5px 5px;max-height:130px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.6)"></div>` : ""}
+        ${isPF ? `<div class="wcfg-sug" data-for="${esc(key)}" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:9999;background:var(--sd-bg);border:1px solid var(--sd-accent-2);border-top:none;border-radius:0 0 5px 5px;max-height:130px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.6)"></div>` : ""}
       </div>`;
   }).join("");
 
@@ -459,9 +497,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   popup.style.cssText = `
     position:fixed;left:${popLeft}px;top:${popTop}px;
     width:430px;max-height:92vh;overflow:hidden;
-    background:#13131d;border:1px solid #5a4ec0;border-radius:8px;
+    background:var(--sd-bg);border:1px solid var(--sd-accent-2);border-radius:8px;
     box-shadow:0 8px 40px rgba(0,0,0,.85);z-index:${_wcfgZ};
-    font-family:'Signika','Palatino Linotype',serif;color:#e0e0ee;
+    font-family:'Signika','Palatino Linotype',serif;color:var(--sd-text);
     display:flex;flex-direction:column;`;
 
   // Bring this popup to front on any click inside it (so users can flip
@@ -474,11 +512,11 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   popup.innerHTML = `
     <!-- Header -->
-    <div id="wcfg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a1a28;border-bottom:1px solid #2a2a3e;flex-shrink:0;cursor:move">
-      <span style="font-size:12px;font-weight:700;text-transform:uppercase;color:#9d8fff">
+    <div id="wcfg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--sd-bg);border-bottom:1px solid var(--sd-bg-3);flex-shrink:0;cursor:move">
+      <span style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--sd-accent)">
         <i class="fas ${ICON_MAP[w.type]??'fa-gear'}" style="margin-right:7px;opacity:.8"></i>Configure: ${esc(w.label || w.type)}
       </span>
-      <button type="button" id="wcfg-x" style="background:none;border:none;color:#555;cursor:pointer;font-size:16px;padding:0">✕</button>
+      <button type="button" id="wcfg-x" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:16px;padding:0">✕</button>
     </div>
 
     <!-- Fields panel -->
@@ -489,22 +527,22 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       ${showIfRow}
 
       <!-- Known paths picker -->
-      <div style="border-top:1px solid #2a2a38;padding-top:10px;margin-top:8px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:6px"><i class="fas fa-database"></i> Known Paths</div>
+      <div style="border-top:1px solid var(--sd-bg-3);padding-top:10px;margin-top:8px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sd-text-2);margin-bottom:6px"><i class="fas fa-database"></i> Known Paths</div>
         <div style="display:flex;gap:5px">
-          <select id="wcfg-ps" style="flex:1;background:#1a1a2e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;font-size:11px;font-family:'Courier New',monospace;padding:3px 5px;height:28px">
+          <select id="wcfg-ps" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:'Courier New',monospace;padding:3px 5px;height:28px">
             <option value="">— select a path —</option>
             ${pathPickerOpts}
           </select>
-          <button type="button" id="wcfg-pi" style="background:#5a4ec0;border:1px solid #7b68ee;border-radius:4px;color:#fff;cursor:pointer;font-size:11px;padding:5px 10px;flex-shrink:0">Insert</button>
+          <button type="button" id="wcfg-pi" style="background:var(--sd-accent-2);border:1px solid var(--sd-accent);border-radius:4px;color:#fff;cursor:pointer;font-size:11px;padding:5px 10px;flex-shrink:0">Insert</button>
         </div>
       </div>
     </div>
 
     <!-- Footer -->
-    <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid #2a2a38;flex-shrink:0;background:#13131d">
-      <button type="button" id="wcfg-cancel" class="wcfg-footer-btn" style="padding:7px 16px;font-size:12px;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid #3a3a52;background:#2a2a38;color:#a0a0c0">Cancel</button>
-      <button type="button" id="wcfg-save"   class="wcfg-footer-btn" style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;border:1px solid #7b68ee;background:#7b68ee;color:#fff">
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--sd-bg-3);flex-shrink:0;background:var(--sd-bg)">
+      <button type="button" id="wcfg-cancel" class="wcfg-footer-btn" style="padding:7px 16px;font-size:12px;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid var(--sd-border);background:var(--sd-bg-3);color:var(--sd-text-2)">Cancel</button>
+      <button type="button" id="wcfg-save"   class="wcfg-footer-btn" style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;border:1px solid var(--sd-accent);background:var(--sd-accent);color:#fff">
         <i class="fas fa-check" style="margin-right:5px"></i>Save
       </button>
     </div>`;
@@ -566,7 +604,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   const _showIfInp = popup.querySelector("input[data-field='showIf']");
   if (_showIfInp) {
     const _errEl = document.createElement("div");
-    _errEl.style.cssText = "font-size:10px;color:#e05050;margin-top:2px;display:none;line-height:1.3";
+    _errEl.style.cssText = "font-size:10px;color:var(--sd-danger);margin-top:2px;display:none;line-height:1.3";
     _showIfInp.parentElement?.after?.(_errEl) ?? _showIfInp.insertAdjacentElement("afterend", _errEl);
 
     const _validateShowIf = () => {
@@ -578,10 +616,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       }
       try {
         FormulaEngine.evaluate(val, {});
-        _showIfInp.style.borderColor = "#3a3a52"; // reset to normal
+        _showIfInp.style.borderColor = "var(--sd-border)"; // reset to normal
         _errEl.style.display = "none";
       } catch (err) {
-        _showIfInp.style.borderColor = "#e05050";
+        _showIfInp.style.borderColor = "var(--sd-danger)";
         _errEl.textContent = "⚠ " + (err?.message ?? "Formula error");
         _errEl.style.display = "block";
       }
@@ -600,12 +638,12 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     if (!matches.length) { list.style.display = "none"; return; }
     list.style.display = "block";
     list.innerHTML = matches.map(p => `
-      <div data-path="${esc(p.path)}" class="wcfg-sug-item" style="padding:4px 9px;cursor:pointer;font-size:11px;font-family:'Courier New',monospace;border-bottom:1px solid #2a2a38;display:flex;gap:8px;align-items:center">
-        <span style="color:#e0e0ee;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.path)}</span>
-        <span style="color:#444;font-size:10px;font-family:inherit;flex-shrink:0">${esc(p.label)}</span>
+      <div data-path="${esc(p.path)}" class="wcfg-sug-item" style="padding:4px 9px;cursor:pointer;font-size:11px;font-family:'Courier New',monospace;border-bottom:1px solid var(--sd-bg-3);display:flex;gap:8px;align-items:center">
+        <span style="color:var(--sd-text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.path)}</span>
+        <span style="color:var(--sd-text-3);font-size:10px;font-family:inherit;flex-shrink:0">${esc(p.label)}</span>
       </div>`).join("");
     list.querySelectorAll(".wcfg-sug-item").forEach(item => {
-      item.addEventListener("mouseenter", () => item.style.background = "#2a2a3e");
+      item.addEventListener("mouseenter", () => item.style.background = "var(--sd-bg-3)");
       item.addEventListener("mouseleave", () => item.style.background = "");
       item.addEventListener("mousedown", ev => {
         ev.preventDefault();
@@ -649,7 +687,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     if (isEmpty) {
       const p = slotRowsContainer.querySelector(".wcfg-empty-hint");
       if (!p) {
-        slotRowsContainer.innerHTML = "<div class='wcfg-empty-hint' style='font-size:10px;color:#444;font-style:italic'>No levels — click Add Level below</div>";
+        slotRowsContainer.innerHTML = "<div class='wcfg-empty-hint' style='font-size:10px;color:var(--sd-text-3);font-style:italic'>No levels — click Add Level below</div>";
       }
     } else {
       slotRowsContainer.querySelector(".wcfg-empty-hint")?.remove();
@@ -679,19 +717,19 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     div.style.cssText = "display:grid;grid-template-columns:32px 1fr 1fr 22px;gap:4px;align-items:center;margin-bottom:5px";
     div.innerHTML = `
       <input type="number" class="wcfg-slot-level" value="${next}" min="0" max="20"
-        style="background:#1a1a2e;border:1px solid #3a3a52;border-radius:3px;color:#9d8fff;font-size:11px;padding:2px 4px;text-align:center;width:100%" title="Level number">
+        style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;padding:2px 4px;text-align:center;width:100%" title="Level number">
       <input type="text" class="wcfg-slot-maxpath" value="system.hiddenFields.l${next}max"
-        style="background:#1a1a2e;border:1px solid #2a3a5a;border-radius:3px;color:#7aaaf0;font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
+        style="background:var(--sd-bg);border:1px solid var(--sd-mp);border-radius:3px;color:var(--sd-mp);font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
         placeholder="system.hiddenFields.l${next}max">
       <input type="text" class="wcfg-slot-valpath" value="system.spellSlots.${next}.value"
-        style="background:#1a1a2e;border:1px solid #2a4a2a;border-radius:3px;color:#7af07a;font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
+        style="background:var(--sd-bg);border:1px solid var(--sd-success);border-radius:3px;color:var(--sd-success);font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
         placeholder="system.spellSlots.${next}.value">
-      <button type="button" class="wcfg-slot-del" style="background:none;border:none;color:#5a2a2a;cursor:pointer;font-size:13px;padding:0;line-height:1" title="Remove level">✕</button>`;
+      <button type="button" class="wcfg-slot-del" style="background:none;border:none;color:var(--sd-danger-dim);cursor:pointer;font-size:13px;padding:0;line-height:1" title="Remove level">✕</button>`;
     slotRowsContainer.appendChild(div);
   });
   popup.querySelectorAll("[data-open-graph]").forEach(btn => {
-    btn.addEventListener("mouseenter", () => btn.style.background = "#3a2a6e");
-    btn.addEventListener("mouseleave", () => btn.style.background = "#2a1a4e");
+    btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-2)");
+    btn.addEventListener("mouseleave", () => btn.style.background = "var(--sd-bg-4)");
     btn.addEventListener("click", () => {
       const key = btn.dataset.openGraph;
       const inp = popup.querySelector(`input[data-field="${key}"]`);
@@ -702,8 +740,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   });
 
   popup.querySelectorAll("[data-open-action-graph]").forEach(btn => {
-    btn.addEventListener("mouseenter", () => btn.style.background = "#3a2a6e");
-    btn.addEventListener("mouseleave", () => btn.style.background = "#2a1a4e");
+    btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-2)");
+    btn.addEventListener("mouseleave", () => btn.style.background = "var(--sd-bg-4)");
     btn.addEventListener("click", () => {
       const key = btn.dataset.openActionGraph;
       const inp = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`);
@@ -823,8 +861,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   // Button hover effects
   const saveBtn = popup.querySelector("#wcfg-save");
-  saveBtn.addEventListener("mouseenter", () => saveBtn.style.background = "#9d8fff");
-  saveBtn.addEventListener("mouseleave", () => saveBtn.style.background = "#7b68ee");
+  saveBtn.addEventListener("mouseenter", () => saveBtn.style.background = "var(--sd-accent)");
+  saveBtn.addEventListener("mouseleave", () => saveBtn.style.background = "var(--sd-accent)");
 
   // Draggable header
   let ds = null;

@@ -683,7 +683,7 @@ export function BuilderMixin(Base) {
         <div class="popup-footer" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:12px;margin-top:12px;border-top:1px solid var(--sd-border)">
           <button type="button" class="btn btn-graph" id="popup-graph"
             style="padding:7px 12px;font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;
-                   border:1px solid #7b68ee;background:#1a1040;color:#9d8fff;display:flex;align-items:center;gap:6px;
+                   border:1px solid var(--sd-accent);background:var(--sd-bg-4);color:var(--sd-accent);display:flex;align-items:center;gap:6px;
                    transition:background .15s"
             title="Configure all settings visually via the node graph editor">
             🔷 Configure via Graph
@@ -882,8 +882,8 @@ export function BuilderMixin(Base) {
       input.addEventListener("dragover", ev => {
         ev.preventDefault();
         input.classList.add("drag-over");
-        input.style.borderColor = "#7b68ee";
-        input.style.boxShadow = "0 0 0 2px rgba(123,104,238,.3)";
+        input.style.borderColor = "var(--sd-accent)";
+        input.style.boxShadow = "0 0 0 2px var(--sd-accent-dim)";
       });
       input.addEventListener("dragleave", () => {
         input.classList.remove("drag-over");
@@ -921,8 +921,8 @@ export function BuilderMixin(Base) {
               window: { title: `Insert from: ${item.name}` },
               content: `
                 <div style="padding:8px">
-                  <p style="margin-bottom:8px;color:#888">Select attribute:</p>
-                  <select name="attrPath" style="width:100%;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;padding:6px;border-radius:4px">${attrOptions}</select>
+                  <p style="margin-bottom:8px;color:var(--sd-text-2)">Select attribute:</p>
+                  <select name="attrPath" style="width:100%;background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text);padding:6px;border-radius:4px">${attrOptions}</select>
                 </div>`,
               buttons: [
                 { action: "insert", label: "Insert", default: true, callback: (ev, btn) => btn.form },

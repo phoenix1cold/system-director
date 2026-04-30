@@ -5,6 +5,7 @@ import {
   formulaBounds, clampFormula, multiplyFormula, addMod, doubleDice,
   resolveAtRefs
 } from "./formula-utils.mjs";
+import { WIDGET_VARIANTS } from "./widget-registry.mjs";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
@@ -244,6 +245,80 @@ export const NODE_DEFS = {
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}],
     compile:(n)=>`{target.${n.data.path??""}}`
+  },
+
+  /**
+   * Emit a Font Awesome icon as plain text (class name + colour) so it can be
+   * piped into any widget config that accepts an "icon" / "color" string —
+   * Tracker, Token Pool, Dice / Roll / Action Button, Attribute Group, etc.
+   *
+   * Outputs are intentionally emitted *un-quoted* so that when they land in
+   * `widget.icon = val` inside WidgetConfig graph application they stamp a
+   * clean value directly (no stray "" around the class). This matches the
+   * way widget config fields are written (`widget[field.key] = val`).
+   */
+  fa_icon: {
+    title:"FA Icon", color:"#2a4060", cat:"Sources",
+    desc:"Font Awesome icon picker — outputs the full FA class (`fas fa-heart`), the bare name (`fa-heart`), the color string and a ready-to-use `<i>` HTML snippet. Pipe `Class` into a Tracker / Token Pool / Button icon pin, and `Color` into their colour pin for themed pips.",
+    inputs:[
+      {id:"icon",  label:"Icon",  type:"value.string"},
+      {id:"color", label:"Color", type:"value.string"}
+    ],
+    outputs:[
+      {id:"class", label:"Class", type:"value.string"},
+      {id:"name",  label:"Name",  type:"value.string"},
+      {id:"color", label:"Color", type:"value.string"},
+      {id:"html",  label:"HTML",  type:"value.string"}
+    ],
+    fields:[
+      {key:"icon",  label:"FA Icon",    type:"text",   default:"fa-heart",
+       placeholder:"fa-heart, fa-star, fa-skull…"},
+      {key:"style", label:"Style",      type:"select", default:"fas",
+        options:[
+          {value:"fas", label:"Solid"},
+          {value:"far", label:"Regular"},
+          {value:"fab", label:"Brands"},
+          {value:"fad", label:"Duotone"},
+          {value:"fal", label:"Light"},
+          {value:"fat", label:"Thin"}
+        ]},
+      {key:"color", label:"Color",      type:"text",   default:"#e04040",
+       placeholder:"#e04040"},
+      {key:"size",  label:"Size (px)",  type:"number", default:16}
+    ],
+    compilePin:(n, i, fromPin) => {
+      const _unquote = (v) => {
+        if (v == null) return null;
+        const s = String(v).trim();
+        if (s.length >= 2 && ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'")))) {
+          return s.slice(1, -1);
+        }
+        return s;
+      };
+      let iconRaw  = _unquote(i.icon)  ?? n.data.icon  ?? "fa-heart";
+      const colorRaw = _unquote(i.color) ?? n.data.color ?? "#e04040";
+      const style    = String(n.data.style ?? "fas").trim() || "fas";
+
+      // Normalise: strip any pre-existing style prefix (fas / fa-solid / fa-brands …)
+      // and any leading namespace so we can re-apply the chosen `style` cleanly.
+      let cleaned = String(iconRaw).trim()
+        .replace(/\bfa-(solid|regular|brands|duotone|light|thin|sharp)\b/gi, "")
+        .replace(/\b(fas|far|fab|fad|fal|fat)\b/gi, "")
+        .trim();
+      if (!cleaned) cleaned = "fa-heart";
+      if (!/^fa-/.test(cleaned)) cleaned = "fa-" + cleaned;
+
+      const faClass = `${style} ${cleaned}`.trim();
+
+      if (fromPin === "name")  return cleaned;
+      if (fromPin === "color") return colorRaw;
+      if (fromPin === "html") {
+        const size = Math.max(1, Number(n.data.size ?? 16) || 16);
+        return `<i class="${faClass}" style="color:${colorRaw};font-size:${size}px"></i>`;
+      }
+      // default + "class" pin — full FA class string
+      return faClass;
+    }
   },
 
   attr_mod: {
@@ -4772,8 +4847,31 @@ const WIDGET_CONFIG_NODES = {
     outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Clock"},{key:"path",label:"Filled Count Path",type:"path",default:"system.flags.myClock"},{key:"segments",label:"Total Segments",type:"number",default:4},{key:"color",label:"Filled Color",type:"text",default:"#e0a020"}]
   },
   wcfg_tracker:   { title:"Token Tracker",   color:"#4a1a1a", isWidgetConfig:true, widgetType:"tracker",
-    inputs:[_mkPin("label","Label"),_mkPin("path","Value Path"),_mkPin("maxCount","Max Count"),_mkPin("icon","Icon"),_mkPin("color","Color")],
-    outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Stress"},{key:"path",label:"Value Path",type:"path",default:"system.flags.myTracker"},{key:"maxCount",label:"Max Count",type:"number",default:6},{key:"icon",label:"FA Icon",type:"text",default:"fa-circle"},{key:"color",label:"Filled Color",type:"text",default:"#e04040"}]
+    inputs:[_mkPin("label","Label"),_mkPin("path","Value Path"),_mkPin("maxCount","Max Count"),_mkPin("icon","Icon (filled)"),_mkPin("emptyIcon","Icon (empty)"),_mkPin("color","Color"),_mkPin("bgColor","Empty Color")],
+    outputs:[], fields:[
+      {key:"label",label:"Label",type:"text",default:"Stress"},
+      {key:"path",label:"Value Path",type:"path",default:"system.flags.myTracker"},
+      {key:"maxCount",label:"Max Count",type:"number",default:6},
+      {key:"icon",label:"FA Icon (filled)",type:"text",default:"fa-circle"},
+      {key:"emptyIcon",label:"FA Icon (empty, blank = same)",type:"text",default:""},
+      {key:"color",label:"Filled Color",type:"text",default:"#e04040"},
+      {key:"bgColor",label:"Empty Color",type:"text",default:"#2a2a3a"},
+      {key:"pipSize",label:"Pip Size (px)",type:"number",default:14}
+    ]
+  },
+  wcfg_tokenPool: { title:"Token Pool",      color:"#4a3a1a", isWidgetConfig:true, widgetType:"tokenPool",
+    inputs:[_mkPin("label","Label"),_mkPin("path","Value Path"),_mkPin("maxPath","Max Path"),_mkPin("maxCount","Max Count"),_mkPin("icon","Icon (filled)"),_mkPin("emptyIcon","Icon (empty)"),_mkPin("color","Color"),_mkPin("bgColor","Empty Color")],
+    outputs:[], fields:[
+      {key:"label",label:"Label",type:"text",default:"Tokens"},
+      {key:"path",label:"Value Path",type:"path",default:"system.flags.myTokens"},
+      {key:"maxPath",label:"Max Path",type:"path",default:""},
+      {key:"maxCount",label:"Max Count",type:"number",default:10},
+      {key:"icon",label:"FA Icon (filled)",type:"text",default:"fa-coins"},
+      {key:"emptyIcon",label:"FA Icon (empty, blank = same)",type:"text",default:""},
+      {key:"color",label:"Filled Color",type:"text",default:"#f0c040"},
+      {key:"bgColor",label:"Empty Color",type:"text",default:"#2a2a3a"},
+      {key:"pipSize",label:"Pip Size (px)",type:"number",default:16}
+    ]
   },
   wcfg_select:    { title:"Select Dropdown", color:"#2a2a4a", isWidgetConfig:true, widgetType:"select",
     inputs:[_mkPin("label","Label"),_mkPin("path","Path"),_mkPin("choices","Choices")],
@@ -4843,6 +4941,26 @@ const WIDGET_CONFIG_NODES = {
     ]
   },
 };
+
+// Inject the `variant` pin + field into every Widget Config node whose
+// widget type has skins registered in WIDGET_VARIANTS. Keeps the graph in
+// sync with widget-registry / widget-config-popup without hand-editing
+// every wcfg_* entry.
+for (const [/*nodeKey*/, def] of Object.entries(WIDGET_CONFIG_NODES)) {
+  const variants = WIDGET_VARIANTS?.[def.widgetType];
+  if (!variants?.length) continue;
+  if (!Array.isArray(def.inputs)) def.inputs = [];
+  if (!Array.isArray(def.fields)) def.fields = [];
+  if (!def.inputs.some(p => p.id === "variant")) {
+    def.inputs.push(_mkPin("variant", "Variant"));
+  }
+  if (!def.fields.some(f => f.key === "variant")) {
+    def.fields.push({
+      key: "variant", label: "Variant", type: "select",
+      options: variants, default: "default"
+    });
+  }
+}
 
 Object.assign(NODE_DEFS, WIDGET_CONFIG_NODES);
 
@@ -5229,7 +5347,7 @@ export class FormulaGraph {
     const r = anchorEl.getBoundingClientRect();
     const menu = document.createElement("div");
     menu.className = "sdgtpl-menu";
-    menu.style.cssText = `position:fixed;left:${Math.round(r.left)}px;top:${Math.round(r.bottom+6)}px;min-width:260px;max-width:380px;max-height:60vh;overflow:auto;background:#121220;border:1px solid #2a2a3e;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.8);z-index:25000;font-family:'Signika',sans-serif;color:#e0e0ee;padding:6px 0`;
+    menu.style.cssText = `position:fixed;left:${Math.round(r.left)}px;top:${Math.round(r.bottom+6)}px;min-width:260px;max-width:380px;max-height:60vh;overflow:auto;background:#121220;border:1px solid #2a2a3e;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.8);z-index:25000;font-family:'Signika',sans-serif;color:var(--sd-text);padding:6px 0`;
 
     const header = document.createElement("div");
     header.style.cssText = "padding:4px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#74a7ff;border-bottom:1px solid #1a1a28;margin-bottom:4px";
@@ -5238,7 +5356,7 @@ export class FormulaGraph {
 
     if (!entries.length) {
       const empty = document.createElement("div");
-      empty.style.cssText = "padding:12px;font-size:11px;color:#666;font-style:italic";
+      empty.style.cssText = "padding:12px;font-size:11px;color:var(--sd-text-3);font-style:italic";
       empty.textContent = "No templates yet. Select nodes with Shift and click Save as Tpl.";
       menu.appendChild(empty);
     }
@@ -5253,7 +5371,7 @@ export class FormulaGraph {
       main.style.cssText = "flex:1;min-width:0";
       main.innerHTML = `
         <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tpl.name)}</div>
-        <div style="font-size:9px;color:#666">${(tpl.nodes??[]).length} nodes · ${(tpl.edges??[]).length} edges</div>`;
+        <div style="font-size:9px;color:var(--sd-text-3)">${(tpl.nodes??[]).length} nodes · ${(tpl.edges??[]).length} edges</div>`;
       main.addEventListener("click", () => {
         const wrap = this.win?.querySelector("#gwrap");
         let gx = 120, gy = 120;
@@ -5270,7 +5388,7 @@ export class FormulaGraph {
       const exp = document.createElement("button");
       exp.type = "button";
       exp.title = "Export this template as JSON";
-      exp.style.cssText = "background:transparent;border:1px solid #3a3a52;border-radius:4px;color:#98a6c6;cursor:pointer;font-size:10px;padding:2px 7px";
+      exp.style.cssText = "background:transparent;border:1px solid var(--sd-border);border-radius:4px;color:#98a6c6;cursor:pointer;font-size:10px;padding:2px 7px";
       exp.innerHTML = '<i class="fas fa-file-export"></i>';
       exp.addEventListener("click", ev => {
         ev.stopPropagation();
@@ -5466,9 +5584,9 @@ export class FormulaGraph {
       window: { title: "Graph Editor" },
       modal: true,
       content: `<div style="padding:8px 0">
-        <label style="font-size:12px;color:#888">${esc(label)}</label>
+        <label style="font-size:12px;color:var(--sd-text-2)">${esc(label)}</label>
         <input type="text" name="val" value="${esc(def)}"
-          style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid #3a3a52;color:#e0e0ee;border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
+          style="width:100%;margin-top:4px;background:#2a2a38;border:1px solid var(--sd-border);color:var(--sd-text);border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
       </div>`,
       buttons: [
         {
@@ -6342,7 +6460,7 @@ export class FormulaGraph {
       badge.textContent   = "✓ Exec graph (On Click) — Output node not required";
     } else if (hasOutput) {
       badge.style.display = "block";
-      badge.style.color   = "#9d8fff";
+      badge.style.color   = "var(--sd-accent)";
       badge.style.borderColor = "#534AB7";
       badge.textContent   = "✓ Formula graph — connect a node to Output";
     } else {
@@ -6822,7 +6940,7 @@ export class FormulaGraph {
 
     const search=document.createElement("input");
     search.placeholder="Search…";
-    search.style.cssText="width:calc(100% - 16px);margin:6px 8px 3px;background:#0c0c18;border:1px solid #2a2a3e;border-radius:4px;color:#e0e0ee;font-size:11px;padding:4px 8px;outline:none;box-sizing:border-box";
+    search.style.cssText="width:calc(100% - 16px);margin:6px 8px 3px;background:#0c0c18;border:1px solid #2a2a3e;border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 8px;outline:none;box-sizing:border-box";
     menu.appendChild(search);
 
     const list=document.createElement("div");
@@ -7352,7 +7470,7 @@ export class FormulaGraph {
     }
 
     el.querySelectorAll("input[placeholder*='drag']").forEach(inp=>{
-      inp.addEventListener("dragover",ev=>{ev.preventDefault();inp.style.borderColor="#7b68ee";});
+      inp.addEventListener("dragover",ev=>{ev.preventDefault();inp.style.borderColor="var(--sd-accent)";});
       inp.addEventListener("dragleave",()=>inp.style.borderColor="");
       inp.addEventListener("drop",async ev=>{
         ev.preventDefault(); inp.style.borderColor="";
@@ -7535,7 +7653,7 @@ export class FormulaGraph {
       for(const fx of idx.effects){ const o=document.createElement("option"); o.value=fx.uuid; o.textContent=fx.name; if(fx.uuid===cur)o.selected=true; sel.appendChild(o); }
       if(cur && !idx.effects.find(e=>e.uuid===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom uuid)"; o.selected=true; sel.appendChild(o); }
       const rawInp=document.createElement("input"); rawInp.type="text"; rawInp.placeholder="or paste UUID…"; rawInp.value=cur;
-      rawInp.style.cssText=IS+";font-size:11px;color:#aaa";
+      rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
       sel.addEventListener("mousedown",ev=>ev.stopPropagation());
       rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
       sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; rawInp.value=sel.value; this._updatePreview(); });
@@ -7619,7 +7737,7 @@ export class FormulaGraph {
       dropZone.textContent=hasVal ? `✔ ${curName||curUuid}` : "⬇ drag item here";
       dropZone.style.cssText=`background:#060612;border:2px dashed ${hasVal?"#3a6a3a":"#2a3a5a"};border-radius:4px;color:${hasVal?"#6aaa6a":"#5a7a9a"};font-size:11px;padding:5px 8px;text-align:center;cursor:copy;transition:border-color .15s,color .15s;`;
       dropZone.title="Drag an item from the Foundry sidebar to auto-fill UUID";
-      dropZone.addEventListener("dragover",ev=>{ ev.preventDefault(); dropZone.style.borderColor="#7b68ee"; dropZone.style.color="#a090ff"; });
+      dropZone.addEventListener("dragover",ev=>{ ev.preventDefault(); dropZone.style.borderColor="var(--sd-accent)"; dropZone.style.color="#a090ff"; });
       dropZone.addEventListener("dragleave",()=>{ dropZone.style.borderColor=node.data[field.key]?"#3a6a3a":"#2a3a5a"; dropZone.style.color=node.data[field.key]?"#6aaa6a":"#5a7a9a"; });
       dropZone.addEventListener("drop",async ev=>{
         ev.preventDefault();
@@ -7683,7 +7801,7 @@ export class FormulaGraph {
       inp.style.cssText=IS;
     }
     inp.dataset.fieldType=field.type;
-    inp.addEventListener("focus",()=>inp.style.borderColor="#7b68ee");
+    inp.addEventListener("focus",()=>inp.style.borderColor="var(--sd-accent)");
     inp.addEventListener("blur", ()=>inp.style.borderColor="#1a1a28");
     inp.addEventListener("mousedown",ev=>ev.stopPropagation());
     inp.addEventListener("input",ev=>{
@@ -7892,7 +8010,7 @@ export class FormulaGraph {
       min-width:240px;max-width:340px;max-height:60vh;overflow:auto;
       background:#121220;border:1px solid #2a2a3e;border-radius:8px;
       box-shadow:0 12px 40px rgba(0,0,0,.8);z-index:25000;
-      font-family:'Signika',sans-serif;color:#e0e0ee;padding:6px 0`;
+      font-family:'Signika',sans-serif;color:var(--sd-text);padding:6px 0`;
 
     const head = document.createElement("div");
     head.textContent = `Insert node compatible with ${pinSubtype(fromType) || "exec"}`;
@@ -7902,7 +8020,7 @@ export class FormulaGraph {
     if (!candidates.length) {
       const empty = document.createElement("div");
       empty.textContent = "No compatible nodes";
-      empty.style.cssText = "padding:8px 12px;color:#666";
+      empty.style.cssText = "padding:8px 12px;color:var(--sd-text-3)";
       menu.appendChild(empty);
     } else {
       let lastCat = null;

@@ -178,7 +178,7 @@
         <label style="flex-shrink:0;min-width:160px;">Interface Scale</label>
 
         <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:220px;">
-          <span style="font-size:11px;color:#777;white-space:nowrap;">50%</span>
+          <span style="font-size:11px;color:var(--sd-text-3);white-space:nowrap;">50%</span>
           <input
             type="range"
             id="uiScaleSlider"
@@ -186,7 +186,7 @@
             value="{{cfg.uiScale}}"
             min="50" max="200" step="5"
             style="flex:1;accent-color:var(--sd-accent,#9a50ff);cursor:pointer;" />
-          <span style="font-size:11px;color:#777;white-space:nowrap;">200%</span>
+          <span style="font-size:11px;color:var(--sd-text-3);white-space:nowrap;">200%</span>
         </div>
 
         <span
@@ -200,6 +200,34 @@
       <p class="section-hint-text" style="margin-top:6px;">
         <i class="fas fa-info-circle"></i>
         Scales all sheet elements: text, inputs, buttons, borders and layout. 100% = default.
+      </p>
+
+      {{!-- ── Color Scheme ─────────────────────────────────────────────── --}}
+      <div class="config-field-row sd-theme-picker-row" style="align-items:flex-start;gap:12px;flex-wrap:wrap;margin-top:12px;">
+        <label style="flex-shrink:0;min-width:160px;padding-top:6px;">{{localize "SD.Theme.Label"}}</label>
+        <div class="sd-theme-picker" style="display:flex;flex-wrap:wrap;gap:10px;flex:1;">
+          {{#each schemeEntries as |scheme|}}
+          <button type="button"
+                  class="sd-theme-swatch {{#if scheme.selected}}is-active{{/if}}"
+                  data-scheme-id="{{scheme.id}}"
+                  title="{{scheme.label}}"
+                  style="display:flex;align-items:center;gap:8px;padding:6px 10px;
+                         border:2px solid {{#if scheme.selected}}var(--sd-accent){{else}}var(--sd-border){{/if}};
+                         border-radius:var(--sd-r,6px);
+                         background:{{scheme.bg}};color:{{scheme.text}};
+                         cursor:pointer;font-family:inherit;font-size:12px;
+                         min-width:110px;">
+            <span style="display:inline-block;width:14px;height:14px;border-radius:50%;
+                         background:{{scheme.accent}};border:1px solid {{scheme.text}};flex-shrink:0;"></span>
+            <span>{{scheme.label}}</span>
+          </button>
+          {{/each}}
+        </div>
+        <input type="hidden" name="colorScheme" value="{{currentScheme}}" />
+      </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        {{localize "SD.Theme.Hint"}}
       </p>
     </div>
 

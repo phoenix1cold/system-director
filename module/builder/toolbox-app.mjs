@@ -8,7 +8,9 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static DEFAULT_OPTIONS = {
     id:       "sd-toolbox",
-    classes:  ["sd-toolbox"],
+    // Include the "sd" marker class so applyColorScheme / the theme
+    // mutation observer stamp `data-sd-theme` onto this window too.
+    classes:  ["sd", "sd-toolbox"],
     window: {
       title:       "Sheet Builder",
       icon:        "fas fa-toolbox",

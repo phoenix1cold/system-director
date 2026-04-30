@@ -1,4 +1,10 @@
 import { TabManager } from "./tabs.mjs";
+import {
+  COLOR_SCHEMES,
+  THEME_IDS,
+  applyColorScheme,
+  localiseSchemeLabel
+} from "./color-schemes.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -48,7 +54,12 @@ export function getDefaultSettings() {
     modifierFormula: "halved",
 
     // Global UI scale as a percentage (50-200). Applied via CSS zoom to all sheet content.
-    uiScale: 100
+    uiScale: 100,
+
+    // Visual color scheme — id must match an entry in
+    // `module/helpers/color-schemes.mjs` and a selector block in
+    // `styles/sd-themes.css`.
+    colorScheme: "default"
   };
 }
 
@@ -246,6 +257,12 @@ export function applySettings(cfg) {
   const scale = Math.min(Math.max(Number(cfg.uiScale ?? 100), 50), 200) / 100;
   document.documentElement.style.setProperty("--sd-ui-scale", scale);
 
+  // Color scheme — delegates to CSS variables defined in styles/sd-themes.css.
+  const scheme = typeof cfg.colorScheme === "string" && THEME_IDS.has(cfg.colorScheme)
+    ? cfg.colorScheme
+    : "default";
+  applyColorScheme(scheme);
+
   // Refresh all open sheets
   for (const app of Object.values(ui.windows ?? foundry.applications?.instances ?? {})) {
     if (app?.document) app.render();
@@ -291,15 +308,35 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  /** Wire up the UI Scale slider for live preview as the user drags. */
+  /** Wire up the UI Scale slider + color-scheme swatches for live preview. */
   _onRender(context, options) {
     super._onRender?.(context, options);
+
+    // UI Scale slider
     const slider = this.element.querySelector("#uiScaleSlider");
     const output = this.element.querySelector("#uiScaleOutput");
-    if (!slider || !output) return;
-    slider.addEventListener("input", () => {
-      output.textContent = slider.value + "%";
-      document.documentElement.style.setProperty("--sd-ui-scale", slider.value / 100);
+    if (slider && output) {
+      slider.addEventListener("input", () => {
+        output.textContent = slider.value + "%";
+        document.documentElement.style.setProperty("--sd-ui-scale", slider.value / 100);
+      });
+    }
+
+    // Color-scheme picker — click a swatch to activate live preview.
+    const input = this.element.querySelector("input[name='colorScheme']");
+    this.element.querySelectorAll("[data-scheme-id]").forEach(swatch => {
+      swatch.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        const id = swatch.dataset.schemeId;
+        if (!id) return;
+        // Update hidden input
+        if (input) input.value = id;
+        // Update active state visually
+        this.element.querySelectorAll("[data-scheme-id]").forEach(s =>
+          s.classList.toggle("is-active", s === swatch));
+        // Live preview globally
+        applyColorScheme(id);
+      });
     });
   }
 
@@ -323,7 +360,16 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         initialMax:   Number(val?.initialMax   ?? val?.initialValue ?? 10),
         initialMin:   Number(val?.initialMin   ?? 0)
       })),
-      currencyEntries: (cfg.currencies ?? []).map(c => ({ key: c.key, label: c.label }))
+      currencyEntries: (cfg.currencies ?? []).map(c => ({ key: c.key, label: c.label })),
+      currentScheme:   cfg.colorScheme ?? "default",
+      schemeEntries:   COLOR_SCHEMES.map(s => ({
+        id:       s.id,
+        label:    localiseSchemeLabel(s),
+        bg:       s.preview?.bg     ?? "#1a1a24",
+        accent:   s.preview?.accent ?? "#7b68ee",
+        text:     s.preview?.text   ?? "#e0e0ee",
+        selected: (cfg.colorScheme ?? "default") === s.id
+      }))
     };
   }
 
@@ -394,6 +440,12 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     // UI Scale
     if (raw.uiScale !== undefined) {
       cfg.uiScale = Math.min(Math.max(Number(raw.uiScale) || 100, 50), 200);
+    }
+
+    // Color scheme
+    if (raw.colorScheme !== undefined) {
+      const id = String(raw.colorScheme);
+      cfg.colorScheme = THEME_IDS.has(id) ? id : "default";
     }
 
     return cfg;

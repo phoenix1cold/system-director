@@ -366,15 +366,21 @@ export class ProgressionApp extends ApplicationV2 {
   const sp = this._actor.system?.skillPoints ?? { value: 0, max: 0 };
   const spValue = sp.value ?? 0;
   const spMax = sp.max ?? 0;
-  html += `<div class="sd-prog-sp-block" style="display:flex;align-items:center;gap:6px;padding:2px 8px;background:#1a1a28;border:1px solid #3a3a52;border-radius:6px;margin-right:auto;">
-    <i class="fas fa-star" style="color:#7b68ee;font-size:12px;"></i>
-    <span style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">${loc("SD.Progression.SkillPoints")}</span>
-    <button type="button" data-action="spStep" data-step="-1" style="width:22px;height:22px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0;">−</button>
-    <input type="number" data-action="spSetValue" value="${spValue}" min="0" style="width:40px;text-align:center;font-weight:700;font-size:14px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#e0e0ee;padding:2px;box-sizing:border-box;">
-    <span style="color:#555;flex-shrink:0;">/</span>
-    <input type="number" data-action="spSetMax" value="${spMax}" min="0" style="width:40px;text-align:center;font-size:13px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;padding:2px;box-sizing:border-box;">
-    <button type="button" data-action="spStep" data-step="1" style="width:22px;height:22px;background:#22222e;border:1px solid #3a3a52;border-radius:4px;color:#a0a0c0;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0;">+</button>
-    <button type="button" data-action="spCopyPath" title="system.skillPoints.value" style="background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:0 4px;flex-shrink:0;"><i class="fas fa-copy"></i></button>
+  // Inline colors here intentionally use the system theme variables
+  // (`var(--sd-bg-2)` / `var(--sd-accent)` / `var(--sd-text-2)` / etc),
+  // not hardcoded hex, so the SP block follows the active Appearance
+  // theme. The matching wrapper class is `.sd-prog-sp-block` whose
+  // base styling lives in `system.css` under the `.sd-progression-app`
+  // selector tree.
+  html += `<div class="sd-prog-sp-block" style="display:flex;align-items:center;gap:6px;padding:2px 8px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;margin-right:auto;">
+    <i class="fas fa-star" style="color:var(--sd-accent);font-size:12px;"></i>
+    <span style="font-size:11px;color:var(--sd-label);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">${loc("SD.Progression.SkillPoints")}</span>
+    <button type="button" data-action="spStep" data-step="-1" style="width:22px;height:22px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:14px;line-height:1;flex-shrink:0;">−</button>
+    <input type="number" data-action="spSetValue" value="${spValue}" min="0" style="width:40px;text-align:center;font-weight:700;font-size:14px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);padding:2px;box-sizing:border-box;">
+    <span style="color:var(--sd-text-3);flex-shrink:0;">/</span>
+    <input type="number" data-action="spSetMax" value="${spMax}" min="0" style="width:40px;text-align:center;font-size:13px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);padding:2px;box-sizing:border-box;">
+    <button type="button" data-action="spStep" data-step="1" style="width:22px;height:22px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:14px;line-height:1;flex-shrink:0;">+</button>
+    <button type="button" data-action="spCopyPath" title="system.skillPoints.value" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px;flex-shrink:0;"><i class="fas fa-copy"></i></button>
   </div>`;
 
   if (em && isGM) {
@@ -437,7 +443,7 @@ export class ProgressionApp extends ApplicationV2 {
           <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--sd-accent)" opacity=".7"/>
         </marker>
         <marker id="sd-arrow-dim" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
-          <path d="M0,0 L7,3.5 L0,7 Z" fill="#3a3a52"/>
+          <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--sd-border-2,var(--sd-border))" opacity=".7"/>
         </marker>
       </defs>`;
 
@@ -465,7 +471,7 @@ export class ProgressionApp extends ApplicationV2 {
 
       html += `<line class="sd-prog-conn ${active ? "active" : ""}"
                x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}"
-               stroke="${active ? "var(--sd-accent)" : "#3a3a52"}"
+               stroke="${active ? "var(--sd-accent)" : "var(--sd-border-2,var(--sd-border))"}"
                stroke-width="${active ? 2 : 1.5}"
                stroke-dasharray="${active ? "none" : "5,4"}"
                marker-end="url(#${marker})"
@@ -517,7 +523,7 @@ export class ProgressionApp extends ApplicationV2 {
         if (label) html += `<div class="sd-prog-node-label">${e(label)}</div>`;
 
         if (nodeCost > 0) {
-          html += `<div class="sd-prog-node-cost" style="font-size:9px;color:${canAfford ? '#7b68ee' : '#e05a5a'};font-weight:700;"><i class="fas fa-star" style="font-size:7px;"></i> ${nodeCost}</div>`;
+          html += `<div class="sd-prog-node-cost" style="font-size:9px;color:${canAfford ? 'var(--sd-accent)' : 'var(--sd-hp)'};font-weight:700;"><i class="fas fa-star" style="font-size:7px;"></i> ${nodeCost}</div>`;
         }
 
         if (maxAcq > 1) {

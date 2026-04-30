@@ -16,7 +16,7 @@ function _promptTabName(current = "") {
     new foundry.applications.api.DialogV2({
       modal: true,
       window: { title: "Tab Name" },
-      content: `<div style="padding:6px 0"><input type="text" name="tabName" value="${esc(current)}" style="width:100%;background:var(--sd-w-bg,#2a2a38);border:1px solid var(--sd-w-bd,#3a3a52);color:var(--sd-w-fg,#e0e0ee);border-radius:4px;padding:4px 8px;font-size:13px" autofocus></div>`,
+      content: `<div style="padding:6px 0"><input type="text" name="tabName" value="${esc(current)}" style="width:100%;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));color:var(--sd-w-fg,var(--sd-text));border-radius:4px;padding:4px 8px;font-size:13px" autofocus></div>`,
       buttons: [
         { action:"save", label:"Save", icon:"fas fa-floppy-disk", default:true,
           callback:(ev,btn)=>{ resolve(readInput(btn)); } },
@@ -142,7 +142,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (!nav) {
       nav = document.createElement("nav");
       nav.className = "sd-tab-nav";
-      nav.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;padding:5px 12px 0;background:var(--sd-w-bg,#22222e);border-bottom:1px solid var(--sd-w-bd,#3a3a52);flex-shrink:0;";
+      nav.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;padding:5px 12px 0;background:var(--sd-w-bg,var(--sd-bg-2));border-bottom:1px solid var(--sd-w-bd,var(--sd-border));flex-shrink:0;";
       root.querySelector(".window-content")?.appendChild(nav);
     }
 
@@ -159,8 +159,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       a.style.cssText   = `
         padding:5px 11px; font-size:11px; font-weight:700; text-transform:uppercase;
         letter-spacing:.04em; cursor:pointer; border-radius:4px 4px 0 0;
-        border:1px solid ${isActive ? "#3a3a52" : "transparent"}; border-bottom:none;
-        color:${isActive ? "#7b68ee" : "#666"}; background:${isActive ? "#1a1a24" : "transparent"};
+        border:1px solid ${isActive ? "var(--sd-border)" : "transparent"}; border-bottom:none;
+        color:${isActive ? "var(--sd-accent)" : "#666"}; background:${isActive ? "var(--sd-bg)" : "transparent"};
         display:inline-flex; align-items:center; gap:4px; white-space:nowrap; user-select:none;
       `;
       a.innerHTML = `${tab.label}
@@ -184,9 +184,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       plus.className    = "sd-tab-btn sd-add-tab";
       plus.title        = "Click to add tab, or drop 'New Tab' here";
       plus.innerHTML    = '<i class="fas fa-plus"></i>';
-      plus.style.cssText = "padding:5px 10px;font-size:11px;cursor:pointer;border-radius:4px 4px 0 0;border:1px dashed #7b68ee;border-bottom:none;color:#7b68ee;opacity:.6;display:inline-flex;align-items:center;transition:opacity .15s,background .15s;";
+      plus.style.cssText = "padding:5px 10px;font-size:11px;cursor:pointer;border-radius:4px 4px 0 0;border:1px dashed var(--sd-accent);border-bottom:none;color:var(--sd-accent);opacity:.6;display:inline-flex;align-items:center;transition:opacity .15s,background .15s;";
       plus.addEventListener("click",     () => this._addTab());
-      plus.addEventListener("dragover",  ev => { ev.preventDefault(); plus.style.opacity="1"; plus.style.background="rgba(123,104,238,.15)"; });
+      plus.addEventListener("dragover",  ev => { ev.preventDefault(); plus.style.opacity="1"; plus.style.background="var(--sd-accent-glow)"; });
       plus.addEventListener("dragleave", () => { plus.style.opacity=".6"; plus.style.background=""; });
       plus.addEventListener("drop",      ev => {
         ev.preventDefault(); plus.style.opacity=".6"; plus.style.background="";
@@ -204,7 +204,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const hfTab = document.createElement("a");
     hfTab.className = "sd-tab-btn";
     hfTab.dataset.tabId = "_sys_hidden";
-    hfTab.style.cssText = `padding:5px 9px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid ${isHFActive?"#3a3a52":"transparent"};border-bottom:none;color:${isHFActive?"#5ae07a":"#444"};background:${isHFActive?"#1a1a24":"transparent"};display:inline-flex;align-items:center;gap:3px;`;
+    hfTab.style.cssText = `padding:5px 9px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid ${isHFActive?"var(--sd-border)":"transparent"};border-bottom:none;color:${isHFActive?"var(--sd-stamina)":"#444"};background:${isHFActive?"var(--sd-bg)":"transparent"};display:inline-flex;align-items:center;gap:3px;`;
     hfTab.innerHTML = `<i class='fas fa-eye-slash'></i>`;
     hfTab.title = "Hidden Fields";
     hfTab.addEventListener("click", () => {
@@ -219,7 +219,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     // Save as Template button
     const tplBtn = document.createElement("a");
-    tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-w-bd,#3a3a52);border-bottom:none;color:var(--sd-w-label,#888);background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;";
+    tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-w-bd,var(--sd-border));border-bottom:none;color:var(--sd-w-label, var(--sd-text-3));background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;";
     tplBtn.innerHTML = `<i class="fas fa-floppy-disk"></i> Template`;
     tplBtn.title = "Save sheet layout as template (use Sheet Builder → Templates → Create)";
     tplBtn.addEventListener("click", () => this._saveAsTemplate());
@@ -278,12 +278,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     if (tabs.length === 0) {
       const empty = document.createElement("div");
-      empty.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#444;";
+      empty.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--sd-text-3);";
       empty.innerHTML = `
         <i class="fas fa-toolbox" style="font-size:40px;opacity:.3"></i>
         <p style="font-size:13px;text-align:center;max-width:260px;line-height:1.6;margin:0">
-          Click <strong style="color:#7b68ee">Builder</strong> in the title bar,<br>
-          then drag <strong>New Tab</strong> onto the <strong style="color:#7b68ee">+</strong>
+          Click <strong style="color:var(--sd-accent)">Builder</strong> in the title bar,<br>
+          then drag <strong>New Tab</strong> onto the <strong style="color:var(--sd-accent)">+</strong>
         </p>
       `;
       container.appendChild(empty);
@@ -300,20 +300,20 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const e   = s => String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
     const hf  = Object.entries(sys.hiddenFields??{});
 
-    let html = `<div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.6">
-      GM-only key/value pairs attached to this actor. Path: <code style="background:#1e1e2a;padding:1px 5px;border-radius:3px;font-size:10px;color:#9d8fff">system.hiddenFields.name</code>
-      ${ed ? `<button data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,#2a2a38);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}
+    let html = `<div style="font-size:11px;color:var(--sd-text-3);margin-bottom:8px;line-height:1.6">
+      GM-only key/value pairs attached to this actor. Path: <code style="background:var(--sd-bg);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--sd-accent)">system.hiddenFields.name</code>
+      ${ed ? `<button data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}
     </div>`;
 
     if (!hf.length) {
       html += `<div style="color:#333;font-size:11px;font-style:italic;text-align:center;padding:20px 0">No hidden fields yet.</div>`;
     } else {
       for (const [k, v] of hf) {
-        html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #1e1e2a">
-          <input type="text" data-hf-key="${e(k)}" data-hf-rename value="${e(k)}" style="width:130px;background:#1e1e2a;border:1px solid var(--sd-w-bd,#2a2a38);border-radius:4px;color:#9d8fff;font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>
-          <input type="text" data-hf-key="${e(k)}" data-hf-val value="${e(String(v))}" style="flex:1;background:#1e1e2a;border:1px solid var(--sd-w-bd,#2a2a38);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);font-size:11px;padding:3px 6px" ${!ed?"disabled":""}>
-          <button type="button" data-hf-action="copy-path" data-hf-key="${e(k)}" title="Copy path: system.hiddenFields.${e(k)}" style="background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
-          ${ed?`<button data-hf-action="remove" data-hf-key="${e(k)}" style="background:none;border:none;color:#444;cursor:pointer;font-size:12px;padding:0 4px">✕</button>`:""}
+        html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--sd-bg)">
+          <input type="text" data-hf-key="${e(k)}" data-hf-rename value="${e(k)}" style="width:130px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-accent);font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>
+          <input type="text" data-hf-key="${e(k)}" data-hf-val value="${e(String(v))}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-w-fg,var(--sd-text));font-size:11px;padding:3px 6px" ${!ed?"disabled":""}>
+          <button type="button" data-hf-action="copy-path" data-hf-key="${e(k)}" title="Copy path: system.hiddenFields.${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
+          ${ed?`<button data-hf-action="remove" data-hf-key="${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 4px">✕</button>`:""}
         </div>`;
       }
     }
@@ -393,9 +393,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const name = await foundry.applications.api.DialogV2.wait({
       window: { title: "Save as Template" },
       content: `<div style="padding:8px 0">
-        <label style="font-size:12px;color:var(--sd-w-label,#888)">Template name:</label>
+        <label style="font-size:12px;color:var(--sd-w-label, var(--sd-text-3))">Template name:</label>
         <input type="text" name="tplName" value="${this.document.name} Template"
-          style="width:100%;margin-top:4px;background:var(--sd-w-bg,#2a2a38);border:1px solid var(--sd-w-bd,#3a3a52);color:var(--sd-w-fg,#e0e0ee);border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
+          style="width:100%;margin-top:4px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));color:var(--sd-w-fg,var(--sd-text));border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
       </div>`,
       buttons: [
         {
@@ -448,7 +448,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       display:grid; grid-template-columns:repeat(${cols},1fr); gap:8px;
       align-items:start; position:relative;
       padding:8px 8px 8px 8px;
-      border:1px dashed rgba(123,104,238,.12); border-radius:6px;
+      border:1px dashed var(--sd-accent-glow); border-radius:6px;
     `;
 
     if (this._editMode) {
@@ -458,8 +458,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       cfg.title = "Row columns (1-9)";
       cfg.style.cssText = `
         position:absolute; top:-9px; right:32px; z-index:10;
-        background:#1a1a24; border:1px solid var(--sd-w-bd,#3a3a52); border-radius:3px;
-        color:#7b68ee; cursor:pointer; font-size:10px; padding:0 6px; line-height:17px;
+        background:var(--sd-bg); border:1px solid var(--sd-w-bd,var(--sd-border)); border-radius:3px;
+        color:var(--sd-accent); cursor:pointer; font-size:10px; padding:0 6px; line-height:17px;
       `;
       cfg.addEventListener("click", () => this._configRow(tab.id, row.id));
       rowEl.appendChild(cfg);
@@ -470,8 +470,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       del.title = "Delete row";
       del.style.cssText = `
         position:absolute; top:-9px; right:4px; z-index:10;
-        background:#1a1a24; border:1px solid var(--sd-w-bd,#3a3a52); border-radius:3px;
-        color:#555; cursor:pointer; font-size:10px; padding:0 5px; line-height:17px;
+        background:var(--sd-bg); border:1px solid var(--sd-w-bd,var(--sd-border)); border-radius:3px;
+        color:var(--sd-text-3); cursor:pointer; font-size:10px; padding:0 5px; line-height:17px;
       `;
       del.addEventListener("click", () => this._deleteRow(tab.id, row.id));
       rowEl.appendChild(del);
@@ -510,15 +510,19 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return cell;
     }
 
-    const val = this._getVal(w);
-    const html = this._widgetHTML(w, val);
-    if (!html && !this._editMode) {
+    // Single rendering path: WidgetRenderer.render handles Show-If
+    // filtering, variant / cssClass decoration, and `_buildStyle`
+    // overrides on the inner widget div. Cell-level class injection is
+    // intentionally *not* done here anymore — doing it would re-apply
+    // root-level variant rules on top of the already-decorated inner
+    // element and produce nested padding / borders for widgets that
+    // care about that distinction.
+    const html = this._widgetHTML(w);
+    if (!html?.trim() && !this._editMode) {
       cell.style.display = "none";
       return cell;
     }
     cell.innerHTML = html || "";
-    const styleStr = WidgetRenderer._buildStyle(w);
-    if (styleStr) cell.style.cssText += `;${styleStr};box-sizing:border-box`;
     this._wireWidget(cell, w);
 
     if (this._editMode) {
@@ -534,13 +538,13 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     box.dataset.vsId = vs.id;
     box.style.cssText = `
       display:flex; flex-direction:column; gap:6px;
-      padding:6px; border:1px dashed rgba(123,104,238,.18); border-radius:5px;
+      padding:6px; border:1px dashed var(--sd-accent-glow); border-radius:5px;
       background:rgba(123,104,238,.03); min-height:40px;
     `;
     if (vs.label) {
       const h = document.createElement("div");
       h.textContent = vs.label;
-      h.style.cssText = "font-size:10px;font-weight:700;color:#7b68ee;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px";
+      h.style.cssText = "font-size:10px;font-weight:700;color:var(--sd-accent);text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px";
       box.appendChild(h);
     }
     (vs.widgets ?? []).forEach((cw, idx) => {
@@ -598,19 +602,19 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const spanBtn = parentVS
       ? ""
       : `<button type="button" title="Width (${span})" data-action="wspan"
-          style="pointer-events:auto;background:#1a1a24;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:var(--sd-w-label,#888);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">↔${span}</button>`;
+          style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-w-label, var(--sd-text-3));cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">↔${span}</button>`;
     ov.innerHTML = `
       <div style="display:flex;flex-direction:row;gap:2px;align-items:center">
-        <span title="Drag to move" style="pointer-events:auto;cursor:grab;background:#1a1a24;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:3px;color:var(--sd-w-label,#888);font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span>
+        <span title="Drag to move" style="pointer-events:auto;cursor:grab;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-w-label, var(--sd-text-3));font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span>
         <button type="button" title="Configure" data-action="wcfg"
-          style="pointer-events:auto;background:#1a1a24;border:1px solid #7b68ee;border-radius:3px;color:#7b68ee;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">⚙</button>
+          style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-accent);border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">⚙</button>
         <button type="button" title="Duplicate" data-action="wdup"
-          style="pointer-events:auto;background:#1a1a24;border:1px solid #6a9a55;border-radius:3px;color:#9bd07f;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px"><i class="fas fa-clone"></i></button>
+          style="pointer-events:auto;background:var(--sd-bg);border:1px solid #6a9a55;border-radius:3px;color:#9bd07f;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px"><i class="fas fa-clone"></i></button>
         ${spanBtn}
       </div>
       <div style="display:flex;flex-direction:row;gap:2px;align-items:center">
         <button type="button" title="Remove" data-action="wdel"
-          style="pointer-events:auto;background:#1a1a24;border:1px solid #e05a5a;border-radius:3px;color:#e05a5a;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">✕</button>
+          style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-hp);border-radius:3px;color:var(--sd-hp);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px">✕</button>
       </div>
     `;
     ov.querySelector('[data-action="wcfg"]').addEventListener("click",  ev => { ev.stopPropagation(); this._configWidget(tab, row, w, parentVS); });
@@ -623,276 +627,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     cell.appendChild(ov);
   }
 
-  _getVal(w) {
-    const doc = this.document;
-    if (w.valueFormula?.trim()) {
-      try {
-        const FE = globalThis._SD_FE?.FormulaEngine;
-        if (FE) return FE.evaluate(w.valueFormula, doc);
-      } catch {}
-    }
-    if (w.path)      return foundry.utils.getProperty(doc, w.path) ?? "";
-    if (w.pathValue) return foundry.utils.getProperty(doc, w.pathValue) ?? 0;
-    return "";
-  }
-
-  _widgetHTML(w, val) {
-    const e   = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-
-    // Show-If — supports both the modern key/value pair (used by the
-    // widget config popup) and the legacy single-formula `showIf` field.
-    // The key/value form previously was ignored on the character sheet,
-    // so widgets configured via the gear icon never actually hid.
-    //
-    // In edit mode the GM is configuring the layout, so we intentionally
-    // skip Show-If filtering — every widget remains visible (with overlay)
-    // regardless of the current data so the GM can still click their gear
-    // to tweak it. Players (and GMs in view mode) see Show-If applied.
-    if (this._editMode) { /* no-op: render everything */ }
-    else if (w.showIfKey && String(w.showIfKey).trim()) {
-      const src = String(w.showIfKey).trim();
-      let actualVal;
-      try {
-        if (src.startsWith("widget:")) {
-          const FE = globalThis._SD_FE?.FormulaEngine;
-          actualVal = FE ? String(FE.evaluate(`{${src}}`, this.document) ?? "") : "";
-        } else if (src.startsWith("hidden:")) {
-          const fieldName = src.slice("hidden:".length);
-          const direct = this.document?.system?.hiddenFields?.[fieldName];
-          actualVal = String(direct !== undefined ? direct : "");
-        } else {
-          // Treat as a direct property path on the document (e.g.
-          // system.attributes.attr1.value).
-          const direct = foundry.utils.getProperty(this.document, src);
-          actualVal = String(direct ?? "");
-        }
-      } catch { actualVal = ""; }
-      const expected = String(w.showIfValue ?? "").trim();
-      const visible = expected === ""
-        ? (!!actualVal && actualVal !== "0" && actualVal !== "false")
-        : actualVal === expected || String(Number(actualVal)) === expected;
-      if (!visible) return "";
-    } else if (w.showIf && String(w.showIf).trim()) {
-      try {
-        const FE = globalThis._SD_FE?.FormulaEngine;
-        if (FE) {
-          const result = FE.evaluate(w.showIf, this.document);
-          if (!result || result === "0" || result === 0 || result === false) return "";
-        }
-      } catch { /* show on error */ }
-    }
-
-    const lbl = w.label ? `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--sd-w-label,#888);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(w.label)}</div>` : "";
-    const inp = `style="width:100%;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0"`;
-    const hasFormula = !!w.valueFormula?.trim();
-
-    switch (w.type) {
-      case "text":
-        if (hasFormula) return `${lbl}<div style="width:100%;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#2a2a42);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0" title="Formula: ${e(w.valueFormula)}">${e(String(val))}<span style="float:right;color:#5a4ec0;font-size:9px">ƒ</span></div>`;
-        if (w.readOnly === true || w.readOnly === "true") return `${lbl}<div style="width:100%;background:var(--sd-w-bg,#111120);border:1px solid var(--sd-w-bd,#2a2a38);border-radius:4px;color:var(--sd-w-fg,#8888aa);font-size:12px;padding:4px 7px;box-sizing:border-box;min-width:0">${e(String(val))} <span style="float:right;opacity:.4" title="Read only">🔒</span></div>`;
-        return `${lbl}<input type="text" data-path="${e(w.path)}" value="${e(val)}" ${inp}>`;
-
-      case "number": {
-        if (hasFormula) return `${lbl}<div style="text-align:center;font-weight:700;font-size:18px;color:var(--sd-w-fg,#e0e0ee);padding:4px 2px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#2a2a42);border-radius:4px" title="Formula: ${e(w.valueFormula)}">${e(String(val))}<span style="font-size:9px;color:#5a4ec0;margin-left:4px">ƒ</span></div>`;
-        const btnCol = (typeof w.btnColor === "string" && w.btnColor.trim()) ? w.btnColor.trim() : "#a0a0c0";
-        return `${lbl}<div style="display:flex;align-items:center;gap:3px">
-          <button data-step="-${w.step||1}" data-path="${e(w.path)}"
-            style="width:26px;height:26px;flex-shrink:0;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">−</button>
-          <input type="number" data-path="${e(w.path)}" value="${e(val)}"
-            style="flex:1;text-align:center;font-weight:700;font-size:15px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);padding:2px;box-sizing:border-box;min-width:0">
-          <button data-step="${w.step||1}" data-path="${e(w.path)}"
-            style="width:26px;height:26px;flex-shrink:0;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:${e(btnCol)};cursor:pointer;font-size:16px;line-height:1">+</button>
-        </div>`;
-      }
-
-      case "resource": {
-        const doc = this.document;
-        const vv  = Number(foundry.utils.getProperty(doc, w.pathValue) ?? 0);
-        const mx  = Number(foundry.utils.getProperty(doc, w.pathMax)   ?? 0);
-        const pct = mx > 0 ? Math.round(Math.clamp(vv / mx, 0, 1) * 100) : 0;
-        const clr = w.color ?? "#7b68ee";
-        const barH = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "5px";
-        const barTrk = (typeof w.barTrack === "string" && w.barTrack.trim()) ? w.barTrack.trim() : "#111";
-        return `${lbl}
-          <div style="display:flex;align-items:center;gap:4px">
-            <input type="number" data-path="${e(w.pathValue)}" value="${e(vv)}"
-              style="width:46px;text-align:center;font-weight:700;font-size:14px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);padding:2px;box-sizing:border-box">
-            <span style="color:#555;flex-shrink:0">/</span>
-            <input type="number" data-path="${e(w.pathMax)}" value="${e(mx)}"
-              style="width:46px;text-align:center;font-size:13px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#a0a0c0);padding:2px;box-sizing:border-box">
-          </div>
-          <div style="height:${barH};background:${e(barTrk)};border-radius:3px;overflow:hidden;margin-top:3px">
-            <div style="height:100%;width:${pct}%;background:${e(clr)};border-radius:3px;transition:width .3s"></div>
-          </div>`;
-      }
-
-      case "dice": {
-        const diceFormula = w.formula ?? "1d20";
-        const diceMacroScript = `// ${e(w.label ?? "Roll")}\\nconst actor = token?.actor ?? game.user.character;\\nconst roll = new Roll("${e(diceFormula)}", actor?.getRollData() ?? {});\\nawait roll.evaluate();\\nawait roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${e(w.label ?? "Roll")}" });`;
-        const dBg = (typeof w.btnBg     === "string" && w.btnBg.trim())     ? w.btnBg.trim()     : "#22222e";
-        const dFg = (typeof w.btnFg     === "string" && w.btnFg.trim())     ? w.btnFg.trim()     : "#e0e0ee";
-        const dBd = (typeof w.btnBorder === "string" && w.btnBorder.trim()) ? w.btnBorder.trim() : "#3a3a52";
-        const dIc = (typeof w.iconColor === "string" && w.iconColor.trim()) ? w.iconColor.trim() : "#7b68ee";
-        return `${lbl}<div style="display:flex;align-items:center;gap:4px">
-          <button type="button" data-roll="${e(diceFormula)}" data-flavor="${e(w.label ?? "Roll")}"
-            style="flex:1;padding:6px 8px;background:${e(dBg)};border:1px solid ${e(dBd)};border-radius:4px;color:${e(dFg)};cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;transition:border-color .15s">
-            <i class="fas fa-dice-d20" style="color:${e(dIc)}"></i>
-            ${e(w.label ?? "Roll")}
-            <span style="opacity:.4;font-size:10px;margin-left:2px">${e(diceFormula)}</span>
-          </button>
-          <button type="button" data-copy-macro="${e(diceMacroScript)}" title="Copy as Macro"
-            style="background:none;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:#444;cursor:pointer;font-size:10px;padding:4px 6px;flex-shrink:0;transition:color .15s,border-color .15s"
-            onmouseover="this.style.color='#7b68ee';this.style.borderColor='#7b68ee'" onmouseout="this.style.color='#444';this.style.borderColor='#3a3a52'">
-            <i class="fas fa-scroll"></i>
-          </button>
-        </div>`;
-      }
-
-      case "toggle": {
-        const on  = !!val;
-        const lv  = on ? (w.onLabel ?? "On") : (w.offLabel ?? "Off");
-        const onC  = (typeof w.onColor  === "string" && w.onColor.trim())  ? w.onColor.trim()  : "#7b68ee";
-        const offC = (typeof w.offColor === "string" && w.offColor.trim()) ? w.offColor.trim() : "#22222e";
-        return `${lbl}<div data-toggle="${e(w.path)}" data-on="${on}"
-          style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;user-select:none">
-          <div style="width:36px;height:20px;flex-shrink:0;background:${on ? e(onC) : e(offC)};border:1px solid ${on ? e(onC) : "#3a3a52"};border-radius:10px;position:relative;transition:background .2s">
-            <div style="position:absolute;top:2px;left:${on ? "18px" : "2px"};width:14px;height:14px;background:${on ? "#fff" : "#555"};border-radius:50%;transition:left .2s"></div>
-          </div>
-          <span style="font-size:12px;color:var(--sd-w-fg,#a0a0c0)">${e(lv)}</span>
-        </div>`;
-      }
-
-      case "section": {
-        const lineCol = (typeof w.lineColor  === "string" && w.lineColor.trim())  ? w.lineColor.trim()  : "#3a3a52";
-        const titleCol= (typeof w.titleColor === "string" && w.titleColor.trim()) ? w.titleColor.trim() : "#a0a0c0";
-        const lineTh  = Number(w.lineThickness) > 0 ? `${Number(w.lineThickness)}px` : "1px";
-        return `<div style="grid-column:span 3;display:flex;align-items:center;gap:8px;padding:4px 0">
-          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${e(titleCol)};white-space:nowrap">${e(w.label)}</span>
-          <div style="flex:1;height:${lineTh};background:${e(lineCol)}"></div>
-        </div>`;
-      }
-
-      case "richtext":
-        return WidgetRenderer._render_richtext(w, this.document);
-
-      case "attribute": {
-        const score = Number(foundry.utils.getProperty(this.document, w.path) ?? 10);
-        const compute = CONFIG?.SD?.computeModifier
-          ?? (s => Math.floor((Number(s) - 10) / 2));
-        let mod;
-        if (w.modValueFormula) {
-          try {
-            const resolved = Number(w.modValueFormula.replace(/\{([^}]+)\}/g, (_, p) => {
-              const v = foundry.utils.getProperty(this.document, p);
-              return v !== undefined && v !== null ? v : 0;
-            }));
-            mod = isNaN(resolved) ? compute(score) : resolved;
-          } catch { mod = compute(score); }
-        } else {
-          mod = compute(score);
-        }
-        const ms = mod >= 0 ? `+${mod}` : `${mod}`;
-        const onClickFml = w.onClickFormula ?? null;
-        const clickAttrs = onClickFml
-          ? `data-attr-onclick="${e(onClickFml)}"`
-          : `data-attr-roll="1d20+(${mod})" data-flavor="${e(w.flavor || w.label)}"`;
-        return `${lbl}
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:6px;padding:6px">
-            <input type="number" data-path="${e(w.path)}" value="${e(score)}"
-              style="width:52px;text-align:center;font-size:18px;font-weight:700;background:transparent;border:none;border-bottom:1px solid var(--sd-w-bd,#3a3a52);color:var(--sd-w-fg,#e0e0ee);padding:0;box-sizing:border-box">
-            <button type="button" data-action="attrModClick" ${clickAttrs}
-              style="font-size:14px;font-weight:700;color:#7b68ee;cursor:pointer;padding:2px 8px;border-radius:4px;background:none;border:none"
-              title="${onClickFml ? "Click to execute action" : "Click to roll"}">${ms}</button>
-          </div>`;
-      }
-
-      case "skill": {
-        const rank = Number(foundry.utils.getProperty(this.document, w.path) ?? 0);
-        const bonus = rank + (w.attrMod ?? 0);
-        const bs = bonus >= 0 ? `+${bonus}` : `${bonus}`;
-        const skillRollFormula = (w.rollFormula && w.rollFormula.trim()) ? w.rollFormula.trim() : `1d20+${bonus}`;
-        const skillMacroScript = `// ${e(w.label)} skill roll\\nconst actor = token?.actor ?? game.user.character;\\nif (!actor) return ui.notifications.warn("No actor selected");\\nconst rank = foundry.utils.getProperty(actor, "${e(w.path)}") ?? 0;\\nconst bonus = rank + ${w.attrMod ?? 0};\\nconst formula = ${w.rollFormula?.trim() ? `"${e(w.rollFormula.trim())}"` : "`1d20+${bonus}`"};\\nconst roll = new Roll(formula, actor.getRollData());\\nawait roll.evaluate();\\nawait roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${e(w.label)}" });`;
-        return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;position:relative">
-          <span style="flex:1;font-size:12px;color:var(--sd-w-fg,#e0e0ee);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(w.label)}</span>
-          <input type="number" data-path="${e(w.path)}" value="${e(rank)}"
-            style="width:36px;text-align:center;background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;color:var(--sd-w-fg,#e0e0ee);font-size:12px;padding:2px;box-sizing:border-box">
-          <span data-roll="${e(skillRollFormula)}" data-flavor="${e(w.label)}"
-            style="font-size:12px;font-weight:700;color:#7b68ee;cursor:pointer;min-width:28px;text-align:right;padding:2px 4px;border-radius:4px"
-            title="Roll check (${e(skillRollFormula)})">${bs}</span>
-          <button type="button" data-copy-macro="${e(skillMacroScript)}" title="Copy as Macro"
-            style="background:none;border:none;color:#444;cursor:pointer;font-size:9px;padding:1px 3px;flex-shrink:0;border-radius:3px;transition:color .15s"
-            onmouseover="this.style.color='#7b68ee'" onmouseout="this.style.color='#444'">
-            <i class="fas fa-scroll"></i>
-          </button>
-        </div>`;
-      }
-
-      case "slot": {
-        const slotId   = w.slotId ?? "";
-        const contents = this.document.system?.slotContents?.[slotId]?.contents ?? [];
-        const defs     = this.document.system?.slotDefinitions ?? [];
-        const def      = defs.find(d => d.id === slotId);
-        const max      = def?.maxCount ?? w.maxCount ?? 1;
-        const items    = contents.map((c, i) => `
-          <div style="display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #2a2a38" draggable="true" data-item-id="${e(c._id ?? "")}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? "")}" data-slot-item-drag>
-            <img src="${e(c.img ?? 'icons/svg/item-bag.svg')}" style="width:20px;height:20px;border-radius:3px;object-fit:cover;flex-shrink:0">
-            <span style="flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(c.name ?? '?')}</span>
-            <button type="button" data-sd-slot-use="${e(slotId)}" data-sd-slot-idx="${i}"
-              style="background:none;border:none;color:#7b68ee;cursor:pointer;padding:0 4px;font-size:10px;flex-shrink:0;opacity:.7;transition:opacity .15s" title="Use item"
-              onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.7'">
-              <i class="fas fa-play"></i>
-            </button>
-            <button type="button" data-sd-slot-edit="${e(slotId)}" data-sd-slot-idx="${i}" data-item-id="${e(c._id ?? "")}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? "")}"
-              style="background:none;border:none;color:#9d8fff;cursor:pointer;padding:0 4px;font-size:10px;flex-shrink:0;opacity:.7;transition:opacity .15s" title="Edit item"
-              onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.7'">
-              <i class="fas fa-pen"></i>
-            </button>
-            <button type="button" data-sd-slot-remove="${e(slotId)}" data-sd-slot-idx="${i}"
-              style="background:none;border:none;color:#555;cursor:pointer;padding:0 4px;font-size:11px;flex-shrink:0" title="Remove">✕</button>
-          </div>`).join('');
-        return `${lbl}
-          <div style="background:var(--sd-w-bg,#22222e);border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;padding:5px">
-            <div style="font-size:10px;color:#555;margin-bottom:${items ? '4' : '0'}px">${contents.length}/${max}</div>
-            ${items}
-            <div data-sd-slot-drop="${e(slotId)}"
-              style="margin-top:${items ? '5' : '2'}px;border:1px dashed rgba(123,104,238,.25);border-radius:3px;padding:4px 6px;text-align:center;font-size:10px;color:#555;cursor:pointer;transition:background .15s">
-              <i class="fas fa-arrow-down-to-line" style="margin-right:3px"></i>Drop item here
-            </div>
-          </div>`;
-      }
-
-      case "button":
-        return WidgetRenderer._render_button(w, this.document);
-
-      case "inventory": {
-        return WidgetRenderer._render_inventory(w, this.document);
-      }
-
-      case "effects": {
-        return WidgetRenderer._render_effects(w, this.document);
-      }
-
-      case "spellbook": {
-        return WidgetRenderer._render_spellbook(w, this.document);
-      }
-
-      case "progress":
-      case "select":
-      case "clock":
-      case "tracker":
-      case "tags":
-      case "image":
-      case "derived":
-      case "counter":
-      case "rollButton":
-      case "tokenPool":
-      case "diceTray":
-        return WidgetRenderer.render(w, this.document, this._editMode);
-
-      default:
-        return WidgetRenderer.render(w, this.document, this._editMode)
-          ?? `${lbl}<span style="font-size:11px;color:#555;font-style:italic">[${e(w.type)}]</span>`;
-    }
+  _widgetHTML(w) {
+    // Single delegation. All widget HTML — including text/number/resource/
+    // toggle/dice/section/attribute/skill/slot/inventory/effects/spellbook/
+    // button/richtext — now flows through `WidgetRenderer.render(...)`,
+    // which handles Show-If filtering, variant decoration (`sd-w-<type>`/
+    // `sd-v-<id>`/`cssClass`), and `_buildStyle` overrides uniformly with
+    // item-sheet, action-hud, and the builder palette. Returning `""`
+    // signals "hide this cell" to `_buildWidget`.
+    return WidgetRenderer.render(w, this.document, this._editMode) ?? "";
   }
 
   _wireWidget(cell, w) {
@@ -1014,6 +757,21 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       btn.addEventListener("click", async () => {
         await doc.update({ [btn.dataset.path]: !_readPath(btn.dataset.path) });
       });
+    });
+
+    // Pills / radios on the select widget. Fires for both `<button>` and
+    // `<input type="radio">` — the radio's native `change` is harmless
+    // because the form submit will see the same value we just wrote.
+    cell.querySelectorAll("[data-action='widgetSelectPill']").forEach(el => {
+      const handler = async ev => {
+        ev.stopPropagation();
+        const path = el.dataset.path;
+        const val  = el.dataset.value ?? el.value ?? "";
+        if (!path) return;
+        await doc.update({ [path]: val });
+      };
+      // <input type=radio> fires "change", everything else fires "click".
+      el.addEventListener(el.tagName === "INPUT" ? "change" : "click", handler);
     });
 
     // Plain action button
@@ -1514,20 +1272,20 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     cell.querySelectorAll("[data-sd-slot-drop]").forEach(dz => {
       dz.addEventListener("dragover", ev => {
         ev.preventDefault();
-        dz.style.background = "rgba(123,104,238,.12)";
-        dz.style.color = "#7b68ee";
-        dz.style.borderColor = "#7b68ee";
+        dz.style.background = "var(--sd-accent-glow)";
+        dz.style.color = "var(--sd-accent)";
+        dz.style.borderColor = "var(--sd-accent)";
       });
       dz.addEventListener("dragleave", () => {
         dz.style.background = "";
         dz.style.color = "#555";
-        dz.style.borderColor = "rgba(123,104,238,.25)";
+        dz.style.borderColor = "var(--sd-accent-dim)";
       });
       dz.addEventListener("drop", async ev => {
         ev.preventDefault();
         dz.style.background = "";
         dz.style.color = "#555";
-        dz.style.borderColor = "rgba(123,104,238,.25)";
+        dz.style.borderColor = "var(--sd-accent-dim)";
         try {
           const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
           const item = data.uuid ? await fromUuid(data.uuid) : null;
@@ -1734,20 +1492,20 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     cell.querySelectorAll(".sb-drop-zone").forEach(dz => {
       dz.addEventListener("dragover", ev => {
         ev.preventDefault();
-        dz.style.background  = "rgba(123,104,238,.12)";
-        dz.style.color       = "#9d8fff";
-        dz.style.borderColor = "#7b68ee";
+        dz.style.background  = "var(--sd-accent-glow)";
+        dz.style.color       = "var(--sd-accent)";
+        dz.style.borderColor = "var(--sd-accent)";
       });
       dz.addEventListener("dragleave", () => {
         dz.style.background  = "";
         dz.style.color       = "#555";
-        dz.style.borderColor = "rgba(123,104,238,.25)";
+        dz.style.borderColor = "var(--sd-accent-dim)";
       });
       dz.addEventListener("drop", async ev => {
         ev.preventDefault();
         dz.style.background  = "";
         dz.style.color       = "#555";
-        dz.style.borderColor = "rgba(123,104,238,.25)";
+        dz.style.borderColor = "var(--sd-accent-dim)";
         try {
           const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
           const item = data.uuid ? await fromUuid(data.uuid) : null;
@@ -1797,8 +1555,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         } catch {
           await foundry.applications.api.DialogV2.prompt({
             window: { title: "Macro Script" },
-            content: `<p style="font-size:11px;color:var(--sd-w-label,#888);margin-bottom:6px">Copy the script below into a new Macro (type: Script):</p>
-              <textarea style="width:100%;height:160px;font-family:monospace;font-size:11px;background:#1a1a24;color:#c0c0e0;border:1px solid var(--sd-w-bd,#3a3a52);border-radius:4px;padding:6px;box-sizing:border-box;resize:vertical"
+            content: `<p style="font-size:11px;color:var(--sd-w-label, var(--sd-text-3));margin-bottom:6px">Copy the script below into a new Macro (type: Script):</p>
+              <textarea style="width:100%;height:160px;font-family:monospace;font-size:11px;background:var(--sd-bg);color:#c0c0e0;border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;padding:6px;box-sizing:border-box;resize:vertical"
                 readonly onclick="this.select()">${script}</textarea>`,
             ok: { label: "Close" }
           });
@@ -1818,7 +1576,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           if (icon) {
             const prev = icon.className;
             icon.className = "fas fa-check";
-            btn.style.color = "#5ae07a";
+            btn.style.color = "var(--sd-stamina)";
             setTimeout(() => { icon.className = prev; btn.style.color = ""; }, 1200);
           }
         } catch {
@@ -2012,8 +1770,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const dz = document.createElement("div");
     dz.style.cssText = `
       ${(row && !parentVS) ? "" : (parentVS ? "" : `grid-column:span ${rowCols};`)}
-      border:1px dashed rgba(123,104,238,.2); border-radius:5px;
-      padding:8px; text-align:center; font-size:11px; color:#444; cursor:pointer;
+      border:1px dashed var(--sd-accent-dim); border-radius:5px;
+      padding:8px; text-align:center; font-size:11px; color:var(--sd-text-3); cursor:pointer;
       transition:background .15s,color .15s,border-color .15s;
       user-select:none;
     `;
@@ -2021,21 +1779,21 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     dz.addEventListener("dragover", ev => {
       ev.preventDefault();
-      dz.style.background   = "rgba(123,104,238,.1)";
-      dz.style.color        = "#7b68ee";
-      dz.style.borderColor  = "#7b68ee";
+      dz.style.background   = "var(--sd-accent-glow)";
+      dz.style.color        = "var(--sd-accent)";
+      dz.style.borderColor  = "var(--sd-accent)";
     });
     dz.addEventListener("dragleave", () => {
       dz.style.background  = "";
       dz.style.color       = "#444";
-      dz.style.borderColor = "rgba(123,104,238,.2)";
+      dz.style.borderColor = "var(--sd-accent-dim)";
     });
     dz.addEventListener("drop", async ev => {
       ev.preventDefault();
       ev.stopPropagation();
       dz.style.background  = "";
       dz.style.color       = "#444";
-      dz.style.borderColor = "rgba(123,104,238,.2)";
+      dz.style.borderColor = "var(--sd-accent-dim)";
       try {
         const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
         if (data.sdType === "widget") {
@@ -2084,9 +1842,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // Update nav link styles
     root.querySelectorAll(".sd-tab-btn[data-tab-id]").forEach(a => {
       const active = a.dataset.tabId === tabId;
-      a.style.color      = active ? "#7b68ee" : "#666";
-      a.style.background = active ? "#1a1a24" : "transparent";
-      a.style.borderColor = active ? "#3a3a52 #3a3a52 #1a1a24" : "transparent";
+      a.style.color      = active ? "var(--sd-accent)" : "#666";
+      a.style.background = active ? "var(--sd-bg)" : "transparent";
+      a.style.borderColor = active ? "var(--sd-border) var(--sd-border) var(--sd-bg)" : "transparent";
     });
 
     // Show correct panel
@@ -2133,9 +1891,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const defaults = {
       text:      { label: "Label",    path: "system.flags.myField" },
       number:    { label: "Number",   path: "system.flags.myNumber" },
-      resource:  { label: "Resource", pathValue: "system.resources.hp.value", pathMax: "system.resources.hp.max", color: "#e05a5a" },
+      resource:  { label: "Resource", pathValue: "system.resources.hp.value", pathMax: "system.resources.hp.max", color: "var(--sd-hp)" },
       dice:      { label: "Roll",     formula: "1d20" },
-      button:    { label: "Action",   icon: "fa-bolt", color: "#7b68ee", formula: "", flavor: "" },
+      button:    { label: "Action",   icon: "fa-bolt", color: "var(--sd-accent)", formula: "", flavor: "" },
       toggle:    { label: "Toggle",   path: "system.flags.myToggle", onLabel: "On", offLabel: "Off" },
       section:   { label: "Section",  span: 3 },
       vsection:  { label: "",         widgets: [], span: 1 },
@@ -2327,9 +2085,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const n = await foundry.applications.api.DialogV2.prompt({
       window: { title: "Row Columns" },
       content: `<div style="padding:8px 0">
-        <label style="font-size:12px;color:var(--sd-w-label,#888)">Columns (1-9):</label>
+        <label style="font-size:12px;color:var(--sd-w-label, var(--sd-text-3))">Columns (1-9):</label>
         <input type="number" min="1" max="9" name="cols" value="${cur}"
-          style="width:100%;margin-top:4px;background:var(--sd-w-bg,#2a2a38);border:1px solid var(--sd-w-bd,#3a3a52);color:var(--sd-w-fg,#e0e0ee);border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
+          style="width:100%;margin-top:4px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));color:var(--sd-w-fg,var(--sd-text));border-radius:4px;padding:4px 8px;font-size:13px;box-sizing:border-box">
       </div>`,
       ok: {
         label: "Apply",
@@ -2404,9 +2162,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const zone = ev.target.closest("[data-drop-zone='inventory'], [data-sd-slot-drop], .inventory-drop-zone");
       if (!zone) return;
       ev.preventDefault();
-      zone.style.background   = "rgba(123,104,238,.12)";
-      zone.style.borderColor  = "#7b68ee";
-      zone.style.color        = "#9d8fff";
+      zone.style.background   = "var(--sd-accent-glow)";
+      zone.style.borderColor  = "var(--sd-accent)";
+      zone.style.color        = "var(--sd-accent)";
     });
 
     con.addEventListener("dragleave", ev => {
@@ -2496,7 +2254,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const windowHeader = root.querySelector(".window-header") ?? root.querySelector("header");
     const badge = document.createElement("div");
     badge.className = "sd-edit-badge";
-    badge.style.cssText = "position:absolute;top:4px;right:48px;background:#7b68ee;color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;z-index:100;pointer-events:none";
+    badge.style.cssText = "position:absolute;top:4px;right:48px;background:var(--sd-accent);color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;z-index:100;pointer-events:none";
     badge.textContent = "EDIT MODE";
 
     if (windowHeader) {

@@ -12,24 +12,24 @@
     <p class="section-hint-text">
       Hidden fields are GM-only key/value pairs stored on this item.
       They can be used as <strong>slot filters</strong> (drop an item on the slot's filter zone)
-      and referenced via <code style="font-size:10px;color:#7b68ee">system.hiddenFields.field_name</code>.
+      and referenced via <code style="font-size:10px;color:var(--sd-accent)">system.hiddenFields.field_name</code>.
     </p>
 
     {{#if hiddenFieldEntries.length}}
     <div style="display:flex;flex-direction:column;gap:5px">
-      <div style="display:grid;grid-template-columns:130px 1fr auto;gap:7px;padding:3px 6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#555;letter-spacing:.06em">
+      <div style="display:grid;grid-template-columns:130px 1fr auto;gap:7px;padding:3px 6px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--sd-text-3);letter-spacing:.06em">
         <span>Field Name</span><span>Value</span><span></span>
       </div>
       {{#each hiddenFieldEntries as |hf|}}
-      <div style="display:grid;grid-template-columns:130px 1fr auto;gap:7px;align-items:center;background:#2a2a38;border:1px solid #3a3a52;border-radius:5px;padding:5px 8px">
+      <div style="display:grid;grid-template-columns:130px 1fr auto;gap:7px;align-items:center;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:5px;padding:5px 8px">
         <div style="position:relative">
           <input type="text" class="hf-key"
                  data-action="updateHiddenFieldKey" data-old-key="{{hf.key}}"
                  value="{{hf.key}}" placeholder="field_name"
                  style="font-family:monospace;font-size:12px;width:100%"
                  {{#unless ../isEditable}}disabled{{/unless}} />
-          <div style="font-size:9px;color:#555;margin-top:2px;font-family:monospace;overflow:hidden;text-overflow:ellipsis">
-            system.hiddenFields.<strong style="color:#7b68ee">{{hf.key}}</strong>
+          <div style="font-size:9px;color:var(--sd-text-3);margin-top:2px;font-family:monospace;overflow:hidden;text-overflow:ellipsis">
+            system.hiddenFields.<strong style="color:var(--sd-accent)">{{hf.key}}</strong>
           </div>
         </div>
         <input type="text" class="hf-val"
@@ -55,20 +55,20 @@
   </div>
 
   {{!-- How to use ─────────────────────────────────────────────────────────── --}}
-  <div class="section-block" style="background:rgba(123,104,238,.05);border-color:#4b3e9e">
+  <div class="section-block" style="background:rgba(123,104,238,.05);border-color:var(--sd-accent-2)">
     <div class="section-title"><i class="fas fa-circle-info"></i> How to use Hidden Fields</div>
-    <div style="font-size:12px;color:#888;line-height:1.7;display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:12px;color:var(--sd-text-2);line-height:1.7;display:flex;flex-direction:column;gap:8px">
       <p style="margin:0">
-        <strong style="color:#a0a0c0">1. Create a field</strong> — e.g. name: <code style="color:#7b68ee">ammo_type</code>, value: <code style="color:#7b68ee">9x18</code>
+        <strong style="color:var(--sd-text-2)">1. Create a field</strong> — e.g. name: <code style="color:var(--sd-accent)">ammo_type</code>, value: <code style="color:var(--sd-accent)">9x18</code>
       </p>
       <p style="margin:0">
-        <strong style="color:#a0a0c0">2. Display it</strong> — in the Sheet Builder, add a <em>Text</em> widget and set its path to <code style="color:#7b68ee">system.hiddenFields.ammo_type</code>
+        <strong style="color:var(--sd-text-2)">2. Display it</strong> — in the Sheet Builder, add a <em>Text</em> widget and set its path to <code style="color:var(--sd-accent)">system.hiddenFields.ammo_type</code>
       </p>
       <p style="margin:0">
-        <strong style="color:#a0a0c0">3. Filter a slot</strong> — on a Magazine item, go to <em>Slots</em> tab → slot → drag this item onto the filter zone → pick <code style="color:#7b68ee">ammo_type == 9x18</code>
+        <strong style="color:var(--sd-text-2)">3. Filter a slot</strong> — on a Magazine item, go to <em>Slots</em> tab → slot → drag this item onto the filter zone → pick <code style="color:var(--sd-accent)">ammo_type == 9x18</code>
       </p>
       <p style="margin:0">
-        <strong style="color:#a0a0c0">4. Use in buttons</strong> — in button conditions, field path <code style="color:#7b68ee">slots.ammo.0.system.hiddenFields.ammo_type</code>
+        <strong style="color:var(--sd-text-2)">4. Use in buttons</strong> — in button conditions, field path <code style="color:var(--sd-accent)">slots.ammo.0.system.hiddenFields.ammo_type</code>
       </p>
     </div>
   </div>

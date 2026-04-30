@@ -34,6 +34,7 @@ import { SDItemSheet }         from "./module/sheets/item-sheet.mjs";
 import { runMigrations }       from "./module/helpers/migrations.mjs";
 import { EFFECT_PATHS }        from "./module/helpers/effects.mjs";
 import { SystemConfig, applySettings, buildActorBaseDefaults } from "./module/helpers/system-config.mjs";
+import { installColorSchemeObserver } from "./module/helpers/color-schemes.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 import { SDActionHUD, SDActionHUDConfig, registerActionHudSettings, mountActionHudHooks } from "./module/helpers/action-hud.mjs";
 
@@ -250,6 +251,10 @@ Hooks.once("init", () => {
   registerHandlebarsHelpers();
 
   SystemConfig.applyStoredSettings();
+
+  // Install MutationObserver so popouts/dialogs rendered after init still
+  // pick up the active color scheme (they mount outside the main body tree).
+  installColorSchemeObserver();
 
   CONFIG.SD.Toolbox = Toolbox;
 
