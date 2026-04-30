@@ -8,14 +8,28 @@ const FIELD_DEFS = {
   dice:      [["Label","label"],["Widget Key","widgetKey","text"],["Roll Formula","formula","formula"],["Chat Flavor","flavor","text"]],
   button:    [["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-bolt)","icon","text"],["Roll Formula (optional)","formula","formula"],["Chat Flavor / Message","flavor","text"]],
   toggle:    [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["On Label","onLabel","text"],["Off Label","offLabel","text"]],
-  section:   [["Section Title","label"]],
+  section:   [["Section Title","label"],["Widget Key","widgetKey","text"]],
+  vsection:  [["Title","label"],["Widget Key","widgetKey","text"]],
   richtext:  [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"]],
   attribute: [["Label","label"],["Widget Key","widgetKey","text"],["Score Path","path","path"],["Chat Flavor","flavor","text"]],
   skill:     [["Label","label"],["Widget Key","widgetKey","text"],["Rank Path","path","path"],["Attr Modifier","attrMod","number"],["Roll Formula Override","formula","formula"],["Chat Flavor","flavor","text"]],
   slot:      [["Label","label"],["Widget Key","widgetKey","text"],["Slot ID","slotId","text"],["Max Items","maxCount","number"]],
-  inventory: [["Label","label"],["Filter Categories","categories","array"],["Extra Columns (hidden field names)","columns","array"],["Show Currency Section","showCurrency","boolean"],["Currency Path (optional)","currencyPath","path"]],
-  effects:   [["Label","label"],["Show Disabled","showDisabled","boolean"],["Show Passive","showPassive","boolean"]],
-  spellbook: [["Label","label"],["Ability type filter (empty = all)","abilityType","text"]],
+  inventory: [["Label","label"],["Widget Key","widgetKey","text"],["Filter Categories","categories","array"],["Extra Columns (hidden field names)","columns","array"],["Show Currency Section","showCurrency","boolean"],["Currency Path (optional)","currencyPath","path"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
+  effects:   [["Label","label"],["Widget Key","widgetKey","text"],["Show Disabled","showDisabled","boolean"],["Show Passive","showPassive","boolean"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
+  spellbook: [["Label","label"],["Widget Key","widgetKey","text"],["Ability type filter (empty = all)","abilityType","text"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
+  attributeGroup: [["Button Label","label"],["Widget Key","widgetKey","text"],["Attribute keys (comma, blank = all)","attributeKeys","text"],["FA icon","icon","text"]],
+
+  // Numeric counter widget
+  counter:   [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Step","step","number"],["Min","min","number"],["Max","max","number"]],
+
+  // Big roll button
+  rollButton:[["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-dice-d20)","icon","text"],["Roll Formula","formula","formula"],["Chat Flavor","flavor","text"]],
+
+  // Token pool (filled pip array)
+  tokenPool: [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon","icon","text"]],
+
+  // Dice tray
+  diceTray:  [["Label","label"],["Widget Key","widgetKey","text"],["Flag Path (default flags.sd.lastRoll)","flagPath","text"]],
 
   // New widget types
   progress: [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"],["Show label","showLabel","boolean"],["Show percentage","showPct","boolean"]],

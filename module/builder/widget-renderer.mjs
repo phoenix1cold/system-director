@@ -83,7 +83,9 @@ export class WidgetRenderer {
     if (w.valueFormula && FormulaEngine.isFormula(w.valueFormula)) {
       return FormulaEngine.evaluate(w.valueFormula, doc);
     }
-    return this._get(doc, w.path, fallback);
+    if (w.path) return this._get(doc, w.path, fallback);
+    if (w.staticValue !== undefined && w.staticValue !== "") return w.staticValue;
+    return fallback;
   }
 
   /** Resolve a roll formula — replaces {refs} with live numbers */
@@ -301,6 +303,13 @@ export class WidgetRenderer {
     const contents = SlotManager ? SlotManager.getContents(doc, w.slotId) : [];
     const def      = SlotManager ? SlotManager.getDefinition(doc, w.slotId) : null;
     const max      = def?.maxCount ?? w.maxCount ?? 1;
+
+    // HUD/compact rendering: round icons in a row (1..3 items) or a
+    // dropdown like the inventory widget when there are more.
+    if (w.compact) {
+      return this._render_slot_compact(w, doc, contents, max);
+    }
+
     const e = this._esc;
     const items = contents.map((c, i) => `
       <li class="slot-mini-item" data-slot-id="${e(w.slotId)}" data-slot-index="${i}">
@@ -327,6 +336,62 @@ export class WidgetRenderer {
 </div>`;
   }
 
+  /**
+   * HUD-friendly rendering for the slot widget.
+   *   - 0..3 items → row of round image-buttons (whole circle is a click-to-use
+   *     target; items can still be removed via the small ✕ corner badge).
+   *   - >3 items   → collapsed `<details>` popover identical in shape to the
+   *     compact inventory widget (icon + label + count, opens a list of rows
+   *     with use / edit / remove controls).
+   */
+  static _render_slot_compact(w, doc, contents, max) {
+    const e        = this._esc;
+    const slotId   = e(w.slotId);
+    const lbl      = e(w.label || "Slot");
+    const countTxt = `${contents.length}/${max}`;
+
+    if (contents.length > 3) {
+      let rows = "";
+      for (let i = 0; i < contents.length; i++) {
+        const c   = contents[i];
+        const img = e(c.img ?? "icons/svg/item-bag.svg");
+        const nm  = e(c.name ?? "");
+        const itemId   = e(c._id ?? "");
+        const itemUuid = e(c._sourceUuid ?? c.uuid ?? "");
+        rows += `<li class="sd-hud-pop-row" data-slot-id="${slotId}" data-slot-index="${i}">
+          <img src="${img}" alt="${nm}">
+          <span class="sd-hud-pop-name" title="${nm}">${nm}</span>
+          <button type="button" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="Use"><i class="fas fa-play"></i></button>
+          <button type="button" data-action="slotItemEdit" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUuid}" title="Edit"><i class="fas fa-pen"></i></button>
+          <button type="button" data-sd-slot-remove="${slotId}" data-sd-slot-idx="${i}" title="Remove"><i class="fas fa-times"></i></button>
+        </li>`;
+      }
+      return `<div class="widget widget-slot widget-compact widget-slot-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="fas fa-layer-group"></i><span>${lbl}</span><span class="sd-hud-pop-count">${countTxt}</span></summary>
+  <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
+</details></div>`;
+    }
+
+    // Row of round icons (0..3 items).
+    let icons = "";
+    for (let i = 0; i < contents.length; i++) {
+      const c   = contents[i];
+      const img = e(c.img ?? "icons/svg/item-bag.svg");
+      const nm  = e(c.name ?? "");
+      icons += `<button type="button" class="slot-hud-icon" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="${nm}">
+        <img src="${img}" alt="${nm}">
+        <span class="slot-hud-icon-remove" data-sd-slot-remove="${slotId}" data-sd-slot-idx="${i}" title="Remove">×</span>
+      </button>`;
+    }
+    if (contents.length === 0) {
+      icons = `<div class="slot-hud-icon slot-hud-icon-empty" data-sd-slot-drop="${slotId}" title="Drop item here"><i class="fas fa-arrow-down-to-line"></i></div>`;
+    }
+    return `<div class="widget widget-slot widget-compact widget-slot-row" data-sd-slot-drop="${slotId}">
+  <div class="widget-label slot-hud-label"><i class="fas fa-layer-group"></i> ${lbl} <span class="slot-hud-count">${countTxt}</span></div>
+  <div class="slot-hud-icons">${icons}</div>
+</div>`;
+  }
+
   // inventory
 
   static _render_inventory(w, doc) {
@@ -341,6 +406,11 @@ export class WidgetRenderer {
 
     if (categories.length > 0) {
       items = items.filter(item => categories.includes(item.system?.category));
+    }
+
+    // Compact mode: a button that opens a popover list of names with use/equip controls.
+    if (w.compact) {
+      return this._render_inventory_compact(w, doc, items);
     }
 
     // Group by category
@@ -576,8 +646,15 @@ export class WidgetRenderer {
   // richtext
 
   static _render_richtext(w, doc) {
-    const val = this._get(doc, w.path, "");
+    const val = w.path ? this._get(doc, w.path, "") : (w.staticHtml ?? "");
     const e   = this._esc;
+    // Inline (no path) static HTML: render as a read-only block.
+    if (!w.path && w.staticHtml) {
+      return `<div class="widget widget-richtext widget-richtext--static">
+  ${w.label ? `<div class="widget-label">${e(w.label)}</div>` : ""}
+  <div class="richtext-display" style="padding:6px 8px;font-size:12px;line-height:1.6;word-break:break-word">${val}</div>
+</div>`;
+    }
     return `<div class="widget widget-richtext">
   <div class="widget-label">${e(w.label)}</div>
   <div class="richtext-display" data-path="${e(w.path)}"
@@ -611,6 +688,10 @@ export class WidgetRenderer {
     });
 
     const canEdit = doc.isOwner ?? true;
+
+    if (w.compact) {
+      return this._render_effects_compact(w, doc, filtered, canEdit);
+    }
 
     // Duration helper
     const _durLabel = (ef) => {
@@ -665,6 +746,10 @@ export class WidgetRenderer {
         const t = String(i.system?.hiddenFields?.type ?? "").trim();
         return t === wantType;
       });
+    }
+
+    if (w.compact) {
+      return this._render_spellbook_compact(w, doc, abilities, wantType);
     }
 
     const typeBadge = wantType
@@ -1296,6 +1381,155 @@ export class WidgetRenderer {
 
   static _renderUnknown(w) {
     return `<div class="widget"><div class="widget-label">[${this._esc(w.type)}]</div></div>`;
+  }
+
+  // ─── Compact HUD renderers ─────────────────────────────────────────────
+  // These produce a single button (the widget label) that opens a small
+  // <details> popover containing a flat name-list with use/equip/toggle
+  // controls.
+
+  static _render_inventory_compact(w, doc, items) {
+    const e   = this._esc;
+    const lbl = e(w.label || "Inventory");
+    const ic  = e(w.icon || "fa-backpack");
+    if (!items || items.length === 0) {
+      return `<div class="widget widget-inventory widget-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
+  <div class="sd-hud-pop-body sd-hud-pop-empty"><i class="fas fa-backpack"></i> No items</div>
+</details></div>`;
+    }
+    let rows = "";
+    for (const item of items) {
+      const isInv     = item.type === "inventory";
+      const equipped  = item.system?.equipped;
+      const equippable = item.system?.equippable;
+      const qty       = item.system?.quantity ?? 1;
+      const equipBtn  = isInv
+        ? `<button type="button" class="sd-hud-pop-btn-equip ${equipped ? "is-on" : ""}" data-action="itemEquip" data-item-id="${e(item.id)}" title="${equipped ? "Unequip" : "Equip"}"${equippable ? "" : ' style="opacity:.45"'}><i class="fas ${equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>`
+        : "";
+      rows += `<li class="sd-hud-pop-row" data-item-id="${e(item.id)}">
+        <img src="${e(item.img)}" alt="${e(item.name)}">
+        <span class="sd-hud-pop-name" title="${e(item.name)}">${e(item.name)}</span>
+        ${qty > 1 ? `<span class="sd-hud-pop-qty">×${qty}</span>` : ""}
+        <button type="button" data-action="itemUse" data-item-id="${e(item.id)}" title="Use"><i class="fas fa-play"></i></button>
+        ${equipBtn}
+      </li>`;
+    }
+    return `<div class="widget widget-inventory widget-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${items.length}</span></summary>
+  <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
+</details></div>`;
+  }
+
+  static _render_effects_compact(w, doc, effects, canEdit) {
+    const e   = this._esc;
+    const lbl = e(w.label || "Effects");
+    const ic  = e(w.icon || "fa-sparkles");
+    if (!effects || effects.length === 0) {
+      return `<div class="widget widget-effects widget-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
+  <div class="sd-hud-pop-body sd-hud-pop-empty"><i class="fas fa-sparkles"></i> No effects</div>
+</details></div>`;
+    }
+    let rows = "";
+    for (const ef of effects) {
+      const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
+      const offCls   = ef.disabled ? "sd-hud-pop-row--off" : "";
+      rows += `<li class="sd-hud-pop-row ${offCls}" data-effect-id="${e(ef.id)}">
+        <img src="${e(ef.img ?? ef.icon ?? 'icons/svg/aura.svg')}" alt="${e(ef.name)}">
+        <span class="sd-hud-pop-name" title="${e(ef.name)}">${e(ef.name)}</span>
+        ${canEdit ? `<button type="button" data-action="effectToggle" data-effect-id="${e(ef.id)}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
+      </li>`;
+    }
+    return `<div class="widget widget-effects widget-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${effects.length}</span></summary>
+  <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
+</details></div>`;
+  }
+
+  static _render_spellbook_compact(w, doc, abilities, wantType) {
+    const e   = this._esc;
+    const lbl = e(w.label || (wantType ? wantType : "Spellbook"));
+    const ic  = e(w.icon || "fa-book-sparkles");
+    if (!abilities || abilities.length === 0) {
+      return `<div class="widget widget-spellbook widget-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
+  <div class="sd-hud-pop-body sd-hud-pop-empty"><i class="fas fa-book-sparkles"></i> No abilities</div>
+</details></div>`;
+    }
+    let rows = "";
+    for (const ab of abilities) {
+      const hf   = ab.system?.hiddenFields ?? {};
+      const cost = Number(hf.cost ?? 0) || 0;
+      rows += `<li class="sd-hud-pop-row" data-item-id="${e(ab.id)}">
+        <img src="${e(ab.img ?? "icons/svg/book.svg")}" alt="${e(ab.name)}">
+        <span class="sd-hud-pop-name" title="${e(ab.name)}">${e(ab.name)}</span>
+        ${cost > 0 ? `<span class="sd-hud-pop-qty" title="cost">${cost}</span>` : ""}
+        <button type="button" data-action="abilityCast" data-item-id="${e(ab.id)}" title="Use"><i class="fas fa-play"></i></button>
+      </li>`;
+    }
+    return `<div class="widget widget-spellbook widget-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${abilities.length}</span></summary>
+  <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
+</details></div>`;
+  }
+
+  // ─── attributeGroup widget (button + popover with attributes to roll) ─
+
+  static _render_attributeGroup(w, doc) {
+    const e   = this._esc;
+    const lbl = e(w.label || "Attributes");
+    const ic  = e(w.icon || "fa-dice-d20");
+    if (!(doc instanceof Actor)) {
+      return `<div class="widget widget-attribute-group widget-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span></summary>
+  <div class="sd-hud-pop-body sd-hud-pop-empty">Actor required</div>
+</details></div>`;
+    }
+
+    // Source: explicit list, or all keys under system.attributes
+    const explicit = String(w.attributeKeys ?? "").trim();
+    let keys = [];
+    if (explicit) {
+      keys = explicit.split(",").map(s => s.trim()).filter(Boolean);
+    } else {
+      const attrs = doc.system?.attributes ?? {};
+      keys = Object.keys(attrs).filter(k => {
+        const v = attrs[k];
+        return v && (typeof v === "number" || typeof v === "object");
+      });
+    }
+    const compute = CONFIG?.SD?.computeModifier ?? (s => Math.floor((Number(s) - 10) / 2));
+
+    let rows = "";
+    for (const key of keys) {
+      // Resolve the value: support both shapes — system.attributes.str (number)
+      // and system.attributes.str.value / .score
+      let scorePath = `system.attributes.${key}`;
+      let score = foundry.utils.getProperty(doc, scorePath);
+      if (score && typeof score === "object") {
+        if ("score" in score) { scorePath += ".score"; score = score.score; }
+        else if ("value" in score) { scorePath += ".value"; score = score.value; }
+        else { score = 10; }
+      }
+      score = Number(score);
+      if (!Number.isFinite(score)) score = 10;
+      const mod = compute(score);
+      const ms  = mod >= 0 ? `+${mod}` : `${mod}`;
+      const dispName = key.charAt(0).toUpperCase() + key.slice(1);
+      rows += `<li class="sd-hud-pop-row" data-attr-key="${e(key)}">
+        <span class="sd-hud-pop-name">${e(dispName)}</span>
+        <span class="sd-hud-pop-qty">${e(String(score))}</span>
+        <button type="button" data-action="widgetRoll"
+                data-formula="1d20+(${mod})" data-formula-raw="1d20+(${mod})"
+                data-flavor="${e(dispName)}"
+                title="Roll ${e(dispName)} (${ms})">${ms}</button>
+      </li>`;
+    }
+    return `<div class="widget widget-attribute-group widget-compact"><details class="sd-hud-popover">
+  <summary class="sd-hud-pop-btn"><i class="fas ${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${keys.length}</span></summary>
+  <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
+</details></div>`;
   }
 }
 

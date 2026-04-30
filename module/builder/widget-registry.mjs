@@ -193,6 +193,23 @@ export const WIDGET_TYPES = {
     ]
   },
 
+  attributeGroup: {
+    id:    "attributeGroup",
+    label: "Attribute Group",
+    icon:  "fa-dice-d20",
+    desc:  "Compact button → popover list of attributes",
+    defaultSpan: 1,
+    defaults: {
+      label: "Attributes",
+      attributeKeys: ""
+    },
+    configFields: [
+      { key: "label",         type: "text", label: "Button label" },
+      { key: "attributeKeys", type: "text", label: "Attribute keys (comma, blank = all)" },
+      { key: "icon",          type: "text", label: "FA icon (e.g. fa-dice-d20)" }
+    ]
+  },
+
   skill: {
     id:    "skill",
     label: "Skill",
@@ -599,7 +616,7 @@ export const WIDGET_TYPES = {
 /** Ordered list for palette display */
 export const WIDGET_PALETTE_ORDER = [
   "text", "number", "counter", "resource", "derived", "dice", "button",
-  "toggle", "attribute", "skill", "progress", "tracker", "tokenPool", "clock",
+  "toggle", "attribute", "attributeGroup", "skill", "progress", "tracker", "tokenPool", "clock",
   "slot", "inventory", "effects", "spellbook",
   "select", "tags", "image", "section", "vsection", "richtext",
   "cardHand", "cardDrawButton"

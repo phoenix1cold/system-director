@@ -1,0 +1,54 @@
+<form class="inline-form" autocomplete="off">
+
+  <div class="inline-row">
+    <label>Type
+      <select name="__type">
+        {{#each types}}
+          <option value="{{value}}" {{#if (eq value ../def.type)}}selected{{/if}}>{{label}}</option>
+        {{/each}}
+      </select>
+    </label>
+  </div>
+
+  <fieldset class="inline-fields">
+    <legend>Fields</legend>
+    {{#each fields}}
+      <div class="inline-row">
+        <label>{{label}}
+          {{#if (eq kind "boolean")}}
+            <input type="checkbox" name="{{key}}" {{#if value}}checked{{/if}}/>
+          {{else if (eq kind "number")}}
+            <input type="number" name="{{key}}" value="{{value}}" step="1"/>
+          {{else if (eq kind "textarea")}}
+            <textarea name="{{key}}" rows="4">{{value}}</textarea>
+          {{else}}
+            <input type="text" name="{{key}}" value="{{value}}"/>
+          {{/if}}
+        </label>
+      </div>
+    {{/each}}
+  </fieldset>
+
+  <fieldset class="inline-fields">
+    <legend>Style (optional)</legend>
+    {{#each styleFields}}
+      <div class="inline-row">
+        <label>{{label}}
+          {{#if (eq kind "color")}}
+            <input type="text" name="{{key}}" value="{{value}}" placeholder="#rrggbb or rgba(...)"/>
+          {{else if (eq kind "number")}}
+            <input type="number" name="{{key}}" value="{{value}}" step="1" placeholder="auto"/>
+          {{else}}
+            <input type="text" name="{{key}}" value="{{value}}"/>
+          {{/if}}
+        </label>
+      </div>
+    {{/each}}
+  </fieldset>
+
+  <div class="inline-toolbar">
+    <button type="button" data-action="cancel"><i class="fas fa-xmark"></i> Cancel</button>
+    <button type="button" data-action="save" class="btn-primary"><i class="fas fa-save"></i> Save</button>
+  </div>
+
+</form>

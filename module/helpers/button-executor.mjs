@@ -1,4 +1,59 @@
 import { SlotManager } from "../data/item-slots.mjs";
+import { formulaBounds, doubleDice, leadingD20Natural } from "../builder/formula-utils.mjs";
+
+/**
+ * Populate roll-meta __last* fields on a buttonDef so downstream nodes can
+ * read formula / min / max / natural / isCrit / critFormula via their pins.
+ *  - `roll`         : the evaluated Foundry Roll
+ *  - `formula`      : the source formula string used
+ *  - `critOn`       : threshold for natural-d20 crit (default 20)
+ *  - `critFormula`  : explicit override (empty → derive via doubleDice)
+ *  - `rollData`     : optional, used by formulaBounds for @ref resolution
+ */
+function _writeRollMeta(buttonDef, {
+  roll, formula,
+  critOn = 20, critFormula = "", isCritOverride = null,
+  fumbleOn = 1, fumbleFormula = "", isFumbleOverride = null,
+  rollData = {}
+} = {}) {
+  if (!buttonDef) return;
+  try {
+    const f = String(formula ?? "");
+    const b = formulaBounds(f, rollData ?? {});
+    buttonDef.__lastFormula = f;
+    buttonDef.__lastMin     = b.min;
+    buttonDef.__lastMax     = b.max;
+    const nat = leadingD20Natural(roll);
+    buttonDef.__lastNatural = nat ?? 0;
+    const _truthy = (v) => v === true || v === 1 || v === "1" || v === "yes" || v === "true";
+    let isCrit;
+    if (isCritOverride !== null && isCritOverride !== undefined && isCritOverride !== "") {
+      isCrit = _truthy(isCritOverride) ? 1 : 0;
+    } else {
+      const thr = Number(critOn) || 20;
+      isCrit = (nat != null && nat >= thr) ? 1 : 0;
+    }
+    let isFumble;
+    if (isFumbleOverride !== null && isFumbleOverride !== undefined && isFumbleOverride !== "") {
+      isFumble = _truthy(isFumbleOverride) ? 1 : 0;
+    } else {
+      const thr = Number(fumbleOn);
+      isFumble = (Number.isFinite(thr) && nat != null && nat <= thr) ? 1 : 0;
+    }
+    // A roll is never both — explicit overrides take precedence; otherwise crit wins on tie.
+    if (isCrit && isFumble && (isCritOverride == null || isCritOverride === "")) isFumble = 0;
+    buttonDef.__lastIsCrit  = isCrit;
+    buttonDef.__lastIsFumble = isFumble;
+    buttonDef.__lastCritFormula = critFormula && String(critFormula).trim() !== ""
+      ? String(critFormula)
+      : doubleDice(f);
+    buttonDef.__lastFumbleFormula = fumbleFormula && String(fumbleFormula).trim() !== ""
+      ? String(fumbleFormula)
+      : "";
+  } catch (e) {
+    console.warn("SD | _writeRollMeta failed:", e);
+  }
+}
 
 function _sdMsgMode() {
   try {
@@ -597,6 +652,44 @@ export class ButtonExecutor {
       if (buttonDef?.__lastBotches !== undefined) {
         formula = formula.replace(/\{__lastBotches\}/g, String(buttonDef.__lastBotches));
       }
+      // New roll-meta tokens (Phase 2): expose formula / min / max / natural /
+      // isCrit / critFormula on every roll-producing node so downstream value
+      // pins can read them via the BRANCH_PIN_TOKENS table.
+      if (buttonDef?.__lastFormula !== undefined) {
+        formula = formula.replace(/\{__lastFormula\}/g, String(buttonDef.__lastFormula));
+      }
+      if (buttonDef?.__lastMin !== undefined) {
+        formula = formula.replace(/\{__lastMin\}/g, String(buttonDef.__lastMin));
+      }
+      if (buttonDef?.__lastMax !== undefined) {
+        formula = formula.replace(/\{__lastMax\}/g, String(buttonDef.__lastMax));
+      }
+      if (buttonDef?.__lastNatural !== undefined) {
+        formula = formula.replace(/\{__lastNatural\}/g, String(buttonDef.__lastNatural));
+      }
+      if (buttonDef?.__lastIsCrit !== undefined) {
+        formula = formula.replace(/\{__lastIsCrit\}/g, String(buttonDef.__lastIsCrit));
+      }
+      if (buttonDef?.__lastCritFormula !== undefined) {
+        formula = formula.replace(/\{__lastCritFormula\}/g, String(buttonDef.__lastCritFormula));
+      }
+      if (buttonDef?.__lastIsFumble !== undefined) {
+        formula = formula.replace(/\{__lastIsFumble\}/g, String(buttonDef.__lastIsFumble));
+      }
+      if (buttonDef?.__lastFumbleFormula !== undefined) {
+        formula = formula.replace(/\{__lastFumbleFormula\}/g, String(buttonDef.__lastFumbleFormula));
+      }
+      if (buttonDef?.__dlgPicked !== undefined) {
+        formula = formula.replace(/\{__dlgPicked\}/g, String(buttonDef.__dlgPicked));
+      }
+      if (buttonDef?.__dlgState && typeof buttonDef.__dlgState === "object") {
+        formula = formula.replace(/\{__dlg\.([A-Za-z_][\w]*)\}/g, (_m, id) => {
+          const v = buttonDef.__dlgState[id];
+          if (v === undefined || v === null) return "";
+          if (typeof v === "boolean") return v ? "1" : "0";
+          return String(v);
+        });
+      }
       if (buttonDef?.__cmpDiff !== undefined) {
         formula = formula.replace(/\{__cmpDiff\}/g, String(buttonDef.__cmpDiff));
       }
@@ -623,6 +716,9 @@ export class ButtonExecutor {
       }
       if (runtime.__loopIndex !== undefined) {
         formula = formula.replace(/\{__loopIndex\}/g, String(runtime.__loopIndex));
+      }
+      if (runtime.__loopItem !== undefined) {
+        formula = formula.replace(/\{__loopItem\}/g, String(runtime.__loopItem));
       }
       // AoE Save Branch
       const _tokList = (arr) => Array.isArray(arr) ? arr.join(",") : String(arr ?? "");
@@ -749,6 +845,16 @@ export class ButtonExecutor {
         await roll.evaluate();
         if (buttonDef) buttonDef.__lastRoll = roll.total;
         if (rollData)  rollData.__lastRoll  = roll.total;
+        _writeRollMeta(buttonDef, {
+          roll, formula,
+          critOn:      Number(action.critOn ?? 20),
+          critFormula: action.critFormula ?? "",
+          isCritOverride: action.isCritOverride ?? null,
+          fumbleOn:         Number(action.fumbleOn ?? 1),
+          fumbleFormula:    action.fumbleFormula ?? "",
+          isFumbleOverride: action.isFumbleOverride ?? null,
+          rollData
+        });
         if (safeActor) {
           try {
             await safeActor.setFlag("sd", "lastRoll", {
@@ -1552,6 +1658,29 @@ export class ButtonExecutor {
         break;
       }
 
+      case "forEachItem": {
+        // Generic per-element loop. Unlike `forEachToken`, items are
+        // arbitrary strings/numbers, not canvas token ids — we expose
+        // `{__loopItem}` and `{__loopIndex}` for the loop body.
+        const raw   = _injectRuntime(String(action.items ?? ""));
+        const items = String(raw).split(",").map(s => s.trim()).filter(Boolean);
+        const _prevLI = runtime.__loopIndex;
+        const _prevLT = runtime.__loopItem;
+        for (let i = 0; i < items.length; i++) {
+          runtime.__loopIndex = i;
+          runtime.__loopItem  = items[i];
+          for (const sub of (action.loopActions ?? [])) {
+            await this._runAction(sub, item, actor, buttonDef, runtime);
+          }
+        }
+        if (_prevLI !== undefined) runtime.__loopIndex = _prevLI; else delete runtime.__loopIndex;
+        if (_prevLT !== undefined) runtime.__loopItem  = _prevLT; else delete runtime.__loopItem;
+        for (const sub of (action.doneActions ?? [])) {
+          await this._runAction(sub, item, actor, buttonDef, runtime);
+        }
+        break;
+      }
+
       case "arrayCompareTwo": {
         const { FormulaEngine } = await import("./formula-engine.mjs");
         const _resolveTokId = (raw) => {
@@ -1818,6 +1947,16 @@ export class ButtonExecutor {
           buttonDef.__lastRoll   = roll.total;
           buttonDef.__lastMargin = margin;
         }
+        _writeRollMeta(buttonDef, {
+          roll, formula: atkFormula,
+          critOn:      critFace || 20,
+          critFormula: action.critFormula ?? "",
+          isCritOverride: action.isCritOverride ?? null,
+          fumbleOn:         Number(action.fumbleOn ?? 1),
+          fumbleFormula:    action.fumbleFormula ?? "",
+          isFumbleOverride: action.isFumbleOverride ?? null,
+          rollData:    actor?.getRollData?.() ?? {}
+        });
 
         const _rrFlagAtk = ButtonExecutor._buildRerollFlag(action, actor, atkFormula, action.flavor ?? "Attack");
         await roll.toMessage({
@@ -1869,6 +2008,7 @@ export class ButtonExecutor {
         const rollStr  = modifier ? `(${formula})+(${modifier})` : formula;
 
         let total;
+        let _rollObj = null;
         if (action.howRoll === "chat_button") {
           const cardId = foundry.utils.randomID();
           const flavor = action.flavor ?? "Check";
@@ -1936,6 +2076,7 @@ export class ButtonExecutor {
           const roll = new Roll(rollStr, _sanitizeRollData(actor?.getRollData?.() ?? {}));
           await roll.evaluate();
           total = roll.total;
+          _rollObj = roll;
         }
         const margin = total - dc;
 
@@ -1957,6 +2098,17 @@ export class ButtonExecutor {
         }
 
         if (buttonDef) { buttonDef.__lastRoll = total; buttonDef.__lastMargin = margin; }
+        _writeRollMeta(buttonDef, {
+          roll: _rollObj,
+          formula: rollStr,
+          critOn:      Number(action.critOn ?? 20),
+          critFormula: action.critFormula ?? "",
+          isCritOverride: action.isCritOverride ?? null,
+          fumbleOn:         Number(action.fumbleOn ?? 1),
+          fumbleFormula:    action.fumbleFormula ?? "",
+          isFumbleOverride: action.isFumbleOverride ?? null,
+          rollData:    actor?.getRollData?.() ?? {}
+        });
 
         if (action.opposed) {
           const n = Math.max(1, Math.min(16, Number(action.opposedCount ?? 1) || 1));
@@ -2036,6 +2188,16 @@ export class ButtonExecutor {
         await roll.evaluate();
         const total = roll.total;
         if (buttonDef) buttonDef.__lastRoll = total;
+        _writeRollMeta(buttonDef, {
+          roll, formula,
+          critOn:      Number(action.critOn ?? 20),
+          critFormula: action.critFormula ?? "",
+          isCritOverride: action.isCritOverride ?? null,
+          fumbleOn:         Number(action.fumbleOn ?? 1),
+          fumbleFormula:    action.fumbleFormula ?? "",
+          isFumbleOverride: action.isFumbleOverride ?? null,
+          rollData:    actor?.getRollData?.() ?? {}
+        });
 
         const tiers = action.tiers ?? [];
         let tierIdx = 0;
@@ -2081,6 +2243,16 @@ export class ButtonExecutor {
           buttonDef.__lastRoll = total;
           buttonDef.__progPrev = hasPrev ? prevNum : 0;
         }
+        _writeRollMeta(buttonDef, {
+          roll, formula,
+          critOn:      Number(action.critOn ?? 20),
+          critFormula: action.critFormula ?? "",
+          isCritOverride: action.isCritOverride ?? null,
+          fumbleOn:         Number(action.fumbleOn ?? 1),
+          fumbleFormula:    action.fumbleFormula ?? "",
+          isFumbleOverride: action.isFumbleOverride ?? null,
+          rollData:    actor?.getRollData?.() ?? {}
+        });
 
         if (action.toChat !== false) {
           const cmp = !hasPrev ? "—"
@@ -2145,6 +2317,16 @@ export class ButtonExecutor {
           buttonDef.__lastSuccesses = successes;
           buttonDef.__lastBotches   = botches;
         }
+        _writeRollMeta(buttonDef, {
+          roll, formula: `${count}d${die}`,
+          critOn:      Number(action.critOn ?? 20),
+          critFormula: action.critFormula ?? "",
+          isCritOverride: action.isCritOverride ?? null,
+          fumbleOn:         Number(action.fumbleOn ?? 1),
+          fumbleFormula:    action.fumbleFormula ?? "",
+          isFumbleOverride: action.isFumbleOverride ?? null,
+          rollData:    actor?.getRollData?.() ?? {}
+        });
 
         if (action.toChat !== false) {
           const faceStr = faces.join(", ");
@@ -2196,6 +2378,16 @@ export class ButtonExecutor {
           buttonDef.__lastRoll      = total;
           buttonDef.__lastSuccesses = successes;
         }
+        _writeRollMeta(buttonDef, {
+          roll, formula: `${count}d${die}`,
+          critOn:      Number(action.critOn ?? 20),
+          critFormula: action.critFormula ?? "",
+          isCritOverride: action.isCritOverride ?? null,
+          fumbleOn:         Number(action.fumbleOn ?? 1),
+          fumbleFormula:    action.fumbleFormula ?? "",
+          isFumbleOverride: action.isFumbleOverride ?? null,
+          rollData:    actor?.getRollData?.() ?? {}
+        });
 
         const { ThrowOverlay } = await import("./throw-overlay.mjs");
         try {
@@ -2830,6 +3022,244 @@ export class ButtonExecutor {
         const childRuntime = { ...runtime, __sdInputText: String(result ?? "") };
         for (const sub of (action.okActions ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, childRuntime);
+        }
+        break;
+      }
+
+      case "dialogBuilder": {
+        const { DialogV2 } = foundry.applications.api;
+        let elements = [];
+        try {
+          elements = JSON.parse(action.elementsJson || "[]");
+          if (!Array.isArray(elements)) elements = [];
+        } catch (e) {
+          ui.notifications?.warn?.("SD | Dialog Builder: bad elements JSON.");
+          break;
+        }
+        const title       = action.title       ?? "Dialog";
+        const description = action.description ?? "";
+        const okLabel     = action.okLabel     ?? "OK";
+        const cancelLabel = action.cancelLabel ?? "Cancel";
+
+        // Initial state per id, applying defaults
+        const state = {};
+        for (const el of elements) {
+          if (!el || typeof el !== "object") continue;
+          if (el.id == null) continue;
+          if (el.type === "rollButton" || el.type === "label" || el.type === "section") continue;
+          state[el.id] = (el.default !== undefined) ? el.default : (el.type === "checkbox" ? false : "");
+        }
+
+        const _esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        const _evalCond = (expr, st) => {
+          if (!expr) return true;
+          let s = String(expr);
+          s = s.replace(/\{([A-Za-z_][\w]*)\}/g, (_, id) => {
+            const v = st[id];
+            if (v === undefined) return "undefined";
+            if (typeof v === "boolean") return v ? "true" : "false";
+            if (typeof v === "number")  return String(v);
+            return JSON.stringify(String(v));
+          });
+          try { return !!(new Function(`"use strict";return (${s});`))(); } catch { return false; }
+        };
+
+        const _renderBody = (st) => {
+          const parts = [];
+          if (description) {
+            parts.push(`<p style="padding:6px 2px 8px;color:#c0c0d8;font-size:12px;line-height:1.5">${_esc(description)}</p>`);
+          }
+          for (const el of elements) {
+            if (!el || typeof el !== "object") continue;
+            const visible  = _evalCond(el.visibleWhen,  st);
+            const disabled = _evalCond(el.disabledWhen, st);
+            if (!visible) continue;
+            const id = _esc(el.id ?? "");
+            const lbl = _esc(el.label ?? "");
+            const ph  = _esc(el.placeholder ?? "");
+            const dis = disabled ? "disabled" : "";
+            switch (el.type) {
+              case "label":
+                parts.push(`<div style="padding:4px 2px;color:#dcdcef;font-weight:600">${_esc(el.text ?? "")}</div>`);
+                break;
+              case "section":
+                parts.push(`<div style="margin:8px 0 4px;padding:4px 8px;border-bottom:1px solid #3a3a4a;color:#c0c0d8;font-size:11px;text-transform:uppercase;letter-spacing:.05em">${_esc(el.text ?? "")}</div>`);
+                break;
+              case "number":
+                parts.push(`<div style="display:flex;gap:8px;align-items:center;margin:4px 0">
+                  <label style="flex:0 0 40%;color:#c0c0d8;font-size:12px">${lbl}</label>
+                  <input type="number" data-sd-dlg-id="${id}" value="${_esc(st[el.id] ?? "")}" placeholder="${ph}" ${dis}
+                         style="flex:1;box-sizing:border-box;padding:5px 7px;background:#1d1d27;color:#e8e8f0;border:1px solid #3a3a4a;border-radius:4px"/>
+                </div>`);
+                break;
+              case "text":
+                parts.push(`<div style="display:flex;gap:8px;align-items:center;margin:4px 0">
+                  <label style="flex:0 0 40%;color:#c0c0d8;font-size:12px">${lbl}</label>
+                  <input type="text" data-sd-dlg-id="${id}" value="${_esc(st[el.id] ?? "")}" placeholder="${ph}" ${dis}
+                         style="flex:1;box-sizing:border-box;padding:5px 7px;background:#1d1d27;color:#e8e8f0;border:1px solid #3a3a4a;border-radius:4px"/>
+                </div>`);
+                break;
+              case "checkbox":
+                parts.push(`<div style="display:flex;gap:8px;align-items:center;margin:4px 0">
+                  <input type="checkbox" data-sd-dlg-id="${id}" ${st[el.id] ? "checked" : ""} ${dis}
+                         style="margin:0 4px 0 0"/>
+                  <label style="flex:1;color:#c0c0d8;font-size:12px">${lbl}</label>
+                </div>`);
+                break;
+              case "select": {
+                let opts = Array.isArray(el.options) ? el.options : [];
+                // Phase 4: optionsFrom — pull options from actor.system.<path>.
+                // Supports arrays, plain objects (key/label), and strings split
+                // by `, ` or `\n`. Always combined AFTER static `options`.
+                if (el.optionsFrom && actor) {
+                  try {
+                    const path = String(el.optionsFrom).replace(/^actor\./, "");
+                    const raw  = foundry.utils.getProperty(actor, path);
+                    let dyn = [];
+                    if (Array.isArray(raw)) {
+                      dyn = raw.map(v => (v && typeof v === "object")
+                        ? { value: String(v.value ?? v.id ?? v.key ?? ""), label: String(v.label ?? v.name ?? v.value ?? "") }
+                        : String(v));
+                    } else if (raw && typeof raw === "object") {
+                      dyn = Object.entries(raw).map(([k, v]) => ({
+                        value: k,
+                        label: (v && typeof v === "object") ? String(v.label ?? v.name ?? k) : String(v ?? k)
+                      }));
+                    } else if (typeof raw === "string") {
+                      dyn = raw.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+                    }
+                    opts = [...opts, ...dyn];
+                  } catch (e) { console.warn("SD | Dialog Builder optionsFrom failed:", e); }
+                }
+                const cur = String(st[el.id] ?? "");
+                const optHtml = opts.map(o => {
+                  const v = (o && typeof o === "object") ? String(o.value ?? "") : String(o);
+                  const t = (o && typeof o === "object") ? String(o.label ?? o.value ?? "") : String(o);
+                  return `<option value="${_esc(v)}" ${v === cur ? "selected" : ""}>${_esc(t)}</option>`;
+                }).join("");
+                parts.push(`<div style="display:flex;gap:8px;align-items:center;margin:4px 0">
+                  <label style="flex:0 0 40%;color:#c0c0d8;font-size:12px">${lbl}</label>
+                  <select data-sd-dlg-id="${id}" ${dis}
+                          style="flex:1;box-sizing:border-box;padding:5px 7px;background:#1d1d27;color:#e8e8f0;border:1px solid #3a3a4a;border-radius:4px">
+                    ${optHtml}
+                  </select>
+                </div>`);
+                break;
+              }
+              case "rollButton":
+                // Buttons are rendered as DialogV2 buttons, not in body.
+                break;
+              default:
+                break;
+            }
+          }
+          return parts.join("");
+        };
+
+        // Build button list — one per rollButton element + Cancel.
+        const rollButtons = elements
+          .map((el, i) => ({ el, idx: i }))
+          .filter(({ el }) => el && el.type === "rollButton");
+        let dlgButtons = [];
+        if (rollButtons.length > 0) {
+          let btnPin = 0;
+          for (const { el } of rollButtons) {
+            const pinId = `btn${btnPin++}`;
+            if (btnPin > 8) break;
+            dlgButtons.push({
+              action: `__sd_${pinId}__${el.id ?? ""}`,
+              label:  el.label ?? "Roll",
+              icon:   el.icon ?? "fas fa-dice-d20",
+              default: btnPin === 1,
+              callback: () => `${pinId}|${el.id ?? ""}`
+            });
+          }
+        } else {
+          dlgButtons.push({ action:"ok", label: okLabel, icon:"fas fa-check", default:true, callback: () => "ok|" });
+        }
+        dlgButtons.push({ action:"cancel", label: cancelLabel, icon:"fas fa-times" });
+
+        // Capture inputs into state on every change. Re-render body on cond-change.
+        const dlg = new DialogV2({
+          window:      { title },
+          content:     _renderBody(state),
+          buttons:     dlgButtons,
+          rejectClose: false,
+          render: (_e, dialog) => {
+            const root = dialog.element;
+            if (!root) return;
+            const _refresh = () => {
+              const body = root.querySelector(".window-content") || root;
+              const formArea = body.querySelector(".dialog-content") || body;
+              // Re-render html. Foundry DialogV2 keeps form.dialog-content for content.
+              try {
+                const newHtml = _renderBody(state);
+                const target = root.querySelector(".dialog-content") || root.querySelector(".window-content");
+                if (target) target.innerHTML = newHtml;
+                _attach();
+              } catch (err) { console.warn("SD | Dialog Builder refresh failed:", err); }
+            };
+            const _attach = () => {
+              const inputs = root.querySelectorAll("[data-sd-dlg-id]");
+              inputs.forEach(el => {
+                const id = el.getAttribute("data-sd-dlg-id");
+                const onChange = () => {
+                  if (el.type === "checkbox") state[id] = !!el.checked;
+                  else if (el.type === "number") state[id] = Number(el.value);
+                  else state[id] = el.value;
+                  // Re-render only if any element references this id in a condition.
+                  const refRe = new RegExp(`\\{${id}\\}`);
+                  const condDirty = elements.some(e =>
+                    e && (refRe.test(e.visibleWhen || "") || refRe.test(e.disabledWhen || ""))
+                  );
+                  if (condDirty) _refresh();
+                };
+                el.addEventListener("change", onChange);
+                el.addEventListener("input",  onChange);
+              });
+            };
+            _attach();
+          }
+        });
+
+        const result = await new Promise((resolve) => {
+          let resolved = false;
+          dlg.options.buttons = dlg.options.buttons.map(b => {
+            const orig = b.callback;
+            return {
+              ...b,
+              callback: (...args) => {
+                if (resolved) return;
+                resolved = true;
+                if (b.action === "cancel") { resolve(null); return; }
+                const r = (typeof orig === "function") ? orig(...args) : `${b.action}|`;
+                resolve(r);
+              }
+            };
+          });
+          dlg.addEventListener?.("close", () => { if (!resolved) { resolved = true; resolve(null); } });
+          dlg.render(true);
+        });
+
+        // Expose collected fields on runtime as {__dlg.<id>} tokens
+        if (buttonDef) buttonDef.__dlgState = { ...state };
+        if (result === null || result === undefined) {
+          for (const sub of (action.cancelActions ?? [])) {
+            await this._runAction(sub, item, actor, buttonDef, runtime);
+          }
+          break;
+        }
+        const [pinId, pickedId] = String(result).split("|");
+        if (buttonDef) buttonDef.__dlgPicked = pickedId || pinId || "";
+
+        // Run the matching exec branch (btn0..btn7) if a rollButton was picked,
+        // and always run `submitActions` after — single-source dispatch.
+        if (pinId && pinId.startsWith("btn")) {
+          const branch = action[`${pinId}Actions`] ?? [];
+          for (const sub of branch) await this._runAction(sub, item, actor, buttonDef, runtime);
+        }
+        for (const sub of (action.submitActions ?? [])) {
+          await this._runAction(sub, item, actor, buttonDef, runtime);
         }
         break;
       }
@@ -3936,9 +4366,12 @@ export class ButtonExecutor {
     });
 
     const bindUI = (root) => {
+      if (!root || root.__sdRdlgBound) return;
+      root.__sdRdlgBound = true;
       const formulaEl = root.querySelector(".sd-rdlg-formula");
       const bonusEl   = root.querySelector(".sd-rdlg-bonus");
       const modeBtns  = root.querySelectorAll(".sd-rdlg-mode");
+      if (!modeBtns.length) { root.__sdRdlgBound = false; return; }
 
       const updateDisplay = () => {
         const bonus = (bonusEl?.value ?? "").trim();
@@ -3984,36 +4417,68 @@ export class ButtonExecutor {
     };
 
     try {
-      const result = await DialogV2.wait({
-        window:  { title: flavor ? `🎲 ${flavor}` : "🎲 Roll" },
-        content,
-        position:  { width: 380 },
-        buttons: [
-          {
-            action:  "roll",
-            icon:    "fas fa-dice-d20",
-            label:   "Roll",
-            default: true,
-            callback: (event, button, dialog) => {
-              const bonus = extractBonus(dialog);
-              const base  = getBase(mode);
-              const formula = bonus ? `(${base}) + ${bonus}` : base;
-              return { formula, mode, cancelled: false };
-            }
-          },
-          {
-            action: "cancel",
-            icon:   "fas fa-times",
-            label:  "Cancel",
-            callback: () => ({ cancelled: true })
+      const _safeBind = (rootCandidate) => {
+        // Try several times — Foundry's DialogV2 may invoke `render` before
+        // the content body has actually been inserted into the DOM, leaving
+        // root.querySelectorAll(".sd-rdlg-mode") empty and the click
+        // handlers never attached. Poll briefly until the buttons exist.
+        let tries = 0;
+        const tick = () => {
+          let root = rootCandidate;
+          if (!root || !root.querySelector?.(".sd-rdlg-mode")) {
+            // Fall back to scanning the DOM for our content's parent dialog.
+            const sd = document.querySelector(".sd-rdlg");
+            root = sd?.closest("dialog,.application,.app,form") ?? sd?.parentElement ?? null;
           }
-        ],
-        rejectClose: false,
-        render: (event, dialog) => {
-          const root = dialog?.element ?? event?.target ?? null;
-          if (root) bindUI(root);
-        }
+          const btns = root?.querySelectorAll?.(".sd-rdlg-mode");
+          if (btns && btns.length) { bindUI(root); return; }
+          if (++tries < 40) requestAnimationFrame(tick);
+        };
+        tick();
+      };
+      // Belt-and-suspenders: also hook into Foundry's renderDialogV2 lifecycle
+      // — works across versions where the inline `render:` callback signature
+      // has shifted between (event, dialog) and (app, html, data).
+      const _hookId = Hooks.on("renderDialogV2", (app, htmlOrEl) => {
+        const root = htmlOrEl?.[0] ?? htmlOrEl ?? app?.element ?? null;
+        if (root?.querySelector?.(".sd-rdlg")) _safeBind(root);
       });
+
+      let result;
+      try {
+        result = await DialogV2.wait({
+          window:  { title: flavor ? `🎲 ${flavor}` : "🎲 Roll" },
+          content,
+          position:  { width: 380 },
+          buttons: [
+            {
+              action:  "roll",
+              icon:    "fas fa-dice-d20",
+              label:   "Roll",
+              default: true,
+              callback: (event, button, dialog) => {
+                const bonus = extractBonus(dialog);
+                const base  = getBase(mode);
+                const formula = bonus ? `(${base}) + ${bonus}` : base;
+                return { formula, mode, cancelled: false };
+              }
+            },
+            {
+              action: "cancel",
+              icon:   "fas fa-times",
+              label:  "Cancel",
+              callback: () => ({ cancelled: true })
+            }
+          ],
+          rejectClose: false,
+          render: (event, dialog) => {
+            const root = dialog?.element ?? event?.target ?? event?.currentTarget ?? null;
+            _safeBind(root);
+          }
+        });
+      } finally {
+        try { Hooks.off("renderDialogV2", _hookId); } catch {}
+      }
       return result ?? { cancelled: true };
     } catch (e) {
       console.warn("SD | _showRollDialogue DialogV2 failed:", e);

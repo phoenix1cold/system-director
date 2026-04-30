@@ -616,6 +616,158 @@ export class FormulaEngine {
       return out.join(",");
     }
 
+    // ── Generic value-array tokens (P1+P2) ───────────────────────────
+    // base64-decoded helpers — operands of these tokens are
+    // base64(utf-8) so commas / pipes inside them do not collide with
+    // the structural separators.
+    const _b64dec = (s) => {
+      try { return decodeURIComponent(escape(atob(String(s ?? "")))); }
+      catch { return String(s ?? ""); }
+    };
+
+    if (token.startsWith("arrayMake:")) {
+      const rest = token.slice("arrayMake:".length);
+      const parts = rest === "" ? [] : rest.split("|").map(_b64dec);
+      // Drop empty / unconnected slots so users can leave gaps.
+      return parts.filter(s => String(s).trim() !== "").join(",");
+    }
+
+    if (token.startsWith("arrayPush:")) {
+      const rest = token.slice("arrayPush:".length);
+      const sep  = rest.indexOf("|");
+      if (sep < 0) return rest;
+      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const elem = _b64dec(rest.slice(sep + 1));
+      if (String(elem).trim() !== "") list.push(String(elem));
+      return list.join(",");
+    }
+
+    if (token.startsWith("arraySplit:")) {
+      const rest = token.slice("arraySplit:".length);
+      const sep  = rest.indexOf("|");
+      if (sep < 0) return _b64dec(rest);
+      const s   = _b64dec(rest.slice(0, sep));
+      const sp  = _b64dec(rest.slice(sep + 1));
+      if (s == null || s === "") return "";
+      const list = String(s).split(sp || ",").map(x => x.trim()).filter(Boolean);
+      return list.join(",");
+    }
+
+    if (token.startsWith("arrayJoin:")) {
+      const rest = token.slice("arrayJoin:".length);
+      const sep  = rest.indexOf("|");
+      if (sep < 0) return rest;
+      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const sp   = _b64dec(rest.slice(sep + 1));
+      return list.join(sp);
+    }
+
+    if (token.startsWith("arrayGet:")) {
+      const parts = token.slice("arrayGet:".length).split("|");
+      const list  = (parts[0] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+      const idxN  = Math.floor(Number(parts[1]) || 0);
+      const def   = _b64dec(parts.slice(2).join("|"));
+      const real  = idxN < 0 ? (list.length + idxN) : idxN;
+      const v     = (real >= 0 && real < list.length) ? list[real] : undefined;
+      return v ?? def ?? "";
+    }
+
+    if (token.startsWith("arrayHasIndex:")) {
+      const parts = token.slice("arrayHasIndex:".length).split("|");
+      const list  = (parts[0] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+      const idxN  = Math.floor(Number(parts[1]) || 0);
+      const real  = idxN < 0 ? (list.length + idxN) : idxN;
+      return (real >= 0 && real < list.length) ? 1 : 0;
+    }
+
+    if (token.startsWith("arrayReverse:")) {
+      const list = token.slice("arrayReverse:".length).split(",").map(s => s.trim()).filter(Boolean);
+      return list.reverse().join(",");
+    }
+
+    if (token.startsWith("arrayNum:")) {
+      const rest = token.slice("arrayNum:".length);
+      const sep  = rest.lastIndexOf("|");
+      if (sep < 0) return 0;
+      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const op   = rest.slice(sep + 1);
+      const nums = list.map(Number).filter(n => !isNaN(n));
+      if (op === "count") return nums.length;
+      if (!nums.length)   return 0;
+      if (op === "sum")   return nums.reduce((s,n)=>s+n,0);
+      if (op === "avg")   return nums.reduce((s,n)=>s+n,0) / nums.length;
+      if (op === "min")   return Math.min(...nums);
+      if (op === "max")   return Math.max(...nums);
+      return 0;
+    }
+
+    if (token.startsWith("arrayRandomPick:")) {
+      const parts = token.slice("arrayRandomPick:".length).split("|");
+      const list  = (parts[0] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+      const cnt   = Math.max(0, Math.floor(Number(parts[1]) || 0));
+      if (!list.length || cnt <= 0) return "";
+      // Shuffle then take cnt — Fisher-Yates partial.
+      const arr = list.slice();
+      for (let i = arr.length - 1; i > arr.length - 1 - cnt && i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      const picked = arr.slice(Math.max(0, arr.length - cnt));
+      if (cnt === 1) return picked[0] ?? "";
+      return picked.join(",");
+    }
+
+    if (token.startsWith("arrayFilterGeneric:")) {
+      const parts = token.slice("arrayFilterGeneric:".length).split("|");
+      const list  = (parts[0] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+      const op    = parts[1] ?? "==";
+      const cmp   = _b64dec(parts.slice(2).join("|"));
+      const cmpN  = Number(cmp);
+      const isNum = String(cmp).trim() !== "" && !isNaN(cmpN);
+      const out   = [];
+      for (const el of list) {
+        const lvN = Number(el);
+        const lvOk = !isNaN(lvN);
+        let ok = false;
+        switch (op) {
+          case "==":  ok = isNum && lvOk ? (lvN === cmpN) : (String(el) === String(cmp)); break;
+          case "!=":  ok = isNum && lvOk ? (lvN !== cmpN) : (String(el) !== String(cmp)); break;
+          case ">":   ok = lvOk && isNum && (lvN >  cmpN); break;
+          case "<":   ok = lvOk && isNum && (lvN <  cmpN); break;
+          case ">=":  ok = lvOk && isNum && (lvN >= cmpN); break;
+          case "<=":  ok = lvOk && isNum && (lvN <= cmpN); break;
+          case "contains":   ok = String(el).includes(String(cmp)); break;
+          case "startsWith": ok = String(el).startsWith(String(cmp)); break;
+          case "endsWith":   ok = String(el).endsWith(String(cmp)); break;
+          default:    ok = false;
+        }
+        if (ok) out.push(el);
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("arrayMapFormula:")) {
+      const rest = token.slice("arrayMapFormula:".length);
+      const sep  = rest.indexOf("|");
+      if (sep < 0) return "";
+      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const formula = _b64dec(rest.slice(sep + 1));
+      const out = [];
+      for (let i = 0; i < list.length; i++) {
+        const el = list[i];
+        const f = String(formula)
+          .replace(/\{__elem\}/g, String(el))
+          .replace(/\{__elemIndex\}/g, String(i));
+        try {
+          const v = this.evaluate(f, doc);
+          out.push(v === undefined || v === null ? "" : String(v));
+        } catch {
+          out.push("");
+        }
+      }
+      return out.join(",");
+    }
+
     if (token.startsWith("var:")) {
       const varName = token.slice("var:".length).trim();
       const a = doc instanceof Actor ? doc : (doc.actor ?? null);

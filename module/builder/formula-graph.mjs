@@ -1,6 +1,10 @@
 import { migrateGraph } from "./node-migration.mjs";
 import { pinSubtype, subtypeColor, arePinsCompatible } from "./pin-types.mjs";
 import { lintGraph, lintSummary } from "./graph-linter.mjs";
+import {
+  formulaBounds, clampFormula, multiplyFormula, addMod, doubleDice,
+  resolveAtRefs
+} from "./formula-utils.mjs";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
@@ -258,21 +262,30 @@ export const NODE_DEFS = {
   // Кубы
   dice: {
     title:"Dice", color:"#7a4500", cat:"Dice",
-    desc:"Build a dice formula `<count><die>`. Connect Count for the number of dice, Die for the size (accepts \"d6\", \"6\" or a {ref}; if Die pin is empty the select field below is used).",
+    desc:"Build a dice formula `<count><die>`. Die accepts any size — type \"d5\", \"d87\", \"5\", \"87\" or a {ref}. Optional Min / Max clamp the rolled result to a [min..max] range (leave blank to skip). Outputs: `Formula` (string for rolling), `Min` / `Max` (theoretical extremes — handy for HUD ranges or branch logic), `Avg` (expected value).",
     inputs:[
       {id:"count",label:"Count",type:"value.number"},
-      {id:"die",  label:"Die",  type:"value.string"}
+      {id:"die",  label:"Die",  type:"value.string"},
+      {id:"minVal",label:"Min", type:"value.number"},
+      {id:"maxVal",label:"Max", type:"value.number"}
     ],
-    outputs:[{id:"v",label:"Formula",type:"value.string"}],
+    outputs:[
+      {id:"v",   label:"Formula", type:"value.string"},
+      {id:"min", label:"Min",     type:"value.number"},
+      {id:"max", label:"Max",     type:"value.number"},
+      {id:"avg", label:"Avg",     type:"value.number"}
+    ],
     fields:[
-      {key:"count",label:"#",type:"number",default:1},
-      {key:"die",  label:"Die",type:"select",default:"d6",options:["d4","d6","d8","d10","d12","d20","d100"]}
+      {key:"count", label:"#",   type:"number", default:1},
+      {key:"die",   label:"Die", type:"text",   default:"d6", placeholder:"d6 / d20 / d87 / 5"},
+      {key:"minVal",label:"Min", type:"text",   default:"",   placeholder:"e.g. 1 (blank = no floor)"},
+      {key:"maxVal",label:"Max", type:"text",   default:"",   placeholder:"e.g. 20 (blank = no ceil)"}
     ],
     dynamicPins:[
       { base:"add", label:"Add", max:10, type:"value.number" },
       { base:"sub", label:"Sub", max:10, type:"value.number" }
     ],
-    compile:(n,i)=>{
+    compilePin:(n, i, fromPin)=>{
       const c = i.count ?? n.data.count ?? 1;
       let dieSrc = (i.die !== undefined && i.die !== null && i.die !== "")
         ? String(i.die).trim()
@@ -290,7 +303,176 @@ export const NODE_DEFS = {
         const av = i[`add${j}`]; if (av != null && av !== "") f = `(${f}+(${av}))`;
         const sv = i[`sub${j}`]; if (sv != null && sv !== "") f = `(${f}-(${sv}))`;
       }
+      const _bound = (pinVal, fieldVal) => {
+        const pin = (pinVal !== undefined && pinVal !== null && String(pinVal).trim() !== "")
+          ? String(pinVal).trim() : null;
+        if (pin) return pin;
+        const fld = String(fieldVal ?? "").trim();
+        return fld === "" ? null : fld;
+      };
+      const lo = _bound(i.minVal, n.data.minVal);
+      const hi = _bound(i.maxVal, n.data.maxVal);
+      if (hi !== null) f = `min(${hi},${f})`;
+      if (lo !== null) f = `max(${lo},${f})`;
+      if (fromPin === "min" || fromPin === "max" || fromPin === "avg") {
+        const b = formulaBounds(f);
+        return String(b[fromPin] ?? 0);
+      }
       return f;
+    }
+  },
+
+  /** Pure: get theoretical bounds of any formula. */
+  formula_range: {
+    title:"Formula Range", color:"#7a4500", cat:"Dice",
+    desc:"Statically inspect a dice formula and emit its theoretical Min, Max and Average. `2d6+3` → min=5, max=15, avg=10. Works with any formula string — useful for HUD ranges, IF branches, or feeding clamps.",
+    inputs:[{id:"formula", label:"Formula", type:"value.string"}],
+    outputs:[
+      {id:"min", label:"Min", type:"value.number"},
+      {id:"max", label:"Max", type:"value.number"},
+      {id:"avg", label:"Avg", type:"value.number"}
+    ],
+    fields:[
+      {key:"formula", label:"Formula", type:"text", default:"1d6"}
+    ],
+    compilePin:(n, i, fromPin) => {
+      const f = (i.formula != null && i.formula !== "") ? String(i.formula) : (n.data?.formula ?? "1d6");
+      const b = formulaBounds(f);
+      const which = (fromPin === "max" || fromPin === "avg") ? fromPin : "min";
+      return String(b[which] ?? 0);
+    }
+  },
+
+  /** Pure: clamp a formula's result to [Min, Max]. Both bounds optional. */
+  formula_clamp: {
+    title:"Formula Clamp", color:"#7a4500", cat:"Dice",
+    desc:"Wrap a formula with `max(MIN, min(MAX, F))`. Either bound may be left empty (open on that side). Stack multiple Clamp nodes to apply tighter ranges in sequence.",
+    inputs:[
+      {id:"formula", label:"Formula", type:"value.string"},
+      {id:"minVal",  label:"Min",     type:"value.number"},
+      {id:"maxVal",  label:"Max",     type:"value.number"}
+    ],
+    outputs:[{id:"v", label:"Formula", type:"value.string"}],
+    fields:[
+      {key:"minVal", label:"Min", type:"text", default:"", placeholder:"blank = no floor"},
+      {key:"maxVal", label:"Max", type:"text", default:"", placeholder:"blank = no ceil"}
+    ],
+    compile:(n, i) => {
+      const f  = (i.formula != null && i.formula !== "") ? String(i.formula) : "0";
+      const _b = (pin, fld) => {
+        const p = (pin !== undefined && pin !== null && String(pin).trim() !== "") ? String(pin).trim() : null;
+        if (p) return p;
+        const v = String(fld ?? "").trim();
+        return v === "" ? null : v;
+      };
+      const lo = _b(i.minVal, n.data?.minVal);
+      const hi = _b(i.maxVal, n.data?.maxVal);
+      return clampFormula(f, lo, hi);
+    }
+  },
+
+  /** Pure: multiply a formula by a numeric factor. Useful for crit doubling. */
+  formula_mul: {
+    title:"Formula × N", color:"#7a4500", cat:"Dice",
+    desc:"Wrap a formula in `(N)*(F)`. Common case: crit doubling (`×2`). Set N=2 + leave Formula pin connected = doubled total.",
+    inputs:[
+      {id:"formula", label:"Formula", type:"value.string"},
+      {id:"n",       label:"N",       type:"value.number"}
+    ],
+    outputs:[{id:"v", label:"Formula", type:"value.string"}],
+    fields:[
+      {key:"n", label:"N", type:"number", default:2}
+    ],
+    compile:(n, i) => {
+      const f   = (i.formula != null && i.formula !== "") ? String(i.formula) : "0";
+      const fac = (i.n != null && i.n !== "") ? i.n : (n.data?.n ?? 2);
+      return multiplyFormula(f, fac);
+    }
+  },
+
+  /** Pure: append a +/- modifier to a formula. */
+  formula_add: {
+    title:"Formula + Mod", color:"#7a4500", cat:"Dice",
+    desc:"Append a +/- modifier to a formula. Mod accepts numbers (`5`, `-3`) or expressions (`@mod`, `1d4`). Stack multiple of these to chain bonuses.",
+    inputs:[
+      {id:"formula", label:"Formula", type:"value.string"},
+      {id:"mod",     label:"Mod",     type:"value.any"}
+    ],
+    outputs:[{id:"v", label:"Formula", type:"value.string"}],
+    fields:[
+      {key:"mod", label:"Mod", type:"text", default:"", placeholder:"e.g. @mod, 2, -1, 1d4"}
+    ],
+    compile:(n, i) => {
+      const f = (i.formula != null && i.formula !== "") ? String(i.formula) : "0";
+      const m = (i.mod != null && i.mod !== "") ? i.mod : (n.data?.mod ?? "");
+      return addMod(f, m);
+    }
+  },
+
+  /** Pure: derive isCrit / isFumble + multipliers from a natural number and thresholds. */
+  crit_check: {
+    title:"Crit Check", color:"#7a4500", cat:"Dice",
+    desc:"Take any number (typically the natural d20 from a roll node) and compare against thresholds. Outputs `isCrit` (1 when natural meets/exceeds critOn — `=` mode is exact match), `Crit Mul` (default 2), `isFumble` (1 when natural ≤ fumbleOn — set fumbleOn to -∞ effectively by leaving 0 to disable; default 1), and `Fumble Mul` (default 0). Pipe `Is Crit` / `Is Fumble` into roll-node override pins or into Formula × N for damage scaling.",
+    inputs:[
+      {id:"natural",  label:"Natural",    type:"value.number"},
+      {id:"critOn",   label:"Crit on",    type:"value.number"},
+      {id:"fumbleOn", label:"Fumble on",  type:"value.number"},
+      {id:"mul",      label:"Crit Mul",   type:"value.number"},
+      {id:"fumbleMul",label:"Fumble Mul", type:"value.number"}
+    ],
+    outputs:[
+      {id:"isCrit",    label:"Is Crit",    type:"value.bool"},
+      {id:"mul",       label:"Crit Mul",   type:"value.number"},
+      {id:"isFumble",  label:"Is Fumble",  type:"value.bool"},
+      {id:"fumbleMul", label:"Fumble Mul", type:"value.number"}
+    ],
+    fields:[
+      {key:"critOn",    label:"Crit on (≥)",   type:"number", default:20},
+      {key:"fumbleOn",  label:"Fumble on (≤)", type:"number", default:1},
+      {key:"mode",      label:"Crit Mode",     type:"select", default:"gte", options:["gte","eq"]},
+      {key:"mul",       label:"Crit Mul",      type:"number", default:2},
+      {key:"fumbleMul", label:"Fumble Mul",    type:"number", default:0}
+    ],
+    compilePin:(n, i, fromPin) => {
+      const natRaw  = (i.natural   != null && i.natural   !== "") ? i.natural   : "0";
+      const thrCRaw = (i.critOn    != null && i.critOn    !== "") ? i.critOn    : (n.data?.critOn   ?? 20);
+      const thrFRaw = (i.fumbleOn  != null && i.fumbleOn  !== "") ? i.fumbleOn  : (n.data?.fumbleOn ?? 1);
+      const mulRaw  = (i.mul       != null && i.mul       !== "") ? i.mul       : (n.data?.mul       ?? 2);
+      const fmlRaw  = (i.fumbleMul != null && i.fumbleMul !== "") ? i.fumbleMul : (n.data?.fumbleMul ?? 0);
+      if (fromPin === "mul")       return String(mulRaw);
+      if (fromPin === "fumbleMul") return String(fmlRaw);
+      if (fromPin === "isFumble")  return `((${natRaw})<=(${thrFRaw}))`;
+      const op = (n.data?.mode === "eq") ? "==" : ">=";
+      return `((${natRaw})${op}(${thrCRaw}))`;
+    }
+  },
+
+  /** Pure: rich snapshot of a roll value vs its formula bounds. */
+  roll_stat: {
+    title:"Roll Stat", color:"#7a4500", cat:"Dice",
+    desc:"Produce a percentile (0..1) showing where the roll landed inside its theoretical range, plus echo Min/Max/Avg of the formula. Useful for heatmap UI or `If pct >= 0.9 → great hit`.",
+    inputs:[
+      {id:"formula", label:"Formula", type:"value.string"},
+      {id:"roll",    label:"Roll",    type:"value.number"}
+    ],
+    outputs:[
+      {id:"min", label:"Min", type:"value.number"},
+      {id:"max", label:"Max", type:"value.number"},
+      {id:"avg", label:"Avg", type:"value.number"},
+      {id:"pct", label:"Pct", type:"value.number"}
+    ],
+    fields:[
+      {key:"formula", label:"Formula", type:"text", default:"1d6"}
+    ],
+    compilePin:(n, i, fromPin) => {
+      const f = (i.formula != null && i.formula !== "") ? String(i.formula) : (n.data?.formula ?? "1d6");
+      const b = formulaBounds(f);
+      if (fromPin === "min") return String(b.min);
+      if (fromPin === "max") return String(b.max);
+      if (fromPin === "avg") return String(b.avg);
+      const r = (i.roll != null && i.roll !== "") ? i.roll : "0";
+      const span = (b.max - b.min) || 1;
+      return `(((${r})-(${b.min}))/(${span}))`;
     }
   },
 
@@ -328,15 +510,32 @@ export const NODE_DEFS = {
     title:"Roll → Value", color:"#8a4400", cat:"Actions",
     desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
-      {id:"exec",          label:"",              type:"exec"},
-      {id:"formula",       label:"Formula",        type:"value.string"},
-      {id:"advFormula",    label:"Adv Formula",    type:"value.string"},
-      {id:"disFormula",    label:"Dis Formula",    type:"value.string"},
-      {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
-      {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
-      {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
+      {id:"exec",             label:"",              type:"exec"},
+      {id:"formula",          label:"Formula",        type:"value.string"},
+      {id:"advFormula",       label:"Adv Formula",    type:"value.string"},
+      {id:"disFormula",       label:"Dis Formula",    type:"value.string"},
+      {id:"isCritOverride",   label:"Is Crit?",       type:"value.bool"},
+      {id:"critOn",           label:"Crit on",        type:"value.number"},
+      {id:"critFormula",      label:"Crit Formula",   type:"value.string"},
+      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
+      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
+      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
+      {id:"rerollEnabled",    label:"Reroll button",  type:"value.bool"},
+      {id:"rerollPath",       label:"Reroll Path",    type:"value.path"},
+      {id:"rerollCost",       label:"Reroll Cost",    type:"value.number"}
     ],
-    outputs:[{id:"exec",label:"",type:"exec"},{id:"result",label:"Result",type:"value.number"}],
+    outputs:[
+      {id:"exec",          label:"",              type:"exec"},
+      {id:"result",        label:"Result",        type:"value.number"},
+      {id:"formula",       label:"Formula",       type:"value.string"},
+      {id:"min",           label:"Min",           type:"value.number"},
+      {id:"max",           label:"Max",           type:"value.number"},
+      {id:"natural",       label:"Natural",       type:"value.number"},
+      {id:"isCrit",        label:"Is Crit",       type:"value.bool"},
+      {id:"critFormula",   label:"Crit Formula",  type:"value.string"},
+      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
+      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"}
+    ],
     fields:[
       {key:"formula",        label:"Formula",              type:"text",   default:"1d6"},
       {key:"flavor",         label:"Label",                type:"text",   default:"Roll"},
@@ -344,6 +543,10 @@ export const NODE_DEFS = {
       {key:"rollDialogue",   label:"Roll dialog",          type:"select", default:"no",  options:["no","yes"]},
       {key:"advFormula",     label:"Adv formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kh1 + @mod"},
       {key:"disFormula",     label:"Dis formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kl1 + @mod"},
+      {key:"critOn",         label:"Crit on (nat ≥)",       type:"number", default:20},
+      {key:"critFormula",    label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod) or 2d6+@mod"},
+      {key:"fumbleOn",       label:"Fumble on (nat ≤)",     type:"number", default:1},
+      {key:"fumbleFormula",  label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"},
       {key:"rerollEnabled",  label:"Reroll button",       type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",     label:"Reroll resource path", type:"path",   default:"",   placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",     label:"Reroll cost",          type:"number", default:1}
@@ -355,6 +558,12 @@ export const NODE_DEFS = {
       const disFormula = (inp.disFormula != null && inp.disFormula !== "") ? inp.disFormula : (n.data.disFormula ?? "");
       const _rrEnabledRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
       const rerollEnabled = (_rrEnabledRaw === true || _rrEnabledRaw === "yes" || _rrEnabledRaw === 1 || _rrEnabledRaw === "1") ? "yes" : "no";
+      const _critOn   = (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? 20);
+      const _critForm = (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? "");
+      const _isCritO  = (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null;
+      const _fumOn    = (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1);
+      const _fumForm  = (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? "");
+      const _isFumO   = (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null;
       return {
         type:"rollValue", formula,
         flavor:       n.data.flavor ?? "Roll",
@@ -362,6 +571,12 @@ export const NODE_DEFS = {
         rollDialogue: n.data.rollDialogue === "yes",
         advFormula,
         disFormula,
+        critOn:            _critOn,
+        critFormula:       _critForm,
+        isCritOverride:    _isCritO,
+        fumbleOn:          _fumOn,
+        fumbleFormula:     _fumForm,
+        isFumbleOverride:  _isFumO,
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
@@ -763,6 +978,307 @@ export const NODE_DEFS = {
     outputs:[{id:"v", label:"Unique", type:"value.array"}],
     fields:[],
     compile:(_,i)=>`{arrayDistinct:${i.tokens ?? ""}}`
+  },
+
+  // ── Generic value arrays (P1+P2) ──────────────────────────────────────
+  // The legacy `arr_*` nodes above are token-id specific (Saved[]/Failed[]/
+  // canvas tokens). The block below adds value-agnostic array operations
+  // that work on ANY comma-joined list — strings, numbers, ids, anything.
+  // All tokens use `|` as inter-argument separator and base64 for free-form
+  // operands so commas and pipes inside element values do not collide.
+
+  arr_make: {
+    title:"Array Make", color:"#2a7a3a", cat:"Array",
+    desc:"Build a new array from up to 8 individual values. Empty / unconnected slots are skipped. Output is a comma-joined list compatible with all other Array nodes.",
+    inputs:[
+      {id:"v0", label:"#0", type:"value.any"},
+      {id:"v1", label:"#1", type:"value.any"},
+      {id:"v2", label:"#2", type:"value.any"},
+      {id:"v3", label:"#3", type:"value.any"},
+      {id:"v4", label:"#4", type:"value.any"},
+      {id:"v5", label:"#5", type:"value.any"},
+      {id:"v6", label:"#6", type:"value.any"},
+      {id:"v7", label:"#7", type:"value.any"}
+    ],
+    outputs:[{id:"v", label:"Array", type:"value.array"},{id:"len", label:"Length", type:"value.number"}],
+    fields:[
+      {key:"v0", label:"#0 (literal)", type:"text", default:""},
+      {key:"v1", label:"#1 (literal)", type:"text", default:""},
+      {key:"v2", label:"#2 (literal)", type:"text", default:""},
+      {key:"v3", label:"#3 (literal)", type:"text", default:""}
+    ],
+    compile:(n,i)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const parts = [];
+      for (let k = 0; k < 8; k++) {
+        const id = `v${k}`;
+        const fromPin = i[id];
+        const fromField = n.data?.[id];
+        const v = (fromPin != null && fromPin !== "") ? fromPin : (fromField ?? "");
+        parts.push(_b64(v));
+      }
+      const tail = `|len`.padStart(0, ""); // unused, but keeps token shape obvious
+      return `{arrayMake:${parts.join("|")}}`;
+    },
+    compilePin:(n,i,pin)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const parts = [];
+      for (let k = 0; k < 8; k++) {
+        const id = `v${k}`;
+        const fromPin = i[id];
+        const fromField = n.data?.[id];
+        const v = (fromPin != null && fromPin !== "") ? fromPin : (fromField ?? "");
+        parts.push(_b64(v));
+      }
+      const arr = `{arrayMake:${parts.join("|")}}`;
+      if (pin === "len") return `{arrayLength:${arr}}`;
+      return arr;
+    }
+  },
+
+  arr_split: {
+    title:"Array From String (Split)", color:"#2a7a3a", cat:"Array",
+    desc:"Split a string into an array using a custom separator. Default separator is comma. Useful when you have a stored CSV value or want to convert a manually-typed list into an array.",
+    inputs:[
+      {id:"s",   label:"String",    type:"value.string"},
+      {id:"sep", label:"Separator", type:"value.string"}
+    ],
+    outputs:[{id:"v", label:"Array", type:"value.array"},{id:"len", label:"Length", type:"value.number"}],
+    fields:[{key:"sep",label:"Separator",type:"text",default:","}],
+    compile:(n,i)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const sep = (i.sep != null && i.sep !== "") ? i.sep : (n.data.sep ?? ",");
+      return `{arraySplit:${_b64(i.s ?? "")}|${_b64(sep)}}`;
+    },
+    compilePin:(n,i,pin)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const sep = (i.sep != null && i.sep !== "") ? i.sep : (n.data.sep ?? ",");
+      const arr = `{arraySplit:${_b64(i.s ?? "")}|${_b64(sep)}}`;
+      if (pin === "len") return `{arrayLength:${arr}}`;
+      return arr;
+    }
+  },
+
+  arr_join: {
+    title:"Array Join (to String)", color:"#2a7a3a", cat:"Array",
+    desc:"Concatenate array elements into a single string using a custom separator. Default separator is `, `. Useful for chat output / flavor text from a built array.",
+    inputs:[
+      {id:"a",   label:"Array",     type:"value.array"},
+      {id:"sep", label:"Separator", type:"value.string"}
+    ],
+    outputs:[{id:"v", label:"String", type:"value.string"}],
+    fields:[{key:"sep",label:"Separator",type:"text",default:", "}],
+    compile:(n,i)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const sep = (i.sep != null && i.sep !== "") ? i.sep : (n.data.sep ?? ", ");
+      return `{arrayJoin:${i.a ?? ""}|${_b64(sep)}}`;
+    }
+  },
+
+  arr_push: {
+    title:"Array Push", color:"#2a7a3a", cat:"Array",
+    desc:"Append one element to an array and return the new array. Original array is not mutated. Empty Element is skipped (returns the array unchanged).",
+    inputs:[
+      {id:"a", label:"Array",   type:"value.array"},
+      {id:"v", label:"Element", type:"value.any"}
+    ],
+    outputs:[{id:"v", label:"Array", type:"value.array"},{id:"len", label:"Length", type:"value.number"}],
+    fields:[],
+    compile:(_,i)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      return `{arrayPush:${i.a ?? ""}|${_b64(i.v ?? "")}}`;
+    },
+    compilePin:(_,i,pin)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const arr = `{arrayPush:${i.a ?? ""}|${_b64(i.v ?? "")}}`;
+      if (pin === "len") return `{arrayLength:${arr}}`;
+      return arr;
+    }
+  },
+
+  arr_get: {
+    title:"Array Get (generic)", color:"#2a7a3a", cat:"Array",
+    desc:"Generic version of `Token at Index` — works for ANY array (strings, numbers, ids). Supports negative indices: `-1` returns last, `-2` second-to-last, etc. If index is out of range and a Default is supplied, it is returned instead.",
+    inputs:[
+      {id:"a",   label:"Array",   type:"value.array"},
+      {id:"i",   label:"Index",   type:"value.number"},
+      {id:"def", label:"Default", type:"value.any"}
+    ],
+    outputs:[
+      {id:"v",     label:"Value", type:"value.any"},
+      {id:"found", label:"Found?", type:"value.bool"}
+    ],
+    fields:[
+      {key:"i",  label:"Index",   type:"number", default:0},
+      {key:"def",label:"Default", type:"text",   default:""}
+    ],
+    compile:(n,i)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const idx = (i.i != null && i.i !== "") ? i.i : (n.data.i ?? 0);
+      const def = (i.def != null && i.def !== "") ? i.def : (n.data.def ?? "");
+      return `{arrayGet:${i.a ?? ""}|${idx}|${_b64(def)}}`;
+    },
+    compilePin:(n,i,pin)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const idx = (i.i != null && i.i !== "") ? i.i : (n.data.i ?? 0);
+      const def = (i.def != null && i.def !== "") ? i.def : (n.data.def ?? "");
+      if (pin === "found") return `{arrayHasIndex:${i.a ?? ""}|${idx}}`;
+      return `{arrayGet:${i.a ?? ""}|${idx}|${_b64(def)}}`;
+    }
+  },
+
+  arr_first: {
+    title:"Array First", color:"#2a7a3a", cat:"Array",
+    desc:"Return the first element of an array (`arr[0]`). Empty if the array is empty.",
+    inputs:[{id:"a", label:"Array", type:"value.array"}],
+    outputs:[{id:"v", label:"Value", type:"value.any"}],
+    fields:[],
+    compile:(_,i)=>`{arrayGet:${i.a ?? ""}|0|}`
+  },
+
+  arr_last: {
+    title:"Array Last", color:"#2a7a3a", cat:"Array",
+    desc:"Return the last element of an array (`arr[-1]`). Empty if the array is empty.",
+    inputs:[{id:"a", label:"Array", type:"value.array"}],
+    outputs:[{id:"v", label:"Value", type:"value.any"}],
+    fields:[],
+    compile:(_,i)=>`{arrayGet:${i.a ?? ""}|-1|}`
+  },
+
+  arr_reverse: {
+    title:"Array Reverse", color:"#2a7a3a", cat:"Array",
+    desc:"Reverse the order of elements. Original array is not mutated.",
+    inputs:[{id:"a", label:"Array", type:"value.array"}],
+    outputs:[{id:"v", label:"Array", type:"value.array"}],
+    fields:[],
+    compile:(_,i)=>`{arrayReverse:${i.a ?? ""}}`
+  },
+
+  arr_sum_num: {
+    title:"Array Sum (numeric)", color:"#2a7a3a", cat:"Array",
+    desc:"Sum of numeric elements in an already-numeric array (e.g. produced by `Map Field` or `Array Make` with numbers). Non-numeric elements are skipped. Returns 0 for empty arrays.",
+    inputs:[{id:"a", label:"Array", type:"value.array"}],
+    outputs:[{id:"v", label:"Sum", type:"value.number"}],
+    fields:[],
+    compile:(_,i)=>`{arrayNum:${i.a ?? ""}|sum}`
+  },
+
+  arr_avg_num: {
+    title:"Array Average (numeric)", color:"#2a7a3a", cat:"Array",
+    desc:"Average of numeric elements. Non-numeric elements are skipped. Returns 0 if there are no numeric elements.",
+    inputs:[{id:"a", label:"Array", type:"value.array"}],
+    outputs:[{id:"v", label:"Avg", type:"value.number"}],
+    fields:[],
+    compile:(_,i)=>`{arrayNum:${i.a ?? ""}|avg}`
+  },
+
+  arr_min_num: {
+    title:"Array Min (numeric)", color:"#2a7a3a", cat:"Array",
+    desc:"Lowest numeric element. Returns 0 for empty / non-numeric arrays.",
+    inputs:[{id:"a", label:"Array", type:"value.array"}],
+    outputs:[{id:"v", label:"Min", type:"value.number"}],
+    fields:[],
+    compile:(_,i)=>`{arrayNum:${i.a ?? ""}|min}`
+  },
+
+  arr_max_num: {
+    title:"Array Max (numeric)", color:"#2a7a3a", cat:"Array",
+    desc:"Highest numeric element. Returns 0 for empty / non-numeric arrays.",
+    inputs:[{id:"a", label:"Array", type:"value.array"}],
+    outputs:[{id:"v", label:"Max", type:"value.number"}],
+    fields:[],
+    compile:(_,i)=>`{arrayNum:${i.a ?? ""}|max}`
+  },
+
+  arr_random_pick: {
+    title:"Array Random Pick", color:"#2a7a3a", cat:"Array",
+    desc:"Pick `count` random elements (without repetition). Default count is 1 and returns a single element as the value. Count > 1 returns an array.",
+    inputs:[
+      {id:"a", label:"Array", type:"value.array"},
+      {id:"n", label:"Count", type:"value.number"}
+    ],
+    outputs:[
+      {id:"v",   label:"Value/Array", type:"value.any"},
+      {id:"arr", label:"Array",       type:"value.array"}
+    ],
+    fields:[{key:"n",label:"Count",type:"number",default:1}],
+    compile:(n,i)=>{
+      const cnt = (i.n != null && i.n !== "") ? i.n : (n.data.n ?? 1);
+      return `{arrayRandomPick:${i.a ?? ""}|${cnt}}`;
+    },
+    compilePin:(n,i,pin)=>{
+      const cnt = (i.n != null && i.n !== "") ? i.n : (n.data.n ?? 1);
+      return `{arrayRandomPick:${i.a ?? ""}|${cnt}}`;
+    }
+  },
+
+  arr_filter_generic: {
+    title:"Array Filter (by element)", color:"#2a7a3a", cat:"Array",
+    desc:"Generic filter that compares each element of the array directly to a value (no actor.path). Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`, `contains`, `startsWith`, `endsWith`. Numeric ops cast elements to numbers; string ops use case-sensitive substring matching.",
+    inputs:[
+      {id:"a", label:"Array", type:"value.array"},
+      {id:"v", label:"Value", type:"value.any"}
+    ],
+    outputs:[
+      {id:"out", label:"Filtered", type:"value.array"},
+      {id:"len", label:"Length",   type:"value.number"}
+    ],
+    fields:[
+      {key:"op",   label:"Op",    type:"select", default:"==",
+       options:["==","!=",">","<",">=","<=","contains","startsWith","endsWith"]},
+      {key:"v",    label:"Value", type:"text",   default:""}
+    ],
+    compile:(n,i)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const cmp = (i.v != null && i.v !== "") ? i.v : (n.data.v ?? "");
+      return `{arrayFilterGeneric:${i.a ?? ""}|${n.data.op ?? "=="}|${_b64(cmp)}}`;
+    },
+    compilePin:(n,i,pin)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const cmp = (i.v != null && i.v !== "") ? i.v : (n.data.v ?? "");
+      const arr = `{arrayFilterGeneric:${i.a ?? ""}|${n.data.op ?? "=="}|${_b64(cmp)}}`;
+      if (pin === "len") return `{arrayLength:${arr}}`;
+      return arr;
+    }
+  },
+
+  arr_map_formula: {
+    title:"Array Map (formula)", color:"#2a7a3a", cat:"Array",
+    desc:"Apply a formula to every element of an array. Inside the formula, `{__elem}` is replaced with the current element, and `{__elemIndex}` with its 0-based index. Each result is evaluated by the formula engine. Useful for `array * 2`, `floor(array/3)`, conditional transforms, etc.",
+    inputs:[
+      {id:"a",       label:"Array",   type:"value.array"},
+      {id:"formula", label:"Formula", type:"value.string"}
+    ],
+    outputs:[{id:"v", label:"Array", type:"value.array"}],
+    fields:[
+      {key:"formula", label:"Formula (use {__elem})", type:"text", default:"{__elem}", placeholder:"e.g. {__elem} * 2"}
+    ],
+    compile:(n,i)=>{
+      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const f = (i.formula != null && i.formula !== "") ? i.formula : (n.data.formula ?? "{__elem}");
+      return `{arrayMapFormula:${i.a ?? ""}|${_b64(f)}}`;
+    }
+  },
+
+  arr_for_each: {
+    title:"For Each Element", color:"#1a5a7a", cat:"Flow",
+    desc:"Generic version of `For Each Token` — execute a body once per element of an arbitrary array (strings, numbers, anything). On each iteration `{__loopItem}` = current element, `{__loopIndex}` = i. After all iterations, exec goes to Done.",
+    inputs:[
+      {id:"exec", label:"",      type:"exec"},
+      {id:"a",    label:"Array", type:"value.array"}
+    ],
+    outputs:[
+      {id:"loop",  label:"Loop →", type:"exec"},
+      {id:"done",  label:"Done →", type:"exec"},
+      {id:"item",  label:"Item",   type:"value.any"},
+      {id:"index", label:"Index",  type:"value.number"}
+    ],
+    fields:[],
+    isLoop: true,
+    toAction:(_,inp)=>({
+      type:  "forEachItem",
+      items: inp.a ?? ""
+    })
   },
 
   // Каст заклинаний
@@ -1212,6 +1728,12 @@ export const NODE_DEFS = {
     desc:"Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total − AC. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
+      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
+      {id:"critOn",          label:"Crit on",        type:"value.number"},
+      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
+      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
+      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
+      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"formula",       label:"Attack",         type:"value.string"},
       {id:"bonus",         label:"Bonus",          type:"value.number"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
@@ -1219,12 +1741,20 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"hit",    label:"Hit →",      type:"exec"},
-      {id:"miss",   label:"Miss →",     type:"exec"},
-      {id:"crit",   label:"Crit →",     type:"exec"},
-      {id:"result", label:"Roll Result",type:"value.number"},
-      {id:"margin", label:"Margin",     type:"value.number"}
-    ],
+      {id:"hit",         label:"Hit →",      type:"exec"},
+      {id:"miss",        label:"Miss →",     type:"exec"},
+      {id:"crit",        label:"Crit →",     type:"exec"},
+      {id:"result",      label:"Roll Result",type:"value.number"},
+      {id:"margin",      label:"Margin",     type:"value.number"},
+      {id:"formula",     label:"Formula",    type:"value.string"},
+      {id:"min",         label:"Min",        type:"value.number"},
+      {id:"max",         label:"Max",        type:"value.number"},
+      {id:"natural",     label:"Natural",    type:"value.number"},
+      {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
+      {id:"critFormula", label:"Crit Formula",type:"value.string"}
+    ,
+      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
+      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
     fields:[
       {key:"formula",       label:"Roll",                  type:"text",   default:"1d20"},
       {key:"bonus",         label:"Bonus",                 type:"text",   default:"0"},
@@ -1234,7 +1764,13 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",        type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path",  type:"path",   default:"",   placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",           type:"number", default:1}
-    ],
+    ,
+      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
+      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
+,
+      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
+      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
+],
     isAttackBranch: true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -1249,7 +1785,15 @@ export const NODE_DEFS = {
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      };
+      ,
+        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
+        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
+        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
+,
+        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
+        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
+        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
+};
     }
   },
 
@@ -1258,6 +1802,12 @@ export const NODE_DEFS = {
     desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator). Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",           label:"",           type:"exec"},
+      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
+      {id:"critOn",          label:"Crit on",        type:"value.number"},
+      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
+      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
+      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
+      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"formula",        label:"Formula",    type:"value.string"},
       {id:"dc",             label:"DC",          type:"value.number"},
       {id:"modifier",       label:"Modifier",    type:"value.number"},
@@ -1276,8 +1826,16 @@ export const NODE_DEFS = {
       {id:"margin",      label:"Margin",    type:"value.number"},
       {id:"youWon",      label:"You Won →", type:"exec"},
       {id:"youLost",     label:"You Lost →",type:"exec"},
-      {id:"winnerRoll",  label:"Winner Roll", type:"value.number"}
-    ],
+      {id:"winnerRoll",  label:"Winner Roll", type:"value.number"},
+      {id:"formula",     label:"Formula",    type:"value.string"},
+      {id:"min",         label:"Min",        type:"value.number"},
+      {id:"max",         label:"Max",        type:"value.number"},
+      {id:"natural",     label:"Natural",    type:"value.number"},
+      {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
+      {id:"critFormula", label:"Crit Formula",type:"value.string"}
+    ,
+      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
+      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
     fields:[
       {key:"formula",        label:"Roll",      type:"text",   default:"1d20"},
       {key:"dc",             label:"DC",        type:"text",   default:"10"},
@@ -1297,7 +1855,13 @@ export const NODE_DEFS = {
       {key:"rerollEnabled",  label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",     label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",     label:"Reroll cost",    type:"number", default:1}
-    ],
+    ,
+      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
+      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
+,
+      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
+      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
+],
     isSaveBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -1322,7 +1886,15 @@ export const NODE_DEFS = {
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      };
+      ,
+        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
+        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
+        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
+,
+        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
+        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
+        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
+};
     }
   },
 
@@ -1332,18 +1904,32 @@ export const NODE_DEFS = {
     wideNode:true,
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
+      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
+      {id:"critOn",          label:"Crit on",        type:"value.number"},
+      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
+      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
+      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
+      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"formula",       label:"Formula",        type:"value.string"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"tier0",  label:"Tier 1 →", type:"exec"},
-      {id:"tier1",  label:"Tier 2 →", type:"exec"},
-      {id:"tier2",  label:"Tier 3 →", type:"exec"},
-      {id:"tier3",  label:"Tier 4 →", type:"exec"},
-      {id:"result", label:"Roll",     type:"value.number"}
-    ],
+      {id:"tier0",       label:"Tier 1 →", type:"exec"},
+      {id:"tier1",       label:"Tier 2 →", type:"exec"},
+      {id:"tier2",       label:"Tier 3 →", type:"exec"},
+      {id:"tier3",       label:"Tier 4 →", type:"exec"},
+      {id:"result",      label:"Roll",     type:"value.number"},
+      {id:"formula",     label:"Formula",  type:"value.string"},
+      {id:"min",         label:"Min",      type:"value.number"},
+      {id:"max",         label:"Max",      type:"value.number"},
+      {id:"natural",     label:"Natural",  type:"value.number"},
+      {id:"isCrit",      label:"Is Crit",  type:"value.bool"},
+      {id:"critFormula", label:"Crit Formula",type:"value.string"}
+    ,
+      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
+      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
     fields:[
       {key:"formula",  label:"Roll",          type:"text",   default:"2d6"},
       {key:"t1Label",  label:"Tier 1 label",  type:"text",   default:"Miss"},
@@ -1359,7 +1945,13 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ],
+    ,
+      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
+      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
+,
+      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
+      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
+],
     isTieredBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -1378,7 +1970,15 @@ export const NODE_DEFS = {
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      };
+      ,
+        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
+        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
+        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
+,
+        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
+        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
+        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
+};
     }
   },
 
@@ -1387,6 +1987,12 @@ export const NODE_DEFS = {
     desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
+      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
+      {id:"critOn",          label:"Crit on",        type:"value.number"},
+      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
+      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
+      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
+      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"count",         label:"Count",          type:"value.number"},
       {id:"target",        label:"Target",         type:"value.actor"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
@@ -1394,12 +2000,20 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"pass",      label:"Pass →",     type:"exec"},
-      {id:"fail",      label:"Fail →",     type:"exec"},
-      {id:"successes", label:"Successes",  type:"value.number"},
-      {id:"botches",   label:"Botches",    type:"value.number"},
-      {id:"result",    label:"Total",      type:"value.any"}
-    ],
+      {id:"pass",        label:"Pass →",      type:"exec"},
+      {id:"fail",        label:"Fail →",      type:"exec"},
+      {id:"successes",   label:"Successes",   type:"value.number"},
+      {id:"botches",     label:"Botches",     type:"value.number"},
+      {id:"result",      label:"Total",       type:"value.any"},
+      {id:"formula",     label:"Formula",     type:"value.string"},
+      {id:"min",         label:"Min",         type:"value.number"},
+      {id:"max",         label:"Max",         type:"value.number"},
+      {id:"natural",     label:"Natural",     type:"value.number"},
+      {id:"isCrit",      label:"Is Crit",     type:"value.bool"},
+      {id:"critFormula", label:"Crit Formula",type:"value.string"}
+    ,
+      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
+      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
     fields:[
       {key:"count",     label:"Count",       type:"text",   default:"5"},
       {key:"die",       label:"Die faces",   type:"number", default:10},
@@ -1412,7 +2026,13 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ],
+    ,
+      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
+      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
+,
+      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
+      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
+],
     isSaveBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -1430,7 +2050,15 @@ export const NODE_DEFS = {
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      };
+      ,
+        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
+        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
+        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
+,
+        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
+        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
+        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
+};
     }
   },
 
@@ -1506,6 +2134,12 @@ export const NODE_DEFS = {
     wideNode:true,
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
+      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
+      {id:"critOn",          label:"Crit on",        type:"value.number"},
+      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
+      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
+      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
+      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"formula",       label:"Formula",        type:"value.string"},
       {id:"historyPath",   label:"History Path",   type:"value.path"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
@@ -1513,13 +2147,21 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"higher",   label:"Higher →",  type:"exec"},
-      {id:"lower",    label:"Lower →",   type:"exec"},
-      {id:"equal",    label:"Equal →",   type:"exec"},
-      {id:"noHistory",label:"First →",   type:"exec"},
-      {id:"value",    label:"Value",     type:"value.any"},
-      {id:"previous", label:"Previous",  type:"value.any"}
-    ],
+      {id:"higher",      label:"Higher →",  type:"exec"},
+      {id:"lower",       label:"Lower →",   type:"exec"},
+      {id:"equal",       label:"Equal →",   type:"exec"},
+      {id:"noHistory",   label:"First →",   type:"exec"},
+      {id:"value",       label:"Value",     type:"value.any"},
+      {id:"previous",    label:"Previous",  type:"value.any"},
+      {id:"formula",     label:"Formula",   type:"value.string"},
+      {id:"min",         label:"Min",       type:"value.number"},
+      {id:"max",         label:"Max",       type:"value.number"},
+      {id:"natural",     label:"Natural",   type:"value.number"},
+      {id:"isCrit",      label:"Is Crit",   type:"value.bool"},
+      {id:"critFormula", label:"Crit Formula",type:"value.string"}
+    ,
+      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
+      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
     fields:[
       {key:"formula",     label:"Formula",          type:"text", default:"1d6"},
       {key:"historyPath", label:"History Path",     type:"path", default:"system.flags.progressionDie"},
@@ -1528,7 +2170,13 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ],
+    ,
+      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
+      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
+,
+      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
+      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
+],
     isProgressionBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -1542,7 +2190,15 @@ export const NODE_DEFS = {
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      };
+      ,
+        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
+        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
+        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
+,
+        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
+        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
+        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
+};
     }
   },
 
@@ -1551,6 +2207,12 @@ export const NODE_DEFS = {
     desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
+      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
+      {id:"critOn",          label:"Crit on",        type:"value.number"},
+      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
+      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
+      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
+      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"count",         label:"Count",          type:"value.number"},
       {id:"target",        label:"Target",         type:"value.actor"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
@@ -1558,11 +2220,19 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"pass",      label:"Pass →",     type:"exec"},
-      {id:"fail",      label:"Fail →",     type:"exec"},
-      {id:"successes", label:"Successes",  type:"value.number"},
-      {id:"total",     label:"Total",      type:"value.number"}
-    ],
+      {id:"pass",        label:"Pass →",     type:"exec"},
+      {id:"fail",        label:"Fail →",     type:"exec"},
+      {id:"successes",   label:"Successes",  type:"value.number"},
+      {id:"total",       label:"Total",      type:"value.number"},
+      {id:"formula",     label:"Formula",    type:"value.string"},
+      {id:"min",         label:"Min",        type:"value.number"},
+      {id:"max",         label:"Max",        type:"value.number"},
+      {id:"natural",     label:"Natural",    type:"value.number"},
+      {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
+      {id:"critFormula", label:"Crit Formula",type:"value.string"}
+    ,
+      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
+      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
     fields:[
       {key:"count",    label:"Count",      type:"text",   default:"3"},
       {key:"die",      label:"Die faces",  type:"number", default:6},
@@ -1576,7 +2246,13 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ],
+    ,
+      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
+      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
+,
+      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
+      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
+],
     isSaveBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -1595,7 +2271,15 @@ export const NODE_DEFS = {
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      };
+      ,
+        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
+        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
+        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
+,
+        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
+        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
+        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
+};
     }
   },
 
@@ -1604,6 +2288,12 @@ export const NODE_DEFS = {
     desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
+      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
+      {id:"critOn",          label:"Crit on",        type:"value.number"},
+      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
+      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
+      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
+      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"count",         label:"Count",          type:"value.number"},
       {id:"target",        label:"Target",         type:"value.actor"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
@@ -1611,11 +2301,19 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"pass",      label:"Pass →",     type:"exec"},
-      {id:"fail",      label:"Fail →",     type:"exec"},
-      {id:"successes", label:"Successes",  type:"value.number"},
-      {id:"total",     label:"Total",      type:"value.number"}
-    ],
+      {id:"pass",        label:"Pass →",     type:"exec"},
+      {id:"fail",        label:"Fail →",     type:"exec"},
+      {id:"successes",   label:"Successes",  type:"value.number"},
+      {id:"total",       label:"Total",      type:"value.number"},
+      {id:"formula",     label:"Formula",    type:"value.string"},
+      {id:"min",         label:"Min",        type:"value.number"},
+      {id:"max",         label:"Max",        type:"value.number"},
+      {id:"natural",     label:"Natural",    type:"value.number"},
+      {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
+      {id:"critFormula", label:"Crit Formula",type:"value.string"}
+    ,
+      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
+      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
     fields:[
       {key:"count",    label:"Count",      type:"text",   default:"3"},
       {key:"die",      label:"Die faces",  type:"number", default:6},
@@ -1628,7 +2326,13 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ],
+    ,
+      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
+      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
+,
+      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
+      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
+],
     isSaveBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -1646,7 +2350,15 @@ export const NODE_DEFS = {
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      };
+      ,
+        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
+        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
+        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
+,
+        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
+        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
+        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
+};
     }
   },
 
@@ -1735,7 +2447,7 @@ export const NODE_DEFS = {
   },
 
   dialog_switch: {
-    title:"Dialog Switch", color:"#c05a20", cat:"Flow",
+    title:"Dialog Switch (legacy)", color:"#c05a20", cat:"Flow",
     desc:"Show a dialog with 2-8 named options. The player picks one and that exec branch fires. Outputs are named via fields.",
     wideNode:true,
     inputs:[{id:"exec", label:"", type:"exec"}],
@@ -1784,7 +2496,7 @@ export const NODE_DEFS = {
 
   /** Dialog Select (from array) — show a dialog with one button per array element */
   dialog_select_array: {
-    title:"Dialog Select (Array)", color:"#c05a20", cat:"Flow",
+    title:"Dialog Select Array (legacy)", color:"#c05a20", cat:"Flow",
     desc:"Show a dialog with one button per element of the input array. The chosen element is emitted on `Selected` (value), the index on `Index`, and Selected→ exec fires after pick. Cancel → Cancel exec.",
     inputs:[
       {id:"exec",  label:"",      type:"exec"},
@@ -1813,7 +2525,7 @@ export const NODE_DEFS = {
 
   /** Dialog: text input — prompt for a string */
   dialog_text_input: {
-    title:"Dialog Text Input", color:"#c05a20", cat:"Flow",
+    title:"Dialog Text Input (legacy)", color:"#c05a20", cat:"Flow",
     desc:"Show a single-line text input dialog. The entered text is emitted on `Text` and OK exec fires.",
     inputs:[{id:"exec", label:"", type:"exec"}],
     outputs:[
@@ -1835,9 +2547,54 @@ export const NODE_DEFS = {
     })
   },
 
+  /** Dialog Builder — programmable form dialog with up to 8 roll buttons + arbitrary input fields. */
+  act_dialog_builder: {
+    title:"Dialog Builder", color:"#a04020", cat:"Flow",
+    desc:"Open a programmable dialog defined by an `elements` JSON array. Each element has a `type` (label/number/text/checkbox/select/rollButton/section), a unique `id`, optional `label`, `default`, `options` (for select), `placeholder` (text/number), and conditional flags `visibleWhen` / `disabledWhen` referencing other fields by `{id}`. Up to 8 rollButton elements wire one each to btn0..btn7 exec outputs; non-button fields are exposed at runtime as tokens `{__dlg.<id>}` you can use anywhere downstream (formulas, paths, text). Picked button id appears on `Picked`. `Submit →` fires for any rollButton or the plain OK; `Cancel` fires when the dialog is closed without confirm.",
+    wideNode:true,
+    inputs:[
+      {id:"exec", label:"", type:"exec"}
+    ],
+    outputs:[
+      {id:"submit",  label:"Submit →", type:"exec"},
+      {id:"cancel",  label:"Cancel",   type:"exec"},
+      {id:"picked",  label:"Picked",   type:"value.string"},
+      {id:"btn0",    label:"Btn 1 →",  type:"exec"},
+      {id:"btn1",    label:"Btn 2 →",  type:"exec"},
+      {id:"btn2",    label:"Btn 3 →",  type:"exec"},
+      {id:"btn3",    label:"Btn 4 →",  type:"exec"},
+      {id:"btn4",    label:"Btn 5 →",  type:"exec"},
+      {id:"btn5",    label:"Btn 6 →",  type:"exec"},
+      {id:"btn6",    label:"Btn 7 →",  type:"exec"},
+      {id:"btn7",    label:"Btn 8 →",  type:"exec"}
+    ],
+    fields:[
+      {key:"title",       label:"Title",       type:"text",     default:"Dialog"},
+      {key:"description", label:"Description", type:"text",     default:""},
+      {key:"okLabel",     label:"OK label (when no rollButton elements)", type:"text", default:"OK"},
+      {key:"cancelLabel", label:"Cancel label",                           type:"text", default:"Cancel"},
+      {
+        key:"elementsJson",
+        label:"Elements (JSON array)",
+        type:"textarea",
+        default:'[\n  {"type":"label","text":"Choose your stance:"},\n  {"type":"select","id":"stance","label":"Stance","options":["Aggressive","Defensive","Sneaky"],"default":"Aggressive"},\n  {"type":"checkbox","id":"useLuck","label":"Spend 1 Luck","default":false},\n  {"type":"number","id":"bonus","label":"Bonus","default":0,"placeholder":"-3..+3"},\n  {"type":"rollButton","id":"normal","label":"Normal","formula":"1d20+@mod"},\n  {"type":"rollButton","id":"adv","label":"Advantage","formula":"2d20kh1+@mod","visibleWhen":"{useLuck}"}\n]',
+        rows:14
+      }
+    ],
+    isGenericBranch:true,
+    toAction:(n) => ({
+      type:         "dialogBuilder",
+      title:        n.data.title       ?? "Dialog",
+      description:  n.data.description ?? "",
+      okLabel:      n.data.okLabel     ?? "OK",
+      cancelLabel:  n.data.cancelLabel ?? "Cancel",
+      elementsJson: n.data.elementsJson ?? "[]"
+    })
+  },
+
   /** Dialog: yes/no confirm */
   dialog_confirm: {
-    title:"Dialog Confirm", color:"#c05a20", cat:"Flow",
+    title:"Dialog Confirm (legacy)", color:"#c05a20", cat:"Flow",
     desc:"Show a Yes/No confirmation dialog. The matching exec branch fires.",
     inputs:[{id:"exec", label:"", type:"exec"}],
     outputs:[
@@ -2832,6 +3589,12 @@ export const NODE_DEFS = {
     desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field. Reroll button (yes/no) adds a Re-roll button to the resulting roll message; Reroll Path / Reroll Cost optionally consume a numeric resource from the rolling actor each time they reroll.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
+      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
+      {id:"critOn",          label:"Crit on",        type:"value.number"},
+      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
+      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
+      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
+      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"dc",            label:"DC",             type:"value.number"},
       {id:"target",        label:"Target",         type:"value.actor"},
       {id:"rollFormula",   label:"Roll Formula",   type:"value.string"},
@@ -2842,10 +3605,18 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"pass", label:"Pass →", type:"exec"},
-      {id:"fail", label:"Fail →", type:"exec"},
-      {id:"result", label:"Roll Result", type:"value.any"}
-    ],
+      {id:"pass",        label:"Pass →",     type:"exec"},
+      {id:"fail",        label:"Fail →",     type:"exec"},
+      {id:"result",      label:"Roll Result",type:"value.any"},
+      {id:"formula",     label:"Formula",    type:"value.string"},
+      {id:"min",         label:"Min",        type:"value.number"},
+      {id:"max",         label:"Max",        type:"value.number"},
+      {id:"natural",     label:"Natural",    type:"value.number"},
+      {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
+      {id:"critFormula", label:"Crit Formula",type:"value.string"}
+    ,
+      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
+      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
     fields:[
       {key:"checkType",    label:"Check type",    type:"select", default:"save", options:["save","ability","skill","custom"]},
       {key:"modifierPath",  label:"Modifier path", type:"path",   default:"system.attributes.attr1.mod", placeholder:"system.attributes.attr1.mod"},
@@ -2862,7 +3633,13 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ],
+    ,
+      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
+      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
+,
+      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
+      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
+],
     isSaveBranch: true,
     toAction:(n,inp)=>{
       const rollFormula = (inp.rollFormula != null && inp.rollFormula !== "") ? inp.rollFormula : (n.data.rollFormula || "1d20");
@@ -2887,7 +3664,15 @@ export const NODE_DEFS = {
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      };
+      ,
+        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
+        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
+        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
+,
+        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
+        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
+        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
+};
     }
   },
 
@@ -3833,16 +4618,30 @@ const EVENT_PIN_TOKENS = {
   }
 };
 
+// Common roll-meta pins exposed on every roll-producing node. The executor
+// fills the corresponding __last* runtime tokens after each roll; downstream
+// value pins resolve to those tokens via this table.
+const _ROLL_META = {
+  formula:       "{__lastFormula}",
+  min:           "{__lastMin}",
+  max:           "{__lastMax}",
+  natural:       "{__lastNatural}",
+  isCrit:        "{__lastIsCrit}",
+  critFormula:   "{__lastCritFormula}",
+  isFumble:      "{__lastIsFumble}",
+  fumbleFormula: "{__lastFumbleFormula}"
+};
 const BRANCH_PIN_TOKENS = {
-  act_roll_value:   { result: "{__lastRoll}" },
-  act_attack_check: { result: "{__lastRoll}", margin: "{__lastMargin}" },
-  act_roll_check:   { result: "{__lastRoll}", margin: "{__lastMargin}", winnerRoll: "{__opposedWinnerRoll}" },
-  act_tiered_roll:  { result: "{__lastRoll}" },
-  act_dice_pool:    { successes: "{__lastSuccesses}", botches: "{__lastBotches}", result: "{__lastRoll}" },
-  act_throw_on_canvas: { successes: "{__lastSuccesses}", total: "{__lastRoll}" },
-  act_throw_on_sheet:  { successes: "{__lastSuccesses}", total: "{__lastRoll}" },
-  chat_save_button:    { result: "{__lastRoll}" },
-  act_progression:     { value: "{__lastRoll}", previous: "{__progPrev}" },
+  act_roll_value:   { result: "{__lastRoll}", ..._ROLL_META },
+  act_attack_check: { result: "{__lastRoll}", margin: "{__lastMargin}", ..._ROLL_META },
+  act_roll_check:   { result: "{__lastRoll}", margin: "{__lastMargin}", winnerRoll: "{__opposedWinnerRoll}", ..._ROLL_META },
+  act_tiered_roll:  { result: "{__lastRoll}", ..._ROLL_META },
+  act_dice_pool:    { successes: "{__lastSuccesses}", botches: "{__lastBotches}", result: "{__lastRoll}", ..._ROLL_META },
+  act_throw_on_canvas: { successes: "{__lastSuccesses}", total: "{__lastRoll}", ..._ROLL_META },
+  act_throw_on_sheet:  { successes: "{__lastSuccesses}", total: "{__lastRoll}", ..._ROLL_META },
+  chat_save_button:    { result: "{__lastRoll}", ..._ROLL_META },
+  act_progression:     { value: "{__lastRoll}", previous: "{__progPrev}", ..._ROLL_META },
+  act_dialog_builder:  { picked: "{__dlgPicked}" },
   act_ai_request:      { response: "{__lastAiResponse}", errorMsg: "{__lastAiError}" },
   act_loop:            { index: "{__loopIndex}" },
   cast_to_actor:       { actorId: "{__castActorId}" },
@@ -6870,6 +7669,12 @@ export class FormulaGraph {
         if(val === String(cur ?? "")) oel.selected = true;
         inp.appendChild(oel);
       }
+    } else if (field.type === "textarea") {
+      inp = document.createElement("textarea");
+      inp.value = node.data[field.key] ?? field.default ?? "";
+      inp.placeholder = _NL(field.placeholder ?? (String(field.default ?? "") || ""));
+      inp.rows = Number(field.rows ?? 6);
+      inp.style.cssText = IS + ";font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.35;resize:vertical;min-height:64px;";
     } else {
       inp=document.createElement("input");
       inp.type=field.type==="number"?"number":"text";

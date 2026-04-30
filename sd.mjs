@@ -35,6 +35,7 @@ import { runMigrations }       from "./module/helpers/migrations.mjs";
 import { EFFECT_PATHS }        from "./module/helpers/effects.mjs";
 import { SystemConfig, applySettings, buildActorBaseDefaults } from "./module/helpers/system-config.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
+import { SDActionHUD, SDActionHUDConfig, registerActionHudSettings, mountActionHudHooks } from "./module/helpers/action-hud.mjs";
 
 // CONFIG Namespace
 
@@ -238,6 +239,9 @@ Hooks.once("init", () => {
     type:    Object,
     default: {}
   });
+
+  // Register Action HUD settings + menu (must happen during init)
+  registerActionHudSettings();
 
   // Register system settings
   registerSettings();
@@ -459,6 +463,8 @@ Hooks.once("ready", () => {
       CONFIG.Combat.initiative.formula = formula;
     }
   } catch(e) { /* setting may not be available yet */ }
+
+  try { mountActionHudHooks(); } catch(e) { console.warn("SD | mountActionHudHooks failed:", e); }
 });
 
 Hooks.on("updateSetting", (setting) => {
@@ -691,12 +697,23 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       const isDamage = card?.dataset.isDamage === "1";
       const baseAmt  = Number(card?.dataset.baseAmount ?? 0);
       const label    = card?.dataset.label ?? "Damage";
+      const iconCls  = isDamage ? "fa-heart-crack" : "fa-heart";
 
       const scaledAmt = Math.ceil(baseAmt * mult);
       const delta     = isDamage ? -scaledAmt : scaledAmt;
 
       const totalEl = card?.querySelector(".sd-card-total");
       if (totalEl) totalEl.textContent = scaledAmt;
+
+      // Keep the green "Apply N" button in sync with the chosen multiplier so
+      // a follow-up click applies the scaled amount (and matches the label).
+      card?.querySelectorAll(".sd-apply-hp-btn").forEach(b => {
+        b.dataset.delta  = String(delta);
+        b.dataset.amount = String(scaledAmt);
+        b.innerHTML      = `<i class="fas ${iconCls}"></i> Apply ${scaledAmt}`;
+        b.disabled       = false;
+        b.style.opacity  = "1";
+      });
 
       card?.querySelectorAll(".sd-apply-selected-btn").forEach(b => {
         b.dataset.baseAmount = scaledAmt;
@@ -709,7 +726,23 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         previewArea.querySelector(".sd-selected-actors-list")?.replaceChildren();
       }
 
-      const actor = _liveTarget();
+      // Resolution order for the multiplier auto-apply:
+      //   1. live targeted / selected token (matches "→ Selected" semantics)
+      //   2. the actor stored on the card (set when the damage node ran with
+      //      target=selected_token / token_target / a uuid)
+      // This makes the ½/¼/⅛/×2/×4 buttons usable even when the original
+      // selection has since been cleared.
+      let actor = _liveTarget();
+      if (!actor) {
+        const storedId = card?.dataset.targetId
+          || card?.querySelector(".sd-apply-hp-btn")?.dataset.actorId
+          || "";
+        if (storedId) {
+          actor = game.actors.get(storedId)
+               ?? canvas?.tokens?.get(storedId)?.actor
+               ?? null;
+        }
+      }
       if (!actor) {
         ui.notifications.info(
           game.i18n.format("SD.Chat.MultNoTarget", { mult: btn.textContent.trim(), amount: scaledAmt })

@@ -111,6 +111,32 @@
       "Saved": "System settings saved.",
       "ResetConfirm": "Reset all system settings to defaults? This cannot be undone."
     },
+    "ActionHud": {
+      "Title": "Action HUD",
+      "Settings": {
+        "Enabled": "Show Action HUD",
+        "EnabledHint": "Display a floating action HUD whenever you select a token you own.",
+        "Scale": "Action HUD Scale (%)",
+        "ScaleHint": "Resize the floating Action HUD between 50% and 200% of its base size.",
+        "BgOpacity": "Action HUD Bar Opacity (%)",
+        "BgOpacityHint": "Opacity of the dark panel bar at the top of the HUD. 0 = fully transparent (widgets float without a frame).",
+        "DefaultTransparent": "Transparent widget backgrounds by default",
+        "DefaultTransparentHint": "Render HUD widgets without their built-in dark backgrounds. The GM can still override per-widget via the droplet button in edit mode.",
+        "ShowFrames": "Show widget frames",
+        "ShowFramesHint": "Draw the rectangular outline around the HUD panel and around each widget cell. Off by default — widgets float without a frame.",
+        "WidgetShadow": "Widget shadow",
+        "WidgetShadowHint": "Add a subtle dark drop-shadow and radial backdrop behind each HUD widget so they remain readable on bright maps.",
+        "ToggleKey": "Toggle Action HUD",
+        "ToggleKeyHint": "Show or hide the floating Action HUD (default Ctrl+H).",
+        "ConfigMenu": "Action HUD Layout",
+        "ConfigMenuLabel": "Configure Action HUD",
+        "ConfigMenuHint": "Configure which actor widgets appear in the floating HUD, and where (GM only)."
+      },
+      "Config": {
+        "Title": "Configure Action HUD",
+        "Saved": "Action HUD layout saved."
+      }
+    },
     "RollDialog": {
       "Quantity": "Dice",
       "DieType": "Die Type",
