@@ -192,6 +192,48 @@ export const MIGRATIONS = [
         return Object.keys(upd).length ? upd : null;
       });
     }
+  },
+
+  // 0.3.6 — Custom resource keys defined in System Config (e.g. resource4,
+  // stamina on NPCs, …) used to be silently dropped by the SchemaField on
+  // every actor save. The schema is now a TypedObjectField so any key is
+  // accepted. Existing actors are missing those keys, though — backfill
+  // them with the configured initialValue / initialMax / initialMin so
+  // resource bar widgets stop showing 0.
+  {
+    version:     "0.3.6",
+    description: "Backfill custom resource keys from System Config onto existing actors.",
+    run: async () => {
+      const cfg = game.settings.get("sd", "systemConfig") || {};
+      const resCfg = cfg.resources ?? {};
+      if (!Object.keys(resCfg).length) return;
+
+      const _seedFromCfg = () => {
+        const seed = {};
+        for (const [key, res] of Object.entries(resCfg)) {
+          if (!res || res.enabled === false) continue;
+          const v  = Number.isFinite(Number(res.initialValue)) ? Math.trunc(Number(res.initialValue)) : 0;
+          const mx = Number.isFinite(Number(res.initialMax))   ? Math.max(0, Math.trunc(Number(res.initialMax))) : v;
+          const mn = Number.isFinite(Number(res.initialMin))   ? Math.trunc(Number(res.initialMin)) : 0;
+          seed[key] = { value: v, max: mx, min: mn };
+        }
+        return seed;
+      };
+
+      await migrateActors(data => {
+        const have = data.system?.resources ?? {};
+        const seed = _seedFromCfg();
+        const merged = { ...have };
+        let changed = false;
+        for (const [key, defaults] of Object.entries(seed)) {
+          if (!merged[key] || typeof merged[key] !== "object") {
+            merged[key] = { ...defaults };
+            changed = true;
+          }
+        }
+        return changed ? { "system.resources": merged } : null;
+      });
+    }
   }
 
   // TEMPLATE for future migrations

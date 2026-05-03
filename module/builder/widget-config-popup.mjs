@@ -175,6 +175,65 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </button>
     </div>` : "";
 
+  // Per-attribute graph editors for the AttributeGroup widget. We list every
+  // attribute the widget will render (explicit list or every enabled key in
+  // CONFIG.SD.attributes). Each row gets its own "Open Graph Editor" button
+  // — pressing it opens the same FormulaGraph as the standalone Attribute
+  // widget, but the resulting modValueFormula / onClickFormula are stored
+  // under widget.attrGraphs[key] so the row can compute its own modifier
+  // and fire its own On Click chain at render time.
+  const attrGroupGraphsRow = (w.type === "attributeGroup") ? (() => {
+    const cfgLabels  = CONFIG?.SD?.attributes ?? {};
+    const cfgEnabled = CONFIG?.SD?.attributesEnabled ?? {};
+    const explicit   = String(w.attributeKeys ?? "").trim();
+    const _parseKey = (raw) => {
+      const s = String(raw).trim();
+      if (!s) return null;
+      if (s.includes(".")) {
+        const m = s.match(/^system\.attributes\.([^.]+)/);
+        if (m) return m[1];
+        const segs = s.split(".");
+        return segs[segs.length - 1];
+      }
+      return s;
+    };
+    let keys;
+    if (explicit) {
+      keys = explicit.split(",").map(_parseKey).filter(Boolean);
+    } else {
+      const cfgKeys = Object.keys(cfgLabels);
+      keys = cfgKeys.length
+        ? cfgKeys.filter(k => cfgEnabled[k] !== false)
+        : Object.keys(doc.system?.attributes ?? {});
+    }
+    if (!keys.length) return "";
+    const attrGraphs = (w.attrGraphs && typeof w.attrGraphs === "object") ? w.attrGraphs : {};
+    const rows = keys.map(k => {
+      const ag = attrGraphs[k] ?? null;
+      const has = !!(ag?.graphData && Array.isArray(ag.graphData.nodes) && ag.graphData.nodes.length);
+      const status = has
+        ? `<span style="color:var(--sd-success);font-size:10px">${ag.graphData.nodes.length} node${ag.graphData.nodes.length===1?"":"s"}</span>`
+        : `<span style="color:var(--sd-text-3);font-size:10px;font-style:italic">no graph</span>`;
+      const display = cfgLabels[k] || (k.charAt(0).toUpperCase() + k.slice(1));
+      return `
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--sd-bg-3)">
+        <span style="flex:1;font-size:11px;color:var(--sd-text)">${esc(display)} <span style="color:var(--sd-text-3);font-size:10px">(${esc(k)})</span></span>
+        ${status}
+        <button type="button" data-attr-group-graph="${esc(k)}"
+          style="background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:4px 9px;display:inline-flex;align-items:center;gap:5px;transition:background .15s"
+          onmouseover="this.style.background='var(--sd-accent-2)'" onmouseout="this.style.background='var(--sd-bg-4)'">
+          <i class="fas fa-diagram-project"></i> Edit
+        </button>
+      </div>`;
+    }).join("");
+    return `
+    <div class="wcfg-f" style="margin-bottom:10px">
+      <label class="wcfg-lbl">Per-Attribute Graphs</label>
+      <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.4">Each attribute below can have its own modifier formula (Attr Score → modValue) and On Click exec chain. Untouched attributes keep the legacy 1d20+(mod) behaviour.</div>
+      <div style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;padding:4px 8px">${rows}</div>
+    </div>`;
+  })() : "";
+
   const _showIfSources = (() => {
     const list = [];
 
@@ -200,20 +259,47 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     //    these the dropdown was effectively unusable for normal sheets.
     const sys = doc?.system;
     if (sys && typeof sys === "object") {
-      // Core attributes
+      // Core attributes — show the user-configured display name from
+      // System Config (CONFIG.SD.attributes) so pickers are readable when
+      // the world has renamed e.g. attr1 → "Power".
+      const _attrName = (key) => {
+        // applySettings() overwrites CONFIG.SD.attributes[key] with the
+        // user's display label, but on early ticks (or worlds that never
+        // opened System Config) it still holds the i18n key like
+        // "SD.Attributes.attr1". Localize that gracefully and fall back
+        // to the raw key when no translation exists.
+        const lbl = CONFIG?.SD?.attributes?.[key];
+        if (typeof lbl !== "string" || !lbl.trim()) return key;
+        if (lbl.startsWith("SD.")) {
+          const t = game?.i18n?.localize?.(lbl);
+          return (t && t !== lbl) ? t : key;
+        }
+        return lbl;
+      };
+      const _resName = (key) => {
+        // applySettings() pushes resource display names into the i18n table
+        // as `SD.Resources.<UPPER_KEY>`. Localize() returns the key unchanged
+        // when no translation exists, so fall back to the raw key in that
+        // case rather than printing literal "SD.Resources.HP".
+        const k = `SD.Resources.${String(key).toUpperCase()}`;
+        const t = game?.i18n?.localize?.(k);
+        return (t && t !== k && t.trim()) ? t : key;
+      };
       for (const [key, attr] of Object.entries(sys.attributes ?? {})) {
         if (attr && typeof attr === "object" && "value" in attr) {
-          list.push({ value: `system.attributes.${key}.value`, label: `Attr: ${key} score` });
-          if ("mod" in attr) list.push({ value: `system.attributes.${key}.mod`, label: `Attr: ${key} mod` });
-          if ("proficient" in attr) list.push({ value: `system.attributes.${key}.proficient`, label: `Attr: ${key} proficient` });
+          const n = _attrName(key);
+          list.push({ value: `system.attributes.${key}.value`, label: `Attr: ${n} score` });
+          if ("mod" in attr) list.push({ value: `system.attributes.${key}.mod`, label: `Attr: ${n} mod` });
+          if ("proficient" in attr) list.push({ value: `system.attributes.${key}.proficient`, label: `Attr: ${n} proficient` });
         }
       }
       // Resources (HP/MP/etc.)
       for (const [key, res] of Object.entries(sys.resources ?? {})) {
         if (res && typeof res === "object") {
-          if ("value" in res) list.push({ value: `system.resources.${key}.value`, label: `Resource: ${key} value` });
-          if ("max"   in res) list.push({ value: `system.resources.${key}.max`,   label: `Resource: ${key} max`   });
-          if ("min"   in res) list.push({ value: `system.resources.${key}.min`,   label: `Resource: ${key} min`   });
+          const n = _resName(key);
+          if ("value" in res) list.push({ value: `system.resources.${key}.value`, label: `Resource: ${n} value` });
+          if ("max"   in res) list.push({ value: `system.resources.${key}.max`,   label: `Resource: ${n} max`   });
+          if ("min"   in res) list.push({ value: `system.resources.${key}.min`,   label: `Resource: ${n} min`   });
         }
       }
       // Skills
@@ -522,6 +608,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     <!-- Fields panel -->
     <div id="wcfg-panel-fields" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:0">
       ${attrGraphRow}
+      ${attrGroupGraphsRow}
       ${fieldRows}
       ${styleRow}
       ${showIfRow}
@@ -754,6 +841,17 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   popup.querySelector("#wcfg-attr-graph-btn")?.addEventListener("click", () => {
     const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc });
     graph.open();
+  });
+
+  popup.querySelectorAll("[data-attr-group-graph]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const attrKey = btn.dataset.attrGroupGraph;
+      if (!attrKey) return;
+      // Pass `attrKey` through saveCtx so the graph editor knows which
+      // per-attribute slot to write to (see formula-graph._saveGraph).
+      const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc, attrKey });
+      graph.open();
+    });
   });
 
 

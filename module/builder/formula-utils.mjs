@@ -217,6 +217,31 @@ export function leadingD20Natural(roll) {
  * Strict allow-list — any unrecognised character → returns `true` (fail
  * open) so a typo doesn't accidentally hide every button.
  */
+/**
+ * Coerce any pin / field value to a strict boolean.
+ *
+ * The graph runtime can deliver booleans from many places: literal `true`/
+ * `false`, numeric 0/1 (e.g. from a hiddenField int), CSV `"yes"` / `"no"`
+ * strings (legacy select fields), tokenised runtime values (`"{__lastIsCrit}"`
+ * resolved to `"1"`), or evaluable expressions (`"(@flag.x > 3)"`).
+ *
+ * Rules:
+ *   - undefined / null / "" → false
+ *   - typeof number          → !== 0
+ *   - typeof boolean         → as-is
+ *   - string "0", "false", "no", "off", "null", "undefined" (any case) → false
+ *   - any other non-empty string → true (callers can pre-evaluate via
+ *     FormulaEngine if they want expression support)
+ */
+export function coerceBool(v) {
+  if (v === undefined || v === null || v === "") return false;
+  if (typeof v === "number")  return v !== 0;
+  if (typeof v === "boolean") return v;
+  const s = String(v).trim().toLowerCase();
+  if (!s) return false;
+  return !["0", "false", "no", "off", "null", "undefined"].includes(s);
+}
+
 export function evalCondition(expr, ctx = {}) {
   if (expr == null || expr === "") return true;
   let s = String(expr);

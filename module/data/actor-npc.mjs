@@ -6,7 +6,7 @@ import { SlotDefinitionField } from "./item-slots.mjs";
 
 const {
   StringField, NumberField, BooleanField,
-  SchemaField, ArrayField, ObjectField
+  SchemaField, ArrayField, ObjectField, TypedObjectField
 } = foundry.data.fields;
 
 export class NPCData extends foundry.abstract.TypeDataModel {
@@ -24,10 +24,13 @@ export class NPCData extends foundry.abstract.TypeDataModel {
         attr6: AttributeField({ initial: 10, label: "Attribute 6" })
       }),
 
-      // Resources
-      resources: new SchemaField({
-        hp: ResourceField({ initial: 10, label: "HP" }),
-        mp: ResourceField({ initial: 0,  label: "MP" })
+      // Resources — typed map of arbitrary keys to a value/max/min triple.
+      // Accepts any key declared in System Config (matches CharacterData).
+      resources: new TypedObjectField(ResourceField({ initial: 10 }), {
+        initial: () => ({
+          hp: { value: 10, max: 10, min: 0 },
+          mp: { value: 0,  max: 0,  min: 0 }
+        })
       }),
 
       // Combat
@@ -131,8 +134,11 @@ export class NPCData extends foundry.abstract.TypeDataModel {
   }
 
   _prepareResources() {
-    for (const res of Object.values(this.resources)) {
-      res.value = Math.clamp(res.value, res.min, res.max);
+    for (const res of Object.values(this.resources ?? {})) {
+      if (!res || typeof res !== "object") continue;
+      const min = Number.isFinite(res.min) ? res.min : 0;
+      const max = Number.isFinite(res.max) ? res.max : Number.MAX_SAFE_INTEGER;
+      res.value = Math.clamp(Number(res.value) || 0, min, max);
     }
   }
 
@@ -153,13 +159,17 @@ export class NPCData extends foundry.abstract.TypeDataModel {
   }
 
   get isDead() {
-    return this.resources.hp.value <= this.resources.hp.min;
+    const hp = this.resources?.hp;
+    if (!hp) return false;
+    return hp.value <= hp.min;
   }
 
   get hpPercent() {
-    const range = this.resources.hp.max - this.resources.hp.min;
+    const hp = this.resources?.hp;
+    if (!hp) return 0;
+    const range = hp.max - hp.min;
     if (range <= 0) return 0;
-    return Math.round(((this.resources.hp.value - this.resources.hp.min) / range) * 100);
+    return Math.round(((hp.value - hp.min) / range) * 100);
   }
 
   get rollFormula() {

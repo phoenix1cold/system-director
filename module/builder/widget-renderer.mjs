@@ -1777,6 +1777,11 @@ export class WidgetRenderer {
     }
 
     const compute = CONFIG?.SD?.computeModifier ?? (s => Math.floor((Number(s) - 10) / 2));
+    // Per-attribute graphs: each attribute can have its own
+    // `{ graphData, modValueFormula, onClickFormula }` saved by the
+    // popup. Missing keys silently fall back to the legacy 1d20+(mod)
+    // behaviour, so existing configs keep working.
+    const attrGraphs = (w.attrGraphs && typeof w.attrGraphs === "object") ? w.attrGraphs : {};
 
     // Resolve each attribute's score + display name. The expanded layout
     // renders an editable `<input type="number">` bound to `scorePath`.
@@ -1790,17 +1795,25 @@ export class WidgetRenderer {
       }
       score = Number(score);
       if (!Number.isFinite(score)) score = 10;
-      const mod    = compute(score);
+      const ag = attrGraphs[key] ?? null;
+      let mod;
+      if (ag?.modValueFormula) {
+        const resolved = Number(FormulaEngine.evaluate(ag.modValueFormula, doc));
+        mod = Number.isFinite(resolved) ? resolved : compute(score);
+      } else {
+        mod = compute(score);
+      }
       // Prefer the System Settings label; fall back to a Title-cased key.
       const name   = cfgLabels[key]
         || (key.charAt(0).toUpperCase() + key.slice(1));
       return {
         key,
-        path:   scorePath,
+        path:    scorePath,
         score,
         mod,
-        modStr: mod >= 0 ? `+${mod}` : `${mod}`,
-        name
+        modStr:  mod >= 0 ? `+${mod}` : `${mod}`,
+        name,
+        onClickFormula: ag?.onClickFormula ?? null
       };
     });
 
@@ -1808,17 +1821,27 @@ export class WidgetRenderer {
     // when the widget is explicitly marked compact (action HUD / a
     // small-form context); the character sheet path falls through to
     // the expanded layout below.
+    // Build the data-* attributes on the modifier button for one item.
+    // When a per-attribute graph wired up On Click, fire that exec chain
+    // (same dispatch path as the standalone `attribute` widget); else
+    // roll the legacy 1d20+(mod).
+    const _btnDataAttrs = (it) => it.onClickFormula
+      ? { action: "attrModClick", attrs: `data-attr-onclick="${e(it.onClickFormula)}"` }
+      : { action: "widgetRoll",   attrs: `data-formula="1d20+(${it.mod})" data-formula-raw="1d20+(${it.mod})" data-flavor="${e(it.name)}"` };
+
     if (w.compact) {
-      const rows = items.map(it => `<li class="sd-hud-pop-row" data-attr-key="${e(it.key)}">
+      const rows = items.map(it => {
+        const b = _btnDataAttrs(it);
+        return `<li class="sd-hud-pop-row" data-attr-key="${e(it.key)}">
         <span class="sd-hud-pop-name">${e(it.name)}</span>
         <span class="sd-hud-pop-qty">${e(String(it.score))}</span>
-        <button type="button" data-action="widgetRoll"
-                data-formula="1d20+(${it.mod})" data-formula-raw="1d20+(${it.mod})"
-                data-flavor="${e(it.name)}"
+        <button type="button" data-action="${b.action}"
+                ${b.attrs}
                 title="Roll ${e(it.name)} (${it.modStr})">${it.modStr}</button>
-      </li>`).join("");
+      </li>`;
+      }).join("");
       return `<div class="widget widget-attribute-group widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${keys.length}</span></summary>
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">${items.length}</span></summary>
   <ul class="sd-hud-pop-body sd-hud-pop-list">${rows}</ul>
 </details></div>`;
     }
@@ -1830,14 +1853,16 @@ export class WidgetRenderer {
     //   sd-v-row    → flex row, cards wrap horizontally
     //   sd-v-grid   → CSS grid, equal-width cards
     //   sd-v-dice   → dice-style modifier buttons
-    const cards = items.map(it => `<div class="attr-item" data-attr-key="${e(it.key)}">
+    const cards = items.map(it => {
+      const b = _btnDataAttrs(it);
+      return `<div class="attr-item" data-attr-key="${e(it.key)}">
     <span class="attr-item-name">${e(it.name)}</span>
     <input type="number" class="attr-item-score" name="${e(it.path)}" value="${e(it.score)}">
-    <button type="button" class="attr-item-mod" data-action="widgetRoll"
-            data-formula="1d20+(${it.mod})" data-formula-raw="1d20+(${it.mod})"
-            data-flavor="${e(it.name)}"
+    <button type="button" class="attr-item-mod" data-action="${b.action}"
+            ${b.attrs}
             title="Roll ${e(it.name)} (${it.modStr})">${it.modStr}</button>
-  </div>`).join("");
+  </div>`;
+    }).join("");
     const header = w.label
       ? `<div class="widget-label" style="display:flex;align-items:center;gap:6px"><i class="${ic}"></i>${lbl}</div>`
       : "";

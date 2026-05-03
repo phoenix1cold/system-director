@@ -914,6 +914,83 @@ html.querySelectorAll(".sd-chat-aoe-place-btn[data-aoe-region-cfg]").forEach(btn
   });
 });
 
+// 7c-2 — AoE Targets (no-save). Shares the Place Template UX with the
+// save-branch card but doesn't roll anything. After placement we collect
+// every token inside the region, snapshot the IDs as `allTargets`, then
+// run the post-actions chain (Damage / Heal / Effects, etc.) with the
+// preserved runtime so {__lastRoll}/{__lastDice} etc. still resolve.
+html.querySelectorAll(".sd-chat-aoe-targets-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    if (btn.disabled) return;
+    let cfg;
+    try { cfg = JSON.parse(btn.dataset.aoeTargetsCfg ?? "{}"); } catch { return; }
+
+    btn.disabled = true;
+    btn.style.opacity = "0.5";
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Placing…`;
+
+    const { buildShape, placeRegionInteractive, getRegionTokens } =
+      await import("./module/helpers/sd-region.mjs");
+
+    const shape = buildShape(
+      cfg.shape ?? "circle",
+      Number(cfg.size ?? 20),
+      Number(cfg.angle ?? 53.13)
+    );
+
+    const regionDoc = await placeRegionInteractive({
+      name:  "SD AoE Targets",
+      shape,
+      flags: { sd: { aoeTargets: true, srcActorId: cfg.srcActorId ?? "" } }
+    });
+
+    if (!regionDoc) {
+      btn.disabled = false;
+      btn.style.opacity = "1";
+      btn.innerHTML = `<i class="fas fa-crosshairs"></i> Place Template`;
+      return;
+    }
+
+    await new Promise(r => setTimeout(r, 250));
+
+    const tokenDocs = getRegionTokens(regionDoc);
+    const allIds    = tokenDocs.map(t => t.id).filter(Boolean);
+
+    if (!cfg.persist) { try { await regionDoc.delete(); } catch {} }
+
+    const { ButtonExecutor } = await import("./module/helpers/button-executor.mjs");
+    const srcActor = cfg.srcActorId ? game.actors.get(cfg.srcActorId) : null;
+    let srcItem = null;
+    if (cfg.srcItemUuid) { try { srcItem = await fromUuid(cfg.srcItemUuid); } catch {} }
+
+    const rt = {
+      savedTargets:  [],
+      failedTargets: [],
+      allTargets:    allIds
+    };
+
+    const synthBtn = {};
+    if (cfg.runtimeSnapshot && typeof cfg.runtimeSnapshot === "object") {
+      Object.assign(synthBtn, cfg.runtimeSnapshot);
+    }
+
+    for (const sub of (cfg.postActions ?? [])) {
+      try { await ButtonExecutor._runAction(sub, srcItem, srcActor, synthBtn, rt); }
+      catch (err) { console.warn("SD | AoE targets post-action error:", err); }
+    }
+
+    const card = btn.closest(".sd-chat-aoe-card");
+    const results = card?.querySelector(".sd-chat-aoe-results");
+    if (results) {
+      results.style.display = "block";
+      results.innerHTML = `
+        <div><i class="fas fa-crosshairs" style="color:#3b73a6;margin-right:4px;"></i>Targets: ${allIds.length}</div>
+      `;
+    }
+    btn.innerHTML = `<i class="fas fa-check"></i> Resolved`;
+  });
+});
+
 // 7c
 html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
   btn.addEventListener("click", async () => {

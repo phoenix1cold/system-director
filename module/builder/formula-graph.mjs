@@ -3,7 +3,7 @@ import { pinSubtype, subtypeColor, arePinsCompatible } from "./pin-types.mjs";
 import { lintGraph, lintSummary } from "./graph-linter.mjs";
 import {
   formulaBounds, clampFormula, multiplyFormula, addMod, doubleDice,
-  resolveAtRefs
+  resolveAtRefs, coerceBool
 } from "./formula-utils.mjs";
 import { WIDGET_VARIANTS } from "./widget-registry.mjs";
 
@@ -484,44 +484,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Pure: derive isCrit / isFumble + multipliers from a natural number and thresholds. */
-  crit_check: {
-    title:"Crit Check", color:"#7a4500", cat:"Dice",
-    desc:"Take any number (typically the natural d20 from a roll node) and compare against thresholds. Outputs `isCrit` (1 when natural meets/exceeds critOn — `=` mode is exact match), `Crit Mul` (default 2), `isFumble` (1 when natural ≤ fumbleOn — set fumbleOn to -∞ effectively by leaving 0 to disable; default 1), and `Fumble Mul` (default 0). Pipe `Is Crit` / `Is Fumble` into roll-node override pins or into Formula × N for damage scaling.",
-    inputs:[
-      {id:"natural",  label:"Natural",    type:"value.number"},
-      {id:"critOn",   label:"Crit on",    type:"value.number"},
-      {id:"fumbleOn", label:"Fumble on",  type:"value.number"},
-      {id:"mul",      label:"Crit Mul",   type:"value.number"},
-      {id:"fumbleMul",label:"Fumble Mul", type:"value.number"}
-    ],
-    outputs:[
-      {id:"isCrit",    label:"Is Crit",    type:"value.bool"},
-      {id:"mul",       label:"Crit Mul",   type:"value.number"},
-      {id:"isFumble",  label:"Is Fumble",  type:"value.bool"},
-      {id:"fumbleMul", label:"Fumble Mul", type:"value.number"}
-    ],
-    fields:[
-      {key:"critOn",    label:"Crit on (≥)",   type:"number", default:20},
-      {key:"fumbleOn",  label:"Fumble on (≤)", type:"number", default:1},
-      {key:"mode",      label:"Crit Mode",     type:"select", default:"gte", options:["gte","eq"]},
-      {key:"mul",       label:"Crit Mul",      type:"number", default:2},
-      {key:"fumbleMul", label:"Fumble Mul",    type:"number", default:0}
-    ],
-    compilePin:(n, i, fromPin) => {
-      const natRaw  = (i.natural   != null && i.natural   !== "") ? i.natural   : "0";
-      const thrCRaw = (i.critOn    != null && i.critOn    !== "") ? i.critOn    : (n.data?.critOn   ?? 20);
-      const thrFRaw = (i.fumbleOn  != null && i.fumbleOn  !== "") ? i.fumbleOn  : (n.data?.fumbleOn ?? 1);
-      const mulRaw  = (i.mul       != null && i.mul       !== "") ? i.mul       : (n.data?.mul       ?? 2);
-      const fmlRaw  = (i.fumbleMul != null && i.fumbleMul !== "") ? i.fumbleMul : (n.data?.fumbleMul ?? 0);
-      if (fromPin === "mul")       return String(mulRaw);
-      if (fromPin === "fumbleMul") return String(fmlRaw);
-      if (fromPin === "isFumble")  return `((${natRaw})<=(${thrFRaw}))`;
-      const op = (n.data?.mode === "eq") ? "==" : ">=";
-      return `((${natRaw})${op}(${thrCRaw}))`;
-    }
-  },
-
   /** Pure: rich snapshot of a roll value vs its formula bounds. */
   roll_stat: {
     title:"Roll Stat", color:"#7a4500", cat:"Dice",
@@ -582,19 +544,13 @@ export const NODE_DEFS = {
 
   // Действия
   act_roll_value: {
-    title:"Roll → Value", color:"#8a4400", cat:"Actions",
-    desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    title:"Roll → Value", color:"#8a4400", cat:"Roll",
+    desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls. Outputs: Result (final number), Formula (resolved string), Min/Max/Avg (theoretical bounds & expected value), Dice[] (CSV of every active die's value, e.g. \"4,6,2\"). For crit / fumble logic use Attack Check or Roll Check — Roll Value is intentionally just numbers and dice.",
     inputs:[
       {id:"exec",             label:"",              type:"exec"},
       {id:"formula",          label:"Formula",        type:"value.string"},
       {id:"advFormula",       label:"Adv Formula",    type:"value.string"},
       {id:"disFormula",       label:"Dis Formula",    type:"value.string"},
-      {id:"isCritOverride",   label:"Is Crit?",       type:"value.bool"},
-      {id:"critOn",           label:"Crit on",        type:"value.number"},
-      {id:"critFormula",      label:"Crit Formula",   type:"value.string"},
-      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
-      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
-      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"rerollEnabled",    label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",       label:"Reroll Path",    type:"value.path"},
       {id:"rerollCost",       label:"Reroll Cost",    type:"value.number"}
@@ -605,11 +561,8 @@ export const NODE_DEFS = {
       {id:"formula",       label:"Formula",       type:"value.string"},
       {id:"min",           label:"Min",           type:"value.number"},
       {id:"max",           label:"Max",           type:"value.number"},
-      {id:"natural",       label:"Natural",       type:"value.number"},
-      {id:"isCrit",        label:"Is Crit",       type:"value.bool"},
-      {id:"critFormula",   label:"Crit Formula",  type:"value.string"},
-      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
-      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"}
+      {id:"avg",           label:"Avg",           type:"value.number"},
+      {id:"dice",          label:"Dice[]",        type:"value.array"}
     ],
     fields:[
       {key:"formula",        label:"Formula",              type:"text",   default:"1d6"},
@@ -618,10 +571,6 @@ export const NODE_DEFS = {
       {key:"rollDialogue",   label:"Roll dialog",          type:"select", default:"no",  options:["no","yes"]},
       {key:"advFormula",     label:"Adv formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kh1 + @mod"},
       {key:"disFormula",     label:"Dis formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kl1 + @mod"},
-      {key:"critOn",         label:"Crit on (nat ≥)",       type:"number", default:20},
-      {key:"critFormula",    label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod) or 2d6+@mod"},
-      {key:"fumbleOn",       label:"Fumble on (nat ≤)",     type:"number", default:1},
-      {key:"fumbleFormula",  label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"},
       {key:"rerollEnabled",  label:"Reroll button",       type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",     label:"Reroll resource path", type:"path",   default:"",   placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",     label:"Reroll cost",          type:"number", default:1}
@@ -632,13 +581,7 @@ export const NODE_DEFS = {
       const advFormula = (inp.advFormula != null && inp.advFormula !== "") ? inp.advFormula : (n.data.advFormula ?? "");
       const disFormula = (inp.disFormula != null && inp.disFormula !== "") ? inp.disFormula : (n.data.disFormula ?? "");
       const _rrEnabledRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
-      const rerollEnabled = (_rrEnabledRaw === true || _rrEnabledRaw === "yes" || _rrEnabledRaw === 1 || _rrEnabledRaw === "1") ? "yes" : "no";
-      const _critOn   = (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? 20);
-      const _critForm = (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? "");
-      const _isCritO  = (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null;
-      const _fumOn    = (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1);
-      const _fumForm  = (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? "");
-      const _isFumO   = (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null;
+      const rerollEnabled = coerceBool(_rrEnabledRaw) ? "yes" : "no";
       return {
         type:"rollValue", formula,
         flavor:       n.data.flavor ?? "Roll",
@@ -646,12 +589,6 @@ export const NODE_DEFS = {
         rollDialogue: n.data.rollDialogue === "yes",
         advFormula,
         disFormula,
-        critOn:            _critOn,
-        critFormula:       _critForm,
-        isCritOverride:    _isCritO,
-        fumbleOn:          _fumOn,
-        fumbleFormula:     _fumForm,
-        isFumbleOverride:  _isFumO,
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
         rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
@@ -660,42 +597,55 @@ export const NODE_DEFS = {
   },
 
   act_damage: {
-    title:"Damage", color:"#8a1a1a", cat:"Actions",
-    desc:"Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=×0, resist=×0.5, vulnerable=×2, numeric factor used as-is). halfOnSave × savePassed pin halves damage when the preceding save node passed. Connect Targets pin from AoE Save to apply to specific tokens.",
+    title:"Damage", color:"#8a1a1a", cat:"Damage", wideNode:true,
+    desc:"Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=×0, resist=×0.5, vulnerable=×2, numeric factor used as-is). halfOnSave × savePassed halves damage when the preceding save passed. Three amount slots — Amount (base), Crit Amount (used when Is Crit? truthy), Fumble Amount (used when Is Fumble? truthy). Wire e.g. Roll Value's Is Crit / Crit Formula straight into Is Crit? / Crit Amount. Connect Targets pin from AoE Save / AoE Targets to apply to specific tokens.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
-      {id:"amount",label:"Amount",type:"value.number"},
-      {id:"critMultiplier",label:"Crit ×",type:"value.number"},
-      {id:"damageType",label:"Type",type:"value.string"},
-      {id:"savePassed",label:"Save passed?",type:"value.bool"},
-      {id:"target",label:"Target",type:"value.actor"},
-      {id:"targets",label:"Targets",type:"value.array"}
+      {id:"amount",      label:"Amount",        type:"value.number"},
+      {id:"isCrit",      label:"Is Crit?",      type:"value.bool"},
+      {id:"critAmount",  label:"Crit Amount",   type:"value.any"},
+      {id:"isFumble",    label:"Is Fumble?",    type:"value.bool"},
+      {id:"fumbleAmount",label:"Fumble Amount", type:"value.any"},
+      {id:"damageType",  label:"Type",          type:"value.string"},
+      {id:"savePassed",  label:"Save passed?",  type:"value.bool"},
+      {id:"target",      label:"Target",        type:"value.actor"},
+      {id:"targets",     label:"Targets",       type:"value.array"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
-      {key:"label",          label:"Label",      type:"text",   default:"Damage"},
-      {key:"target",         label:"To",         type:"select", default:"token_target", options:["actor","token_target","selected_token","all_targets"]},
-      {key:"hpPath",         label:"HP path",    type:"path",   default:"system.resources.hp.value"},
-      {key:"damageType",     label:"Damage type", type:"text",  default:"", placeholder:"fire / cold / physical …"},
-      {key:"critMultiplier", label:"Crit multiplier (default)", type:"text", default:"1"},
-      {key:"halfOnSave",     label:"Half on save", type:"select", default:"no", options:["no","yes"]},
-      {key:"postToChat",     label:"Chat card",  type:"select", default:"yes", options:["yes","no"]},
-      {key:"autoApply",      label:"Auto-apply", type:"select", default:"no",  options:["no","yes"]},
-      {key:"showApply",      label:"Apply btn",  type:"select", default:"yes", options:["yes","no"]}
+      {key:"label",        label:"Label",       type:"text",   default:"Damage"},
+      {key:"target",       label:"To",          type:"select", default:"token_target", options:["actor","token_target","selected_token","all_targets"]},
+      {key:"hpPath",       label:"HP path",     type:"path",   default:"system.resources.hp.value"},
+      {key:"damageType",   label:"Damage type", type:"text",   default:"", placeholder:"fire / cold / physical …"},
+      {key:"critAmount",   label:"Crit Amount (used when Is Crit? is true)",     type:"text", default:"", placeholder:"e.g. 2*(1d6+@mod) or 1d6+1d6+@mod"},
+      {key:"fumbleAmount", label:"Fumble Amount (used when Is Fumble? is true)", type:"text", default:"", placeholder:"e.g. 1 or 1d4"},
+      {key:"halfOnSave",   label:"Half on save", type:"select", default:"no", options:["no","yes"]},
+      {key:"postToChat",   label:"Chat card",   type:"select", default:"yes", options:["yes","no"]},
+      {key:"autoApply",    label:"Auto-apply",  type:"select", default:"no",  options:["no","yes"]},
+      {key:"showApply",    label:"Apply btn",   type:"select", default:"yes", options:["yes","no"]}
     ],
     isAction:true,
     toAction:(n,inp)=>{
       const targetMode = (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "token_target");
       const amt   = inp.amount ?? 0;
-      const mult  = inp.critMultiplier ?? n.data.critMultiplier ?? "1";
-      const scaled = `(${amt})*(${mult})`;
       const dmgType = inp.damageType ?? n.data.damageType ?? "";
       const halfOnSave = n.data.halfOnSave === "yes";
       const savePassed = inp.savePassed ?? null;
       const silent    = n.data.postToChat === "no";
-      return {type:"chatDamage", amount:scaled, label:n.data.label??"Damage",
+      const _wired = (v) => v !== undefined && v !== "" && v !== null;
+      const isCrit   = coerceBool(inp.isCrit)   ? 1 : 0;
+      const isFumble = coerceBool(inp.isFumble) ? 1 : 0;
+      const critAmount = _wired(inp.critAmount)
+        ? String(inp.critAmount)
+        : String(n.data.critAmount ?? "");
+      const fumbleAmount = _wired(inp.fumbleAmount)
+        ? String(inp.fumbleAmount)
+        : String(n.data.fumbleAmount ?? "");
+      return {type:"chatDamage", amount:String(amt), label:n.data.label??"Damage",
         target:targetMode, hpPath:n.data.hpPath??"system.resources.hp.value",
         damageType: dmgType, halfOnSave, savePassed,
+        isCrit, critAmount,
+        isFumble, fumbleAmount,
         targets: inp.targets ?? null,
         silent,
         showApply: !silent && n.data.showApply !== "no",
@@ -704,28 +654,53 @@ export const NODE_DEFS = {
   },
 
   act_heal: {
-    title:"Heal", color:"#1a7a2a", cat:"Actions",
-    desc:"Apply healing to target HP. postToChat:yes → chat card with Apply button. autoApply:yes → post to chat AND immediately heal (no click). postToChat:no → silent direct HP write. Connect Targets pin from AoE Save to apply to specific tokens.",
+    title:"Heal", color:"#1a7a2a", cat:"Damage", wideNode:true,
+    desc:"Apply healing to target HP. postToChat:yes → chat card with Apply button. autoApply:yes → post to chat AND immediately heal (no click). postToChat:no → silent direct HP write. Three amount slots — Amount (base), Crit Amount (used when Is Crit? truthy), Fumble Amount (used when Is Fumble? truthy). Connect Targets pin from AoE Save to apply to specific tokens.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
-      {id:"amount",label:"Amount",type:"value.number"},
-      {id:"target",label:"Target",type:"value.actor"},
-      {id:"targets",label:"Targets",type:"value.array"}
+      {id:"amount",      label:"Amount",        type:"value.number"},
+      {id:"isCrit",      label:"Is Crit?",      type:"value.bool"},
+      {id:"critAmount",  label:"Crit Amount",   type:"value.any"},
+      {id:"isFumble",    label:"Is Fumble?",    type:"value.bool"},
+      {id:"fumbleAmount",label:"Fumble Amount", type:"value.any"},
+      {id:"target",      label:"Target",        type:"value.actor"},
+      {id:"targets",     label:"Targets",       type:"value.array"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
-      {key:"label",      label:"Label",      type:"text",   default:"Healing"},
-      {key:"target",     label:"To",         type:"select", default:"actor", options:["actor","token_target","selected_token","all_targets"]},
-      {key:"hpPath",     label:"HP path",    type:"path",   default:"system.resources.hp.value"},
-      {key:"postToChat", label:"Chat card",  type:"select", default:"no",  options:["yes","no"]},
-      {key:"autoApply",  label:"Auto-apply", type:"select", default:"no",  options:["no","yes"]},
-      {key:"showApply",  label:"Apply btn",  type:"select", default:"yes", options:["yes","no"]}
+      {key:"label",        label:"Label",       type:"text",   default:"Healing"},
+      {key:"target",       label:"To",          type:"select", default:"actor", options:["actor","token_target","selected_token","all_targets"]},
+      {key:"hpPath",       label:"HP path",     type:"path",   default:"system.resources.hp.value"},
+      {key:"critAmount",   label:"Crit Amount (used when Is Crit? is true)",     type:"text", default:"", placeholder:"e.g. 2*(1d8+@mod)"},
+      {key:"fumbleAmount", label:"Fumble Amount (used when Is Fumble? is true)", type:"text", default:"", placeholder:"e.g. 1"},
+      {key:"postToChat",   label:"Chat card",   type:"select", default:"no",  options:["yes","no"]},
+      {key:"autoApply",    label:"Auto-apply",  type:"select", default:"no",  options:["no","yes"]},
+      {key:"showApply",    label:"Apply btn",   type:"select", default:"yes", options:["yes","no"]}
     ],
     isAction:true,
     toAction:(n,inp)=>{
       const targetMode = (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "actor");
+      const _wired = (v) => v !== undefined && v !== "" && v !== null;
+      const isCrit   = coerceBool(inp.isCrit)   ? 1 : 0;
+      const isFumble = coerceBool(inp.isFumble) ? 1 : 0;
+      const critAmount = _wired(inp.critAmount)
+        ? String(inp.critAmount)
+        : String(n.data.critAmount ?? "");
+      const fumbleAmount = _wired(inp.fumbleAmount)
+        ? String(inp.fumbleAmount)
+        : String(n.data.fumbleAmount ?? "");
+      // Pick which amount string is used for the actual heal — same rules as Damage.
+      const baseAmt = inp.amount ?? 0;
+      const _amtForRoll =
+        (isCrit   && critAmount   !== "") ? critAmount   :
+        (isFumble && fumbleAmount !== "") ? fumbleAmount :
+        String(baseAmt);
       if (n.data.postToChat === "yes") {
-        return {type:"chatHeal", amount:inp.amount??0, label:n.data.label??"Healing",
+        return {type:"chatHeal",
+          amount:String(baseAmt),
+          isCrit, critAmount,
+          isFumble, fumbleAmount,
+          label:n.data.label??"Healing",
           target:targetMode, hpPath:n.data.hpPath??"system.resources.hp.value",
           targets: inp.targets ?? null,
           showApply: n.data.showApply !== "no",
@@ -737,12 +712,14 @@ export const NODE_DEFS = {
       const isSelfMode = (targetMode === "actor" || targetMode === "self");
       return {type:"modifyField",
         target: isSelfMode ? `actor.${path}` : `target.${path}`,
-        targetMode, targets: inp.targets ?? null, delta:`+(${inp.amount??0})`, flavor:n.data.label??"Healing"};
+        targetMode, targets: inp.targets ?? null,
+        delta:`+(${_amtForRoll})`,
+        flavor:n.data.label??"Healing"};
     }
   },
 
   act_effect: {
-    title:"Apply Effect", color:"#1a2a8a", cat:"Actions",
+    title:"Apply Effect", color:"#1a2a8a", cat:"Effects",
     desc:"Create or toggle an Active Effect on actor/target. Changes: JSON array [{key,value,mode}] where mode 2=Add 5=Override. Connect Target pin (single actor) or Targets pin (array) to override the field.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
@@ -773,7 +750,7 @@ export const NODE_DEFS = {
   },
 
   act_effect_uuid: {
-    title:"Apply Effect (UUID)", color:"#1a2a8a", cat:"Actions",
+    title:"Apply Effect (UUID)", color:"#1a2a8a", cat:"Effects",
     desc:"Apply an existing Active Effect to actor/target by UUID. Pick from the dropdown — UUID is filled automatically. Connect Target pin (single actor) or Targets pin (array) to override the field.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
@@ -1366,24 +1343,8 @@ export const NODE_DEFS = {
     compile:(n)=>`{spellSlots:${n.data.level??1}}`
   },
 
-  act_consume_slot: {
-    title:"Consume Slot", color:"#6a2a6a", cat:"Actions",
-    desc:"Consume one spell slot of given level from actor. Branches OK (slot available) or Empty (no slots left).",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"level",label:"Level",type:"value.number"}],
-    outputs:[
-      {id:"ok",   label:"OK →",   type:"exec"},
-      {id:"empty",label:"Empty →",type:"exec"}
-    ],
-    fields:[{key:"level",label:"Default Level",type:"number",default:1}],
-    isConsumeSlot: true,
-    toAction:(n,inp)=>({
-      type:  "consumeSlot",
-      level: inp.level ?? n.data.level ?? 1
-    })
-  },
-
   act_restore_slot: {
-    title:"Restore Slot", color:"#1a4a2a", cat:"Actions",
+    title:"Restore Slot", color:"#1a4a2a", cat:"Resources",
     desc:"Restore one spell slot of given level on actor",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"level",label:"Level",type:"value.number"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -1393,7 +1354,7 @@ export const NODE_DEFS = {
   },
   /** Legacy — hidden.  Use `chat_apply_effect` or `act_create_effect` instead. */
   act_apply_effect_template: {
-    title:"Apply Effect Template (legacy)", color:"#1a2a8a", cat:"Actions",
+    title:"Apply Effect Template (legacy)", color:"#1a2a8a", cat:"Effects",
     hidden:true,
     desc:"Legacy — use Create Effect or Chat Apply Effect instead.",
     inputs:[
@@ -1416,13 +1377,15 @@ export const NODE_DEFS = {
   },
 
   act_modify: {
-    title:"Modify Field", color:"#4a2a6a", cat:"Actions",
-    desc:"Add / subtract / set any field on self, actor or target. The Actor pin (when wired) overrides the Where dropdown — feed it a UUID, a Get Actor / Get All Targets node, or any actor expression. An array of actors loops the change over each. Path can be fed dynamically (e.g. from Get Widget Path).",
+    title:"Modify Field", color:"#4a2a6a", cat:"Field Ops", wideNode:true,
+    desc:"Add / subtract / set any field on self, actor or target. The Actor pin (when wired) overrides the Where dropdown — feed it a UUID, a Get Actor / Get All Targets node, or any actor expression. An array of actors loops the change over each. Path / Where / Op can all be fed dynamically — when wired, the matching field hides UE-style.",
     inputs:[
       {id:"exec",  label:"",        type:"exec"},
       {id:"actor", label:"Actor",   type:"value.actor"},
       {id:"amount",label:"Amount",  type:"value.number"},
-      {id:"path",  label:"Path",    type:"value.path"}
+      {id:"path",  label:"Path",    type:"value.path"},
+      {id:"where", label:"Where",   type:"value.string"},
+      {id:"op",    label:"Op",      type:"value.string"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"},{id:"newValue",label:"New Value",type:"value.any"}],
     fields:[
@@ -1432,17 +1395,19 @@ export const NODE_DEFS = {
     ],
     isAction:true,
     toAction:(n,inp)=>{
-      const pfx=n.data.where==="token_target"?"target.":n.data.where==="actor"?"actor.":n.data.where==="self"?"self.":"";
+      const where = (inp.where != null && inp.where !== "") ? String(inp.where) : (n.data.where ?? "self");
+      const op    = (inp.op    != null && inp.op    !== "") ? String(inp.op)    : (n.data.op    ?? "add");
+      const pfx=where==="token_target"?"target.":where==="actor"?"actor.":where==="self"?"self.":"";
       const amt=inp.amount??0;
-      const delta=n.data.op==="set"?null:n.data.op==="subtract"?`-(${amt})`:`+(${amt})`;
+      const delta=op==="set"?null:op==="subtract"?`-(${amt})`:`+(${amt})`;
       const p = (inp.path!=null && inp.path!=="") ? String(inp.path) : (n.data.path??"");
       const out = {
         type:"modifyField",
         target:`${pfx}${p}`,
         rawPath:p,
-        where:n.data.where,
+        where,
         delta,
-        setValue:n.data.op==="set"?String(amt):null
+        setValue:op==="set"?String(amt):null
       };
       // When the Actor pin is wired, it wins over the Where dropdown — the
       // executor will resolve it (UUID / mode-string / array) and loop.
@@ -1454,13 +1419,14 @@ export const NODE_DEFS = {
   },
 
   act_set_text_field: {
-    title:"Set Text Field", color:"#4a2a6a", cat:"Actions",
-    desc:"Write a string/text value to any path on self / actor / target. The Actor pin (when wired) overrides the Where dropdown — feed it a UUID, a Get Actor / Get All Targets node, or any actor expression. An array of actors loops the write over each. Use this for non-numeric writes — chat AI responses to a notes field, paste a label, fill a description, etc. Modify Field is for numbers; this is for text. Value supports module tokens ({widget:KEY}, {@attr1}, {item:Sword.system.notes}) and runtime tokens ({__lastAiResponse}, {__lastAiError}, {__lastRoll}).",
+    title:"Set Text Field", color:"#4a2a6a", cat:"Field Ops", wideNode:true,
+    desc:"Write a string/text value to any path on self / actor / target. The Actor pin (when wired) overrides the Where dropdown. An array of actors loops the write over each. Use this for non-numeric writes — chat AI responses to a notes field, paste a label, fill a description, etc. Modify Field is for numbers; this is for text. Where can be fed dynamically (UE-style — when the Where pin is wired the dropdown hides). Value supports module tokens ({widget:KEY}, {@attr1}, {item:Sword.system.notes}) and runtime tokens ({__lastAiResponse}, {__lastAiError}, {__lastRoll}).",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
       {id:"actor", label:"Actor",  type:"value.actor"},
       {id:"value", label:"Value",  type:"value.string"},
-      {id:"path",  label:"Path",   type:"value.path"}
+      {id:"path",  label:"Path",   type:"value.path"},
+      {id:"where", label:"Where",  type:"value.string"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
@@ -1472,14 +1438,15 @@ export const NODE_DEFS = {
     ],
     isAction:true,
     toAction:(n,inp)=>{
-      const pfx = n.data.where==="token_target" ? "target." : n.data.where==="actor" ? "actor." : "self.";
+      const where = (inp.where != null && inp.where !== "") ? String(inp.where) : (n.data.where ?? "self");
+      const pfx = where==="token_target" ? "target." : where==="actor" ? "actor." : "self.";
       const p   = (inp.path  != null && inp.path  !== "") ? String(inp.path)  : (n.data.path  ?? "");
       const v   = (inp.value != null && inp.value !== "") ? String(inp.value) : (n.data.value ?? "");
       const out = {
         type:"setTextField",
         target:`${pfx}${p}`,
         rawPath:p,
-        where:n.data.where,
+        where,
         value:v
       };
       if (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) {
@@ -1490,11 +1457,12 @@ export const NODE_DEFS = {
   },
 
   act_set_initiative: {
-    title:"Set Initiative", color:"#4a2a6a", cat:"Actions",
-    desc:"Set or roll initiative for the target actor in the active combat. Mode `roll` rolls the system formula; `value` sets the exact number. If the actor isn't in combat, a combatant is created (only for the active combat).",
+    title:"Set Initiative", color:"#4a2a6a", cat:"Field Ops",
+    desc:"Set or roll initiative for the target actor in the active combat. Mode `roll` rolls the system formula; `value` sets the exact number. If the actor isn't in combat, a combatant is created (only for the active combat). Mode can be fed via pin (UE-style: when wired the field hides).",
     inputs:[
       {id:"exec",   label:"",          type:"exec"},
       {id:"target", label:"Target",    type:"value.actor"},
+      {id:"mode",   label:"Mode",      type:"value.string"},
       {id:"value",  label:"Value",     type:"value.number"}
     ],
     outputs:[{id:"exec", label:"", type:"exec"}],
@@ -1507,13 +1475,13 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({
       type:   "setInitiative",
       target: inp.target ?? n.data.target ?? "actor",
-      mode:   n.data.mode ?? "roll",
+      mode:   (inp.mode != null && inp.mode !== "") ? String(inp.mode) : (n.data.mode ?? "roll"),
       value:  inp.value  ?? n.data.value  ?? 0
     })
   },
 
   act_message: {
-    title:"Message", color:"#4a4a1a", cat:"Actions",
+    title:"Message", color:"#4a4a1a", cat:"Chat",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[],
@@ -1530,7 +1498,7 @@ export const NODE_DEFS = {
   },
 
   act_add_item: {
-    title:"Add Item", color:"#2a4a2a", cat:"Actions",
+    title:"Add Item", color:"#2a4a2a", cat:"Items",
     desc:"Add a world item (drag UUID from sidebar) as a copy to the actor's inventory. Optionally restrict to an inventory widget.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -1544,7 +1512,7 @@ export const NODE_DEFS = {
   },
 
   act_add_slot: {
-    title:"Add to Slot", color:"#2a4a2a", cat:"Actions",
+    title:"Add to Slot", color:"#2a4a2a", cat:"Items",
     desc:"Add an actor-owned item to a slot on this item or actor. Item and Slot are auto-indexed from the document.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -1557,7 +1525,7 @@ export const NODE_DEFS = {
   },
 
   act_remove_slot: {
-    title:"Remove from Slot", color:"#6a2a2a", cat:"Actions",
+    title:"Remove from Slot", color:"#6a2a2a", cat:"Items",
     desc:"Remove an item from a slot by slot ID. Slot is auto-indexed.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -1570,7 +1538,7 @@ export const NODE_DEFS = {
   },
 
   act_remove_item: {
-    title:"Remove Item", color:"#6a2a2a", cat:"Actions",
+    title:"Remove Item", color:"#6a2a2a", cat:"Items",
     desc:"Remove an owned item from actor inventory. Item is auto-indexed — pick from dropdown. Optionally scope to a widget.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -1586,7 +1554,7 @@ export const NODE_DEFS = {
   // Предметы и слоты
 
   act_use_slot_item: {
-    title:"Use Slot Item", color:"#2a5a3a", cat:"Actions",
+    title:"Use Slot Item", color:"#2a5a3a", cat:"Items",
     desc:"Calls item.use() on the item sitting at [index] in a slot. Slot is auto-indexed.",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"index",label:"Index",type:"value.number"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -1599,7 +1567,7 @@ export const NODE_DEFS = {
   },
 
   act_use_item: {
-    title:"Use Item", color:"#2a5a3a", cat:"Actions",
+    title:"Use Item", color:"#2a5a3a", cat:"Items",
     desc:"Find an owned item by name and call item.use(). Item is auto-indexed from actor inventory.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -1614,7 +1582,7 @@ export const NODE_DEFS = {
   },
 
   act_equip: {
-    title:"Equip Item", color:"#2a5a7a", cat:"Actions",
+    title:"Equip Item", color:"#2a5a7a", cat:"Items",
     desc:"Mark an owned inventory item as equipped. Runs canEquip() requirements check; blocks on concentration conflict. If Force is on, skips the check.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -1630,7 +1598,7 @@ export const NODE_DEFS = {
   },
 
   act_unequip: {
-    title:"Unequip Item", color:"#7a2a2a", cat:"Actions",
+    title:"Unequip Item", color:"#7a2a2a", cat:"Items",
     desc:"Mark an owned inventory item as unequipped.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -1645,9 +1613,15 @@ export const NODE_DEFS = {
   },
 
   act_modify_slot_item_field: {
-    title:"Modify Slot Item Field", color:"#4a2a6a", cat:"Actions",
-    desc:"Add / subtract / set a field on the item sitting at [index] in a slot. Slot is auto-indexed.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"amount",label:"Amount",type:"value.number"},{id:"index",label:"Index",type:"value.number"}],
+    title:"Modify Slot Item Field", color:"#4a2a6a", cat:"Field Ops",
+    desc:"Add / subtract / set a field on the item sitting at [index] in a slot. Slot is auto-indexed. Path / Op can be fed via pins (UE-style).",
+    inputs:[
+      {id:"exec",  label:"",       type:"exec"},
+      {id:"amount",label:"Amount", type:"value.number"},
+      {id:"index", label:"Index",  type:"value.number"},
+      {id:"path",  label:"Path",   type:"value.path"},
+      {id:"op",    label:"Op",     type:"value.string"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"slotId", label:"Slot",          type:"slot-picker", default:"slot1"},
@@ -1660,19 +1634,21 @@ export const NODE_DEFS = {
       type:"modifySlotItemField",
       slotId: n.data.slotId??"slot1",
       index:  inp.index??n.data.index??0,
-      path:   n.data.path??"",
-      op:     n.data.op??"add",
+      path:   (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path??""),
+      op:     (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op??"add"),
       amount: inp.amount??0
     })
   },
 
   act_modify_inv_item_field: {
-    title:"Modify Inventory Item Field", color:"#4a2a6a", cat:"Actions",
-    desc:"Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory. Wire the Actor pin to look up the item on a different actor (UUID / Get Actor / Get All Targets — array loops over each actor).",
+    title:"Modify Inventory Item Field", color:"#4a2a6a", cat:"Field Ops",
+    desc:"Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory. Wire the Actor pin to look up the item on a different actor (UUID / Get Actor / Get All Targets — array loops over each actor). Path / Op can be fed via pins (UE-style).",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
       {id:"actor", label:"Actor",  type:"value.actor"},
-      {id:"amount",label:"Amount", type:"value.number"}
+      {id:"amount",label:"Amount", type:"value.number"},
+      {id:"path",  label:"Path",   type:"value.path"},
+      {id:"op",    label:"Op",     type:"value.string"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
@@ -1691,8 +1667,8 @@ export const NODE_DEFS = {
         uuid:     n.data.uuid??"",
         category: n.data.category??"",
         index:    Number(n.data.index??0),
-        path:     n.data.path??"",
-        op:       n.data.op??"add",
+        path:     (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path??""),
+        op:       (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op??"add"),
         amount:   inp.amount??0
       };
       if (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) {
@@ -1756,7 +1732,7 @@ export const NODE_DEFS = {
   },
 
   act_remove_from_inv_item_slot: {
-    title:"Remove from Inv Item Slot", color:"#6a2a2a", cat:"Actions",
+    title:"Remove from Inv Item Slot", color:"#6a2a2a", cat:"Items",
     desc:"Find an item in actor's inventory, then remove one item from its slot. Both item and slot are auto-indexed — just pick from dropdowns. Connect Get Actor Slot ID to Item Slot pin to override.",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"index",label:"Index",type:"value.number"},{id:"itemSlot",label:"Item Slot",type:"value.any"}],
     outputs:[
@@ -1779,7 +1755,7 @@ export const NODE_DEFS = {
   },
 
   act_add_to_inv_item_slot: {
-    title:"Add to Inv Item Slot", color:"#2a4a2a", cat:"Actions",
+    title:"Add to Inv Item Slot", color:"#2a4a2a", cat:"Items",
     desc:"Find a container item and add another inventory item into its slot. Pick container from dropdown, drag item to add from sidebar.",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"itemSlot",label:"Item Slot",type:"value.any"}],
     outputs:[{id:"exec",label:"Done →",type:"exec"},{id:"full",label:"Full →",type:"exec"}],
@@ -1799,7 +1775,7 @@ export const NODE_DEFS = {
     })
   },
   act_attack_check: {
-    title:"Attack Check", color:"#8a3a00", cat:"Actions",
+    title:"Attack Check", color:"#8a3a00", cat:"Roll",
     desc:"Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total − AC. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -1873,7 +1849,7 @@ export const NODE_DEFS = {
   },
 
   act_roll_check: {
-    title:"Roll Check", color:"#8a4400", cat:"Actions",
+    title:"Roll Check", color:"#8a4400", cat:"Roll",
     desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator). Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",           label:"",           type:"exec"},
@@ -1974,7 +1950,7 @@ export const NODE_DEFS = {
   },
 
   act_tiered_roll: {
-    title:"Tiered Roll", color:"#8a4400", cat:"Actions",
+    title:"Tiered Roll", color:"#8a4400", cat:"Roll",
     desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result ≥ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
@@ -2058,7 +2034,7 @@ export const NODE_DEFS = {
   },
 
   act_dice_pool: {
-    title:"Dice Pool", color:"#8a4400", cat:"Actions",
+    title:"Dice Pool", color:"#8a4400", cat:"Roll",
     desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -2138,11 +2114,14 @@ export const NODE_DEFS = {
   },
 
   act_spend_token: {
-    title:"Spend Token", color:"#4a2a6a", cat:"Actions",
-    desc:"Spends N tokens from the given resource. If there aren't enough tokens, exec takes the Empty branch. Works like Consume Resource but with branching.",
+    title:"Spend Token", color:"#4a2a6a", cat:"Resources",
+    desc:"Spends N tokens from the given resource. If there aren't enough tokens, exec takes the Empty branch. Works like Consume Resource but with branching. Where / Path / Label can be fed via pins (UE-style — when wired the matching field hides).",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
-      {id:"amount", label:"Amount", type:"value.number"}
+      {id:"amount", label:"Amount", type:"value.number"},
+      {id:"where",  label:"Where",  type:"value.string"},
+      {id:"path",   label:"Path",   type:"value.path"},
+      {id:"flavor", label:"Label",  type:"value.string"}
     ],
     outputs:[
       {id:"ok",       label:"Spent →",   type:"exec"},
@@ -2159,18 +2138,21 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({
       type:   "spendToken",
       amount: inp.amount ?? n.data.amount ?? 1,
-      where:  n.data.where ?? "self",
-      path:   n.data.path  ?? "system.resources.tokens.value",
-      flavor: n.data.flavor ?? "Spend Token"
+      where:  (inp.where  != null && inp.where  !== "") ? String(inp.where)  : (n.data.where  ?? "self"),
+      path:   (inp.path   != null && inp.path   !== "") ? String(inp.path)   : (n.data.path   ?? "system.resources.tokens.value"),
+      flavor: (inp.flavor != null && inp.flavor !== "") ? String(inp.flavor) : (n.data.flavor ?? "Spend Token")
     })
   },
 
   act_gain_token: {
-    title:"Gain Token", color:"#2a5a4a", cat:"Actions",
-    desc:"Adds N tokens to the resource. Handy for FATE points / Drama dice / stress.",
+    title:"Gain Token", color:"#2a5a4a", cat:"Resources",
+    desc:"Adds N tokens to the resource. Handy for FATE points / Drama dice / stress. Where / Path / Label can be fed via pins (UE-style).",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
-      {id:"amount", label:"Amount", type:"value.number"}
+      {id:"amount", label:"Amount", type:"value.number"},
+      {id:"where",  label:"Where",  type:"value.string"},
+      {id:"path",   label:"Path",   type:"value.path"},
+      {id:"flavor", label:"Label",  type:"value.string"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"},{id:"newValue",label:"New Value",type:"value.any"}],
     fields:[
@@ -2183,9 +2165,9 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({
       type:   "gainToken",
       amount: inp.amount ?? n.data.amount ?? 1,
-      where:  n.data.where ?? "self",
-      path:   n.data.path  ?? "system.resources.tokens.value",
-      flavor: n.data.flavor ?? "Gain Token"
+      where:  (inp.where  != null && inp.where  !== "") ? String(inp.where)  : (n.data.where  ?? "self"),
+      path:   (inp.path   != null && inp.path   !== "") ? String(inp.path)   : (n.data.path   ?? "system.resources.tokens.value"),
+      flavor: (inp.flavor != null && inp.flavor !== "") ? String(inp.flavor) : (n.data.flavor ?? "Gain Token")
     })
   },
 
@@ -2204,7 +2186,7 @@ export const NODE_DEFS = {
   },
 
   act_progression: {
-    title:"Progression Roll", color:"#8a4400", cat:"Actions",
+    title:"Progression Roll", color:"#8a4400", cat:"Roll",
     desc:"Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
@@ -2278,7 +2260,7 @@ export const NODE_DEFS = {
   },
 
   act_throw_on_canvas: {
-    title:"Throw on Canvas", color:"#8a4400", cat:"Actions",
+    title:"Throw on Canvas", color:"#8a4400", cat:"Roll",
     desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -2359,7 +2341,7 @@ export const NODE_DEFS = {
   },
 
   act_throw_on_sheet: {
-    title:"Throw on Sheet", color:"#8a4400", cat:"Actions",
+    title:"Throw on Sheet", color:"#8a4400", cat:"Roll",
     desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -2438,7 +2420,7 @@ export const NODE_DEFS = {
   },
 
   act_ai_request: {
-    title:"AI Request (OpenAI-compatible)", color:"#4a4a8a", cat:"Actions",
+    title:"AI Request (OpenAI-compatible)", color:"#4a4a8a", cat:"AI",
     desc:"POSTs an OpenAI-compatible chat-completion request to the given URL with Authorization: Bearer <key>. Compatible with api.openai.com, openrouter.ai, LM Studio (http://localhost:1234/v1/chat/completions), Ollama OAI compat, vLLM, etc. Output 'Response' carries choices[0].message.content as a string. Use {__lastAiResponse} in downstream formulas / text. SECURITY: API key is stored on the document where the graph lives — visible to all owners. Use 'API key setting' to read from a world setting (sd.<settingKey>) instead.",
     wideNode:true,
     inputs:[
@@ -2622,50 +2604,130 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Dialog Builder — programmable form dialog with up to 8 roll buttons + arbitrary input fields. */
-  act_dialog_builder: {
-    title:"Dialog Builder", color:"#a04020", cat:"Flow",
-    desc:"Open a programmable dialog defined by an `elements` JSON array. Each element has a `type` (label/number/text/checkbox/select/rollButton/section), a unique `id`, optional `label`, `default`, `options` (for select), `placeholder` (text/number), and conditional flags `visibleWhen` / `disabledWhen` referencing other fields by `{id}`. Up to 8 rollButton elements wire one each to btn0..btn7 exec outputs; non-button fields are exposed at runtime as tokens `{__dlg.<id>}` you can use anywhere downstream (formulas, paths, text). Picked button id appears on `Picked`. `Submit →` fires for any rollButton or the plain OK; `Cancel` fires when the dialog is closed without confirm.",
-    wideNode:true,
-    inputs:[
-      {id:"exec", label:"", type:"exec"}
-    ],
-    outputs:[
-      {id:"submit",  label:"Submit →", type:"exec"},
-      {id:"cancel",  label:"Cancel",   type:"exec"},
-      {id:"picked",  label:"Picked",   type:"value.string"},
-      {id:"btn0",    label:"Btn 1 →",  type:"exec"},
-      {id:"btn1",    label:"Btn 2 →",  type:"exec"},
-      {id:"btn2",    label:"Btn 3 →",  type:"exec"},
-      {id:"btn3",    label:"Btn 4 →",  type:"exec"},
-      {id:"btn4",    label:"Btn 5 →",  type:"exec"},
-      {id:"btn5",    label:"Btn 6 →",  type:"exec"},
-      {id:"btn6",    label:"Btn 7 →",  type:"exec"},
-      {id:"btn7",    label:"Btn 8 →",  type:"exec"}
-    ],
-    fields:[
-      {key:"title",       label:"Title",       type:"text",     default:"Dialog"},
-      {key:"description", label:"Description", type:"text",     default:""},
-      {key:"okLabel",     label:"OK label (when no rollButton elements)", type:"text", default:"OK"},
-      {key:"cancelLabel", label:"Cancel label",                           type:"text", default:"Cancel"},
-      {
-        key:"elementsJson",
-        label:"Elements (JSON array)",
-        type:"textarea",
-        default:'[\n  {"type":"label","text":"Choose your stance:"},\n  {"type":"select","id":"stance","label":"Stance","options":["Aggressive","Defensive","Sneaky"],"default":"Aggressive"},\n  {"type":"checkbox","id":"useLuck","label":"Spend 1 Luck","default":false},\n  {"type":"number","id":"bonus","label":"Bonus","default":0,"placeholder":"-3..+3"},\n  {"type":"rollButton","id":"normal","label":"Normal","formula":"1d20+@mod"},\n  {"type":"rollButton","id":"adv","label":"Advantage","formula":"2d20kh1+@mod","visibleWhen":"{useLuck}"}\n]',
-        rows:14
+  /** Dialog Builder — visual element editor (no JSON). Add elements directly via Count. */
+  act_dialog_builder: (() => {
+    const MAX_EL = 8;
+    const TYPE_OPTS = ["label","section","text","number","checkbox","select","button"];
+    const _count = (d) => Math.max(1, Math.min(MAX_EL, parseInt(d?.count) || 1));
+    // Per-element field block, gated by `count`. The renderer auto-hides
+    // fields whose visibleIf returns false, and the input-handler triggers a
+    // full re-render when this node has visibleIf or computeDynamicOutputs.
+    const elFields = [];
+    for (let i = 0; i < MAX_EL; i++) {
+      const _exists  = (d) => _count(d) > i;
+      const _typeOf  = (d) => d?.[`el${i}_type`] ?? (i === 0 ? "button" : "text");
+      const _hasId   = (d) => _exists(d) && !["label","section"].includes(_typeOf(d));
+      const _hasDef  = (d) => _exists(d) && !["label","section","button"].includes(_typeOf(d));
+      const _isSel   = (d) => _exists(d) && _typeOf(d) === "select";
+      const _isBtn   = (d) => _exists(d) && _typeOf(d) === "button";
+      elFields.push(
+        {key:`el${i}_type`,    label:`Element ${i+1} — type`,        type:"select", default: i===0 ? "button" : "text",
+          options: TYPE_OPTS, visibleIf: _exists},
+        {key:`el${i}_id`,      label:`Element ${i+1} — Id (pin)`,    type:"text",   default:`item${i+1}`,
+          placeholder:"unique id, e.g. stance",                       visibleIf: _hasId},
+        {key:`el${i}_label`,   label:`Element ${i+1} — Label`,       type:"text",   default:`Element ${i+1}`,
+          visibleIf: _exists},
+        {key:`el${i}_default`, label:`Element ${i+1} — Default`,     type:"text",   default:"",
+          placeholder:"start value (text/number/select) or 'yes' for checkbox", visibleIf: _hasDef},
+        {key:`el${i}_options`, label:`Element ${i+1} — Options (CSV)`, type:"text", default:"",
+          placeholder:"a,b,c — only for select",                      visibleIf: _isSel},
+        {key:`el${i}_emit`,    label:`Element ${i+1} — Emit exec on click?`, type:"select", default:"no",
+          options:["no","yes"],                                       visibleIf: _isBtn}
+      );
+    }
+    return {
+      title:"Dialog Builder", color:"#a04020", cat:"Flow", wideNode:true,
+      desc:"Visual form-dialog builder. Pick element count (1-8), then for each element choose its type (label/section/text/number/checkbox/select/button), a unique Id, a Label, optional default and options. Each element with an Id exposes an output value pin that resolves to the runtime token {__dlg.<id>} (use it anywhere downstream — paths, formulas, text). Buttons additionally expose a per-button exec output when 'Emit exec on click?' is set to yes; turning it off hides that exec pin. Picked outputs the id of the last button clicked. Submit fires after any button (or OK if no buttons exist); Cancel fires on close without confirm.",
+      inputs:[ {id:"exec", label:"", type:"exec"} ],
+      // Static base outputs — see computeDynamicOutputs below for the
+      // element-derived value / exec pins that appear at render time.
+      outputs:[
+        {id:"submit",  label:"Submit →", type:"exec"},
+        {id:"cancel",  label:"Cancel",   type:"exec"},
+        {id:"picked",  label:"Picked",   type:"value.string"}
+      ],
+      fields:[
+        {key:"title",       label:"Title",                       type:"text",   default:"Dialog"},
+        {key:"description", label:"Description",                 type:"text",   default:""},
+        {key:"okLabel",     label:"OK label (when no buttons)",  type:"text",   default:"OK"},
+        {key:"cancelLabel", label:"Cancel label",                type:"text",   default:"Cancel"},
+        {key:"count",       label:"Number of elements (1-8)",    type:"number", default:1},
+        ...elFields
+      ],
+      isGenericBranch:true,
+      computeDynamicOutputs(node) {
+        const data = node?.data ?? {};
+        const c = _count(data);
+        const dynVals  = [];
+        const dynExecs = [];
+        for (let i = 0; i < c; i++) {
+          const t   = data[`el${i}_type`] ?? (i === 0 ? "button" : "text");
+          const id  = String(data[`el${i}_id`] ?? "").trim();
+          const lbl = String(data[`el${i}_label`] ?? "").trim() || `E${i+1}`;
+          if (id && !["label","section"].includes(t)) {
+            const pinType = t === "checkbox" ? "value.bool"
+                         : t === "number"   ? "value.number"
+                         : "value.string";
+            dynVals.push({ id:`el${i}_val`, label:`${lbl}`, type: pinType });
+          }
+          if (t === "button" && data[`el${i}_emit`] === "yes") {
+            dynExecs.push({ id:`el${i}_exec`, label:`${lbl} →`, type:"exec" });
+          }
+        }
+        return [
+          {id:"submit", label:"Submit →", type:"exec"},
+          {id:"cancel", label:"Cancel",   type:"exec"},
+          ...dynExecs,
+          {id:"picked", label:"Picked",   type:"value.string"},
+          ...dynVals
+        ];
+      },
+      dynamicBranchToken(node, fromPin) {
+        if (typeof fromPin !== "string") return null;
+        if (fromPin === "picked") return "{__dlgPicked}";
+        const m = fromPin.match(/^el(\d+)_val$/);
+        if (!m) return null;
+        const i = Number(m[1]);
+        const elId = String(node?.data?.[`el${i}_id`] ?? "").trim();
+        if (!elId) return "0";
+        return `{__dlg.${elId}}`;
+      },
+      toAction(n) {
+        const c = _count(n?.data ?? {});
+        const elements = [];
+        for (let i = 0; i < c; i++) {
+          const t   = n.data[`el${i}_type`] ?? (i === 0 ? "button" : "text");
+          const id  = String(n.data[`el${i}_id`] ?? "").trim();
+          const lbl = String(n.data[`el${i}_label`] ?? "").trim();
+          const def = n.data[`el${i}_default`] ?? "";
+          const opts = String(n.data[`el${i}_options`] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+          const emit = n.data[`el${i}_emit`] === "yes";
+          const o = { type: t, label: lbl };
+          if (id) o.id = id;
+          if (t === "select" && opts.length) o.options = opts;
+          if (t === "checkbox") o.default = (def === "yes" || def === "true" || def === true || def === 1 || def === "1");
+          else if (t === "number") o.default = (def === "" || def == null) ? 0 : Number(def);
+          else if (t !== "label" && t !== "section" && t !== "button") o.default = String(def ?? "");
+          if (t === "label" || t === "section") o.text = lbl;
+          if (t === "button") {
+            o.type = "rollButton";
+            o.formula = "0"; // no roll — buttons just close & dispatch picked / per-button exec
+            o.execIndex = i;
+            o.emit = emit;
+          }
+          elements.push(o);
+        }
+        return {
+          type:        "dialogBuilder",
+          title:       n.data.title       ?? "Dialog",
+          description: n.data.description ?? "",
+          okLabel:     n.data.okLabel     ?? "OK",
+          cancelLabel: n.data.cancelLabel ?? "Cancel",
+          elements
+        };
       }
-    ],
-    isGenericBranch:true,
-    toAction:(n) => ({
-      type:         "dialogBuilder",
-      title:        n.data.title       ?? "Dialog",
-      description:  n.data.description ?? "",
-      okLabel:      n.data.okLabel     ?? "OK",
-      cancelLabel:  n.data.cancelLabel ?? "Cancel",
-      elementsJson: n.data.elementsJson ?? "[]"
-    })
-  },
+    };
+  })(),
 
   /** Dialog: yes/no confirm */
   dialog_confirm: {
@@ -2766,12 +2828,14 @@ export const NODE_DEFS = {
   },
 
   act_apply_status: {
-    title:"Apply Status", color:"#1a4a8a", cat:"Effects",
-    desc:"Apply / remove / toggle a status condition (CONFIG.statusEffects). Status Id can be e.g. `dead`, `prone`, `poisoned`, etc. — anything the active system or world registers. Status Id pin overrides the field.",
+    title:"Apply Status", color:"#1a4a8a", cat:"Effects", wideNode:true,
+    desc:"Apply / remove / toggle a status condition (CONFIG.statusEffects). Status Id can be e.g. `dead`, `prone`, `poisoned`, etc. — anything the active system or world registers. Status Id / Mode / Overlay pins override the matching field (UE-style).",
     inputs:[
       {id:"exec",     label:"",         type:"exec"},
       {id:"target",   label:"Target",   type:"value.actor"},
-      {id:"statusId", label:"Status Id",type:"value.string"}
+      {id:"statusId", label:"Status Id",type:"value.string"},
+      {id:"mode",     label:"Mode",     type:"value.string"},
+      {id:"overlay",  label:"Overlay",  type:"value.bool"}
     ],
     outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
@@ -2785,8 +2849,8 @@ export const NODE_DEFS = {
       type:     "applyStatus",
       statusId: inp.statusId ?? n.data.statusId ?? "",
       target:   inp.target   ?? n.data.target   ?? "token_target",
-      mode:     n.data.mode  ?? "apply",
-      overlay:  n.data.overlay === "yes"
+      mode:     (inp.mode    != null && inp.mode    !== "") ? String(inp.mode) : (n.data.mode ?? "apply"),
+      overlay:  (inp.overlay != null && inp.overlay !== "") ? coerceBool(inp.overlay) : (n.data.overlay === "yes")
     })
   },
 
@@ -3334,6 +3398,36 @@ export const NODE_DEFS = {
     })
   },
 
+  act_place_aoe_targets: {
+    title:"Chat AoE — Targets", color:"#8a7a2a", cat:"AoE", wideNode:true,
+    desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside is collected — no checks, no rolls. Connect Targets[] to downstream Damage / Heal / Effect nodes' Targets pin to apply effects to everyone in the area.",
+    inputs:[
+      {id:"exec", label:"",          type:"exec"},
+      {id:"size", label:"Size (ft)", type:"value.number"}
+    ],
+    outputs:[
+      {id:"exec",    label:"→",          type:"exec"},
+      {id:"targets", label:"Targets[]",  type:"value.array"}
+    ],
+    fields:[
+      {key:"cardTitle",  label:"Card title",            type:"text",   default:"AoE Targets"},
+      {key:"shape",      label:"Shape",                 type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
+      {key:"size",       label:"Size (ft)",             type:"number", default:20},
+      {key:"angle",      label:"Cone angle (deg)",      type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
+      {key:"persist",    label:"Keep template on map",  type:"select", options:["yes","no"], default:"no"}
+    ],
+    isAction:true,
+    isAoeSave:true,
+    toAction:(n,inp)=>({
+      type:         "placeAoeTargets",
+      cardTitle:    n.data.cardTitle ?? "AoE Targets",
+      shape:        n.data.shape     ?? "circle",
+      size:         inp.size         ?? n.data.size ?? 20,
+      angle:        n.data.angle     ?? 53.13,
+      persist:      (n.data.persist  ?? "no") === "yes"
+    })
+  },
+
   act_place_aoe_save_branch: {
     title:"Chat AoE — Save", color:"#8a5a2a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside rolls a save. Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes.",
@@ -3511,9 +3605,14 @@ export const NODE_DEFS = {
 
   /** Play Sound — AudioHelper.play wrapper */
   act_play_sound: {
-    title:"Play Sound", color:"#4a2a7a", cat:"Actions",
-    desc:"Play a sound file via Foundry's AudioHelper. Path is relative to the Data folder or a full URL.",
-    inputs:[{id:"exec",label:"",type:"exec"}],
+    title:"Play Sound", color:"#4a2a7a", cat:"System",
+    desc:"Play a sound file via Foundry's AudioHelper. Path is relative to the Data folder or a full URL. Src / Volume / Loop can all be fed via pins.",
+    inputs:[
+      {id:"exec",   label:"",       type:"exec"},
+      {id:"src",    label:"Source", type:"value.string"},
+      {id:"volume", label:"Volume", type:"value.number"},
+      {id:"loop",   label:"Loop",   type:"value.bool"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"src",    label:"Sound path / URL", type:"text",   default:"sounds/dice.wav", placeholder:"sounds/dice.wav"},
@@ -3521,32 +3620,41 @@ export const NODE_DEFS = {
       {key:"loop",   label:"Loop",              type:"select", default:"no", options:["no","yes"]}
     ],
     isAction:true, wideNode:true,
-    toAction:(n)=>({
+    toAction:(n,inp)=>({
       type:   "playSound",
-      src:    n.data.src    ?? "sounds/dice.wav",
-      volume: Number(n.data.volume ?? 0.8),
-      loop:   n.data.loop   === "yes"
+      src:    (inp.src != null && inp.src !== "") ? String(inp.src) : (n.data.src ?? "sounds/dice.wav"),
+      volume: (inp.volume != null && inp.volume !== "") ? Number(inp.volume) : Number(n.data.volume ?? 0.8),
+      loop:   (inp.loop != null && inp.loop !== "") ? coerceBool(inp.loop) : (n.data.loop === "yes")
     })
   },
 
   /** Run Macro — execute a world macro by name */
   act_run_macro: {
-    title:"Run Macro", color:"#4a4a7a", cat:"Actions",
-    desc:"Execute a world Macro by exact name. The macro runs with the current actor and token as speaker context.",
-    inputs:[{id:"exec",label:"",type:"exec"}],
+    title:"Run Macro", color:"#4a4a7a", cat:"System",
+    desc:"Execute a world Macro by exact name. The macro runs with the current actor and token as speaker context. Macro name can be fed via pin.",
+    inputs:[
+      {id:"exec",      label:"",            type:"exec"},
+      {id:"macroName", label:"Macro Name",  type:"value.string"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"macroName", label:"Macro Name", type:"text", default:"", placeholder:"exact name from Macros directory"}
     ],
     isAction:true, wideNode:true,
-    toAction:(n)=>({type:"runMacro", macroName: n.data.macroName ?? ""})
+    toAction:(n,inp)=>({type:"runMacro",
+      macroName: (inp.macroName != null && inp.macroName !== "") ? String(inp.macroName) : (n.data.macroName ?? "")
+    })
   },
 
   /** Notify — show a toast notification to the current user */
   act_notify: {
-    title:"Notify", color:"#4a4a1a", cat:"Actions",
-    desc:"Show a toast notification (info / warning / error) to the current user. Useful for feedback without a full chat message.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"text",label:"Message",type:"value.string"}],
+    title:"Notify", color:"#4a4a1a", cat:"Chat",
+    desc:"Show a toast notification (info / warning / error) to the current user. Useful for feedback without a full chat message. Both Message and Level can be fed via pins.",
+    inputs:[
+      {id:"exec",  label:"",        type:"exec"},
+      {id:"text",  label:"Message", type:"value.string"},
+      {id:"level", label:"Level",   type:"value.string"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"text",  label:"Default text", type:"text",   default:"Done!"},
@@ -3556,18 +3664,19 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({
       type:  "notify",
       text:  inp.text ?? n.data.text ?? "Done!",
-      level: n.data.level ?? "info"
+      level: (inp.level != null && inp.level !== "") ? String(inp.level) : (n.data.level ?? "info")
     })
   },
 
   /** Consume Resource — consume one unit of any resource, branching OK / Empty */
   act_consume_resource: {
-    title:"Consume Resource", color:"#6a2a6a", cat:"Actions",
-    desc:"Decrement a resource value by Amount (default 1). If current value would go below 0 takes the Empty branch instead. Use instead of Modify Field + Branch for uses/charges/mana.",
+    title:"Consume Resource", color:"#6a2a6a", cat:"Resources",
+    desc:"Decrement a resource value by Amount (default 1). If current value would go below 0 takes the Empty branch instead. Path can be fed dynamically (UE-style — when wired, the field hides). Use instead of Modify Field + Branch for uses/charges/mana.",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
       {id:"amount", label:"Amount", type:"value.number"},
-      {id:"target", label:"Target", type:"value.actor"}
+      {id:"target", label:"Target", type:"value.actor"},
+      {id:"path",   label:"Path",   type:"value.path"}
     ],
     outputs:[
       {id:"ok",    label:"OK →",    type:"exec"},
@@ -3581,7 +3690,7 @@ export const NODE_DEFS = {
     isConsumeResource: true,
     toAction:(n,inp)=>({
       type:   "consumeResource",
-      path:   n.data.path   ?? "system.resources.mp.value",
+      path:   (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path ?? "system.resources.mp.value"),
       amount: inp.amount    ?? n.data.amount ?? 1,
       target: (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "self")
     })
@@ -3589,9 +3698,14 @@ export const NODE_DEFS = {
 
   /** Set Variable — write to actor.flags.sd.vars namespace */
   act_set_var: {
-    title:"Set Variable", color:"#2a3a6a", cat:"Actions",
-    desc:"Store a value in actor.flags.sd.vars.NAME for retrieval later in the same or other graphs. Useful for persisting roll results between button presses.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"value",label:"Value",type:"value.any"}],
+    title:"Set Variable", color:"#2a3a6a", cat:"Field Ops",
+    desc:"Store a value in actor.flags.sd.vars.NAME (or world settings) for retrieval later. Useful for persisting roll results between button presses. Name and Scope can be fed via pins (UE-style — when wired the matching field hides).",
+    inputs:[
+      {id:"exec",  label:"",        type:"exec"},
+      {id:"name",  label:"Name",    type:"value.string"},
+      {id:"value", label:"Value",   type:"value.any"},
+      {id:"scope", label:"Scope",   type:"value.string"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"name",  label:"Variable Name", type:"text",   default:"myVar", placeholder:"e.g. lastRollResult"},
@@ -3600,17 +3714,21 @@ export const NODE_DEFS = {
     isAction:true,
     toAction:(n,inp)=>({
       type:  "setVar",
-      name:  n.data.name  ?? "myVar",
+      name:  (inp.name  != null && inp.name  !== "") ? String(inp.name)  : (n.data.name  ?? "myVar"),
       value: inp.value    ?? 0,
-      scope: n.data.scope ?? "actor"
+      scope: (inp.scope != null && inp.scope !== "") ? String(inp.scope) : (n.data.scope ?? "actor")
     })
   },
 
   /** Open Sheet — open another actor or item sheet by UUID */
   act_open_sheet: {
-    title:"Open Sheet", color:"#2a3a6a", cat:"Actions",
-    desc:"Open the sheet window of another Actor or Item by UUID. Useful for 'Inspect' buttons on slot items.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"uuid",label:"UUID",type:"value.uuid"}],
+    title:"Open Sheet", color:"#2a3a6a", cat:"Chat",
+    desc:"Open the sheet window of another Actor or Item by UUID. Useful for 'Inspect' buttons on slot items. UUID and Require-ownership can be fed via pins.",
+    inputs:[
+      {id:"exec",    label:"",         type:"exec"},
+      {id:"uuid",    label:"UUID",     type:"value.uuid"},
+      {id:"asOwner", label:"As Owner", type:"value.bool"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"uuid",    label:"UUID (or drag here)", type:"text",   default:"", placeholder:"Actor.xxx or Item.xxx"},
@@ -3620,13 +3738,13 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({
       type:     "openSheet",
       uuid:     inp.uuid ?? n.data.uuid ?? "",
-      asOwner:  n.data.asOwner !== "no"
+      asOwner:  (inp.asOwner != null && inp.asOwner !== "") ? coerceBool(inp.asOwner) : (n.data.asOwner !== "no")
     })
   },
 
   /** Roll Table — roll on a RollTable and branch on found / empty */
   act_roll_table: {
-    title:"Roll Table", color:"#7a4500", cat:"Actions",
+    title:"Roll Table", color:"#7a4500", cat:"Tables",
     desc:"Roll on a world RollTable. Found→ fires when at least one result is drawn. Empty→ fires when the table is empty or not found. Result text and index available as value outputs. Use drawCount > 1 to draw multiple entries — {__rollTableIndex} tracks the current draw (0-based).",
     inputs:[
       {id:"exec",      label:"",           type:"exec"},
@@ -3660,7 +3778,7 @@ export const NODE_DEFS = {
   },
 
   chat_save_button: {
-    title:"Save / Check Button", color:"#7a3a00", cat:"Actions",
+    title:"Save / Check Button", color:"#7a3a00", cat:"Roll",
     desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field. Reroll button (yes/no) adds a Re-roll button to the resulting roll message; Reroll Path / Reroll Cost optionally consume a numeric resource from the rolling actor each time they reroll.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -3950,13 +4068,6 @@ export const NODE_DEFS = {
     compile:()=>`"user_character"`
   },
 
-  is_equipped: {
-    title:"Is Equipped?", color:"#2e6e4a", cat:"Sources",
-    desc:"Returns 1 if this item is currently equipped, 0 otherwise.  Reads `system.equipped` on the context item.",
-    inputs:[], outputs:[{id:"value", label:"0/1", type:"value.any"}],
-    fields:[], isPure:true,
-    compile:()=>"{__sdIsEquipped}"
-  },
   equipped_count: {
     title:"Equipped Count", color:"#2e6e4a", cat:"Sources",
     desc:"Returns the count of items with `system.equipped:true` on the owning actor, optionally filtered by category.",
@@ -4320,7 +4431,7 @@ export const NODE_DEFS = {
   /* ─────────  ROLL TABLE EXTRAS  ───────── */
 
   act_reset_roll_table: {
-    title:"Reset Roll Table", color:"#7a4500", cat:"Actions",
+    title:"Reset Roll Table", color:"#7a4500", cat:"Tables",
     desc:"Resets the 'drawn' state of all results in a RollTable. Useful for no-replacement tables — once exhausted, call this to make every result available again.",
     inputs:[{id:"exec", label:"", type:"exec"}],
     outputs:[{id:"exec", label:"", type:"exec"}],
@@ -4333,7 +4444,7 @@ export const NODE_DEFS = {
   },
 
   act_show_roll_table: {
-    title:"Show Roll Table", color:"#7a4500", cat:"Actions",
+    title:"Show Roll Table", color:"#7a4500", cat:"Tables",
     desc:"Open a RollTable's sheet for inspection. GM additionally pushes it to all players (handy for shared 'fortune' or 'omen' tables).",
     inputs:[{id:"exec", label:"", type:"exec"}],
     outputs:[{id:"exec", label:"", type:"exec"}],
@@ -4696,10 +4807,20 @@ const EVENT_PIN_TOKENS = {
 // Common roll-meta pins exposed on every roll-producing node. The executor
 // fills the corresponding __last* runtime tokens after each roll; downstream
 // value pins resolve to those tokens via this table.
-const _ROLL_META = {
+//
+// _ROLL_META_BASIC — values every roll node emits (formula text + bounds + per-die values).
+// _ROLL_META       — full set incl. crit / fumble meta. act_roll_value is intentionally
+// kept on the basic set; crit / fumble belong to nodes that actually run a check
+// (Attack Check, Roll Check, Dice Pool…).
+const _ROLL_META_BASIC = {
   formula:       "{__lastFormula}",
   min:           "{__lastMin}",
   max:           "{__lastMax}",
+  avg:           "{__lastAvg}",
+  dice:          "{__lastDice}"
+};
+const _ROLL_META = {
+  ..._ROLL_META_BASIC,
   natural:       "{__lastNatural}",
   isCrit:        "{__lastIsCrit}",
   critFormula:   "{__lastCritFormula}",
@@ -4707,7 +4828,7 @@ const _ROLL_META = {
   fumbleFormula: "{__lastFumbleFormula}"
 };
 const BRANCH_PIN_TOKENS = {
-  act_roll_value:   { result: "{__lastRoll}", ..._ROLL_META },
+  act_roll_value:   { result: "{__lastRoll}", ..._ROLL_META_BASIC },
   act_attack_check: { result: "{__lastRoll}", margin: "{__lastMargin}", ..._ROLL_META },
   act_roll_check:   { result: "{__lastRoll}", margin: "{__lastMargin}", winnerRoll: "{__opposedWinnerRoll}", ..._ROLL_META },
   act_tiered_roll:  { result: "{__lastRoll}", ..._ROLL_META },
@@ -4726,6 +4847,9 @@ const BRANCH_PIN_TOKENS = {
     saved:  "{__savedTargets}",
     failed: "{__failedTargets}",
     all:    "{__allTargets}"
+  },
+  act_place_aoe_targets: {
+    targets: "{__allTargets}"
   },
   act_place_aura_save_branch: {
     saved:  "{__savedTargets}",
@@ -4755,22 +4879,34 @@ const BRANCH_PIN_TOKENS = {
 
 // Порядок категорий
 const CATS = [
-  {id:"Flow",      color:"#8a3a8a"},
-  {id:"Events",    color:"#c04040"},
-  {id:"Attribute", color:"#7a4a1a"},
-  {id:"Sources",   color:"#2a6a9a"},
-  {id:"Dice",      color:"#9a6a1a"},
-  {id:"Math",      color:"#2a7a3a"},
-  {id:"Compare",   color:"#8a2a8a"},
-  {id:"Logic",     color:"#8a2a2a"},
-  {id:"Array",     color:"#2a7a3a"},
-  {id:"Macros",    color:"#1a8a4a"},
-  {id:"Actions",   color:"#5a3a7a"},
-  {id:"Effects",   color:"#1a4a8a"},
-  {id:"AoE",       color:"#7a3a8a"},
-  {id:"Targeting", color:"#8a3a6a"},
-  {id:"Journal",   color:"#3a5a8a"},
-  {id:"Cards",     color:"#5a2a7a"}
+  {id:"Flow",       color:"#8a3a8a"},
+  {id:"Events",     color:"#c04040"},
+  {id:"Attribute",  color:"#7a4a1a"},
+  {id:"Sources",    color:"#2a6a9a"},
+  {id:"Dice",       color:"#9a6a1a"},
+  {id:"Math",       color:"#2a7a3a"},
+  {id:"Compare",    color:"#8a2a8a"},
+  {id:"Logic",      color:"#8a2a2a"},
+  {id:"Array",      color:"#2a7a3a"},
+  {id:"Variables",  color:"#2a6a9a"},
+  {id:"Macros",     color:"#1a8a4a"},
+  // Action-side categories. The previous catch-all "Actions" group was
+  // split into smaller, semantic buckets so the picker stops being a wall
+  // of similarly-coloured nodes.
+  {id:"Roll",       color:"#8a4400"},
+  {id:"Damage",     color:"#8a1a1a"},
+  {id:"Effects",    color:"#1a4a8a"},
+  {id:"Resources",  color:"#5a2a6a"},
+  {id:"Field Ops",  color:"#4a2a6a"},
+  {id:"Items",      color:"#2a5a3a"},
+  {id:"Chat",       color:"#4a4a1a"},
+  {id:"Tables",     color:"#7a4500"},
+  {id:"AI",         color:"#4a4a8a"},
+  {id:"System",     color:"#4a2a7a"},
+  {id:"AoE",        color:"#7a3a8a"},
+  {id:"Targeting",  color:"#8a3a6a"},
+  {id:"Journal",    color:"#3a5a8a"},
+  {id:"Cards",      color:"#5a2a7a"}
 ];
 
 // Категории нод
@@ -5647,6 +5783,28 @@ export class FormulaGraph {
       }
       return;
     }
+    // attributeGroup with a specific attrKey loads the per-attribute slot
+    // from widget.attrGraphs[<key>].graphData. Falls back to the default
+    // Attribute starter graph when the slot is empty so users get the
+    // familiar Attr Score / On Click / ATTR OUTPUT scaffold to wire up.
+    if (this.widget?.type === "attributeGroup" && this.saveCtx?.attrKey) {
+      const key = this.saveCtx.attrKey;
+      const ag  = this.widget.attrGraphs?.[key];
+      const s   = ag?.graphData;
+      if (s?.nodes?.length) {
+        this.nodes = foundry.utils.deepClone(s.nodes);
+        this.edges = foundry.utils.deepClone(s.edges??[]);
+        this.comments = foundry.utils.deepClone(s.comments ?? []);
+        migrateGraph(this);
+        this._migrateAttrGraph();
+        const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
+        this._id = (Math.max(0,...numIds) + 2) || 2;
+      } else {
+        this._addAttributeDefaultGraph();
+      }
+      return;
+    }
+
     const s = this.widget?.graphData;
     if (s?.nodes?.length) {
       this.nodes = foundry.utils.deepClone(s.nodes);
@@ -5720,7 +5878,7 @@ export class FormulaGraph {
       return;
     }
     if (this.saveCtx) {
-      const {tab,row,w,doc} = this.saveCtx;
+      const {tab,row,w,doc,attrKey} = this.saveCtx;
       const data = {
         nodes: this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
@@ -5731,19 +5889,38 @@ export class FormulaGraph {
       const widget = _row ? this._findWidgetDeepInRow(_row.widgets, w.id) : null;
       if (!widget) console.warn("[sd] formula-graph: widget not found in customTabs", { tabId: tab?.id, rowId: row?.id, widgetId: w?.id });
       if (widget) {
-        widget.graphData = data;
-        if (this.widget?.type === "attribute") {
+        // attributeGroup with a specific attrKey writes into a per-key
+        // slot under widget.attrGraphs[<key>]. The slot mirrors the
+        // standalone Attribute widget's saved fields so the renderer
+        // can fan them out to each tile.
+        if (this.widget?.type === "attributeGroup" && attrKey) {
           const attrOut = this.nodes.find(n => n.type === "attr_output");
+          let modValueFormula = null;
           if (attrOut) {
             const mvEdge = this.edges.find(e => e.toNode === attrOut.id && e.toPin === "modValue");
             const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
-            widget.modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
+            modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
           }
           const onClickNode = this.nodes.find(n => n.type === "on_click");
           const clickEdge   = onClickNode ? this.edges.find(e => e.fromNode === onClickNode.id && e.fromPin === "exec") : null;
-          widget.onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
-          widget.modFormula = undefined;
-          widget.formula    = undefined;
+          const onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
+          widget.attrGraphs = (widget.attrGraphs && typeof widget.attrGraphs === "object") ? { ...widget.attrGraphs } : {};
+          widget.attrGraphs[attrKey] = { graphData: data, modValueFormula, onClickFormula };
+        } else {
+          widget.graphData = data;
+          if (this.widget?.type === "attribute") {
+            const attrOut = this.nodes.find(n => n.type === "attr_output");
+            if (attrOut) {
+              const mvEdge = this.edges.find(e => e.toNode === attrOut.id && e.toPin === "modValue");
+              const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
+              widget.modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
+            }
+            const onClickNode = this.nodes.find(n => n.type === "on_click");
+            const clickEdge   = onClickNode ? this.edges.find(e => e.fromNode === onClickNode.id && e.fromPin === "exec") : null;
+            widget.onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
+            widget.modFormula = undefined;
+            widget.formula    = undefined;
+          }
         }
         await doc.update({"system.customTabs":tabs});
       }
@@ -5976,6 +6153,12 @@ export class FormulaGraph {
     if (def?.isEvent) return EVENT_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
     if (def?.isMacroInput) return `{__macroArg:${fromPin ?? "a"}}`;
     if (def?.isAttackBranch || def?.isBranch || def?.isSaveBranch || def?.isTieredBranch || def?.isGenericBranch || def?.isProgressionBranch || def?.isAoeSave || def?.isAiBranch) {
+      // Per-node dynamic tokens (e.g. Dialog Builder's element-value pins
+      // resolve to {__dlg.<userId>} based on the user-set element id).
+      if (typeof def.dynamicBranchToken === "function") {
+        const tok = def.dynamicBranchToken(node, fromPin);
+        if (tok != null) return tok;
+      }
       return BRANCH_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
     }
     if (BRANCH_PIN_TOKENS[node.type]?.[fromPin]) {
@@ -6120,7 +6303,8 @@ export class FormulaGraph {
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if (s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         const act = def.toAction?.(node, ins) ?? {};
-        for (const pin of (def.outputs ?? [])) {
+        const _outs = def.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def.outputs ?? []);
+        for (const pin of _outs) {
           if (pin.type !== "exec") continue;
           const edge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin===pin.id);
           const before = [...actions];
@@ -6997,7 +7181,9 @@ export class FormulaGraph {
   }
 
   _addAttributeDefaultGraph() {
-    const scorePath = this.widget?.path ?? "system.attributes.attr1.value";
+    const attrKey   = this.saveCtx?.attrKey;
+    const scorePath = this.widget?.path
+      ?? (attrKey ? `system.attributes.${attrKey}.value` : "system.attributes.attr1.value");
     const scoreNode = { id:"attr_score_val", type:"attr_score_val", x:60,  y:160, data:{ path: scorePath } };
     const trigNode  = { id:"attr_on_click",  type:"on_click",       x:60,  y:330, data:{} };
     const outNode   = { id:"attr_output",    type:"attr_output",    x:500, y:240, data:{} };
@@ -7259,19 +7445,32 @@ export class FormulaGraph {
 
     const el=document.createElement("div");
     el.dataset.nid=node.id;
-    const W_MIN = def.wideNode ? 380 : def.isAttackBranch ? 320 : def.isBranch ? 270 : def.isAction ? 300 : (def.isOutput||def.isAttrOutput) ? 220 : 240;
+    // Base minimum width by node kind. wideNode bumps up to 440 because crit /
+    // fumble / formula labels routinely run long.
+    const W_BASE = def.wideNode ? 440 : def.isAttackBranch ? 340 : def.isBranch ? 280 : def.isAction ? 320 : (def.isOutput||def.isAttrOutput) ? 220 : 250;
+    // Longest static pin label across inputs + outputs. We count chars at
+    // ~7px per char for proportional 12px labels and add fixed padding for
+    // the dot, gap, edge insets, and the field column on the opposite side.
+    const _allPinLabels = [
+      ...(def.inputs ?? []).map(p => p.label ?? ""),
+      ...(def.outputs ?? []).map(p => p.label ?? "")
+    ];
+    const _longestPinLabel = _allPinLabels.reduce((m, s) => Math.max(m, String(s).length), 0);
+    const W_PIN = _longestPinLabel > 0 ? 80 + Math.ceil(_longestPinLabel * 7.2) : 0;
+    // Longest stored data string (for resolved widget paths, custom labels…).
     const _longestDataVal = Object.values(node.data ?? {}).reduce((max, v) => {
       const len = typeof v === "string" ? v.length : 0;
       return len > max ? len : max;
     }, 0);
-    const W_DATA = _longestDataVal > 0 ? Math.min(520, 100 + Math.ceil(_longestDataVal * 7.5)) : 0;
-    const W = Math.max(W_MIN, W_DATA);
+    const W_DATA = _longestDataVal > 0 ? Math.min(560, 100 + Math.ceil(_longestDataVal * 7.5)) : 0;
+    const W_MIN = W_BASE;
+    const W = Math.max(W_BASE, W_PIN, W_DATA);
 
     const _kind   = getNodeKind(def);
     const _accent = SD_NODE_KIND_COLOURS[_kind] ?? "rgba(255,255,255,.08)";
 
     el.dataset.kind = _kind;
-    el.style.cssText=`position:absolute;left:${node.x}px;top:${node.y}px;min-width:${W_MIN}px;width:${W}px;max-width:560px;
+    el.style.cssText=`position:absolute;left:${node.x}px;top:${node.y}px;min-width:${W_MIN}px;width:${W}px;max-width:640px;
       background:linear-gradient(180deg,#151a24,#101521);
       border:1px solid ${_accent}55;
       border-left:3px solid ${_accent};
@@ -7297,7 +7496,7 @@ export class FormulaGraph {
     const body=el.querySelector(".gnbody");
 
     let inputPins  = def.inputs??[];
-    const outputPins = def.outputs??[];
+    let outputPins = def.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def.outputs ?? []);
     const fields     = def.fields??[];
 
     if (def.isOutput) {
@@ -7504,7 +7703,11 @@ export class FormulaGraph {
     const dot=this._dotEl(node,pin,side);
     const lbl=document.createElement("span");
     lbl.textContent=_NL(pin.label||"");
-    lbl.style.cssText="font-size:12px;color:#98a6c6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;line-height:1";
+    // Pin labels used to be capped at 120px which clipped long names like
+    // "Crit Amount (used when Is Crit? is true)" into "Crit Amou…". Letting
+    // them grow up to 220px keeps every realistic label fully readable; the
+    // node itself widens to fit via the width logic in _renderNode.
+    lbl.style.cssText="font-size:12px;color:#98a6c6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;line-height:1";
     if(side==="input"){wrap.appendChild(dot);wrap.appendChild(lbl);}
     else{wrap.appendChild(lbl);wrap.appendChild(dot);}
     return wrap;
@@ -7808,9 +8011,16 @@ export class FormulaGraph {
       node.data[field.key]=inp.type==="number"?Number(ev.target.value):ev.target.value;
       this._updatePreview();
       if(field.type==="path" && liveBadge) _refreshLiveBadge();
-      if (field.type === "select") {
+      // Any field change that could flip a `visibleIf` predicate on another
+      // field — or affect a per-node dynamic output set (computeDynamicOutputs)
+      // — needs a full node re-render. We detect this by checking the def
+      // metadata once and re-render eagerly. Cheap: O(node fields) and only
+      // when the user is actively typing in this node.
+      {
         const _defV = NODE_DEFS[node.type];
-        if (_defV?.fields?.some(f => typeof f.visibleIf === "function")) {
+        const _hasVis = _defV?.fields?.some(f => typeof f.visibleIf === "function");
+        const _hasDyn = typeof _defV?.computeDynamicOutputs === "function";
+        if (_hasVis || _hasDyn) {
           this._renderNode(node); this._scheduleEdges?.(); return;
         }
       }

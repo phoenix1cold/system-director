@@ -16,6 +16,11 @@
         {{#each attrEntries as |attr|}}
         <div class="attr-config-row">
           <span class="attr-key-badge" title="Attribute key (used in data paths like system.attributes.{{attr.key}}.value)">{{attr.key}}</span>
+          <input type="text"
+                 name="attr_label_{{attr.key}}"
+                 value="{{attr.label}}"
+                 placeholder="Display name (e.g. Strength, Power, Might)"
+                 title="Custom display name for this attribute. The key ({{attr.key}}) is unchanged." />
           <label class="number-wrap" title="Base score applied to NEW actors only">
             <span class="initial-lbl">Base</span>
             <input type="number" step="1"

@@ -391,8 +391,8 @@ const reference = `
         <tr><td><code>{__savedTargets}</code> / <code>{__failedTargets}</code> / <code>{__allTargets}</code></td><td><code>act_place_aoe_save_branch</code></td><td>Comma-joined token-id lists for the saved / failed / all buckets.</td></tr>
         <tr><td><code>{__currentTarget}</code></td><td>per-target iterators</td><td>Token id of the current iteration when a branch is fanning out per-target.</td></tr>
         <tr><td><code>{__var:name|default}</code></td><td>Variables panel</td><td>Reads <code>actor.flags.sd.vars.&lt;name&gt;</code> with a literal default fallback.</td></tr>
-        <tr><td><code>{__sdIsEquipped}</code></td><td>Equip state</td><td>1 when the containing item is currently equipped, 0 otherwise.</td></tr>
         <tr><td><code>{__sdEqCount:category}</code></td><td>Equip state</td><td>Count of equipped inventory items in the named category (or <code>any</code>).</td></tr>
+        <tr><td><code>{__lastDice}</code></td><td>Roll → Value / Roll Check / Attack / Tiered / etc.</td><td>Comma-joined per-die results (active dice only) from the most recent roll node.</td></tr>
       </tbody>
     </table>
   </article>

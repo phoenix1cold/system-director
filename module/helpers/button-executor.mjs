@@ -23,6 +23,7 @@ function _writeRollMeta(buttonDef, {
     buttonDef.__lastFormula = f;
     buttonDef.__lastMin     = b.min;
     buttonDef.__lastMax     = b.max;
+    buttonDef.__lastAvg     = b.avg;
     const nat = leadingD20Natural(roll);
     buttonDef.__lastNatural = nat ?? 0;
     const _truthy = (v) => v === true || v === 1 || v === "1" || v === "yes" || v === "true";
@@ -50,6 +51,20 @@ function _writeRollMeta(buttonDef, {
     buttonDef.__lastFumbleFormula = fumbleFormula && String(fumbleFormula).trim() !== ""
       ? String(fumbleFormula)
       : "";
+    // Per-die results from the underlying Roll. Active dice only — kh/kl/dl
+    // discard markers are honoured, so what you see in chat (the dice that
+    // actually contributed to the total) is what downstream array nodes
+    // see. CSV-encoded so the existing array transport (comma-joined) keeps
+    // working with Array Length / Get Element / Filter / etc.
+    try {
+      const dice = [];
+      for (const d of (roll?.dice ?? [])) {
+        for (const r of (d?.results ?? [])) {
+          if (r && r.active !== false && !r.discarded) dice.push(Number(r.result));
+        }
+      }
+      buttonDef.__lastDice = dice.join(",");
+    } catch { buttonDef.__lastDice = ""; }
   } catch (e) {
     console.warn("SD | _writeRollMeta failed:", e);
   }
@@ -664,6 +679,9 @@ export class ButtonExecutor {
       if (buttonDef?.__lastMax !== undefined) {
         formula = formula.replace(/\{__lastMax\}/g, String(buttonDef.__lastMax));
       }
+      if (buttonDef?.__lastAvg !== undefined) {
+        formula = formula.replace(/\{__lastAvg\}/g, String(buttonDef.__lastAvg));
+      }
       if (buttonDef?.__lastNatural !== undefined) {
         formula = formula.replace(/\{__lastNatural\}/g, String(buttonDef.__lastNatural));
       }
@@ -678,6 +696,9 @@ export class ButtonExecutor {
       }
       if (buttonDef?.__lastFumbleFormula !== undefined) {
         formula = formula.replace(/\{__lastFumbleFormula\}/g, String(buttonDef.__lastFumbleFormula));
+      }
+      if (buttonDef?.__lastDice !== undefined) {
+        formula = formula.replace(/\{__lastDice\}/g, String(buttonDef.__lastDice));
       }
       if (buttonDef?.__dlgPicked !== undefined) {
         formula = formula.replace(/\{__dlgPicked\}/g, String(buttonDef.__dlgPicked));
@@ -766,10 +787,6 @@ export class ButtonExecutor {
         const v = vars[name];
         return v === undefined || v === null ? dflt : String(v);
       });
-      if (formula.includes("{__sdIsEquipped}")) {
-        const v = item?.system?.equipped ? 1 : 0;
-        formula = formula.replace(/\{__sdIsEquipped\}/g, String(v));
-      }
       formula = formula.replace(/\{__sdEqCount:([A-Za-z]+)\}/g, (_, cat) => {
         const owner = actor ?? item?.parent ?? null;
         const items = owner?.items?.contents ?? [];
@@ -845,16 +862,11 @@ export class ButtonExecutor {
         await roll.evaluate();
         if (buttonDef) buttonDef.__lastRoll = roll.total;
         if (rollData)  rollData.__lastRoll  = roll.total;
-        _writeRollMeta(buttonDef, {
-          roll, formula,
-          critOn:      Number(action.critOn ?? 20),
-          critFormula: action.critFormula ?? "",
-          isCritOverride: action.isCritOverride ?? null,
-          fumbleOn:         Number(action.fumbleOn ?? 1),
-          fumbleFormula:    action.fumbleFormula ?? "",
-          isFumbleOverride: action.isFumbleOverride ?? null,
-          rollData
-        });
+        // Roll Value is intentionally crit/fumble-free — _writeRollMeta still
+        // gets called for formula/min/max/avg/dice/natural; we just don't pass
+        // any crit overrides so __lastIsCrit / __lastCritFormula stay at their
+        // previous (or zero) values rather than being recomputed here.
+        _writeRollMeta(buttonDef, { roll, formula, rollData });
         if (safeActor) {
           try {
             await safeActor.setFlag("sd", "lastRoll", {
@@ -1758,29 +1770,6 @@ export class ButtonExecutor {
         break;
       }
 
-      case "consumeSlot": {
-        const slotActor = actor ?? null;
-        if (!slotActor) { ui.notifications.warn("No actor for consumeSlot."); break; }
-        const { FormulaEngine } = await import("./formula-engine.mjs");
-        const lvlRaw = _injectRuntime(String(action.level ?? 1));
-        const lvl    = String(Math.max(1, Math.round(Number(FormulaEngine.evaluate(lvlRaw, slotActor)) || 1)));
-        const slotPath  = `system.spellSlots.${lvl}`;
-        const slot      = foundry.utils.getProperty(slotActor, slotPath) ?? {};
-        const sv        = Number(slot.value ?? 0);
-        const sm        = Number(slot.max   ?? 0);
-        if (sm <= 0 || sv <= 0) {
-          for (const sub of (action.emptyActions ?? [])) {
-            await this._runAction(sub, item, actor, buttonDef, runtime);
-          }
-          break;
-        }
-        await slotActor.update({ [`${slotPath}.value`]: sv - 1 });
-        for (const sub of (action.okActions ?? [])) {
-          await this._runAction(sub, item, actor, buttonDef, runtime);
-        }
-        break;
-      }
-
       case "restoreSlot": {
         const slotActor = actor ?? null;
         if (!slotActor) break;
@@ -2452,24 +2441,65 @@ export class ButtonExecutor {
       case "chatHeal": {
         action = {
           ...action,
-          amount:      _injectRuntime(action.amount),
-          damageType:  action.damageType != null && action.damageType !== ""
-                         ? _injectRuntime(String(action.damageType))
-                         : action.damageType,
-          savePassed:  action.savePassed != null && action.savePassed !== ""
-                         ? _injectRuntime(String(action.savePassed))
-                         : action.savePassed,
-          target:      action.target != null && action.target !== ""
-                         ? _injectRuntime(String(action.target))
-                         : action.target,
-          targets:     action.targets != null ? _injectRuntime(String(action.targets)) : null
+          amount:       _injectRuntime(action.amount),
+          damageType:   action.damageType != null && action.damageType !== ""
+                          ? _injectRuntime(String(action.damageType))
+                          : action.damageType,
+          savePassed:   action.savePassed != null && action.savePassed !== ""
+                          ? _injectRuntime(String(action.savePassed))
+                          : action.savePassed,
+          isCrit:       action.isCrit != null && action.isCrit !== ""
+                          ? _injectRuntime(String(action.isCrit))
+                          : action.isCrit,
+          critAmount:   action.critAmount != null && action.critAmount !== ""
+                          ? _injectRuntime(String(action.critAmount))
+                          : action.critAmount,
+          isFumble:     action.isFumble != null && action.isFumble !== ""
+                          ? _injectRuntime(String(action.isFumble))
+                          : action.isFumble,
+          fumbleAmount: action.fumbleAmount != null && action.fumbleAmount !== ""
+                          ? _injectRuntime(String(action.fumbleAmount))
+                          : action.fumbleAmount,
+          target:       action.target != null && action.target !== ""
+                          ? _injectRuntime(String(action.target))
+                          : action.target,
+          targets:      action.targets != null ? _injectRuntime(String(action.targets)) : null
         };
         const isHeal = action.type === "chatHeal";
         const silent = action.silent === true || action.silent === "yes";
         const { FormulaEngine } = await import("./formula-engine.mjs");
 
+        // Crit / Fumble swap rules — both apply to Damage and Heal:
+        //   - if Is Crit?   truthy AND Crit Amount   non-empty → roll Crit Amount   instead of Amount
+        //   - else if Is Fumble? truthy AND Fumble Amount non-empty → roll Fumble Amount
+        //   - else                                                 → roll Amount
+        // Truthiness coerces numbers (0/non-zero), bool literals, and string
+        // forms ("0"/"1"/"yes"/"no"/"true"/"false"); evaluable expressions
+        // (e.g. "(@flag.x > 3)") fall through FormulaEngine.evaluate.
+        const _bool = (v) => {
+          if (v === undefined || v === null || v === "") return false;
+          if (typeof v === "number")  return v !== 0;
+          if (typeof v === "boolean") return v;
+          const s = String(v).trim().toLowerCase();
+          if (!s) return false;
+          if (["0","false","no","off","null","undefined"].includes(s)) return false;
+          try {
+            const evald = FormulaEngine.evaluate(String(v), item ?? actor ?? {});
+            const n = Number(evald);
+            if (Number.isFinite(n)) return n !== 0;
+            return Boolean(evald);
+          } catch { return true; }
+        };
+        const _useCrit   = _bool(action.isCrit)   && String(action.critAmount   ?? "").trim() !== "";
+        const _useFumble = !_useCrit && _bool(action.isFumble) && String(action.fumbleAmount ?? "").trim() !== "";
+        const _amtForRoll = _useCrit
+          ? String(action.critAmount).trim()
+          : _useFumble
+            ? String(action.fumbleAmount).trim()
+            : String(action.amount ?? "0");
+
         let amount = 0;
-        const amtStr = String(action.amount ?? "0");
+        const amtStr = _amtForRoll;
         if (/\d*d\d+/i.test(amtStr)) {
           try {
             const resolved = FormulaEngine.resolveForRoll(amtStr, item ?? actor);
@@ -2526,7 +2556,9 @@ export class ButtonExecutor {
 
           if (silent) continue;
 
-          const cardLabel = action.label ?? (isHeal ? "Healing" : "Damage");
+          const baseLabel = action.label ?? (isHeal ? "Healing" : "Damage");
+          const swingTag = _useCrit ? " — CRIT" : _useFumble ? " — FUMBLE" : "";
+          const cardLabel = `${baseLabel}${swingTag}`;
           const content = ButtonExecutor._buildChatCard({
             type:        isHeal ? "heal" : "damage",
             label:       resLabel ? `${cardLabel} (${resLabel})` : cardLabel,
@@ -2536,7 +2568,7 @@ export class ButtonExecutor {
             tActor,
             hpPath,
             showApply:   !autoApply && (action.showApply !== false && action.showApply !== "no"),
-            rollFormula: /\d*d\d+/i.test(String(action.amount ?? "")) ? String(action.amount) : null,
+            rollFormula: /\d*d\d+/i.test(String(_amtForRoll)) ? String(_amtForRoll) : null,
             srcActorId:  actor?.id ?? null,
             autoApplied: autoApply
           });
@@ -3029,12 +3061,17 @@ export class ButtonExecutor {
       case "dialogBuilder": {
         const { DialogV2 } = foundry.applications.api;
         let elements = [];
-        try {
-          elements = JSON.parse(action.elementsJson || "[]");
-          if (!Array.isArray(elements)) elements = [];
-        } catch (e) {
-          ui.notifications?.warn?.("SD | Dialog Builder: bad elements JSON.");
-          break;
+        if (Array.isArray(action.elements)) {
+          // New format (0.3.8+) — visual builder produces a clean array.
+          elements = action.elements;
+        } else if (typeof action.elementsJson === "string" && action.elementsJson.trim() !== "") {
+          // Legacy fallback — old graphs that still ship the JSON textarea.
+          try {
+            const parsed = JSON.parse(action.elementsJson);
+            if (Array.isArray(parsed)) elements = parsed;
+          } catch (e) {
+            ui.notifications?.warn?.("SD | Dialog Builder: bad legacy elementsJson.");
+          }
         }
         const title       = action.title       ?? "Dialog";
         const description = action.description ?? "";
@@ -3157,25 +3194,31 @@ export class ButtonExecutor {
         };
 
         // Build button list — one per rollButton element + Cancel.
+        // Each rollButton element may carry an `execIndex` (new visual builder)
+        // pointing to the original element index — that's used to pick which
+        // exec branch fires (`el${execIndex}_execActions`). Legacy elements
+        // without execIndex fall back to btn0..btn7 ordering.
         const rollButtons = elements
           .map((el, i) => ({ el, idx: i }))
           .filter(({ el }) => el && el.type === "rollButton");
         let dlgButtons = [];
         if (rollButtons.length > 0) {
-          let btnPin = 0;
+          let btnSeq = 0;
           for (const { el } of rollButtons) {
-            const pinId = `btn${btnPin++}`;
-            if (btnPin > 8) break;
+            const execIdx = Number.isInteger(el.execIndex) ? el.execIndex : btnSeq;
+            const pinId   = (Number.isInteger(el.execIndex)) ? `el${el.execIndex}_exec` : `btn${btnSeq}`;
+            btnSeq++;
+            if (btnSeq > 8) break;
             dlgButtons.push({
               action: `__sd_${pinId}__${el.id ?? ""}`,
               label:  el.label ?? "Roll",
               icon:   el.icon ?? "fas fa-dice-d20",
-              default: btnPin === 1,
-              callback: () => `${pinId}|${el.id ?? ""}`
+              default: btnSeq === 1,
+              callback: () => `${pinId}|${el.id ?? ""}|${el.emit === false ? "no" : "yes"}`
             });
           }
         } else {
-          dlgButtons.push({ action:"ok", label: okLabel, icon:"fas fa-check", default:true, callback: () => "ok|" });
+          dlgButtons.push({ action:"ok", label: okLabel, icon:"fas fa-check", default:true, callback: () => "ok||yes" });
         }
         dlgButtons.push({ action:"cancel", label: cancelLabel, icon:"fas fa-times" });
 
@@ -3249,12 +3292,15 @@ export class ButtonExecutor {
           }
           break;
         }
-        const [pinId, pickedId] = String(result).split("|");
+        const [pinId, pickedId, emitFlag] = String(result).split("|");
         if (buttonDef) buttonDef.__dlgPicked = pickedId || pinId || "";
 
-        // Run the matching exec branch (btn0..btn7) if a rollButton was picked,
-        // and always run `submitActions` after — single-source dispatch.
-        if (pinId && pinId.startsWith("btn")) {
+        // Run the matching exec branch:
+        //   • New format: pinId = "el<i>_exec"; only runs if the user enabled
+        //     "Emit exec on click?" for that element (emitFlag === "yes").
+        //   • Legacy:    pinId = "btn<n>"; always runs.
+        // submitActions runs unconditionally afterwards — single dispatch.
+        if (pinId && (pinId.startsWith("btn") || (/^el\d+_exec$/.test(pinId) && emitFlag === "yes"))) {
           const branch = action[`${pinId}Actions`] ?? [];
           for (const sub of branch) await this._runAction(sub, item, actor, buttonDef, runtime);
         }
@@ -3685,6 +3731,63 @@ export class ButtonExecutor {
           content: cardHtml,
           speaker: ChatMessage.getSpeaker({ actor }),
           flags:   { sd: { aoeSaveBranch: true } }
+        });
+        break;
+      }
+
+      // AoE -- No-Save Targets
+      // Same UX as Save Branch (post a chat card, click Place Template, drop
+      // the region) but skips all rolls. After placement we just collect
+      // every token inside the region and forward them as `allTargets` to
+      // the post-actions chain. Used to wire downstream Damage / Heal /
+      // Effect nodes' Targets pin to "everyone in the area".
+      case "placeAoeTargets": {
+        const shape       = action.shape ?? "circle";
+        const size        = Number(action.size  ?? 20)    || 20;
+        const angle       = Number(action.angle ?? 53.13) || 53.13;
+        const cardTitle   = String(action.cardTitle ?? "AoE Targets");
+        const shapeIcon   = { circle:"fa-circle", cone:"fa-ice-cream", ray:"fa-arrows-alt-h", rect:"fa-square" }[shape] ?? "fa-circle";
+
+        const _rtSnap = (() => {
+          if (!buttonDef) return null;
+          const o = {};
+          for (const k of ["__lastRoll","__lastMargin","__lastSuccesses","__lastBotches","__progPrev","__opposedWinnerRoll","__lastDice","__lastIsCrit","__lastCritFormula","__lastIsFumble","__lastFumbleFormula","__lastNatural","__lastFormula","__lastMin","__lastMax","__lastAvg"]) {
+            if (buttonDef[k] !== undefined) o[k] = buttonDef[k];
+          }
+          return Object.keys(o).length ? o : null;
+        })();
+
+        const cfg = JSON.stringify({
+          type:         "aoeTargets",
+          shape, size, angle,
+          persist:      action.persist === true,
+          postActions:  action.postActions ?? [],
+          runtimeSnapshot: _rtSnap,
+          srcActorId:   actor?.id ?? "",
+          srcItemUuid:  item?.uuid ?? ""
+        }).replace(/'/g, "&#39;");
+
+        const cardHtml = `
+<div class="sd-chat-aoe-card sd-chat-card sd-aoe-card" style="background:#f0ebe4;color:#191813;border:1px solid #b5b3a4;border-radius:4px;padding:8px 10px;font-family:'Signika',sans-serif;">
+  <header class="sd-chat-aoe-header" style="background:transparent;color:#191813;display:flex;align-items:center;gap:8px;padding:0 0 6px 0;margin:0 0 8px 0;border-bottom:1px solid #b5b3a4;font-size:14px;font-weight:600;">
+    <i class="fas fa-burst" style="opacity:.75;"></i>
+    <strong style="color:#191813;">${cardTitle}</strong>
+    <span class="sd-chat-aoe-mode" style="color:#555;font-weight:400;"> — Targets</span>
+  </header>
+  <div class="sd-chat-aoe-info" style="color:#191813;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:12px;margin-bottom:8px;">
+    <span style="color:#191813;"><i class="fas ${shapeIcon}" style="opacity:.6;margin-right:4px;"></i>${shape}</span>
+    <span style="color:#191813;"><i class="fas fa-ruler" style="opacity:.6;margin-right:4px;"></i>${size} ft</span>
+  </div>
+  <div class="sd-chat-aoe-results" style="display:none;color:#191813;font-size:12px;margin-bottom:8px;"></div>
+  <button type="button" class="sd-chat-aoe-targets-btn" data-aoe-targets-cfg='${cfg}' style="width:100%;padding:8px;background:#e0dcd4;color:#191813;border:1px solid #7a7971;border-radius:4px;font-weight:600;font-size:13px;cursor:pointer;">
+    <i class="fas fa-crosshairs"></i> Place Template
+  </button>
+</div>`;
+
+        await ChatMessage.create({
+          content: cardHtml,
+          speaker: ChatMessage.getSpeaker({ actor }),
+          flags:   { sd: { aoeTargets: true } }
         });
         break;
       }
