@@ -37,8 +37,6 @@ function extractArrayLiteral(name) {
 }
 const CATS = extractArrayLiteral("CATS");
 
-// Helpers
-
 const esc = (s) => String(s ?? "")
   .replace(/&/g, "&amp;")
   .replace(/</g, "&lt;")
@@ -88,12 +86,8 @@ const fieldType = (f) => {
   return esc(f.type || "text");
 };
 
-// Slugify a node id for anchors.
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
-// Category grouping
-
-// Build category → [nodes]
 const categoryOrder = CATS.map(c => c.id);
 const categoryColor = Object.fromEntries(CATS.map(c => [c.id, c.color]));
 const byCategory = {};
@@ -115,8 +109,6 @@ const orderedCats = [
 for (const c of orderedCats) {
   byCategory[c].sort((a, b) => (a[1].title ?? a[0]).localeCompare(b[1].title ?? b[0]));
 }
-
-// Renderers
 
 function renderPinRow(p) {
   const t = pinType(p);
@@ -230,8 +222,6 @@ function renderToc() {
 </nav>`;
 }
 
-// Worked examples
-
 const examples = `
 <section class="examples">
   <h2 id="examples-top">Worked examples</h2>
@@ -343,8 +333,6 @@ const examples = `
   </article>
 </section>`;
 
-// Reference sections
-
 const reference = `
 <section class="reference">
   <h2 id="reference-top">Reference</h2>
@@ -397,8 +385,6 @@ const reference = `
     </table>
   </article>
 </section>`;
-
-// Styles
 
 const styles = `
 :root {
@@ -511,8 +497,6 @@ table.pins th { background: var(--code-bg); font-weight: 600; }
 
 footer { text-align: center; padding: 20px; color: var(--muted); font-size: 12px; }
 `;
-
-// Page
 
 const visibleCount = Object.values(NODE_DEFS).filter(d => d && !d.hidden).length;
 const hiddenCount  = Object.values(NODE_DEFS).filter(d => d && d.hidden).length;

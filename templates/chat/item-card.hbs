@@ -40,7 +40,6 @@
   </div>
   {{/if}}
 
-  {{!-- Roll results --}}
   {{#if rolls.length}}
   <div class="card-rolls">
     {{#each rolls as |rollResult|}}
@@ -56,7 +55,6 @@
   </div>
   {{/if}}
 
-  {{!-- Uses remaining --}}
   {{#if system.uses.enabled}}
   <div class="card-uses">
     <span class="uses-label">{{localize "SD.Uses"}}</span>

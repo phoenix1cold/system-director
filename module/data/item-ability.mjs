@@ -12,7 +12,6 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
 
-      // Classification
       category: new StringField({
         initial: "active",
         choices: ["active","passive","reaction","free","special"],
@@ -26,14 +25,12 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
         max:   new NumberField({ required: true, integer: true, initial: 9, min: 0, nullable: false })
       }),
 
-      // Activation
       activation: new SchemaField({
         type:     new StringField({ initial: "action", choices: ["action","bonus","reaction","minute","hour","special","none"], blank: false }),
         cost:     new NumberField({ required: true, integer: true, initial: 1, nullable: false }),
         condition: new StringField({ initial: "", blank: true })
       }),
 
-      // Range / Area
       range: new SchemaField({
         value: new NumberField({ required: false, integer: false, initial: null, nullable: true }),
         units: new StringField({ initial: "ft", blank: false }),
@@ -46,14 +43,12 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
         type:  new StringField({ initial: "", choices: ["cube","cone","cylinder","line","sphere","square","radius",""], blank: true })
       }),
 
-      // Duration
       duration: new SchemaField({
         value: new NumberField({ required: false, integer: true, initial: null, nullable: true }),
         units: new StringField({ initial: "instant", choices: ["instant","turn","round","minute","hour","day","permanent","special"], blank: false }),
         concentration: new BooleanField({ initial: false })
       }),
 
-      // Roll
       roll: new SchemaField({
         enabled:     new BooleanField({ initial: true }),
         config:      RollConfigField({ label: "Action Roll" }),
@@ -63,7 +58,6 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
         saveDC:        new NumberField({ required: false, integer: true, initial: null, nullable: true })
       }),
 
-      // Damage / Healing
       damage: new SchemaField({
         enabled:    new BooleanField({ initial: false }),
         formula:    new StringField({ initial: "1d6", blank: false }),
@@ -72,14 +66,12 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
         versatile:  new StringField({ initial: "", blank: true })
       }),
 
-      // Resource Cost
       cost: new SchemaField({
         resource:  new StringField({ initial: "", blank: true }),
         value:     new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
         slotLevel: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false })
       }),
 
-      // Uses
       uses: new SchemaField({
         enabled: new BooleanField({ initial: false }),
         value:   new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
@@ -87,43 +79,36 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
         per:     new StringField({ initial: "day", choices: ["turn","round","short","long","day",""], blank: true })
       }),
 
-      // Requirements
       requirements: new SchemaField({
         level:        new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
         attribute:    new StringField({ initial: "", blank: true }),
         attributeMin: new NumberField({ required: true, integer: true, initial: 0, nullable: false })
       }),
 
-      // Tags / Components
       components: new ArrayField(new StringField({ blank: false })),
       tags:       new ArrayField(new StringField({ blank: false })),
 
       declaredAttrs: new ArrayField(new ObjectField()),
 
-      // Custom Tabs (Visual Builder)
       customTabs: new ArrayField(new ObjectField()),
 
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
-      // SLOTS
       slotDefinitions: new ArrayField(SlotDefinitionField()),
       slotContents:    new ObjectField({ initial: {} }),
-      // CUSTOM BUTTONS
+
       buttons: new ArrayField(ButtonDefinitionField()),
       hiddenFields: new ObjectField({ initial: { cost: "", pathUses: "", type: "" } }),
 
-      // On-Click Graph
       onClickGraph:   new ObjectField({ initial: {} }),
       onClickFormula: new StringField({ initial: "", blank: true }),
 
       effectTemplates: new ArrayField(new ObjectField()),
 
-      // Description
       description: new HTMLField({ initial: "", blank: true }),
       effect:      new HTMLField({ initial: "", blank: true }),
       source:      new StringField({ initial: "", blank: true }),
 
-      // Custom Flags
       flags: new ObjectField({ initial: {} })
     };
   }
@@ -158,7 +143,6 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
   }
 }
 
-
 export class FeatureData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
@@ -192,7 +176,7 @@ export class FeatureData extends foundry.abstract.TypeDataModel {
       description: new HTMLField({ initial: "", blank: true }),
       source:      new StringField({ initial: "", blank: true }),
       flags:       new ObjectField({ initial: {} }),
-      // On-Click Graph
+
       onClickGraph:   new ObjectField({ initial: {} }),
       onClickFormula: new StringField({ initial: "", blank: true }),
     };

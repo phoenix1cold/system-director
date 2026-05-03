@@ -1,13 +1,5 @@
 export class SnapshotItem extends Item {
 
-  /**
-   * Open an editable sheet for a slot snapshot.
-   *
-   * @param {object}  snapshot    -- raw snapshot data from slotContents.contents[idx]
-   * @param {Item}    parentItem  -- the live Foundry Item that owns the slot
-   * @param {string}  slotId     -- slot id on parentItem
-   * @param {number}  slotIndex  -- index of this snapshot in the slot contents array
-   */
   static async openForSnapshot(snapshot, parentItem, slotId, slotIndex) {
     if (!snapshot || !parentItem) return null;
 
@@ -62,7 +54,7 @@ export class SnapshotItem extends Item {
     });
 
     tempItem.update = async function(changes, options = {}) {
-      // FIX 2
+
       const expanded = foundry.utils.expandObject(changes);
 
       foundry.utils.mergeObject(this._source, expanded,
@@ -95,7 +87,6 @@ export class SnapshotItem extends Item {
       };
     }
 
-    // Render the sheet
     tempItem.sheet.render(true);
     return tempItem;
   }

@@ -40,51 +40,76 @@ export const NODE_TYPE_MIGRATIONS = {
   }
 };
 
-/**
- * In-place pin/field renames that DO NOT change the node type — used when a
- * single field/pin gets renamed inside a stable node type. Format:
- * {
- *   <nodeType>: {
- *     dataRename: { oldFieldKey: "newFieldKey" },
- *     pinRenameIn:  { oldPinId: "newPinId" },   // input edges (.toPin)
- *     pinRenameOut: { oldPinId: "newPinId" }    // output edges (.fromPin)
- *     dropDataKeys: ["oldKey1", ...],           // delete from node.data
- *     dropPinsIn:   ["oldPin1", ...],           // delete edges with this toPin
- *     dropPinsOut:  ["oldPin1", ...]            // delete edges with this fromPin
- *   }
- * }
- */
 export const NODE_FIELD_MIGRATIONS = {
-  // 0.3.7 — Damage / Heal: critFormula → critAmount, plus new fumbleAmount pin.
-  // Both pin (edges) and field (node.data) need to rename together.
+
   act_damage: {
     dataRename:   { critFormula: "critAmount" },
     pinRenameIn:  { critFormula: "critAmount" }
   },
   act_heal: {
-    // Heal only got crit/fumble pins in 0.3.7; nothing to rename, but the
-    // entry exists so future migrations stay grouped here.
+
   },
-  // 0.3.8 — Roll Value lost crit / fumble I/O. We drop the data fields and
-  // any edges that pointed at the now-removed pins (both sides).
+
   act_roll_value: {
     dropDataKeys: ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
     dropPinsIn:   ["critOn", "critFormula", "isCritOverride", "fumbleOn", "fumbleFormula", "isFumbleOverride"],
-    dropPinsOut:  ["natural", "isCrit", "critFormula", "isFumble", "fumbleFormula"]
+    dropPinsOut:  ["natural", "isCrit", "critFormula", "isFumble", "fumbleFormula"],
+
+    pinRenameOut: { dice: "diceArray" }
+  },
+
+  act_attack_check: {
+    pinRenameIn:  { isCritOverride: "isCrit", isFumbleOverride: "isFumble" },
+    dropDataKeys: ["critOn", "critFormula", "critFace", "fumbleOn", "fumbleFormula"],
+    dropPinsIn:   ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsOut:  ["critFormula", "fumbleFormula"]
+  },
+  act_roll_check: {
+    pinRenameIn:  { isCritOverride: "isCrit", isFumbleOverride: "isFumble" },
+    dropDataKeys: ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsIn:   ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsOut:  ["critFormula", "fumbleFormula"]
+  },
+  act_tiered_roll: {
+    pinRenameIn:  { isCritOverride: "isCrit", isFumbleOverride: "isFumble" },
+    dropDataKeys: ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsIn:   ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsOut:  ["critFormula", "fumbleFormula"]
+  },
+  act_dice_pool: {
+    pinRenameIn:  { isCritOverride: "isCrit", isFumbleOverride: "isFumble" },
+    dropDataKeys: ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsIn:   ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsOut:  ["critFormula", "fumbleFormula"]
+  },
+  act_progression: {
+    pinRenameIn:  { isCritOverride: "isCrit", isFumbleOverride: "isFumble" },
+    dropDataKeys: ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsIn:   ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsOut:  ["critFormula", "fumbleFormula"]
+  },
+  act_throw_on_canvas: {
+    pinRenameIn:  { isCritOverride: "isCrit", isFumbleOverride: "isFumble" },
+    dropDataKeys: ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsIn:   ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsOut:  ["critFormula", "fumbleFormula"]
+  },
+  act_throw_on_sheet: {
+    pinRenameIn:  { isCritOverride: "isCrit", isFumbleOverride: "isFumble" },
+    dropDataKeys: ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsIn:   ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsOut:  ["critFormula", "fumbleFormula"]
+  },
+  chat_save_button: {
+    pinRenameIn:  { isCritOverride: "isCrit", isFumbleOverride: "isFumble" },
+    dropDataKeys: ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsIn:   ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
+    dropPinsOut:  ["critFormula", "fumbleFormula"]
   }
 };
 
-/**
- * Per-node-type bespoke migrators. These run after the generic field/pin
- * passes and can mutate node.data + edges arbitrarily — used for one-off
- * structural conversions (e.g. Dialog Builder's elementsJson → per-element
- * fields). Signature: (node, edges) => number  (count of changes applied).
- */
 const NODE_CUSTOM_MIGRATIONS = {
-  // 0.3.8 — Dialog Builder lost its `elementsJson` textarea in favour of a
-  // visual per-element field block. Convert any legacy JSON we find into the
-  // new fields, mapping rollButton → "button" with execIndex preserved, and
-  // remap the old btn0..btn7 exec edges to el<execIndex>_exec.
+
   act_dialog_builder(node, edges) {
     const data = node.data || (node.data = {});
     const raw = data.elementsJson;
@@ -98,9 +123,7 @@ const NODE_CUSTOM_MIGRATIONS = {
     const MAX = 8;
     const items = arr.slice(0, MAX);
     let changes = 0;
-    // btnN exec mapping — the old executor wired rollButton elements (in
-    // source order) to btn0..btn7. We need the original element index of
-    // each rollButton so output edges remap to el<execIdx>_exec.
+
     const rollIdxByBtn = [];
     items.forEach((el, i) => {
       if (el && el.type === "rollButton") rollIdxByBtn.push(i);
@@ -118,14 +141,13 @@ const NODE_CUSTOM_MIGRATIONS = {
         (typeof def === "boolean") ? (def ? "yes" : "no") :
         String(def);
       data[`el${i}_options`] = Array.isArray(el?.options) ? el.options.join(",") : "";
-      // Old graphs had implicit emit=yes for every rollButton; preserve that.
+
       data[`el${i}_emit`]    = isBtn ? "yes" : "no";
       changes++;
     });
     delete data.elementsJson;
     changes++;
 
-    // Remap old btnN output edges → el<execIdx>_exec.
     for (const e of edges) {
       if (e.fromNode === node.id && /^btn[0-7]$/.test(e.fromPin)) {
         const n = Number(e.fromPin.slice(3));
@@ -140,14 +162,6 @@ const NODE_CUSTOM_MIGRATIONS = {
   }
 };
 
-/**
- * Pure function: walk {nodes, edges} and apply all registered migrations
- * in-place.  Safe to call multiple times -- migrated nodes are identified by
- * having the current type, so second passes are no-ops.
- *
- * @param {{nodes: Array, edges: Array}} graph
- * @returns {{changed: number}} statistics
- */
 export function migrateGraph(graph) {
   if (!graph || !Array.isArray(graph.nodes)) return { changed: 0 };
   const edges = Array.isArray(graph.edges) ? graph.edges : [];
@@ -162,7 +176,6 @@ export function migrateGraph(graph) {
     const oldType = node.type;
     const oldData = node.data ?? {};
 
-    // Rewrite type + data
     node.type = rule.newType;
     node.data = rule.dataMap ? rule.dataMap(oldData) : { ...oldData };
     changed++;
@@ -179,7 +192,6 @@ export function migrateGraph(graph) {
     }
   }
 
-  // Pass 2: in-place pin/field renames (no type change).
   for (const node of graph.nodes) {
     const fr = NODE_FIELD_MIGRATIONS[node?.type];
     if (!fr) continue;
@@ -217,8 +229,6 @@ export function migrateGraph(graph) {
     }
   }
 
-  // Pass 2.5: per-node-type bespoke migrators (structural rewrites that
-  // can't be expressed via the rename / drop tables).
   for (const node of graph.nodes) {
     const fn = NODE_CUSTOM_MIGRATIONS[node?.type];
     if (typeof fn === "function") {
@@ -231,9 +241,6 @@ export function migrateGraph(graph) {
     }
   }
 
-  // Pass 3: drop edges that reference removed pins. We collect by node type
-  // because dropping is a destructive operation we don't want mixed into the
-  // rename pass.
   const dropInByType  = new Map();
   const dropOutByType = new Map();
   for (const [type, fr] of Object.entries(NODE_FIELD_MIGRATIONS)) {

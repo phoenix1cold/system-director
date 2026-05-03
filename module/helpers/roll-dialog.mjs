@@ -15,7 +15,7 @@ export class SdRollDialog {
     const parsed = SdRollDialog.parseFormula(formula);
 
     const renderTpl = foundry.applications?.handlebars?.renderTemplate
-      ?? foundry.utils.fetchJsonWithTimeout  // fallback guard
+      ?? foundry.utils.fetchJsonWithTimeout
       ?? renderTemplate;
 
     const rollModes = Object.entries(CONFIG.Dice.rollModes ?? {}).map(([key, val]) => ({

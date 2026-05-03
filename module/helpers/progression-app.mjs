@@ -1,13 +1,10 @@
 const { ApplicationV2 } = foundry.applications.api;
 
-// Helpers
-
 function rndId()      { return foundry.utils.randomID(8); }
 function dc(obj)      { return foundry.utils.deepClone(obj); }
 function e(str)       { return String(str ?? "").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
 function loc(key)     { return game.i18n.localize(key); }
 
-/** Walk a dot-path on an object and return the leaf value. */
 function getNestedValue(obj, path) {
   return path.split(".").reduce((cur, k) => cur?.[k], obj);
 }
@@ -20,12 +17,10 @@ function buildFieldUpdate(actor, { path, mode, value }) {
   switch (mode) {
     case "set":      newVal = safe; break;
     case "multiply": newVal = current * safe; break;
-    default:         newVal = current + safe; break; // "add"
+    default:         newVal = current + safe; break;
   }
   return { [path]: newVal };
 }
-
-// ProgressionApp
 
 export class ProgressionApp extends ApplicationV2 {
 
@@ -41,7 +36,6 @@ export class ProgressionApp extends ApplicationV2 {
     position: { width: 720, height: 560 }
   };
 
-  /** One instance per actor id. */
   static _instances = new Map();
 
   static open(actor) {
@@ -55,8 +49,6 @@ export class ProgressionApp extends ApplicationV2 {
     return inst;
   }
 
-  // Constructor
-
   constructor(options = {}) {
     super({ ...options, id: `sd-progression-${options.actor?.id ?? "unknown"}` });
     this._actor        = options.actor;
@@ -64,8 +56,6 @@ export class ProgressionApp extends ApplicationV2 {
     this._editMode     = false;
     this._connectFrom  = null;
   }
-
-  // Getters
 
   get title() {
     return `${loc("SD.Progression.Title")} — ${this._actor?.name ?? ""}`;
@@ -79,7 +69,6 @@ export class ProgressionApp extends ApplicationV2 {
     return this._actor.getFlag("sd", "progression.state") ?? { appliedLevel: 0, acquiredNodes: {} };
   }
 
-  /** Levels array from the linked class item, or from inline config. */
   get _levels() {
     const cfg = this._config;
     if (cfg.classItemId) {
@@ -89,7 +78,6 @@ export class ProgressionApp extends ApplicationV2 {
     return cfg.inlineLevels ?? [];
   }
 
-  /** Skill-tree data object from the linked skilltree item, or from inline config. */
   get _skilltree() {
     const cfg = this._config;
     if (cfg.skilltreeItemId) {
@@ -99,20 +87,15 @@ export class ProgressionApp extends ApplicationV2 {
     return cfg.inlineSkilltree ?? null;
   }
 
-  // Rendering
-
   async _renderHTML(context, options) {
     return this._buildHTML();
   }
 
-  /** Replace content with fresh HTML. */
   _replaceHTML(result, content, options) {
     content.innerHTML = result;
   }
 
   async _prepareContext(options) { return {}; }
-
-  // HTML builders
 
   _buildHTML() {
     const levels    = this._levels;
@@ -128,7 +111,6 @@ export class ProgressionApp extends ApplicationV2 {
 
     let html = `<div class="sd-prog-app" data-actor-id="${this._actor.id}">`;
 
-    /* ── Top bar ─────────────────────────────────────────────────────── */
     html += `<div class="sd-prog-topbar">`;
 
     if (bothTabs) {
@@ -152,7 +134,6 @@ export class ProgressionApp extends ApplicationV2 {
 
     html += `</div>`;
 
-    /* ── Body ────────────────────────────────────────────────────────── */
     html += `<div class="sd-prog-body">`;
 
     if (!bothTabs || this._tab === "levelup") {
@@ -166,15 +147,12 @@ export class ProgressionApp extends ApplicationV2 {
     return html;
   }
 
-  /* ── Level-Up section ────────────────────────────────────────────────── */
-
   _buildLevelUpHTML(levels, state, cfg, em, isGM) {
     const appliedLevel = state.appliedLevel ?? 0;
     const curLevel     = this._actor.system?.advancement?.level ?? 1;
 
     let html = `<div class="sd-prog-levelup">`;
 
-    /* header row */
     html += `<div class="sd-prog-lu-hdr">
       <div class="sd-prog-cur-level">
         <span class="sd-prog-cur-num">${curLevel}</span>
@@ -198,9 +176,8 @@ export class ProgressionApp extends ApplicationV2 {
         </button>`;
     }
 
-    html += `</div>`; // lu-hdr
+    html += `</div>`;
 
-    /* levels list */
     if (levels.length === 0) {
       html += `<p class="sd-prog-empty">${em ? loc("SD.Progression.EmptyClickAdd") : loc("SD.Progression.NoLevels")}</p>`;
     }
@@ -215,7 +192,6 @@ export class ProgressionApp extends ApplicationV2 {
 
       html += `<div class="${classes}" data-level-idx="${i}">`;
 
-      /* entry header */
       html += `<div class="sd-prog-le-hdr">
         <span class="sd-prog-le-badge"><i class="fas fa-chevron-up"></i> ${loc("SD.Progression.Level")} ${lv.level}</span>`;
 
@@ -235,10 +211,7 @@ export class ProgressionApp extends ApplicationV2 {
         </button>`;
       } else if (!em && applied) {
         html += `<span class="sd-prog-applied-badge"><i class="fas fa-check-circle"></i> ${loc("SD.Progression.Applied")}</span>`;
-        // Rollback is offered only on the highest applied level — once we
-        // unwind that one, the *next* level down becomes the latest and
-        // shows its own rollback button. This keeps the apply/rollback
-        // history strictly linear.
+
         if (lv.level === appliedLevel) {
           html += `<button type="button" class="sd-prog-rollback-btn" data-action="rollbackLevel" data-idx="${i}" title="${loc("SD.Progression.Rollback") || "Rollback"}">
             <i class="fas fa-rotate-left"></i> ${loc("SD.Progression.Rollback") || "Rollback"}
@@ -253,10 +226,8 @@ export class ProgressionApp extends ApplicationV2 {
 
       html += `</div></div>`;
 
-      /* rewards grid */
       html += `<div class="sd-prog-le-rewards">`;
 
-      /* items */
       html += `<div class="sd-prog-le-col">
         <div class="sd-prog-le-sec-title"><i class="fas fa-backpack"></i> ${loc("SD.Progression.Items")}</div>
         <div class="sd-prog-items-zone ${em ? "droppable" : ""}" data-drop-target="levelItem" data-level-idx="${i}">`;
@@ -276,7 +247,6 @@ export class ProgressionApp extends ApplicationV2 {
 
       html += `</div></div>`;
 
-      /* field changes */
       html += `<div class="sd-prog-le-col">
         <div class="sd-prog-le-sec-title">
           <i class="fas fa-sliders-h"></i> ${loc("SD.Progression.FieldChanges")}
@@ -318,9 +288,8 @@ export class ProgressionApp extends ApplicationV2 {
         }
       }
 
-      html += `</div>`; // le-col
+      html += `</div>`;
 
-      /* effects */
       html += `<div class="sd-prog-le-col">
         <div class="sd-prog-le-sec-title">
           <i class="fas fa-magic"></i> ${loc("SD.Progression.Effects")}
@@ -342,15 +311,13 @@ export class ProgressionApp extends ApplicationV2 {
 
       html += `</div>`;
 
-      html += `</div>`; // le-rewards
-      html += `</div>`; // level-entry
+      html += `</div>`;
+      html += `</div>`;
     }
 
     html += `</div></div>`;
     return html;
   }
-
-  /* ── Skill-Tree section ──────────────────────────────────────────────── */
 
   _buildSkillTreeHTML(st, state, cfg, em, isGM) {
     const acquiredNodes = state.acquiredNodes ?? {};
@@ -359,19 +326,12 @@ export class ProgressionApp extends ApplicationV2 {
 
     let html = `<div class="sd-prog-skilltree">`;
 
-  /* source drop / toolbar */
   html += `<div class="sd-prog-st-toolbar">`;
 
-  // Skill Points display
   const sp = this._actor.system?.skillPoints ?? { value: 0, max: 0 };
   const spValue = sp.value ?? 0;
   const spMax = sp.max ?? 0;
-  // Inline colors here intentionally use the system theme variables
-  // (`var(--sd-bg-2)` / `var(--sd-accent)` / `var(--sd-text-2)` / etc),
-  // not hardcoded hex, so the SP block follows the active Appearance
-  // theme. The matching wrapper class is `.sd-prog-sp-block` whose
-  // base styling lives in `system.css` under the `.sd-progression-app`
-  // selector tree.
+
   html += `<div class="sd-prog-sp-block" style="display:flex;align-items:center;gap:6px;padding:2px 8px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;margin-right:auto;">
     <i class="fas fa-star" style="color:var(--sd-accent);font-size:12px;"></i>
     <span style="font-size:11px;color:var(--sd-label);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">${loc("SD.Progression.SkillPoints")}</span>
@@ -415,7 +375,7 @@ export class ProgressionApp extends ApplicationV2 {
     }
   }
 
-  html += `</div>`; // st-toolbar
+  html += `</div>`;
 
     if (!st && !em) {
       html += `<p class="sd-prog-empty">${loc("SD.Progression.NoSkilltree")}</p></div>`;
@@ -433,7 +393,6 @@ export class ProgressionApp extends ApplicationV2 {
     html += `<div class="sd-prog-st-scroll">
       <div class="sd-prog-st-canvas" style="width:${W}px; height:${H}px; position:relative;">`;
 
-    /* SVG layer for connections */
     html += `<svg class="sd-prog-st-svg"
                   width="${W}" height="${H}"
                   viewBox="0 0 ${W} ${H}"
@@ -481,7 +440,6 @@ export class ProgressionApp extends ApplicationV2 {
 
     html += `</svg>`;
 
-    /* Cell grid */
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const node  = nodes.find(n => n.col === col && n.row === row);
@@ -544,10 +502,10 @@ export class ProgressionApp extends ApplicationV2 {
             </div>`;
           }
 
-          html += `</div>`; // node
+          html += `</div>`;
 
         } else if (em && isGM) {
-          // Empty droppable cell
+
           html += `<div class="sd-prog-st-cell" style="${style}"
                    data-col="${col}" data-row="${row}"
                    data-drop-target="stNode"
@@ -562,20 +520,15 @@ export class ProgressionApp extends ApplicationV2 {
     return html;
   }
 
-  /* ── Prerequisite check ──────────────────────────────────────────────── */
-
   _canAcquireNode(node, connections, acquiredNodes, allNodes) {
     const prereqs = connections.filter(c => c.to === node.id).map(c => c.from);
     if (!prereqs.length) return true;
     return prereqs.every(pid => (acquiredNodes[pid] ?? 0) > 0);
   }
 
-  // Event wiring
-
   _onRender(context, options) {
     const el = this.element;
 
-    /* Tab buttons */
     el.querySelectorAll(".sd-prog-tab[data-tab]").forEach(btn =>
       btn.addEventListener("click", () => { this._tab = btn.dataset.tab; this.render(); })
     );
@@ -584,7 +537,6 @@ export class ProgressionApp extends ApplicationV2 {
       btn.addEventListener("click", ev => { ev.stopPropagation(); this._handleAction(btn); })
     );
 
-    /* Inline input live-saves */
     el.querySelectorAll("[data-action='changeLevelLabel']").forEach(inp =>
       inp.addEventListener("change", ev =>
         this._updateLevelField(+ev.target.dataset.idx, "label", ev.target.value))
@@ -602,7 +554,6 @@ export class ProgressionApp extends ApplicationV2 {
         this._updateFc(+ev.target.dataset.levelIdx, +ev.target.dataset.fcIdx, "value", ev.target.value))
     );
 
-    /* Skill-tree dimension inputs */
     el.querySelectorAll("[data-action='stSetCols']").forEach(inp =>
       inp.addEventListener("change", ev => this._stSetDim("cols", +ev.target.value))
     );
@@ -610,7 +561,6 @@ export class ProgressionApp extends ApplicationV2 {
       inp.addEventListener("change", ev => this._stSetDim("rows", +ev.target.value))
     );
 
-    /* SVG connection click-to-delete */
     el.querySelectorAll(".sd-prog-conn[data-action='deleteConnection']").forEach(line => {
       line.addEventListener("click", ev => {
         ev.stopPropagation();
@@ -618,7 +568,6 @@ export class ProgressionApp extends ApplicationV2 {
       })
     });
 
-    /* Skill Points ± step buttons */
     el.querySelectorAll("[data-action='spStep']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const step = parseInt(btn.dataset.step) || 1;
@@ -629,7 +578,6 @@ export class ProgressionApp extends ApplicationV2 {
       });
     });
 
-    /* Skill Points value input */
     el.querySelectorAll("[data-action='spSetValue']").forEach(inp => {
       inp.addEventListener("change", async () => {
         const v = Math.max(0, parseInt(inp.value) || 0);
@@ -638,7 +586,6 @@ export class ProgressionApp extends ApplicationV2 {
       });
     });
 
-    /* Skill Points max input */
     el.querySelectorAll("[data-action='spSetMax']").forEach(inp => {
       inp.addEventListener("change", async () => {
         const v = Math.max(0, parseInt(inp.value) || 0);
@@ -647,7 +594,6 @@ export class ProgressionApp extends ApplicationV2 {
       });
     });
 
-    /* Skill Points copy-path button */
     el.querySelectorAll("[data-action='spCopyPath']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const path = "system.skillPoints.value";
@@ -656,7 +602,6 @@ export class ProgressionApp extends ApplicationV2 {
       });
     });
 
-    /* Drag-drop — skill-tree empty cells */
     el.querySelectorAll(".sd-prog-st-cell").forEach(cell => {
       cell.addEventListener("dragover",  ev => { ev.preventDefault(); cell.classList.add("drag-over"); });
       cell.addEventListener("dragleave", ()  => cell.classList.remove("drag-over"));
@@ -666,7 +611,6 @@ export class ProgressionApp extends ApplicationV2 {
       });
     });
 
-    /* Drag-drop — skill-tree existing nodes (replace item) */
     el.querySelectorAll(".sd-prog-st-node.editable").forEach(node => {
       node.addEventListener("dragover",  ev => { ev.preventDefault(); node.classList.add("drag-over"); });
       node.addEventListener("dragleave", ()  => node.classList.remove("drag-over"));
@@ -676,7 +620,6 @@ export class ProgressionApp extends ApplicationV2 {
       });
     });
 
-    /* Drag-drop — source-drop zones (class / skilltree items) */
     el.querySelectorAll(".sd-prog-source-drop").forEach(zone => {
       zone.addEventListener("dragover",  ev => { ev.preventDefault(); zone.classList.add("drag-over"); });
       zone.addEventListener("dragleave", ()  => zone.classList.remove("drag-over"));
@@ -689,22 +632,18 @@ export class ProgressionApp extends ApplicationV2 {
     });
   }
 
-  // Action dispatch
-
   async _handleAction(target) {
     const action = target.dataset.action;
     const isGM   = game.user.isGM;
 
     switch (action) {
 
-      /* ── generic ─────────────────────────────────────────────────── */
       case "toggleEdit":
         if (!isGM) return;
         this._editMode = !this._editMode;
         this.render();
         break;
 
-      /* ── level up ────────────────────────────────────────────────── */
       case "addLevel":
         if (!isGM) return;
         await this._addLevel();
@@ -748,7 +687,6 @@ export class ProgressionApp extends ApplicationV2 {
         await this._removeEffect(+target.dataset.levelIdx, +target.dataset.effectIdx);
         break;
 
-      /* ── skill tree ──────────────────────────────────────────────── */
       case "acquireNode": {
         const nodeId = target.closest("[data-node-id]")?.dataset?.nodeId ?? target.dataset.nodeId;
         if (nodeId) await this._acquireNode(nodeId);
@@ -800,13 +738,10 @@ export class ProgressionApp extends ApplicationV2 {
         this.render();
         break;
 
-      /* Window-chrome actions — delegate to ApplicationV2 */
       case "close":    this.close();    break;
       case "minimize": this.minimize(); break;
     }
   }
-
-  // Level-Up operations
 
   async _addLevel() {
     const levels    = dc(this._levels);
@@ -896,9 +831,6 @@ export class ProgressionApp extends ApplicationV2 {
 
     const actor = this._actor;
 
-    // Snapshot every value we are about to overwrite so a future rollback
-    // can put the actor back exactly where it was. We also remember the
-    // previous applied-level so a chain of rollbacks unwinds correctly.
     const snapshot = {
       level:            lv.level,
       prevAppliedLevel: this._state.appliedLevel ?? 0,
@@ -907,7 +839,6 @@ export class ProgressionApp extends ApplicationV2 {
       grantedEffectIds: []
     };
 
-    /* Field changes — record current value of each touched path before update */
     const updates = {};
     for (const fc of (lv.fieldChanges ?? [])) {
       if (!(fc.path in snapshot.prevValues)) {
@@ -916,10 +847,6 @@ export class ProgressionApp extends ApplicationV2 {
       Object.assign(updates, buildFieldUpdate(actor, fc));
     }
 
-    // Always advance system.advancement.level so the leveling rewards are
-    // tied to the actor's actual level — independent of whether the user
-    // remembered to add a field-change for it. We snapshot the previous
-    // value first so rollback restores it cleanly.
     if (!("system.advancement.level" in snapshot.prevValues)) {
       snapshot.prevValues["system.advancement.level"] = actor.system?.advancement?.level ?? null;
     }
@@ -927,21 +854,18 @@ export class ProgressionApp extends ApplicationV2 {
 
     if (Object.keys(updates).length) await actor.update(updates);
 
-    /* Grant items */
     const itemDatas = (lv.items ?? []).map(snap => { const d = dc(snap); delete d._id; return d; });
     if (itemDatas.length) {
       const created = await actor.createEmbeddedDocuments("Item", itemDatas);
       snapshot.grantedItemIds = (created ?? []).map(d => d.id);
     }
 
-    /* Apply effects */
     const effectDatas = (lv.effects ?? []).map(ef => { const d = dc(ef); delete d._id; return d; });
     if (effectDatas.length) {
       const created = await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
       snapshot.grantedEffectIds = (created ?? []).map(d => d.id);
     }
 
-    /* Update state */
     const state = dc(this._state);
     state.appliedLevel = lv.level;
     state.history ??= {};
@@ -952,16 +876,6 @@ export class ProgressionApp extends ApplicationV2 {
     this.render();
   }
 
-  /**
-   * Undo a previously applied level: restores any system fields to the
-   * value they held before Apply ran, deletes the items/effects that were
-   * granted by the level, and rolls `state.appliedLevel` back to whatever
-   * was applied just before this one.
-   *
-   * Only the most-recently-applied level offers a rollback button (see
-   * `_buildLevelUpHTML`), so we don't have to reason about out-of-order
-   * unwinds.
-   */
   async _rollbackLevel(levelIdx) {
     const levels = this._levels;
     const lv     = levels[levelIdx];
@@ -980,29 +894,23 @@ export class ProgressionApp extends ApplicationV2 {
     const actor = this._actor;
 
     if (snapshot) {
-      // Restore previous field values.
+
       const restore = {};
       for (const [path, value] of Object.entries(snapshot.prevValues ?? {})) {
         restore[path] = value;
       }
       if (Object.keys(restore).length) await actor.update(restore);
 
-      // Delete items granted by this level (skip ones the user already
-      // removed manually).
       const itemIds = (snapshot.grantedItemIds ?? []).filter(id => actor.items.has(id));
       if (itemIds.length) await actor.deleteEmbeddedDocuments("Item", itemIds);
 
-      // Delete effects granted by this level.
       const effectIds = (snapshot.grantedEffectIds ?? []).filter(id => actor.effects.has(id));
       if (effectIds.length) await actor.deleteEmbeddedDocuments("ActiveEffect", effectIds);
 
       state.appliedLevel = snapshot.prevAppliedLevel ?? 0;
       delete state.history[String(lv.level)];
     } else {
-      // No snapshot exists (e.g. the level was applied by an old build that
-      // didn't record one). Best-effort: just decrement the applied-level
-      // marker so the UI no longer treats it as applied. Nothing else can
-      // be safely undone without a snapshot.
+
       state.appliedLevel = Math.max(0, lv.level - 1);
     }
 
@@ -1011,8 +919,6 @@ export class ProgressionApp extends ApplicationV2 {
     ui.notifications.info((loc("SD.Progression.LevelRolledBack") || "Level {level} rolled back").replace("{level}", lv.level));
     this.render();
   }
-
-  // Skill-tree operations
 
   async _stSetDim(dim, value) {
     const st = dc(this._skilltree ?? { cols: 8, rows: 5, nodes: [], connections: [] });
@@ -1081,25 +987,21 @@ export class ProgressionApp extends ApplicationV2 {
 
     const actor = this._actor;
 
-    /* Deduct skill points */
     if (nodeCost > 0) {
       await actor.update({
         "system.skillPoints.value": (sp.value ?? 0) - nodeCost
       });
     }
 
-    /* Field changes */
     const updates = {};
     for (const fc of (node.fieldChanges ?? [])) Object.assign(updates, buildFieldUpdate(actor, fc));
     if (Object.keys(updates).length) await actor.update(updates);
 
-    /* Grant item */
     if (node.item) {
       const d = dc(node.item); delete d._id;
       await actor.createEmbeddedDocuments("Item", [d]);
     }
 
-    /* Apply effects */
     const effectDatas = (node.effects ?? []).map(ef => { const d = dc(ef); delete d._id; return d; });
     if (effectDatas.length) await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
 
@@ -1181,13 +1083,13 @@ export class ProgressionApp extends ApplicationV2 {
       },
       render: (event, dialog) => {
         const el = dialog.element;
-        /* Delete FC row */
+
         el.addEventListener("click", ev => {
           if (ev.target.closest(".nc-del-fc")) {
             ev.target.closest(".sd-prog-fc-row")?.remove();
           }
         });
-        /* Add FC row */
+
         el.querySelector("#nc-add-fc")?.addEventListener("click", () => {
           const container = el.querySelector("#nc-fcs");
           const idx = container.querySelectorAll(".sd-prog-fc-row").length;
@@ -1210,8 +1112,6 @@ export class ProgressionApp extends ApplicationV2 {
       if (nIdx >= 0) { st.nodes[nIdx] = node; await this._saveSkilltree(st); this.render(); }
     }
   }
-
-  // Drag-drop handlers
 
   async _handleItemDrop(event, levelIdx) {
     event.preventDefault();
@@ -1307,8 +1207,6 @@ export class ProgressionApp extends ApplicationV2 {
     try { return data.uuid ? await fromUuid(data.uuid) : null; } catch { return null; }
   }
 
-  // Persistence helpers
-
   async _saveLevels(levels) {
     const cfg = this._config;
     if (cfg.classItemId) {
@@ -1338,8 +1236,6 @@ export class ProgressionApp extends ApplicationV2 {
     cfg[field]  = value;
     await this._actor.setFlag("sd", "progression.config", cfg);
   }
-
-  // Utility
 
   async _promptString(title, initial = "") {
     return foundry.applications.api.DialogV2.prompt({

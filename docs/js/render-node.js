@@ -1,10 +1,3 @@
-// Render a single node-graph node visually, in the same style as the
-// in-module formula-graph editor. Pure DOM, no Foundry deps.
-//
-// Call:
-//   const el = renderNode(def, { showFields: true, scale: 1 });
-//   container.appendChild(el);
-
 import { pickLocale, t } from "./i18n.js";
 
 const KIND_COLOURS = {
@@ -58,7 +51,7 @@ function elt(tag, attrs = {}, children = []) {
   return e;
 }
 
-function pinRow(p, side /* "input" | "output" */) {
+function pinRow(p, side ) {
   const isExec = p.type === "exec";
   const cls = ["pin"];
   if (side === "output") cls.push("right");
@@ -104,15 +97,6 @@ function fieldRow(f, value) {
   return wrap;
 }
 
-/**
- * Render one node card.
- * @param {object} def - node definition (from nodes.json)
- * @param {object} opts
- * @param {boolean} [opts.showFields=true]
- * @param {object}  [opts.data]   pre-filled field values
- * @param {string}  [opts.title]  override title
- * @param {number}  [opts.width]  fixed width override
- */
 export function renderNode(def, opts = {}) {
   const showFields = opts.showFields !== false;
   const kind   = nodeKind(def);
@@ -126,7 +110,6 @@ export function renderNode(def, opts = {}) {
            (opts.width ? `width:${opts.width}px;` : "")
   });
 
-  // Header
   const hdr = elt("div", { class: "nhdr" }, [
     opts.title ?? pickLocale(def.title, def.id)
   ]);
@@ -140,7 +123,6 @@ export function renderNode(def, opts = {}) {
   const outputs = def.outputs ?? [];
   const fields  = def.fields ?? [];
 
-  // dynamic pin preview (only show one extra dynamic pin slot)
   const dynPins = [];
   if (def.dynamicPins) {
     const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [{ ...def.dynamicPins, label: "Slot" }];
@@ -152,13 +134,11 @@ export function renderNode(def, opts = {}) {
     }
   }
 
-  // exec inputs row
   const execIns  = inputs.filter(p => p.type === "exec");
   const execOuts = outputs.filter(p => p.type === "exec");
   const valIns   = inputs.filter(p => p.type !== "exec");
   const valOuts  = outputs.filter(p => p.type !== "exec");
 
-  // Top exec row(s): show input + first output exec on same row
   const execRowCount = Math.max(execIns.length, execOuts.length);
   for (let i = 0; i < execRowCount; i++) {
     const row = elt("div", { class: "nrow" });
@@ -170,7 +150,6 @@ export function renderNode(def, opts = {}) {
     body.appendChild(row);
   }
 
-  // Field rows mixed with pin rows like in editor
   const fieldByKey = Object.fromEntries(fields.map(f => [f.key, f]));
   const valInPins = valIns.concat(dynPins);
 
@@ -178,7 +157,6 @@ export function renderNode(def, opts = {}) {
   let pinIdx = 0, outIdx = 0, fldIdx = 0;
   const used = new Set();
 
-  // Strategy: pair input pins with same-key fields inline, then leftovers.
   const data = opts.data ?? {};
   for (const p of valInPins) {
     const row = elt("div", { class: "nrow" });
@@ -194,7 +172,6 @@ export function renderNode(def, opts = {}) {
     body.appendChild(row);
   }
 
-  // Fields without matching pins
   if (showFields) {
     for (const f of fields) {
       if (used.has(f.key)) continue;
@@ -208,7 +185,6 @@ export function renderNode(def, opts = {}) {
     }
   }
 
-  // Remaining outputs
   while (valOuts[outIdx]) {
     const row = elt("div", { class: "nrow" });
     const left = elt("div", { class: "left" });
@@ -222,7 +198,6 @@ export function renderNode(def, opts = {}) {
   return node;
 }
 
-/** Convenience: build a small "wire" between two anchored nodes for examples. */
 export function ghostWire(color = "#7b68ee", w = 36) {
   return elt("div", {
     class: "ex-arrow",

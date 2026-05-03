@@ -1,6 +1,5 @@
 <section class="tab-content" data-group="sheet" data-tab="slots">
 
-  {{!-- ── Slot Definitions ─────────────────────────────────────────────── --}}
   <div class="section-block">
     <div class="section-title">
       <i class="fas fa-layer-group"></i> Slot Definitions
@@ -16,7 +15,6 @@
       {{#each slots as |slot slotIdx|}}
       <div class="slot-def-row" data-slot-index="{{slotIdx}}">
 
-        {{!-- Header row --}}
         <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
           <span class="attr-key-badge" style="font-size:10px;min-width:auto;padding:2px 7px">{{slot.def.id}}</span>
           <input type="text" class="slot-def-label"
@@ -40,7 +38,6 @@
           {{/if}}
         </div>
 
-        {{!-- Restrictions --}}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
           <div>
             <label>Allowed Types</label>
@@ -58,7 +55,6 @@
           </div>
         </div>
 
-        {{!-- Attribute Filters ──────────────────────────────────────────── --}}
         <div class="attr-filter-block">
           <div class="attr-filter-header">
             <span><i class="fas fa-filter"></i> Attribute Filters</span>
@@ -68,7 +64,6 @@
             </button>
           </div>
 
-          {{!-- Drag-to-inspect zone --}}
           <div class="attr-filter-drop"
                data-drop-type="attrfilter"
                data-slot-index="{{slotIdx}}">
@@ -123,7 +118,6 @@
     {{/if}}
   </div>
 
-  {{!-- ── Slot Contents ─────────────────────────────────────────────────── --}}
   {{#if slots.length}}
   <div class="section-block">
     <div class="section-title"><i class="fas fa-inbox"></i> Contents</div>

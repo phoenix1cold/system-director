@@ -20,19 +20,14 @@ const FIELD_DEFS = {
   spellbook: [["Label","label"],["Widget Key","widgetKey","text"],["Ability type filter (empty = all)","abilityType","text"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   attributeGroup: [["Button Label","label"],["Widget Key","widgetKey","text"],["Attribute keys or paths (comma, blank = all enabled)","attributeKeys","text"],["FA icon","icon","text"]],
 
-  // Numeric counter widget
   counter:   [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Step","step","number"],["Min","min","number"],["Max","max","number"]],
 
-  // Big roll button
   rollButton:[["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-dice-d20)","icon","text"],["Roll Formula","formula","formula"],["Chat Flavor","flavor","text"]],
 
-  // Token pool (filled pip array)
   tokenPool: [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
 
-  // Dice tray
   diceTray:  [["Label","label"],["Widget Key","widgetKey","text"],["Flag Path (default flags.sd.lastRoll)","flagPath","text"]],
 
-  // New widget types
   progress: [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"],["Show label","showLabel","boolean"],["Show percentage","showPct","boolean"]],
   select:   [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Choices (comma-separated)","choices","text"]],
   clock:    [["Label","label"],["Widget Key","widgetKey","text"],["Filled count path","path","path"],["Segments (2–12)","segments","number"]],
@@ -41,7 +36,6 @@ const FIELD_DEFS = {
   image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
   derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]],
 
-  // Card widgets
   cardHand: [
     ["Label","label"],
     ["Widget Key","widgetKey","text"],
@@ -69,9 +63,6 @@ const FIELD_DEFS = {
   ]
 };
 
-// For every widget type that has visual variants registered, append a
-// "Variant" dropdown to its FIELD_DEFS entry. Keeps FIELD_DEFS authoring
-// flat while centralising the variant list in WIDGET_VARIANTS.
 for (const [type, variants] of Object.entries(WIDGET_VARIANTS)) {
   if (!variants?.length) continue;
   if (!Array.isArray(FIELD_DEFS[type])) FIELD_DEFS[type] = [];
@@ -133,18 +124,11 @@ const FIELD_HINTS = {
                 "from the Mana Path when the ability is activated. Default key: cost",
 };
 
-// Main export
-
-// Module-level state for multi-popup support.  We DON'T close existing
-// popups when a new one opens — users can have several side-by-side
-// (e.g. to compare or copy values between widgets).  The counter just
-// offsets each new popup so they don't perfectly overlap.
 let _wcfgOpenCount = 0;
 let _wcfgZTop      = 10000;
 
 export async function openWidgetConfigPopup(w, tab, row, doc) {
-  // Reuse an existing popup for the SAME widget instance (so re-clicking
-  // the gear icon focuses the open one rather than spawning a duplicate).
+
   const existingForSameWidget = [...document.querySelectorAll(".sd-wcfg-popup")]
     .find(el => el.dataset.wcfgWidgetId && w?.id && el.dataset.wcfgWidgetId === w.id);
   if (existingForSameWidget) {
@@ -160,7 +144,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   const allPaths = _buildPathList(doc);
   const esc      = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 
-  // Build field HTML
   const IS = "width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
   const MONO = ";font-family:'Courier New',monospace;font-size:11px";
 
@@ -175,13 +158,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </button>
     </div>` : "";
 
-  // Per-attribute graph editors for the AttributeGroup widget. We list every
-  // attribute the widget will render (explicit list or every enabled key in
-  // CONFIG.SD.attributes). Each row gets its own "Open Graph Editor" button
-  // — pressing it opens the same FormulaGraph as the standalone Attribute
-  // widget, but the resulting modValueFormula / onClickFormula are stored
-  // under widget.attrGraphs[key] so the row can compute its own modifier
-  // and fire its own On Click chain at render time.
   const attrGroupGraphsRow = (w.type === "attributeGroup") ? (() => {
     const cfgLabels  = CONFIG?.SD?.attributes ?? {};
     const cfgEnabled = CONFIG?.SD?.attributesEnabled ?? {};
@@ -237,7 +213,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   const _showIfSources = (() => {
     const list = [];
 
-    // 1) Other widgets on this document (must have a widgetKey).
     for (const t of (doc.system?.customTabs ?? [])) {
       for (const r of (t.rows ?? [])) {
         for (const ww of (r.widgets ?? [])) {
@@ -248,26 +223,15 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       }
     }
 
-    // 2) Hidden fields on this document.
     for (const [k] of Object.entries(doc.system?.hiddenFields ?? {})) {
       list.push({ value: `hidden:${k}`, label: `Hidden Field: ${k}` });
     }
 
-    // 3) Document data paths — schema-known fields on the actor / item plus
-    //    everything `_buildPathList` already discovers (custom fields,
-    //    declared attrs, slot counts, item-side hidden fields …). Without
-    //    these the dropdown was effectively unusable for normal sheets.
     const sys = doc?.system;
     if (sys && typeof sys === "object") {
-      // Core attributes — show the user-configured display name from
-      // System Config (CONFIG.SD.attributes) so pickers are readable when
-      // the world has renamed e.g. attr1 → "Power".
+
       const _attrName = (key) => {
-        // applySettings() overwrites CONFIG.SD.attributes[key] with the
-        // user's display label, but on early ticks (or worlds that never
-        // opened System Config) it still holds the i18n key like
-        // "SD.Attributes.attr1". Localize that gracefully and fall back
-        // to the raw key when no translation exists.
+
         const lbl = CONFIG?.SD?.attributes?.[key];
         if (typeof lbl !== "string" || !lbl.trim()) return key;
         if (lbl.startsWith("SD.")) {
@@ -277,10 +241,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         return lbl;
       };
       const _resName = (key) => {
-        // applySettings() pushes resource display names into the i18n table
-        // as `SD.Resources.<UPPER_KEY>`. Localize() returns the key unchanged
-        // when no translation exists, so fall back to the raw key in that
-        // case rather than printing literal "SD.Resources.HP".
+
         const k = `SD.Resources.${String(key).toUpperCase()}`;
         const t = game?.i18n?.localize?.(k);
         return (t && t !== k && t.trim()) ? t : key;
@@ -293,7 +254,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           if ("proficient" in attr) list.push({ value: `system.attributes.${key}.proficient`, label: `Attr: ${n} proficient` });
         }
       }
-      // Resources (HP/MP/etc.)
+
       for (const [key, res] of Object.entries(sys.resources ?? {})) {
         if (res && typeof res === "object") {
           const n = _resName(key);
@@ -302,14 +263,14 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           if ("min"   in res) list.push({ value: `system.resources.${key}.min`,   label: `Resource: ${n} min`   });
         }
       }
-      // Skills
+
       for (const [key, skl] of Object.entries(sys.skills ?? {})) {
         if (skl && typeof skl === "object" && "rank" in skl) {
           list.push({ value: `system.skills.${key}.rank`,  label: `Skill: ${key} rank`  });
           if ("bonus" in skl) list.push({ value: `system.skills.${key}.bonus`, label: `Skill: ${key} bonus` });
         }
       }
-      // Advancement / Currency / Defense — flat numeric fields
+
       const flatGroups = {
         "system.advancement": ["level", "proficiencyBonus"],
         "system.advancement.xp": ["value", "max"],
@@ -327,17 +288,13 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       }
     }
 
-    // 4) Anything _buildPathList already enumerates (custom fields, declared
-    //    attrs, slot counts, item-side hidden fields). These often aren't
-    //    representable from the schema alone.
     try {
       for (const p of (_buildPathList(doc) ?? [])) {
         if (!p?.path) continue;
         list.push({ value: p.path, label: p.label || p.path });
       }
-    } catch { /* ignore — picker just won't have these entries */ }
+    } catch {  }
 
-    // De-duplicate by value while preserving order.
     const seen = new Set();
     const out  = [];
     for (const entry of list) {
@@ -466,7 +423,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
             const v = i18n.localize(k);
             if (v && v !== k) label = v;
           }
-        } catch { /* fall back to id */ }
+        } catch {  }
         return `<option value="${esc(id)}" ${selected===id?"selected":""}>${esc(label)}</option>`;
       };
       return `
@@ -560,11 +517,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>`;
   }).join("");
 
-
-  // Path picker
   const pathPickerOpts = allPaths.map(p => `<option value="${esc(p.path)}">${esc(p.label)}</option>`).join("");
 
-  // Full popup HTML
   const popup = document.createElement("div");
   popup.className = "sd-wcfg-popup";
   if (w?.id)        popup.dataset.wcfgWidgetId = w.id;
@@ -572,7 +526,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   const sheetRect = document.querySelector(".app.sd.sheet.item, .app.sd.sheet.actor, [id^='sd-']")?.getBoundingClientRect()
     ?? { right: 400, top: 80, width: 0 };
-  // Offset each subsequent popup so they don't perfectly overlap.
+
   const _wcfgIndex = _wcfgOpenCount++ % 8;
   const _wcfgOffX = _wcfgIndex * 24;
   const _wcfgOffY = _wcfgIndex * 24;
@@ -588,8 +542,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     font-family:'Signika','Palatino Linotype',serif;color:var(--sd-text);
     display:flex;flex-direction:column;`;
 
-  // Bring this popup to front on any click inside it (so users can flip
-  // between several open popups easily).
   popup.addEventListener("mousedown", () => {
     popup.style.zIndex = String(++_wcfgZTop);
   }, true);
@@ -636,7 +588,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   document.body.appendChild(popup);
 
-  // State
   let _lastFocused = null;
 
   popup.querySelectorAll("button[data-clear-style]").forEach(btn => {
@@ -677,12 +628,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     });
   });
 
-  // Focus tracking
   popup.querySelectorAll("input[data-field]").forEach(inp => {
     inp.addEventListener("focus", () => { _lastFocused = inp; });
   });
 
-  // Autocomplete
   popup.querySelectorAll("input[data-ftype='path'], input[data-ftype='formula']").forEach(inp => {
     inp.addEventListener("focus",  () => { _lastFocused = inp; _refreshSug(inp); });
     inp.addEventListener("input",  () => _refreshSug(inp));
@@ -703,7 +652,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       }
       try {
         FormulaEngine.evaluate(val, {});
-        _showIfInp.style.borderColor = "var(--sd-border)"; // reset to normal
+        _showIfInp.style.borderColor = "var(--sd-border)";
         _errEl.style.display = "none";
       } catch (err) {
         _showIfInp.style.borderColor = "var(--sd-danger)";
@@ -745,7 +694,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     popup.querySelectorAll(".wcfg-sug").forEach(l => { if (!l.contains(ev.target)) l.style.display = "none"; });
   }, true);
 
-  // Clear buttons
   popup.querySelectorAll(".wcfg-clear-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const inp = popup.querySelector(`input[data-field="${btn.dataset.clearField}"]`);
@@ -753,7 +701,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     });
   });
 
-  // showIf key+value save
   const _syncShowIf = () => {
     const keyEl = popup.querySelector("#wcfg-showif-key");
     const valEl = popup.querySelector("#wcfg-showif-value");
@@ -764,7 +711,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   popup.querySelector("#wcfg-showif-key")?.addEventListener("change", _syncShowIf);
   popup.querySelector("#wcfg-showif-value")?.addEventListener("input",  _syncShowIf);
 
-  // Slot config level editor
   const slotRowsContainer = popup.querySelector("#wcfg-slotrows");
   const slotAddBtn        = popup.querySelector("#wcfg-slot-add");
 
@@ -794,7 +740,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   slotAddBtn?.addEventListener("click", () => {
     if (!slotRowsContainer) return;
     slotRowsContainer.querySelector(".wcfg-empty-hint")?.remove();
-    // Find the next level number
+
     const existing = [...slotRowsContainer.querySelectorAll(".wcfg-slot-level")]
       .map(el => parseInt(el.value) || 0);
     let next = 1;
@@ -847,13 +793,11 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     btn.addEventListener("click", () => {
       const attrKey = btn.dataset.attrGroupGraph;
       if (!attrKey) return;
-      // Pass `attrKey` through saveCtx so the graph editor knows which
-      // per-attribute slot to write to (see formula-graph._saveGraph).
+
       const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc, attrKey });
       graph.open();
     });
   });
-
 
   function _insertAt(inp, text) {
     if (!inp) return;
@@ -867,7 +811,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     inp.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
-  // Known path insert
   popup.querySelector("#wcfg-pi").addEventListener("click", () => {
     const val = popup.querySelector("#wcfg-ps").value;
     if (!val || !_lastFocused) return;
@@ -876,7 +819,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     popup.querySelector("#wcfg-ps").value = "";
   });
 
-  // Save
   const doSave = async () => {
     const slotRowsEl = popup.querySelector("#wcfg-slotrows");
     const slotJsonEl = popup.querySelector("#wcfg-slotconfig-json");
@@ -957,12 +899,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   popup.querySelector("#wcfg-cancel").addEventListener("click", () => popup.remove());
   popup.querySelector("#wcfg-x").addEventListener("click",     () => popup.remove());
 
-  // Button hover effects
   const saveBtn = popup.querySelector("#wcfg-save");
   saveBtn.addEventListener("mouseenter", () => saveBtn.style.background = "var(--sd-accent)");
   saveBtn.addEventListener("mouseleave", () => saveBtn.style.background = "var(--sd-accent)");
 
-  // Draggable header
   let ds = null;
   popup.querySelector("#wcfg-hdr").addEventListener("mousedown", ev => {
     if (ev.target.id === "wcfg-x") return;
@@ -975,17 +915,14 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   });
   document.addEventListener("mouseup", () => ds = null);
 
-  // Focus first field
   popup.querySelector("input[data-field]")?.focus();
 
   return popup;
 }
 
-
 function _buildPathList(doc) {
   const paths = [];
 
-  // 1. World-level custom fields
   try {
     const customFields = game.settings.get("sd", "customFields") ?? [];
     for (const cf of customFields) {
@@ -998,12 +935,10 @@ function _buildPathList(doc) {
     paths.push({ path: `system.hiddenFields.${k}`, label: `Hidden: ${k}` });
   }
 
-  // 3. Declared attrs
   for (const a of (doc.system?.declaredAttrs ?? [])) {
     if (a.path) paths.push({ path: a.path, label: `Attr: ${a.name || a.id}` });
   }
 
-  // 4. Slot counts on this doc
   for (const def of (doc.system?.slotDefinitions ?? [])) {
     paths.push({ path: `system.slotContents.${def.id}.count`, label: `Slot count: ${def.label}` });
   }
@@ -1020,7 +955,7 @@ function _buildPathList(doc) {
         paths.push({ path: `system.slotContents.${def.id}.count`, label: `${item.name}: slot '${def.label}'` });
       }
     }
-    // Actor own slot counts
+
     for (const def of (doc.system?.slotDefinitions ?? [])) {
       paths.push({ path: `system.slotContents.${def.id}.count`, label: `Actor slot: ${def.label}` });
     }

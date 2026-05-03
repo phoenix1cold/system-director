@@ -1,15 +1,6 @@
 import { SlotManager } from "../data/item-slots.mjs";
 import { formulaBounds, doubleDice, leadingD20Natural } from "../builder/formula-utils.mjs";
 
-/**
- * Populate roll-meta __last* fields on a buttonDef so downstream nodes can
- * read formula / min / max / natural / isCrit / critFormula via their pins.
- *  - `roll`         : the evaluated Foundry Roll
- *  - `formula`      : the source formula string used
- *  - `critOn`       : threshold for natural-d20 crit (default 20)
- *  - `critFormula`  : explicit override (empty → derive via doubleDice)
- *  - `rollData`     : optional, used by formulaBounds for @ref resolution
- */
 function _writeRollMeta(buttonDef, {
   roll, formula,
   critOn = 20, critFormula = "", isCritOverride = null,
@@ -41,7 +32,7 @@ function _writeRollMeta(buttonDef, {
       const thr = Number(fumbleOn);
       isFumble = (Number.isFinite(thr) && nat != null && nat <= thr) ? 1 : 0;
     }
-    // A roll is never both — explicit overrides take precedence; otherwise crit wins on tie.
+
     if (isCrit && isFumble && (isCritOverride == null || isCritOverride === "")) isFumble = 0;
     buttonDef.__lastIsCrit  = isCrit;
     buttonDef.__lastIsFumble = isFumble;
@@ -51,11 +42,7 @@ function _writeRollMeta(buttonDef, {
     buttonDef.__lastFumbleFormula = fumbleFormula && String(fumbleFormula).trim() !== ""
       ? String(fumbleFormula)
       : "";
-    // Per-die results from the underlying Roll. Active dice only — kh/kl/dl
-    // discard markers are honoured, so what you see in chat (the dice that
-    // actually contributed to the total) is what downstream array nodes
-    // see. CSV-encoded so the existing array transport (comma-joined) keeps
-    // working with Array Length / Get Element / Filter / etc.
+
     try {
       const dice = [];
       for (const d of (roll?.dice ?? [])) {
@@ -79,16 +66,13 @@ function _sdMsgMode() {
   return "publicroll";
 }
 
-
 const { StringField, NumberField, BooleanField, ArrayField, ObjectField, SchemaField } = foundry.data.fields;
 
-// Помощники вложенных слотов
 function _resolveNestedSlotParent(actor, item, slotPath) {
   if (!slotPath) return null;
   const parts = slotPath.split("/");
   if (parts.length < 2) return null;
 
-  // Корневой сегмент
   let current;
   const root = parts[0];
   if (root === "actor") {
@@ -197,17 +181,16 @@ async function _nestedAddToSlot(resolved, slotId, srcItem) {
   await liveAncestor.update({ "system.slotContents": cloned });
 }
 
-
 export function ButtonConditionField() {
   return new SchemaField({
     type:     new StringField({ initial: "always", blank: false }),
     field:    new StringField({ initial: "", blank: true }),
-    // Operator: > < >= <= == != 
+
     operator: new StringField({ initial: ">", blank: false }),
     value:    new StringField({ initial: "0", blank: true }),
     slotId:   new StringField({ initial: "", blank: true }),
     minCount: new NumberField({ required: false, integer: true, initial: 0, nullable: true }),
-    // Инверсия
+
     negate:   new BooleanField({ initial: false })
   });
 }
@@ -215,26 +198,26 @@ export function ButtonConditionField() {
 export function ButtonActionField() {
   return new SchemaField({
     type:     new StringField({ initial: "roll", choices: ["roll","modifyField","createItem","removeItem","playSound","runMacro","message"], blank: false }),
-    // roll
+
     formula:  new StringField({ initial: "1d6", blank: true }),
     flavor:   new StringField({ initial: "", blank: true }),
     rollMode: new StringField({ initial: "publicroll", blank: true }),
-    // modifyField
+
     target:   new StringField({ initial: "self.system.uses.value", blank: true }),
     delta:    new NumberField({ required: false, integer: false, initial: -1, nullable: true }),
     setValue: new StringField({ initial: "", blank: true }),
     clampMin: new NumberField({ required: false, integer: false, initial: null, nullable: true }),
     clampMax: new NumberField({ required: false, integer: false, initial: null, nullable: true }),
-    // createItem / removeItem
+
     itemName:     new StringField({ initial: "", blank: true }),
     itemType:     new StringField({ initial: "inventory", blank: true }),
     itemCategory: new StringField({ initial: "", blank: true }),
     itemData:     new ObjectField(),
-    // playSound
+
     soundPath: new StringField({ initial: "", blank: true }),
-    // runMacro
+
     macroName: new StringField({ initial: "", blank: true }),
-    // message
+
     messageText: new StringField({ initial: "", blank: true }),
     delay: new NumberField({ required: false, integer: true, initial: 0, nullable: true })
   });
@@ -253,14 +236,8 @@ export function ButtonDefinitionField() {
   });
 }
 
-// Вычисление условий
-
 export class ConditionEvaluator {
 
-  /**
-   * Evaluate all conditions on a button.
-   * @returns {boolean}
-   */
   static evaluate(button, item, actor) {
     if (!button.conditions?.length) return true;
     return button.conditions.every(c => {
@@ -307,38 +284,22 @@ export class ConditionEvaluator {
   }
 }
 
-// Исполнитель действий
-
-// Резолвинг целей
-
-/** Strip wrapping double-quotes and trim. */
 function _sdStripQuotes(s) {
   let out = String(s ?? "").trim();
   if (out.length >= 2 && out.startsWith('"') && out.endsWith('"')) out = out.slice(1, -1);
   return out;
 }
 
-/**
- * Resolve a single value coming from a graph compile/runtime substitution to
- * a Foundry Actor. Accepts either:
- *   - magic mode strings: "self", "actor", "token_target", "selected_token",
- *     "all_targets" (returns first), "user_character"
- *   - a Foundry UUID like "Actor.abc123", "Scene.X.Token.Y", "Token.X" — the
- *     embedded actor (or itself, if Actor) is returned.
- *   - an Actor / Token / TokenDocument / actor uuid object — reduced.
- *   - falsy → null.
- */
 function _sdResolveActor(spec, actor) {
   if (spec == null || spec === "") return null;
   if (spec instanceof Actor) return spec;
   if (typeof spec === "object") {
-    if (spec.actor instanceof Actor) return spec.actor;          // Token / TokenDocument
+    if (spec.actor instanceof Actor) return spec.actor;
     if (typeof spec.uuid === "string") return _sdResolveActor(spec.uuid, actor);
   }
   const raw = _sdStripQuotes(spec);
   if (!raw || raw === "0") return null;
 
-  // Magic mode strings
   if (raw === "self")           return actor ?? null;
   if (raw === "actor")          return actor ?? null;
   if (raw === "user_character") return game.user.character ?? null;
@@ -358,18 +319,16 @@ function _sdResolveActor(spec, actor) {
         ?? actor ?? null;
   }
 
-  // UUID? (contains a dot and looks like Doc.id pattern)
   if (raw.includes(".") && /^[A-Za-z][A-Za-z0-9]*\./.test(raw)) {
     try {
       const doc = (typeof fromUuidSync === "function" ? fromUuidSync(raw) : null);
       if (doc) {
         if (doc instanceof Actor) return doc;
-        if (doc.actor instanceof Actor) return doc.actor;       // Token / TokenDocument / Item
+        if (doc.actor instanceof Actor) return doc.actor;
       }
-    } catch { /* fall through */ }
+    } catch {  }
   }
 
-  // Token id on canvas (16-char alphanumeric)
   if (/^[A-Za-z0-9]{16}$/.test(raw)) {
     const tok = canvas?.tokens?.get?.(raw);
     if (tok?.actor) return tok.actor;
@@ -380,7 +339,6 @@ function _sdResolveActor(spec, actor) {
   return null;
 }
 
-/** Multi-resolver. Returns an array of Actors. */
 function _sdResolveActorsList(spec, actor) {
   if (spec == null || spec === "") return [];
   if (Array.isArray(spec)) {
@@ -404,7 +362,7 @@ function _sdResolveActorsList(spec, actor) {
   if (raw.startsWith("player_actors")) {
     return _resolvePlayerActors(raw);
   }
-  // Comma-separated ids/uuids
+
   if (raw.includes(",")) {
     const parts = raw.split(",").map(x => x.trim()).filter(Boolean);
     const out = [];
@@ -419,8 +377,7 @@ function _sdResolveActorsList(spec, actor) {
 }
 
 function _resolveTarget(mode, actor) {
-  // Backwards-compatible: old "actor"/"selected_token"/etc. magic strings still
-  // work, but we also accept UUIDs / "user_character" via _sdResolveActor.
+
   const a = _sdResolveActor(mode, actor);
   if (a) return a;
   if (mode === "actor") return actor ?? null;
@@ -430,7 +387,6 @@ function _resolveTarget(mode, actor) {
   return targeted ?? selected ?? actor ?? null;
 }
 
-/** Resolve a Cards stack by uuid or by name (priority: uuid). */
 async function _sdResolveCards({ uuid, name } = {}) {
   if (uuid) { try { const d = await fromUuid(uuid); if (d) return d; } catch {} }
   if (name) {
@@ -440,7 +396,6 @@ async function _sdResolveCards({ uuid, name } = {}) {
   return null;
 }
 
-/** Resolve a single Card document inside a stack. selectorMode = "specific"|"top"|"bottom"|"random"|"by_name"|"first". */
 async function _sdResolveCard(stack, action) {
   if (!stack) return null;
   const cards = stack.availableCards?.length ? stack.availableCards : Array.from(stack.cards ?? []);
@@ -455,7 +410,7 @@ async function _sdResolveCard(stack, action) {
   if (mode === "random") return cards[Math.floor(Math.random() * cards.length)] ?? null;
   if (mode === "bottom") return cards[cards.length - 1] ?? null;
   if (mode === "first")  return cards[0] ?? null;
-  /* top (default) — take first available drawn order */
+
   return cards[0] ?? null;
 }
 
@@ -473,7 +428,6 @@ function _resolveAllTargets(mode, actor) {
   return single ? [single] : [];
 }
 
-/** Resolve "player_actors:onlineOnly:includeGM" → array of player-character actors. */
 function _resolvePlayerActors(spec) {
   const parts = String(spec).split(":");
   const onlineOnly = (parts[1] ?? "yes") === "yes";
@@ -495,22 +449,11 @@ function _resolvePlayerActors(spec) {
   return actors;
 }
 
-/**
- * Resolve a serialized "items" value coming from the graph compiler into an
- * array of actors / tokens / generic objects. Handles:
- *   - "all_targets"            → currently targeted token actors
- *   - "selected_token"         → first selected token's actor (1-element array)
- *   - "user_character"         → game.user.character (1-element array)
- *   - "player_actors:..."      → player character actors
- *   - "uuid1,uuid2,..."        → resolved fromUuidSync each
- *   - JSON-encoded array       → parsed as-is
- *   - anything else            → wrapped as 1-element array
- */
 async function _sdResolveItems(spec, actor) {
   if (Array.isArray(spec)) return spec;
   if (spec == null || spec === "" || spec === '""') return [];
   let s = String(spec).trim();
-  // Strip surrounding quotes (compiled string literal)
+
   if (s.length >= 2 && (
     (s.startsWith('"') && s.endsWith('"')) ||
     (s.startsWith("'") && s.endsWith("'"))
@@ -527,11 +470,11 @@ async function _sdResolveItems(spec, actor) {
     return game.user.character ? [game.user.character] : [];
   }
   if (s.startsWith("player_actors")) return _resolvePlayerActors(s);
-  // JSON array?
+
   if (s.startsWith("[")) {
-    try { const arr = JSON.parse(s); if (Array.isArray(arr)) return arr; } catch { /* fall through */ }
+    try { const arr = JSON.parse(s); if (Array.isArray(arr)) return arr; } catch {  }
   }
-  // Comma-separated UUIDs
+
   if (s.includes(",")) {
     const parts = s.split(",").map(x => x.trim()).filter(Boolean);
     const out = [];
@@ -543,7 +486,7 @@ async function _sdResolveItems(spec, actor) {
     }
     return out;
   }
-  // Single UUID?
+
   if (/^[A-Za-z]+\.[A-Za-z0-9]+/.test(s)) {
     try {
       const doc = await fromUuid(s).catch(() => null) ?? fromUuidSync?.(s);
@@ -553,7 +496,6 @@ async function _sdResolveItems(spec, actor) {
   return [s];
 }
 
-/** Get a display label from an array element using a dot-path (e.g. "name"). */
 function _sdItemLabel(item, labelPath, fallbackIndex) {
   if (item == null) return `Item ${fallbackIndex + 1}`;
   if (typeof item === "string") return item;
@@ -569,7 +511,6 @@ function _resistanceFactor(tActor, damageType) {
   const key = String(damageType).toLowerCase().trim();
   if (!key) return { factor: 1, label: "" };
 
-  // (1) Structured map.
   const map = tActor.system?.resistances;
   if (map && typeof map === "object") {
     const raw = map[key] ?? map[damageType];
@@ -599,7 +540,6 @@ function _resistanceFactor(tActor, damageType) {
   return { factor: 1, label: "" };
 }
 
-/** Coerce the `savePassed` pin value into a boolean. */
 function _savePassedVal(v) {
   if (v === true || v === "true" || v === "yes" || v === 1 || v === "1") return true;
   return false;
@@ -607,17 +547,6 @@ function _savePassedVal(v) {
 
 export class ButtonExecutor {
 
-  /**
-   * Build the reroll-flag object for chat messages produced by roll-action nodes.
-   * Returns null when reroll is disabled (so callers can spread it in `flags.sd`
-   * conditionally without polluting the flag with an empty record).
-   *
-   * @param {object} action  the compiled action descriptor
-   * @param {Actor}  srcActor the source actor (button owner) — used for resource lookups
-   * @param {string} formula the (already runtime-injected) roll formula to replay
-   * @param {string} label   short human label shown next to the reroll button
-   * @returns {object|null}
-   */
   static _buildRerollFlag(action, srcActor, formula, label) {
     if (!action || action.rerollEnabled !== "yes" && action.rerollEnabled !== true) return null;
     if (!formula) return null;
@@ -667,9 +596,7 @@ export class ButtonExecutor {
       if (buttonDef?.__lastBotches !== undefined) {
         formula = formula.replace(/\{__lastBotches\}/g, String(buttonDef.__lastBotches));
       }
-      // New roll-meta tokens (Phase 2): expose formula / min / max / natural /
-      // isCrit / critFormula on every roll-producing node so downstream value
-      // pins can read them via the BRANCH_PIN_TOKENS table.
+
       if (buttonDef?.__lastFormula !== undefined) {
         formula = formula.replace(/\{__lastFormula\}/g, String(buttonDef.__lastFormula));
       }
@@ -741,7 +668,7 @@ export class ButtonExecutor {
       if (runtime.__loopItem !== undefined) {
         formula = formula.replace(/\{__loopItem\}/g, String(runtime.__loopItem));
       }
-      // AoE Save Branch
+
       const _tokList = (arr) => Array.isArray(arr) ? arr.join(",") : String(arr ?? "");
       if (runtime.savedTargets !== undefined) {
         formula = formula.replace(/\{__savedTargets\}/g, _tokList(runtime.savedTargets));
@@ -797,6 +724,25 @@ export class ButtonExecutor {
       });
       return formula;
     };
+
+    const _resolveBoolPin = async (v) => {
+      if (v === undefined || v === null || v === "") return null;
+      if (typeof v === "number")  return v !== 0;
+      if (typeof v === "boolean") return v;
+      const raw = _injectRuntime(String(v)).trim();
+      if (!raw) return null;
+      const lo = raw.toLowerCase();
+      if (["0","false","no","off","null","undefined"].includes(lo)) return false;
+      if (["1","true","yes","on"].includes(lo)) return true;
+      try {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        const ev = FormulaEngine.evaluate(raw, item ?? actor ?? {});
+        const n = Number(ev);
+        if (Number.isFinite(n)) return n !== 0;
+        return Boolean(ev);
+      } catch { return null; }
+    };
+
     switch (action.type) {
 
       case "roll": {
@@ -810,7 +756,7 @@ export class ButtonExecutor {
           const doc = safeItem ?? safeActor ?? {};
           formula = FormulaEngine.resolveForRoll(formula, doc);
           flavor  = FormulaEngine.resolveForRoll(flavor, doc);
-        } catch(e) { /* FormulaEngine optional */ }
+        } catch(e) {  }
         const roll = new Roll(formula, _sanitizeRollData(rollData));
         await roll.evaluate();
         const _rrFlag = ButtonExecutor._buildRerollFlag(action, safeActor, formula, flavor || "Roll");
@@ -862,10 +808,7 @@ export class ButtonExecutor {
         await roll.evaluate();
         if (buttonDef) buttonDef.__lastRoll = roll.total;
         if (rollData)  rollData.__lastRoll  = roll.total;
-        // Roll Value is intentionally crit/fumble-free — _writeRollMeta still
-        // gets called for formula/min/max/avg/dice/natural; we just don't pass
-        // any crit overrides so __lastIsCrit / __lastCritFormula stay at their
-        // previous (or zero) values rather than being recomputed here.
+
         _writeRollMeta(buttonDef, { roll, formula, rollData });
         if (safeActor) {
           try {
@@ -876,7 +819,7 @@ export class ButtonExecutor {
               dice:    roll.dice?.flatMap(d => d.results?.map(r => ({ faces: d.faces, result: r.result }))) ?? [],
               at:      Date.now()
             });
-          } catch(e) { /* flag write errors are non-fatal */ }
+          } catch(e) {  }
         }
         if (action.toChat !== false) {
           const _rrFlag = ButtonExecutor._buildRerollFlag(action, safeActor, formula, flavorLabel || "Roll");
@@ -919,12 +862,6 @@ export class ButtonExecutor {
           } catch { return parseFloat(s) || 0; }
         };
 
-        // ─── Actor pin override ────────────────────────────────────────
-        // If the graph wired an Actor into the input pin, it wins over the
-        // Where dropdown. The override may resolve to a single actor, an
-        // array (e.g. all_targets), or nothing (UUID couldn't be found).
-        // The path is stripped of any self./actor./target. prefix so it's
-        // applied raw to whatever actors we resolve.
         if (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '""' && action.actorOverride !== "0") {
           const targets = _sdResolveActorsList(action.actorOverride, actor);
           if (targets.length) {
@@ -945,8 +882,7 @@ export class ButtonExecutor {
             }
             break;
           }
-          // Override was set but resolved to nothing — fall through to legacy
-          // behaviour rather than silently skipping the action.
+
         }
 
         if (target.startsWith("target.")) {
@@ -1002,7 +938,6 @@ export class ButtonExecutor {
           }
         } catch { newVal = parseFloat(rawVal) || 0; }
 
-        // Store for downstream nodes
         if (buttonDef) buttonDef.__lastRoll = newVal;
 
         const sfTarget = action.target ?? "";
@@ -1018,10 +953,7 @@ export class ButtonExecutor {
       }
 
       case "setTextField": {
-        // Write a string value to a path on self/actor/target.
-        // Resolves runtime tokens ({__lastAiResponse}, {__lastRoll}, …) and
-        // module tokens ({widget:KEY}, {@attr1}, {item:Name.path}, …) but does
-        // NOT eval as a roll formula — natural-language text is written as-is.
+
         const stfTarget = action.target ?? "";
         if (!stfTarget) break;
 
@@ -1029,7 +961,7 @@ export class ButtonExecutor {
         try {
           const m = await import("./formula-engine.mjs");
           _stfFE = m?.FormulaEngine ?? null;
-        } catch { /* optional */ }
+        } catch {  }
         const _stfDoc = item ?? actor ?? {};
         const _stfResolveTokens = (s) => {
           if (!_stfFE) return s;
@@ -1049,8 +981,6 @@ export class ButtonExecutor {
         try { stfValue = _injectRuntime(stfValue); } catch {}
         stfValue = _stfResolveTokens(stfValue);
 
-        // Actor pin override — wins over the Where dropdown. Loops over
-        // every resolved actor (so all_targets writes to each).
         if (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '""' && action.actorOverride !== "0") {
           const stfOverride = typeof action.actorOverride === "string"
             ? _injectRuntime(action.actorOverride)
@@ -1073,7 +1003,6 @@ export class ButtonExecutor {
           break;
         }
 
-        // self. / actor. / raw — delegate to _setFieldValue
         await this._setFieldValue(stfTarget, item, actor, stfValue);
         break;
       }
@@ -1168,7 +1097,7 @@ export class ButtonExecutor {
           if (!entry) continue;
           _entryData = entry;
           let live = actor?.items?.get(entry._id) ?? null;
-          // 2. Live actor item by name
+
           if (!live) live = actor?.items?.find(i => i.name === entry.name) ?? null;
           if (!live && entry.uuid) { try { live = await fromUuid(entry.uuid); } catch {} }
           if (live) { _usedItem = live; break; }
@@ -1268,9 +1197,7 @@ export class ButtonExecutor {
       }
 
       case "modifyInvItemField": {
-        // Resolve the list of source actors. The Actor pin (actorOverride)
-        // wins over the implicit context actor and supports both single
-        // actors (UUID, mode-strings) and arrays (all_targets, comma-list).
+
         let _invSourceActors;
         if (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '""' && action.actorOverride !== "0") {
           const ovr = typeof action.actorOverride === "string"
@@ -1360,7 +1287,6 @@ export class ButtonExecutor {
         if (!_addCtx) break;
         const { SlotManager: SM2 } = await import("../data/item-slots.mjs");
 
-        // Контейнер
         let _container = null;
         if (action.parentUuid) {
           try {
@@ -1382,7 +1308,6 @@ export class ButtonExecutor {
           break;
         }
 
-        // Предмет для размещения
         let _toPlace = null;
         if (action.itemUuid) {
           try {
@@ -1404,7 +1329,7 @@ export class ButtonExecutor {
         const _cur     = SM2.getContents(_container, _slotId2);
 
         if (_def && _cur.length >= _def.maxCount) {
-          // Full branch
+
           for (const sub of (action.fullActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
           break;
         }
@@ -1564,7 +1489,6 @@ export class ButtonExecutor {
         break;
       }
 
-
       case "applyEffectByUuid": {
         const uuid = String(action.effectUuid ?? "").trim();
         if (!uuid) { ui.notifications.warn("applyEffectByUuid: no UUID provided."); break; }
@@ -1671,9 +1595,7 @@ export class ButtonExecutor {
       }
 
       case "forEachItem": {
-        // Generic per-element loop. Unlike `forEachToken`, items are
-        // arbitrary strings/numbers, not canvas token ids — we expose
-        // `{__loopItem}` and `{__loopIndex}` for the loop body.
+
         const raw   = _injectRuntime(String(action.items ?? ""));
         const items = String(raw).split(",").map(s => s.trim()).filter(Boolean);
         const _prevLI = runtime.__loopIndex;
@@ -1845,7 +1767,6 @@ export class ButtonExecutor {
           const { FormulaEngine } = await import("./formula-engine.mjs");
           let cond = _injectRuntime(String(action.condition));
 
-          // Step 1: Resolve {ref} tokens
           cond = FormulaEngine.resolveForRoll(cond, item ?? actor ?? {});
 
           if (/\d*d\d+/i.test(cond)) {
@@ -1857,7 +1778,7 @@ export class ButtonExecutor {
                 const r = new Roll(formula, _sanitizeRollData(actor?.getRollData?.() ?? {}));
                 await r.evaluate();
                 cond = cond.slice(0, m.index) + r.total + cond.slice(m.index + formula.length);
-              } catch { /* leave as-is on error */ }
+              } catch {  }
             }
           }
 
@@ -1919,31 +1840,28 @@ export class ButtonExecutor {
         const roll = new Roll(atkFormula, _sanitizeRollData(actor?.getRollData?.() ?? {}));
         await roll.evaluate();
 
-        // Get target AC
         const tActor = game.user.targets?.first()?.actor ?? canvas.tokens?.controlled?.[1]?.actor ?? null;
         const ac     = tActor ? (Number(foundry.utils.getProperty(tActor, action.acPath ?? "system.attributes.ac.value")) || 0) : null;
         const hit    = ac !== null ? (roll.total >= ac) : null;
         const margin = ac !== null ? (roll.total - ac) : 0;
 
-        const critFace = Number(action.critFace ?? 20);
         const firstDie = roll.dice?.[0]?.results?.[0]?.result;
-        const isCrit   = critFace > 0 && firstDie === critFace;
+        if (buttonDef) {
+          buttonDef.__lastRoll    = roll.total;
+          buttonDef.__lastMargin  = margin;
+          buttonDef.__lastNatural = leadingD20Natural(roll) ?? 0;
+        }
+        const _isCritOv   = await _resolveBoolPin(action.isCrit);
+        const _isFumbleOv = await _resolveBoolPin(action.isFumble);
+        const isCrit  = _isCritOv  !== null ? _isCritOv  : firstDie === 20;
 
         const outcomeLabel = isCrit ? "🌟 Crit!" : hit === null ? "" : hit ? "✅ Hit!" : "❌ Miss";
         const acLabel      = ac !== null ? `Target AC: <strong>${ac}</strong>` : "(no target)";
 
-        if (buttonDef) {
-          buttonDef.__lastRoll   = roll.total;
-          buttonDef.__lastMargin = margin;
-        }
         _writeRollMeta(buttonDef, {
           roll, formula: atkFormula,
-          critOn:      critFace || 20,
-          critFormula: action.critFormula ?? "",
-          isCritOverride: action.isCritOverride ?? null,
-          fumbleOn:         Number(action.fumbleOn ?? 1),
-          fumbleFormula:    action.fumbleFormula ?? "",
-          isFumbleOverride: action.isFumbleOverride ?? null,
+          isCritOverride:   _isCritOv   !== null ? (_isCritOv   ? 1 : 0) : null,
+          isFumbleOverride: _isFumbleOv !== null ? (_isFumbleOv ? 1 : 0) : null,
           rollData:    actor?.getRollData?.() ?? {}
         });
 
@@ -2073,7 +1991,7 @@ export class ButtonExecutor {
         switch (action.mode ?? "roll_over") {
           case "roll_under":    passed = total <= dc; break;
           case "meet_and_beat": passed = total >  dc; break;
-          case "troika":        passed = total >  dc || total < dc; break;  // any non-tie
+          case "troika":        passed = total >  dc || total < dc; break;
           case "custom": {
             const cond = String(action.custom ?? "{roll} >= {dc}")
               .replace(/\{roll\}/g,  String(total))
@@ -2086,16 +2004,18 @@ export class ButtonExecutor {
           default:              passed = total >= dc; break;
         }
 
-        if (buttonDef) { buttonDef.__lastRoll = total; buttonDef.__lastMargin = margin; }
+        if (buttonDef) {
+          buttonDef.__lastRoll    = total;
+          buttonDef.__lastMargin  = margin;
+          buttonDef.__lastNatural = _rollObj ? (leadingD20Natural(_rollObj) ?? 0) : 0;
+        }
+        const _isCritOvRC   = await _resolveBoolPin(action.isCrit);
+        const _isFumbleOvRC = await _resolveBoolPin(action.isFumble);
         _writeRollMeta(buttonDef, {
           roll: _rollObj,
           formula: rollStr,
-          critOn:      Number(action.critOn ?? 20),
-          critFormula: action.critFormula ?? "",
-          isCritOverride: action.isCritOverride ?? null,
-          fumbleOn:         Number(action.fumbleOn ?? 1),
-          fumbleFormula:    action.fumbleFormula ?? "",
-          isFumbleOverride: action.isFumbleOverride ?? null,
+          isCritOverride:   _isCritOvRC   !== null ? (_isCritOvRC   ? 1 : 0) : null,
+          isFumbleOverride: _isFumbleOvRC !== null ? (_isFumbleOvRC ? 1 : 0) : null,
           rollData:    actor?.getRollData?.() ?? {}
         });
 
@@ -2176,15 +2096,16 @@ export class ButtonExecutor {
         const roll = new Roll(formula, _sanitizeRollData(actor?.getRollData?.() ?? {}));
         await roll.evaluate();
         const total = roll.total;
-        if (buttonDef) buttonDef.__lastRoll = total;
+        if (buttonDef) {
+          buttonDef.__lastRoll    = total;
+          buttonDef.__lastNatural = leadingD20Natural(roll) ?? 0;
+        }
+        const _isCritOvTR   = await _resolveBoolPin(action.isCrit);
+        const _isFumbleOvTR = await _resolveBoolPin(action.isFumble);
         _writeRollMeta(buttonDef, {
           roll, formula,
-          critOn:      Number(action.critOn ?? 20),
-          critFormula: action.critFormula ?? "",
-          isCritOverride: action.isCritOverride ?? null,
-          fumbleOn:         Number(action.fumbleOn ?? 1),
-          fumbleFormula:    action.fumbleFormula ?? "",
-          isFumbleOverride: action.isFumbleOverride ?? null,
+          isCritOverride:   _isCritOvTR   !== null ? (_isCritOvTR   ? 1 : 0) : null,
+          isFumbleOverride: _isFumbleOvTR !== null ? (_isFumbleOvTR ? 1 : 0) : null,
           rollData:    actor?.getRollData?.() ?? {}
         });
 
@@ -2229,17 +2150,16 @@ export class ButtonExecutor {
         const prevNum = hasPrev ? Number(prev) : 0;
 
         if (buttonDef) {
-          buttonDef.__lastRoll = total;
-          buttonDef.__progPrev = hasPrev ? prevNum : 0;
+          buttonDef.__lastRoll    = total;
+          buttonDef.__progPrev    = hasPrev ? prevNum : 0;
+          buttonDef.__lastNatural = leadingD20Natural(roll) ?? 0;
         }
+        const _isCritOvProg   = await _resolveBoolPin(action.isCrit);
+        const _isFumbleOvProg = await _resolveBoolPin(action.isFumble);
         _writeRollMeta(buttonDef, {
           roll, formula,
-          critOn:      Number(action.critOn ?? 20),
-          critFormula: action.critFormula ?? "",
-          isCritOverride: action.isCritOverride ?? null,
-          fumbleOn:         Number(action.fumbleOn ?? 1),
-          fumbleFormula:    action.fumbleFormula ?? "",
-          isFumbleOverride: action.isFumbleOverride ?? null,
+          isCritOverride:   _isCritOvProg   !== null ? (_isCritOvProg   ? 1 : 0) : null,
+          isFumbleOverride: _isFumbleOvProg !== null ? (_isFumbleOvProg ? 1 : 0) : null,
           rollData:    actor?.getRollData?.() ?? {}
         });
 
@@ -2305,15 +2225,14 @@ export class ButtonExecutor {
           buttonDef.__lastRoll      = successes;
           buttonDef.__lastSuccesses = successes;
           buttonDef.__lastBotches   = botches;
+          buttonDef.__lastNatural   = leadingD20Natural(roll) ?? 0;
         }
+        const _isCritOvDP   = await _resolveBoolPin(action.isCrit);
+        const _isFumbleOvDP = await _resolveBoolPin(action.isFumble);
         _writeRollMeta(buttonDef, {
           roll, formula: `${count}d${die}`,
-          critOn:      Number(action.critOn ?? 20),
-          critFormula: action.critFormula ?? "",
-          isCritOverride: action.isCritOverride ?? null,
-          fumbleOn:         Number(action.fumbleOn ?? 1),
-          fumbleFormula:    action.fumbleFormula ?? "",
-          isFumbleOverride: action.isFumbleOverride ?? null,
+          isCritOverride:   _isCritOvDP   !== null ? (_isCritOvDP   ? 1 : 0) : null,
+          isFumbleOverride: _isFumbleOvDP !== null ? (_isFumbleOvDP ? 1 : 0) : null,
           rollData:    actor?.getRollData?.() ?? {}
         });
 
@@ -2366,15 +2285,14 @@ export class ButtonExecutor {
         if (buttonDef) {
           buttonDef.__lastRoll      = total;
           buttonDef.__lastSuccesses = successes;
+          buttonDef.__lastNatural   = leadingD20Natural(roll) ?? 0;
         }
+        const _isCritOvTH   = await _resolveBoolPin(action.isCrit);
+        const _isFumbleOvTH = await _resolveBoolPin(action.isFumble);
         _writeRollMeta(buttonDef, {
           roll, formula: `${count}d${die}`,
-          critOn:      Number(action.critOn ?? 20),
-          critFormula: action.critFormula ?? "",
-          isCritOverride: action.isCritOverride ?? null,
-          fumbleOn:         Number(action.fumbleOn ?? 1),
-          fumbleFormula:    action.fumbleFormula ?? "",
-          isFumbleOverride: action.isFumbleOverride ?? null,
+          isCritOverride:   _isCritOvTH   !== null ? (_isCritOvTH   ? 1 : 0) : null,
+          isFumbleOverride: _isFumbleOvTH !== null ? (_isFumbleOvTH ? 1 : 0) : null,
           rollData:    actor?.getRollData?.() ?? {}
         });
 
@@ -2469,13 +2387,6 @@ export class ButtonExecutor {
         const silent = action.silent === true || action.silent === "yes";
         const { FormulaEngine } = await import("./formula-engine.mjs");
 
-        // Crit / Fumble swap rules — both apply to Damage and Heal:
-        //   - if Is Crit?   truthy AND Crit Amount   non-empty → roll Crit Amount   instead of Amount
-        //   - else if Is Fumble? truthy AND Fumble Amount non-empty → roll Fumble Amount
-        //   - else                                                 → roll Amount
-        // Truthiness coerces numbers (0/non-zero), bool literals, and string
-        // forms ("0"/"1"/"yes"/"no"/"true"/"false"); evaluable expressions
-        // (e.g. "(@flag.x > 3)") fall through FormulaEngine.evaluate.
         const _bool = (v) => {
           if (v === undefined || v === null || v === "") return false;
           if (typeof v === "number")  return v !== 0;
@@ -2582,7 +2493,7 @@ export class ButtonExecutor {
         let cond = _injectRuntime(String(action.condition ?? "0"));
         cond = FormulaEngine.resolveForRoll(cond, item ?? actor ?? {});
         const val = FormulaEngine.evaluate(cond, item ?? actor ?? {});
-        if (!val || val === "0" || val === 0 || val === false) return; // halt chain
+        if (!val || val === "0" || val === 0 || val === false) return;
         break;
       }
 
@@ -2591,7 +2502,7 @@ export class ButtonExecutor {
         let text = _injectRuntime(String(action.text ?? ""));
         try {
           text = FormulaEngine.evaluate(text, item ?? actor ?? {});
-        } catch { /* leave raw */ }
+        } catch {  }
         const level = action.level ?? "info";
         if (level === "warn")  ui.notifications.warn(String(text));
         else if (level === "error") ui.notifications.error(String(text));
@@ -2607,7 +2518,7 @@ export class ButtonExecutor {
           let s = _injectRuntime(String(val));
           s = FormulaEngine.resolveForRoll(s, item ?? actor ?? {});
           val = FormulaEngine.evaluate(s, item ?? actor ?? {});
-        } catch { /* use raw */ }
+        } catch {  }
         if (action.scope === "world") {
           if (game.user.isGM) {
             const vars = game.settings.get("sd", "systemSettings")?.vars ?? {};
@@ -2616,7 +2527,7 @@ export class ButtonExecutor {
             await game.settings.set("sd", "systemSettings", { ...cur, vars });
           }
         } else {
-          // Actor-scope (default)
+
           const a = actor ?? item?.actor;
           if (a) await a.setFlag("sd", `vars.${varName}`, val);
         }
@@ -2659,7 +2570,7 @@ export class ButtonExecutor {
         try {
           const { FormulaEngine } = await import("./formula-engine.mjs");
           uuid = String(FormulaEngine.evaluate(uuid, item ?? actor ?? {}));
-        } catch { /* use raw */ }
+        } catch {  }
         if (!uuid) break;
         try {
           const doc = await fromUuid(uuid);
@@ -2676,14 +2587,14 @@ export class ButtonExecutor {
         const { FormulaEngine } = await import("./formula-engine.mjs");
         let table = null;
         if (action.tableUuid) {
-          try { table = await fromUuid(action.tableUuid); } catch { /* fall through */ }
+          try { table = await fromUuid(action.tableUuid); } catch {  }
         }
         if (!table && action.tableName) {
           table = game.tables.getName(action.tableName);
         }
         if (!table) {
           ui.notifications.warn(`SD | Roll Table: table not found — "${action.tableName || action.tableUuid}"`);
-          // Empty branch
+
           for (const sub of (action.emptyActions ?? [])) {
             await this._runAction(sub, item, actor, buttonDef, runtime);
           }
@@ -2691,7 +2602,7 @@ export class ButtonExecutor {
         }
 
         let formula = _injectRuntime(String(action.formula ?? "1d6"));
-        try { formula = FormulaEngine.resolveForRoll(formula, item ?? actor ?? {}); } catch { /* raw */ }
+        try { formula = FormulaEngine.resolveForRoll(formula, item ?? actor ?? {}); } catch {  }
 
         let drawCount = 1;
         try {
@@ -2709,7 +2620,6 @@ export class ButtonExecutor {
           break;
         }
 
-        // Draw all results
         const allResults = [];
         for (let i = 0; i < drawCount; i++) {
           const draw = await table.roll({ roll: new Roll(formula) });
@@ -2912,7 +2822,7 @@ export class ButtonExecutor {
             FormulaEngine.resolveForRoll(val, item ?? actor ?? {}),
             item ?? actor ?? {}
           ));
-        } catch { /* raw string */ }
+        } catch {  }
         const cases  = action.cases  ?? [];
         const matched = cases.findIndex(c => String(c) === val);
         const branch = matched >= 0
@@ -2933,7 +2843,6 @@ export class ButtonExecutor {
         break;
       }
 
-      // Dialog Switch
       case "dialogSwitch": {
         const outputs = (action.outputs ?? []).filter(o => o?.label);
         if (!outputs.length) break;
@@ -3007,7 +2916,7 @@ export class ButtonExecutor {
 
         const idx = parseInt(chosen);
         const sel = items[idx];
-        // Coerce selected item to a transportable token (uuid > id > string)
+
         const selToken = (sel && typeof sel === "object")
           ? (sel.uuid ?? sel.id ?? sel.name ?? "")
           : (sel ?? "");
@@ -3062,10 +2971,10 @@ export class ButtonExecutor {
         const { DialogV2 } = foundry.applications.api;
         let elements = [];
         if (Array.isArray(action.elements)) {
-          // New format (0.3.8+) — visual builder produces a clean array.
+
           elements = action.elements;
         } else if (typeof action.elementsJson === "string" && action.elementsJson.trim() !== "") {
-          // Legacy fallback — old graphs that still ship the JSON textarea.
+
           try {
             const parsed = JSON.parse(action.elementsJson);
             if (Array.isArray(parsed)) elements = parsed;
@@ -3078,7 +2987,6 @@ export class ButtonExecutor {
         const okLabel     = action.okLabel     ?? "OK";
         const cancelLabel = action.cancelLabel ?? "Cancel";
 
-        // Initial state per id, applying defaults
         const state = {};
         for (const el of elements) {
           if (!el || typeof el !== "object") continue;
@@ -3145,9 +3053,7 @@ export class ButtonExecutor {
                 break;
               case "select": {
                 let opts = Array.isArray(el.options) ? el.options : [];
-                // Phase 4: optionsFrom — pull options from actor.system.<path>.
-                // Supports arrays, plain objects (key/label), and strings split
-                // by `, ` or `\n`. Always combined AFTER static `options`.
+
                 if (el.optionsFrom && actor) {
                   try {
                     const path = String(el.optionsFrom).replace(/^actor\./, "");
@@ -3184,7 +3090,7 @@ export class ButtonExecutor {
                 break;
               }
               case "rollButton":
-                // Buttons are rendered as DialogV2 buttons, not in body.
+
                 break;
               default:
                 break;
@@ -3193,11 +3099,6 @@ export class ButtonExecutor {
           return parts.join("");
         };
 
-        // Build button list — one per rollButton element + Cancel.
-        // Each rollButton element may carry an `execIndex` (new visual builder)
-        // pointing to the original element index — that's used to pick which
-        // exec branch fires (`el${execIndex}_execActions`). Legacy elements
-        // without execIndex fall back to btn0..btn7 ordering.
         const rollButtons = elements
           .map((el, i) => ({ el, idx: i }))
           .filter(({ el }) => el && el.type === "rollButton");
@@ -3222,7 +3123,6 @@ export class ButtonExecutor {
         }
         dlgButtons.push({ action:"cancel", label: cancelLabel, icon:"fas fa-times" });
 
-        // Capture inputs into state on every change. Re-render body on cond-change.
         const dlg = new DialogV2({
           window:      { title },
           content:     _renderBody(state),
@@ -3234,7 +3134,7 @@ export class ButtonExecutor {
             const _refresh = () => {
               const body = root.querySelector(".window-content") || root;
               const formArea = body.querySelector(".dialog-content") || body;
-              // Re-render html. Foundry DialogV2 keeps form.dialog-content for content.
+
               try {
                 const newHtml = _renderBody(state);
                 const target = root.querySelector(".dialog-content") || root.querySelector(".window-content");
@@ -3250,7 +3150,7 @@ export class ButtonExecutor {
                   if (el.type === "checkbox") state[id] = !!el.checked;
                   else if (el.type === "number") state[id] = Number(el.value);
                   else state[id] = el.value;
-                  // Re-render only if any element references this id in a condition.
+
                   const refRe = new RegExp(`\\{${id}\\}`);
                   const condDirty = elements.some(e =>
                     e && (refRe.test(e.visibleWhen || "") || refRe.test(e.disabledWhen || ""))
@@ -3284,7 +3184,6 @@ export class ButtonExecutor {
           dlg.render(true);
         });
 
-        // Expose collected fields on runtime as {__dlg.<id>} tokens
         if (buttonDef) buttonDef.__dlgState = { ...state };
         if (result === null || result === undefined) {
           for (const sub of (action.cancelActions ?? [])) {
@@ -3295,11 +3194,6 @@ export class ButtonExecutor {
         const [pinId, pickedId, emitFlag] = String(result).split("|");
         if (buttonDef) buttonDef.__dlgPicked = pickedId || pinId || "";
 
-        // Run the matching exec branch:
-        //   • New format: pinId = "el<i>_exec"; only runs if the user enabled
-        //     "Emit exec on click?" for that element (emitFlag === "yes").
-        //   • Legacy:    pinId = "btn<n>"; always runs.
-        // submitActions runs unconditionally afterwards — single dispatch.
         if (pinId && (pinId.startsWith("btn") || (/^el\d+_exec$/.test(pinId) && emitFlag === "yes"))) {
           const branch = action[`${pinId}Actions`] ?? [];
           for (const sub of branch) await this._runAction(sub, item, actor, buttonDef, runtime);
@@ -3338,8 +3232,6 @@ export class ButtonExecutor {
         break;
       }
 
-
-      // Create Effect
       case "createEffect": {
         const _ceSpec = action.target != null ? _injectRuntime(String(action.target)) : null;
         const targets = _resolveAllTargets(_ceSpec ?? "token_target", actor);
@@ -3376,7 +3268,6 @@ export class ButtonExecutor {
         break;
       }
 
-      // Toggle Effect
       case "toggleEffect": {
         const effectName = action.name ?? "";
         if (!effectName) break;
@@ -3458,7 +3349,8 @@ export class ButtonExecutor {
       case "placeAuraDamage":
       case "placeAuraHeal":
       case "placeAuraSaveEffect":
-      case "placeAuraSaveBranch": {
+      case "placeAuraSaveBranch":
+      case "placeAuraTargets": {
         if (!canvas?.scene) break;
         action = {
           ...action,
@@ -3468,7 +3360,7 @@ export class ButtonExecutor {
           disFormula:   action.disFormula   != null ? _injectRuntime(String(action.disFormula))   : action.disFormula,
           dc:           action.dc           != null ? _injectRuntime(String(action.dc))           : action.dc
         };
-        // Токен хозяина
+
         let ownerToken = null;
         if (action.owner === "selected_token") {
           ownerToken = canvas.tokens?.controlled?.[0] ?? null;
@@ -3496,7 +3388,8 @@ export class ButtonExecutor {
           placeAuraDamage:      "damage",
           placeAuraHeal:        "heal",
           placeAuraSaveEffect:  "save-effect",
-          placeAuraSaveBranch:  "save-branch"
+          placeAuraSaveBranch:  "save-branch",
+          placeAuraTargets:     "targets"
         };
         const mode = modeMap[action.type] ?? action.mode ?? "effect";
 
@@ -3521,7 +3414,7 @@ export class ButtonExecutor {
           deactivateOnLeave: action.deactivateOnLeave !== false,
           conditionEffect:   action.conditionEffect ?? "",
           roundsRemaining:   rounds,
-          // damage/heal specifics
+
           formula:           action.formula      ?? "",
           bonusFormula:      action.bonusFormula ?? "",
           damageType:        action.damageType   ?? "",
@@ -3533,7 +3426,7 @@ export class ButtonExecutor {
           advMode:           action.advMode     ?? "none",
           advFormula:        action.advFormula  ?? "",
           disFormula:        action.disFormula  ?? "",
-          // save-branch specifics
+
           rollMode:          action.rollMode    ?? "public",
           postActions:       action.postActions ?? [],
           srcActorId:        actor?.id          ?? "",
@@ -3541,7 +3434,7 @@ export class ButtonExecutor {
           runtimeSnapshot:   (() => {
             if (!buttonDef) return null;
             const o = {};
-            for (const k of ["__lastRoll","__lastMargin","__lastSuccesses","__lastBotches","__progPrev","__opposedWinnerRoll"]) {
+            for (const k of ["__lastRoll","__lastMargin","__lastSuccesses","__lastBotches","__progPrev","__opposedWinnerRoll","__lastDice","__lastIsCrit","__lastCritFormula","__lastIsFumble","__lastFumbleFormula","__lastNatural","__lastFormula","__lastMin","__lastMax","__lastAvg"]) {
               if (buttonDef[k] !== undefined) o[k] = buttonDef[k];
             }
             return Object.keys(o).length ? o : null;
@@ -3666,7 +3559,6 @@ export class ButtonExecutor {
         break;
       }
 
-      // AoE -- Save Branch
       case "placeAoeSaveBranch": {
         action = {
           ...action,
@@ -3735,12 +3627,6 @@ export class ButtonExecutor {
         break;
       }
 
-      // AoE -- No-Save Targets
-      // Same UX as Save Branch (post a chat card, click Place Template, drop
-      // the region) but skips all rolls. After placement we just collect
-      // every token inside the region and forward them as `allTargets` to
-      // the post-actions chain. Used to wire downstream Damage / Heal /
-      // Effect nodes' Targets pin to "everyone in the area".
       case "placeAoeTargets": {
         const shape       = action.shape ?? "circle";
         const size        = Number(action.size  ?? 20)    || 20;
@@ -3855,17 +3741,14 @@ export class ButtonExecutor {
       }
 
       case "aiRequest": {
-        // Generic OpenAI-compatible chat completion request.
-        // Works with: api.openai.com, openrouter.ai, LM Studio, Ollama (OAI compat), vLLM, etc.
+
         let _aiFE = null;
         try {
           const mod = await import("./formula-engine.mjs");
           _aiFE = mod?.FormulaEngine ?? null;
-        } catch { /* optional */ }
+        } catch {  }
         const _aiDoc = item ?? actor ?? {};
-        // Narrow resolver: only substitute {widget:KEY}, {widgetPath:KEY},
-        // {item:…}, {@attr}, etc. — does NOT transliterate Cyrillic and does
-        // NOT mangle natural-language text the way resolveForRoll() does.
+
         const _aiResolveTokens = (s) => {
           if (!_aiFE) return s;
           try {
@@ -3882,10 +3765,9 @@ export class ButtonExecutor {
         const _runStr = (raw) => {
           if (raw == null) return "";
           let s = String(raw);
-          // 1) replace runtime tokens ({__lastRoll}, {__lastAiResponse}, …)
+
           try { s = _injectRuntime(s); } catch {}
-          // 2) replace module tokens ({widget:KEY}, {item:…}, {@attr1}, etc.)
-          //    via narrow per-token resolver (no transliteration, no math eval).
+
           s = _aiResolveTokens(s);
           return s;
         };
@@ -3902,13 +3784,12 @@ export class ButtonExecutor {
           : Math.max(1, Number(action.maxTokens) | 0);
         const postToChat = action.toChat === "yes" || action.toChat === true;
 
-        // World-setting fallback for the API key (safer than embedding key on the actor)
         const settingKey = String(action.apiKeySetting ?? "").trim();
         if (!apiKey && settingKey) {
           try {
             const v = game.settings.get("sd", settingKey);
             if (v) apiKey = String(v).trim();
-          } catch { /* unregistered setting — ignore */ }
+          } catch {  }
         }
 
         runtime.__lastAiResponse = "";
@@ -4018,7 +3899,7 @@ export class ButtonExecutor {
       } else if (tMode === "selected_tokens") {
         saveActors = (canvas?.tokens?.controlled ?? []).map(t => t.actor).filter(Boolean);
       } else {
-        // _sdResolveActorsList handles UUIDs / user_character / player_actors / Get Actor / etc.
+
         saveActors = _sdResolveActorsList(tMode, actor);
         if (!saveActors.length) {
           const tActor = _resolveTarget(tMode, actor);
@@ -4051,7 +3932,6 @@ export class ButtonExecutor {
         custom:  game.i18n.localize("SD.ChatSave.CustomCheck")
       }[checkType] ?? checkType;
 
-      // Build one row per actor
       const actorRows = saveActors.map(tActor => {
         const saveMod = Number(foundry.utils.getProperty(tActor, modifierPath) ?? 0);
         const sign    = saveMod >= 0 ? `+${saveMod}` : String(saveMod);
@@ -4212,7 +4092,7 @@ export class ButtonExecutor {
       try {
         const { FormulaEngine } = await import("./formula-engine.mjs");
         uuid = String(FormulaEngine.evaluate(uuid, item ?? actor ?? {}));
-      } catch { /* raw */ }
+      } catch {  }
       if (!uuid) { ui.notifications.warn("SD | Show Journal: empty UUID"); break; }
       try {
         const doc = await fromUuid(uuid);
@@ -4236,7 +4116,7 @@ export class ButtonExecutor {
         const { FormulaEngine } = await import("./formula-engine.mjs");
         entryUuid = String(FormulaEngine.evaluate(entryUuid, item ?? actor ?? {}));
         pageId    = String(FormulaEngine.evaluate(pageId,    item ?? actor ?? {}));
-      } catch { /* raw */ }
+      } catch {  }
       try {
         const entry = await fromUuid(entryUuid);
         if (!entry) { ui.notifications.warn(`SD | Show Page: entry not found — ${entryUuid}`); break; }
@@ -4249,8 +4129,6 @@ export class ButtonExecutor {
       } catch(e) { console.error("SD | journalShowPage:", e); }
       break;
     }
-
-    /* ─────────  CARDS  ───────── */
 
     case "cardShuffle": {
       const stack = await _sdResolveCards(action);
@@ -4304,7 +4182,7 @@ export class ButtonExecutor {
         } else if (action.type === "cardDiscard") {
           await card.pass(stack, { action: "discard", chatNotification: action.toChat !== false });
         } else {
-          // reveal — chat-only, no movement
+
           await ChatMessage.create({
             speaker: ChatMessage.getSpeaker({ actor: actor ?? null }),
             content: `<div class="sd-card-reveal" style="display:flex;gap:8px;align-items:center"><img src="${card.face >= 0 ? card.faces?.[card.face]?.img ?? card.back?.img ?? "" : card.back?.img ?? ""}" style="height:96px;border-radius:6px"><div><strong>${actor?.name ?? game.user.name} reveals:</strong><br><em>${card.name ?? ""}</em>${card.description ? `<div style="opacity:.8;margin-top:4px">${card.description}</div>` : ""}</div></div>`
@@ -4360,7 +4238,7 @@ export class ButtonExecutor {
       if (!stack) { ui.notifications.warn(`SD | Card Flip: stack not found`); break; }
       try {
         if (action.cardId === "*" || !action.cardId) {
-          // flip all
+
           const ids = stack.cards.map(c => c.id);
           const updates = ids.map(id => {
             const c = stack.cards.get(id);
@@ -4400,7 +4278,7 @@ export class ButtonExecutor {
   }
 
   static async _requestSaveDialog({ saveActor, saveMod, dc, flavor, rollFormula = "1d20", timeout = 60 }) {
-    // Чей это актор
+
     const ownerIds = Object.entries(saveActor.ownership ?? {})
       .filter(([uid, lvl]) => lvl >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER && uid !== "default")
       .map(([uid]) => uid);
@@ -4413,7 +4291,7 @@ export class ButtonExecutor {
     const callbackId = `sd_save_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
     return new Promise((resolve) => {
-      // Одноразовый листенер
+
       const handler = (data) => {
         if (data.type !== "saveResult" || data.callbackId !== callbackId) return;
         game.socket.off("system.sd", handler);
@@ -4435,7 +4313,6 @@ export class ButtonExecutor {
         resolve(roll.total);
       }, timeout * 1000);
 
-      // Запрос целевому юзеру
       game.socket.emit("system.sd", {
         type:       "saveRequest",
         targetUser: owningUser.id,
@@ -4521,15 +4398,12 @@ export class ButtonExecutor {
 
     try {
       const _safeBind = (rootCandidate) => {
-        // Try several times — Foundry's DialogV2 may invoke `render` before
-        // the content body has actually been inserted into the DOM, leaving
-        // root.querySelectorAll(".sd-rdlg-mode") empty and the click
-        // handlers never attached. Poll briefly until the buttons exist.
+
         let tries = 0;
         const tick = () => {
           let root = rootCandidate;
           if (!root || !root.querySelector?.(".sd-rdlg-mode")) {
-            // Fall back to scanning the DOM for our content's parent dialog.
+
             const sd = document.querySelector(".sd-rdlg");
             root = sd?.closest("dialog,.application,.app,form") ?? sd?.parentElement ?? null;
           }
@@ -4539,9 +4413,7 @@ export class ButtonExecutor {
         };
         tick();
       };
-      // Belt-and-suspenders: also hook into Foundry's renderDialogV2 lifecycle
-      // — works across versions where the inline `render:` callback signature
-      // has shifted between (event, dialog) and (app, html, data).
+
       const _hookId = Hooks.on("renderDialogV2", (app, htmlOrEl) => {
         const root = htmlOrEl?.[0] ?? htmlOrEl ?? app?.element ?? null;
         if (root?.querySelector?.(".sd-rdlg")) _safeBind(root);
@@ -4628,7 +4500,7 @@ export class ButtonExecutor {
         },
         default: "roll",
         render: (html) => {
-          // Ручной ввод
+
           html.find(".dialog-buttons").before(
             `<div style="margin:8px 0;display:flex;align-items:center;gap:8px;">
                <label style="font-size:11px;color:#888;">Or enter total:</label>
@@ -4637,7 +4509,7 @@ export class ButtonExecutor {
                         color:#e0e0ff;border-radius:4px;padding:2px 6px;font-size:13px;">
              </div>`
           );
-          // Авто-таймаут
+
           if (timeout > 0) {
             const t = setTimeout(() => {
               dlg.close();
@@ -4676,7 +4548,6 @@ export class ButtonExecutor {
     const hpBarPct    = maxHp ? Math.round((Math.max(0, newHp ?? curHp) / maxHp) * 100) : 0;
     const safeHpPath  = hpPath ?? "system.resources.hp.value";
 
-    // Multiplier buttons row
     const multBtns = isDamage ? `
       <div class="sd-card-mults" style="display:flex;gap:3px;margin-top:8px;flex-wrap:wrap;">
         ${[["½","0.5"],["¼","0.25"],["⅛","0.125"],["×2","2"],["×4","4"]].map(([lbl,mul]) => `
@@ -4751,7 +4622,6 @@ export class ButtonExecutor {
         </div>
       </div>` : "";
 
-    // Re-roll button
     const rerollBtn = rollFormula ? `
       <div style="margin-top:6px;">
         <button type="button" class="sd-reroll-btn"
@@ -4769,7 +4639,6 @@ export class ButtonExecutor {
         </button>
       </div>` : "";
 
-    // HP bar
     const hpBar = (newHp !== null && maxHp) ? `
       <div style="margin-top:8px">
         <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:2px">
@@ -4824,8 +4693,6 @@ export class ButtonExecutor {
   </div>
 </div>`;}
 
-  // Chat apply buttons
-
   static async _postChatApply(btnType, amount, sourceActor, targetActor) {
     const isHeal = btnType === "applyHealing";
     const content = ButtonExecutor._buildChatCard({
@@ -4844,8 +4711,6 @@ export class ButtonExecutor {
       flags: { "sd": { applyAction: { btnType, amount, targetId: targetActor?.id ?? null } } }
     });
   }
-
-  // Field resolution helpers
 
   static _getFieldValue(path, item, actor) {
     if (path.startsWith("slots."))       return SlotManager.resolveSlotPath(item, path);

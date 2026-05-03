@@ -14,7 +14,6 @@ export class NPCData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
 
-      // Core Attributes
       attributes: new SchemaField({
         attr1: AttributeField({ initial: 10, label: "Attribute 1" }),
         attr2: AttributeField({ initial: 10, label: "Attribute 2" }),
@@ -24,8 +23,6 @@ export class NPCData extends foundry.abstract.TypeDataModel {
         attr6: AttributeField({ initial: 10, label: "Attribute 6" })
       }),
 
-      // Resources — typed map of arbitrary keys to a value/max/min triple.
-      // Accepts any key declared in System Config (matches CharacterData).
       resources: new TypedObjectField(ResourceField({ initial: 10 }), {
         initial: () => ({
           hp: { value: 10, max: 10, min: 0 },
@@ -33,7 +30,6 @@ export class NPCData extends foundry.abstract.TypeDataModel {
         })
       }),
 
-      // Combat
       defense: new SchemaField({
         armor: new NumberField({ required: true, integer: true, initial: 10, nullable: false }),
         bonus: new NumberField({ required: true, integer: true, initial: 0,  nullable: false }),
@@ -51,7 +47,6 @@ export class NPCData extends foundry.abstract.TypeDataModel {
         total: new NumberField({ required: true, integer: true, initial: 0, nullable: false })
       }),
 
-      // NPC Classification
       classification: new SchemaField({
         cr:        new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
         xpReward:  new NumberField({ required: true, integer: true,  initial: 0, min: 0, nullable: false }),
@@ -73,7 +68,6 @@ export class NPCData extends foundry.abstract.TypeDataModel {
         })
       ),
 
-      // Resistances / Immunities
       traits: new SchemaField({
         resistances:  new ArrayField(new StringField({ blank: false })),
         immunities:   new ArrayField(new StringField({ blank: false })),
@@ -83,19 +77,16 @@ export class NPCData extends foundry.abstract.TypeDataModel {
         senses:       new StringField({ initial: "", blank: true })
       }),
 
-      // Default Roll Config
       rollConfig: RollConfigField({ label: "Default Roll" }),
 
       declaredAttrs: new ArrayField(new ObjectField()),
 
-      // Custom Tabs
       customTabs: new ArrayField(new ObjectField()),
 
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
       resistances: new ObjectField({ initial: {} }),
 
-      // Flags / Custom Fields
       flags: new ObjectField({ initial: {} }),
 
       slotDefinitions: new ArrayField(SlotDefinitionField()),
@@ -103,18 +94,13 @@ export class NPCData extends foundry.abstract.TypeDataModel {
 
       hiddenFields: new ObjectField({ initial: {} }),
 
-      // Biography / Notes
       biography: BiographyField()
     };
   }
 
-  // Migrations
-
   static migrateData(source) {
     return super.migrateData(source);
   }
-
-  // Derived Data
 
   prepareDerivedData() {
     super.prepareDerivedData();
@@ -150,7 +136,6 @@ export class NPCData extends foundry.abstract.TypeDataModel {
     this.initiative.total = this.attributes.attr1.mod + this.initiative.bonus;
   }
 
-  /** Auto-calculate XP reward from CR if not set manually. */
   _prepareXPFromCR() {
     const cr = this.classification.cr;
     if (this.classification.xpReward === 0) {

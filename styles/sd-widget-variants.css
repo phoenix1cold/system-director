@@ -1,25 +1,3 @@
-/*
- * System Director — Widget Variants (visual skins)
- * ------------------------------------------------
- * Every widget root carries two stable class names injected by
- * module/builder/widget-renderer.mjs:
- *   - `sd-w-<type>` — registry key (counter, rollButton, cardHand, …)
- *   - `sd-v-<id>`   — the selected variant (chunky, pill, …)
- * plus the legacy kebab-cased `widget-<type>` which system.css targets.
- *
- * No `sd-v-*` class  →  legacy look, unchanged.
- *
- * Notes on overrides: most display widgets set inline `style=""` on their
- * root and inner parts (background, border, padding, colors). Variant
- * rules therefore use `!important` aggressively — without it the inline
- * defaults win and the skin has no visible effect.
- *
- * Variants rely on the theme CSS variables (`--sd-bg*`, `--sd-accent*`,
- * `--sd-text*`, `--sd-hp/mp/stamina`) so every skin automatically follows
- * the active color scheme.
- */
-
-/* ============================================================== text */
 .sd-w-text.sd-v-boxed {
   padding: 8px 12px !important;
   border: 1px solid var(--sd-border) !important;
@@ -57,7 +35,6 @@
 }
 .sd-w-text.sd-v-inline input { flex: 1 !important; }
 
-/* ============================================================ richtext */
 .sd-w-richtext.sd-v-boxed {
   padding: 10px 12px !important;
   border: 1px solid var(--sd-border) !important;
@@ -74,7 +51,6 @@
   border-radius: var(--sd-r) !important;
 }
 
-/* ============================================================== number */
 .sd-w-number.sd-v-chip {
   display: inline-flex !important;
   align-items: center !important;
@@ -118,7 +94,6 @@
 }
 .sd-w-number.sd-v-framed input { font-weight: 700 !important; }
 
-/* ============================================================ resource */
 .sd-w-resource.sd-v-split .res-bar,
 .sd-w-resource.sd-v-split .res-bar-bg {
   height: 6px !important;
@@ -156,7 +131,6 @@
   text-shadow: 0 0 6px var(--sd-accent-glow) !important;
 }
 
-/* ============================================================ progress */
 .sd-w-progress.sd-v-thin  .prog-bar,
 .sd-w-progress.sd-v-thin  .progress-bar { height: 3px !important; }
 .sd-w-progress.sd-v-thick .prog-bar,
@@ -171,7 +145,6 @@
   background: repeating-linear-gradient(to right, var(--sd-bg-3) 0 calc(10% - 2px), var(--sd-bg) calc(10% - 2px) 10%) !important;
 }
 
-/* =============================================================== clock */
 .sd-w-clock.sd-v-ring .widget-clock-svg { display: none !important; }
 .sd-w-clock.sd-v-ring::before {
   content: "";
@@ -204,7 +177,6 @@
   font-size: 22px !important; font-weight: 800 !important; color: var(--sd-accent) !important;
 }
 
-/* ============================================================= counter */
 .sd-w-counter.sd-v-chunky {
   padding: 8px 12px !important;
   border: 1px solid var(--sd-border) !important;
@@ -231,12 +203,7 @@
   color: var(--sd-text-2) !important;
   width: 22px !important; height: 22px !important;
 }
-/* Wheel: a dial-style counter where the conic-gradient reflects the
- * current value as a percentage of the configured min/max range. The
- * `--sd-progress` custom property is set inline by `_render_counter`
- * (see module/builder/widget-renderer.mjs). When min/max are missing
- * we fall back to 0% so the wheel renders empty rather than the old
- * hard-coded 33% that ignored the actual value. */
+
 .sd-w-counter.sd-v-wheel .cnt-val {
   width: 42px !important; height: 42px !important;
   border-radius: 50% !important;
@@ -252,7 +219,6 @@
   transition: background .25s ease !important;
 }
 
-/* ================================================================ dice */
 .sd-w-dice.sd-v-d20-big .dice-btn {
   font-size: 22px !important;
   min-width: 72px !important;
@@ -273,7 +239,6 @@
   box-shadow: none !important;
 }
 
-/* ============================================================== button */
 .sd-w-button.sd-v-pill .widget-button-btn,
 .sd-w-button.sd-v-pill button {
   border-radius: 999px !important;
@@ -314,7 +279,6 @@
   box-shadow: none !important;
 }
 
-/* ========================================================== rollButton */
 .sd-w-rollbutton.sd-v-d20 .dice-btn,
 .sd-w-rollbutton.sd-v-d20 .widget-roll-button-btn {
   background: radial-gradient(circle at 30% 30%, var(--sd-accent), var(--sd-accent-2)) !important;
@@ -342,14 +306,6 @@
   box-shadow: none !important;
 }
 
-/* ============================================================= toggle */
-/*
- * Renderer markup is `.tog-row > .tog-track[.on] > .tog-knob`. Selectors
- * keep the legacy `.toggle-track` / `.toggle-switch` aliases for any
- * older HTML that still ships them, plus the renderer's actual class
- * names. The active state is signalled by `.tog-track.on` (renderer)
- * or `data-value="true"` (renderer's `data-action` wrapper).
- */
 .sd-w-toggle.sd-v-checkbox .tog-track,
 .sd-w-toggle.sd-v-checkbox .toggle-track,
 .sd-w-toggle.sd-v-checkbox .toggle-switch {
@@ -403,17 +359,6 @@
   box-shadow: 0 0 8px var(--sd-stamina, #6acb6a) !important;
 }
 
-/* ============================================================= select */
-/*
- * The renderer emits three parallel UI surfaces — a native <select>,
- * a pill row (`.widget-select-pills`) and a radio column
- * (`.widget-select-radios`) — and these variants toggle which one is
- * visible. The "default" variant keeps the dropdown; pills and radio
- * hide it; segmented keeps the dropdown but flat-styles it.
- *
- * Click handling for pills / radios is wired by `_wireWidget` via
- * `data-action="widgetSelectPill"`.
- */
 .sd-w-select.sd-v-pills .widget-select-input,
 .sd-w-select.sd-v-radio  .widget-select-input { display: none !important; }
 .sd-w-select.sd-v-pills .widget-select-pills {
@@ -455,7 +400,6 @@
   padding: 4px 8px !important;
 }
 
-/* =========================================================== attribute */
 .sd-w-attribute.sd-v-stat-card {
   display: flex !important; flex-direction: column !important; align-items: center !important;
   padding: 8px 10px !important;
@@ -480,17 +424,6 @@
   display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important;
 }
 
-/* ====================================================== attributeGroup */
-/*
- * Expanded layout (character sheet / item sheet body): each attribute
- * is an `.attr-item` card with a name label, an editable score input,
- * and a modifier button that rolls `1d20+mod`. The container `.attr-
- * group-body` is shaped per variant.
- *
- * The HUD-popover compact rendering (`widget-compact` + `<details
- * class="sd-hud-popover">`) is unchanged; the variant rules below
- * deliberately *don't* target compact since it lives behind a `<details>`.
- */
 .sd-w-attributegroup .attr-group-body {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)) !important;
@@ -546,7 +479,6 @@
   border-color: var(--sd-accent) !important;
 }
 
-/* Variants reshape the container only. */
 .sd-w-attributegroup.sd-v-row .attr-group-body {
   display: flex !important;
   flex-direction: row !important;
@@ -579,7 +511,6 @@
   font-size: 13px !important;
 }
 
-/* =============================================================== tags */
 .sd-w-tags.sd-v-outline .tag,
 .sd-w-tags.sd-v-outline [class*="tag-"] {
   background: transparent !important;
@@ -599,7 +530,6 @@
   border: 1px solid var(--sd-accent-dim) !important;
 }
 
-/* ============================================================== image */
 .sd-w-image.sd-v-framed img {
   padding: 4px !important;
   border: 3px solid var(--sd-accent) !important;
@@ -639,13 +569,6 @@
   object-fit: cover !important;
 }
 
-/* ============================================================ section */
-/*
- * The renderer always emits `<div class="widget widget-section"><div
- * class="sec-title">…</div><hr class="sec-divider"></div>`. Variants
- * either replace the divider with their own line/box or hide the
- * default `<hr>` to avoid duplication.
- */
 .sd-w-section.sd-v-underline {
   border-bottom: 2px solid var(--sd-accent) !important;
   padding-bottom: 4px !important;
@@ -679,7 +602,6 @@
 }
 .sd-w-section.sd-v-pill .sec-divider { display: none !important; }
 
-/* =========================================================== inventory */
 .sd-w-inventory.sd-v-list .inv-row,
 .sd-w-inventory.sd-v-list .inventory-item { padding: 2px 6px !important; font-size: 11px !important; }
 .sd-w-inventory.sd-v-grid .inventory-grid,
@@ -713,13 +635,6 @@
   display: flex !important; flex-direction: column !important; gap: 4px !important;
 }
 
-/* ================================================================ slot */
-/*
- * Renderer markup is `.slot-mini-list > .slot-mini-item` plus the drop
- * zone `.slot-drop-mini`. Selectors keep `.slot-box` / `.widget-slot-row`
- * for legacy HTML and add the renderer class names so the variants
- * actually take effect on character sheets / item sheets.
- */
 .sd-w-slot.sd-v-framed .slot-mini-item,
 .sd-w-slot.sd-v-framed .slot-box,
 .sd-w-slot.sd-v-framed .widget-slot-row {
@@ -760,7 +675,6 @@
 }
 .sd-w-slot.sd-v-ghost .slot-drop-mini { border-style: dashed !important; opacity: .7 !important; }
 
-/* ============================================================ cardHand */
 .sd-w-cardhand.sd-v-fan .card-hand-cards,
 .sd-w-cardhand.sd-v-fan .cards-row {
   display: flex !important; justify-content: center !important; padding-bottom: 12px !important;
@@ -791,7 +705,6 @@
   gap: 6px !important;
 }
 
-/* ====================================================== cardDrawButton */
 .sd-w-carddrawbutton.sd-v-deck .dice-btn,
 .sd-w-carddrawbutton.sd-v-deck button {
   background: linear-gradient(135deg, var(--sd-accent), var(--sd-accent-2)) !important;
@@ -814,7 +727,6 @@
     4px 4px 0 var(--sd-bg-4) !important;
 }
 
-/* ============================================================= effects */
 .sd-w-effects.sd-v-chips .fx-list,
 .sd-w-effects.sd-v-chips .effects-list {
   display: flex !important; flex-wrap: wrap !important; gap: 4px !important;
@@ -843,7 +755,6 @@
   overflow: hidden !important;
 }
 
-/* =========================================================== spellbook */
 .sd-w-spellbook.sd-v-grimoire {
   background:
     radial-gradient(circle at 30% 20%, rgba(139, 94, 52, .10), transparent 60%),
@@ -869,7 +780,6 @@
   background: transparent !important;
 }
 
-/* =============================================================== skill */
 .sd-w-skill.sd-v-table {
   display: grid !important;
   grid-template-columns: 1fr auto !important;
@@ -898,7 +808,6 @@
   padding: 2px 10px !important;
 }
 
-/* ============================================================ derived */
 .sd-w-derived.sd-v-stat-card {
   display: flex !important; flex-direction: column !important; align-items: center !important;
   padding: 6px 10px !important;

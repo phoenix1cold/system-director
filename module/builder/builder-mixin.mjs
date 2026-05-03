@@ -8,8 +8,6 @@ export function BuilderMixin(Base) {
 
     _editMode = false;
 
-    // Context: add customTabs data
-
     async _prepareContext(options) {
       const ctx = await super._prepareContext(options);
 
@@ -31,15 +29,12 @@ export function BuilderMixin(Base) {
       return { ...ctx, customTabs, editMode };
     }
 
-
     _onRender(context, options) {
       super._onRender?.(context, options);
       this._wireCustomTabs(context);
       this._wireBuilderDrop();
       this._wireWidgetInteractions();
     }
-
-    // Custom tab nav + content
 
     _wireCustomTabs(context) {
       const root = this.element;
@@ -48,12 +43,10 @@ export function BuilderMixin(Base) {
       const nav = root.querySelector(".sheet-tabs");
       if (!nav) return;
 
-      // Remove old custom tab links
       root.querySelectorAll(".tab-link.custom-tab").forEach(el => el.remove());
 
       const { customTabs = [], editMode } = context;
 
-      // Build nav links
       customTabs.forEach(tab => {
         const a = document.createElement("a");
         a.className    = "item tab-link custom-tab";
@@ -101,10 +94,8 @@ export function BuilderMixin(Base) {
 
       this._renderCustomTabPanels(customTabs, editMode);
 
-      // Edit-mode class on sheet
       root.classList.toggle("sheet-edit-mode", editMode);
 
-      // Wire edit-mode toggle button
       const emBtn = root.querySelector(".edit-mode-btn");
       if (emBtn) {
         emBtn.classList.toggle("active", editMode);
@@ -114,7 +105,6 @@ export function BuilderMixin(Base) {
         }, { once: true });
       }
 
-      // Add save button in edit mode
       if (editMode) {
         this._addEditModeSaveButton(root);
       }
@@ -126,7 +116,6 @@ export function BuilderMixin(Base) {
       const header = root.querySelector(".sheet-header");
       if (!header) return;
 
-      // Remove existing save button
       header.querySelectorAll(".edit-save-btn").forEach(el => el.remove());
 
       const saveBtn = document.createElement("button");
@@ -205,12 +194,10 @@ export function BuilderMixin(Base) {
       const attrs = [];
       const system = item.system ?? {};
 
-      // Add common item attributes
       if (system.quantity !== undefined) attrs.push({ path: "system.quantity", label: "Quantity" });
       if (system.weight !== undefined) attrs.push({ path: "system.weight", label: "Weight" });
       if (system.price !== undefined) attrs.push({ path: "system.price", label: "Price" });
 
-      // Add hidden fields
       if (system.hiddenFields) {
         for (const [key, val] of Object.entries(system.hiddenFields)) {
           attrs.push({ path: `system.hiddenFields.${key}`, label: val.label ?? key });
@@ -237,7 +224,6 @@ export function BuilderMixin(Base) {
       const content = root.querySelector(".window-content");
       if (!content) return;
 
-      // Remove old custom panels
       root.querySelectorAll(".custom-tab-content").forEach(el => el.remove());
 
       customTabs.forEach(tab => {
@@ -246,7 +232,6 @@ export function BuilderMixin(Base) {
         panel.dataset.tab   = `ctab_${tab.id}`;
         panel.dataset.group = "sheet";
 
-        // Build rows
         tab.rows.forEach(row => {
           const rowDiv = document.createElement("div");
           rowDiv.className = `widget-row ${editMode ? "edit-mode" : ""}`;
@@ -304,7 +289,6 @@ export function BuilderMixin(Base) {
           panel.appendChild(rowDiv);
         });
 
-        // Add row button
         const addRow = document.createElement("div");
         addRow.className    = "add-row-btn";
         addRow.dataset.action = "addRow";
@@ -320,11 +304,11 @@ export function BuilderMixin(Base) {
       const root  = this.element;
       if (!root) return;
       const key   = `ctab_${tabId}`;
-      // Deactivate all
+
       root.querySelectorAll("[data-group='sheet'][data-tab]").forEach(el => {
         el.classList.remove("active");
       });
-      // Activate target
+
       root.querySelectorAll(`[data-group='sheet'][data-tab='${key}']`).forEach(el => {
         el.classList.add("active");
       });
@@ -356,18 +340,13 @@ export function BuilderMixin(Base) {
       });
     }
 
-    // Drop wiring
-
     _wireBuilderDrop() {
       const root = this.element;
       if (!root) return;
 
       root.querySelectorAll(".wo-drag").forEach(handle => {
         handle.addEventListener("dragstart", ev => {
-          // Embed both the source doc uuid and a deep snapshot of the
-          // widget so cross-sheet drops can copy it without needing the
-          // source document to still be open. Same-document drops still
-          // use the lightweight `widgetId` for in-place moves.
+
           const tabId    = handle.dataset.tabId;
           const fromRow  = handle.dataset.rowId;
           const widgetId = handle.dataset.widgetId;
@@ -377,7 +356,7 @@ export function BuilderMixin(Base) {
             const row  = tabs.find(t => t.id === tabId)?.rows?.find(r => r.id === fromRow);
             const w    = row?.widgets?.find(w => w.id === widgetId);
             if (w) snapshot = foundry.utils.deepClone(w);
-          } catch { /* keep snapshot null */ }
+          } catch {  }
           ev.dataTransfer.setData("text/plain", JSON.stringify({
             sdType:    "moveWidget",
             srcDocUuid: this.document?.uuid ?? null,
@@ -399,15 +378,12 @@ export function BuilderMixin(Base) {
           if (data.sdType === "widget") {
             GridManager.addWidget(this.document, dz.dataset.tabId, dz.dataset.rowId, data.widgetType);
           } else if (data.sdType === "moveWidget" || data.sdType === "widget-move") {
-            // Accept both the item-sheet/builder ("moveWidget") and the
-            // character-sheet ("widget-move") payload shapes — character
-            // sheets emit a parallel-named alias so cross-sheet drag in
-            // either direction works without needing the source open.
+
             const snapshot = data.widget ?? data.widgetSnapshot ?? null;
             const fromRowId = data.fromRowId ?? data.rowId ?? null;
             const sameDoc = data.srcDocUuid && this.document?.uuid
               ? data.srcDocUuid === this.document.uuid
-              : data.tabId === dz.dataset.tabId; // legacy fallback
+              : data.tabId === dz.dataset.tabId;
             if (sameDoc && data.tabId === dz.dataset.tabId && fromRowId && data.widgetId) {
               await GridManager.moveWidget(this.document, data.tabId, fromRowId, dz.dataset.rowId, data.widgetId);
             } else if (snapshot) {
@@ -421,7 +397,6 @@ export function BuilderMixin(Base) {
         });
       });
 
-      // Inventory drop zone
       root.querySelectorAll("[data-drop-zone='item']").forEach(dz => {
         dz.addEventListener("dragover", ev => { ev.preventDefault(); dz.classList.add("drag-over"); });
         dz.addEventListener("dragleave", () => dz.classList.remove("drag-over"));
@@ -431,14 +406,12 @@ export function BuilderMixin(Base) {
           const data = this._parseDrop(ev);
           if (!data) return;
 
-          // Handle item drop
           if (data.type === "Item" || data.uuid?.startsWith("Item") || data.actorId) {
             await this._handleItemDrop(data);
           }
         });
       });
 
-      // Slot drop zone
       root.querySelectorAll("[data-drop-slot]").forEach(dz => {
         dz.addEventListener("dragover", ev => { ev.preventDefault(); dz.classList.add("drag-over"); });
         dz.addEventListener("dragleave", () => dz.classList.remove("drag-over"));
@@ -460,11 +433,10 @@ export function BuilderMixin(Base) {
       try {
         let item;
 
-        // From compendium
         if (data.uuid) {
           item = await fromUuid(data.uuid);
         }
-        // From another actor
+
         else if (data.actorId) {
           const sourceActor = game.actors.get(data.actorId);
           item = sourceActor?.items.get(data.id);
@@ -475,7 +447,6 @@ export function BuilderMixin(Base) {
           return;
         }
 
-        // Create item on this actor
         const itemData = item.toObject();
         if (this.document instanceof Actor) {
           await this.document.createEmbeddedDocuments("Item", [itemData]);
@@ -521,8 +492,6 @@ export function BuilderMixin(Base) {
       catch { return null; }
     }
 
-    // Builder click handler
-
     async _onBuilderClick(ev) {
       const btn = ev.target.closest("[data-action]");
       if (!btn) return;
@@ -567,7 +536,6 @@ export function BuilderMixin(Base) {
           break;
         }
 
-        // Widget interactions
         case "widgetNumStep": {
           ev.preventDefault();
           const step   = parseFloat(btn.dataset.step ?? 1);
@@ -600,7 +568,6 @@ export function BuilderMixin(Base) {
           break;
         }
 
-        // Inventory widget actions
         case "itemEdit": {
           const itemId = btn.dataset.itemId;
           const item = this.document.items?.get(itemId);
@@ -633,8 +600,6 @@ export function BuilderMixin(Base) {
       }
     }
 
-    // Widget Config Popup
-
     async _openWidgetConfig(tabId, rowId, widgetId) {
       const tabs   = GridManager.getTabs(this.document);
       const tab    = tabs.find(t => t.id === tabId);
@@ -645,18 +610,15 @@ export function BuilderMixin(Base) {
       const typeDef = WIDGET_TYPES[widget.type];
       if (!typeDef) return;
 
-      // Build popup DOM
       const popup = document.createElement("div");
       popup.className = "sd-widget-popup";
 
-      // Position near the widget cell
       const cellEl = this.element.querySelector(`[data-widget-id="${widgetId}"]`);
       if (cellEl) {
         const rect = cellEl.getBoundingClientRect();
         let top = rect.bottom + 8;
         let left = rect.left;
 
-        // Adjust if would go off-screen
         if (top + 300 > window.innerHeight) {
           top = rect.top - 300;
         }
@@ -734,7 +696,6 @@ export function BuilderMixin(Base) {
           graph.open();
         });
 
-        // Cancel button
         const cancelBtn = popup.querySelector("#popup-cancel");
         if (cancelBtn) {
           cancelBtn.addEventListener("click", () => {
@@ -743,7 +704,6 @@ export function BuilderMixin(Base) {
           });
         }
 
-        // Save button
         const saveBtn = popup.querySelector("#popup-save");
         if (saveBtn) {
           saveBtn.addEventListener("click", async () => {
@@ -797,7 +757,6 @@ export function BuilderMixin(Base) {
           });
         });
 
-        // Click outside closes
         const outside = (ev) => {
           if (!popup.contains(ev.target)) { popup.remove(); document.removeEventListener("click", outside, true); resolve(null); }
         };
@@ -899,7 +858,6 @@ export function BuilderMixin(Base) {
         const data = this._parseDrop(ev);
         if (!data) return;
 
-        // Path from Toolbox
         if (data.sdType === "path") {
           input.value = data.path;
           input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -940,8 +898,6 @@ export function BuilderMixin(Base) {
         }
       });
     }
-
-    // Helpers
 
     async _promptText(title, current = "") {
       return new Promise(resolve => {

@@ -1,6 +1,3 @@
-/* Widget preview styles — approximate the look of widgets inside the
- * actor / item sheet. */
-
 .wp-label { font-size: 11px; color: rgba(255,255,255,.7); display: block; margin-bottom: 2px; }
 .wp-mut   { color: rgba(255,255,255,.45); font-size: 11px; }
 

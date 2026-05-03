@@ -6,9 +6,6 @@ const {
   SchemaField, ArrayField, HTMLField, ObjectField
 } = foundry.data.fields;
 
-// Shared sub-schema factory
-
-/** A single field-change instruction stored inside a level or a skill-tree node. */
 function FieldChangeField(opts = {}) {
   return new SchemaField({
     path:  new StringField({ initial: "system.advancement.level", blank: false }),
@@ -23,29 +20,26 @@ function FieldChangeField(opts = {}) {
 
 export { FieldChangeField };
 
-// ClassData
-
 export class ClassData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
     return {
 
-      // Description
       description: new HTMLField({ required: false, blank: true, initial: "" }),
 
       levels: new ArrayField(
         new SchemaField({
-          /** Stable unique id so re-ordering doesn't break references. */
+
           id:    new StringField({ initial: "", blank: true }),
-          /** Level number.  Usually 1, 2, 3 … but can be any positive int. */
+
           level: new NumberField({ required: true, integer: true, initial: 1, min: 1, nullable: false }),
-          /** Human-readable label shown in the UI ("Apprentice", "Level 5", …). */
+
           label: new StringField({ initial: "", blank: true }),
-          /** Item snapshots granted when this level is applied. */
+
           items:        new ArrayField(new ObjectField(), { initial: [] }),
-          /** ActiveEffect-data objects granted when this level is applied. */
+
           effects:      new ArrayField(new ObjectField(), { initial: [] }),
-          /** Field-change instructions applied when this level fires. */
+
           fieldChanges: new ArrayField(FieldChangeField(), { initial: [] })
         }),
         { initial: [] }
@@ -56,7 +50,6 @@ export class ClassData extends foundry.abstract.TypeDataModel {
       slotContents: new ObjectField({ initial: {} }),
       buttons:    new ArrayField(ButtonDefinitionField(), { initial: [] }),
 
-      // Sheet-level Trigger Graph
       sdTriggerGraph: new ObjectField({ initial: {} })
     };
   }

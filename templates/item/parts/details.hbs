@@ -1,6 +1,5 @@
 <section class="tab-content" data-group="sheet" data-tab="details">
 
-  {{!-- ══ INVENTORY ══════════════════════════════════════════════════════════ --}}
   {{#if isInventory}}
 
   <div class="details-grid two-col">
@@ -61,7 +60,6 @@
     </div>
   </div>
 
-  {{!-- Attack block --}}
   <div class="subsection-block">
     <div class="subsection-header">
       <h4>{{localize "SD.Attack"}}</h4>
@@ -116,7 +114,6 @@
     {{/if}}
   </div>
 
-  {{!-- Armor block --}}
   <div class="subsection-block">
     <div class="subsection-header">
       <h4>{{localize "SD.Armor"}}</h4>
@@ -142,7 +139,6 @@
     {{/if}}
   </div>
 
-  {{!-- Uses block --}}
   <div class="subsection-block">
     <div class="subsection-header">
       <h4>{{localize "SD.Uses"}}</h4>
@@ -177,10 +173,8 @@
     {{/if}}
   </div>
 
-  {{/if}}{{!-- /isInventory --}}
+  {{/if}}
 
-
-  {{!-- ══ ABILITY ════════════════════════════════════════════════════════════ --}}
   {{#if isAbility}}
 
   <div class="details-grid two-col">
@@ -212,7 +206,6 @@
     </div>
   </div>
 
-  {{!-- Range & Area --}}
   <div class="subsection-block">
     <h4>{{localize "SD.RangeArea"}}</h4>
     <div class="details-grid two-col">
@@ -239,7 +232,6 @@
     </div>
   </div>
 
-  {{!-- Duration --}}
   <div class="subsection-block">
     <h4>{{localize "SD.Duration"}}</h4>
     <div class="details-grid two-col">
@@ -261,7 +253,6 @@
     </div>
   </div>
 
-  {{!-- Roll --}}
   <div class="subsection-block">
     <div class="subsection-header">
       <h4>{{localize "SD.Roll.label"}}</h4>
@@ -303,7 +294,6 @@
     {{/if}}
   </div>
 
-  {{!-- Damage --}}
   <div class="subsection-block">
     <div class="subsection-header">
       <h4>{{localize "SD.Damage"}}</h4>
@@ -334,7 +324,6 @@
     {{/if}}
   </div>
 
-  {{!-- Uses --}}
   <div class="subsection-block">
     <div class="subsection-header">
       <h4>{{localize "SD.Uses"}}</h4>
@@ -359,10 +348,8 @@
     {{/if}}
   </div>
 
-  {{/if}}{{!-- /isAbility --}}
+  {{/if}}
 
-
-  {{!-- ══ FEATURE ══════════════════════════════════════════════════════════ --}}
   {{#if isFeature}}
   <div class="details-grid two-col">
     <div class="detail-group">

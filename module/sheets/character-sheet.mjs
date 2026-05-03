@@ -79,7 +79,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     };
   }
 
-
   _onRender(context, options) {
     this._buildTabNav();
     this._buildTabPanels();
@@ -178,7 +177,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       nav.appendChild(a);
     });
 
-    // "+" button
     if (this._editMode) {
       const plus = document.createElement("a");
       plus.className    = "sd-tab-btn sd-add-tab";
@@ -199,7 +197,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     spacer.style.cssText = "flex:1";
     nav.appendChild(spacer);
 
-    // Hidden Fields sys tab
     const isHFActive = this.tabGroups.sheet === "_sys_hidden";
     const hfTab = document.createElement("a");
     hfTab.className = "sd-tab-btn";
@@ -217,7 +214,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
     nav.appendChild(hfTab);
 
-    // Save as Template button
     const tplBtn = document.createElement("a");
     tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-w-bd,var(--sd-border));border-bottom:none;color:var(--sd-w-label, var(--sd-text-3));background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;";
     tplBtn.innerHTML = `<i class="fas fa-floppy-disk"></i> Template`;
@@ -242,7 +238,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       root.querySelector(".window-content")?.appendChild(container);
     }
 
-    // Clear everything inside it
     container.innerHTML = "";
 
     const tabs = this.document.system.customTabs ?? [];
@@ -320,7 +315,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     panel.innerHTML = html;
 
-    // Wire copy-path
     panel.querySelectorAll("[data-hf-action='copy-path']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const path = `system.hiddenFields.${btn.dataset.hfKey}`;
@@ -341,7 +335,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       await this.document.update(patch);
     };
 
-    // Wire add
     let _adding = false;
     panel.querySelector("[data-hf-action='add']")?.addEventListener("click", async () => {
       if (_adding) return;
@@ -356,7 +349,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       } finally { _adding = false; }
     });
 
-    // Wire remove
     panel.querySelectorAll("[data-hf-action='remove']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const fields = foundry.utils.deepClone(this.document.system.hiddenFields ?? {});
@@ -365,14 +357,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Wire value save
     panel.querySelectorAll("[data-hf-val]").forEach(inp => {
       inp.addEventListener("change", async () => {
         await this.document.update({ [`system.hiddenFields.${inp.dataset.hfKey}`]: inp.value });
       });
     });
 
-    // Wire key rename
     panel.querySelectorAll("[data-hf-rename]").forEach(inp => {
       inp.addEventListener("change", async () => {
         const oldKey = inp.dataset.hfKey;
@@ -510,13 +500,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return cell;
     }
 
-    // Single rendering path: WidgetRenderer.render handles Show-If
-    // filtering, variant / cssClass decoration, and `_buildStyle`
-    // overrides on the inner widget div. Cell-level class injection is
-    // intentionally *not* done here anymore — doing it would re-apply
-    // root-level variant rules on top of the already-decorated inner
-    // element and produce nested padding / borders for widgets that
-    // care about that distinction.
     const html = this._widgetHTML(w);
     if (!html?.trim() && !this._editMode) {
       cell.style.display = "none";
@@ -561,16 +544,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     cell.addEventListener("dragstart", ev => {
       ev.stopPropagation();
       try {
-        // Always include srcDocUuid + a deep snapshot of the widget so
-        // drops on a different sheet (or any document the dragstart sheet
-        // doesn't own) can copy instead of move. Same-doc drops ignore
-        // the snapshot and use the move-by-id path.
-        //
-        // The payload carries BOTH the character-sheet's native fields
-        // (widgetSnapshot, sdType="widget-move") AND the builder-mixin /
-        // item-sheet alias (widget, sdType="moveWidget"). Either drop
-        // handler can pick its preferred field — this makes cross-sheet
-        // drag work in both directions (item ↔ character).
+
         const snapshot = foundry.utils.deepClone(w);
         ev.dataTransfer.setData("text/plain", JSON.stringify({
           sdType:         "widget-move",
@@ -628,20 +602,13 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   _widgetHTML(w) {
-    // Single delegation. All widget HTML — including text/number/resource/
-    // toggle/dice/section/attribute/skill/slot/inventory/effects/spellbook/
-    // button/richtext — now flows through `WidgetRenderer.render(...)`,
-    // which handles Show-If filtering, variant decoration (`sd-w-<type>`/
-    // `sd-v-<id>`/`cssClass`), and `_buildStyle` overrides uniformly with
-    // item-sheet, action-hud, and the builder palette. Returning `""`
-    // signals "hide this cell" to `_buildWidget`.
+
     return WidgetRenderer.render(w, this.document, this._editMode) ?? "";
   }
 
   _wireWidget(cell, w) {
     const doc = this.document;
 
-    // Input change → save
     cell.querySelectorAll("input[data-path]").forEach(inp => {
       inp.addEventListener("change", async () => {
         const v = inp.type === "number" ? Number(inp.value) : inp.value;
@@ -649,7 +616,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // ± step buttons
     cell.querySelectorAll("[data-step]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const step   = parseFloat(btn.dataset.step);
@@ -686,7 +652,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Toggle
     cell.querySelectorAll("[data-toggle]").forEach(tog => {
       tog.addEventListener("click", async () => {
         await doc.update({ [tog.dataset.toggle]: tog.dataset.on !== "true" });
@@ -697,7 +662,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       btn.addEventListener("click", async () => {
         const onClickFml = btn.dataset.attrOnclick;
         if (onClickFml) {
-          // Execute compiled action graph
+
           const trimmed = onClickFml.trim();
           if (trimmed.startsWith("[")) {
             try {
@@ -759,9 +724,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Pills / radios on the select widget. Fires for both `<button>` and
-    // `<input type="radio">` — the radio's native `change` is harmless
-    // because the form submit will see the same value we just wrote.
     cell.querySelectorAll("[data-action='widgetSelectPill']").forEach(el => {
       const handler = async ev => {
         ev.stopPropagation();
@@ -770,11 +732,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (!path) return;
         await doc.update({ [path]: val });
       };
-      // <input type=radio> fires "change", everything else fires "click".
+
       el.addEventListener(el.tagName === "INPUT" ? "change" : "click", handler);
     });
 
-    // Plain action button
     cell.querySelectorAll("[data-action='widgetButton']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const rawFormula = btn.dataset.formulaRaw || btn.dataset.formula;
@@ -813,7 +774,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           return;
         }
 
-        // Plain dice formula → roll it
         let formula = rawFormula;
         try {
           const { FormulaEngine } = await import("../helpers/formula-engine.mjs");
@@ -829,8 +789,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         }
       });
     });
-
-    /* ────────  CARDS  widget interactions  ──────── */
 
     const _sdCardBusy = async (el, fn) => {
       if (!el) return;
@@ -1091,9 +1049,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (!itemData) return;
         const actor = doc instanceof Actor ? doc : doc.actor;
         let item = actor?.items?.get(itemData._id) ?? null;
-        // 2. Live actor item by name
+
         if (!item) item = actor?.items?.find(i => i.name === itemData.name) ?? null;
-        // 3
+
         if (!item && itemData._sourceUuid) {
           try { item = await fromUuid(itemData._sourceUuid); } catch {}
         }
@@ -1133,7 +1091,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Slot widget: use button
     cell.querySelectorAll("[data-sd-slot-use]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const slotId = btn.dataset.sdSlotUse;
@@ -1144,7 +1101,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (!itemData) return;
         const actor = doc instanceof Actor ? doc : doc.actor;
         let liveItem = actor?.items?.get(itemData._id) ?? null;
-        // 2. Live actor item by name
+
         if (!liveItem) liveItem = actor?.items?.find(i => i.name === itemData.name) ?? null;
         if (!liveItem && itemData._sourceUuid) {
           try { liveItem = await fromUuid(itemData._sourceUuid); } catch {}
@@ -1206,7 +1163,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         try { item = await fromUuid(snapshot._sourceUuid); } catch(e) { console.warn("[SD]   step3 fromUuid error:", e.message); }
         CONFIG.debug?.sd && console.log("[SD]   step3 by snapshot._sourceUuid:", item?.name ?? "null");
       }
-      // 4. Try as world item by _id
+
       if (!item && itemId) {
         try { item = await fromUuid("Item." + itemId); } catch(e) { console.warn("[SD]   step4 fromUuid error:", e.message); }
         CONFIG.debug?.sd && console.log("[SD]   step4 by world Item._id:", item?.name ?? "null");
@@ -1268,7 +1225,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Slot widget: drop zone
     cell.querySelectorAll("[data-sd-slot-drop]").forEach(dz => {
       dz.addEventListener("dragover", ev => {
         ev.preventDefault();
@@ -1419,7 +1375,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Edit ability
     cell.querySelectorAll("[data-action='abilityEdit']").forEach(btn => {
       btn.addEventListener("click", () => {
         const item = doc.items?.get(btn.dataset.itemId);
@@ -1450,12 +1405,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Add a new spell slot level
     cell.querySelectorAll("[data-action='slotAddLevel']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const existing = Object.keys(doc.system?.spellSlots ?? {})
           .map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
-        // Find first gap starting from 1
+
         let next = 1;
         while (existing.includes(next)) next++;
         if (next > 20) { ui.notifications.warn("Maximum 20 spell slot levels."); return; }
@@ -1541,7 +1495,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (!script) return;
         try {
           await navigator.clipboard.writeText(script);
-          // Brief visual feedback
+
           const icon = btn.querySelector("i");
           if (icon) {
             icon.className = "fas fa-check";
@@ -1563,7 +1517,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         }
       });
     });
-    // Copy path buttons
+
     cell.querySelectorAll(".widget-copy-path").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1633,7 +1587,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Tags -- add pill
     cell.querySelectorAll(".sd-tag-add[data-path]").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1654,7 +1607,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    // Tags -- remove pill
     cell.querySelectorAll(".sd-tag-remove[data-path]").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1799,12 +1751,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (data.sdType === "widget") {
           await this._addWidget(tab.id, row?.id ?? null, data.widgetType, parentVS?.id ?? null);
         } else if (data.sdType === "widget-move" || data.sdType === "moveWidget") {
-          // Accept both character-sheet ("widget-move") and item-sheet/
-          // builder-mixin ("moveWidget") payload shapes — they carry the
-          // same information but use different field names. The snapshot
-          // is in `widgetSnapshot` (character source) or `widget` (item
-          // source). Cross-document drops always copy via snapshot;
-          // same-document drops fall through to the legacy move path.
+
           const myUuid = this.document?.uuid ?? null;
           const isCrossDoc = data.srcDocUuid && myUuid && data.srcDocUuid !== myUuid;
           const snapshot = data.widgetSnapshot ?? data.widget ?? null;
@@ -1818,8 +1765,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           } else if (data.tabId && data.rowId && data.widgetId) {
             await this._moveWidget(data, { tabId: tab.id, rowId: row?.id ?? null, parentVsId: parentVS?.id ?? null, toEnd: true });
           } else if (snapshot) {
-            // Last-resort fallback — payload didn't include enough info to
-            // splice from the source, but we have a snapshot to copy.
+
             await this._insertWidgetSnapshot(snapshot, {
               tabId:      tab.id,
               rowId:      row?.id ?? null,
@@ -1833,13 +1779,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     return dz;
   }
 
-  // Tab/Row/Widget CRUD
-
   _switchTab(tabId) {
     this.tabGroups.sheet = tabId;
     const root = this.element;
 
-    // Update nav link styles
     root.querySelectorAll(".sd-tab-btn[data-tab-id]").forEach(a => {
       const active = a.dataset.tabId === tabId;
       a.style.color      = active ? "var(--sd-accent)" : "#666";
@@ -1847,7 +1790,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       a.style.borderColor = active ? "var(--sd-border) var(--sd-border) var(--sd-bg)" : "transparent";
     });
 
-    // Show correct panel
     root.querySelectorAll(".sd-tab-panel").forEach(p => {
       p.style.display = p.dataset.tab === tabId ? "flex" : "none";
     });
@@ -1991,11 +1933,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (removed) await this.document.update({ "system.customTabs": tabs });
   }
 
-  /**
-   * Re-randomise the `id` of a widget and every nested widget in vsections.
-   * Used after deep-cloning a widget so the clone doesn't collide with the
-   * original (or with other clones in the same row).
-   */
   _refreshWidgetIdsDeep(widget) {
     if (!widget) return;
     widget.id = foundry.utils.randomID(8);
@@ -2004,12 +1941,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
   }
 
-  /**
-   * Duplicate a widget right next to its original (same row / same parent
-   * vsection). Deep clone preserves all formula graphs, labels, slot
-   * configs, color overrides, etc. — but every `id` is regenerated so the
-   * clone is independently addressable.
-   */
   async _duplicateWidget(tab, row, w, parentVS = null) {
     const tabs    = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const freshTab = tabs.find(t => t.id === tab.id);
@@ -2031,11 +1962,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await this.document.update({ "system.customTabs": tabs });
   }
 
-  /**
-   * Insert a snapshot from a foreign sheet (cross-document drag & drop).
-   * The snapshot is deep-cloned and re-IDed so it's independent of any
-   * other widget tree (including its source).
-   */
   async _insertWidgetSnapshot(snapshot, dst) {
     if (!snapshot || !dst?.tabId) return;
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
@@ -2061,7 +1987,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     if (clone.type === "vsection" && dst.parentVsId) {
-      // Don't allow nesting vsections inside vsections.
+
       return;
     }
 
@@ -2149,7 +2075,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await this.document.update({ "system.customTabs": tabs });
   }
 
-
   _wireInventoryDropZones() {
     const root = this.element;
     if (!root) return;
@@ -2186,7 +2111,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       let data;
       try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return; }
 
-      // Slot drop
       if (zone.dataset.sdSlotDrop !== undefined) {
         const slotId = zone.dataset.sdSlotDrop;
         const item   = data.uuid ? await fromUuid(data.uuid) : null;
@@ -2230,8 +2154,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
   }
 
-  // Wire header name/img
-
   _wireHeaderInputs() {
     const root = this.element;
     if (!root || !this.isEditable) return;
@@ -2247,7 +2169,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _showEditModeBadge() {
     const root = this.element;
     if (!root) return;
-    // Remove existing badge
+
     root.querySelector(".sd-edit-badge")?.remove();
     if (!this._editMode) return;
 
@@ -2268,8 +2190,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       }
     }
   }
-
-  // Static actions
 
   static async _onEditImage(event, target) {
     const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;

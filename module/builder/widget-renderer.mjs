@@ -2,21 +2,11 @@ import { FormulaEngine } from "../helpers/formula-engine.mjs";
 
 export class WidgetRenderer {
 
-  /**
-   * Render a single widget.
-   * @param {object} widgetDef   - from system.customTabs[].rows[].widgets[]
-   * @param {Actor|Item} doc     - the owning document
-   * @param {boolean} editMode   - whether edit overlay should be enabled
-   * @returns {string} HTML
-   */
   static render(widgetDef, doc, editMode = false) {
     try {
-      // In edit mode (typically only shown to GMs configuring the sheet),
-      // always show widgets regardless of Show-If, so the GM can still
-      // click their gear icon, drag-handle and trash button. View mode
-      // (for both GM and players) honours Show-If normally.
+
       if (editMode) {
-        // intentionally fall through to render
+
       } else if (widgetDef.showIfKey && String(widgetDef.showIfKey).trim()) {
         let actualVal;
         const src = widgetDef.showIfKey.trim();
@@ -35,10 +25,7 @@ export class WidgetRenderer {
         const visible = expected === ""
           ? (!!actualVal && actualVal !== "0" && actualVal !== "false")
           : actualVal === expected || String(Number(actualVal)) === expected;
-        // Return an empty string (not an HTML comment) so callers that
-        // hide their cell wrapper via `if (!html.trim()) cell.style.display
-        // = "none"` actually do hide it. The previous comment marker meant
-        // hidden widgets still occupied a grid slot.
+
         if (!visible) return "";
       } else if (widgetDef.showIf && String(widgetDef.showIf).trim()) {
         let visible = true;
@@ -48,18 +35,9 @@ export class WidgetRenderer {
         } catch { visible = true; }
         if (!visible) return "";
       }
-      // render
+
       let html = this[`_render_${widgetDef.type}`]?.(widgetDef, doc) ?? this._renderUnknown(widgetDef);
-      // visual variant ("skin") selected from the variant dropdown or pin.
-      // Adds an `sd-v-<id>` class to the root element. Falls through cleanly
-      // when the variant is missing, empty or "default" — the widget keeps
-      // its legacy look.
-      // Inject a stable registry-key class (`sd-w-<type>`) onto the root so
-      // that variant CSS selectors (`.sd-w-counter.sd-v-chunky …`) always
-      // match — the legacy `.widget-<type>` classes are kebab-cased
-      // (`widget-roll-button`, `widget-card-draw`, …) and don't align with
-      // the camelCase registry keys (`rollButton`, `cardDrawButton`), so
-      // authoring variant CSS against them would quietly miss those types.
+
       const stableType = String(widgetDef.type || "").replace(/[^A-Za-z0-9-]/g, "").toLowerCase();
       if (stableType) {
         html = html.replace(/^(<[^>]+class=")/, `$1sd-w-${stableType} `);
@@ -68,11 +46,11 @@ export class WidgetRenderer {
       if (variantId) {
         html = html.replace(/^(<[^>]+class=")/, `$1sd-v-${variantId} `);
       }
-      // extra CSS classes
+
       if (widgetDef.cssClass) {
         html = html.replace(/^(<[^>]+class=")/, `$1${this._esc(widgetDef.cssClass)} `);
       }
-      // common style overrides (width/height/colors/border/padding)
+
       const styleStr = this._buildStyle(widgetDef);
       if (styleStr) {
         if (/^<[^>]+style="/.test(html)) {
@@ -100,7 +78,6 @@ export class WidgetRenderer {
     return val ?? fallback;
   }
 
-  /** Resolve a widget's displayed value — uses valueFormula if set, else path */
   static _getValue(w, doc, fallback = "") {
     if (w.valueFormula && FormulaEngine.isFormula(w.valueFormula)) {
       return FormulaEngine.evaluate(w.valueFormula, doc);
@@ -110,7 +87,6 @@ export class WidgetRenderer {
     return fallback;
   }
 
-  /** Resolve a roll formula — replaces {refs} with live numbers */
   static _getRollFormula(w, doc) {
     const raw = w.formula ?? "1d20";
     return FormulaEngine.resolveForRoll(raw, doc);
@@ -165,12 +141,6 @@ export class WidgetRenderer {
       .replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
-  /**
-   * Normalise a widget variant id. Returns a lowercase a-z/0-9/dash token
-   * suitable for emitting straight into a class attribute, or "" when the
-   * input is empty, "default" or invalid (in which case the widget should
-   * render with its legacy look — no `sd-v-*` class added).
-   */
   static _sanitizeVariant(v) {
     const raw = String(v ?? "").trim().toLowerCase();
     if (!raw || raw === "default") return "";
@@ -178,23 +148,10 @@ export class WidgetRenderer {
     return safe.length > 0 ? safe : "";
   }
 
-  /**
-   * Normalise an FA icon spec to a full class string that can be dropped
-   * straight into `<i class="...">`. Accepts any of:
-   *   "fa-heart"           → "fas fa-heart"           (default to Solid)
-   *   "fab fa-github"      → "fab fa-github"          (pass-through)
-   *   "far fa-heart"       → "far fa-heart"
-   *   "fa-solid fa-heart"  → "fa-solid fa-heart"
-   *   "fas fa-heart fa-beat" → preserves extra FA modifier classes (spin / beat / bounce…)
-   *
-   * Returns a sanitised value with dangerous characters stripped so it's
-   * safe to render without additional escaping in the `class` attribute.
-   */
   static _faClass(icon, defaultStyle = "fas") {
     const raw = String(icon ?? "").trim();
     if (!raw) return `${defaultStyle} fa-circle`;
-    // Strip anything that isn't a letter / digit / dash / space / colon — keeps
-    // valid FontAwesome class tokens while blocking " and > injection attempts.
+
     const safe = raw.replace(/[^a-zA-Z0-9\-\s:]/g, "").trim();
     if (!safe) return `${defaultStyle} fa-circle`;
     const tokens = safe.split(/\s+/).filter(Boolean);
@@ -203,8 +160,7 @@ export class WidgetRenderer {
       /^fa-(solid|regular|brands|duotone|light|thin|sharp)$/i.test(t)
     );
     if (!hasStyle) tokens.unshift(defaultStyle);
-    // Make sure at least one `fa-*` token exists (the icon itself); if the
-    // user typed just "heart" promote it to "fa-heart".
+
     const hasIcon = tokens.some(t => /^fa-/.test(t) && !/^fa-(solid|regular|brands|duotone|light|thin|sharp)$/i.test(t));
     if (!hasIcon) {
       const plain = tokens.find(t => !/^fa[-s]?/i.test(t));
@@ -213,19 +169,11 @@ export class WidgetRenderer {
     return tokens.join(" ");
   }
 
-  /**
-   * Returns HTML for a small "copy path" button.
-   * data-copy-path is picked up by the sheet's delegated click handler.
-   * @param {string} path   -- the dot-path to copy (e.g. "system.resources.hp.value")
-   * @param {string} [tip]  -- tooltip suffix shown after the path
-   */
   static _copyBtn(path, tip = "") {
     const e = this._esc;
     const title = e(path + (tip ? "  —  " + tip : ""));
     return `<button type="button" class="widget-copy-path" data-copy-path="${e(path)}" title="Copy path: ${title}" tabindex="-1" style="background:none;border:none;padding:0 0 0 4px;cursor:pointer;color:var(--sd-border);font-size:9px;line-height:1;flex-shrink:0;transition:color .15s" onmouseenter="this.style.color='var(--sd-accent)'" onmouseleave="this.style.color='var(--sd-border)'"><i class="fas fa-copy"></i></button>`;
   }
-
-  // text
 
   static _render_text(w, doc) {
     const val  = this._getValue(w, doc, "");
@@ -249,8 +197,6 @@ export class WidgetRenderer {
   <input type="text" name="${esc(w.path)}" value="${esc(val)}">
 </div>`;
   }
-
-  // number
 
   static _render_number(w, doc) {
     const val = this._getValue(w, doc, 0);
@@ -277,8 +223,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // resource
-
   static _render_resource(w, doc) {
     const val    = Number(this._get(doc, w.pathValue, 0));
     const max    = Number(this._get(doc, w.pathMax,   0));
@@ -298,8 +242,6 @@ export class WidgetRenderer {
   <div class="res-bar"${barStyle ? ` style="${barStyle}"` : ""}><div class="res-bar-fill" style="width:${pct}%;background:${e(color)}"></div></div>
 </div>`;
   }
-
-  // dice
 
   static _render_dice(w, doc) {
     const e          = this._esc;
@@ -330,21 +272,11 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  /**
-   * "Copy as Macro" companion button for the dice widget. Produces a
-   * `<button data-copy-macro="…">` whose script body, when executed
-   * inside Foundry, performs the same roll as the main dice button.
-   * Wired by `character-sheet._wireWidget` (and item-sheet's wiring)
-   * via the shared `[data-copy-macro]` click listener.
-   */
   static _copyMacroBtn_dice(w) {
     const e = this._esc;
     const formula = w.formula ?? "1d20";
     const flavor  = w.flavor ?? w.label ?? "Roll";
-    // Build the script source first, then HTML-escape the whole thing.
-    // Escaping each interpolation individually wouldn't be enough — the
-    // script body itself contains raw `"` quote characters that need to
-    // be turned into `&quot;` for the HTML attribute.
+
     const script  =
       `// ${flavor}\\n` +
       `const actor = token?.actor ?? game.user.character;\\n` +
@@ -358,8 +290,6 @@ export class WidgetRenderer {
       <i class="fas fa-scroll"></i>
     </button>`;
   }
-
-  // button
 
   static _render_button(w, doc) {
     const e       = this._esc;
@@ -382,8 +312,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // toggle
-
   static _render_toggle(w, doc) {
     const val    = !!this._get(doc, w.path, false);
     const dispLbl = val ? (w.onLabel ?? "On") : (w.offLabel ?? "Off");
@@ -400,16 +328,12 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // slot
-
   static _render_slot(w, doc) {
     const { SlotManager } = globalThis._SD_SLOTS ?? {};
     const contents = SlotManager ? SlotManager.getContents(doc, w.slotId) : [];
     const def      = SlotManager ? SlotManager.getDefinition(doc, w.slotId) : null;
     const max      = def?.maxCount ?? w.maxCount ?? 1;
 
-    // HUD/compact rendering: round icons in a row (1..3 items) or a
-    // dropdown like the inventory widget when there are more.
     if (w.compact) {
       return this._render_slot_compact(w, doc, contents, max);
     }
@@ -440,14 +364,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  /**
-   * HUD-friendly rendering for the slot widget.
-   *   - 0..3 items → row of round image-buttons (whole circle is a click-to-use
-   *     target; items can still be removed via the small ✕ corner badge).
-   *   - >3 items   → collapsed `<details>` popover identical in shape to the
-   *     compact inventory widget (icon + label + count, opens a list of rows
-   *     with use / edit / remove controls).
-   */
   static _render_slot_compact(w, doc, contents, max) {
     const e        = this._esc;
     const slotId   = e(w.slotId);
@@ -476,7 +392,6 @@ export class WidgetRenderer {
 </details></div>`;
     }
 
-    // Row of round icons (0..3 items).
     let icons = "";
     for (let i = 0; i < contents.length; i++) {
       const c   = contents[i];
@@ -496,14 +411,11 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // inventory
-
   static _render_inventory(w, doc) {
     const e = this._esc;
     const isActor = doc instanceof Actor;
     if (!isActor) return `<div class="widget widget-inventory"><p style="color:var(--sd-text-3)">Inventory widget only works on Actor sheets</p></div>`;
 
-    // Get items from actor
     let items = [...(doc.items ?? [])];
     const categories = w.categories ?? [];
     const columns = w.columns ?? [];
@@ -512,12 +424,10 @@ export class WidgetRenderer {
       items = items.filter(item => categories.includes(item.system?.category));
     }
 
-    // Compact mode: a button that opens a popover list of names with use/equip controls.
     if (w.compact) {
       return this._render_inventory_compact(w, doc, items);
     }
 
-    // Group by category
     const grouped = {};
     items.forEach(item => {
       const cat = item.system?.category ?? "other";
@@ -525,18 +435,15 @@ export class WidgetRenderer {
       grouped[cat].push(item);
     });
 
-    // Build column headers
     let colHeaders = "";
     let colCells = "";
     if (columns.length > 0) {
       colHeaders = columns.map(col => `<span class="item-col-header">${e(col)}</span>`).join("");
     }
 
-    // Build HTML
     let html = `<div class="widget widget-inventory">
   <div class="widget-label">${e(w.label)}</div>`;
 
-    // Currency row if enabled
     if (w.showCurrency) {
       const c = doc.system?.currency ?? {};
       if (w.currencyPath) {
@@ -559,10 +466,7 @@ export class WidgetRenderer {
     </button>
   </div>`;
       } else {
-        // Dynamic currency row — driven by world settings (cfg.currencies).
-        // Labels come from CONFIG.SD.currencies; balances live on
-        // doc.system.currency.<key>.  Falls back to legacy 3 slots if no
-        // world config has been applied yet.
+
         const _curList = (Array.isArray(CONFIG?.SD?.currencies) && CONFIG.SD.currencies.length)
           ? CONFIG.SD.currencies
           : [
@@ -582,13 +486,11 @@ export class WidgetRenderer {
       }
     }
 
-    // Drop zone for items
     html += `
   <div class="inventory-drop-zone" data-drop-zone="item">
     <i class="fas fa-arrow-down-to-line"></i> Drop items here
   </div>`;
 
-    // Item categories
     const categoryOrder = ["weapon", "armor", "shield", "consumable", "ammo", "magazine", "tool", "gear", "container", "treasure", "other"];
 
     for (const cat of categoryOrder) {
@@ -606,7 +508,6 @@ export class WidgetRenderer {
         const equipped = item.system?.equipped ? "equipped" : "";
         const isInv    = item.type === "inventory";
 
-        // Build extra columns
         let extraCols = "";
         if (columns.length > 0) {
           for (const col of columns) {
@@ -650,8 +551,6 @@ export class WidgetRenderer {
     return html;
   }
 
-  // attribute
-
   static _render_attribute(w, doc) {
     const score = Number(this._get(doc, w.path, 10));
     const e     = this._esc;
@@ -684,7 +583,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // skill
   static _render_skill(w, doc) {
     const rank   = Number(this._get(doc, w.path, 0));
     const attrMod = Number(w.attrMod ?? 0);
@@ -693,9 +591,7 @@ export class WidgetRenderer {
     const e      = this._esc;
 
     const onClickFml = w.onClickFormula ?? null;
-    // The widget registry defines the configurable field as `rollFormula`
-    // (see widget-registry.mjs:229). Fall back to `formula` for any older
-    // documents that may have been migrated from the previous renderer.
+
     const rawFml     = (w.rollFormula && String(w.rollFormula).trim())
       ? String(w.rollFormula).trim()
       : (w.formula && String(w.formula).trim())
@@ -725,12 +621,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  /**
-   * "Copy as Macro" companion button for the skill widget. Mirrors the
-   * dice-widget helper but resolves rank from the actor at run-time so
-   * the resulting macro stays correct across stat changes. Wired via
-   * the shared `[data-copy-macro]` listener in `_wireWidget`.
-   */
   static _copyMacroBtn_skill(w) {
     const e = this._esc;
     const path    = w.path ?? "";
@@ -762,8 +652,6 @@ export class WidgetRenderer {
     </button>`;
   }
 
-  // section
-
   static _render_section(w, doc) {
     const e = this._esc;
     const titleStyle = w.titleColor ? `color:${e(w.titleColor)}` : "";
@@ -793,12 +681,10 @@ export class WidgetRenderer {
     return `<div class="widget widget-vsection" style="display:flex;flex-direction:column;gap:6px;padding:6px;border:1px ${bdStyle} ${e(bdCol)};border-radius:${radius};background:${e(bg)}">${header}${children}</div>`;
   }
 
-  // richtext
-
   static _render_richtext(w, doc) {
     const val = w.path ? this._get(doc, w.path, "") : (w.staticHtml ?? "");
     const e   = this._esc;
-    // Inline (no path) static HTML: render as a read-only block.
+
     if (!w.path && w.staticHtml) {
       return `<div class="widget widget-richtext widget-richtext--static">
   ${w.label ? `<div class="widget-label">${e(w.label)}</div>` : ""}
@@ -823,8 +709,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // effects
-
   static _render_effects(w, doc) {
     const e = this._esc;
     const effects = [...(doc.effects ?? [])];
@@ -843,7 +727,6 @@ export class WidgetRenderer {
       return this._render_effects_compact(w, doc, filtered, canEdit);
     }
 
-    // Duration helper
     const _durLabel = (ef) => {
       const d = ef.duration;
       if (!d) return "";
@@ -930,7 +813,6 @@ export class WidgetRenderer {
     return html;
   }
 
-  // progress
   static _render_progress(w, doc) {
     const esc  = this._esc.bind(this);
     const val  = Number(this._get(doc, w.pathValue, 0)) || 0;
@@ -954,7 +836,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // select
   static _render_select(w, doc) {
     const esc   = this._esc.bind(this);
     const cur   = String(this._get(doc, w.path, ""));
@@ -965,16 +846,7 @@ export class WidgetRenderer {
     const optsHtml = opts.map(o =>
       `<option value="${esc(o)}"${cur === o ? " selected" : ""}>${esc(o)}</option>`
     ).join("");
-    // Pills / radio markup is rendered alongside the native <select> and
-    // hidden by default (display:none). Variant CSS in
-    // `sd-widget-variants.css` toggles which UI is visible:
-    //   sd-v-pills    → hide select, show .widget-select-pills (chip row)
-    //   sd-v-radio    → hide select, show .widget-select-radios (column)
-    //   sd-v-segmented→ keeps the select but flat-styles it
-    //   default       → keep the native dropdown
-    // Click on a pill / radio fires `data-action="widgetSelectPill"`,
-    // wired by character-sheet/_wireWidget and item-sheet's wiring loop
-    // (`doc.update({ [path]: value })`).
+
     const pillsHtml = opts.map(o => `<button type="button" class="widget-select-pill${cur === o ? " is-active" : ""}" data-action="widgetSelectPill" data-path="${path}" data-value="${esc(o)}">${esc(o)}</button>`).join("");
     const radiosHtml = opts.map(o => `<label class="widget-select-radio${cur === o ? " is-active" : ""}"><input type="radio" name="__sel_${path}" value="${esc(o)}"${cur === o ? " checked" : ""} data-action="widgetSelectPill" data-path="${path}" data-value="${esc(o)}"><span>${esc(o)}</span></label>`).join("");
     return `<div class="widget widget-select">
@@ -987,7 +859,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // clock
   static _render_clock(w, doc) {
     const esc   = this._esc.bind(this);
     const lbl   = esc(w.label ?? "Clock");
@@ -1001,7 +872,6 @@ export class WidgetRenderer {
     const sw    = Number(w.pipBorder) > 0 ? Number(w.pipBorder) : 1.5;
     const cx = size / 2, cy = size / 2, r = size / 2 - 3;
 
-    // Build SVG pie segments
     const slices = [];
     for (let i = 0; i < segs; i++) {
       const startAngle = (i / segs) * 2 * Math.PI - Math.PI / 2;
@@ -1038,7 +908,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // tracker
   static _render_tracker(w, doc) {
     const esc     = this._esc.bind(this);
     const lbl     = esc(w.label ?? "Tracker");
@@ -1059,15 +928,11 @@ export class WidgetRenderer {
     const col       = esc(w.color      ?? "#e04040");
     const bg        = esc(w.emptyColor ?? w.bgColor ?? "var(--sd-bg-3)");
     const iconFull  = esc(this._faClass(w.icon ?? "fa-circle"));
-    // Optional alternate icon rendered on empty pips (blank = use same glyph).
+
     const iconEmptyFull = w.emptyIcon
       ? esc(this._faClass(w.emptyIcon))
       : iconFull;
-    // Optional custom images. When `iconImg` is set the filled pip is
-    // rendered as an `<img>` instead of an FA glyph; same for
-    // `emptyIconImg` on the empty side. Picking happens via the
-    // `image-pick` field in widget-registry.mjs (FilePicker callback in
-    // widget-config-popup.mjs).
+
     const iconImg      = w.iconImg      ? esc(String(w.iconImg))      : "";
     const emptyIconImg = w.emptyIconImg ? esc(String(w.emptyIconImg)) : "";
     const glow      = w.glow === false ? 0 : 1;
@@ -1124,16 +989,12 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // counter
   static _render_counter(w, doc) {
     const e    = this._esc;
     const val  = Number(this._get(doc, w.path, 0)) || 0;
     const col  = e(w.color ?? "var(--sd-warn)");
     const step = Number(w.step ?? 1) || 1;
-    // Compute the fill percentage so the `wheel` variant (and any future
-    // gauge-style skin) can reflect the current value via the
-    // `--sd-progress` CSS variable. Falls back to 0% when min/max are
-    // not configured or non-numeric.
+
     const minN = (w.min === "" || w.min == null) ? null : Number(w.min);
     const maxN = (w.max === "" || w.max == null) ? null : Number(w.max);
     const hasRange = Number.isFinite(minN) && Number.isFinite(maxN) && maxN > minN;
@@ -1165,7 +1026,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // rollButton
   static _render_rollButton(w, doc) {
     const e    = this._esc;
     const raw  = w.formula ?? "1d20";
@@ -1194,7 +1054,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // tokenPool
   static _render_tokenPool(w, doc) {
     const e       = this._esc;
     const rawPath = w.path ?? "";
@@ -1216,9 +1075,7 @@ export class WidgetRenderer {
     const iconEmptyFull = w.emptyIcon
       ? e(this._faClass(w.emptyIcon))
       : iconFull;
-    // See `_render_tracker` — same image-override semantics: when set,
-    // `iconImg` (and optionally `emptyIconImg`) replace the FA glyph
-    // with a user-picked image.
+
     const iconImg      = w.iconImg      ? e(String(w.iconImg))      : "";
     const emptyIconImg = w.emptyIconImg ? e(String(w.emptyIconImg)) : "";
     const glow      = w.glow === false ? 0 : 1;
@@ -1280,7 +1137,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // diceTray
   static _render_diceTray(w, doc) {
     const e       = this._esc;
     const flagPath = w.flagPath ?? "flags.sd.lastRoll";
@@ -1324,7 +1180,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // tags
   static _render_tags(w, doc) {
     const esc   = this._esc.bind(this);
     const lbl   = esc(w.label ?? "Tags");
@@ -1354,7 +1209,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // image
   static _render_image(w, doc) {
     const esc = this._esc.bind(this);
     const fromPath = w.path ? String(this._get(doc, w.path, "")) : "";
@@ -1392,7 +1246,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  // derived
   static _render_derived(w, doc) {
     const esc  = this._esc.bind(this);
     const lbl  = esc(w.label ?? "Derived");
@@ -1492,7 +1345,7 @@ export class WidgetRenderer {
     } else if (layout === "grid") {
       body = `<div class="sd-cardhand-grid" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0">${shown.map(cardEl).join("")}</div>`;
     } else {
-      // strip — horizontal scroller with buttons
+
       body = `<div class="sd-cardhand-strip-wrap" style="position:relative;display:flex;align-items:center;gap:6px">
         <button type="button" class="sd-card-strip-prev" data-action="cardStripScroll" data-dir="-1"
                 style="flex-shrink:0;width:24px;height:36px;background:rgba(20,20,30,.85);border:1px solid var(--sd-bg-3);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:0">
@@ -1616,11 +1469,6 @@ export class WidgetRenderer {
     return `<div class="widget"><div class="widget-label">[${this._esc(w.type)}]</div></div>`;
   }
 
-  // ─── Compact HUD renderers ─────────────────────────────────────────────
-  // These produce a single button (the widget label) that opens a small
-  // <details> popover containing a flat name-list with use/equip/toggle
-  // controls.
-
   static _render_inventory_compact(w, doc, items) {
     const e   = this._esc;
     const lbl = e(w.label || "Inventory");
@@ -1707,8 +1555,6 @@ export class WidgetRenderer {
 </details></div>`;
   }
 
-  // ─── attributeGroup widget (button + popover with attributes to roll) ─
-
   static _render_attributeGroup(w, doc) {
     const e   = this._esc;
     const lbl = e(w.label || "Attributes");
@@ -1720,45 +1566,30 @@ export class WidgetRenderer {
 </details></div>`;
     }
 
-    // Source: explicit list, or all enabled keys from CONFIG.SD.attributes
-    // (the per-system label map populated from System Settings; this is
-    // what the user means by "real attributes" — Strength/Dexterity/...
-    // not the raw schema keys attr1..attr6).
     const cfgLabels  = CONFIG?.SD?.attributes ?? {};
     const cfgEnabled = CONFIG?.SD?.attributesEnabled ?? {};
     const explicit   = String(w.attributeKeys ?? "").trim();
 
-    /**
-     * Normalise a single token from the comma list. Accepts either a bare
-     * key (`attr1`, `strength`) or a full data-path
-     * (`system.attributes.attr1.value` / `system.attributes.str.score`).
-     * Returns `{ key, scorePath }` where `key` is the key under
-     * `system.attributes` (used to look up the display name in
-     * `CONFIG.SD.attributes`) and `scorePath` is the writable path the
-     * input binds to.
-     */
     const parseToken = (raw) => {
       const s = String(raw).trim();
       if (!s) return null;
-      // Full path?
+
       if (s.includes(".")) {
         let p = s.replace(/^\.+|\.+$/g, "");
-        // Strip a leaf segment if it's score/value/mod so we can derive
-        // the attribute key from the segment immediately before it.
+
         let key = "";
         const m = p.match(/^system\.attributes\.([^.]+)(?:\.(?:value|score|mod))?$/);
         if (m) {
           key = m[1];
-          // Always render against `.value` for editability.
+
           return { key, scorePath: `system.attributes.${key}.value` };
         }
-        // Non-attribute path (e.g. `system.combat.strength`). Use the last
-        // segment as the key, and the path verbatim as the score path.
+
         const segs = p.split(".");
         key = segs[segs.length - 1];
         return { key, scorePath: p };
       }
-      // Bare key — assume it lives under system.attributes.<key>
+
       return { key: s, scorePath: `system.attributes.${s}.value` };
     };
 
@@ -1766,9 +1597,7 @@ export class WidgetRenderer {
     if (explicit) {
       tokens = explicit.split(",").map(parseToken).filter(Boolean);
     } else {
-      // Auto: every enabled, configured attribute. Fall back to the
-      // schema keys present on the actor when CONFIG.SD has no entries
-      // (e.g. on early init or for a non-character document).
+
       const cfgKeys = Object.keys(cfgLabels);
       const sourceKeys = cfgKeys.length
         ? cfgKeys.filter(k => cfgEnabled[k] !== false)
@@ -1777,17 +1606,11 @@ export class WidgetRenderer {
     }
 
     const compute = CONFIG?.SD?.computeModifier ?? (s => Math.floor((Number(s) - 10) / 2));
-    // Per-attribute graphs: each attribute can have its own
-    // `{ graphData, modValueFormula, onClickFormula }` saved by the
-    // popup. Missing keys silently fall back to the legacy 1d20+(mod)
-    // behaviour, so existing configs keep working.
+
     const attrGraphs = (w.attrGraphs && typeof w.attrGraphs === "object") ? w.attrGraphs : {};
 
-    // Resolve each attribute's score + display name. The expanded layout
-    // renders an editable `<input type="number">` bound to `scorePath`.
     const items = tokens.map(({ key, scorePath }) => {
-      // The renderer accepts both `system.attributes.<k>` (object form,
-      // common in older configs) and `system.attributes.<k>.value`.
+
       let score = foundry.utils.getProperty(doc, scorePath);
       if (score && typeof score === "object") {
         if ("value" in score) { scorePath = `${scorePath}.value`; score = score.value; }
@@ -1803,7 +1626,7 @@ export class WidgetRenderer {
       } else {
         mod = compute(score);
       }
-      // Prefer the System Settings label; fall back to a Title-cased key.
+
       const name   = cfgLabels[key]
         || (key.charAt(0).toUpperCase() + key.slice(1));
       return {
@@ -1817,14 +1640,6 @@ export class WidgetRenderer {
       };
     });
 
-    // Compact (HUD) rendering: collapsed popover with rows. Only used
-    // when the widget is explicitly marked compact (action HUD / a
-    // small-form context); the character sheet path falls through to
-    // the expanded layout below.
-    // Build the data-* attributes on the modifier button for one item.
-    // When a per-attribute graph wired up On Click, fire that exec chain
-    // (same dispatch path as the standalone `attribute` widget); else
-    // roll the legacy 1d20+(mod).
     const _btnDataAttrs = (it) => it.onClickFormula
       ? { action: "attrModClick", attrs: `data-attr-onclick="${e(it.onClickFormula)}"` }
       : { action: "widgetRoll",   attrs: `data-formula="1d20+(${it.mod})" data-formula-raw="1d20+(${it.mod})" data-flavor="${e(it.name)}"` };
@@ -1846,13 +1661,6 @@ export class WidgetRenderer {
 </details></div>`;
     }
 
-    // Expanded rendering (character sheet, item sheet body). Each item
-    // is an `.attr-item` card with the attribute name, an editable
-    // score input and a clickable modifier button. Variants in
-    // `sd-widget-variants.css` reshape the container:
-    //   sd-v-row    → flex row, cards wrap horizontally
-    //   sd-v-grid   → CSS grid, equal-width cards
-    //   sd-v-dice   → dice-style modifier buttons
     const cards = items.map(it => {
       const b = _btnDataAttrs(it);
       return `<div class="attr-item" data-attr-key="${e(it.key)}">

@@ -17,7 +17,6 @@
       <span class="actor-type badge">{{localize (concat 'ACTOR.Type' (capitalize actor.type))}}</span>
     </div>
 
-    {{!-- Resources row --}}
     <div class="resources-row">
       {{#each resources as |res|}}
       <div class="resource-group" data-resource="{{res.key}}">
@@ -38,8 +37,6 @@
       {{/each}}
     </div>
   </div>
-
-
 
   <div class="actor-actions" style="display:flex;gap:6px;align-items:center;flex-shrink:0">
     <button type="button" class="sd-progression-btn" data-action="openProgression"

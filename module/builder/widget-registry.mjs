@@ -285,7 +285,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /** Progress bar — read-only bar bound to value/max, configurable colour */
   progress: {
     id:    "progress",
     label: "Progress Bar",
@@ -310,7 +309,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /** Select — a <select> dropdown bound to a StringField with choices */
   select: {
     id:    "select",
     label: "Select",
@@ -329,7 +327,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /** Clock — Blades-in-the-Dark / PbtA style progress clock with N segments */
   clock: {
     id:    "clock",
     label: "Progress Clock",
@@ -377,9 +374,7 @@ export const WIDGET_TYPES = {
       { key: "maxCount",     type: "number",     label: "Max (when no Max Path)" },
       { key: "icon",         type: "text",       label: "FA icon (e.g. fa-heart, fab fa-github)" },
       { key: "emptyIcon",    type: "text",       label: "Empty pip icon (blank = same glyph)" },
-      // Custom-image overrides. When set, the renderer draws an `<img>`
-      // sized like a pip (pipSize squared) instead of the FA glyph. Both
-      // can be picked via FilePicker.
+
       { key: "iconImg",      type: "image-pick", label: "Filled pip image (overrides FA icon)" },
       { key: "emptyIconImg", type: "image-pick", label: "Empty pip image (blank = use Empty icon)" },
       { key: "color",        type: "color",      label: "Filled colour" },
@@ -458,8 +453,7 @@ export const WIDGET_TYPES = {
       { key: "maxCount",     type: "number",     label: "Max (when no Max Path)" },
       { key: "icon",         type: "text",       label: "FA icon (e.g. fa-coins, fa-star)" },
       { key: "emptyIcon",    type: "text",       label: "Empty token icon (blank = same glyph)" },
-      // Custom-image overrides — same semantics as on the tracker
-      // widget. Picked via FilePicker; size = pipSize.
+
       { key: "iconImg",      type: "image-pick", label: "Filled token image (overrides FA icon)" },
       { key: "emptyIconImg", type: "image-pick", label: "Empty token image (blank = use Empty icon)" },
       { key: "color",        type: "color",      label: "Filled colour" },
@@ -488,7 +482,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /** Tags — editable list of string tags/traits shown as pill badges */
   tags: {
     id:    "tags",
     label: "Tags / Traits",
@@ -507,7 +500,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /** Image Display — shows a static image (FilePicker). */
   image: {
     id:    "image",
     label: "Image",
@@ -526,7 +518,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /** Vertical Section — takes one grid cell, stacks child widgets vertically */
   vsection: {
     id:    "vsection",
     label: "Vertical Section",
@@ -542,7 +533,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  /** Derived / Computed — read-only display of a formula value with optional graph */
   derived: {
     id:    "derived",
     label: "Derived Value",
@@ -627,18 +617,6 @@ export const WIDGET_TYPES = {
   }
 };
 
-/**
- * Visual variants ("skins") per widget type. Each entry is a plain list of
- * variant ids, with the convention that the first id is always "default"
- * (which is also what is emitted when `variant` is empty / missing).
- *
- * The actual visual difference for each variant lives in
- * `styles/sd-widget-variants.css` under `.widget-<type>.sd-v-<id>`.
- *
- * Widgets intentionally omitted from this map do NOT receive a variant
- * dropdown (tracker / tokenPool / vsection — they have their own layout
- * semantics or are layout containers, so "skins" do not apply).
- */
 export const WIDGET_VARIANTS = {
   text:           ["default", "boxed", "underline", "ghost", "inline"],
   richtext:       ["default", "boxed", "scroll"],
@@ -667,12 +645,6 @@ export const WIDGET_VARIANTS = {
   derived:        ["default", "stat-card", "formula-badge", "inline", "pill"]
 };
 
-/**
- * Return a `configFields` entry for the variant select of a given widget
- * type, or `null` if the widget has no variants. Kept separate from the
- * static `configFields` arrays so `_finalizeWidgetTypes()` can append it
- * once, keeping existing entries untouched.
- */
 export function getVariantField(type) {
   const list = WIDGET_VARIANTS[type];
   if (!list || list.length === 0) return null;
@@ -689,9 +661,6 @@ export function getVariantField(type) {
   };
 }
 
-// Mutate WIDGET_TYPES in place — every type listed above gets a synthetic
-// `variant` field appended to its configFields array (so the popup renders
-// a select) plus `defaults.variant = "default"`.
 for (const [type, def] of Object.entries(WIDGET_TYPES)) {
   if (!WIDGET_VARIANTS[type]) continue;
   const field = getVariantField(type);
@@ -700,7 +669,6 @@ for (const [type, def] of Object.entries(WIDGET_TYPES)) {
   def.configFields = [...(def.configFields || []), field];
 }
 
-/** Ordered list for palette display */
 export const WIDGET_PALETTE_ORDER = [
   "text", "number", "counter", "resource", "derived", "dice", "button",
   "toggle", "attribute", "attributeGroup", "skill", "progress", "tracker", "tokenPool", "clock",
@@ -709,7 +677,6 @@ export const WIDGET_PALETTE_ORDER = [
   "cardHand", "cardDrawButton"
 ];
 
-/** Create a fresh widget definition with a random id */
 export function createWidget(type, overrides = {}) {
   const def = WIDGET_TYPES[type];
   if (!def) throw new Error(`Unknown widget type: ${type}`);
@@ -722,9 +689,8 @@ export function createWidget(type, overrides = {}) {
   };
 }
 
-/** Known data paths on characters/npcs — shown in path autocomplete */
 export const KNOWN_PATHS = {
-  // Attributes
+
   "system.attributes.attr1.value": "Attribute 1 — Score",
   "system.attributes.attr1.mod":   "Attribute 1 — Modifier",
   "system.attributes.attr2.value": "Attribute 2 — Score",
@@ -737,21 +703,21 @@ export const KNOWN_PATHS = {
   "system.attributes.attr5.mod":   "Attribute 5 — Modifier",
   "system.attributes.attr6.value": "Attribute 6 — Score",
   "system.attributes.attr6.mod":   "Attribute 6 — Modifier",
-  // Resources
+
   "system.resources.hp.value":     "HP — Current",
   "system.resources.hp.max":       "HP — Max",
   "system.resources.mp.value":     "MP — Current",
   "system.resources.mp.max":       "MP — Max",
   "system.resources.stamina.value":"Stamina — Current",
   "system.resources.stamina.max":  "Stamina — Max",
-  // Combat
+
   "system.defense.armor":          "Defense — Armor",
   "system.defense.total":          "Defense — Total",
   "system.initiative.bonus":       "Initiative — Bonus",
   "system.initiative.total":       "Initiative — Total",
   "system.movement.walk":          "Movement — Walk",
   "system.movement.fly":           "Movement — Fly",
-  // Advancement
+
   "system.advancement.level":      "Level",
   "system.advancement.xp.value":   "XP — Current",
   "system.advancement.xp.max":     "XP — Max",

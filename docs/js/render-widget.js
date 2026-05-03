@@ -1,6 +1,3 @@
-// Render simplified widget previews matching the in-module visual style.
-// Pure DOM, no Foundry deps. Uses fake but representative data.
-
 import { pickLocale, t } from "./i18n.js";
 
 function elt(tag, attrs = {}, children = []) {
@@ -21,12 +18,12 @@ function elt(tag, attrs = {}, children = []) {
 }
 
 const PREV = {
-  // ----- text -----
+
   text: (w) => elt("div", { class: "wp-text" }, [
     elt("label", { class: "wp-label" }, w.label ?? "Label"),
     elt("input",  { type: "text", value: "Sample value" })
   ]),
-  // ----- number -----
+
   number: (w) => elt("div", { class: "wp-num" }, [
     elt("label", { class: "wp-label" }, w.label ?? "Value"),
     elt("div", { class: "wp-num-row" }, [
@@ -35,7 +32,7 @@ const PREV = {
       elt("button", {}, "+")
     ])
   ]),
-  // ----- counter -----
+
   counter: (w) => elt("div", { class: "wp-num" }, [
     elt("label", { class: "wp-label" }, w.label ?? "Counter"),
     elt("div", { class: "wp-num-row" }, [
@@ -44,7 +41,7 @@ const PREV = {
       elt("button", {}, "+")
     ])
   ]),
-  // ----- resource -----
+
   resource: (w) => {
     const fill = w.color ?? "#e05a5a";
     const cur = 18, max = 25;
@@ -61,7 +58,7 @@ const PREV = {
       ])
     ]);
   },
-  // ----- progress (simple bar) -----
+
   progress: (w) => {
     const fill = w.color ?? "#7b68ee";
     return elt("div", { class: "wp-res" }, [
@@ -70,7 +67,7 @@ const PREV = {
       ])
     ]);
   },
-  // ----- dice / button -----
+
   dice: (w) => elt("button", { class: "wp-btn" }, [
     elt("i", { class: "fa fa-dice", innerHTML: "🎲" }),
     elt("span", {}, w.label ?? "Roll"), " ",
@@ -83,7 +80,7 @@ const PREV = {
   rollButton: (w) => elt("button", { class: "wp-btn" }, [
     elt("span", {}, w.label ?? "Roll Attack"),
   ]),
-  // ----- toggle -----
+
   toggle: (w) => elt("div", { class: "wp-toggle" }, [
     elt("span", {}, w.label ?? "Toggle"),
     elt("span", { class: "sw on" }, [
@@ -91,19 +88,19 @@ const PREV = {
     ]),
     elt("span", { class: "wp-mut" }, "On")
   ]),
-  // ----- attribute -----
+
   attribute: (w) => elt("div", { class: "wp-attr" }, [
     elt("div", { class: "wp-attr-num" }, "16"),
     elt("div", { class: "wp-attr-mod" }, "+3"),
     elt("div", { class: "wp-attr-name" }, w.label ?? "STR")
   ]),
-  // ----- skill -----
+
   skill: (w) => elt("div", { class: "wp-skill" }, [
     elt("span", { class: "wp-skill-name" }, w.label ?? "Athletics"),
     elt("input",  { type: "number", value: 4, style: "width:48px" }),
     elt("button", {}, "🎲")
   ]),
-  // ----- section / vsection / divider headers -----
+
   section: (w) => elt("div", { class: "wp-section" }, [
     elt("span", {}, w.label ?? "Section"),
     elt("hr")
@@ -114,7 +111,7 @@ const PREV = {
       elt("div", { class: "wp-mut" }, "(group of widgets)")
     ])
   ]),
-  // ----- richtext -----
+
   richtext: (w) => elt("div", { class: "wp-rt" }, [
     elt("div", { class: "wp-rt-row" }, [
       "📝 ", elt("strong", {}, w.label ?? "Notes")
@@ -122,7 +119,7 @@ const PREV = {
     elt("div", { class: "wp-rt-body" },
       "Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
   ]),
-  // ----- select -----
+
   select: (w) => elt("div", { class: "wp-select" }, [
     elt("label", { class: "wp-label" }, w.label ?? "Mode"),
     elt("select", {}, [
@@ -131,7 +128,7 @@ const PREV = {
       elt("option", {}, "Option C")
     ])
   ]),
-  // ----- slot -----
+
   slot: (w) => elt("div", { class: "wp-slot" }, [
     elt("div", { class: "wp-slot-title" }, w.label ?? "Slot"),
     elt("div", { class: "wp-slot-list" }, [
@@ -143,7 +140,7 @@ const PREV = {
       ])
     ])
   ]),
-  // ----- inventory -----
+
   inventory: (w) => elt("div", { class: "wp-inv" }, [
     elt("div", { class: "wp-inv-head" }, [
       elt("span", {}, w.label ?? "Inventory"),
@@ -160,7 +157,7 @@ const PREV = {
       elt("button", {}, "▶")
     ])
   ]),
-  // ----- effects -----
+
   effects: (w) => elt("div", { class: "wp-fx" }, [
     elt("div", { class: "wp-inv-head" }, [
       elt("span", {}, w.label ?? "Effects"),
@@ -174,7 +171,7 @@ const PREV = {
       elt("span", { class: "wp-mut" }, "3 turns"),
     ])
   ]),
-  // ----- spellbook -----
+
   spellbook: (w) => elt("div", { class: "wp-fx" }, [
     elt("div", { class: "wp-inv-head" }, [
       elt("span", {}, w.label ?? "Spellbook"),
@@ -188,7 +185,7 @@ const PREV = {
       elt("button", {}, "▶")
     ])
   ]),
-  // ----- tracker / clock / pool -----
+
   tracker: (w) => {
     const fill = w.color ?? "#7b68ee";
     const empty = w.emptyColor ?? "#3a3a52";
@@ -225,32 +222,31 @@ const PREV = {
     }
     return wrap;
   },
-  // ----- diceTray -----
+
   diceTray: (w) => elt("div", { class: "wp-tray" }, [
     elt("span", { class: "die" }, "1d6"),
     elt("span", { class: "die" }, "1d8"),
     elt("span", { class: "die" }, "1d10"),
     elt("button", {}, "Roll")
   ]),
-  // ----- tags -----
+
   tags: (w) => elt("div", { class: "wp-tags" }, [
     elt("span", { class: "tag", style: `background:${w.color ?? "#7b68ee"}` }, "fire"),
     elt("span", { class: "tag", style: `background:${w.color ?? "#7b68ee"}` }, "lvl 3"),
     elt("span", { class: "tag", style: `background:${w.color ?? "#7b68ee"}` }, "ranged"),
   ]),
-  // ----- image -----
+
   image: (w) => elt("div", { class: "wp-image" }, [
     elt("div", { class: "wp-image-thumb", innerHTML: "🖼️" }),
     elt("div", { class: "wp-image-meta" }, w.label ?? "Portrait")
   ]),
-  // ----- derived (read-only computed value) -----
+
   derived: (w) => elt("div", { class: "wp-derived" }, [
     elt("span", { class: "wp-label" }, w.label ?? "Total Mod"),
     elt("span", { class: "wp-derived-val" }, "+5")
   ])
 };
 
-/** Render a widget preview from its registry definition. */
 export function renderWidgetPreview(typeId, def, sample = null) {
   const fn = PREV[typeId] ?? (() => elt("div", { class: "wp-mut" }, "no preview"));
   const data = sample ?? def?.defaults ?? {};

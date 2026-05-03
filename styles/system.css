@@ -1,4 +1,3 @@
-
 :root {
   --sd-bg:            var(--sd-bg);
   --sd-bg-2:          var(--sd-bg-2);
@@ -32,22 +31,21 @@
   --sd-shadow:        0 4px 20px rgba(0,0,0,.55);
   --sd-font:          'Signika', 'Palatino Linotype', serif;
   --sd-base-font-size: 13px;
-  --sd-fs-2xs: calc(var(--sd-base-font-size) * 0.6154); /* ≈8px  */
-  --sd-fs-xs:  calc(var(--sd-base-font-size) * 0.6923); /* ≈9px  */
-  --sd-fs-s2:  calc(var(--sd-base-font-size) * 0.7692); /* ≈10px */
-  --sd-fs-sm:  calc(var(--sd-base-font-size) * 0.8462); /* ≈11px */
-  --sd-fs-m2:  calc(var(--sd-base-font-size) * 0.9231); /* ≈12px */
-  --sd-fs-md:  var(--sd-base-font-size);                /* =13px */
-  --sd-fs-lg:  calc(var(--sd-base-font-size) * 1.0769); /* ≈14px */
-  --sd-fs-l2:  calc(var(--sd-base-font-size) * 1.1538); /* ≈15px */
-  --sd-fs-xl:  calc(var(--sd-base-font-size) * 1.2308); /* ≈16px */
-  --sd-fs-2xl: calc(var(--sd-base-font-size) * 1.5385); /* ≈20px */
-  --sd-fs-3xl: calc(var(--sd-base-font-size) * 1.8462); /* ≈24px */
-  --sd-fs-4xl: calc(var(--sd-base-font-size) * 2.1538); /* ≈28px */
+  --sd-fs-2xs: calc(var(--sd-base-font-size) * 0.6154);
+  --sd-fs-xs:  calc(var(--sd-base-font-size) * 0.6923);
+  --sd-fs-s2:  calc(var(--sd-base-font-size) * 0.7692);
+  --sd-fs-sm:  calc(var(--sd-base-font-size) * 0.8462);
+  --sd-fs-m2:  calc(var(--sd-base-font-size) * 0.9231);
+  --sd-fs-md:  var(--sd-base-font-size);
+  --sd-fs-lg:  calc(var(--sd-base-font-size) * 1.0769);
+  --sd-fs-l2:  calc(var(--sd-base-font-size) * 1.1538);
+  --sd-fs-xl:  calc(var(--sd-base-font-size) * 1.2308);
+  --sd-fs-2xl: calc(var(--sd-base-font-size) * 1.5385);
+  --sd-fs-3xl: calc(var(--sd-base-font-size) * 1.8462);
+  --sd-fs-4xl: calc(var(--sd-base-font-size) * 2.1538);
   --sd-btn-font-size: var(--sd-base-font-size);
   --sd-mono:          'Courier New', monospace;
 
-  /* Form element sizes */
   --sd-input-h:       28px;
   --sd-label-h:       16px;
 }
@@ -59,7 +57,6 @@
   font-family: var(--sd-font);
   color: var(--sd-text);
 }
-
 
 .sd .window-content input,
 .sd .window-content select,
@@ -363,7 +360,6 @@
   zoom: var(--sd-ui-scale, 1);
 }
 
-/* PARTS wrapper divs collapse */
 .sd .window-content > div { display: contents; }
 
 .sd .sheet-header {
@@ -1123,7 +1119,7 @@
 .sd .skill-config-row     { display: grid; grid-template-columns: 60px 1fr 100px 60px 28px; gap: 8px; align-items: center; background: var(--sd-bg-3); border: 1px solid var(--sd-border); border-radius: var(--sd-r); padding: 5px 8px; }
 .sd .resource-config-header { display: grid; gap: 8px; padding: 4px 8px; font-size: var(--sd-fs-s2); font-weight: 700; text-transform: uppercase; color: var(--sd-text-3); grid-template-columns: 60px 1fr 48px 80px; }
 .sd .resource-config-row  { display: grid; grid-template-columns: 60px 1fr 48px 80px; gap: 8px; align-items: center; background: var(--sd-bg-3); border: 1px solid var(--sd-border); border-radius: var(--sd-r); padding: 5px 8px; }
-/* Resource rows with base-value columns get a wider grid */
+
 .sd .resource-config-table-with-base .resource-config-header,
 .sd .resource-config-table-with-base .resource-config-row {
   grid-template-columns: 60px 1fr 48px 70px 70px 70px 60px 28px;
@@ -1132,7 +1128,7 @@
   width: 100%; min-width: 0; box-sizing: border-box;
   font-family: var(--sd-mono); text-align: center;
 }
-/* Currency rows have only key / label / remove — narrower layout */
+
 .sd .resource-config-row.currency-config-row,
 .sd .resource-config-table:has(.currency-config-row) .resource-config-header { grid-template-columns: 80px 1fr 28px; }
 .sd .tab-config-header    { display: grid; gap: 8px; padding: 4px 8px; font-size: var(--sd-fs-s2); font-weight: 700; text-transform: uppercase; color: var(--sd-text-3); grid-template-columns: 80px 1fr 60px 60px; }
@@ -1154,7 +1150,6 @@
   text-transform: none; font-weight: 400;
 }
 
-/* Compact "Base: <number>" pair shown next to attribute rows in System Config. */
 .sd .attr-config-row .number-wrap {
   display: flex; align-items: center; gap: 4px;
   flex: 0 0 auto;
@@ -1194,7 +1189,6 @@
 .sd ::-webkit-scrollbar-track { background: transparent; }
 .sd ::-webkit-scrollbar-thumb { background: var(--sd-border); border-radius: 3px; }
 .sd ::-webkit-scrollbar-thumb:hover { background: var(--sd-border-2); }
-
 
 .sd-toolbox {
   background: var(--sd-bg-2);
@@ -1237,7 +1231,6 @@
   margin-bottom: 6px;
 }
 
-/* Widget palette grid */
 .sd-toolbox .widget-palette {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1295,7 +1288,6 @@
   background: var(--sd-accent-2);
 }
 
-/* Template section */
 .sd-toolbox .template-list { display: flex; flex-direction: column; gap: 4px; }
 .sd-toolbox .template-item {
   display: flex; align-items: center; gap: 7px;
@@ -1325,10 +1317,8 @@
 }
 .sd .custom-tab-content.active { display: flex; flex-direction: column; gap: 8px; }
 
-/* Edit mode indicator */
 .sd .sheet-edit-mode .custom-tab-content { outline: 2px dashed var(--sd-accent-2); outline-offset: -3px; }
 
-/* Widget grid */
 .sd .widget-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1363,7 +1353,6 @@
 .sd .row-ctrl-btn:hover { background: var(--sd-bg-4); color: var(--sd-text); }
 .sd .row-ctrl-btn.danger:hover { color: var(--sd-danger); }
 
-/* Add row button */
 .sd .add-row-btn {
   display: none;
   align-items: center;
@@ -1380,7 +1369,6 @@
 .sd .sheet-edit-mode .add-row-btn { display: flex; }
 .sd .add-row-btn:hover { border-color: var(--sd-accent); color: var(--sd-accent); background: var(--sd-accent-glow); }
 
-/* Widget cell */
 .sd .widget-cell {
   position: relative;
   min-width: 0;
@@ -1388,7 +1376,6 @@
 .sd .widget-cell[data-span="2"] { grid-column: span 2; }
 .sd .widget-cell[data-span="3"] { grid-column: span 3; }
 
-/* Edit mode overlay on widget */
 .sd .widget-overlay {
   display: none;
   position: absolute;
@@ -1421,7 +1408,6 @@
 .sd .widget-overlay .wo-drag { cursor: grab; }
 .sd .widget-overlay .wo-drag:active { cursor: grabbing; }
 
-/* Drop target inside rows */
 .sd .widget-drop-zone {
   height: 40px;
   border: 2px dashed var(--sd-border);
@@ -1436,8 +1422,6 @@
   color: var(--sd-accent);
 }
 
-
-/* Generic widget wrapper */
 .sd .widget {
   display: flex;
   flex-direction: column;
@@ -1456,10 +1440,8 @@
   white-space: nowrap;
 }
 
-/* text widget */
 .sd .widget-text input { width: 100%; font-size: var(--sd-fs-md); }
 
-/* number widget */
 .sd .widget-number .num-row {
   display: flex;
   align-items: center;
@@ -1475,7 +1457,6 @@
 }
 .sd .widget-number .num-btn:hover { background: var(--sd-bg-4); color: var(--sd-w-fg, var(--sd-text)); }
 
-/* resource widget */
 .sd .widget-resource .res-row {
   display: flex; align-items: center; gap: 4px;
 }
@@ -1485,7 +1466,6 @@
 .sd .widget-resource .res-bar { height: 5px; background: var(--sd-w-bg, var(--sd-bg)); border-radius: 3px; overflow: hidden; margin-top: 2px; }
 .sd .widget-resource .res-bar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
 
-/* dice widget */
 .sd .widget-dice .dice-btn {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   width: 100%; padding: 6px 8px;
@@ -1496,7 +1476,6 @@
 .sd .widget-dice .dice-btn:hover { background: var(--sd-accent-glow); border-color: var(--sd-accent); color: var(--sd-accent); }
 .sd .widget-dice .dice-btn i { font-size: var(--sd-btn-font-size); }
 
-/* toggle widget */
 .sd .widget-toggle .tog-row {
   display: flex; align-items: center; gap: 8px; padding: 4px 0;
   cursor: pointer;
@@ -1515,7 +1494,6 @@
 .sd .widget-toggle .tog-track.on .tog-knob { left: 18px; background: #fff; }
 .sd .widget-toggle .tog-val { font-size: var(--sd-fs-m2); color: var(--sd-w-fg, var(--sd-text-2)); }
 
-/* section/divider widget */
 .sd .widget-section .sec-divider {
   border: none; border-top: 1px solid var(--sd-border); margin: 4px 0;
 }
@@ -1527,7 +1505,6 @@
   content: ''; flex: 1; height: 1px; background: var(--sd-border);
 }
 
-/* richtext widget */
 .sd .widget-richtext .prosemirror { min-height: 60px; }
 
 .sd .widget-slot .slot-mini-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
@@ -1583,21 +1560,21 @@
   gap: 12px;
 }
 
-.sd-widget-popup .popup-field { 
+.sd-widget-popup .popup-field {
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
-.sd-widget-popup .popup-field label { 
-  font-size: 10px; 
-  font-weight: 700; 
-  text-transform: uppercase; 
+.sd-widget-popup .popup-field label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
   letter-spacing: .06em;
   color:var(--sd-text-2);
-  white-space: nowrap; 
+  white-space: nowrap;
 }
 .sd-widget-popup .popup-field input,
-.sd-widget-popup .popup-field select { 
+.sd-widget-popup .popup-field select {
   font-size: 13px;
   height: 36px;
   padding: 0 12px;
@@ -1666,7 +1643,7 @@
   border-color: var(--sd-accent);
 }
 
-.sd-widget-popup .path-suggestions { 
+.sd-widget-popup .path-suggestions {
   list-style: none;
   max-height: 120px;
   overflow-y: auto;
@@ -1676,7 +1653,7 @@
   margin-top: 4px;
   padding: 0;
 }
-.sd-widget-popup .path-suggestion { 
+.sd-widget-popup .path-suggestion {
   padding: 6px 10px;
   font-size: var(--sd-fs-sm);
   font-family: 'Courier New', monospace;
@@ -1687,7 +1664,7 @@
 .sd-widget-popup .path-suggestion:last-child {
   border-bottom: none;
 }
-.sd-widget-popup .path-suggestion:hover { 
+.sd-widget-popup .path-suggestion:hover {
   background: rgba(123,104,238,.2);
   color: var(--sd-accent);
 }
@@ -1735,7 +1712,6 @@
 .sd .edit-mode-btn:hover,
 .sd .edit-mode-btn.active { background: var(--sd-accent-glow); border-color: var(--sd-accent); color: var(--sd-accent); }
 
-/* ── Declared Attrs tab ─────────────────────────────────────────────────── */
 .sd .attr-decl-list { display: flex; flex-direction: column; gap: 4px; }
 
 .sd .attr-decl-header {
@@ -1791,7 +1767,6 @@
 }
 .sd .path-pick-btn:hover { background: var(--sd-accent-glow); color: var(--sd-accent); border-color: var(--sd-accent); }
 
-/* ── Attr Filters on slot defs ──────────────────────────────────────────── */
 .sd .attr-filter-block {
   margin-top: 8px;
   padding: 8px 10px;
@@ -1844,7 +1819,6 @@
 .sd .af-name { font-family: var(--sd-mono); font-size: var(--sd-fs-m2); }
 .sd .af-value { font-family: var(--sd-mono); font-size: var(--sd-fs-m2); }
 
-/* ── Toolbox window overrides ─────────────────────────────────────────────── */
 #sd-toolbox .window-content {
   padding: 0 !important;
   background: var(--sd-bg) !important;
@@ -1866,7 +1840,6 @@
 
 .control-tool[data-tool="sd-toolbox"] .control-icon { color: var(--sd-accent); }
 
-/* ── Blank canvas sheet layout ───────────────────────────────────────────── */
 .sd.sheet .window-content {
   display: flex !important;
   flex-direction: column !important;
@@ -2499,7 +2472,6 @@
 .sd .widget-effects .effect-btn:hover { color: var(--sd-accent); border-color: var(--sd-accent-dim); }
 .sd .widget-effects .effect-btn-del:hover { color: var(--sd-danger); border-color: var(--sd-danger); }
 
-
 .sd-widget-popup .popup-field-tags {
   grid-template-columns: 90px 1fr;
 }
@@ -2552,7 +2524,6 @@
   flex: 1;
   padding: 0 !important;
 }
-
 
 .sd .widget-attribute .attr-box {
   display: flex;
@@ -2690,7 +2661,6 @@
 
 .wcfg-sugg-item:hover { background: var(--sd-bg-3) !important; }
 
-/* Path chips in drop result */
 .wcfg-path-chip { font-family: 'Courier New', monospace !important; }
 
 .sd-wcfg-popup::-webkit-scrollbar { width: 5px; }
@@ -2732,7 +2702,6 @@
 }
 .sd .sys-add-btn:hover { background: var(--sd-bg-4); border-color: var(--sd-border-2); color: var(--sd-text); }
 
-/* Hidden field rows */
 .sd .hf-row {
   display: flex;
   align-items: center;
@@ -2745,7 +2714,6 @@
 }
 .sd .hf-row input { min-width: 0; }
 
-/* Slot def blocks */
 .sd .slot-def-block {
   margin-bottom: 10px;
   background: var(--sd-bg-2);
@@ -2769,7 +2737,6 @@
   border-bottom: 1px solid var(--sd-bg-2);
 }
 
-/* Attribute filter rows */
 .sd .af-row {
   display: flex;
   align-items: center;
@@ -2781,7 +2748,6 @@
   padding: 3px 6px;
 }
 
-/* Button def blocks */
 .sd .btn-def-block {
   margin-bottom: 10px;
   background: var(--sd-bg-2);
@@ -2790,7 +2756,6 @@
   padding: 10px 12px;
 }
 
-/* Act (action) rows */
 .sd .act-row {
   display: flex;
   align-items: center;
@@ -2802,15 +2767,12 @@
   padding: 4px 6px;
 }
 
-/* System tab style */
 .sd .sd-tab-sys { opacity: .8; }
 .sd .sd-tab-sys:hover { opacity: 1; color: var(--sd-success) !important; }
 
-/* Slot drop filter zone hover */
 .sd .slot-drop-filter-zone { transition: background .15s, border-color .15s, color .15s; }
 .sd .slot-drop-filter-zone:hover { border-color: var(--sd-accent) !important; color: var(--sd-accent) !important; }
 
-/* Slot id badge */
 .sd .slot-id-badge {
   font-size: var(--sd-fs-s2);
   font-family: var(--sd-mono);
@@ -2822,8 +2784,6 @@
   flex-shrink: 0;
 }
 
-
-/* Blueprint category */
 .bp-cat { margin-bottom: 12px; }
 .bp-cat-label {
   font-size: var(--sd-fs-xs);
@@ -2835,14 +2795,12 @@
   border-bottom: 1px solid var(--sd-bg-3);
 }
 
-/* Blueprint node grid */
 .bp-nodes {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
 }
 
-/* Individual node */
 .bp-node {
   display: flex;
   align-items: center;
@@ -2867,7 +2825,6 @@
 }
 .bp-node:active { transform: translateY(0); }
 
-/* Formula value display */
 .sd .widget-formula-val {
   background: linear-gradient(135deg, var(--sd-bg), var(--sd-bg));
   border: 1px solid var(--sd-border);
@@ -2881,7 +2838,6 @@
   letter-spacing: .02em;
 }
 
-/* wcfg field label */
 .wcfg-lbl {
   font-size: var(--sd-fs-s2);
   font-weight: 700;
@@ -2894,7 +2850,6 @@
   gap: 5px;
 }
 
-/* Clear button */
 .wcfg-clear-btn {
   flex-shrink: 0;
   background: var(--sd-bg-3);
@@ -2909,17 +2864,13 @@
 }
 .wcfg-clear-btn:hover { color: var(--sd-danger); border-color: var(--sd-danger); }
 
-/* Suggestion dropdown items */
 .wcfg-sug-item:hover { background: var(--sd-bg-3) !important; }
 
-/* Path chips from drop */
 .wcfg-path-chip { transition: background .15s, border-color .15s; }
 .wcfg-chip-formula { font-weight: 700; letter-spacing: .05em; }
 
-/* Tab buttons in popup */
 .wcfg-tab-btn { font-family: 'Signika', sans-serif; transition: background .15s, color .15s; }
 
-/* Стиль */
 .wcfg-style-section {
   margin-top: 10px;
   border-top: 1px solid var(--sd-bg-3);
@@ -2994,7 +2945,6 @@
   padding: 0 2px;
 }
 
-/* Popup scrollbar */
 #wcfg-panel-fields::-webkit-scrollbar { width: 4px; }
 #wcfg-panel-fields::-webkit-scrollbar-thumb { background: var(--sd-border); border-radius: 2px; }
 
@@ -3044,7 +2994,6 @@
   letter-spacing: .05em;
 }
 
-/* Widget key display */
 .sd .widget-key-badge {
   font-size: var(--sd-fs-xs);
   color: var(--sd-text-3);
@@ -3078,7 +3027,6 @@
 
 .sd .sb-only-actor { font-size: var(--sd-fs-sm); color: var(--sd-text-3); font-style: italic; }
 
-/* Mana bar */
 .sd .sb-mana-bar {
   display: flex;
   align-items: center;
@@ -3102,7 +3050,6 @@
 }
 .sd .sb-mana-value { font-size: var(--sd-fs-s2); color: var(--sd-text-2); white-space: nowrap; font-family: var(--sd-mono); text-transform: none; letter-spacing: 0; }
 
-/* Level group */
 .sd .sb-level-group { display: flex; flex-direction: column; gap: 3px; }
 
 .sd .sb-level-header {
@@ -3123,7 +3070,6 @@
   flex: 1;
 }
 
-/* Slot pips */
 .sd .sb-slot-pips { display: flex; gap: 3px; align-items: center; }
 .sd .sb-slot-pip {
   width: 14px;
@@ -3141,7 +3087,6 @@
 .sd .sb-slot-count { font-size: var(--sd-fs-xs); color: var(--sd-text-3); font-family: var(--sd-mono); }
 .sd .sb-slots-empty { font-size: var(--sd-fs-xs); color: var(--sd-text-3); font-style: italic; }
 
-/* Ability list */
 .sd .sb-ability-list {
   list-style: none;
   display: flex;
@@ -3210,7 +3155,6 @@
 .sd .sb-badge-slot  { background: rgba(123,104,238,.15); color: var(--sd-accent); border: 1px solid var(--sd-accent-dim); }
 .sd .sb-badge-conc  { background: rgba(200,160,40,.2);  color: #e0c040; border: 1px solid rgba(200,160,40,.35); }
 
-/* Controls */
 .sd .sb-ability-controls {
   display: flex;
   gap: 2px;
@@ -3235,7 +3179,6 @@
 .sd .sb-cast-btn:hover { color: var(--sd-stamina); border-color: rgba(90,224,122,.4); }
 .sd .sb-btn-del:hover  { color: var(--sd-hp); border-color: rgba(224,90,90,.4); }
 
-/* Slot max input in slots mode */
 .sd .sb-slot-max-edit {
   width: 34px;
   text-align: center;
@@ -3252,48 +3195,33 @@
 .sd .sb-mana-input { outline: none; }
 .sd .sb-mana-input:focus { border-bottom-color: var(--sd-accent) !important; }
 
-
-/* ── Progress bar ─────────────────────────────────────────────────────────── */
 .sd .widget-progress { display: flex; flex-direction: column; gap: 2px; }
 
-/* ── Select widget ────────────────────────────────────────────────────────── */
 .sd .widget-select { display: flex; flex-direction: column; gap: 3px; }
 .sd .widget-select .widget-select-input:focus {
   border-color: var(--sd-accent) !important;
   outline: none;
 }
 
-/* ── Progress Clock ───────────────────────────────────────────────────────── */
 .sd .widget-clock { user-select: none; }
 .sd .widget-clock .sd-clock-segment:hover { opacity: .75; }
 
-/* ── Token Tracker ────────────────────────────────────────────────────────── */
 .sd .widget-tracker { display: flex; flex-direction: column; gap: 3px; }
 .sd .sd-tracker-pip:hover { transform: scale(1.2); }
 
-/* ── Tags / Traits ────────────────────────────────────────────────────────── */
 .sd .widget-tags { display: flex; flex-direction: column; gap: 3px; }
 .sd .sd-tag-pill { display: inline-flex; align-items: center; transition: background .1s; }
 .sd .sd-tag-pill:hover { filter: brightness(1.2); }
 .sd .sd-tag-remove:hover { color: #e04040 !important; }
 .sd .sd-tag-add:hover { background: rgba(123,104,238,.2) !important; border-color: var(--sd-accent) !important; color: var(--sd-accent) !important; }
 
-/* ── Image widget ─────────────────────────────────────────────────────────── */
 .sd .widget-image { display: flex; flex-direction: column; align-items: center; }
 .sd .widget-image img { transition: opacity .15s; }
 .sd .sd-img-pick:hover img, .sd .sd-img-pick:hover > div { opacity: .75; outline: 2px solid var(--sd-accent); }
 
-/* ── Derived / Computed ───────────────────────────────────────────────────── */
 .sd .widget-derived { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .sd .widget-derived-value { font-variant-numeric: tabular-nums; }
 
-/* ── showIf hidden comment node ───────────────────────────────────────────── */
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   PROGRESSION APP
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ── Progression header button ─────────────────────────────────────────── */
 .sd .sd-progression-btn {
   position: relative;
   width: 42px; height: 42px;
@@ -3328,14 +3256,6 @@
   border: 1px solid var(--sd-bg);
 }
 
-/* ── App window ─────────────────────────────────────────────────────────── */
-/*
- * The legacy progression skin defined `--prog-*` variables with
- * hardcoded dark hex values, which is why the window stayed dark even
- * after the user picked a light theme via Appearance. Each `--prog-*`
- * now resolves to a system theme variable, so the window follows the
- * active palette automatically.
- */
 .sd-progression-app {
   --prog-bg:      var(--sd-bg);
   --prog-border:  var(--sd-border);
@@ -3363,7 +3283,6 @@
   overflow: hidden;
 }
 
-/* ── Top bar / tabs ─────────────────────────────────────────────────────── */
 .sd-prog-topbar {
   display: flex;
   align-items: center;
@@ -3404,7 +3323,6 @@
 
 .sd-prog-hint { font-size: 12px; color: var(--prog-text2); font-style: italic; padding: 0 4px; }
 
-/* ── Body ────────────────────────────────────────────────────────────────── */
 .sd-prog-body {
   flex: 1;
   overflow-y: auto;
@@ -3414,7 +3332,6 @@
   gap: 10px;
 }
 
-/* ── Level Up ────────────────────────────────────────────────────────────── */
 .sd-prog-levelup { display: flex; flex-direction: column; gap: 10px; }
 
 .sd-prog-lu-hdr {
@@ -3440,7 +3357,6 @@
 .sd-prog-cur-num  { font-size: 22px; font-weight: 700; color: var(--prog-accent); line-height: 1; }
 .sd-prog-cur-lbl  { font-size: 9px;  color: var(--prog-text2); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
 
-/* Source drop zone */
 .sd-prog-source-drop {
   flex: 1;
   min-height: 32px;
@@ -3481,7 +3397,6 @@
 }
 .sd-prog-add-btn:hover { background: rgba(123,104,238,.15); }
 
-/* Level entries list */
 .sd-prog-levels-list { display: flex; flex-direction: column; gap: 8px; }
 
 .sd-prog-level-entry {
@@ -3561,7 +3476,6 @@
 }
 .sd-prog-del-btn:hover { color: var(--sd-danger); background: rgba(239,68,68,.1); }
 
-/* Rewards grid (3 columns) */
 .sd-prog-le-rewards {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -3591,7 +3505,6 @@
 }
 .sd-prog-mini-add:hover { background: rgba(123,104,238,.15); }
 
-/* Items drop zone */
 .sd-prog-items-zone {
   min-height: 36px;
   display: flex; flex-direction: column; gap: 4px;
@@ -3630,7 +3543,6 @@
 }
 .sd-prog-item-chip button:hover { color: var(--sd-danger); }
 
-/* Field changes */
 .sd-prog-fc-row {
   display: flex; align-items: center; gap: 3px;
   margin-bottom: 3px;
@@ -3669,7 +3581,6 @@
   padding: 1px 5px; border-radius: 3px;
 }
 
-/* Effects */
 .sd-prog-effect-chip {
   display: flex; align-items: center;
   background: var(--prog-card2); border: 1px solid var(--prog-border);
@@ -3685,7 +3596,6 @@
 .sd-prog-empty       { color: var(--prog-text2); font-style: italic; font-size: 12px; text-align: center; padding: 20px; }
 .sd-prog-empty-small { color: var(--prog-text2); font-size: 11px; font-style: italic; }
 
-/* ── Skill Tree ──────────────────────────────────────────────────────────── */
 .sd-prog-skilltree { display: flex; flex-direction: column; gap: 8px; }
 
 .sd-prog-st-toolbar {
@@ -3737,11 +3647,9 @@
 
 .sd-prog-st-canvas { position: relative; }
 
-/* SVG connections */
 .sd-prog-conn            { transition: stroke .2s; }
 .sd-prog-conn:hover      { stroke: var(--sd-accent-2,var(--sd-accent)) !important; stroke-width: 3 !important; cursor: pointer; }
 
-/* Empty cell */
 .sd-prog-st-cell {
   position: absolute;
   border: 1px dashed rgba(123,104,238,.2);
@@ -3759,7 +3667,6 @@
 .sd-prog-cell-icon { color: rgba(123,104,238,.2); font-size: 14px; transition: color .15s; }
 .sd-prog-st-cell:hover .sd-prog-cell-icon { color: rgba(123,104,238,.5); }
 
-/* Node */
 .sd-prog-st-node {
   position: absolute;
   border: 2px solid var(--prog-border);
@@ -3820,11 +3727,8 @@
 .sd-prog-node-tool:hover        { background: var(--sd-accent-dim); color: var(--sd-accent-text,#fff); }
 .sd-prog-node-tool.danger:hover { background: var(--sd-danger-dim);   color: var(--sd-accent-text,#fff); }
 
-/* node config dialog fc rows */
 .sd-prog-fc-row { display: flex; align-items: center; gap: 4px; }
 
-
-/* ── Multiplier row ─────────────────────────────────────────────────────── */
 .sd-card-mults {
   display: flex;
   gap: 3px;
@@ -3856,7 +3760,6 @@
   cursor: default;
 }
 
-/* ── Apply to selected button ───────────────────────────────────────────── */
 .sd-apply-selected-btn {
   display: flex;
   align-items: center;
@@ -3879,7 +3782,6 @@
 }
 .sd-apply-selected-btn:disabled { opacity: .4; cursor: default; }
 
-/* ── Re-roll button ─────────────────────────────────────────────────────── */
 .sd-reroll-btn {
   width: 100%;
   display: flex;
@@ -3919,7 +3821,6 @@
 .sd-apply-hp-btn:hover  { filter: brightness(1.15); }
 .sd-apply-hp-btn:disabled { opacity: .4; cursor: default; }
 
-/* ── AoE card token chips ────────────────────────────────────────────────── */
 .sd-aoe-chip {
   display: flex;
   align-items: center;
@@ -3949,58 +3850,42 @@
 .sd-aoe-save-btn:hover  { filter: brightness(1.15); }
 .sd-aoe-save-btn:disabled { opacity: .4; cursor: default; }
 
-/* === Per-widget style overrides via CSS variables === */
-/* Resource */
 .sd .widget-resource .res-bar { height: var(--sd-w-bar-h, 5px); background: var(--sd-w-bar-track, var(--sd-bg)); }
 
-/* Progress */
 .sd .widget-progress .progress-bar,
 .sd .widget-progress .prog-bar { height: var(--sd-w-bar-h, 6px); background: var(--sd-w-bar-track, var(--sd-bg)); }
 
-/* Dice */
 .sd .widget-dice .dice-btn { background: var(--sd-w-btn-bg, var(--sd-bg-3)); color: var(--sd-w-btn-fg, var(--sd-text)); border-color: var(--sd-w-btn-bd, var(--sd-border)); }
 .sd .widget-dice .dice-btn i { color: var(--sd-w-icon, inherit); }
 
-/* Roll button */
 .sd .widget-rollButton .sd-action-btn { background: var(--sd-w-btn-bg, transparent); color: var(--sd-w-btn-fg, currentColor); border-color: var(--sd-w-btn-bd, currentColor); }
 
-/* Number/counter ± buttons */
 .sd .widget-number .num-btn,
 .sd .widget-counter .cnt-btn { color: var(--sd-w-num-btn, var(--sd-text-2)); }
 
-/* Button text override */
 .sd .widget-button .sd-action-btn[style] { color: var(--sd-w-btn-fg, currentColor); }
 
-/* Toggle */
 .sd .widget-toggle .tog-track.on { background: var(--sd-w-on, var(--sd-accent)); border-color: var(--sd-w-on, var(--sd-accent)); }
 .sd .widget-toggle .tog-track:not(.on) { background: var(--sd-w-off, var(--sd-bg-3)); }
 
-/* Section/vsection */
 .sd .widget-section .sec-divider { border-top: var(--sd-w-line-th, 1px) solid var(--sd-w-line, var(--sd-border)); }
 .sd .widget-section .sec-title { color: var(--sd-w-title, var(--sd-text-2)); }
 .sd .widget-section .sec-title::after { background: var(--sd-w-line, var(--sd-border)); height: var(--sd-w-line-th, 1px); }
 .sd .widget-vsection .vsection-title { color: var(--sd-w-title, var(--sd-accent)); }
 
-/* Clock */
 .sd .widget-clock .clock-pip { width: var(--sd-w-pip-size, 16px); height: var(--sd-w-pip-size, 16px); border-width: var(--sd-w-pip-bd, 1px); }
 
-/* Tracker / Token Pool */
 .sd .widget-tracker .tracker-pip { width: var(--sd-w-pip-size, 18px); height: var(--sd-w-pip-size, 18px); }
 .sd .widget-tracker .tracker-pip:not(.filled) { background: var(--sd-w-empty, transparent); }
 .sd .widget-tokenPool .pool-pip { width: var(--sd-w-pip-size, 14px); height: var(--sd-w-pip-size, 14px); }
 .sd .widget-tokenPool .pool-pip:not(.filled) { background: var(--sd-w-empty, transparent); }
 
-/* Inventory header */
 .sd .widget-inventory .inv-header,
 .sd .widget-inventory .inv-cat-title { color: var(--sd-w-header, var(--sd-text)); }
 
-/* Tags */
 .sd .widget-tags .tag-pill { color: var(--sd-w-tag-fg, currentColor); }
 
-/* Image border-width */
 .sd .widget-image img[style] { border-width: var(--sd-w-bw, 0) !important; }
-
-/* ====== Action HUD ====== */
 
 #sd-action-hud {
   position: fixed;
@@ -4016,22 +3901,18 @@
   font-family: var(--font-primary, sans-serif);
   pointer-events: auto;
   min-width: 240px;
-  /* user-controlled scale */
+
   transform-origin: top left;
 }
 
 #sd-action-hud .sd-action-hud-canvas {
-  /* Outer box — sized in JS to the scaled visual extent (maxX*scale ×
-     maxY*scale). It does NOT carry the transform itself so the panel's
-     layout reserves the correct space. */
+
   position: relative;
   overflow: visible;
 }
 
 #sd-action-hud .sd-action-hud-canvas-inner {
-  /* Inner coordinate system — sized to the unscaled extent (maxX × maxY),
-     transformed by --sd-hud-scale. Visual size = maxX*scale × maxY*scale,
-     which matches the outer canvas DOM box. */
+
   position: absolute;
   top: 0;
   left: 0;
@@ -4074,12 +3955,10 @@
 #sd-action-hud button:hover { background: rgba(255,255,255,0.08); }
 
 #sd-action-hud .sd-action-hud-widget {
-  /* Each placed widget */
+
   background: transparent;
   display: block;
 }
-
-/* HUD config form */
 
 .sd-action-hud-config-form {
   display: flex;
@@ -4232,8 +4111,6 @@
   border-color: var(--sd-accent);
 }
 
-/* ====== Action HUD Builder Mode (Phase B) ====== */
-
 #sd-action-hud .sd-action-hud-add {
   position: absolute;
   bottom: -10px;
@@ -4266,9 +4143,7 @@
 #sd-action-hud.sd-hud-builder .sd-action-hud-widget {
   outline: 1px solid var(--sd-accent);
   outline-offset: 1px;
-  /* Block widget interaction in builder mode so a stray click on a button
-     doesn't fire its action. The cell-overlay is the only thing receiving
-     pointer events on top. */
+
   pointer-events: none;
 }
 #sd-action-hud.sd-hud-builder .sd-action-hud-widget .sd-hud-cell-overlay {
@@ -4346,8 +4221,6 @@
   cursor: nwse-resize;
 }
 
-/* Inline editor */
-
 .sd-hud-inline-editor .inline-form {
   display: flex;
   flex-direction: column;
@@ -4407,18 +4280,10 @@
   border-color: var(--sd-accent);
 }
 
-/* ====== Action HUD background opacity & transparent widget overrides ====== */
-
 #sd-action-hud {
-  /* Override the static rgba(20,22,28,0.92) panel bg with one driven by
-     the per-user opacity setting. */
+
   background: rgba(20, 22, 28, var(--sd-hud-bar-bg-alpha, 0.92));
 }
-
-/* Per-entry transparent override (data-transparent="true") OR per-user
-   default-transparent class on the root. Forces every nested element's
-   background, border and shadow to be transparent so just the controls
-   themselves show through. */
 
 #sd-action-hud .sd-action-hud-widget[data-transparent="true"] .widget,
 #sd-action-hud .sd-action-hud-widget[data-transparent="true"] .widget *,
@@ -4436,32 +4301,26 @@
 #sd-action-hud.sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget textarea,
 #sd-action-hud.sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget select,
 #sd-action-hud.sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget button {
-  /* For controls keep a faint hover-able outline so they're still clickable. */
+
   background: rgba(255,255,255,0.04) !important;
   border-color: rgba(255,255,255,0.18) !important;
 }
 
-/* "Transparent" toggle button in builder mode shows on-state */
 .sd-hud-cell-bar button[data-act='transparent'].is-on {
   background: rgba(123, 104, 238, 0.35);
   border-color: var(--sd-accent);
 }
 
-/* ====== HUD: hide-frames mode ====== */
-/* Default class is sd-hud-no-frames (set in _render() unless user enables frames). */
-
 #sd-action-hud.sd-hud-no-frames {
   border: none;
 }
 
-/* Strip borders / outlines from anything inside widgets in no-frames mode.
-   Backgrounds are left alone (those are controlled by the transparent setting). */
 #sd-action-hud.sd-hud-no-frames .sd-action-hud-widget,
 #sd-action-hud.sd-hud-no-frames .sd-action-hud-widget * {
   border-color: transparent !important;
   outline: none !important;
 }
-/* Builder-mode purple outlines stay visible even with no-frames */
+
 #sd-action-hud.sd-hud-builder.sd-hud-no-frames .sd-action-hud-widget {
   outline: 1px solid var(--sd-accent) !important;
 }
@@ -4469,11 +4328,6 @@
   outline: 1px dashed var(--sd-accent-dim) !important;
 }
 
-/* ====== HUD: widget shadow (contour-following, no rectangular halo) ====== */
-/* Use chained drop-shadow so the shadow follows the alpha channel of the
-   actual visible content (text glyphs, icons, bars) instead of a rectangle
-   around the cell. Multiple layers give a soft + crisp combo for readability
-   on any background. */
 #sd-action-hud.sd-hud-shadow .sd-action-hud-widget {
   filter:
     drop-shadow(0 0 1px rgba(0,0,0,0.95))
@@ -4481,16 +4335,13 @@
     drop-shadow(0 2px 8px rgba(0,0,0,0.5));
 }
 
-/* Popover text stays light. */
 .sd-hud-pop-portal,
 .sd-hud-pop-portal * {
   color: var(--sd-text) !important;
 }
 
-/* Make sure the cell is a positioning context for ::before */
 #sd-action-hud .sd-action-hud-widget { position: absolute; }
 
-/* ====== HUD: compact popover widget (inventory / effects / spellbook / attributeGroup) ====== */
 #sd-action-hud .sd-hud-popover {
   position: relative;
 }
@@ -4604,7 +4455,6 @@
 #sd-action-hud .sd-hud-pop-row--off { opacity: .55; }
 #sd-action-hud .sd-hud-pop-row--off .sd-hud-pop-name { text-decoration: line-through; }
 
-/* ====== HUD: compact slot widget — round icons in a row (1..3 items) ====== */
 #sd-action-hud .widget-slot-row {
   display: flex;
   flex-direction: column;
@@ -4704,17 +4554,9 @@
   box-shadow: none;
 }
 
-/* Slot popover (>3 items) reuses the inventory popover row styles. The icon
-   shown in dropdown rows for slot items is a round thumbnail to match the
-   row-mode visual language. */
 #sd-action-hud .widget-slot-compact .sd-hud-pop-row img {
   border-radius: 50%;
 }
-
-/* ====== HUD: no-frames mode drops panel background entirely ====== */
-/* When the user wants "no frame", also remove the dark panel background
-   (bar keeps its own background so the control buttons remain clickable
-   against a visible backdrop). */
 
 #sd-action-hud.sd-hud-no-frames {
   background: transparent !important;
@@ -4722,7 +4564,6 @@
   padding: 0 !important;
 }
 
-/* Give the bar its own subtle background so the toggle buttons are visible. */
 #sd-action-hud.sd-hud-no-frames .sd-action-hud-bar {
   background: rgba(20, 22, 28, 0.75);
   border: 1px solid #4b556666;
@@ -4732,18 +4573,13 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
-/* ====== HUD: compact popover — robust scrolling ====== */
-/* Belt-and-suspenders: force scroll on the popover list so a long inventory
-   doesn't overflow the viewport without a scrollbar. */
 #sd-action-hud .sd-hud-pop-body {
   max-height: 60vh !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-/* Flip the popover upward when the widget is in the bottom half of the
-   viewport — this is set dynamically by JS via the [data-flip-up] attribute
-   on the <details>. */
+
 #sd-action-hud .sd-hud-popover[data-flip-up="true"] > .sd-hud-pop-body {
   top: auto !important;
   bottom: 100% !important;
@@ -4751,7 +4587,6 @@
   margin-bottom: 4px !important;
 }
 
-/* ====== HUD bar: hidden by default, appears on HUD hover ====== */
 #sd-action-hud .sd-action-hud-bar {
   opacity: 0.12;
   transition: opacity 0.2s ease;
@@ -4761,9 +4596,6 @@
   opacity: 1;
 }
 
-/* ====== Popover portaled to document.body (escapes any transformed panel) ====== */
-/* JS moves .sd-hud-pop-body out of the HUD on open and gives it this class so
-   position:fixed is relative to the viewport (not the transformed HUD). */
 .sd-hud-pop-portal {
   position: fixed !important;
   z-index: 10000 !important;

@@ -8,8 +8,6 @@ import {
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-// Default config shape
-
 export function getDefaultSettings() {
   return {
     attributes: {
@@ -20,31 +18,23 @@ export function getDefaultSettings() {
       attr5: "Wisdom",
       attr6: "Charisma"
     },
-    // Which attributes are enabled
+
     attributesEnabled: {
       attr1: true, attr2: true, attr3: true,
       attr4: true, attr5: true, attr6: true
     },
-    // Per-attribute base score used when a NEW actor is created.
-    // Existing actors are NOT mutated when these change.
+
     attributesInitial: {
       attr1: 10, attr2: 10, attr3: 10,
       attr4: 10, attr5: 10, attr6: 10
     },
 
-    // Resource bars. `initialValue/initialMax/initialMin` are applied at
-    // actor creation time only — editing them does not retroactively change
-    // existing actors.
     resources: {
       hp:      { label: "Hit Points",  enabled: true,  color: "#e05a5a", initialValue: 10, initialMax: 10, initialMin: 0 },
       mp:      { label: "Mana Points", enabled: true,  color: "#5a8ae0", initialValue: 10, initialMax: 10, initialMin: 0 },
       stamina: { label: "Stamina",     enabled: false, color: "#5ae07a", initialValue: 10, initialMax: 10, initialMin: 0 }
     },
 
-    // Currency labels — dynamic list. Each entry has a stable key used as
-    // the path on actor (system.currency.<key>) and a display label.
-    // Default 3 entries map 1:1 to the legacy primary/secondary/tertiary
-    // keys for backward compatibility with existing actors.
     currencies: [
       { key: "primary",   label: "Gold"   },
       { key: "secondary", label: "Silver" },
@@ -53,19 +43,12 @@ export function getDefaultSettings() {
 
     modifierFormula: "halved",
 
-    // Global UI scale as a percentage (50-200). Applied via CSS zoom to all sheet content.
     uiScale: 100,
 
-    // Visual color scheme — id must match an entry in
-    // `module/helpers/color-schemes.mjs` and a selector block in
-    // `styles/sd-themes.css`.
     colorScheme: "default"
   };
 }
 
-// Helpers
-
-/** Load current settings - use stored directly, only fill missing from defaults */
 export function loadSettings() {
   let stored = {};
   try {
@@ -101,7 +84,6 @@ export function loadSettings() {
     }
   }
 
-  // Backfill resource initial fields for entries that pre-date them.
   for (const [, res] of Object.entries(result.resources ?? {})) {
     if (!res || typeof res !== "object") continue;
     if (res.initialValue === undefined) res.initialValue = 10;
@@ -109,7 +91,6 @@ export function loadSettings() {
     if (res.initialMin   === undefined) res.initialMin   = 0;
   }
 
-  // Migrate legacy currency shape { primary, secondary, tertiary } → array
   if (!Array.isArray(result.currencies)) {
     if (result.currency && typeof result.currency === "object") {
       result.currencies = [
@@ -125,7 +106,7 @@ export function loadSettings() {
 
   if (result.uiScale === undefined) {
     const oldSize = Number(result.uiFontSize ?? 13);
-    result.uiScale = Math.round((oldSize / 13) * 100 / 5) * 5; // snap to step-5
+    result.uiScale = Math.round((oldSize / 13) * 100 / 5) * 5;
     result.uiScale = Math.min(Math.max(result.uiScale, 50), 200);
   }
   delete result.uiFontSize;
@@ -134,26 +115,10 @@ export function loadSettings() {
   return result;
 }
 
-/** Save settings. */
 export async function saveSettings(data) {
   await game.settings.set("sd", "systemSettings", data);
 }
 
-/**
- * Build the override updates that should be applied at actor-creation time
- * based on the user-configured base values in the System Config window.
- *
- * Returns a flat update object suitable for `Actor#updateSource(...)`.
- * Returns `null` if there's nothing to apply (e.g. settings are unavailable
- * during very early init).
- *
- * Existing actors are intentionally NOT mutated — these defaults only fire
- * during `preCreateActor`. Editing the settings later does not retroactively
- * change already-created characters.
- *
- * @param {string} [actorType] "character" / "npc" / etc. Reserved for future
- *   per-type overrides; currently the same defaults apply to all actor types.
- */
 export function buildActorBaseDefaults(actorType) {
   let cfg;
   try {
@@ -165,9 +130,6 @@ export function buildActorBaseDefaults(actorType) {
 
   const updates = {};
 
-  // Attributes — only set scores for keys that are enabled in settings AND
-  // exist on the actor's data model (we don't know that here, so write all
-  // keys; unknown ones are silently ignored by the schema).
   for (const [key, score] of Object.entries(cfg.attributesInitial ?? {})) {
     const enabled = cfg.attributesEnabled?.[key] ?? true;
     if (!enabled) continue;
@@ -176,7 +138,6 @@ export function buildActorBaseDefaults(actorType) {
     updates[`system.attributes.${key}.value`] = Math.trunc(n);
   }
 
-  // Resources — set value/max/min using the configured initials.
   for (const [key, res] of Object.entries(cfg.resources ?? {})) {
     if (!res || res.enabled === false) continue;
     const v = Number(res.initialValue);
@@ -190,12 +151,6 @@ export function buildActorBaseDefaults(actorType) {
   return Object.keys(updates).length ? updates : null;
 }
 
-/**
- * Compute an attribute modifier from a numeric score, honouring the
- * world setting `modifierFormula` (`halved` / `direct` / `none`).
- * Defaults to "halved" when CONFIG.SD is uninitialised so it stays safe to
- * call from data-prep paths during early init.
- */
 export function computeModifier(score) {
   const n = Number(score);
   if (!Number.isFinite(n)) return 0;
@@ -208,11 +163,6 @@ export function computeModifier(score) {
   }
 }
 
-/**
- * Same logic as `computeModifier` but returns a compilable expression string
- * for use inside generated formulas (e.g. node graph compilation).
- * `scoreExpr` is interpolated as the score sub-expression.
- */
 export function compileModifierExpr(scoreExpr) {
   const expr = String(scoreExpr ?? "0");
   const mode = CONFIG?.SD?.modifierFormula ?? "halved";
@@ -224,52 +174,41 @@ export function compileModifierExpr(scoreExpr) {
   }
 }
 
-// Apply settings to CONFIG
-
 export function applySettings(cfg) {
   if (!CONFIG.SD) return;
 
-  // Attributes
   for (const [key, label] of Object.entries(cfg.attributes ?? {})) {
     CONFIG.SD.attributes[key] = label;
     game.i18n.translations[`SD.Attributes.${key}`] = label;
   }
 
-  // Resources
   for (const [key, res] of Object.entries(cfg.resources ?? {})) {
     game.i18n.translations[`SD.Resources.${key.toUpperCase()}`] = res.label ?? key;
   }
 
-  // Currency — dynamic list. Renderers should read CONFIG.SD.currencies.
   CONFIG.SD.currencies = Array.isArray(cfg.currencies) ? cfg.currencies : [];
-  // Back-compat shim for old reads (CONFIG.SD.currencyConfig.{primary,…})
+
   const _ccLegacy = {};
   for (const c of (cfg.currencies ?? [])) _ccLegacy[c.key] = c.label;
   CONFIG.SD.currencyConfig = _ccLegacy;
 
-  // Modifier formula
   CONFIG.SD.modifierFormula = cfg.modifierFormula ?? "halved";
-  // Expose globally for other modules to consume (compileModifierExpr)
+
   CONFIG.SD.computeModifier = computeModifier;
   CONFIG.SD.compileModifierExpr = compileModifierExpr;
 
-  // Global UI scale -- set --sd-ui-scale on :root so CSS zoom picks it up on all SD sheets.
   const scale = Math.min(Math.max(Number(cfg.uiScale ?? 100), 50), 200) / 100;
   document.documentElement.style.setProperty("--sd-ui-scale", scale);
 
-  // Color scheme — delegates to CSS variables defined in styles/sd-themes.css.
   const scheme = typeof cfg.colorScheme === "string" && THEME_IDS.has(cfg.colorScheme)
     ? cfg.colorScheme
     : "default";
   applyColorScheme(scheme);
 
-  // Refresh all open sheets
   for (const app of Object.values(ui.windows ?? foundry.applications?.instances ?? {})) {
     if (app?.document) app.render();
   }
 }
-
-// Application
 
 export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
@@ -298,7 +237,6 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     content: { template: "systems/sd/templates/config/system-config.hbs", scrollable: [".config-body"] }
   };
 
-  /** Called on init before ready — reads stored settings and applies them. */
   static applyStoredSettings() {
     try {
       const cfg = loadSettings();
@@ -308,11 +246,9 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  /** Wire up the UI Scale slider + color-scheme swatches for live preview. */
   _onRender(context, options) {
     super._onRender?.(context, options);
 
-    // UI Scale slider
     const slider = this.element.querySelector("#uiScaleSlider");
     const output = this.element.querySelector("#uiScaleOutput");
     if (slider && output) {
@@ -322,19 +258,18 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     }
 
-    // Color-scheme picker — click a swatch to activate live preview.
     const input = this.element.querySelector("input[name='colorScheme']");
     this.element.querySelectorAll("[data-scheme-id]").forEach(swatch => {
       swatch.addEventListener("click", (ev) => {
         ev.preventDefault();
         const id = swatch.dataset.schemeId;
         if (!id) return;
-        // Update hidden input
+
         if (input) input.value = id;
-        // Update active state visually
+
         this.element.querySelectorAll("[data-scheme-id]").forEach(s =>
           s.classList.toggle("is-active", s === swatch));
-        // Live preview globally
+
         applyColorScheme(id);
       });
     });
@@ -373,11 +308,6 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     };
   }
 
-  /**
-   * Read the current state of the form (renames, toggles, colors, etc.) and
-   * merge it into a fresh cfg snapshot. Used both by Save and by Add/Remove
-   * handlers so that pending edits aren't lost on re-render.
-   */
   _collectFormCfg() {
     const cfg  = loadSettings();
     const form = this.element?.querySelector?.("form");
@@ -386,7 +316,6 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const FDE = foundry.applications?.ux?.FormDataExtended ?? FormDataExtended;
     const raw = new FDE(form).object;
 
-    // Attributes
     if (!cfg.attributesInitial || typeof cfg.attributesInitial !== "object") {
       cfg.attributesInitial = {};
     }
@@ -403,7 +332,6 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
 
-    // Resources
     for (const key of Object.keys(cfg.resources ?? {})) {
       const lbl  = `res_label_${key}`;
       const en   = `res_enabled_${key}`;
@@ -428,21 +356,17 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
 
-    // Currencies (dynamic list — read label for each entry; keys are stable)
     for (const c of (cfg.currencies ?? [])) {
       const lblKey = `currency_label_${c.key}`;
       if (raw[lblKey] !== undefined) c.label = raw[lblKey];
     }
 
-    // Modifier Formula
     if (raw.modifierFormula !== undefined) cfg.modifierFormula = raw.modifierFormula;
 
-    // UI Scale
     if (raw.uiScale !== undefined) {
       cfg.uiScale = Math.min(Math.max(Number(raw.uiScale) || 100, 50), 200);
     }
 
-    // Color scheme
     if (raw.colorScheme !== undefined) {
       const id = String(raw.colorScheme);
       cfg.colorScheme = THEME_IDS.has(id) ? id : "default";
@@ -451,7 +375,6 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     return cfg;
   }
 
-  // Collect form data and save
   static async _onSaveAndClose(event, target) {
     const cfg = this._collectFormCfg();
     await saveSettings(cfg);
@@ -473,8 +396,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static async _onAddAttribute(event, target) {
-    // Capture pending form edits BEFORE re-rendering, otherwise unsaved
-    // attribute renames / resource changes would be wiped.
+
     const cfg   = this._collectFormCfg();
     const count = Object.keys(cfg.attributes).length + 1;
     const key   = `attr${count}`;
@@ -526,7 +448,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   static async _onAddCurrency(event, target) {
     const cfg = this._collectFormCfg();
     if (!Array.isArray(cfg.currencies)) cfg.currencies = [];
-    // Find a unique key
+
     const existing = new Set(cfg.currencies.map(c => c.key));
     let n = cfg.currencies.length + 1;
     let key = `currency${n}`;

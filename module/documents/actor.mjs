@@ -9,12 +9,10 @@ function _sdMsgMode() {
 
 export class SDActor extends Actor {
 
-  /** @override */
   prepareData() {
     super.prepareData();
   }
 
-  /** @override — runs after embedded items are prepared */
   prepareDerivedData() {
     super.prepareDerivedData();
 
@@ -26,7 +24,6 @@ export class SDActor extends Actor {
       case "npc":       this._prepareNPCData(systemData);       break;
     }
   }
-
 
   _prepareCharacterData(data) {
     let totalWeight = 0;
@@ -42,17 +39,9 @@ export class SDActor extends Actor {
   }
 
   _prepareNPCData(data) {
-    // Nothing extra for NPC for now.
+
   }
 
-  // Roll Helpers
-
-  /**
-   * Roll a generic dice formula for this actor.
-   * @param {string} formula   Dice formula, e.g. "1d20+3"
-   * @param {object} options   Options passed to Roll#evaluate
-   * @returns {Promise<Roll>}
-   */
   async rollGeneric(formula, { flavor = "", rollMode, dialogTitle } = {}) {
     const roll = new Roll(formula, this.getRollData());
     const getSpeaker = ChatMessage.implementation?.getSpeaker ?? ChatMessage.getSpeaker;
@@ -64,10 +53,6 @@ export class SDActor extends Actor {
     return roll;
   }
 
-  /**
-   * Open the roll dialog, then roll.
-   * @param {object} opts
-   */
   async rollDialog({ title, formula, label } = {}) {
     const { SdRollDialog } = await import("../helpers/roll-dialog.mjs");
     const rawFormula = formula ?? this.system.rollFormula ?? "1d20";
@@ -80,10 +65,6 @@ export class SDActor extends Actor {
     });
   }
 
-  /**
-   * Roll an attribute check.
-   * @param {string} attrKey  e.g. "attr1"
-   */
   async rollAttribute(attrKey) {
     const attr = this.system.attributes?.[attrKey];
     if (!attr) return;
@@ -97,10 +78,6 @@ export class SDActor extends Actor {
     });
   }
 
-  /**
-   * Roll a skill check.
-   * @param {string} skillKey  e.g. "skill1"
-   */
   async rollSkill(skillKey) {
     const skill = this.system.skills?.[skillKey];
     if (!skill) return;
@@ -122,7 +99,6 @@ export class SDActor extends Actor {
       }
     }
 
-    // @level = advancement.level
     if (data.advancement) {
       data.level = data.advancement.level;
       data.prof  = data.advancement.proficiencyBonus;
@@ -131,9 +107,6 @@ export class SDActor extends Actor {
     return data;
   }
 
-  // Active Effects
-
-  /** @override — sort effects: suppressed last */
   get appliedEffects() {
     return super.appliedEffects.sort((a, b) => {
       if (a.disabled && !b.disabled) return 1;
@@ -190,14 +163,13 @@ export class SDActor extends Actor {
           case M.UPGRADE:   current = Math.max(current, safe); break;
           case M.DOWNGRADE: current = Math.min(current, safe); break;
           case M.CUSTOM:
-          default:          /* custom mode — leave as-is, handled by hook */ break;
+          default:           break;
         }
       }
 
       foundry.utils.setProperty(this, key, current);
     }
   }
-  // Transfer Effects bookkeeping
 
   async _onCreateDescendantDocuments(parent, collection, documents, data, options, userId) {
     await super._onCreateDescendantDocuments(parent, collection, documents, data, options, userId);

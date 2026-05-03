@@ -1,4 +1,3 @@
-// Shared bootstrap: builds the site header / nav, wires up the language toggle.
 import { loadI18n, applyLangAttrs, t, getLang, initLangToggle } from "./i18n.js";
 
 const NAV = [
@@ -44,7 +43,7 @@ export async function bootPage() {
   buildHeader();
   applyLangAttrs();
   document.documentElement.lang = getLang();
-  // Re-apply on language change anywhere on the page
+
   window.addEventListener("sd:lang-change", () => {
     applyLangAttrs();
     document.documentElement.lang = getLang();

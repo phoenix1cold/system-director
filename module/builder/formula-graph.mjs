@@ -41,19 +41,10 @@ function _NL(text) {
       const s = i18n.localize(key);
       if (s && s !== key) return s;
     }
-  } catch { /* no-op */ }
+  } catch {  }
   return text;
 }
 
-/**
- * Wrap a compiled expression in floor()/ceil() based on the node's per-node
- * `round` field. Used by every Math node so users can opt-in to round-down /
- * round-up at the operation level (default = no rounding for back-compat).
- *
- * @param {string} expr      Inner expression already wrapped in parens by caller.
- * @param {object} nodeData  The node's `data` object — reads `data.round`.
- * @returns {string}
- */
 function _round(expr, nodeData) {
   const mode = String(nodeData?.round ?? "none");
   if (mode === "floor") return `floor(${expr})`;
@@ -61,8 +52,6 @@ function _round(expr, nodeData) {
   return expr;
 }
 
-/** Reusable field definition appended to every Math node so the inspector
- *  shows a Rounding dropdown. `none` = pass-through (legacy behaviour). */
 const _ROUND_FIELD = {
   key:"round", label:"Round", type:"select", default:"none",
   options:[
@@ -72,11 +61,8 @@ const _ROUND_FIELD = {
   ]
 };
 
-// Каталог нод
-
 export const NODE_DEFS = {
 
-  // Системные
   output: {
     title:"OUTPUT", color:"#5a4ec0", cat:"_system",
     desc:"Connect a formula value OR an exec chain. Use Branch to split paths.",
@@ -108,7 +94,6 @@ export const NODE_DEFS = {
     isAttrOutput:true
   },
 
-  // Поток
   branch: {
     title:"Branch", color:"#8a2a8a", cat:"Flow",
     desc:"If Condition is TRUE runs True path; otherwise False path",
@@ -214,7 +199,7 @@ export const NODE_DEFS = {
         if (parts.length === 2) return `{invItemSlotCount:${parts[0]}.${parts[1]}}`;
         return `{nestedSlotCount:${path}}`;
       }
-      // Self / actor slot
+
       return `{slotCount:${n.data.slotId??"slot1"}}`;
     }
   },
@@ -247,16 +232,6 @@ export const NODE_DEFS = {
     compile:(n)=>`{target.${n.data.path??""}}`
   },
 
-  /**
-   * Emit a Font Awesome icon as plain text (class name + colour) so it can be
-   * piped into any widget config that accepts an "icon" / "color" string —
-   * Tracker, Token Pool, Dice / Roll / Action Button, Attribute Group, etc.
-   *
-   * Outputs are intentionally emitted *un-quoted* so that when they land in
-   * `widget.icon = val` inside WidgetConfig graph application they stamp a
-   * clean value directly (no stray "" around the class). This matches the
-   * way widget config fields are written (`widget[field.key] = val`).
-   */
   fa_icon: {
     title:"FA Icon", color:"#2a4060", cat:"Sources",
     desc:"Font Awesome icon picker — outputs the full FA class (`fas fa-heart`), the bare name (`fa-heart`), the color string and a ready-to-use `<i>` HTML snippet. Pipe `Class` into a Tracker / Token Pool / Button icon pin, and `Color` into their colour pin for themed pips.",
@@ -299,8 +274,6 @@ export const NODE_DEFS = {
       const colorRaw = _unquote(i.color) ?? n.data.color ?? "#e04040";
       const style    = String(n.data.style ?? "fas").trim() || "fas";
 
-      // Normalise: strip any pre-existing style prefix (fas / fa-solid / fa-brands …)
-      // and any leading namespace so we can re-apply the chosen `style` cleanly.
       let cleaned = String(iconRaw).trim()
         .replace(/\bfa-(solid|regular|brands|duotone|light|thin|sharp)\b/gi, "")
         .replace(/\b(fas|far|fab|fad|fal|fat)\b/gi, "")
@@ -316,7 +289,7 @@ export const NODE_DEFS = {
         const size = Math.max(1, Number(n.data.size ?? 16) || 16);
         return `<i class="${faClass}" style="color:${colorRaw};font-size:${size}px"></i>`;
       }
-      // default + "class" pin — full FA class string
+
       return faClass;
     }
   },
@@ -334,7 +307,6 @@ export const NODE_DEFS = {
     }
   },
 
-  // Кубы
   dice: {
     title:"Dice", color:"#7a4500", cat:"Dice",
     desc:"Build a dice formula `<count><die>`. Die accepts any size — type \"d5\", \"d87\", \"5\", \"87\" or a {ref}. Optional Min / Max clamp the rolled result to a [min..max] range (leave blank to skip). Outputs: `Formula` (string for rolling), `Min` / `Max` (theoretical extremes — handy for HUD ranges or branch logic), `Avg` (expected value).",
@@ -397,7 +369,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Pure: get theoretical bounds of any formula. */
   formula_range: {
     title:"Formula Range", color:"#7a4500", cat:"Dice",
     desc:"Statically inspect a dice formula and emit its theoretical Min, Max and Average. `2d6+3` → min=5, max=15, avg=10. Works with any formula string — useful for HUD ranges, IF branches, or feeding clamps.",
@@ -418,7 +389,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Pure: clamp a formula's result to [Min, Max]. Both bounds optional. */
   formula_clamp: {
     title:"Formula Clamp", color:"#7a4500", cat:"Dice",
     desc:"Wrap a formula with `max(MIN, min(MAX, F))`. Either bound may be left empty (open on that side). Stack multiple Clamp nodes to apply tighter ranges in sequence.",
@@ -446,7 +416,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Pure: multiply a formula by a numeric factor. Useful for crit doubling. */
   formula_mul: {
     title:"Formula × N", color:"#7a4500", cat:"Dice",
     desc:"Wrap a formula in `(N)*(F)`. Common case: crit doubling (`×2`). Set N=2 + leave Formula pin connected = doubled total.",
@@ -465,7 +434,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Pure: append a +/- modifier to a formula. */
   formula_add: {
     title:"Formula + Mod", color:"#7a4500", cat:"Dice",
     desc:"Append a +/- modifier to a formula. Mod accepts numbers (`5`, `-3`) or expressions (`@mod`, `1d4`). Stack multiple of these to chain bonuses.",
@@ -484,7 +452,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Pure: rich snapshot of a roll value vs its formula bounds. */
   roll_stat: {
     title:"Roll Stat", color:"#7a4500", cat:"Dice",
     desc:"Produce a percentile (0..1) showing where the roll landed inside its theoretical range, plus echo Min/Max/Avg of the formula. Useful for heatmap UI or `If pct >= 0.9 → great hit`.",
@@ -513,7 +480,6 @@ export const NODE_DEFS = {
     }
   },
 
-  // Математика
   add:  {title:"Add",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[{key:"sep",label:"Sep",type:"text",default:""},_ROUND_FIELD],compile:(n,i)=>{ const sep=n.data.sep??""; if (sep) return `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})`; return _round(`(${i.a??"0"}+${i.b??"0"})`, n.data); }},
   sub:  {title:"Sub",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}-${i.b??"0"})`, n.data)},
   mul:  {title:"Mul",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}*${i.b??"0"})`, n.data)},
@@ -529,7 +495,6 @@ export const NODE_DEFS = {
          outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],
          compile:(n,i)=>_round(`max(${i.lo??"0"},min(${i.hi??"0"},${i.v??"0"}))`, n.data)},
 
-  // Сравнения
   eq: {title:"==",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}==${i.b??"0"})`},
   neq:{title:"≠", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}!=${i.b??"0"})`},
   gt: {title:">", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>${i.b??"0"})`},
@@ -537,15 +502,13 @@ export const NODE_DEFS = {
   gte:{title:">=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>=${i.b??"0"})`},
   lte:{title:"<=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<=${i.b??"0"})`},
 
-  // Логика
   and:{title:"AND",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}&&${i.b??"0"})`},
   or: {title:"OR", color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}||${i.b??"0"})`},
   not:{title:"NOT",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(!${i.a??"0"})`},
 
-  // Действия
   act_roll_value: {
     title:"Roll → Value", color:"#8a4400", cat:"Roll",
-    desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls. Outputs: Result (final number), Formula (resolved string), Min/Max/Avg (theoretical bounds & expected value), Dice[] (CSV of every active die's value, e.g. \"4,6,2\"). For crit / fumble logic use Attack Check or Roll Check — Roll Value is intentionally just numbers and dice.",
+    desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls. Outputs: Result (final sum), Formula (resolved string), Min/Max/Avg (theoretical bounds & expected value), Dice Array (every active die's value as a CSV array — pipe into Array Join / Array Length / Get Element / Filter to inspect individual die results, e.g. 2d6 → \"3,5\"). For crit / fumble logic use Attack Check or Roll Check — Roll Value is intentionally just numbers and dice.",
     inputs:[
       {id:"exec",             label:"",              type:"exec"},
       {id:"formula",          label:"Formula",        type:"value.string"},
@@ -562,7 +525,7 @@ export const NODE_DEFS = {
       {id:"min",           label:"Min",           type:"value.number"},
       {id:"max",           label:"Max",           type:"value.number"},
       {id:"avg",           label:"Avg",           type:"value.number"},
-      {id:"dice",          label:"Dice[]",        type:"value.array"}
+      {id:"diceArray",     label:"Dice Array",    type:"value.array"}
     ],
     fields:[
       {key:"formula",        label:"Formula",              type:"text",   default:"1d6"},
@@ -689,7 +652,7 @@ export const NODE_DEFS = {
       const fumbleAmount = _wired(inp.fumbleAmount)
         ? String(inp.fumbleAmount)
         : String(n.data.fumbleAmount ?? "");
-      // Pick which amount string is used for the actual heal — same rules as Damage.
+
       const baseAmt = inp.amount ?? 0;
       const _amtForRoll =
         (isCrit   && critAmount   !== "") ? critAmount   :
@@ -706,8 +669,7 @@ export const NODE_DEFS = {
           showApply: n.data.showApply !== "no",
           autoApply: n.data.autoApply === "yes"};
       }
-      // Silent direct write: route through "target." prefix so runtime resolves
-      // the target actor via targetMode (handles magic strings, UUIDs, user_character, …).
+
       const path = n.data.hpPath ?? "system.resources.hp.value";
       const isSelfMode = (targetMode === "actor" || targetMode === "self");
       return {type:"modifyField",
@@ -1032,13 +994,6 @@ export const NODE_DEFS = {
     compile:(_,i)=>`{arrayDistinct:${i.tokens ?? ""}}`
   },
 
-  // ── Generic value arrays (P1+P2) ──────────────────────────────────────
-  // The legacy `arr_*` nodes above are token-id specific (Saved[]/Failed[]/
-  // canvas tokens). The block below adds value-agnostic array operations
-  // that work on ANY comma-joined list — strings, numbers, ids, anything.
-  // All tokens use `|` as inter-argument separator and base64 for free-form
-  // operands so commas and pipes inside element values do not collide.
-
   arr_make: {
     title:"Array Make", color:"#2a7a3a", cat:"Array",
     desc:"Build a new array from up to 8 individual values. Empty / unconnected slots are skipped. Output is a comma-joined list compatible with all other Array nodes.",
@@ -1069,7 +1024,7 @@ export const NODE_DEFS = {
         const v = (fromPin != null && fromPin !== "") ? fromPin : (fromField ?? "");
         parts.push(_b64(v));
       }
-      const tail = `|len`.padStart(0, ""); // unused, but keeps token shape obvious
+      const tail = `|len`.padStart(0, "");
       return `{arrayMake:${parts.join("|")}}`;
     },
     compilePin:(n,i,pin)=>{
@@ -1333,8 +1288,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Каст заклинаний
-
   get_spell_slots: {
     title:"Spell Slots", color:"#1a4060", cat:"Sources",
     desc:"Get remaining spell slots for a given level on actor",
@@ -1352,7 +1305,7 @@ export const NODE_DEFS = {
     isAction:true,
     toAction:(n,inp)=>({type:"restoreSlot", level:inp.level??n.data.level??1})
   },
-  /** Legacy — hidden.  Use `chat_apply_effect` or `act_create_effect` instead. */
+
   act_apply_effect_template: {
     title:"Apply Effect Template (legacy)", color:"#1a2a8a", cat:"Effects",
     hidden:true,
@@ -1409,8 +1362,7 @@ export const NODE_DEFS = {
         delta,
         setValue:op==="set"?String(amt):null
       };
-      // When the Actor pin is wired, it wins over the Where dropdown — the
-      // executor will resolve it (UUID / mode-string / array) and loop.
+
       if (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) {
         out.actorOverride = inp.actor;
       }
@@ -1551,8 +1503,6 @@ export const NODE_DEFS = {
     toAction:(n)=>({type:"removeItem", uuid:n.data.uuid??"", itemName:n.data.itemName??"", inventoryWidget:n.data.inventoryWidget??""})
   },
 
-  // Предметы и слоты
-
   act_use_slot_item: {
     title:"Use Slot Item", color:"#2a5a3a", cat:"Items",
     desc:"Calls item.use() on the item sitting at [index] in a slot. Slot is auto-indexed.",
@@ -1678,7 +1628,6 @@ export const NODE_DEFS = {
     }
   },
 
-
   inv_item_field: {
     title:"Inventory Item Field", color:"#1a4060", cat:"Sources",
     desc:"Read a field from an actor-owned item. Item is auto-indexed from actor inventory.",
@@ -1716,7 +1665,6 @@ export const NODE_DEFS = {
     fields:[{key:"slotId",label:"Slot ID",type:"slot-picker",default:"slot1"}],
     compile:(n)=>(n.data.slotId??"slot1")
   },
-
 
   inv_item_slot_count: {
     title:"Inv Item Slot Count", color:"#1a4060", cat:"Sources",
@@ -1776,17 +1724,13 @@ export const NODE_DEFS = {
   },
   act_attack_check: {
     title:"Attack Check", color:"#8a3a00", cat:"Roll",
-    desc:"Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total − AC. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total − AC. Crit / Fumble are external bool inputs — wire them from your own comparison logic (e.g. Compare against natural d20 from a Roll Value). Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
-      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
-      {id:"critOn",          label:"Crit on",        type:"value.number"},
-      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
-      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
-      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
-      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"formula",       label:"Attack",         type:"value.string"},
       {id:"bonus",         label:"Bonus",          type:"value.number"},
+      {id:"isCrit",        label:"Is Crit?",       type:"value.bool"},
+      {id:"isFumble",      label:"Is Fumble?",     type:"value.bool"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
@@ -1800,28 +1744,21 @@ export const NODE_DEFS = {
       {id:"formula",     label:"Formula",    type:"value.string"},
       {id:"min",         label:"Min",        type:"value.number"},
       {id:"max",         label:"Max",        type:"value.number"},
+      {id:"avg",         label:"Avg",        type:"value.number"},
       {id:"natural",     label:"Natural",    type:"value.number"},
       {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
-      {id:"critFormula", label:"Crit Formula",type:"value.string"}
-    ,
-      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
-      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
+      {id:"isFumble",    label:"Is Fumble",  type:"value.bool"},
+      {id:"diceArray",   label:"Dice Array", type:"value.array"}
+    ],
     fields:[
       {key:"formula",       label:"Roll",                  type:"text",   default:"1d20"},
       {key:"bonus",         label:"Bonus",                 type:"text",   default:"0"},
       {key:"acPath",        label:"AC path",               type:"path",   default:"system.attributes.ac.value"},
-      {key:"critFace",      label:"Crit on",               type:"number", default:20},
       {key:"flavor",        label:"Label",                 type:"text",   default:"Attack"},
       {key:"rerollEnabled", label:"Reroll button",        type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path",  type:"path",   default:"",   placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",           type:"number", default:1}
-    ,
-      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
-      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
-,
-      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
-      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
-],
+    ],
     isAttackBranch: true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -1831,39 +1768,28 @@ export const NODE_DEFS = {
         formula:   inp.formula ?? n.data.formula ?? "1d20",
         bonus:     inp.bonus   ?? n.data.bonus   ?? "0",
         acPath:    n.data.acPath  ?? "system.attributes.ac.value",
-        critFace:  Number(n.data.critFace ?? 20),
         flavor:    n.data.flavor  ?? "Attack",
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
-        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      ,
-        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
-        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
-        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
-,
-        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
-        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
-        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
-};
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0,
+        isCrit:    (inp.isCrit   != null && inp.isCrit   !== "") ? inp.isCrit   : null,
+        isFumble:  (inp.isFumble != null && inp.isFumble !== "") ? inp.isFumble : null
+      };
     }
   },
 
   act_roll_check: {
     title:"Roll Check", color:"#8a4400", cat:"Roll",
-    desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator). Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator). Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",           label:"",           type:"exec"},
-      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
-      {id:"critOn",          label:"Crit on",        type:"value.number"},
-      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
-      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
-      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
-      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"formula",        label:"Formula",    type:"value.string"},
       {id:"dc",             label:"DC",          type:"value.number"},
       {id:"modifier",       label:"Modifier",    type:"value.number"},
       {id:"advFormula",     label:"Adv Formula", type:"value.string"},
       {id:"disFormula",     label:"Dis Formula", type:"value.string"},
+      {id:"isCrit",         label:"Is Crit?",    type:"value.bool"},
+      {id:"isFumble",       label:"Is Fumble?",  type:"value.bool"},
       {id:"opposedCount",   label:"Opposed N",   type:"value.number"},
       {id:"opposedFormula", label:"Opposed Formula", type:"value.string"},
       {id:"rerollEnabled",  label:"Reroll button",  type:"value.bool"},
@@ -1881,12 +1807,12 @@ export const NODE_DEFS = {
       {id:"formula",     label:"Formula",    type:"value.string"},
       {id:"min",         label:"Min",        type:"value.number"},
       {id:"max",         label:"Max",        type:"value.number"},
+      {id:"avg",         label:"Avg",        type:"value.number"},
       {id:"natural",     label:"Natural",    type:"value.number"},
       {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
-      {id:"critFormula", label:"Crit Formula",type:"value.string"}
-    ,
-      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
-      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
+      {id:"isFumble",    label:"Is Fumble",  type:"value.bool"},
+      {id:"diceArray",   label:"Dice Array", type:"value.array"}
+    ],
     fields:[
       {key:"formula",        label:"Roll",      type:"text",   default:"1d20"},
       {key:"dc",             label:"DC",        type:"text",   default:"10"},
@@ -1906,13 +1832,7 @@ export const NODE_DEFS = {
       {key:"rerollEnabled",  label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",     label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",     label:"Reroll cost",    type:"number", default:1}
-    ,
-      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
-      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
-,
-      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
-      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
-],
+    ],
     isSaveBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -1936,32 +1856,22 @@ export const NODE_DEFS = {
         opposedFormula: inp.opposedFormula ?? n.data.opposedFormula ?? "1d20",
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
-        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      ,
-        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
-        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
-        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
-,
-        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
-        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
-        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
-};
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0,
+        isCrit:    (inp.isCrit   != null && inp.isCrit   !== "") ? inp.isCrit   : null,
+        isFumble:  (inp.isFumble != null && inp.isFumble !== "") ? inp.isFumble : null
+      };
     }
   },
 
   act_tiered_roll: {
     title:"Tiered Roll", color:"#8a4400", cat:"Roll",
-    desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result ≥ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result ≥ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
-      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
-      {id:"critOn",          label:"Crit on",        type:"value.number"},
-      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
-      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
-      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
-      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"formula",       label:"Formula",        type:"value.string"},
+      {id:"isCrit",        label:"Is Crit?",       type:"value.bool"},
+      {id:"isFumble",      label:"Is Fumble?",     type:"value.bool"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
@@ -1975,12 +1885,12 @@ export const NODE_DEFS = {
       {id:"formula",     label:"Formula",  type:"value.string"},
       {id:"min",         label:"Min",      type:"value.number"},
       {id:"max",         label:"Max",      type:"value.number"},
+      {id:"avg",         label:"Avg",      type:"value.number"},
       {id:"natural",     label:"Natural",  type:"value.number"},
       {id:"isCrit",      label:"Is Crit",  type:"value.bool"},
-      {id:"critFormula", label:"Crit Formula",type:"value.string"}
-    ,
-      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
-      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
+      {id:"isFumble",    label:"Is Fumble",type:"value.bool"},
+      {id:"diceArray",   label:"Dice Array",type:"value.array"}
+    ],
     fields:[
       {key:"formula",  label:"Roll",          type:"text",   default:"2d6"},
       {key:"t1Label",  label:"Tier 1 label",  type:"text",   default:"Miss"},
@@ -1996,13 +1906,7 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ,
-      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
-      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
-,
-      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
-      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
-],
+    ],
     isTieredBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -2020,32 +1924,22 @@ export const NODE_DEFS = {
         toChat: n.data.toChat !== "no",
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
-        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      ,
-        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
-        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
-        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
-,
-        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
-        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
-        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
-};
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0,
+        isCrit:    (inp.isCrit   != null && inp.isCrit   !== "") ? inp.isCrit   : null,
+        isFumble:  (inp.isFumble != null && inp.isFumble !== "") ? inp.isFumble : null
+      };
     }
   },
 
   act_dice_pool: {
     title:"Dice Pool", color:"#8a4400", cat:"Roll",
-    desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
-      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
-      {id:"critOn",          label:"Crit on",        type:"value.number"},
-      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
-      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
-      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
-      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"count",         label:"Count",          type:"value.number"},
       {id:"target",        label:"Target",         type:"value.actor"},
+      {id:"isCrit",        label:"Is Crit?",       type:"value.bool"},
+      {id:"isFumble",      label:"Is Fumble?",     type:"value.bool"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
@@ -2059,12 +1953,12 @@ export const NODE_DEFS = {
       {id:"formula",     label:"Formula",     type:"value.string"},
       {id:"min",         label:"Min",         type:"value.number"},
       {id:"max",         label:"Max",         type:"value.number"},
+      {id:"avg",         label:"Avg",         type:"value.number"},
       {id:"natural",     label:"Natural",     type:"value.number"},
       {id:"isCrit",      label:"Is Crit",     type:"value.bool"},
-      {id:"critFormula", label:"Crit Formula",type:"value.string"}
-    ,
-      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
-      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
+      {id:"isFumble",    label:"Is Fumble",   type:"value.bool"},
+      {id:"diceArray",   label:"Dice Array",  type:"value.array"}
+    ],
     fields:[
       {key:"count",     label:"Count",       type:"text",   default:"5"},
       {key:"die",       label:"Die faces",   type:"number", default:10},
@@ -2077,13 +1971,7 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ,
-      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
-      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
-,
-      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
-      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
-],
+    ],
     isSaveBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -2100,16 +1988,10 @@ export const NODE_DEFS = {
         toChat:    n.data.toChat !== "no",
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
-        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      ,
-        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
-        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
-        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
-,
-        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
-        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
-        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
-};
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0,
+        isCrit:    (inp.isCrit   != null && inp.isCrit   !== "") ? inp.isCrit   : null,
+        isFumble:  (inp.isFumble != null && inp.isFumble !== "") ? inp.isFumble : null
+      };
     }
   },
 
@@ -2187,18 +2069,14 @@ export const NODE_DEFS = {
 
   act_progression: {
     title:"Progression Roll", color:"#8a4400", cat:"Roll",
-    desc:"Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
-      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
-      {id:"critOn",          label:"Crit on",        type:"value.number"},
-      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
-      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
-      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
-      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"formula",       label:"Formula",        type:"value.string"},
       {id:"historyPath",   label:"History Path",   type:"value.path"},
+      {id:"isCrit",        label:"Is Crit?",       type:"value.bool"},
+      {id:"isFumble",      label:"Is Fumble?",     type:"value.bool"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
@@ -2213,12 +2091,12 @@ export const NODE_DEFS = {
       {id:"formula",     label:"Formula",   type:"value.string"},
       {id:"min",         label:"Min",       type:"value.number"},
       {id:"max",         label:"Max",       type:"value.number"},
+      {id:"avg",         label:"Avg",       type:"value.number"},
       {id:"natural",     label:"Natural",   type:"value.number"},
       {id:"isCrit",      label:"Is Crit",   type:"value.bool"},
-      {id:"critFormula", label:"Crit Formula",type:"value.string"}
-    ,
-      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
-      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
+      {id:"isFumble",    label:"Is Fumble", type:"value.bool"},
+      {id:"diceArray",   label:"Dice Array",type:"value.array"}
+    ],
     fields:[
       {key:"formula",     label:"Formula",          type:"text", default:"1d6"},
       {key:"historyPath", label:"History Path",     type:"path", default:"system.flags.progressionDie"},
@@ -2227,13 +2105,7 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ,
-      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
-      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
-,
-      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
-      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
-],
+    ],
     isProgressionBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -2246,32 +2118,22 @@ export const NODE_DEFS = {
         toChat:      n.data.toChat   !== "no",
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
-        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      ,
-        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
-        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
-        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
-,
-        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
-        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
-        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
-};
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0,
+        isCrit:    (inp.isCrit   != null && inp.isCrit   !== "") ? inp.isCrit   : null,
+        isFumble:  (inp.isFumble != null && inp.isFumble !== "") ? inp.isFumble : null
+      };
     }
   },
 
   act_throw_on_canvas: {
     title:"Throw on Canvas", color:"#8a4400", cat:"Roll",
-    desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
-      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
-      {id:"critOn",          label:"Crit on",        type:"value.number"},
-      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
-      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
-      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
-      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"count",         label:"Count",          type:"value.number"},
       {id:"target",        label:"Target",         type:"value.actor"},
+      {id:"isCrit",        label:"Is Crit?",       type:"value.bool"},
+      {id:"isFumble",      label:"Is Fumble?",     type:"value.bool"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
@@ -2284,12 +2146,12 @@ export const NODE_DEFS = {
       {id:"formula",     label:"Formula",    type:"value.string"},
       {id:"min",         label:"Min",        type:"value.number"},
       {id:"max",         label:"Max",        type:"value.number"},
+      {id:"avg",         label:"Avg",        type:"value.number"},
       {id:"natural",     label:"Natural",    type:"value.number"},
       {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
-      {id:"critFormula", label:"Crit Formula",type:"value.string"}
-    ,
-      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
-      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
+      {id:"isFumble",    label:"Is Fumble",  type:"value.bool"},
+      {id:"diceArray",   label:"Dice Array", type:"value.array"}
+    ],
     fields:[
       {key:"count",    label:"Count",      type:"text",   default:"3"},
       {key:"die",      label:"Die faces",  type:"number", default:6},
@@ -2303,13 +2165,7 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ,
-      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
-      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
-,
-      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
-      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
-],
+    ],
     isSaveBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -2327,32 +2183,22 @@ export const NODE_DEFS = {
         toChat:   n.data.toChat !== "no",
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
-        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      ,
-        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
-        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
-        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
-,
-        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
-        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
-        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
-};
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0,
+        isCrit:    (inp.isCrit   != null && inp.isCrit   !== "") ? inp.isCrit   : null,
+        isFumble:  (inp.isFumble != null && inp.isFumble !== "") ? inp.isFumble : null
+      };
     }
   },
 
   act_throw_on_sheet: {
     title:"Throw on Sheet", color:"#8a4400", cat:"Roll",
-    desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
-      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
-      {id:"critOn",          label:"Crit on",        type:"value.number"},
-      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
-      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
-      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
-      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"count",         label:"Count",          type:"value.number"},
       {id:"target",        label:"Target",         type:"value.actor"},
+      {id:"isCrit",        label:"Is Crit?",       type:"value.bool"},
+      {id:"isFumble",      label:"Is Fumble?",     type:"value.bool"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
@@ -2365,12 +2211,12 @@ export const NODE_DEFS = {
       {id:"formula",     label:"Formula",    type:"value.string"},
       {id:"min",         label:"Min",        type:"value.number"},
       {id:"max",         label:"Max",        type:"value.number"},
+      {id:"avg",         label:"Avg",        type:"value.number"},
       {id:"natural",     label:"Natural",    type:"value.number"},
       {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
-      {id:"critFormula", label:"Crit Formula",type:"value.string"}
-    ,
-      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
-      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
+      {id:"isFumble",    label:"Is Fumble",  type:"value.bool"},
+      {id:"diceArray",   label:"Dice Array", type:"value.array"}
+    ],
     fields:[
       {key:"count",    label:"Count",      type:"text",   default:"3"},
       {key:"die",      label:"Die faces",  type:"number", default:6},
@@ -2383,13 +2229,7 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ,
-      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
-      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
-,
-      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
-      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
-],
+    ],
     isSaveBranch:true,
     toAction:(n,inp)=>{
       const _rrRaw = (inp.rerollEnabled != null && inp.rerollEnabled !== "") ? inp.rerollEnabled : n.data.rerollEnabled;
@@ -2406,16 +2246,10 @@ export const NODE_DEFS = {
         toChat:   n.data.toChat !== "no",
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
-        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      ,
-        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
-        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
-        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
-,
-        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
-        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
-        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
-};
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0,
+        isCrit:    (inp.isCrit   != null && inp.isCrit   !== "") ? inp.isCrit   : null,
+        isFumble:  (inp.isFumble != null && inp.isFumble !== "") ? inp.isFumble : null
+      };
     }
   },
 
@@ -2473,9 +2307,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Доп. поток
-
-  /** Switch — routes exec to one of N labeled branches based on a value match */
   switch_node: {
     title:"Switch", color:"#8a2a8a", cat:"Flow",
     desc:"Compare Value against each Case label and jump to the matching exec output. Falls through to Default if no match.",
@@ -2551,7 +2382,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Dialog Select (from array) — show a dialog with one button per array element */
   dialog_select_array: {
     title:"Dialog Select Array (legacy)", color:"#c05a20", cat:"Flow",
     desc:"Show a dialog with one button per element of the input array. The chosen element is emitted on `Selected` (value), the index on `Index`, and Selected→ exec fires after pick. Cancel → Cancel exec.",
@@ -2580,7 +2410,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Dialog: text input — prompt for a string */
   dialog_text_input: {
     title:"Dialog Text Input (legacy)", color:"#c05a20", cat:"Flow",
     desc:"Show a single-line text input dialog. The entered text is emitted on `Text` and OK exec fires.",
@@ -2604,14 +2433,11 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Dialog Builder — visual element editor (no JSON). Add elements directly via Count. */
   act_dialog_builder: (() => {
     const MAX_EL = 8;
     const TYPE_OPTS = ["label","section","text","number","checkbox","select","button"];
     const _count = (d) => Math.max(1, Math.min(MAX_EL, parseInt(d?.count) || 1));
-    // Per-element field block, gated by `count`. The renderer auto-hides
-    // fields whose visibleIf returns false, and the input-handler triggers a
-    // full re-render when this node has visibleIf or computeDynamicOutputs.
+
     const elFields = [];
     for (let i = 0; i < MAX_EL; i++) {
       const _exists  = (d) => _count(d) > i;
@@ -2639,8 +2465,7 @@ export const NODE_DEFS = {
       title:"Dialog Builder", color:"#a04020", cat:"Flow", wideNode:true,
       desc:"Visual form-dialog builder. Pick element count (1-8), then for each element choose its type (label/section/text/number/checkbox/select/button), a unique Id, a Label, optional default and options. Each element with an Id exposes an output value pin that resolves to the runtime token {__dlg.<id>} (use it anywhere downstream — paths, formulas, text). Buttons additionally expose a per-button exec output when 'Emit exec on click?' is set to yes; turning it off hides that exec pin. Picked outputs the id of the last button clicked. Submit fires after any button (or OK if no buttons exist); Cancel fires on close without confirm.",
       inputs:[ {id:"exec", label:"", type:"exec"} ],
-      // Static base outputs — see computeDynamicOutputs below for the
-      // element-derived value / exec pins that appear at render time.
+
       outputs:[
         {id:"submit",  label:"Submit →", type:"exec"},
         {id:"cancel",  label:"Cancel",   type:"exec"},
@@ -2711,7 +2536,7 @@ export const NODE_DEFS = {
           if (t === "label" || t === "section") o.text = lbl;
           if (t === "button") {
             o.type = "rollButton";
-            o.formula = "0"; // no roll — buttons just close & dispatch picked / per-button exec
+            o.formula = "0";
             o.execIndex = i;
             o.emit = emit;
           }
@@ -2729,7 +2554,6 @@ export const NODE_DEFS = {
     };
   })(),
 
-  /** Dialog: yes/no confirm */
   dialog_confirm: {
     title:"Dialog Confirm (legacy)", color:"#c05a20", cat:"Flow",
     desc:"Show a Yes/No confirmation dialog. The matching exec branch fires.",
@@ -2754,7 +2578,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** While Loop — runs loop body while Condition is truthy */
   while_loop: {
     title:"While Loop", color:"#1a5a7a", cat:"Flow",
     desc:"Execute Loop body while Condition is truthy. Re-evaluates the condition each iteration. Done fires when the condition becomes false or Max Iterations is reached.",
@@ -2776,9 +2599,6 @@ export const NODE_DEFS = {
       maxIter:   inp.maxIter   ?? n.data.maxIter ?? 20
     })
   },
-
-
-  // Эффекты
 
   act_create_effect: {
     title:"Create Effect", color:"#1a4a8a", cat:"Effects", wideNode:true,
@@ -2915,7 +2735,6 @@ export const NODE_DEFS = {
     }
   },
 
-  // Ауры
   act_place_aura: {
     title:"Place Aura — With Effect", color:"#1a6a4a", cat:"Effects", wideNode:true,
     desc:"Places a Scene Region attached to the owner token. Tokens inside receive the named Active Effect automatically (hook-based enter/exit); leaving tokens lose it (configurable).",
@@ -3070,7 +2889,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Save Aura w/ Effect — each tick rolls a save, fail → effect. */
   act_place_aura_save_effect: {
     title:"Place Aura — Save → Effect", color:"#6a4a1a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; tokens inside roll a save (onEnter / eachTurn / both). On failure the named Active Effect is applied. On leave the effect is removed (configurable).",
@@ -3132,7 +2950,47 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Save Branch Aura — each tick rolls a save per token; downstream actions read Saved[]/Failed[]/All[]. */
+  act_place_aura_targets: {
+    title:"Place Aura — Targets", color:"#6a7a2a", cat:"Effects", wideNode:true,
+    desc:"Attaches a region to the owner; tokens inside are forwarded as targets — no save, no roll. Each token that enters (or sits in, if eachTurn is enabled) the area runs the postActions chain with itself as the only target. Connect the Targets[] output to a downstream Damage / Heal / Apply Effect node's Targets pin to apply to everyone in the aura.",
+    inputs:[
+      {id:"exec",  label:"",          type:"exec"},
+      {id:"owner", label:"Owner",     type:"value.actor"},
+      {id:"size",  label:"Size (ft)", type:"value.number"}
+    ],
+    outputs:[
+      {id:"exec",    label:"→",         type:"exec"},
+      {id:"targets", label:"Targets[]", type:"value.array"}
+    ],
+    fields:[
+      {key:"shape",            label:"Shape",            type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
+      {key:"size",             label:"Size (ft)",        type:"number", default:10},
+      {key:"angle",            label:"Cone angle (deg)", type:"number", default:53.13, visibleIf:d=>d.shape==="cone"},
+      {key:"name",             label:"Aura name",        type:"text",   default:"Targets Aura"},
+      {key:"icon",             label:"Icon",             type:"text",   default:"icons/svg/aura.svg"},
+      {key:"owner",            label:"Owner",            type:"select", default:"self", options:["self","selected_token","token_target"]},
+      {key:"auraKey",          label:"Aura key",         type:"text",   default:"targets-aura"},
+      {key:"tickMode",         label:"When",             type:"select", options:["onEnter","onEnter+eachTurn","eachTurn"], default:"onEnter"},
+      {key:"rounds",           label:"Lifetime (rounds, 0=∞)", type:"number", default:0},
+      {key:"conditionEffect",  label:"Suppress when owner has effect", type:"text", default:""}
+    ],
+    isAction:true,
+    isAoeSave:true,
+    toAction:(n,inp)=>({
+      type:            "placeAuraTargets",
+      shape:           n.data.shape    ?? "emanation",
+      size:            inp.size        ?? n.data.size    ?? 10,
+      angle:           n.data.angle    ?? 53.13,
+      name:            n.data.name     ?? "Targets Aura",
+      icon:            n.data.icon     ?? "icons/svg/aura.svg",
+      owner:           inp.owner       ?? n.data.owner   ?? "self",
+      auraKey:         n.data.auraKey  ?? "targets-aura",
+      tickMode:        n.data.tickMode ?? "onEnter",
+      rounds:          Number(n.data.rounds ?? 0) || 0,
+      conditionEffect: n.data.conditionEffect ?? ""
+    })
+  },
+
   act_place_aura_save_branch: {
     title:"Place Aura — Save Branch", color:"#8a5a2a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; tokens inside roll a save (onEnter / eachTurn / both). Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes (per-tick, per-token).",
@@ -3193,7 +3051,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** AoE w/ Effect (no check) — places a region; while inside, Active Effect. */
   act_place_aoe_effect: {
     title:"Chat AoE — With Effect", color:"#1a4a8a", cat:"AoE", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside gain the named Active Effect (removed on leave, configurable).",
@@ -3497,7 +3354,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Gate — lets exec pass only when Condition is true, otherwise silently stops */
   gate: {
     title:"Gate", color:"#5a2a8a", cat:"Flow",
     desc:"Exec passes through only when Condition is truthy. Acts as an early-exit guard without needing a Branch.",
@@ -3511,7 +3367,6 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({type:"gate", condition: inp.cond ?? 0})
   },
 
-  /** Reroute — visual routing helper, no logic */
   reroute: {
     title:"•", color:"#2a2a3a", cat:"Flow",
     desc:"Visual wire re-routing point. No logic — just keeps graphs tidy.",
@@ -3522,9 +3377,6 @@ export const NODE_DEFS = {
     compile:(_,i)=> i.v !== undefined ? String(i.v) : "0"
   },
 
-  // Доп. источники
-
-  /** Ternary — inline conditional value selection */
   ternary: {
     title:"Ternary", color:"#6a1a6a", cat:"Sources",
     desc:"Outputs True value when Condition is truthy, False value otherwise. Equivalent to (cond ? a : b). Eliminates common Branch→Output patterns.",
@@ -3546,7 +3398,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Random Number — uniform integer between min and max (inclusive) */
   random_num: {
     title:"Random", color:"#2a4a6a", cat:"Sources",
     desc:"Output a uniformly random integer between Min and Max (inclusive). Re-evaluated each time the formula runs.",
@@ -3566,7 +3417,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Get Variable — read from actor.flags.sd.vars namespace */
   get_var: {
     title:"Get Variable", color:"#2a3a5a", cat:"Sources",
     desc:"Read a named variable stored on this actor (actor.flags.sd.vars.NAME). Use with Set Variable to pass data between button clicks or graph segments.",
@@ -3575,9 +3425,6 @@ export const NODE_DEFS = {
     compile:(n)=>`{var:${n.data.name??"myVar"}}`
   },
 
-  // Доп. математика
-
-  /** Mod — remainder */
   mod: {
     title:"Mod %", color:"#1a5c2a", cat:"Math",
     inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
@@ -3585,7 +3432,6 @@ export const NODE_DEFS = {
     compile:(n,i)=>_round(`(${i.a??"0"}%${i.b??"1"})`, n.data)
   },
 
-  /** Pow — exponentiation */
   pow: {
     title:"Pow ^", color:"#1a5c2a", cat:"Math",
     inputs:[{id:"a",label:"Base",type:"value.number"},{id:"b",label:"Exp",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
@@ -3593,7 +3439,6 @@ export const NODE_DEFS = {
     compile:(n,i)=>_round(`(${i.a??"0"}**${i.b??"2"})`, n.data)
   },
 
-  /** Sign — returns -1, 0 or +1 */
   sign: {
     title:"Sign", color:"#1a5c2a", cat:"Math",
     inputs:[{id:"a",label:"A",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
@@ -3601,9 +3446,6 @@ export const NODE_DEFS = {
     compile:(_,i)=>`(${i.a??"0"}>0?1:${i.a??"0"}<0?-1:0)`
   },
 
-  // Доп. действия
-
-  /** Play Sound — AudioHelper.play wrapper */
   act_play_sound: {
     title:"Play Sound", color:"#4a2a7a", cat:"System",
     desc:"Play a sound file via Foundry's AudioHelper. Path is relative to the Data folder or a full URL. Src / Volume / Loop can all be fed via pins.",
@@ -3628,7 +3470,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Run Macro — execute a world macro by name */
   act_run_macro: {
     title:"Run Macro", color:"#4a4a7a", cat:"System",
     desc:"Execute a world Macro by exact name. The macro runs with the current actor and token as speaker context. Macro name can be fed via pin.",
@@ -3646,7 +3487,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Notify — show a toast notification to the current user */
   act_notify: {
     title:"Notify", color:"#4a4a1a", cat:"Chat",
     desc:"Show a toast notification (info / warning / error) to the current user. Useful for feedback without a full chat message. Both Message and Level can be fed via pins.",
@@ -3668,7 +3508,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Consume Resource — consume one unit of any resource, branching OK / Empty */
   act_consume_resource: {
     title:"Consume Resource", color:"#6a2a6a", cat:"Resources",
     desc:"Decrement a resource value by Amount (default 1). If current value would go below 0 takes the Empty branch instead. Path can be fed dynamically (UE-style — when wired, the field hides). Use instead of Modify Field + Branch for uses/charges/mana.",
@@ -3696,7 +3535,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Set Variable — write to actor.flags.sd.vars namespace */
   act_set_var: {
     title:"Set Variable", color:"#2a3a6a", cat:"Field Ops",
     desc:"Store a value in actor.flags.sd.vars.NAME (or world settings) for retrieval later. Useful for persisting roll results between button presses. Name and Scope can be fed via pins (UE-style — when wired the matching field hides).",
@@ -3720,7 +3558,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Open Sheet — open another actor or item sheet by UUID */
   act_open_sheet: {
     title:"Open Sheet", color:"#2a3a6a", cat:"Chat",
     desc:"Open the sheet window of another Actor or Item by UUID. Useful for 'Inspect' buttons on slot items. UUID and Require-ownership can be fed via pins.",
@@ -3742,7 +3579,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /** Roll Table — roll on a RollTable and branch on found / empty */
   act_roll_table: {
     title:"Roll Table", color:"#7a4500", cat:"Tables",
     desc:"Roll on a world RollTable. Found→ fires when at least one result is drawn. Empty→ fires when the table is empty or not found. Result text and index available as value outputs. Use drawCount > 1 to draw multiple entries — {__rollTableIndex} tracks the current draw (0-based).",
@@ -3779,20 +3615,16 @@ export const NODE_DEFS = {
 
   chat_save_button: {
     title:"Save / Check Button", color:"#7a3a00", cat:"Roll",
-    desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field. Reroll button (yes/no) adds a Re-roll button to the resulting roll message; Reroll Path / Reroll Cost optionally consume a numeric resource from the rolling actor each time they reroll.",
+    desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the resulting roll message; Reroll Path / Reroll Cost optionally consume a numeric resource from the rolling actor each time they reroll.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
-      {id:"isCritOverride",  label:"Is Crit?",       type:"value.bool"},
-      {id:"critOn",          label:"Crit on",        type:"value.number"},
-      {id:"critFormula",     label:"Crit Formula",   type:"value.string"},
-      {id:"isFumbleOverride", label:"Is Fumble?",     type:"value.bool"},
-      {id:"fumbleOn",         label:"Fumble on",      type:"value.number"},
-      {id:"fumbleFormula",    label:"Fumble Formula", type:"value.string"},
       {id:"dc",            label:"DC",             type:"value.number"},
       {id:"target",        label:"Target",         type:"value.actor"},
       {id:"rollFormula",   label:"Roll Formula",   type:"value.string"},
       {id:"advFormula",    label:"Adv Formula",    type:"value.string"},
       {id:"disFormula",    label:"Dis Formula",    type:"value.string"},
+      {id:"isCrit",        label:"Is Crit?",       type:"value.bool"},
+      {id:"isFumble",      label:"Is Fumble?",     type:"value.bool"},
       {id:"rerollEnabled", label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",    label:"Reroll Path",    type:"value.path"},
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
@@ -3804,12 +3636,12 @@ export const NODE_DEFS = {
       {id:"formula",     label:"Formula",    type:"value.string"},
       {id:"min",         label:"Min",        type:"value.number"},
       {id:"max",         label:"Max",        type:"value.number"},
+      {id:"avg",         label:"Avg",        type:"value.number"},
       {id:"natural",     label:"Natural",    type:"value.number"},
       {id:"isCrit",      label:"Is Crit",    type:"value.bool"},
-      {id:"critFormula", label:"Crit Formula",type:"value.string"}
-    ,
-      {id:"isFumble",      label:"Is Fumble",     type:"value.bool"},
-      {id:"fumbleFormula", label:"Fumble Formula",type:"value.string"},],
+      {id:"isFumble",    label:"Is Fumble",  type:"value.bool"},
+      {id:"diceArray",   label:"Dice Array", type:"value.array"}
+    ],
     fields:[
       {key:"checkType",    label:"Check type",    type:"select", default:"save", options:["save","ability","skill","custom"]},
       {key:"modifierPath",  label:"Modifier path", type:"path",   default:"system.attributes.attr1.mod", placeholder:"system.attributes.attr1.mod"},
@@ -3826,13 +3658,7 @@ export const NODE_DEFS = {
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",    label:"Reroll resource path", type:"path", default:"", placeholder:"e.g. system.resources.luck.value"},
       {key:"rerollCost",    label:"Reroll cost",  type:"number", default:1}
-    ,
-      {key:"fumbleOn",      label:"Fumble on (nat ≤)",     type:"number", default:1},
-      {key:"fumbleFormula", label:"Fumble formula (blank = none)", type:"text", default:"", placeholder:"e.g. 0 or 1d4"}
-,
-      {key:"critOn",        label:"Crit on (nat ≥)",       type:"number", default:20},
-      {key:"critFormula",   label:"Crit formula (blank = double dice)", type:"text", default:"", placeholder:"e.g. (2)*(1d6+@mod)"}
-],
+    ],
     isSaveBranch: true,
     toAction:(n,inp)=>{
       const rollFormula = (inp.rollFormula != null && inp.rollFormula !== "") ? inp.rollFormula : (n.data.rollFormula || "1d20");
@@ -3856,20 +3682,13 @@ export const NODE_DEFS = {
         timeout:      Number(n.data.timeout ?? 0),
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
-        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
-      ,
-        critOn:          (inp.critOn      != null && inp.critOn      !== "") ? Number(inp.critOn) : Number(n.data.critOn ?? n.data.critFace ?? 20),
-        critFormula:     (inp.critFormula != null && inp.critFormula !== "") ? String(inp.critFormula) : (n.data.critFormula ?? ""),
-        isCritOverride:  (inp.isCritOverride != null && inp.isCritOverride !== "") ? inp.isCritOverride : null
-,
-        fumbleOn:          (inp.fumbleOn      != null && inp.fumbleOn      !== "") ? Number(inp.fumbleOn) : Number(n.data.fumbleOn ?? 1),
-        fumbleFormula:     (inp.fumbleFormula != null && inp.fumbleFormula !== "") ? String(inp.fumbleFormula) : (n.data.fumbleFormula ?? ""),
-        isFumbleOverride:  (inp.isFumbleOverride != null && inp.isFumbleOverride !== "") ? inp.isFumbleOverride : null
-};
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0,
+        isCrit:    (inp.isCrit   != null && inp.isCrit   !== "") ? inp.isCrit   : null,
+        isFumble:  (inp.isFumble != null && inp.isFumble !== "") ? inp.isFumble : null
+      };
     }
   },
 
-  // События
   on_update: {
     title:"On Update", color:"#c04040", cat:"Events",
     desc:"Fires whenever this document (actor/item) is updated. Useful for reacting to HP / resource changes.",
@@ -3980,7 +3799,6 @@ export const NODE_DEFS = {
     isEvent:true, eventHook:"itemUnequipped"
   },
 
-  // Unified event node -- Step 3
   on_event: {
     title:"On Event", color:"#c04040", cat:"Events", wideNode:true,
     desc:"Declarative event trigger: pick the event type from the dropdown. Equivalent to the specific On-* nodes but keeps the graph compact when you only need a single exec chain.",
@@ -4020,8 +3838,7 @@ export const NODE_DEFS = {
       ]}
     ],
     compile:(n)=>{
-      // UUID wins over the mode dropdown when present so users can pin a
-      // specific actor without losing the dropdown for the empty case.
+
       const uuid = String(n.data.uuid ?? "").trim();
       if (uuid) return `"${uuid.replace(/"/g, '\\"')}"`;
       return `"${n.data.mode ?? "actor"}"`;
@@ -4143,8 +3960,6 @@ export const NODE_DEFS = {
     })
   },
 
-
-  /** Random Pick — outputs one of up to 5 value inputs chosen uniformly. */
   random_pick: {
     title:"Random Pick", color:"#2a4a6a", cat:"Sources",
     desc:"Randomly returns one of the connected value inputs (up to 5). Empty inputs are skipped. Gives a uniform distribution.",
@@ -4171,7 +3986,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Resource Tier — maps a numeric value to a tier label via thresholds. */
   resource_tier: {
     title:"Resource Tier", color:"#2a4a6a", cat:"Sources",
     desc:"Maps a number to a tier (e.g. HP → 'critical / bloodied / healthy'). Thresholds are a list of values; tier labels are a list one longer.",
@@ -4195,7 +4009,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /** Get Combat State — pure value source reading game.combat. */
   get_combat_state: {
     title:"Get Combat State", color:"#2a4a6a", cat:"Sources",
     desc:"Value outputs about the current encounter: is combat active (0/1), current round, active combatant index.",
@@ -4214,7 +4027,6 @@ export const NODE_DEFS = {
     }
   },
 
-  // Variables (unified) -- Step 6
   var_read: {
     title:"Read Variable", color:"#2a6a9a", cat:"Variables",
     desc:"Reads a variable by scope. Local — within a single press. Actor — on the actor (persists). World — in system settings.",
@@ -4231,7 +4043,7 @@ export const NODE_DEFS = {
       const d = n.data.default ?? "0";
       if (s === "actor") return `{var:${nm}}`;
       if (s === "world") return `{wvar:${nm}|${d}}`;
-      return `{__var:${nm}|${d}}`; // local
+      return `{__var:${nm}|${d}}`;
     }
   },
 
@@ -4287,7 +4099,6 @@ export const NODE_DEFS = {
     })
   },
 
-  // Cast / Type check
   cast_to_actor: {
     title:"Cast to Actor", color:"#6a2a6a", cat:"Flow",
     desc:"Attempts to cast Value (UUID string) to an Actor. On success, emits Cast Success with ActorId; otherwise Cast Failed.",
@@ -4322,7 +4133,6 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({ type:"castToItem", value: inp.value ?? "" })
   },
 
-  // Макро
   macro_input: {
     title:"Macro Input", color:"#1a8a4a", cat:"Macros",
     desc:"Entry point for a nested graph (macro). Macro ID must match the ID in macro_call. Exec and up to 4 value pins are forwarded from macro_call.",
@@ -4381,8 +4191,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /* ─────────  JOURNAL  ───────── */
-
   act_show_journal: {
     title:"Show Journal", color:"#3a5a8a", cat:"Journal",
     desc:"Render a JournalEntry to the player. If 'Force show to all' is enabled, GM pushes the entry to every connected player.",
@@ -4428,8 +4236,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /* ─────────  ROLL TABLE EXTRAS  ───────── */
-
   act_reset_roll_table: {
     title:"Reset Roll Table", color:"#7a4500", cat:"Tables",
     desc:"Resets the 'drawn' state of all results in a RollTable. Useful for no-replacement tables — once exhausted, call this to make every result available again.",
@@ -4455,8 +4261,6 @@ export const NODE_DEFS = {
     isAction:true,
     toAction:(n)=>({ type:"rollTableShow", tableName:n.data.tableName ?? "", tableUuid:n.data.tableUuid ?? "" })
   },
-
-  /* ─────────  CARDS  ───────── */
 
   act_card_shuffle: {
     title:"Shuffle Deck", color:"#5a2a7a", cat:"Cards",
@@ -4685,7 +4489,6 @@ export const NODE_DEFS = {
     })
   },
 
-  /* ─────  Pure: Get Card  ───── */
   get_card: {
     title:"Get Card", color:"#5a2a7a", cat:"Cards", wideNode:true,
     desc:"Pure source — read properties of a single card from a Cards stack. Pick the stack by name or UUID and choose which card to read via the selector. All outputs reflect the same card. cardId field is used only when selector=specific; cardName when selector=by_name.",
@@ -4709,7 +4512,7 @@ export const NODE_DEFS = {
       {key:"cardName",  label:"Card name (by_name)", type:"text", default:""},
       {key:"cardId",    label:"Card id (specific)",  type:"text", default:""}
     ],
-    /** Per-pin compile: emit a static {cardGet:b64:prop} token. */
+
     compilePin:(n, _i, fromPin) => {
       const payload = {
         stackName: n.data?.stackName ?? "",
@@ -4728,7 +4531,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /* ─────  Pure: Stack Info  ───── */
   stack_info: {
     title:"Stack Info", color:"#5a2a7a", cat:"Cards", wideNode:true,
     desc:"Pure source — read statistics for a Cards stack. count = total cards, availableCount = cards with drawn=false, drawnCount = drawn=true count, isEmpty = 1 when nothing available, topCardId / bottomCardId = current first/last available card id.",
@@ -4762,7 +4564,6 @@ export const NODE_DEFS = {
     }
   },
 
-  /* ─────  Event: On Card Drawn  ───── */
   on_card_drawn: {
     title:"On Card Drawn", color:"#c04040", cat:"Events", wideNode:true,
     desc:"Fires when a Card document is created in the configured Cards stack (i.e. when a card is drawn into this hand / pile). Filter by stack name or UUID. Outputs expose the drawn card's id, name, face index, value, and parent stack info.",
@@ -4804,28 +4605,19 @@ const EVENT_PIN_TOKENS = {
   }
 };
 
-// Common roll-meta pins exposed on every roll-producing node. The executor
-// fills the corresponding __last* runtime tokens after each roll; downstream
-// value pins resolve to those tokens via this table.
-//
-// _ROLL_META_BASIC — values every roll node emits (formula text + bounds + per-die values).
-// _ROLL_META       — full set incl. crit / fumble meta. act_roll_value is intentionally
-// kept on the basic set; crit / fumble belong to nodes that actually run a check
-// (Attack Check, Roll Check, Dice Pool…).
 const _ROLL_META_BASIC = {
   formula:       "{__lastFormula}",
   min:           "{__lastMin}",
   max:           "{__lastMax}",
   avg:           "{__lastAvg}",
-  dice:          "{__lastDice}"
+  diceArray:     "{__lastDice}"
 };
 const _ROLL_META = {
   ..._ROLL_META_BASIC,
   natural:       "{__lastNatural}",
+
   isCrit:        "{__lastIsCrit}",
-  critFormula:   "{__lastCritFormula}",
-  isFumble:      "{__lastIsFumble}",
-  fumbleFormula: "{__lastFumbleFormula}"
+  isFumble:      "{__lastIsFumble}"
 };
 const BRANCH_PIN_TOKENS = {
   act_roll_value:   { result: "{__lastRoll}", ..._ROLL_META_BASIC },
@@ -4856,6 +4648,9 @@ const BRANCH_PIN_TOKENS = {
     failed: "{__failedTargets}",
     all:    "{__allTargets}"
   },
+  act_place_aura_targets: {
+    targets: "{__allTargets}"
+  },
   act_for_each_token: {
     token: "{__currentTarget}",
     index: "{__loopIndex}"
@@ -4877,7 +4672,6 @@ const BRANCH_PIN_TOKENS = {
   }
 };
 
-// Порядок категорий
 const CATS = [
   {id:"Flow",       color:"#8a3a8a"},
   {id:"Events",     color:"#c04040"},
@@ -4890,9 +4684,7 @@ const CATS = [
   {id:"Array",      color:"#2a7a3a"},
   {id:"Variables",  color:"#2a6a9a"},
   {id:"Macros",     color:"#1a8a4a"},
-  // Action-side categories. The previous catch-all "Actions" group was
-  // split into smaller, semantic buckets so the picker stops being a wall
-  // of similarly-coloured nodes.
+
   {id:"Roll",       color:"#8a4400"},
   {id:"Damage",     color:"#8a1a1a"},
   {id:"Effects",    color:"#1a4a8a"},
@@ -4909,14 +4701,12 @@ const CATS = [
   {id:"Cards",      color:"#5a2a7a"}
 ];
 
-// Категории нод
 export const SD_NODE_KIND_COLOURS = {
-  pure:       "#3aa87a",   // green
-  imperative: "#e08a2a",   // orange
-  event:      "#d04040"    // red
+  pure:       "#3aa87a",
+  imperative: "#e08a2a",
+  event:      "#d04040"
 };
 
-/** Resolve a node definition's behavioural kind. */
 export function getNodeKind(def) {
   if (!def) return "pure";
   if (def.isEvent) return "event";
@@ -4935,9 +4725,6 @@ export const SD_TARGET_MODES = [
   { id:"selected_tokens",  label:"All selected tokens" },
   { id:"aoe_current",      label:"Current AoE template tokens" }
 ];
-
-// FormulaGraph
-
 
 const _mkPin = (id, label) => ({ id, label, type: "value" });
 
@@ -5078,11 +4865,7 @@ const WIDGET_CONFIG_NODES = {
   },
 };
 
-// Inject the `variant` pin + field into every Widget Config node whose
-// widget type has skins registered in WIDGET_VARIANTS. Keeps the graph in
-// sync with widget-registry / widget-config-popup without hand-editing
-// every wcfg_* entry.
-for (const [/*nodeKey*/, def] of Object.entries(WIDGET_CONFIG_NODES)) {
+for (const [, def] of Object.entries(WIDGET_CONFIG_NODES)) {
   const variants = WIDGET_VARIANTS?.[def.widgetType];
   if (!variants?.length) continue;
   if (!Array.isArray(def.inputs)) def.inputs = [];
@@ -5136,8 +4919,6 @@ export class FormulaGraph {
     this._pushHistory();
   }
 
-  // Undo/Redo
-
   _snapshot() {
     return {
       nodes:    foundry.utils.deepClone(this.nodes ?? []),
@@ -5185,8 +4966,6 @@ export class FormulaGraph {
     this._historyIdx++;
     this._restoreSnapshot(this._history[this._historyIdx]);
   }
-
-  // Дубль выделенного
 
   _duplicateSelection(offset = 28) {
     if (!this._selected?.size) return;
@@ -5272,8 +5051,6 @@ export class FormulaGraph {
     this._pushHistory();
   }
 
-  // Выделение
-
   _isNodeSelected(id) { return this._selected?.has(id); }
 
   _selectNode(id, additive = false) {
@@ -5340,7 +5117,6 @@ export class FormulaGraph {
     this._pushHistory();
   }
 
-
   _doCommentDraft(ev) {
     if (!this._commentDraft) return;
     const wrap = this.win?.querySelector("#gwrap");
@@ -5358,13 +5134,12 @@ export class FormulaGraph {
     this._commentDraft.el.style.height = h + "px";
   }
 
-  _endCommentDraft(/* ev */) {
+  _endCommentDraft() {
     if (!this._commentDraft) return;
     const d = this._commentDraft;
     this._commentDraft = null;
     d.el?.remove();
 
-    // Screen-space → graph-space
     const x1s = Math.min(d.sx, d.cx);
     const y1s = Math.min(d.sy, d.cy);
     const x2s = Math.max(d.sx, d.cx);
@@ -5438,7 +5213,6 @@ export class FormulaGraph {
     return valid.length;
   }
 
-  /** Read all saved node templates from world settings, returning {name: tpl}. */
   _readNodeTemplates() {
     try { return foundry.utils.deepClone(game.settings.get("sd", "nodeTemplates") ?? {}); }
     catch { return {}; }
@@ -5449,9 +5223,6 @@ export class FormulaGraph {
     catch (err) { console.error("SD | Failed to save node templates", err); }
   }
 
-  // Template UI actions
-
-  /** Prompt for a name & save the current selection (or whole graph) as a world template. */
   async _saveSelectionAsTemplate() {
     const ids = this._selected.size
       ? Array.from(this._selected)
@@ -5474,7 +5245,6 @@ export class FormulaGraph {
     ui.notifications?.info?.(`Template "${name}" saved (${tpl.nodes.length} node${tpl.nodes.length===1?"":"s"}).`);
   }
 
-  /** Dropdown anchored near the Templates button, listing all saved templates. */
   _openTemplatesMenu(anchorEl) {
     document.querySelector(".sdgtpl-menu")?.remove();
     const store = this._readNodeTemplates();
@@ -5552,7 +5322,7 @@ export class FormulaGraph {
     }
 
     document.body.appendChild(menu);
-    // Click-outside to close
+
     const off = (ev) => {
       if (!menu.contains(ev.target) && ev.target !== anchorEl) {
         menu.remove();
@@ -5562,7 +5332,6 @@ export class FormulaGraph {
     setTimeout(() => document.addEventListener("mousedown", off, true), 0);
   }
 
-  /** Export the current selection (or whole graph) as a downloadable JSON file. */
   _runLint() {
     const report = lintGraph({ nodes: this.nodes, edges: this.edges }, NODE_DEFS);
     const header = lintSummary(report);
@@ -5639,7 +5408,6 @@ export class FormulaGraph {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
-  /** Prompt a file picker, parse JSON and insert / store the result. */
   _importTemplateFromFile() {
     const inp = document.createElement("input");
     inp.type = "file";
@@ -5738,8 +5506,6 @@ export class FormulaGraph {
     }).catch(() => null);
   }
 
-  // Сохранение
-
   _loadGraph() {
     if (this.configMode && this.widget) {
       const s = this.widget.configGraph;
@@ -5783,10 +5549,7 @@ export class FormulaGraph {
       }
       return;
     }
-    // attributeGroup with a specific attrKey loads the per-attribute slot
-    // from widget.attrGraphs[<key>].graphData. Falls back to the default
-    // Attribute starter graph when the slot is empty so users get the
-    // familiar Attr Score / On Click / ATTR OUTPUT scaffold to wire up.
+
     if (this.widget?.type === "attributeGroup" && this.saveCtx?.attrKey) {
       const key = this.saveCtx.attrKey;
       const ag  = this.widget.attrGraphs?.[key];
@@ -5889,10 +5652,7 @@ export class FormulaGraph {
       const widget = _row ? this._findWidgetDeepInRow(_row.widgets, w.id) : null;
       if (!widget) console.warn("[sd] formula-graph: widget not found in customTabs", { tabId: tab?.id, rowId: row?.id, widgetId: w?.id });
       if (widget) {
-        // attributeGroup with a specific attrKey writes into a per-key
-        // slot under widget.attrGraphs[<key>]. The slot mirrors the
-        // standalone Attribute widget's saved fields so the renderer
-        // can fan them out to each tile.
+
         if (this.widget?.type === "attributeGroup" && attrKey) {
           const attrOut = this.nodes.find(n => n.type === "attr_output");
           let modValueFormula = null;
@@ -5954,11 +5714,8 @@ export class FormulaGraph {
     }
   }
 
-  // Public
-
   open() { this._smartIndex = this._buildSmartIndex(); this._buildWin(); this._renderAll(); setTimeout(()=>this._fitView(),120); }
   close() { this._cleanup.forEach(fn=>fn()); this.win?.remove(); this.win=null; }
-
 
   _buildSmartIndex() {
     const doc    = this.doc;
@@ -5968,7 +5725,6 @@ export class FormulaGraph {
 
     const idx = { slots:[], ownedItems:[], effects:[], widgets:[], invItemSlots:[] };
 
-    // Slots
     const _indexItemSlots = (itemData, displayName, sourceId, depth = 0, slotPath = null) => {
       if (depth > 5) return;
       const defs = itemData?.system?.slotDefinitions ?? [];
@@ -5999,22 +5755,19 @@ export class FormulaGraph {
       _indexItemSlots(item, item.name, item.id, 0, item.id);
     }
 
-    // Deduplicate by id+source
     const seenSlots = new Set();
     idx.slots = idx.slots.filter(s => { const k=`${s.source}:${s.id}`; if(seenSlots.has(k)) return false; seenSlots.add(k); return true; });
 
-    // Owned Items
     for (const item of (actor?.items ?? [])) {
       idx.ownedItems.push({ id: item.id, name: item.name, uuid: item.uuid, type: item.type });
     }
     idx.ownedItems.sort((a,b) => a.name.localeCompare(b.name));
 
-    // Active Effects
     const effectSrc = actor ?? self;
     for (const fx of (effectSrc?.effects ?? [])) {
       idx.effects.push({ name: fx.name, uuid: fx.uuid, id: fx.id });
     }
-    // Also effects on owned items
+
     for (const item of (actor?.items ?? [])) {
       for (const fx of (item.effects ?? [])) {
         if (!idx.effects.find(e => e.uuid === fx.uuid))
@@ -6022,7 +5775,6 @@ export class FormulaGraph {
       }
     }
 
-    // Widgets (widgetKey)
     const tabs = self?.system?.customTabs ?? actor?.system?.customTabs ?? [];
     for (const tab of tabs) {
       for (const row of (tab.rows ?? [])) {
@@ -6148,13 +5900,11 @@ export class FormulaGraph {
     if (vis.has(node.id)) return "0";
     const v2 = new Set(vis); v2.add(node.id);
     const def = NODE_DEFS[node.type];
-    if (node.type === "act_roll_value") return "{__lastRoll}";
-    if (node.type === "act_set_field") return "{__lastRoll}";
+
     if (def?.isEvent) return EVENT_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
     if (def?.isMacroInput) return `{__macroArg:${fromPin ?? "a"}}`;
     if (def?.isAttackBranch || def?.isBranch || def?.isSaveBranch || def?.isTieredBranch || def?.isGenericBranch || def?.isProgressionBranch || def?.isAoeSave || def?.isAiBranch) {
-      // Per-node dynamic tokens (e.g. Dialog Builder's element-value pins
-      // resolve to {__dlg.<userId>} based on the user-set element id).
+
       if (typeof def.dynamicBranchToken === "function") {
         const tok = def.dynamicBranchToken(node, fromPin);
         if (tok != null) return tok;
@@ -6164,8 +5914,8 @@ export class FormulaGraph {
     if (BRANCH_PIN_TOKENS[node.type]?.[fromPin]) {
       return BRANCH_PIN_TOKENS[node.type][fromPin];
     }
-    if (def?.compilePin) return def.compilePin(node, {}, fromPin);
     if (!def||def.isAction) return "0";
+
     const ins = {};
     for (const pin of (def.inputs??[])) {
       if (pin.type==="exec") continue;
@@ -6183,6 +5933,7 @@ export class FormulaGraph {
         }
       }
     }
+    if (def.compilePin) return def.compilePin(node, ins, fromPin);
     return def.compile?.(node,ins)??"0";
   }
 
@@ -6448,7 +6199,6 @@ export class FormulaGraph {
         return;
       }
 
-      // Roll Table branch compiler
       if (def.isRollTableBranch) {
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
@@ -6582,7 +6332,6 @@ export class FormulaGraph {
         const act = def.toAction?.(node,ins);
         if (act) actions.push(act);
 
-        // Follow exec output
         const outEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="exec");
         if (outEdge) _walk(outEdge.toNode, vis);
       }
@@ -6621,12 +6370,12 @@ export class FormulaGraph {
               return v !== undefined && v !== null ? String(v) : p;
             });
             liveText = `${f}\n→ ${resolved}`;
-          } catch { /* noop */ }
+          } catch {  }
         }
         liveEl.textContent = liveText;
       }
     }
-    // Update mode badge
+
     const badge = this.win.querySelector("#gmode-badge");
     if (!badge) return;
     const hasAttrOut = this.nodes.some(n=>n.type==="attr_output");
@@ -6740,8 +6489,6 @@ export class FormulaGraph {
     });
   }
 
-  // Window
-
   _buildWin() {
     this.win?.remove();
     const win = document.createElement("div");
@@ -6801,7 +6548,6 @@ export class FormulaGraph {
     this.nodesEl = win.querySelector("#gnodes");
     this.commentsEl = win.querySelector("#gcomments");
 
-    // Style zoom buttons
     const btnBase = "background:rgba(21,26,36,.9);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#98a6c6;cursor:pointer;font-size:12px;height:30px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:.15s;box-shadow:0 4px 12px rgba(0,0,0,.4)";
     win.querySelectorAll(".gz").forEach(b=>{b.style.cssText=btnBase+";width:30px";});
     win.querySelector("#gfit").style.cssText=btnBase+";padding:0 10px;font-size:11px;font-weight:600;gap:4px";
@@ -6853,7 +6599,6 @@ export class FormulaGraph {
     const win  = this.win;
     const wrap = win.querySelector("#gwrap");
 
-    // Close / Save
     win.querySelector("#gclose").addEventListener("click", async () => {
       await this._saveGraph(); this.close();
     });
@@ -6908,7 +6653,7 @@ export class FormulaGraph {
     });
 
     const _move = ev => {
-      // Window drag
+
       if (ds) {
         win.style.transform = "none";
         win.style.left = `${Math.max(0, ev.clientX - ds.x)}px`;
@@ -6928,9 +6673,9 @@ export class FormulaGraph {
       if (this._drag) {
         this._doDrag(ev);
       }
-      // Connection preview
+
       if (this._conn) this._doConn(ev);
-      // Marquee selection rectangle
+
       if (this._marquee) this._doMarquee(ev);
       if (this._commentDrag)   this._doCommentDrag(ev);
       if (this._commentResize) this._doCommentResize(ev);
@@ -6968,7 +6713,6 @@ export class FormulaGraph {
       document.removeEventListener("mouseup",   _up);
     });
 
-    // Pan: space+LMB or middle mouse
     let space = false;
     const _kd = ev => {
       if (ev.code === "Space" && ev.target === document.body) { space = true; wrap.style.cursor = "grab"; return; }
@@ -7079,7 +6823,6 @@ export class FormulaGraph {
       _zoomAt(ev.clientX, ev.clientY, ev.deltaY);
     }, { passive: false });
 
-    // Right-click → context menu
     wrap.addEventListener("contextmenu", ev => {
       ev.preventDefault();
       const r  = wrap.getBoundingClientRect();
@@ -7088,7 +6831,6 @@ export class FormulaGraph {
       this._ctxMenu(ev.clientX, ev.clientY, gx, gy);
     });
 
-    // Palette drag-and-drop
     win.querySelectorAll(".gpal").forEach(el => {
       el.addEventListener("dragstart", ev => ev.dataTransfer.setData("text/plain", JSON.stringify({ _sg: el.dataset.type })));
       el.addEventListener("mouseenter", () => el.style.background = "rgba(116,167,255,.1)");
@@ -7113,8 +6855,6 @@ export class FormulaGraph {
       } catch {}
     });
   }
-
-  // Context menu
 
   _ctxMenu(sx,sy,gx,gy) {
     document.querySelector(".sdgctx")?.remove();
@@ -7161,8 +6901,6 @@ export class FormulaGraph {
     setTimeout(()=>document.addEventListener("click",function f(){menu.remove();document.removeEventListener("click",f);},{once:true}),80);
   }
 
-  // Graph ops
-
   _addWidgetConfigNode() {
     const wType = this.widget?.type;
     const cfgType = "wcfg_" + wType;
@@ -7197,7 +6935,6 @@ export class FormulaGraph {
     this._id = 20;
   }
 
-  /** Migrate old attribute graphData (attr_score/output) to new layout. */
   _migrateAttrGraph() {
     const hasNew = this.nodes.some(n => n.type === "attr_score_val" || n.type === "attr_output");
     if (!hasNew) {
@@ -7267,8 +7004,6 @@ export class FormulaGraph {
     this._pushHistory();
   }
 
-  // Rendering
-
   _renderAll() {
     this.nodesEl.innerHTML="";
     this.nodes.forEach(n=>this._renderNode(n));
@@ -7277,8 +7012,6 @@ export class FormulaGraph {
     this._redrawEdges();
     this._updatePreview();
   }
-
-  // Comment boxes (Unreal-style)
 
   _renderComments() {
     if (!this.commentsEl) return;
@@ -7310,14 +7043,12 @@ export class FormulaGraph {
     const ttl = el.querySelector(".gcmt-ttl");
     const rsz = el.querySelector(".gcmt-rsz");
 
-    // Delete button
     del.addEventListener("mousedown", ev => ev.stopPropagation());
     del.addEventListener("click", ev => {
       ev.stopPropagation();
       this._deleteComment(c.id);
     });
 
-    // Rename on double-click
     hdr.addEventListener("dblclick", async ev => {
       ev.stopPropagation();
       const name = await this._promptText("Comment title:", c.title || "Comment");
@@ -7371,7 +7102,6 @@ export class FormulaGraph {
       };
     });
 
-    // Resize handle
     rsz.addEventListener("mousedown", ev => {
       if (ev.button !== 0) return;
       ev.stopPropagation();
@@ -7445,19 +7175,16 @@ export class FormulaGraph {
 
     const el=document.createElement("div");
     el.dataset.nid=node.id;
-    // Base minimum width by node kind. wideNode bumps up to 440 because crit /
-    // fumble / formula labels routinely run long.
+
     const W_BASE = def.wideNode ? 440 : def.isAttackBranch ? 340 : def.isBranch ? 280 : def.isAction ? 320 : (def.isOutput||def.isAttrOutput) ? 220 : 250;
-    // Longest static pin label across inputs + outputs. We count chars at
-    // ~7px per char for proportional 12px labels and add fixed padding for
-    // the dot, gap, edge insets, and the field column on the opposite side.
+
     const _allPinLabels = [
       ...(def.inputs ?? []).map(p => p.label ?? ""),
       ...(def.outputs ?? []).map(p => p.label ?? "")
     ];
     const _longestPinLabel = _allPinLabels.reduce((m, s) => Math.max(m, String(s).length), 0);
     const W_PIN = _longestPinLabel > 0 ? 80 + Math.ceil(_longestPinLabel * 7.2) : 0;
-    // Longest stored data string (for resolved widget paths, custom labels…).
+
     const _longestDataVal = Object.values(node.data ?? {}).reduce((max, v) => {
       const len = typeof v === "string" ? v.length : 0;
       return len > max ? len : max;
@@ -7587,7 +7314,6 @@ export class FormulaGraph {
     for(const p of activeExecOuts)
       body.appendChild(this._pinRow(node,p,"output"));
 
-    // Interactions
     el.querySelector(".ndel")?.addEventListener("click",ev=>{ev.stopPropagation();this._delNode(node.id);});
     el.querySelector(".gnhdr").addEventListener("mousedown",ev=>{
       if(ev.target.classList.contains("ndel")) return;
@@ -7703,10 +7429,7 @@ export class FormulaGraph {
     const dot=this._dotEl(node,pin,side);
     const lbl=document.createElement("span");
     lbl.textContent=_NL(pin.label||"");
-    // Pin labels used to be capped at 120px which clipped long names like
-    // "Crit Amount (used when Is Crit? is true)" into "Crit Amou…". Letting
-    // them grow up to 220px keeps every realistic label fully readable; the
-    // node itself widens to fit via the width logic in _renderNode.
+
     lbl.style.cssText="font-size:12px;color:#98a6c6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;line-height:1";
     if(side==="input"){wrap.appendChild(dot);wrap.appendChild(lbl);}
     else{wrap.appendChild(lbl);wrap.appendChild(dot);}
@@ -7775,12 +7498,11 @@ export class FormulaGraph {
       l.title=lbl;
       wrap.appendChild(l);
     }
-    // UE-style autosize
+
     const IS="background:#1a1e2e;border:1px solid rgba(120,100,220,.35);border-radius:6px;color:#eef3ff;font-size:12px;padding:5px 10px;font-family:monospace;outline:none;min-width:80px;max-width:420px;width:auto;box-sizing:border-box;height:28px;field-sizing:content";
     const SI=IS+";cursor:pointer";
     const idx=this._smartIndex??{slots:[],ownedItems:[],effects:[],widgets:[],invItemSlots:[]};
 
-    // slot-picker
     if(field.type==="slot-picker"){
       const cur=node.data[field.key]??field.default??"slot1";
       const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Slot ID — auto-indexed";
@@ -7817,7 +7539,6 @@ export class FormulaGraph {
       wrap.appendChild(sel); return wrap;
     }
 
-    // item-picker
     if(field.type==="item-picker"){
       const cur=node.data[field.key]??field.default??"";
       const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Owned item — auto-indexed";
@@ -7835,7 +7556,6 @@ export class FormulaGraph {
       wrap.appendChild(sel); return wrap;
     }
 
-    // effect-picker
     if(field.type==="effect-picker"){
       const cur=node.data[field.key]??field.default??"";
       const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Active Effect — auto-indexed";
@@ -7847,7 +7567,6 @@ export class FormulaGraph {
       wrap.appendChild(sel); return wrap;
     }
 
-    // effect-uuid-picker
     if(field.type==="effect-uuid-picker"){
       const cur=node.data[field.key]??field.default??"";
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0";
@@ -7864,7 +7583,6 @@ export class FormulaGraph {
       container.appendChild(sel); container.appendChild(rawInp); wrap.appendChild(container); return wrap;
     }
 
-    // widget-picker
     if(field.type==="widget-picker"){
       const cur=node.data[field.key]??field.default??"";
       const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Widget key — auto-indexed from tabs";
@@ -7934,7 +7652,6 @@ export class FormulaGraph {
         this._updatePreview();
       });
 
-      // Drag-and-drop zone
       const dropZone=document.createElement("div");
       const hasVal=curUuid||curName;
       dropZone.textContent=hasVal ? `✔ ${curName||curUuid}` : "⬇ drag item here";
@@ -7949,19 +7666,19 @@ export class FormulaGraph {
           const uuid=d.uuid??d.id??"";
           if(!uuid) return;
           node.data[field.key]=uuid;
-          // Try to resolve name from index
+
           const found=idx.ownedItems.find(i=>i.uuid===uuid)||idx.ownedItems.find(i=>i.id===d.id);
           const label=found?.name ?? d.name ?? uuid;
           node.data["itemName"]=found?.name??"";
           dropZone.textContent=`✔ ${label}`;
           dropZone.style.borderColor="#3a6a3a"; dropZone.style.color="#6aaa6a";
-          // Sync select
+
           const opt=[...selItem.options].find(o=>o.value===(found?.name??""));
           if(opt) selItem.value=opt.value;
           this._updatePreview();
         }catch{}
       });
-      // Clear on double-click
+
       dropZone.addEventListener("dblclick",()=>{
         node.data[field.key]=""; node.data["itemName"]="";
         dropZone.textContent="⬇ drag item here";
@@ -7972,14 +7689,11 @@ export class FormulaGraph {
       container.appendChild(selItem); container.appendChild(dropZone); wrap.appendChild(container); return wrap;
     }
 
-    // Standard field types
     let inp;
     if(field.type==="select"){
       inp=document.createElement("select");
       inp.style.cssText=IS+";cursor:pointer";
-      // `options` may be either a flat array of strings or an array of
-      // `{value,label}` pairs — supporting both keeps existing nodes intact
-      // while letting newer nodes (e.g. Math/Round) provide friendlier text.
+
       const cur = node.data[field.key]??field.default;
       for(const o of (field.options??[])){
         const oel=document.createElement("option");
@@ -8011,11 +7725,7 @@ export class FormulaGraph {
       node.data[field.key]=inp.type==="number"?Number(ev.target.value):ev.target.value;
       this._updatePreview();
       if(field.type==="path" && liveBadge) _refreshLiveBadge();
-      // Any field change that could flip a `visibleIf` predicate on another
-      // field — or affect a per-node dynamic output set (computeDynamicOutputs)
-      // — needs a full node re-render. We detect this by checking the def
-      // metadata once and re-render eagerly. Cheap: O(node fields) and only
-      // when the user is actively typing in this node.
+
       {
         const _defV = NODE_DEFS[node.type];
         const _hasVis = _defV?.fields?.some(f => typeof f.visibleIf === "function");
@@ -8077,7 +7787,6 @@ export class FormulaGraph {
     return wrap;
   }
 
-
   _redrawEdges() {
     const svg=this.edgeSVG; if(!svg) return;
 
@@ -8104,7 +7813,6 @@ export class FormulaGraph {
 
       const bez = this._bez(from,to);
 
-      // Wide transparent hit-area
       const hit=document.createElementNS("http://www.w3.org/2000/svg","path");
       hit.setAttribute("d",bez);
       hit.setAttribute("fill","none");
@@ -8142,8 +7850,6 @@ export class FormulaGraph {
     const wr=this.edgeSVG.getBoundingClientRect();
     return {x:r.left-wr.left+r.width/2, y:r.top-wr.top+r.height/2};
   }
-
-  // Connection drag
 
   _startConn(nodeId,pinId,isExec,ev,pinType) {
     const pos=this._pinScreen(nodeId,pinId,"output"); if(!pos) return;
@@ -8277,8 +7983,6 @@ export class FormulaGraph {
     }, 0);
   }
 
-  // Node drag
-
   _doDrag(ev) {
     if(!this._drag) return;
     const dx = (ev.clientX - this._drag.mx) / this._zoom;
@@ -8300,7 +8004,6 @@ export class FormulaGraph {
     this._scheduleEdges?.();
   }
 
-
   _doMarquee(ev) {
     if (!this._marquee) return;
     const wrap = this.win?.querySelector("#gwrap");
@@ -8318,7 +8021,7 @@ export class FormulaGraph {
     this._marquee.el.style.height = h + "px";
   }
 
-  _endMarquee(/* ev */) {
+  _endMarquee() {
     if (!this._marquee) return;
     const m = this._marquee;
     this._marquee = null;
@@ -8346,8 +8049,6 @@ export class FormulaGraph {
     }
     this._refreshSelectionHighlights();
   }
-
-  // View
 
   _applyTransform() {
     const tf = `translate(${this._pan.x}px,${this._pan.y}px) scale(${this._zoom})`;
@@ -8381,7 +8082,6 @@ export class FormulaGraph {
   }
 }
 
-// Inject CSS once
 if(!document.getElementById("sd-graph-css")){
   const s=document.createElement("style");
   s.id="sd-graph-css";

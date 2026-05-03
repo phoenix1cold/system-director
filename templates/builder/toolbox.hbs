@@ -1,6 +1,5 @@
 <div style="display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--sd-bg);color:var(--sd-text);font-family:'Signika',sans-serif">
 
-  {{!-- Tab bar ─────────────────────────────────────────────────────────────── --}}
   <div style="display:flex;gap:0;background:var(--sd-bg);border-bottom:1px solid var(--sd-bg-3);flex-shrink:0">
     <button id="tb-tab-widgets" class="tb-tab active"
       style="flex:1;padding:7px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:none;background:var(--sd-bg);color:var(--sd-accent);cursor:pointer;border-bottom:2px solid var(--sd-accent)">
@@ -15,12 +14,8 @@
 
   <div style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:12px">
 
-    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
-    {{!-- WIDGETS PANEL ───────────────────────────────────────────────────── --}}
-    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
     <div id="tb-panel-widgets">
 
-      {{!-- New Tab ──────────────────────────────────────────────────────── --}}
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);padding:4px 2px;border-bottom:1px solid var(--sd-border);margin-bottom:6px">Tabs</div>
       <div data-drag-type="newTab"
            style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--sd-bg-3);border:1px solid var(--sd-accent);border-radius:5px;cursor:grab;user-select:none;transition:background .15s;margin-bottom:10px"
@@ -34,7 +29,6 @@
         </div>
       </div>
 
-      {{!-- Widget palette ──────────────────────────────────────────────── --}}
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);padding:4px 2px;border-bottom:1px solid var(--sd-border);margin-bottom:6px">Widgets — drag onto a tab</div>
       <div style="position:relative;margin-bottom:6px">
         <i class="fas fa-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--sd-text-3);font-size:10px;pointer-events:none"></i>
@@ -61,7 +55,6 @@
       </div>
       <div id="tb-widget-empty" style="display:none;font-size:11px;color:var(--sd-text-3);font-style:italic;text-align:center;padding:8px 0 12px">No widgets match the search.</div>
 
-      {{!-- Custom Fields ──────────────────────────────────────────────── --}}
       <div style="display:flex;align-items:center;justify-content:space-between;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);padding:4px 2px;border-bottom:1px solid var(--sd-border);margin-bottom:6px">
         <span>Custom Fields</span>
         <button data-action="addCustomField" style="background:transparent;border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:1px 6px">+ Add</button>
@@ -81,7 +74,6 @@
       <p style="font-size:11px;color:var(--sd-text-3);font-style:italic;margin:0 0 10px">No custom fields. Click + Add to create one.</p>
       {{/if}}
 
-      {{!-- Sheet Templates ─────────────────────────────────────────────── --}}
       <div style="display:flex;align-items:center;justify-content:space-between;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);padding:4px 2px;border-bottom:1px solid var(--sd-border);margin-bottom:6px">
         <span>Sheet Templates</span>
         <span style="display:flex;gap:4px">
@@ -110,16 +102,8 @@
       <p style="font-size:11px;color:var(--sd-text-3);font-style:italic;margin:0">No templates saved yet. Open a sheet and click "+ Save", or use Import to load a JSON bundle.</p>
       {{/if}}
 
-    </div>{{!-- end #tb-panel-widgets --}}
+    </div>
 
-    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
-    {{!-- BLUEPRINTS PANEL ────────────────────────────────────────────────── --}}
-    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
-    {{!-- end #tb-panel-blueprints --}}
-
-    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
-    {{!-- PATHS PANEL ─────────────────────────────────────────────────────── --}}
-    {{!-- ═══════════════════════════════════════════════════════════════════ --}}
     <div id="tb-panel-paths" style="display:none">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
         <p style="font-size:11px;color:var(--sd-text-3);margin:0;flex:1;line-height:1.5">
@@ -155,11 +139,10 @@
         </div>
         {{/unless}}
       </div>
-    </div>{{!-- end #tb-panel-paths --}}
+    </div>
 
   </div>
 
-  {{!-- Footer ─────────────────────────────────────────────────────────────── --}}
   <div style="padding:8px 10px;border-top:1px solid var(--sd-border);font-size:10px;color:var(--sd-text-3);text-align:center;flex-shrink:0">
     System Director — drag widgets & blueprints onto open sheets
   </div>

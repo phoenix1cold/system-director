@@ -8,8 +8,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static DEFAULT_OPTIONS = {
     id:       "sd-toolbox",
-    // Include the "sd" marker class so applyColorScheme / the theme
-    // mutation observer stamp `data-sd-theme` onto this window too.
+
     classes:  ["sd", "sd-toolbox"],
     window: {
       title:       "Sheet Builder",
@@ -53,7 +52,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     const templates   = Object.values(game.settings.get("sd", "sheetTemplates") ?? {});
     const customFields = game.settings.get("sd", "customFields") ?? [];
 
-    // Blueprint groups for template
     const blueprintSources  = BLUEPRINT_NODES.filter(n => n.cat === "Sources");
     const blueprintDice     = BLUEPRINT_NODES.filter(n => n.cat === "Dice");
     const blueprintMath     = BLUEPRINT_NODES.filter(n => n.cat === "Math");
@@ -74,7 +72,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     };
   }
 
-  /** Build paths from system settings (no open sheet needed). */
   _buildSettingsPaths() {
     const paths = [];
     const _add = (path, label) => { if (!paths.find(p => p.path === path)) paths.push({ path, label }); };
@@ -82,14 +79,12 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     try {
       const cfg = loadSettings();
 
-      // Attributes from system config
       for (const [key, label] of Object.entries(cfg.attributes ?? {})) {
         if (cfg.attributesEnabled?.[key] === false) continue;
         _add(`system.attributes.${key}.value`, `${label} — Score`);
         _add(`system.attributes.${key}.mod`,   `${label} — Modifier`);
       }
 
-      // Resources from system config
       for (const [key, res] of Object.entries(cfg.resources ?? {})) {
         if (res.enabled === false) continue;
         const lbl = res.label ?? key;
@@ -114,7 +109,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     _add("system.movement.walk",            "Movement — Walk");
     _add("system.movement.fly",             "Movement — Fly");
 
-    // Custom world fields
     try {
       for (const cf of (game.settings.get("sd", "customFields") ?? [])) {
         _add(`system.flags.${cf.name}`, `Custom: ${cf.name}`);
@@ -124,7 +118,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     return paths;
   }
 
-  /** Build a flat list of {path, label} from a live Actor or Item document. */
   _buildDocPaths(doc) {
     const paths = [];
     const isActor = doc instanceof Actor;
@@ -132,7 +125,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const _add = (path, label) => { if (!paths.find(p => p.path === path)) paths.push({ path, label }); };
 
-    // Standard actor paths
     if (isActor) {
       const sys = doc.system ?? {};
       for (const [key, attr] of Object.entries(sys.attributes ?? {})) {
@@ -158,7 +150,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         const lbl = c.label && String(c.label).trim() ? c.label : c.key;
         _add(`system.currency.${c.key}`, `Currency — ${lbl}`);
       }
-      // Advancement
+
       if (sys.advancement?.level !== undefined) _add("system.advancement.level", "Level");
       if (sys.advancement?.xp?.value !== undefined) _add("system.advancement.xp.value", "XP — Current");
       if (sys.advancement?.xp?.max   !== undefined) _add("system.advancement.xp.max",   "XP — Max");
@@ -170,22 +162,18 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       if (sys.movement?.fly     !== undefined) _add("system.movement.fly",        "Movement — Fly");
     }
 
-    // Hidden fields
     for (const [k] of Object.entries(doc.system?.hiddenFields ?? {})) {
       _add(`system.hiddenFields.${k}`, `Hidden: ${k}`);
     }
 
-    // Declared attrs
     for (const a of (doc.system?.declaredAttrs ?? [])) {
       if (a.path) _add(a.path, `Attr: ${a.name || a.id}`);
     }
 
-    // Slot counts
     for (const def of (doc.system?.slotDefinitions ?? [])) {
       _add(`system.slotContents.${def.id}.count`, `Slot count: ${def.label}`);
     }
 
-    // Actor's items
     if (isActor) {
       for (const item of (doc.items ?? [])) {
         for (const [k] of Object.entries(item.system?.hiddenFields ?? {})) {
@@ -200,7 +188,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
 
-    // Custom world fields
     try {
       for (const cf of (game.settings.get("sd", "customFields") ?? [])) {
         _add(`system.flags.${cf.name}`, `Custom: ${cf.name}`);
@@ -275,8 +262,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     );
   }
 
-  // Tab bar
-
   _wireTabBar() {
     const root = this.element;
     if (!root) return;
@@ -292,14 +277,14 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       if (!btn || !panel) return;
 
       btn.addEventListener("click", () => {
-        // Deactivate all
+
         tabs.forEach(t => {
           const b = root.querySelector(`#${t.btnId}`);
           const p = root.querySelector(`#${t.panelId}`);
           if (b) { b.style.background="#13131d"; b.style.color="#555"; b.style.borderBottom="2px solid transparent"; }
           if (p) p.style.display = "none";
         });
-        // Activate clicked
+
         btn.style.background   = "#1a1a24";
         btn.style.color        = "#7b68ee";
         btn.style.borderBottom = "2px solid #7b68ee";
@@ -309,13 +294,10 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     });
   }
 
-  // Make palette items draggable
-
   _wireDrag() {
     const root = this.element;
     if (!root) return;
 
-    // New Tab drag
     const newTabEl = root.querySelector("[data-drag-type='newTab']");
     if (newTabEl) {
       newTabEl.draggable = true;
@@ -325,7 +307,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     }
 
-    // Widget palette
     root.querySelectorAll("[data-drag-type='widget']").forEach(el => {
       el.draggable = true;
       el.addEventListener("dragstart", ev => {
@@ -363,7 +344,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
           catch { ui.notifications?.warn?.("Couldn't copy path to clipboard."); }
           ta.remove();
         }
-        // Quick visual feedback
+
         const prev = el.style.background;
         el.style.background = "#1a4a2a";
         setTimeout(() => { el.style.background = prev; }, 180);
@@ -371,8 +352,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     });
 
   }
-
-  // Template actions
 
   _wireTemplateActions() {
     const root = this.element;
@@ -393,13 +372,13 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         name,
         docType,
         itemType,
-        // Sheet Builder layout
+
         customTabs:      foundry.utils.deepClone(sys.customTabs      ?? []),
-        // Hidden fields
+
         hiddenFields:    foundry.utils.deepClone(sys.hiddenFields     ?? {}),
-        // Declared attributes
+
         declaredAttrs:   foundry.utils.deepClone(sys.declaredAttrs    ?? []),
-        // Slot widget definitions
+
         slotDefinitions: foundry.utils.deepClone(sys.slotDefinitions  ?? []),
         sdTriggerGraph:  foundry.utils.deepClone(sys.sdTriggerGraph   ?? {}),
         buttons:         foundry.utils.deepClone(sys.buttons          ?? []),
@@ -462,7 +441,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     });
 
-    // Delete template
     root.querySelectorAll("[data-action='deleteTemplate']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const name   = btn.dataset.name;
@@ -568,7 +546,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  /** Trigger a JSON file download using Foundry's helper when available. */
   static _downloadJSON(obj, filename = "export.json") {
     const json = JSON.stringify(obj, null, 2);
     try {
@@ -584,8 +561,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
-
-  // Custom fields
 
   _wireCustomFields() {
     const root = this.element;
@@ -612,8 +587,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     });
   }
 
-  // Blueprint copy-to-clipboard
-
   _wireBlueprintCopy() {
     const root = this.element;
     if (!root) return;
@@ -628,8 +601,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     });
   }
-
-  // Helpers
 
   _getFocusedSheet() {
     return Object.values(ui.windows ?? {})
@@ -649,7 +620,6 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
   }
 
-  /** Re-generate IDs for slot definitions so template copies are independent. */
   _freshenSlotIds(slotDefs) {
     return (slotDefs ?? []).map(def => ({ ...def, id: foundry.utils.randomID(8) }));
   }

@@ -9,26 +9,21 @@ export const FILTER_OPERATORS = [
   { value: "startsWith", label: "starts with" }
 ];
 
-
 export class HiddenFields {
 
-  /** Get all hidden fields as { key, value } pairs */
   static getAll(doc) {
     const hf = doc?.system?.hiddenFields ?? {};
     return Object.entries(hf).map(([key, value]) => ({ key, value, path: `system.hiddenFields.${key}` }));
   }
 
-  /** Get a single value */
   static get(doc, key) {
     return doc?.system?.hiddenFields?.[key];
   }
 
-  /** Add or update a hidden field */
   static async set(doc, key, value) {
     await doc.update({ [`system.hiddenFields.${key}`]: value });
   }
 
-  /** Rename a key */
   static async rename(doc, oldKey, newKey) {
     const hf  = foundry.utils.deepClone(doc.system.hiddenFields ?? {});
     const val = hf[oldKey];
@@ -37,7 +32,6 @@ export class HiddenFields {
     await doc.update({ "system.hiddenFields": hf });
   }
 
-  /** Remove a key */
   static async remove(doc, key) {
     const hf = foundry.utils.deepClone(doc.system.hiddenFields ?? {});
     delete hf[key];
@@ -45,16 +39,8 @@ export class HiddenFields {
   }
 }
 
-// Filter evaluation
-
 export class AttrFilter {
 
-  /**
-   * Check all attrFilters on a slot definition against a dropped item.
-   * @param {object}   itemData   - plain item data object (from toObject())
-   * @param {object}   slotDef    - slot definition with attrFilters array
-   * @returns {{ pass: boolean, failed: string[] }}
-   */
   static check(itemData, slotDef) {
     const filters = slotDef.attrFilters ?? [];
     if (!filters.length) return { pass: true, failed: [] };
@@ -89,12 +75,6 @@ export class AttrFilter {
     }
   }
 
-  /**
-   * Show a dialog to build a filter by inspecting a dropped item's hidden fields.
-   * @param {Item}   droppedItem
-   * @param {object} slotDef      - existing slot def for context
-   * @returns {Promise<{fieldPath, operator, expectedValue}|null>}
-   */
   static async buildFromDrop(droppedItem, slotDef) {
     const fields = HiddenFields.getAll(droppedItem);
 

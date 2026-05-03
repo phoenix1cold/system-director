@@ -2,8 +2,6 @@ import { createWidget } from "./widget-registry.mjs";
 
 export class GridManager {
 
-  // Tab CRUD
-
   static getTabs(doc) {
     return doc.system.customTabs ?? [];
   }
@@ -36,8 +34,6 @@ export class GridManager {
     const next = tabs.filter(t => t.id !== tabId);
     await doc.update({ "system.customTabs": next });
   }
-
-  // Row CRUD
 
   static async addRow(doc, tabId, afterRowId = null) {
     const tabs  = foundry.utils.deepClone(this.getTabs(doc));
@@ -73,8 +69,6 @@ export class GridManager {
     await doc.update({ "system.customTabs": tabs });
   }
 
-  // Widget CRUD
-
   static async addWidget(doc, tabId, rowId, widgetType, overrides = {}) {
     const tabs    = foundry.utils.deepClone(this.getTabs(doc));
     const tab     = tabs.find(t => t.id === tabId);
@@ -109,12 +103,6 @@ export class GridManager {
     await doc.update({ "system.customTabs": tabs });
   }
 
-  /**
-   * Recursively assign fresh `id`s to a widget and any nested children
-   * (e.g. `vsection` widgets contain their own `widgets[]` array). Node
-   * IDs inside `graphData` / `configGraph` are *not* changed because they
-   * are local to the graph and never collide outside it.
-   */
   static _refreshWidgetIds(widget) {
     if (!widget || typeof widget !== "object") return widget;
     widget.id = foundry.utils.randomID(8);
@@ -124,12 +112,6 @@ export class GridManager {
     return widget;
   }
 
-  /**
-   * Duplicate a widget in-place inside the same row. The clone keeps every
-   * field, formula, graph, and nested widget; only the widget id (and the
-   * ids of any nested children) are regenerated to avoid collisions.
-   * Returns the new widget object.
-   */
   static async duplicateWidget(doc, tabId, rowId, widgetId) {
     const tabs = foundry.utils.deepClone(this.getTabs(doc));
     const tab  = tabs.find(t => t.id === tabId);
@@ -145,12 +127,6 @@ export class GridManager {
     return clone;
   }
 
-  /**
-   * Insert a fully-formed widget object (e.g. one received via cross-sheet
-   * drag & drop) into a row. The widget's id tree is regenerated so it
-   * never clashes with existing widgets on the target document.
-   * Returns the inserted widget.
-   */
   static async insertWidgetData(doc, tabId, rowId, widgetData, atIndex = null) {
     if (!widgetData || typeof widgetData !== "object") return null;
     const tabs = foundry.utils.deepClone(this.getTabs(doc));
@@ -169,7 +145,6 @@ export class GridManager {
     return clone;
   }
 
-  /** Move widget from one row/position to another */
   static async moveWidget(doc, tabId, fromRowId, toRowId, widgetId, toIndex) {
     const tabs    = foundry.utils.deepClone(this.getTabs(doc));
     const tab     = tabs.find(t => t.id === tabId);
@@ -184,9 +159,6 @@ export class GridManager {
     await doc.update({ "system.customTabs": tabs });
   }
 
-  // Templates
-
-  /** Save current tabs as a named world-level template */
   static async saveTemplate(doc, templateName) {
     const stored = foundry.utils.deepClone(
       game.settings.get("sd", "sheetTemplates") ?? {}
@@ -200,7 +172,6 @@ export class GridManager {
     ui.notifications.info(`Template "${templateName}" saved.`);
   }
 
-  /** Apply a named template to a document (replaces all customTabs) */
   static async applyTemplate(doc, templateName) {
     const stored = game.settings.get("sd", "sheetTemplates") ?? {};
     const tmpl   = stored[templateName];
@@ -210,7 +181,6 @@ export class GridManager {
     ui.notifications.info(`Template "${templateName}" applied.`);
   }
 
-  /** Apply to all actors/items of a given type */
   static async applyTemplateToAll(templateName, documentType, subtype) {
     const collection = documentType === "Actor" ? game.actors : game.items;
     let count = 0;
@@ -232,7 +202,6 @@ export class GridManager {
     await game.settings.set("sd", "sheetTemplates", stored);
   }
 
-  /** Re-generate all IDs in a tabs array to avoid collisions */
   static _freshenIds(tabs) {
     return tabs.map(tab => ({
       ...tab,

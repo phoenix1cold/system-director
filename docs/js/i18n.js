@@ -1,7 +1,3 @@
-// Simple i18n + language toggle, persisting choice in localStorage.
-// Translations are loaded from data/i18n.json. Pages can render bilingual
-// content by calling setLang() / t() and listening on `sd:lang-change`.
-
 const SD_LS_KEY = "sd-wiki-lang";
 let _i18n = null;
 let _lang = (typeof localStorage !== "undefined" && localStorage.getItem(SD_LS_KEY)) || navigatorLang();
@@ -32,13 +28,12 @@ export function setLang(l) {
 
 export function toggleLang() { setLang(_lang === "ru" ? "en" : "ru"); }
 
-/** Translate by key path like "ui.nav.home" or arbitrary {en,ru}. */
 export function t(key) {
   if (!_i18n) return key;
   if (typeof key === "object" && key) {
     return key[_lang] ?? key.en ?? key.ru ?? "";
   }
-  // dotted key path
+
   const parts = String(key).split(".");
   let cur = _i18n;
   for (const p of parts) {
@@ -49,12 +44,10 @@ export function t(key) {
   return cur;
 }
 
-/** Apply data-i18n="…" placeholders across the page. */
 export function applyLangAttrs(root = document) {
   for (const el of root.querySelectorAll("[data-i18n]")) {
     const v = t(el.dataset.i18n);
-    // Translations may contain inline HTML (<kbd>, <code>, <strong>, …),
-    // so we render as HTML rather than escape it.
+
     el.innerHTML = (v == null ? "" : String(v));
   }
   for (const el of root.querySelectorAll("[data-i18n-attr]")) {
@@ -62,14 +55,13 @@ export function applyLangAttrs(root = document) {
     el.setAttribute(attr, t(key));
   }
   for (const el of root.querySelectorAll("[data-bilingual]")) {
-    // Element provides both languages with optional inline HTML.
+
     const en = el.dataset.en ?? "";
     const ru = el.dataset.ru ?? "";
     el.innerHTML = _lang === "ru" ? (ru || en) : (en || ru);
   }
 }
 
-/** Pick from a node/widget translation overlay. */
 export function pickLocale(obj, fallback = "") {
   if (!obj) return fallback;
   if (typeof obj === "string") return obj;

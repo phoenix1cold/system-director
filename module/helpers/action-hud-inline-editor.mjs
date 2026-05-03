@@ -1,22 +1,5 @@
-/**
- * Lightweight inline-widget editor for the Action HUD.
- *
- * The full WidgetConfigPopup is tightly coupled to a real Actor/Item
- * document and writes back to `doc.system.customTabs`. For HUD inline
- * widgets there is no such backing document — they live only on the
- * world setting `sd.actionHud`. This editor exposes a minimal subset
- * of fields that covers the most useful inline widgets.
- *
- * For full-fidelity widgets (graphs, complex behaviour) the GM should
- * configure them on a real actor and reference them on the HUD by
- * `widgetKey` instead.
- */
-
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-// Inline-supported widget types and their fields.
-// Keep this list short and focused on widgets that don't require a
-// per-document graph or live actor data.
 const INLINE_TYPES = [
   { value: "section", label: "Section / Header" },
   { value: "text",    label: "Text"             },
@@ -25,7 +8,6 @@ const INLINE_TYPES = [
   { value: "richtext",label: "Rich Text"        }
 ];
 
-// Fields per type. Each entry: [labelText, key, kind].
 const FIELDS = {
   section: [
     ["Title", "label", "text"]
@@ -82,7 +64,6 @@ class InlineWidgetEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     content: { template: "systems/sd/templates/action-hud/inline-editor.hbs", scrollable: [".inline-form"] }
   };
 
-  /** The widget def being edited; mutated in place via _readForm() on save. */
   _def = null;
   _resolve = null;
 
@@ -171,14 +152,6 @@ class InlineWidgetEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
-/**
- * Public entry point — opens the editor and resolves with the new widget
- * definition (or null if the user cancelled).
- *
- * @param {object|null} existingDef  pass an existing def to edit, or null
- *                                   to create a new one.
- * @returns {Promise<object|null>}
- */
 export async function openInlineWidgetEditor(existingDef = null) {
   const def = existingDef
     ? foundry.utils.deepClone(existingDef)

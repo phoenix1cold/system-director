@@ -1,17 +1,9 @@
 export class SDItem extends Item {
 
-  /** @override */
   prepareData() {
     super.prepareData();
   }
 
-  /**
-   * Check whether this item can currently be equipped.  Runs any configured
-   * `equipRequirements` formula against the owning actor's roll-data and
-   * blocks equipping a second concentration-item when one is already on.
-   *
-   * @returns {Promise<{ok:boolean, reason?:string}>}
-   */
   async canEquip() {
     if (this.type !== "inventory" || !this.system?.equippable) {
       return { ok: false, reason: "Not equippable." };
@@ -49,7 +41,6 @@ export class SDItem extends Item {
     return { ok: true };
   }
 
-  /** @override — emit sdItemEquipped / sdItemUnequipped and cascade flag-based ActiveEffect toggling. */
   async _onUpdate(changed, options, userId) {
     const equippedDiff = foundry.utils.getProperty(changed, "system.equipped");
     const hadEquipChange = equippedDiff !== undefined;
@@ -109,8 +100,6 @@ export class SDItem extends Item {
     if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
   }
 
-  // Roll Methods
-
   async use({ event } = {}) {
     const system = this.system;
 
@@ -119,7 +108,7 @@ export class SDItem extends Item {
       try {
         const { ButtonExecutor } = await import("../helpers/button-executor.mjs");
         const parsed = JSON.parse(formula);
-        // Supported shapes
+
         let actions = [];
         let macros  = null;
         if (Array.isArray(parsed)) actions = parsed;
@@ -142,7 +131,6 @@ export class SDItem extends Item {
       return;
     }
 
-    // Check and consume uses
     if (system.uses?.enabled) {
       if (system.uses.value <= 0) {
         ui.notifications.warn(game.i18n.format("SD.NoUsesRemaining", { name: this.name }));
@@ -165,7 +153,6 @@ export class SDItem extends Item {
       await this._applyEffectTemplates(system.effectTemplates);
     }
 
-    // Build and send chat message
     return this._rollToChat({ event });
   }
 
@@ -180,7 +167,6 @@ export class SDItem extends Item {
       rolls.push({ label: game.i18n.localize("SD.Attack"), roll });
     }
 
-    // Ability roll
     if (this.type === "ability" && system.roll?.enabled) {
       const formula = system.roll.finalFormula || "1d20";
       const roll    = new Roll(formula, this.actor?.getRollData() ?? {});
@@ -188,7 +174,6 @@ export class SDItem extends Item {
       rolls.push({ label: game.i18n.localize("SD.AbilityRoll"), roll });
     }
 
-    // Damage roll
     if (system.damage?.enabled || (this.type === "inventory" && system.attack?.enabled)) {
       const formula = this.type === "inventory" ? system.damageFormula : system.damage?.formula;
       if (formula) {
@@ -217,10 +202,6 @@ export class SDItem extends Item {
     return ChatMessage.create(chatData);
   }
 
-  /**
-   * Apply autoApply effectTemplates to the correct target actor.
-   * @param {object[]} templates
-   */
   async _applyEffectTemplates(templates) {
     for (const tpl of templates) {
       if (!tpl.autoApply) continue;
@@ -272,13 +253,11 @@ export class SDItem extends Item {
     data.item = { ...this.system };
     return data;
   }
-  // Transfer Effects
-  /** Returns the effects on this item that should transfer to the owning actor. */
+
   get transferrableEffects() {
     return [...(this.effects ?? [])].filter(ef => ef.transfer !== false && !ef.disabled);
   }
 
-  /** @override — fires when this item is created as embedded in an actor. */
   async _onCreate(data, options, userId) {
     await super._onCreate(data, options, userId);
     if (game.user.id !== userId) return;
@@ -287,7 +266,6 @@ export class SDItem extends Item {
     await this._applyTransferredEffects(actor);
   }
 
-  /** @override — fires when this item is deleted from an actor. */
   async _onDelete(options, userId) {
     await super._onDelete(options, userId);
     if (game.user.id !== userId) return;

@@ -1,26 +1,3 @@
-/*
- * System Director — Color Schemes
- * -------------------------------
- * Each scheme below is applied by setting the `data-sd-theme` attribute on
- *   <html>      (global scope — everything the system renders),
- *   <body>      (fallback — Foundry sometimes swaps document roots), and
- *   ApplicationV2 roots (popouts, dialogs, sheets — so theme variables
- *                       cascade into them even when they render outside
- *                       the main body element).
- *
- * CSS variables set here override the defaults in styles/system.css. The
- * `default` theme intentionally sets the same palette the system has
- * always shipped with, so switching back is lossless.
- *
- * Adding a new theme:
- *   1. Duplicate one of the selector blocks below and rename it.
- *   2. Register it in module/helpers/color-schemes.mjs (THEME_IDS + metadata).
- *   3. The setting picker in System Config reads from that registry.
- */
-
-/* -------------------------------------------------------------------- */
-/* default — Indigo Night (legacy palette)                              */
-/* -------------------------------------------------------------------- */
 :root[data-sd-theme="default"],
 [data-sd-theme="default"] {
   --sd-bg:            #1a1a24;
@@ -53,9 +30,6 @@
   --sd-shadow:        0 4px 20px rgba(0,0,0,.55);
 }
 
-/* -------------------------------------------------------------------- */
-/* midnight — Deep ocean blue with cyan accents                         */
-/* -------------------------------------------------------------------- */
 :root[data-sd-theme="midnight"],
 [data-sd-theme="midnight"] {
   --sd-bg:            #0a0f1c;
@@ -88,9 +62,6 @@
   --sd-shadow:        0 4px 22px rgba(0,0,0,.65);
 }
 
-/* -------------------------------------------------------------------- */
-/* forest — Green woodland / Dark ranger                                */
-/* -------------------------------------------------------------------- */
 :root[data-sd-theme="forest"],
 [data-sd-theme="forest"] {
   --sd-bg:            #141c17;
@@ -123,9 +94,6 @@
   --sd-shadow:        0 4px 20px rgba(0,0,0,.55);
 }
 
-/* -------------------------------------------------------------------- */
-/* crimson — Dark gothic red                                            */
-/* -------------------------------------------------------------------- */
 :root[data-sd-theme="crimson"],
 [data-sd-theme="crimson"] {
   --sd-bg:            #1a0d10;
@@ -158,9 +126,6 @@
   --sd-shadow:        0 4px 22px rgba(40,0,0,.65);
 }
 
-/* -------------------------------------------------------------------- */
-/* arcane — Deep purple / magenta mystical                              */
-/* -------------------------------------------------------------------- */
 :root[data-sd-theme="arcane"],
 [data-sd-theme="arcane"] {
   --sd-bg:            #160d1f;
@@ -193,9 +158,6 @@
   --sd-shadow:        0 4px 24px rgba(20,0,40,.65);
 }
 
-/* -------------------------------------------------------------------- */
-/* sepia — Warm parchment (light theme)                                 */
-/* -------------------------------------------------------------------- */
 :root[data-sd-theme="sepia"],
 [data-sd-theme="sepia"] {
   --sd-bg:            #f3ead8;
@@ -228,9 +190,6 @@
   --sd-shadow:        0 2px 12px rgba(80,50,20,.20);
 }
 
-/* -------------------------------------------------------------------- */
-/* solar — Solarized-inspired balanced palette (dark)                   */
-/* -------------------------------------------------------------------- */
 :root[data-sd-theme="solar"],
 [data-sd-theme="solar"] {
   --sd-bg:            #002b36;
@@ -263,9 +222,6 @@
   --sd-shadow:        0 4px 18px rgba(0,20,25,.65);
 }
 
-/* -------------------------------------------------------------------- */
-/* highContrast — Accessibility: black + yellow                         */
-/* -------------------------------------------------------------------- */
 :root[data-sd-theme="highContrast"],
 [data-sd-theme="highContrast"] {
   --sd-bg:            #000000;
@@ -298,9 +254,6 @@
   --sd-shadow:        0 0 0 1px #ffd400, 0 4px 18px rgba(0,0,0,.9);
 }
 
-/* -------------------------------------------------------------------- */
-/* nord — Frosty nordic blue-grey                                       */
-/* -------------------------------------------------------------------- */
 :root[data-sd-theme="nord"],
 [data-sd-theme="nord"] {
   --sd-bg:            #2e3440;
@@ -333,11 +286,6 @@
   --sd-shadow:        0 4px 20px rgba(0,0,0,.5);
 }
 
-/*
- * Make sure sepia (the only light theme) also flips a handful of hard-coded
- * colours inside the system CSS that don't yet use variables. These are small
- * fixes kept local so the dark themes aren't affected.
- */
 :root[data-sd-theme="sepia"] .sd .window-content,
 [data-sd-theme="sepia"] .sd .window-content {
   color-scheme: light;
@@ -353,10 +301,6 @@
   border-color: var(--sd-border);
 }
 
-/*
- * Theme transition — when the user switches themes from System Config, fade
- * smoothly instead of flashing.
- */
 .sd .window-content,
 .sd .window-content * {
   transition:

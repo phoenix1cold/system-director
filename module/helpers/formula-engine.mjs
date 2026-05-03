@@ -1,13 +1,5 @@
 export class FormulaEngine {
 
-  // Публичный API
-
-  /**
-   * Resolve all {refs} and evaluate math.
-   * @param {string}      formula
-   * @param {Actor|Item}  doc
-   * @returns {number|string}  computed result
-   */
   static evaluate(formula, doc) {
     if (!formula) return "";
     try {
@@ -18,18 +10,6 @@ export class FormulaEngine {
     }
   }
 
-  /**
-   * Resolve {refs} to numbers -- return a dice-notation string for Roll.
-   * Dice tokens (1d20, 2d6, etc.) are kept untouched.
-   * Also handles @shorthand from getRollData.
-   *
-   * IMPORTANT: paths must be wrapped in {curly braces}.
-   * e.g. "1d20 + {system.attributes.attr1.mod}" resolves to "1d20 + 3"
-   *
-   * @param {string}      formula
-   * @param {Actor|Item}  doc
-   * @returns {string}  resolved dice formula string
-   */
   static resolveForRoll(formula, doc) {
     if (!formula) return "1d20";
     try {
@@ -52,7 +32,7 @@ export class FormulaEngine {
           console.debug(`SD | Formula: bare path "${match}" resolved to ${val}. Wrap in {curly braces} for clarity.`);
           return String(val);
         }
-        // Try getRollData
+
         const rd = (doc instanceof Actor ? doc : doc.actor)?.getRollData?.() ?? {};
         const rdVal = foundry.utils.getProperty(rd, match);
         if (rdVal !== undefined && rdVal !== null && typeof rdVal !== "object") {
@@ -75,9 +55,6 @@ export class FormulaEngine {
     return /[{}+\-*\/]|floor|ceil|round|max|min|abs|item:|slot/.test(str ?? "");
   }
 
-  // Внутреннее
-
-  /** Find a widget anywhere in doc.system.customTabs by its widgetKey. */
   static _findWidgetByKey(doc, key) {
     const tabs = doc?.system?.customTabs ?? [];
     for (const tab of tabs) {
@@ -200,7 +177,6 @@ export class FormulaEngine {
     }
   }
 
-  /** SD | Cards: decode a base64 token payload into a JS object. */
   static _sdDecodeCardPayload(b64) {
     if (!b64) return null;
     try {
@@ -231,7 +207,6 @@ export class FormulaEngine {
       return w?.path ?? w?.pathValue ?? "";
     }
 
-    // item:Name.path
     if (token.startsWith("item:id:")) {
       const rest    = token.slice("item:id:".length);
       const dotIdx  = rest.indexOf(".");
@@ -259,10 +234,10 @@ export class FormulaEngine {
       const _cnt = (t) => t?.system?.slotContents?.[slotId]?.contents?.length
                        ?? t?.system?.slotContents?.[slotId]?.count
                        ?? null;
-      // Check doc itself first
+
       const directVal = _cnt(doc);
       if (directVal !== null) return directVal;
-      // Check actor
+
       const actor = doc instanceof Actor ? doc : (doc.actor ?? null);
       if (actor) {
         const actorVal = _cnt(actor);
@@ -297,7 +272,6 @@ export class FormulaEngine {
           ?? 0;
     }
 
-    // nestedSlotCount
     if (token.startsWith("nestedSlotCount:")) {
       const parts = token.slice("nestedSlotCount:".length).split("/");
       if (parts.length < 3) return 0;
@@ -313,7 +287,7 @@ export class FormulaEngine {
         if (!current && doc && !(doc instanceof Actor) && doc.id === root) current = doc;
       }
       if (!current) return 0;
-      // Walk pairs
+
       let i = 1;
       while (i + 1 < parts.length) {
         const slotId   = parts[i];
@@ -329,7 +303,6 @@ export class FormulaEngine {
           ?? 0;
     }
 
-    // slot:slotId.index.path
     if (token.startsWith("slot:")) {
       const rest    = token.slice("slot:".length);
       const parts   = rest.split(".");
@@ -616,10 +589,6 @@ export class FormulaEngine {
       return out.join(",");
     }
 
-    // ── Generic value-array tokens (P1+P2) ───────────────────────────
-    // base64-decoded helpers — operands of these tokens are
-    // base64(utf-8) so commas / pipes inside them do not collide with
-    // the structural separators.
     const _b64dec = (s) => {
       try { return decodeURIComponent(escape(atob(String(s ?? "")))); }
       catch { return String(s ?? ""); }
@@ -628,7 +597,7 @@ export class FormulaEngine {
     if (token.startsWith("arrayMake:")) {
       const rest = token.slice("arrayMake:".length);
       const parts = rest === "" ? [] : rest.split("|").map(_b64dec);
-      // Drop empty / unconnected slots so users can leave gaps.
+
       return parts.filter(s => String(s).trim() !== "").join(",");
     }
 
@@ -706,7 +675,7 @@ export class FormulaEngine {
       const list  = (parts[0] ?? "").split(",").map(s => s.trim()).filter(Boolean);
       const cnt   = Math.max(0, Math.floor(Number(parts[1]) || 0));
       if (!list.length || cnt <= 0) return "";
-      // Shuffle then take cnt — Fisher-Yates partial.
+
       const arr = list.slice();
       for (let i = arr.length - 1; i > arr.length - 1 - cnt && i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -817,7 +786,6 @@ export class FormulaEngine {
       return 0;
     }
 
-    // @shorthand
     if (token.startsWith("@")) {
       const key    = token.slice(1);
       const rd     = (doc instanceof Actor ? doc : doc.actor)?.getRollData?.() ?? {};
@@ -846,6 +814,23 @@ export class FormulaEngine {
       .replace(/max\s*\(/g,   "Math.max(")
       .replace(/min\s*\(/g,   "Math.min(");
 
+    {
+      let depth = 0, inStr = null, hasTopComma = false;
+      for (let i = 0; i < e.length; i++) {
+        const ch = e[i];
+        if (inStr) {
+          if (ch === "\\") { i++; continue; }
+          if (ch === inStr) inStr = null;
+          continue;
+        }
+        if (ch === '"' || ch === "'") { inStr = ch; continue; }
+        if (ch === "(") depth++;
+        else if (ch === ")") depth = Math.max(0, depth - 1);
+        else if (ch === "," && depth === 0) { hasTopComma = true; break; }
+      }
+      if (hasTopComma) return e;
+    }
+
     const isNumericMath = !/[^0-9+\-*/()., %MathflorceiabsundxN\s?:<>!=&|]/.test(e);
     const hasStrings = e.includes('"') || e.includes("'");
 
@@ -854,7 +839,7 @@ export class FormulaEngine {
     }
 
     try {
-      // eslint-disable-next-line no-new-func
+
       const result = Function(`"use strict"; return (${e})`)();
       if (typeof result === "number" && isFinite(result)) return result;
       if (typeof result === "boolean") return result;
@@ -866,9 +851,8 @@ export class FormulaEngine {
   }
 }
 
-
 export const BLUEPRINT_NODES = [
-  // Источники
+
   { cat: "Sources", id: "get_path",    label: "Get Path",       icon: "fa-database",       color: "#5a8ae0",
     syntax: "{system.path.here}",      hint: "Read any field from the sheet",
     desc: "Reads a value from the actor or item at the given path." },
@@ -897,7 +881,6 @@ export const BLUEPRINT_NODES = [
     syntax: "{@attr1}",                hint: "Actor roll data shorthand (@attr1, @level…)",
     desc: "Uses Foundry roll data shorthands: @attr1=attr1.mod, @level, @prof." },
 
-  // Кубы
   { cat: "Dice", id: "d4",   label: "d4",   icon: "fa-dice-d6",  color: "#e0a85a", syntax: "1d4",   hint: "Roll a d4" },
   { cat: "Dice", id: "d6",   label: "d6",   icon: "fa-dice-d6",  color: "#e0a85a", syntax: "1d6",   hint: "Roll a d6" },
   { cat: "Dice", id: "d8",   label: "d8",   icon: "fa-dice",     color: "#e0a85a", syntax: "1d8",   hint: "Roll a d8" },
@@ -906,7 +889,6 @@ export const BLUEPRINT_NODES = [
   { cat: "Dice", id: "d20",  label: "d20",  icon: "fa-dice-d20", color: "#e0a85a", syntax: "1d20",  hint: "Roll a d20" },
   { cat: "Dice", id: "d100", label: "d100", icon: "fa-dice",     color: "#e0a85a", syntax: "1d100", hint: "Roll percentile" },
 
-  // Математика
   { cat: "Math", id: "add",   label: "Add",      icon: "fa-plus",        color: "#5ae07a", syntax: " + ",             hint: "Addition" },
   { cat: "Math", id: "sub",   label: "Subtract", icon: "fa-minus",       color: "#5ae07a", syntax: " - ",             hint: "Subtraction" },
   { cat: "Math", id: "mul",   label: "Multiply", icon: "fa-xmark",       color: "#5ae07a", syntax: " * ",             hint: "Multiplication" },
@@ -918,7 +900,6 @@ export const BLUEPRINT_NODES = [
   { cat: "Math", id: "min",   label: "Min",      icon: "fa-angle-down",  color: "#5ae07a", syntax: "min({|cursor|}, 0)", hint: "Minimum of two values" },
   { cat: "Math", id: "abs",   label: "Abs",      icon: "fa-circle",      color: "#5ae07a", syntax: "abs({|cursor|})",    hint: "Absolute value" },
 
-  // Сравнения
   { cat: "Compare", id: "eq",  label: "Equals",     icon: "fa-equals",    color: "#ee68ee", syntax: " == ", hint: "Equal to" },
   { cat: "Compare", id: "neq", label: "Not Equal",  icon: "fa-not-equal", color: "#ee68ee", syntax: " != ", hint: "Not equal to" },
   { cat: "Compare", id: "gt",  label: "Greater >",  icon: "fa-chevron-right", color: "#ee68ee", syntax: " > ", hint: "Greater than" },
@@ -926,7 +907,6 @@ export const BLUEPRINT_NODES = [
   { cat: "Compare", id: "gte", label: "Greater >=", icon: "fa-chevron-right", color: "#ee68ee", syntax: " >= ", hint: "Greater or equal" },
   { cat: "Compare", id: "lte", label: "Less <=",    icon: "fa-chevron-left",  color: "#ee68ee", syntax: " <= ", hint: "Less or equal" },
 
-  // Логика
   { cat: "Logic", id: "if_else", label: "If/Else", icon: "fa-code-branch",  color: "#e05a5a",
     syntax: "({condition} ? {true_val} : {false_val})",   hint: "Ternary — if condition then value_a else value_b",
     desc: "Returns true_val if condition is truthy, otherwise false_val." },

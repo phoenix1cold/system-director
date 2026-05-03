@@ -15,7 +15,7 @@ const HOOK_MAP = {
 class EventBus {
   constructor() {
     this._reg = new Map();
-    // hookName → foundry hook id
+
     this._hookIds = new Map();
   }
 
@@ -29,8 +29,6 @@ class EventBus {
     Hooks.on("updateItem",  (item)  => { if (item.actor) this._registerActor(item.actor); });
     Hooks.on("deleteItem",  (item)  => { if (item.actor) this._registerActor(item.actor); });
   }
-
-  /* ────────────────────────────────────────────────────────────────────── */
 
   _unregisterByActor(actorId) {
     for (const [hook, map] of this._reg.entries()) {
@@ -106,8 +104,6 @@ class EventBus {
     this._hookIds.set(hookName, id);
   }
 
-  /* ────────────────────────────────────────────────────────────────────── */
-
   async _dispatch(hookName, args) {
     const map = this._reg.get(hookName);
     if (!map) return;
@@ -153,7 +149,7 @@ class EventBus {
       }
       case "sdItemEquipped":
       case "sdItemUnequipped": {
-        // args: [item, actor]
+
         const [item, actor] = args;
         const hostId = actor?.id ?? item?.parent?.id;
         if (hostId !== entry.actorId) return false;
@@ -303,7 +299,7 @@ function _oldValueFromDiff(diff, path, doc) {
   try {
     const prev = foundry.utils.getProperty(doc._source ?? {}, path);
     if (prev !== undefined) return prev;
-  } catch { /* noop */ }
+  } catch {  }
   return null;
 }
 

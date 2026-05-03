@@ -3,8 +3,6 @@ const {
   ArrayField, ObjectField, SchemaField
 } = foundry.data.fields;
 
-// Schema fields
-
 export function SlotDefinitionField() {
   return new SchemaField({
     id:                new StringField({ required: true, blank: false, initial: "slot1" }),
@@ -32,8 +30,6 @@ export function SlotContentField() {
   });
 }
 
-// SlotManager
-
 export class SlotManager {
 
   static async addToSlot(parentItem, slotId, droppedItem) {
@@ -44,7 +40,6 @@ export class SlotManager {
 
     const contents = this.getContents(parentItem, sid);
 
-    // Capacity
     if (contents.length >= def.maxCount) {
       ui.notifications.warn(`Slot "${def.label}" is full (max ${def.maxCount}).`);
       return null;
@@ -55,13 +50,11 @@ export class SlotManager {
       itemData._sourceUuid = droppedItem.uuid;
     }
 
-    // Type restriction
     if (def.allowedTypes.length && !def.allowedTypes.includes(itemData.type)) {
       ui.notifications.warn(`Slot "${def.label}" only accepts types: ${def.allowedTypes.join(", ")}`);
       return null;
     }
 
-    // Category restriction
     if (def.allowedCategories.length && !def.allowedCategories.includes(itemData.system?.category)) {
       ui.notifications.warn(`Slot "${def.label}" only accepts categories: ${def.allowedCategories.join(", ")}`);
       return null;

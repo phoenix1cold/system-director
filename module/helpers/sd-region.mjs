@@ -7,7 +7,6 @@ function _sdMsgMode() {
   return "publicroll";
 }
 
-/** Build an emanation shape anchored to a token (used by Auras). */
 export function buildEmanationShape(tokenDoc, radiusFt) {
   const dist = canvas.dimensions?.distancePixels ?? canvas.grid?.size ?? 100;
   const T = globalThis.CONST?.TOKEN_SHAPES ?? {};
@@ -26,7 +25,6 @@ export function buildEmanationShape(tokenDoc, radiusFt) {
   };
 }
 
-/** Build a free-placed shape for an AoE region. `kind` is the node's dropdown value. */
 export function buildShape(kind, sizeFt, angleDeg = 53.13) {
   const dist = canvas.dimensions?.distancePixels ?? 100;
   const s = Number(sizeFt) * dist;
@@ -62,7 +60,6 @@ export function buildShape(kind, sizeFt, angleDeg = 53.13) {
   }
 }
 
-/** Build the base Region creation payload (sans any custom behaviors). */
 function _regionData({ name, shape, flags = {}, hidden = false }) {
   const V = CONST?.REGION_VISIBILITY ?? {};
   const visibility = hidden
@@ -150,7 +147,6 @@ export async function placeAuraRegion({ ownerToken, shape, flags = {}, name }) {
   return doc;
 }
 
-/** Collect tokens currently inside a placed Region. */
 export function getRegionTokens(regionDoc) {
   if (!regionDoc) return [];
   const out = [];
@@ -172,7 +168,6 @@ export function getRegionTokens(regionDoc) {
   return out;
 }
 
-/** Axis-aligned point-in-polygon test (ray casting). */
 function _pointInPolygon(pt, flat) {
   if (!flat || flat.length < 6) return false;
   let inside = false;
@@ -187,7 +182,6 @@ function _pointInPolygon(pt, flat) {
   return inside;
 }
 
-/** Pure-JS test against a region shape (works before the PIXI object exists). */
 function _pointInShape(shape, pt) {
   if (!shape || !pt) return false;
   switch (shape.type) {
@@ -217,7 +211,6 @@ function _pointInShape(shape, pt) {
   }
 }
 
-/** Test a token against a region (geometric fallback when region.tokens is empty). */
 function _tokenInside(regionDoc, tokenDoc) {
   if (!regionDoc || !tokenDoc) return false;
   try {
@@ -248,7 +241,6 @@ function _tokenInside(regionDoc, tokenDoc) {
   return false;
 }
 
-/** True if the region's owner currently carries the disabling condition. */
 function _regionSuppressed(regionDoc) {
   const cfg = regionDoc?.flags?.sd?.applyEffect;
   const cond = cfg?.conditionEffect?.trim();
@@ -262,7 +254,6 @@ function _regionSuppressed(regionDoc) {
   return ownerActor.effects.some(e => e.name === cond && !e.disabled);
 }
 
-/** Format chat-card visibility onto a ChatMessage.create payload. */
 function _chatVisibility(cfg, speaker) {
   const out = { speaker };
   if ((cfg?.visibility ?? "everyone") === "gm") {
@@ -271,7 +262,6 @@ function _chatVisibility(cfg, speaker) {
   return out;
 }
 
-/** Ensure the region's ActiveEffect exists on an actor (effect-only mode). */
 async function _applyNamedEffect(regionDoc, tokenDoc) {
   const cfg = regionDoc?.flags?.sd?.applyEffect;
   if (!cfg?.effectName) return;
@@ -294,7 +284,6 @@ async function _applyNamedEffect(regionDoc, tokenDoc) {
   }
 }
 
-/** Remove the region's ActiveEffect from an actor (if it was applied by us). */
 async function _removeNamedEffect(regionDoc, tokenDoc) {
   const cfg = regionDoc?.flags?.sd?.applyEffect;
   if (!cfg?.effectName) return;
@@ -307,8 +296,7 @@ async function _removeNamedEffect(regionDoc, tokenDoc) {
   try { await actor.deleteEmbeddedDocuments("ActiveEffect", ids); } catch {}
 }
 
-/** Apply damage or heal to an actor — respects hpMode (add/set). */
-async function _applyHpChange(actor, amount, cfg, kind /* "damage" | "heal" */) {
+async function _applyHpChange(actor, amount, cfg, kind ) {
   const path = cfg.hpPath || "system.resources.hp.value";
   const maxPath = path.replace(/\.value$/, ".max");
   const cur = Number(foundry.utils.getProperty(actor, path)    ?? 0);
@@ -523,18 +511,12 @@ function _regionSourceActor(regionDoc, fallbackActor = null) {
   return fallbackActor;
 }
 
-/** Run a save-branch's postActions with per-token saved/failed/all runtime. */
-async function _runSaveBranchPostActions(regionDoc, tokenDoc, passed) {
+async function _runRegionPostActions(regionDoc, tokenDoc, rt, label = "post-actions") {
   const cfg = regionDoc?.flags?.sd?.applyEffect;
   if (!cfg) return;
   const subs = Array.isArray(cfg.postActions) ? cfg.postActions : [];
   if (!subs.length) return;
-  const ids = [tokenDoc?.id].filter(Boolean);
-  const rt = {
-    savedTargets:  passed ? ids : [],
-    failedTargets: passed ? []  : ids,
-    allTargets:    ids
-  };
+
   const srcActor = _regionSourceActor(regionDoc, tokenDoc?.actor ?? null);
   let srcItem = null;
   if (cfg.srcItemUuid) { try { srcItem = await fromUuid(cfg.srcItemUuid); } catch {} }
@@ -548,11 +530,27 @@ async function _runSaveBranchPostActions(regionDoc, tokenDoc, passed) {
     const { ButtonExecutor } = await import("./button-executor.mjs");
     for (const sub of subs) {
       try { await ButtonExecutor._runAction(sub, srcItem, srcActor, synthBtn, rt); }
-      catch (err) { console.warn("SD | aura save-branch post-action error:", err); }
+      catch (err) { console.warn(`SD | aura ${label} error:`, err); }
     }
   } catch (e) {
-    console.warn("SD | aura save-branch postActions import failed:", e);
+    console.warn(`SD | aura ${label} import failed:`, e);
   }
+}
+
+async function _runSaveBranchPostActions(regionDoc, tokenDoc, passed) {
+  const ids = [tokenDoc?.id].filter(Boolean);
+  return _runRegionPostActions(regionDoc, tokenDoc, {
+    savedTargets:  passed ? ids : [],
+    failedTargets: passed ? []  : ids,
+    allTargets:    ids
+  }, "save-branch post-action");
+}
+
+async function _runTargetsPostActions(regionDoc, tokenDoc) {
+  const ids = [tokenDoc?.id].filter(Boolean);
+  return _runRegionPostActions(regionDoc, tokenDoc, {
+    allTargets: ids
+  }, "targets post-action");
 }
 
 async function _postSaveCard(actor, cfg, result) {
@@ -650,9 +648,15 @@ async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
       didApply = true;
       break;
     }
+
+    case "targets": {
+      if (when === "eachTurn") return false;
+      await _runTargetsPostActions(regionDoc, tokenDoc);
+      didApply = true;
+      break;
+    }
   }
 
-  // Fire-and-forget AoEs
   if (
     !opts.suppressAutoDelete &&
     didApply &&
@@ -667,7 +671,6 @@ async function _enterRegion(regionDoc, tokenDoc, opts = {}) {
   return didApply;
 }
 
-/** Dispatch "exit" for a region/token pair. */
 async function _exitRegion(regionDoc, tokenDoc) {
   const cfg = regionDoc?.flags?.sd?.applyEffect;
   if (!cfg) return;
@@ -677,7 +680,6 @@ async function _exitRegion(regionDoc, tokenDoc) {
   }
 }
 
-/** Tick a single token against a region. Shared by combat-turn tick. */
 async function _tickTokenInRegion(regionDoc, tokenDoc) {
   const cfg = regionDoc?.flags?.sd?.applyEffect;
   if (!cfg) return;
@@ -713,10 +715,11 @@ async function _tickTokenInRegion(regionDoc, tokenDoc) {
     const result = await _rollSave(actor, cfg);
     await _postSaveCard(actor, cfg, result);
     await _runSaveBranchPostActions(regionDoc, tokenDoc, !!result.passed);
+  } else if (mode === "targets") {
+    await _runTargetsPostActions(regionDoc, tokenDoc);
   }
 }
 
-/** Decrement region lifetime (rounds) and delete when it expires. */
 async function _ageRegionsForCombatant(combat) {
   const scene = combat.scene ?? canvas.scene;
   if (!scene) return;
@@ -739,7 +742,6 @@ async function _ageRegionsForCombatant(combat) {
   }
 }
 
-/** Recompute membership for a token's regions; fire enter/exit transitions. */
 async function _resyncTokenRegions(tokenDoc) {
   if (!game.user?.isGM) return;
   const scene = tokenDoc?.parent;
@@ -761,7 +763,6 @@ async function _resyncTokenRegions(tokenDoc) {
   }
 }
 
-/** Recompute membership for every token vs this region (after create/update). */
 async function _resyncRegionTokens(regionDoc) {
   if (!game.user?.isGM) return;
   const cfg = regionDoc?.flags?.sd?.applyEffect;
@@ -807,7 +808,6 @@ async function _resyncRegionTokens(regionDoc) {
   }
 }
 
-/** In-memory membership cache so we fire enter/exit exactly once per boundary. */
 const _membershipCache = new Set();
 
 let _hooksInstalled = false;
@@ -895,7 +895,7 @@ function _installHooks() {
     }
   });
 
-  Hooks.on("updateCombat", async (combat, changes /* userId arg in some builds */) => {
+  Hooks.on("updateCombat", async (combat, changes ) => {
     if (!game.user?.isGM) return;
     const turnChanged  = ("turn"  in changes);
     const roundChanged = ("round" in changes);
@@ -917,7 +917,7 @@ function _installHooks() {
 let _registered = false;
 
 export const SDRegion = {
-  /** Kept as a public constant for legacy callers (button-executor etc.). */
+
   TYPE: "sd.applyEffect",
 
   register() {

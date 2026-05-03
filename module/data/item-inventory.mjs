@@ -59,14 +59,14 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
         per:         new StringField({ initial: "day", blank: true }),
         autoDestroy: new BooleanField({ initial: false })
       }),
-      // SLOTS
+
       slotDefinitions: new ArrayField(SlotDefinitionField()),
       slotContents:    new ObjectField({ initial: {} }),
-      // CUSTOM BUTTONS
+
       buttons: new ArrayField(ButtonDefinitionField()),
-      // HIDDEN FIELDS
+
       hiddenFields: new ObjectField({ initial: {} }),
-      // On-Click Graph
+
       onClickGraph:   new ObjectField({ initial: {} }),
       onClickFormula: new StringField({ initial: "", blank: true }),
       properties:  new ArrayField(new StringField({ blank: false })),

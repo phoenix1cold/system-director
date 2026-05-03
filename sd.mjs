@@ -1,5 +1,3 @@
-// Imports
-
 function _sanitizeRollData(data) {
   return Object.fromEntries(
     Object.entries(data ?? {}).map(([k, v]) =>
@@ -38,14 +36,11 @@ import { installColorSchemeObserver } from "./module/helpers/color-schemes.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 import { SDActionHUD, SDActionHUDConfig, registerActionHudSettings, mountActionHudHooks } from "./module/helpers/action-hud.mjs";
 
-// CONFIG Namespace
-
 globalThis.SD = {};
 
 function registerConfig() {
   CONFIG.SD = {
 
-    // Dice
     diceTypes: ["d4", "d6", "d8", "d10", "d12", "d20", "d100"],
 
     attributes: {
@@ -57,7 +52,6 @@ function registerConfig() {
       attr6: "SD.Attributes.attr6"
     },
 
-    // Resources
     resources: {
       hp:      "SD.Resources.HP",
       mp:      "SD.Resources.MP",
@@ -66,12 +60,10 @@ function registerConfig() {
       custom2: "SD.Resources.Custom2"
     },
 
-    // Skills
     skills: Object.fromEntries(
       Array.from({ length: 10 }, (_, i) => [`skill${i+1}`, `SD.Skills.skill${i+1}`])
     ),
 
-    // Item Categories
     itemCategories: {
       weapon:     "SD.ItemCategories.weapon",
       armor:      "SD.ItemCategories.armor",
@@ -84,7 +76,6 @@ function registerConfig() {
       other:      "SD.ItemCategories.other"
     },
 
-    // Rarities
     rarities: {
       common:    "SD.Rarities.common",
       uncommon:  "SD.Rarities.uncommon",
@@ -95,7 +86,6 @@ function registerConfig() {
       unique:    "SD.Rarities.unique"
     },
 
-    // Sizes
     sizes: {
       tiny:        "SD.Sizes.tiny",
       small:       "SD.Sizes.small",
@@ -118,12 +108,9 @@ function registerConfig() {
   };
 }
 
-// Hooks
-
 Hooks.once("init", () => {
   console.log("SD | Initialising system…");
 
-  // Register CONFIG namespace
   registerConfig();
 
   import("./module/helpers/sd-region.mjs").then(({ SDRegion }) => {
@@ -134,7 +121,6 @@ Hooks.once("init", () => {
   CONFIG.Actor.documentClass = SDActor;
   CONFIG.Item.documentClass  = SDItem;
 
-  // Register DataModels
   CONFIG.Actor.dataModels = {
     character: CharacterData,
     npc:       NPCData
@@ -181,7 +167,6 @@ Hooks.once("init", () => {
     label:       "SD.Sheets.Item"
   });
 
-  // System configuration UI button
   game.settings.registerMenu("sd", "systemConfig", {
     name:   "SD.Settings.SystemConfig",
     label:  "SD.Settings.SystemConfigLabel",
@@ -200,11 +185,11 @@ Hooks.once("init", () => {
     onChange: (cfg) => {
       try {
         applySettings(cfg ?? {});
-        // Re-prepare all actor data so attr.mod values reflect the new formula.
+
         for (const a of game.actors ?? []) {
           try { a.reset(); } catch (e) {}
         }
-        // Re-render any open SD sheets so widgets pick up the new modifier.
+
         for (const app of Object.values(ui.windows ?? {})) {
           if (app?.constructor?.name?.startsWith("SDActor") || app?.constructor?.name?.startsWith("SDItem")) {
             try { app.render(false); } catch (e) {}
@@ -216,7 +201,6 @@ Hooks.once("init", () => {
     }
   });
 
-  // Builder: sheet templates store
   game.settings.register("sd", "sheetTemplates", {
     name:    "Sheet Templates",
     scope:   "world",
@@ -241,19 +225,14 @@ Hooks.once("init", () => {
     default: {}
   });
 
-  // Register Action HUD settings + menu (must happen during init)
   registerActionHudSettings();
 
-  // Register system settings
   registerSettings();
 
-  // Register Handlebars helpers
   registerHandlebarsHelpers();
 
   SystemConfig.applyStoredSettings();
 
-  // Install MutationObserver so popouts/dialogs rendered after init still
-  // pick up the active color scheme (they mount outside the main body tree).
   installColorSchemeObserver();
 
   CONFIG.SD.Toolbox = Toolbox;
@@ -261,13 +240,6 @@ Hooks.once("init", () => {
   console.log("SD | Initialisation complete.");
 });
 
-// Default new player-character actors to a linked prototype token so a single
-// world Actor is shared across all of its scene tokens. NPCs intentionally
-// remain unlinked so duplicates can diverge between encounters.
-//
-// At creation time we also stamp in the user-configured base attribute /
-// resource values from the System Config window. This is a *base value* —
-// existing actors are never mutated; only freshly-created actors are seeded.
 Hooks.on("preCreateActor", (actor, data, _options, _userId) => {
   if (data?.type === "character") {
     const ptLink = foundry.utils.getProperty(data, "prototypeToken.actorLink");
@@ -280,11 +252,7 @@ Hooks.on("preCreateActor", (actor, data, _options, _userId) => {
     try {
       const updates = buildActorBaseDefaults(data?.type);
       if (!updates) return;
-      // Only seed paths that aren't already explicitly carried by the input
-      // data (e.g. duplicates / compendium imports). Schema defaults aren't
-      // considered "explicit", but anything the user actually typed in the
-      // creation dialog or any cloned source value will be present here and
-      // is preserved as-is.
+
       const filtered = {};
       for (const [path, value] of Object.entries(updates)) {
         const existing = foundry.utils.getProperty(data, path);
@@ -313,9 +281,8 @@ Hooks.once("ready", async () => {
   EVENT_BUS.init();
   globalThis._SD_EVENT_BUS = EVENT_BUS;
 
-  // SD Socket listener
   game.socket.on("system.sd", async (data) => {
-    // Player receives a save request
+
     if (data.type === "saveRequest" && data.targetUser === game.user.id) {
       const actor = game.actors.get(data.actorId);
       if (!actor) return;
@@ -360,9 +327,6 @@ Hooks.on("getSceneControlButtons", (controls) => {
   if (tools) tools["sd-toolbox"] = toolDef;
 });
 
-
-// Settings
-
 function registerSettings() {
   game.settings.register("sd", "schemaVersion", {
     name:    "Schema Version",
@@ -372,7 +336,6 @@ function registerSettings() {
     default: "0.0.0"
   });
 
-  // Initiative formula
   game.settings.register("sd", "initiativeFormula", {
     name:    "SD.Settings.InitiativeFormula",
     hint:    "SD.Settings.InitiativeFormulaHint",
@@ -392,21 +355,17 @@ function registerSettings() {
   });
 }
 
-// Handlebars Helpers
-
 function registerHandlebarsHelpers() {
   Handlebars.registerHelper("signedNumber", n => {
     const num = Number(n);
     return num >= 0 ? `+${num}` : `${num}`;
   });
 
-  // Percentage helper
   Handlebars.registerHelper("percent", (value, max) => {
     if (!max || max <= 0) return 0;
     return Math.round((value / max) * 100);
   });
 
-  // Localise CONFIG key
   Handlebars.registerHelper("localeConfig", key => {
     const path = foundry.utils.getProperty(CONFIG.SD, key);
     return path ? game.i18n.localize(path) : key;
@@ -435,7 +394,6 @@ function registerHandlebarsHelpers() {
     return result;
   });
 
-  // Capitalise first letter
   Handlebars.registerHelper("capitalize", s => {
     if (typeof s !== "string") return s;
     return s.charAt(0).toUpperCase() + s.slice(1);
@@ -448,7 +406,6 @@ function registerHandlebarsHelpers() {
     return `fas fa-dice-${map[die] ?? "dice"}`;
   });
 
-  // Rarity CSS class
   Handlebars.registerHelper("rarityClass", rarity => `rarity-${rarity}`);
 
   Handlebars.registerHelper("hiddenFieldPairs", (obj) => {
@@ -456,7 +413,6 @@ function registerHandlebarsHelpers() {
     return Object.entries(obj).map(([key, value]) => ({ key, value }));
   });
 
-  // concat helper for localize
   Handlebars.registerHelper("concat", (...args) => args.slice(0, -1).join(""));
 }
 
@@ -467,7 +423,7 @@ Hooks.once("ready", () => {
       game.system.initiative = formula;
       CONFIG.Combat.initiative.formula = formula;
     }
-  } catch(e) { /* setting may not be available yet */ }
+  } catch(e) {  }
 
   try { mountActionHudHooks(); } catch(e) { console.warn("SD | mountActionHudHooks failed:", e); }
 });
@@ -481,8 +437,6 @@ Hooks.on("updateSetting", (setting) => {
   }
 });
 
-// When a Cards stack is mutated (shuffle, draw, flip, deal, recall) — re-render
-// any actor sheets that show that stack via cardHand / cardDrawButton widgets.
 function _sdRerenderForCardsStack(cardsDoc) {
   try {
     const stackUuid = cardsDoc?.uuid;
@@ -528,7 +482,7 @@ function _sdRerenderForCardsStack(cardsDoc) {
       seen.add(app);
       const doc = app.document ?? app.object ?? null;
       if (!usesStack(doc)) continue;
-      try { app.render(false); } catch (e) { /* ignore individual render failures */ }
+      try { app.render(false); } catch (e) {  }
     }
   } catch(e) { console.warn("SD | _sdRerenderForCardsStack:", e); }
 }
@@ -537,7 +491,6 @@ Hooks.on("createCard", (card) => _sdRerenderForCardsStack(card?.parent));
 Hooks.on("updateCard", (card) => _sdRerenderForCardsStack(card?.parent));
 Hooks.on("deleteCard", (card) => _sdRerenderForCardsStack(card?.parent));
 
-// Chat card interactions
 Hooks.on("renderChatMessageHTML", (message, html) => {
 
   function _liveTarget() {
@@ -568,7 +521,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     _markApplied(card, `${label} → ${actor.name}: ${cur} → ${newVal}`);
   }
 
-  // 1. Apply to stored actor-id
   html.querySelectorAll(".sd-apply-hp-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const card   = btn.closest(".sd-chat-card");
@@ -683,7 +635,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     });
   });
 
-  // 2b. Cancel preview
   html.querySelectorAll(".sd-selected-cancel-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const card        = btn.closest(".sd-chat-card");
@@ -710,8 +661,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
       const totalEl = card?.querySelector(".sd-card-total");
       if (totalEl) totalEl.textContent = scaledAmt;
 
-      // Keep the green "Apply N" button in sync with the chosen multiplier so
-      // a follow-up click applies the scaled amount (and matches the label).
       card?.querySelectorAll(".sd-apply-hp-btn").forEach(b => {
         b.dataset.delta  = String(delta);
         b.dataset.amount = String(scaledAmt);
@@ -731,12 +680,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         previewArea.querySelector(".sd-selected-actors-list")?.replaceChildren();
       }
 
-      // Resolution order for the multiplier auto-apply:
-      //   1. live targeted / selected token (matches "→ Selected" semantics)
-      //   2. the actor stored on the card (set when the damage node ran with
-      //      target=selected_token / token_target / a uuid)
-      // This makes the ½/¼/⅛/×2/×4 buttons usable even when the original
-      // selection has since been cleared.
       let actor = _liveTarget();
       if (!actor) {
         const storedId = card?.dataset.targetId
@@ -758,7 +701,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     });
   });
 
-  // 4. Re-roll button
   html.querySelectorAll(".sd-reroll-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const card       = btn.closest(".sd-chat-card");
@@ -823,7 +765,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     });
   });
 
-// 6b
 html.querySelectorAll(".sd-apply-region-effect").forEach(btn => {
   btn.addEventListener("click", async () => {
     if (btn.disabled) return;
@@ -845,7 +786,6 @@ html.querySelectorAll(".sd-apply-region-effect").forEach(btn => {
   });
 });
 
-// 7b
 html.querySelectorAll(".sd-chat-aoe-place-btn[data-aoe-region-cfg]").forEach(btn => {
   btn.addEventListener("click", async () => {
     if (btn.disabled) return;
@@ -881,7 +821,7 @@ html.querySelectorAll(".sd-chat-aoe-place-btn[data-aoe-region-cfg]").forEach(btn
       persist:           cfg.persist !== false,
       conditionEffect:   cfg.conditionEffect ?? "",
       roundsRemaining:   Number(cfg.rounds ?? 0) || 0,
-      // damage/heal specifics
+
       formula:           cfg.formula      ?? "",
       bonusFormula:      cfg.bonusFormula ?? "",
       damageType:        cfg.damageType   ?? "",
@@ -893,7 +833,7 @@ html.querySelectorAll(".sd-chat-aoe-place-btn[data-aoe-region-cfg]").forEach(btn
       advMode:           cfg.advMode     ?? "none",
       advFormula:        cfg.advFormula  ?? "",
       disFormula:        cfg.disFormula  ?? "",
-      // bookkeeping
+
       skipOwner:         false
     };
 
@@ -914,11 +854,6 @@ html.querySelectorAll(".sd-chat-aoe-place-btn[data-aoe-region-cfg]").forEach(btn
   });
 });
 
-// 7c-2 — AoE Targets (no-save). Shares the Place Template UX with the
-// save-branch card but doesn't roll anything. After placement we collect
-// every token inside the region, snapshot the IDs as `allTargets`, then
-// run the post-actions chain (Damage / Heal / Effects, etc.) with the
-// preserved runtime so {__lastRoll}/{__lastDice} etc. still resolve.
 html.querySelectorAll(".sd-chat-aoe-targets-btn").forEach(btn => {
   btn.addEventListener("click", async () => {
     if (btn.disabled) return;
@@ -991,7 +926,6 @@ html.querySelectorAll(".sd-chat-aoe-targets-btn").forEach(btn => {
   });
 });
 
-// 7c
 html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
   btn.addEventListener("click", async () => {
     if (btn.disabled) return;
@@ -1139,7 +1073,6 @@ html.addEventListener("click", async (e) => {
   const saveMod = Number(foundry.utils.getProperty(saveActor, modifierPath) ?? 0);
   const baseFormula = `${rollFormula} + ${saveMod}`;
 
-  // Roll Dialogue (optional)
   let rollTotal;
   let modeTag = "";
   let finalFormula = baseFormula;
@@ -1191,7 +1124,6 @@ html.addEventListener("click", async (e) => {
   const pass      = rollTotal >= dc;
   const passLabel = pass ? "✅ Success" : "❌ Failure";
 
-  // Reroll flag (if save-button card declared reroll opts)
   const _rrEnabled = (card.dataset.saveRerollEnabled ?? "0") === "1";
   if (_rrEnabled) {
     try {
@@ -1203,7 +1135,7 @@ html.addEventListener("click", async (e) => {
         costPath:   String(card.dataset.saveRerollPath ?? "").trim(),
         costAmount: Number(card.dataset.saveRerollCost ?? 0) || 0
       };
-      // Attach to last posted message (the one we just created above)
+
       const lastMsg = [...game.messages].reverse().find(m => m.author?.id === game.user.id);
       if (lastMsg && _rrFlag.formula) await lastMsg.setFlag("sd", "reroll", _rrFlag);
     } catch (e) { console.warn("SD | save-button: failed to attach reroll flag", e); }
@@ -1348,7 +1280,6 @@ html.querySelectorAll(".sd-save-selected-cancel-btn").forEach(btn => {
   });
 });
 
-// 9b
 html.querySelectorAll(".sd-rollcheck-btn").forEach(btn => {
   btn.addEventListener("click", async () => {
     const card    = btn.closest(".sd-rollcheck-card");
@@ -1414,7 +1345,7 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
     const formula = btn.dataset.sdOpposedFormula ?? "1d20";
     const payload = foundry.utils.deepClone(chatMsg.getFlag("sd", "opposed") ?? {});
     if (!payload.opponents) payload.opponents = [];
-    if (payload.opponents[idx]) return;            // already rolled
+    if (payload.opponents[idx]) return;
 
     const actor = canvas?.tokens?.controlled?.[0]?.actor ?? game.user.character;
     const r = new Roll(formula, actor?.getRollData?.() ?? {});
@@ -1490,7 +1421,6 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
   }
 }
 
-// 10
 {
   const saveResult = message.getFlag?.("sd", "saveResult");
   if (saveResult && typeof saveResult === "object") {
@@ -1506,7 +1436,6 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
         const resultBg  = pass ? "#0a2a0a" : "#2a0a0a";
         const resultBdr = pass ? "#1e6030" : "#7a2020";
 
-        // Disable the roll button
         const btn = actorRow.querySelector(".sd-save-roll-btn");
         if (btn && !btn.disabled) {
           btn.disabled      = true;
@@ -1532,11 +1461,10 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
   }
 }
 
-// === Generic node reroll button (rollValue / attackCheck / rollCheck / tieredRoll / progression / dicePool / throwOn* / save-button result rolls) ===
 try {
   const rrFlag = message.flags?.sd?.reroll ?? null;
   if (rrFlag && rrFlag.enabled && rrFlag.formula) {
-    // Avoid double-injecting (e.g. if Foundry re-renders the message)
+
     const alreadyHas = html.querySelector?.(".sd-node-reroll-btn");
     if (!alreadyHas) {
       const _rrCostLabel = (rrFlag.costPath && rrFlag.costAmount > 0)
@@ -1560,7 +1488,6 @@ try {
           <span>Re-roll${_rrCostLabel}</span>
         </button>`;
 
-      // Append button INSIDE the message body if possible
       const target = html.querySelector?.(".message-content") ?? html;
       target.appendChild(wrap);
 
@@ -1570,7 +1497,6 @@ try {
 
         const srcActor = rrFlag.srcActorId ? game.actors.get(rrFlag.srcActorId) : null;
 
-        // Cost check / consumption
         if (rrFlag.costPath && rrFlag.costAmount > 0) {
           if (!srcActor) {
             ui.notifications.warn("SD | Re-roll: source actor not found.");
@@ -1597,7 +1523,6 @@ try {
           }
         }
 
-        // Re-roll
         btn.disabled = true;
         btn.style.opacity = "0.6";
         btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Re-rolling…`;
@@ -1617,7 +1542,7 @@ try {
             speaker:  ChatMessage.getSpeaker({ actor: srcActor }),
             flavor:   _rrLabel,
             rollMode: _sdMsgMode(),
-            // Re-attach the same reroll flag so the new card can also be rerolled
+
             flags: { sd: { reroll: { ...rrFlag, label: rrFlag.label } } }
           });
         } catch (e) {

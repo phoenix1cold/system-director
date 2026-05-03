@@ -20,15 +20,10 @@ export async function runMigrations() {
     }
   }
 
-  // Store new schema version
   await game.settings.set("sd", "schemaVersion", currentVersion);
   ui.notifications.info(game.i18n.format("SD.MigrationComplete", { version: currentVersion }));
 }
 
-/**
- * Utility: migrate all world Actors.
- * @param {Function} fn  (actorData) => updates object or null
- */
 async function migrateActors(fn) {
   for (const actor of game.actors) {
     const updates = fn(actor.toObject());
@@ -36,7 +31,7 @@ async function migrateActors(fn) {
       await actor.update(updates);
       CONFIG.debug?.sd && console.log(`SD | Migrated actor: ${actor.name}`);
     }
-    // Also migrate tokens in scenes
+
     for (const scene of game.scenes) {
       for (const token of scene.tokens) {
         if (!token.isLinked && token.actor) {
@@ -76,7 +71,6 @@ export const MIGRATIONS = [
     run: async () => {}
   },
 
-  // 0
   {
     version:     "0.2.0",
     description: "Rename legacy attr_score nodes → attr_score_val in stored widget graphs.",
@@ -110,7 +104,6 @@ export const MIGRATIONS = [
     }
   },
 
-  // 0
   {
     version:     "0.3.0",
     description: "Merge sequence + sequence4 into unified Sequence with count field.",
@@ -194,12 +187,6 @@ export const MIGRATIONS = [
     }
   },
 
-  // 0.3.6 — Custom resource keys defined in System Config (e.g. resource4,
-  // stamina on NPCs, …) used to be silently dropped by the SchemaField on
-  // every actor save. The schema is now a TypedObjectField so any key is
-  // accepted. Existing actors are missing those keys, though — backfill
-  // them with the configured initialValue / initialMax / initialMin so
-  // resource bar widgets stop showing 0.
   {
     version:     "0.3.6",
     description: "Backfill custom resource keys from System Config onto existing actors.",
@@ -236,5 +223,4 @@ export const MIGRATIONS = [
     }
   }
 
-  // TEMPLATE for future migrations
 ];

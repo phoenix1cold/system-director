@@ -15,7 +15,6 @@
     {{#each buttons as |btn btnIdx|}}
     <div class="button-editor-card" data-btn-index="{{btnIdx}}">
 
-      {{!-- Header --}}
       <div class="btn-card-header">
         <i class="fas {{btn.icon}}" style="color:{{btn.color}}"></i>
 
@@ -50,7 +49,6 @@
         {{/if}}
       </div>
 
-      {{!-- Tooltip --}}
       <div class="btn-tooltip-row">
         <label>{{localize "SD.Buttons.Tooltip"}}</label>
         <input type="text"
@@ -59,7 +57,6 @@
                {{#unless ../isEditable}}disabled{{/unless}} />
       </div>
 
-      {{!-- Conditions --}}
       <div class="btn-section">
         <div class="btn-section-header">
           <span><i class="fas fa-shield-check"></i> {{localize "SD.Buttons.Conditions"}}</span>
@@ -141,7 +138,6 @@
         {{/if}}
       </div>
 
-      {{!-- Actions --}}
       <div class="btn-section">
         <div class="btn-section-header">
           <span><i class="fas fa-bolt"></i> {{localize "SD.Buttons.Actions"}}</span>
@@ -169,7 +165,6 @@
             <option value="runMacro"    {{#if (eq act.type "runMacro")}}selected{{/if}}>⚙️ Macro</option>
           </select>
 
-          {{!-- roll --}}
           {{#if (eq act.type "roll")}}
           <input type="text" class="action-formula"
                  data-action="updateAction"
@@ -183,7 +178,6 @@
                  {{#unless ../../isEditable}}disabled{{/unless}} />
           {{/if}}
 
-          {{!-- modifyField --}}
           {{#if (eq act.type "modifyField")}}
           <input type="text" class="action-target"
                  data-action="updateAction"
@@ -197,7 +191,6 @@
                  {{#unless ../../isEditable}}disabled{{/unless}} />
           {{/if}}
 
-          {{!-- createItem --}}
           {{#if (eq act.type "createItem")}}
           <input type="text"
                  data-action="updateAction"
@@ -211,7 +204,6 @@
                  {{#unless ../../isEditable}}disabled{{/unless}} />
           {{/if}}
 
-          {{!-- removeItem --}}
           {{#if (eq act.type "removeItem")}}
           <input type="text"
                  data-action="updateAction"
@@ -220,7 +212,6 @@
                  {{#unless ../../isEditable}}disabled{{/unless}} />
           {{/if}}
 
-          {{!-- sound --}}
           {{#if (eq act.type "playSound")}}
           <input type="text"
                  data-action="updateAction"
@@ -229,7 +220,6 @@
                  {{#unless ../../isEditable}}disabled{{/unless}} />
           {{/if}}
 
-          {{!-- message --}}
           {{#if (eq act.type "message")}}
           <input type="text"
                  data-action="updateAction"
@@ -238,7 +228,6 @@
                  {{#unless ../../isEditable}}disabled{{/unless}} />
           {{/if}}
 
-          {{!-- macro --}}
           {{#if (eq act.type "runMacro")}}
           <input type="text"
                  data-action="updateAction"
@@ -264,9 +253,9 @@
         </div>
         {{/each}}
 
-      </div>{{!-- /.btn-section actions --}}
+      </div>
 
-    </div>{{!-- /.button-editor-card --}}
+    </div>
     {{/each}}
 
   </div>

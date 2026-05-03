@@ -1,10 +1,5 @@
 export class TabManager {
 
-  /**
-   * Wire click listeners and apply initial active state.
-   * Call from _onRender(). Safe to call multiple times -- re-wires cleanly.
-   * @param {ApplicationV2} app
-   */
   static activate(app) {
     const root = app.element;
     if (!root) return;

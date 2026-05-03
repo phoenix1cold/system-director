@@ -1,6 +1,5 @@
 export const ThrowOverlay = {
 
-  /** Scatter a set of dice faces as PIXI sprites on the active scene. */
   scatterOnCanvas(faces, die, { area = 300, duration = 6, actor = null } = {}) {
     if (!canvas?.ready || !canvas.stage) return;
 
@@ -28,7 +27,6 @@ export const ThrowOverlay = {
     setTimeout(() => _fadeOutAndRemove(container), Math.max(1000, duration * 1000));
   },
 
-  /** Scatter a set of dice faces as DOM nodes over the actor's open sheet. */
   scatterOnSheet(faces, die, { duration = 6, actor = null } = {}) {
     const sheetEl = _findSheetElement(actor);
     if (!sheetEl) return;
@@ -62,8 +60,6 @@ export const ThrowOverlay = {
     }, Math.max(1000, duration * 1000));
   }
 };
-
-/* ─── helpers ─────────────────────────────────────────────────────────── */
 
 function _originFromActor(actor) {
   if (!actor) return null;

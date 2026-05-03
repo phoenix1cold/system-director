@@ -1,18 +1,3 @@
-/**
- * SD Action HUD
- *
- * A floating panel that appears when a token is selected. The HUD layout is
- * configured by the GM at the world level — one layout for `character` actors,
- * one for `npc` actors. Each layout entry references a widget on the actor by
- * `widgetKey`, plus an absolute (x, y) position and optional (w, h) override.
- *
- * Players can toggle the HUD on/off, adjust scale, and drag it around — all
- * stored as client-scoped settings.
- *
- * Phase A (this file): basic floating panel + GM config dialog with numeric
- * x/y inputs (no canvas drag-to-place yet) + per-user enable/scale/position.
- */
-
 import { WidgetRenderer }  from "../builder/widget-renderer.mjs";
 import { FormulaEngine }   from "./formula-engine.mjs";
 import { ButtonExecutor }  from "./button-executor.mjs";
@@ -20,10 +5,8 @@ import { openInlineWidgetEditor } from "./action-hud-inline-editor.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-// Settings registration
-
 export function registerActionHudSettings() {
-  // World-scoped: per-actor-type layout configured by GM.
+
   game.settings.register("sd", "actionHud", {
     name:    "SD Action HUD layout",
     scope:   "world",
@@ -33,7 +16,6 @@ export function registerActionHudSettings() {
     onChange: () => SDActionHUD.refresh()
   });
 
-  // Per-user toggle.
   game.settings.register("sd", "actionHudEnabled", {
     name:    "SD.ActionHud.Settings.Enabled",
     hint:    "SD.ActionHud.Settings.EnabledHint",
@@ -44,7 +26,6 @@ export function registerActionHudSettings() {
     onChange: () => SDActionHUD.refresh()
   });
 
-  // Per-user UI scale.
   game.settings.register("sd", "actionHudScale", {
     name:    "SD.ActionHud.Settings.Scale",
     hint:    "SD.ActionHud.Settings.ScaleHint",
@@ -56,7 +37,6 @@ export function registerActionHudSettings() {
     onChange: () => SDActionHUD.refresh()
   });
 
-  // Per-user position {x, y}. Persisted via setting (no UI).
   game.settings.register("sd", "actionHudPos", {
     name:    "SD Action HUD position",
     scope:   "client",
@@ -65,7 +45,6 @@ export function registerActionHudSettings() {
     default: { x: null, y: null }
   });
 
-  // Per-user widget bar opacity (0-100). 0 = fully transparent panel.
   game.settings.register("sd", "actionHudBgOpacity", {
     name:    "SD.ActionHud.Settings.BgOpacity",
     hint:    "SD.ActionHud.Settings.BgOpacityHint",
@@ -77,8 +56,6 @@ export function registerActionHudSettings() {
     onChange: () => SDActionHUD.refresh()
   });
 
-  // Per-user default: should HUD widgets render with transparent backgrounds?
-  // GM can still override per-entry via the eye-dropper button on each widget.
   game.settings.register("sd", "actionHudDefaultTransparent", {
     name:    "SD.ActionHud.Settings.DefaultTransparent",
     hint:    "SD.ActionHud.Settings.DefaultTransparentHint",
@@ -89,7 +66,6 @@ export function registerActionHudSettings() {
     onChange: () => SDActionHUD.refresh()
   });
 
-  // Show borders / outlines on the HUD panel and its widget cells.
   game.settings.register("sd", "actionHudShowFrames", {
     name:    "SD.ActionHud.Settings.ShowFrames",
     hint:    "SD.ActionHud.Settings.ShowFramesHint",
@@ -100,8 +76,6 @@ export function registerActionHudSettings() {
     onChange: () => SDActionHUD.refresh()
   });
 
-  // Widget shadow: subtle drop-shadow + radial gradient backdrop behind each
-  // widget so they remain readable on bright maps without a hard frame.
   game.settings.register("sd", "actionHudWidgetShadow", {
     name:    "SD.ActionHud.Settings.WidgetShadow",
     hint:    "SD.ActionHud.Settings.WidgetShadowHint",
@@ -112,7 +86,6 @@ export function registerActionHudSettings() {
     onChange: () => SDActionHUD.refresh()
   });
 
-  // Keybinding: Ctrl+H toggles HUD visibility.
   game.keybindings.register("sd", "toggleActionHud", {
     name:    "SD.ActionHud.Settings.ToggleKey",
     hint:    "SD.ActionHud.Settings.ToggleKeyHint",
@@ -122,7 +95,6 @@ export function registerActionHudSettings() {
     precedence: foundry.CONST?.KEYBINDING_PRECEDENCE?.NORMAL ?? 0
   });
 
-  // GM-only menu button to open the config window.
   game.settings.registerMenu("sd", "actionHudConfigMenu", {
     name:   "SD.ActionHud.Settings.ConfigMenu",
     label:  "SD.ActionHud.Settings.ConfigMenuLabel",
@@ -133,8 +105,6 @@ export function registerActionHudSettings() {
   });
 }
 
-// Hook registration
-
 export function mountActionHudHooks() {
   Hooks.on("controlToken", (token, controlled) => {
     try {
@@ -143,7 +113,6 @@ export function mountActionHudHooks() {
     } catch(e) { console.warn("SD | actionHud controlToken error:", e); }
   });
 
-  // Re-render HUD when actor data changes
   Hooks.on("updateActor", (actor) => {
     try { SDActionHUD.onActorUpdate(actor); } catch(e) {}
   });
@@ -157,7 +126,6 @@ export function mountActionHudHooks() {
     try { SDActionHUD.onActorUpdate(item.actor); } catch(e) {}
   });
 
-  // Active effects can change rendered values (e.g. status icons).
   for (const ev of ["createActiveEffect", "updateActiveEffect", "deleteActiveEffect"]) {
     Hooks.on(ev, (effect) => {
       try {
@@ -167,8 +135,6 @@ export function mountActionHudHooks() {
     });
   }
 }
-
-// Helper: collect widget defs from an actor's customTabs
 
 function collectActorWidgets(actor) {
   const out = [];
@@ -193,9 +159,6 @@ function findActorWidgetByKey(actor, key) {
   return all.find(w => (w.widgetKey ?? "").trim() === key.trim()) ?? null;
 }
 
-// Lightweight event wiring for HUD widgets — minimal subset of
-// CharacterSheet#_wireWidget. Covers the most common interactions for Phase A.
-
 function wireHudWidget(cell, widgetDef, actor) {
   const _readPath = (path) => {
     if (!path) return undefined;
@@ -204,7 +167,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     return foundry.utils.getProperty(actor, path);
   };
 
-  // Plain input.change -> save
   cell.querySelectorAll("input[data-path]").forEach(inp => {
     inp.addEventListener("change", async () => {
       const v = inp.type === "number" ? Number(inp.value) : inp.value;
@@ -212,7 +174,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // ± step buttons (data-step attribute)
   cell.querySelectorAll("[data-step]").forEach(btn => {
     btn.addEventListener("click", async () => {
       const step = parseFloat(btn.dataset.step);
@@ -227,7 +188,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // widgetNumStep buttons (used by counter, tokenPool, custom step controls)
   cell.querySelectorAll("[data-action='widgetNumStep']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -243,7 +203,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Tracker / Token Pool pips (.sd-tracker-pip)
   cell.querySelectorAll(".sd-tracker-pip[data-path]").forEach(pip => {
     pip.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -257,7 +216,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Tracker reset button
   cell.querySelectorAll(".sd-tracker-reset[data-path]").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -265,7 +223,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Clock segments
   cell.querySelectorAll(".sd-clock-segment[data-path]").forEach(seg => {
     seg.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -279,7 +236,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Clock reset
   cell.querySelectorAll(".sd-clock-reset[data-path]").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -287,7 +243,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Item: use, equip, edit, delete
   cell.querySelectorAll("[data-action='itemUse']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -332,9 +287,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Slot widget controls (use / edit / remove). The HUD presents item slots
-  // as a row of round icons (or a popover when there are >3 items); these
-  // handlers mirror the character sheet's slot wiring so click-to-use works.
   cell.querySelectorAll("[data-action='slotItemUse']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -409,7 +361,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Effects: toggle, edit, delete
   cell.querySelectorAll("[data-action='effectToggle']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -437,9 +388,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Compact popover: portal the body to document.body on open so it escapes
-  // the HUD panel (which uses CSS transform for scale — that breaks
-  // position:fixed inside). Restore on close. Only one popover open at a time.
   cell.querySelectorAll("details.sd-hud-popover").forEach(det => {
     const body = det.querySelector(".sd-hud-pop-body");
     if (!body) return;
@@ -463,7 +411,7 @@ function wireHudWidget(cell, widgetDef, actor) {
     };
     const openPortal = () => {
       if (body.classList.contains("sd-hud-pop-portal")) return;
-      // Drop a placeholder where body used to live so we can restore later.
+
       if (body.parentNode) {
         body.parentNode.insertBefore(placeholder, body);
       }
@@ -486,15 +434,15 @@ function wireHudWidget(cell, widgetDef, actor) {
         closePortal();
         return;
       }
-      // Close siblings
+
       document.querySelectorAll("#sd-action-hud details.sd-hud-popover[open]").forEach(other => {
         if (other !== det) other.open = false;
       });
       openPortal();
     });
-    // Reposition on window resize/scroll
+
     window.addEventListener("resize", () => { if (det.open) positionPortal(); });
-    // Click outside closes
+
     document.addEventListener("mousedown", (e) => {
       if (!det.open) return;
       if (det.contains(e.target) || body.contains(e.target)) return;
@@ -502,7 +450,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Abilities: cast, edit, delete (mirror character-sheet behaviour for cost handling)
   cell.querySelectorAll("[data-action='abilityCast']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -542,14 +489,12 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // [data-toggle]
   cell.querySelectorAll("[data-toggle]").forEach(tog => {
     tog.addEventListener("click", async () => {
       try { await actor.update({ [tog.dataset.toggle]: tog.dataset.on !== "true" }); } catch(e) {}
     });
   });
 
-  // [data-roll] generic roll button
   cell.querySelectorAll("[data-roll]").forEach(el => {
     el.addEventListener("click", async () => {
       let formula = el.dataset.roll;
@@ -563,7 +508,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // widgetButton / widgetRoll / widgetToggle / attrModClick
   const _runActionGraph = async (raw, label) => {
     try {
       const actions = JSON.parse(raw.trim());
@@ -631,27 +575,16 @@ function wireHudWidget(cell, widgetDef, actor) {
   });
 }
 
-// SDActionHUD — the floating panel itself.
-
 export class SDActionHUD {
 
-  /** Singleton instance */
   static _instance = null;
 
-  /** Currently-displayed actor */
   static _actor = null;
 
-  /** Is the HUD currently in GM builder/edit mode? */
   static _builderMode = false;
 
-  /**
-   * Session-level hide flag. The X button and Ctrl+H toggle this without
-   * touching the persistent `actionHudEnabled` setting, so the HUD can be
-   * dismissed temporarily without permanently disabling it.
-   */
   static _userHidden = false;
 
-  /** Build (or retrieve) the singleton DOM container. */
   static _ensureRoot() {
     let root = document.getElementById("sd-action-hud");
     if (root) return root;
@@ -671,7 +604,6 @@ export class SDActionHUD {
       <button type="button" class="sd-action-hud-add" title="Add widget to HUD" data-action="addWidget"><i class="fas fa-plus"></i></button>`;
     document.body.appendChild(root);
 
-    // Drag-by-bar
     const bar = root.querySelector(".sd-action-hud-bar");
     let drag = null;
     bar.addEventListener("pointerdown", (ev) => {
@@ -698,10 +630,8 @@ export class SDActionHUD {
     bar.addEventListener("pointerup",   endDrag);
     bar.addEventListener("pointercancel", endDrag);
 
-    // Buttons
     root.querySelector("[data-action='close']")?.addEventListener("click", () => {
-      // Hide for the current session only; do NOT touch the persistent setting
-      // so the user can re-open via Ctrl+H or by re-selecting a token.
+
       SDActionHUD._userHidden = true;
       root.style.display = "none";
     });
@@ -730,32 +660,26 @@ export class SDActionHUD {
     return root;
   }
 
-  /** Decide whether the HUD should be shown for the current user + actor. */
   static _userMaySeeHud(actor) {
     if (!actor) return false;
     if (game.user.isGM) return true;
     return actor.testUserPermission(game.user, "OWNER");
   }
 
-  /** Public: render HUD for a token. */
   static showFor(token) {
     if (!token?.actor) return;
     if (!game.settings.get("sd", "actionHudEnabled")) return;
     if (!this._userMaySeeHud(token.actor)) return;
 
     this._actor = token.actor;
-    // Selecting a fresh token clears the session-hide so the HUD reappears.
+
     this._userHidden = false;
     this._render();
   }
 
-  /**
-   * Toggle the session-hide flag. If the HUD is currently hidden but a
-   * controlled token exists, re-show it; otherwise hide it.
-   */
   static toggleVisible() {
     if (!game.settings.get("sd", "actionHudEnabled")) {
-      // Feature is fully disabled — toggle the setting on as part of the hotkey.
+
       try { game.settings.set("sd", "actionHudEnabled", true); } catch(e) {}
       this._userHidden = false;
     } else {
@@ -766,7 +690,7 @@ export class SDActionHUD {
       if (root) root.style.display = "none";
       return;
     }
-    // Try to (re)show — prefer the currently-selected token's actor.
+
     const ctrl = canvas?.tokens?.controlled ?? [];
     if (ctrl.length && this._userMaySeeHud(ctrl[0].actor)) {
       this._actor = ctrl[0].actor;
@@ -780,11 +704,10 @@ export class SDActionHUD {
     }
   }
 
-  /** Hide HUD when this token is the one currently displayed. */
   static hideForToken(token) {
     if (this._actor && token?.actor === this._actor) {
       const others = canvas?.tokens?.controlled ?? [];
-      // Switch to the most recently selected other token (if any).
+
       const next = others.find(t => t.actor !== this._actor);
       if (next) {
         this.showFor(next);
@@ -796,13 +719,11 @@ export class SDActionHUD {
     }
   }
 
-  /** Re-render if an updated actor is the one we are currently showing. */
   static onActorUpdate(actor) {
     if (!actor) return;
     if (this._actor && this._actor === actor) this._render();
   }
 
-  /** External: re-evaluate (settings changed, enabled toggled, etc.). */
   static refresh() {
     if (!this._actor) {
       const root = document.getElementById("sd-action-hud");
@@ -817,19 +738,16 @@ export class SDActionHUD {
     this._render();
   }
 
-  /** Internal: do the actual layout + render. */
   static _render() {
     const actor = this._actor;
     if (!actor) return;
     if (this._userHidden) return;
 
-    // Clean up any stale portaled popover bodies from the previous render.
     document.querySelectorAll("body > .sd-hud-pop-portal").forEach(el => el.remove());
 
     const root = this._ensureRoot();
     root.style.display = "flex";
 
-    // Apply background opacity setting (per-user)
     const bgOp = Math.min(Math.max(Number(game.settings.get("sd", "actionHudBgOpacity") ?? 92), 0), 100) / 100;
     root.style.setProperty("--sd-hud-bar-bg-alpha", bgOp);
     const defaultTransparent = !!game.settings.get("sd", "actionHudDefaultTransparent");
@@ -839,11 +757,9 @@ export class SDActionHUD {
     const widgetShadow = !!game.settings.get("sd", "actionHudWidgetShadow");
     root.classList.toggle("sd-hud-shadow", widgetShadow);
 
-    // Apply per-user scale via CSS var.
     const scale = Math.min(Math.max(Number(game.settings.get("sd", "actionHudScale") ?? 100), 50), 200) / 100;
     root.style.setProperty("--sd-hud-scale", scale);
 
-    // Apply persisted user position (if any).
     const pos = game.settings.get("sd", "actionHudPos") ?? {};
     if (Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
       root.style.left = `${pos.x}px`;
@@ -851,7 +767,7 @@ export class SDActionHUD {
       root.style.right = "auto";
       root.style.bottom = "auto";
     } else {
-      // Default: bottom-center.
+
       root.style.left = "50%";
       root.style.bottom = "120px";
       root.style.top = "auto";
@@ -864,9 +780,7 @@ export class SDActionHUD {
     const canvasEl = root.querySelector(".sd-action-hud-canvas");
     if (!canvasEl) return;
     canvasEl.innerHTML = "";
-    // Inner coordinate-system box — children are appended here, NOT to
-    // canvasEl directly. canvasEl sizes the layout footprint (scaled),
-    // inner carries the transform so visual fits exactly into that box.
+
     const innerEl = document.createElement("div");
     innerEl.className = "sd-action-hud-canvas-inner";
     canvasEl.appendChild(innerEl);
@@ -875,7 +789,6 @@ export class SDActionHUD {
     const typeKey = actor.type === "npc" ? "npc" : "character";
     const entries = Array.isArray(layout?.[typeKey]?.entries) ? layout[typeKey].entries : [];
 
-    // Track canvas extents to size the panel.
     let maxX = 0, maxY = 0;
 
     for (const entry of entries) {
@@ -893,14 +806,11 @@ export class SDActionHUD {
         if (Number.isFinite(entry.w) && entry.w > 0) cell.style.width  = `${entry.w}px`;
         if (Number.isFinite(entry.h) && entry.h > 0) cell.style.minHeight = `${entry.h}px`;
 
-        // Per-entry background-transparency override.
         const explicitTransparent = entry.transparent === true;
         const explicitOpaque      = entry.transparent === false;
         const isTransparent = explicitTransparent || (defaultTransparent && !explicitOpaque);
         if (isTransparent) cell.dataset.transparent = "true";
 
-        // Force compact mode on HUD for collection widgets unless the entry
-        // explicitly opts out via entry.compact === false.
         const COMPACTABLE = ["inventory", "effects", "spellbook", "slot"];
         let renderDef = widgetDef;
         if (COMPACTABLE.includes(widgetDef.type)) {
@@ -909,10 +819,8 @@ export class SDActionHUD {
           }
         }
 
-        // Render the widget HTML using the same renderer as the character sheet.
         cell.innerHTML = WidgetRenderer.render(renderDef, actor, false) ?? "";
 
-        // Wire common interactive events.
         wireHudWidget(cell, renderDef, actor);
 
         innerEl.appendChild(cell);
@@ -926,15 +834,6 @@ export class SDActionHUD {
       }
     }
 
-    // Layout arithmetic for scaling:
-    //   inner DOM box = unscaled extent (maxX × maxY) — children are placed
-    //     in this coordinate system using their stored entry.x / entry.y.
-    //   inner is scaled by --sd-hud-scale (CSS transform), which does NOT
-    //     affect layout flow → its visual size becomes maxX*s × maxY*s.
-    //   outer canvas DOM box = scaled extent (maxX*s × maxY*s) so the panel
-    //     reserves enough space for the visually-enlarged inner.
-    // Without the outer box being multiplied by scale, the panel kept its
-    // unscaled size and widgets were clipped at the panel's edge.
     const _maxX = Math.max(maxX, 200);
     const _maxY = Math.max(maxY,  80);
     innerEl.style.width   = `${_maxX}px`;
@@ -942,32 +841,18 @@ export class SDActionHUD {
     canvasEl.style.width  = `${Math.ceil(_maxX * scale)}px`;
     canvasEl.style.height = `${Math.ceil(_maxY * scale)}px`;
 
-    // Builder/edit mode visuals + interactions (GM only)
     root.classList.toggle("sd-hud-builder", !!(this._builderMode && game.user.isGM));
     if (this._builderMode && game.user.isGM) {
       this._wireBuilderMode(root, canvasEl, entries);
     }
   }
 
-  /**
-   * Resolve a layout entry into a renderable widget definition. Entries may
-   * either:
-   *   - reference an actor widget by widgetKey (entry.widgetKey set)
-   *   - inline their own widget definition (entry.inlineWidget set)
-   */
   static _resolveWidget(entry, actor) {
     if (entry.inlineWidget) return entry.inlineWidget;
     if (entry.widgetKey) return findActorWidgetByKey(actor, entry.widgetKey);
     return null;
   }
 
-  // ===== Builder mode =====
-
-  /**
-   * Read the current layout for the active actor's type, mutate via
-   * `mutator(entries)`, and persist back to settings. Returns the
-   * (possibly modified) layout.
-   */
   static async _mutateEntries(mutator) {
     if (!this._actor) return;
     const layout = foundry.utils.deepClone(game.settings.get("sd", "actionHud") ?? {});
@@ -980,23 +865,17 @@ export class SDActionHUD {
     this._render();
   }
 
-  /** Snap value to grid (8px) unless shift was held during the gesture. */
   static _snap(v, noSnap = false) {
     if (noSnap) return Math.round(v);
     return Math.round(v / 8) * 8;
   }
 
-  /**
-   * Decorate each placed widget with drag/resize/edit/delete handles, and
-   * wire pointer events so changes persist back to the world setting.
-   */
   static _wireBuilderMode(root, canvasEl, entries) {
     const cells = canvasEl.querySelectorAll(".sd-action-hud-widget");
     cells.forEach((cell, i) => {
       const entry = entries[i];
       if (!entry) return;
 
-      // Build the overlay if missing.
       let overlay = cell.querySelector(".sd-hud-cell-overlay");
       if (!overlay) {
         overlay = document.createElement("div");
@@ -1012,7 +891,7 @@ export class SDActionHUD {
           <div class="sd-hud-cell-resize" title="Resize"></div>`;
         cell.appendChild(overlay);
       }
-      // Update label
+
       const lbl = overlay.querySelector(".sd-hud-cell-label");
       if (lbl) {
         lbl.textContent = entry.widgetKey
@@ -1020,12 +899,6 @@ export class SDActionHUD {
           : (entry.inlineWidget?.label ?? entry.inlineWidget?.type ?? "inline");
       }
 
-      // Disable widget interaction while dragging (so a click on a button
-      // doesn't fire its action). Achieved via a CSS pointer-events shield
-      // applied by the .sd-hud-builder ancestor class on .sd-action-hud-widget
-      // children — see CSS.
-
-      // Drag
       const grab = overlay.querySelector(".sd-hud-cell-grab");
       let drag = null;
       const _readScale = () => {
@@ -1051,8 +924,7 @@ export class SDActionHUD {
       const moveDrag = (ev) => {
         if (!drag) return;
         ev.preventDefault();
-        // client-space delta is in visual (scaled) px; entry coords are
-        // unscaled — divide by scale to convert.
+
         const s = drag.scale || 1;
         const x = SDActionHUD._snap((ev.clientX - drag.dx - drag.baseX) / s, ev.shiftKey);
         const y = SDActionHUD._snap((ev.clientY - drag.dy - drag.baseY) / s, ev.shiftKey);
@@ -1076,7 +948,6 @@ export class SDActionHUD {
       grab.addEventListener("pointerup", endDrag);
       grab.addEventListener("pointercancel", endDrag);
 
-      // Resize
       const handle = overlay.querySelector(".sd-hud-cell-resize");
       let rsz = null;
       handle.addEventListener("pointerdown", (ev) => {
@@ -1087,8 +958,7 @@ export class SDActionHUD {
         rsz = {
           startX: ev.clientX,
           startY: ev.clientY,
-          // r.width/height are visual (scaled) — store the unscaled
-          // intrinsic size so we can write it back to cell.style untouched.
+
           startW: r.width  / s,
           startH: r.height / s,
           scale: s
@@ -1119,7 +989,6 @@ export class SDActionHUD {
       handle.addEventListener("pointerup", endResize);
       handle.addEventListener("pointercancel", endResize);
 
-      // Toggle transparent
       const transBtn = overlay.querySelector("button[data-act='transparent']");
       if (transBtn) {
         transBtn.classList.toggle("is-on", !!cell.dataset.transparent);
@@ -1130,7 +999,7 @@ export class SDActionHUD {
           await SDActionHUD._mutateEntries((arr) => {
             if (!arr[idx]) return;
             const cur = arr[idx].transparent;
-            // Cycle: undefined -> true -> false -> undefined (use default)
+
             if (cur === undefined) arr[idx].transparent = true;
             else if (cur === true) arr[idx].transparent = false;
             else delete arr[idx].transparent;
@@ -1138,7 +1007,6 @@ export class SDActionHUD {
         });
       }
 
-      // Edit
       const editBtn = overlay.querySelector("button[data-act='edit']");
       editBtn?.addEventListener("click", async (ev) => {
         ev.preventDefault();
@@ -1146,7 +1014,6 @@ export class SDActionHUD {
         await SDActionHUD._editEntry(i);
       });
 
-      // Delete
       const delBtn = overlay.querySelector("button[data-act='delete']");
       delBtn?.addEventListener("click", async (ev) => {
         ev.preventDefault();
@@ -1163,12 +1030,10 @@ export class SDActionHUD {
     });
   }
 
-  /** Open the "add widget" picker dialog (GM only). */
   static async _onAddWidgetClicked() {
     if (!this._actor) return;
     if (!game.user.isGM) return;
 
-    // Collect existing keys from current actor + all actors of same type.
     const keysSet = new Set();
     for (const a of (game.actors ?? [])) {
       if (a.type !== this._actor.type) continue;
@@ -1243,7 +1108,6 @@ export class SDActionHUD {
     }
   }
 
-  /** Edit an existing entry — for ref widgets, edit key; for inline, open editor. */
   static async _editEntry(idx) {
     if (!this._actor) return;
     const layout = foundry.utils.deepClone(game.settings.get("sd", "actionHud") ?? {});
@@ -1261,7 +1125,6 @@ export class SDActionHUD {
       return;
     }
 
-    // Ref widget: ask for new key
     const keysSet = new Set();
     for (const a of (game.actors ?? [])) {
       if (a.type !== this._actor.type) continue;
@@ -1294,8 +1157,6 @@ export class SDActionHUD {
   }
 }
 
-// SDActionHUDConfig — GM-only window to edit the HUD layout for both actor types.
-
 export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static DEFAULT_OPTIONS = {
@@ -1321,7 +1182,6 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
     content: { template: "systems/sd/templates/action-hud/hud-config.hbs", scrollable: [".hud-entries"] }
   };
 
-  /** Which actor type is currently being edited. */
   _activeType = "character";
 
   async _prepareContext(options) {
@@ -1332,7 +1192,6 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
 
     const entries = Array.isArray(layout[this._activeType]?.entries) ? layout[this._activeType].entries : [];
 
-    // Build a key suggestion list from existing actors of this type.
     const keysSet = new Set();
     for (const a of (game.actors ?? [])) {
       if (a.type !== this._activeType) continue;
@@ -1443,7 +1302,7 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
   static async _onSwitchType(event, target) {
     const t = target.dataset.type;
     if (t !== "character" && t !== "npc") return;
-    // Save pending edits on current tab before switching.
+
     const layout = this._collect();
     await game.settings.set("sd", "actionHud", layout);
     this._activeType = t;

@@ -1,9 +1,3 @@
-/* ===========================================================================
- * System Director Wiki — global stylesheet.
- * Pure CSS, no frameworks. Looks at home next to the in-module dark theme.
- * ===========================================================================
- */
-
 :root {
   --bg:        #0e131c;
   --bg-2:      #131927;
@@ -17,12 +11,10 @@
   --warn:      #e08a2a;
   --error:     #d04040;
 
-  /* node kind colours (must match SD_NODE_KIND_COLOURS) */
   --kind-pure:        #3aa87a;
   --kind-imperative:  #e08a2a;
   --kind-event:       #d04040;
 
-  /* pin colours (must match PIN_SUBTYPE_COLORS) */
   --pin-exec:    #ffca6b;
   --pin-any:     #9aa1b2;
   --pin-number:  #74c0ff;
@@ -64,7 +56,6 @@ kbd {
   padding: 1px 6px;
 }
 
-/* ---------- header ---------- */
 .site-header {
   position: sticky; top: 0; z-index: 50;
   display: flex; align-items: center; gap: 16px;
@@ -100,7 +91,6 @@ kbd {
 }
 .lang-toggle:hover { border-color: var(--accent); }
 
-/* ---------- layout ---------- */
 .page {
   max-width: 1280px; margin: 0 auto;
   padding: 32px 20px 80px;
@@ -155,7 +145,6 @@ kbd {
 .toolbar .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .toolbar .chip:hover { border-color: var(--accent); }
 
-/* ---------- pin / kind badges ---------- */
 .pin-legend {
   display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 16px;
 }
@@ -178,7 +167,6 @@ kbd {
   color: #fff;
 }
 
-/* ---------- node card (replicates in-module rendering) ---------- */
 .node {
   --accent: #555;
   position: relative;
@@ -262,7 +250,6 @@ kbd {
   margin: 16px 0;
 }
 
-/* ---------- node detail block ---------- */
 .node-detail {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -326,7 +313,6 @@ kbd {
   display: flex; align-items: center; justify-content: center;
 }
 
-/* ---------- widget preview ---------- */
 .wgt-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -377,7 +363,6 @@ kbd {
 .wgt-card details li { margin: 2px 0; }
 .wgt-card details code { color: #9bd2ff; }
 
-/* ---------- example layout ---------- */
 .example-block {
   margin: 28px 0;
   background: var(--panel);
@@ -460,7 +445,6 @@ kbd {
   border-radius: 6px;
 }
 
-/* "fake" simple node card used for widgets in examples */
 .fakenode {
   width: 220px;
   background: #1a1f2e;
@@ -482,7 +466,6 @@ kbd {
   font-size: 12px;
 }
 
-/* ---------- misc ---------- */
 .toc {
   margin: 16px 0 24px;
   padding: 14px 18px;
@@ -526,7 +509,6 @@ footer.site {
   margin-top: 32px;
 }
 
-/* ---------- print-friendly ---------- */
 @media print {
   .site-header, .toolbar { display: none; }
   body { background: #fff; color: #000; }

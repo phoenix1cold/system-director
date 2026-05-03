@@ -1,10 +1,5 @@
 export class TagsEditor {
 
-  /**
-   * Wire all [data-tags-editor] elements inside a root DOM node.
-   * @param {HTMLElement} root
-   * @param {Actor|Item} doc
-   */
   static wireAll(root, doc) {
     root.querySelectorAll("[data-tags-editor]").forEach(el => {
       if (el.dataset.tagsWired) return;
@@ -18,7 +13,6 @@ export class TagsEditor {
     const raw   = foundry.utils.getProperty(doc, path);
     const tags  = Array.isArray(raw) ? [...raw] : [];
 
-    // Build chip container
     const container = document.createElement("div");
     container.className = "tags-editor";
     container.style.cssText = "min-height:32px";
@@ -27,7 +21,7 @@ export class TagsEditor {
       [...container.children].forEach(c => {
         if (!c.classList.contains("tag-new-input")) c.remove();
       });
-      // Re-add chips before the input
+
       tags.forEach((tag, idx) => {
         const chip = document.createElement("span");
         chip.className = "tag-chip";
@@ -42,7 +36,6 @@ export class TagsEditor {
       });
     };
 
-    // New tag input
     const inp = document.createElement("input");
     inp.type        = "text";
     inp.className   = "tag-new-input";
@@ -72,7 +65,6 @@ export class TagsEditor {
       if (ev.target === container) inp.focus();
     });
 
-    // Replace host
     host.replaceWith(container);
     refresh();
   }

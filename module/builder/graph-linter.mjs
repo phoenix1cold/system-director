@@ -1,18 +1,12 @@
 import { pinSubtype, arePinsCompatible } from "./pin-types.mjs";
 import { isLegacyNodeType }              from "./node-migration.mjs";
 
-/**
- * @param {{nodes:Array, edges:Array}} graph
- * @param {Object}                     NODE_DEFS   - registry passed in to avoid circular import
- * @returns {Array<{severity,code,message,nodeId?}>}
- */
 export function lintGraph(graph, NODE_DEFS) {
   const out   = [];
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const edges = Array.isArray(graph?.edges) ? graph.edges : [];
   const byId  = new Map(nodes.map(n => [n.id, n]));
 
-  // E001 / E002 node-type checks
   for (const n of nodes) {
     if (isLegacyNodeType(n.type)) {
       out.push({ severity:"error", code:"E002", nodeId:n.id,
@@ -25,7 +19,6 @@ export function lintGraph(graph, NODE_DEFS) {
     }
   }
 
-  // E003 / E004 edge checks
   for (const e of edges) {
     const from = byId.get(e.fromNode);
     const to   = byId.get(e.toNode);
@@ -51,7 +44,6 @@ export function lintGraph(graph, NODE_DEFS) {
     }
   }
 
-  // W001 no entry point
   const hasEntry = nodes.some(n => {
     const def = NODE_DEFS[n.type];
     return n.type === "on_click" || def?.isEvent || def?.isMacroInput;
@@ -62,7 +54,6 @@ export function lintGraph(graph, NODE_DEFS) {
       message:"Graph has no entry point (no on_click, event node, macro input, or Output sink)." });
   }
 
-  // W002 orphan nodes
   const touched = new Set();
   for (const e of edges) { touched.add(e.fromNode); touched.add(e.toNode); }
   for (const n of nodes) {
@@ -76,7 +67,6 @@ export function lintGraph(graph, NODE_DEFS) {
   return out;
 }
 
-/** Human-readable one-line summary used in toolbar badge. */
 export function lintSummary(report) {
   const c = { error:0, warn:0, info:0 };
   for (const r of report) c[r.severity] = (c[r.severity] ?? 0) + 1;
