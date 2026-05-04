@@ -3,6 +3,7 @@ import {
   RollConfigField, BiographyField, CurrencyField
 } from "./common.mjs";
 import { SlotDefinitionField } from "./item-slots.mjs";
+import { applyCalculationsToActor } from "../helpers/system-config.mjs";
 
 const {
   StringField, NumberField, BooleanField,
@@ -124,6 +125,7 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
     this._prepareResources();
     this._prepareDefense();
     this._prepareInitiative();
+    applyCalculationsToActor(this.parent);
     this._prepareSkills();
     this._prepareEncumbrance();
   }
@@ -146,11 +148,11 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
   }
 
   _prepareDefense() {
-    this.defense.total = this.defense.armor + this.defense.bonus;
+    this.defense.total = (this.defense.armor ?? 0) + (this.defense.bonus ?? 0);
   }
 
   _prepareInitiative() {
-    this.initiative.total = this.attributes.attr1.mod + this.initiative.bonus;
+    this.initiative.total = (this.attributes?.attr1?.mod ?? 0) + (this.initiative.bonus ?? 0);
   }
 
   _prepareSkills() {

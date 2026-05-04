@@ -151,7 +151,7 @@
       "cardDrawButton": { "default": "Default", "deck": "Deck", "pile": "Pile" },
       "effects":        { "default": "Default", "chips": "Chips", "icons": "Icons Only" },
       "spellbook":      { "default": "Default", "grimoire": "Grimoire", "grid": "Grid", "minimal": "Minimal" },
-      "skill":          { "default": "Default", "table": "Table", "check": "Checkbox", "pill": "Pill" },
+      "skill":          { "default": "Default (inline)", "pill": "Pill", "row-rank": "Row + Rank", "pips": "Pips" },
       "derived":        { "default": "Default", "stat-card": "Stat Card", "formula-badge": "Formula Badge", "inline": "Inline", "pill": "Pill" }
     },
     "ActionHud": {

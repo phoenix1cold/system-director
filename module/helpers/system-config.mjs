@@ -1,4 +1,5 @@
 import { TabManager } from "./tabs.mjs";
+import { FormulaEngine } from "./formula-engine.mjs";
 import {
   COLOR_SCHEMES,
   THEME_IDS,
@@ -41,12 +42,128 @@ export function getDefaultSettings() {
       { key: "tertiary",  label: "Copper" }
     ],
 
+    calculations: {
+      defense: [
+        { key: "total", label: "Defense Total", default: 10, parts: [
+          { op: "+", path: "system.defense.armor" },
+          { op: "+", path: "system.defense.bonus" }
+        ]}
+      ],
+      initiative: [
+        { key: "total", label: "Initiative Total", default: 0, parts: [
+          { op: "+", path: "system.attributes.attr1.mod" },
+          { op: "+", path: "system.initiative.bonus" }
+        ]}
+      ],
+      movement: [
+        { key: "walk",  label: "Walk",  default: 30, parts: [{ op: "+", path: "system.movement.walk"  }] },
+        { key: "swim",  label: "Swim",  default: 15, parts: [{ op: "+", path: "system.movement.swim"  }] },
+        { key: "fly",   label: "Fly",   default: 0,  parts: [{ op: "+", path: "system.movement.fly"   }] },
+        { key: "climb", label: "Climb", default: 15, parts: [{ op: "+", path: "system.movement.climb" }] }
+      ]
+    },
+
     modifierFormula: "halved",
 
     uiScale: 100,
 
     colorScheme: "default"
   };
+}
+
+const CALC_SECTIONS = ["defense", "initiative", "movement"];
+const VALID_OPS = new Set(["+", "-", "*", "/"]);
+
+function _normalizeFormulaPart(p) {
+  const op   = VALID_OPS.has(p?.op) ? p.op : "+";
+  const path = String(p?.path ?? "").trim();
+  return { op, path };
+}
+
+function _normalizeCalcEntry(e, fallbackKey) {
+  const key      = String(e?.key ?? fallbackKey ?? "").trim();
+  const label    = String(e?.label ?? key);
+  const parts    = Array.isArray(e?.parts) ? e.parts.map(_normalizeFormulaPart) : [];
+  const dn       = Number(e?.default);
+  const def      = Number.isFinite(dn) ? Math.trunc(dn) : 0;
+  const useGraph = !!e?.useGraph;
+  const gd       = e?.graphData;
+  const graph    = (gd && typeof gd === "object" && Array.isArray(gd.nodes))
+    ? { nodes: gd.nodes, edges: gd.edges ?? [], comments: gd.comments ?? [] }
+    : null;
+  const compiled = (typeof e?.compiledFormula === "string") ? e.compiledFormula : "";
+  return { key, label, default: def, parts, useGraph, graphData: graph, compiledFormula: compiled };
+}
+
+export function normalizeCalculations(calc) {
+  const out = { defense: [], initiative: [], movement: [] };
+  if (!calc || typeof calc !== "object") return out;
+  for (const sec of CALC_SECTIONS) {
+    const list = calc[sec];
+    if (!Array.isArray(list)) continue;
+    out[sec] = list.map((e, i) => _normalizeCalcEntry(e, `entry${i+1}`)).filter(e => e.key);
+  }
+  return out;
+}
+
+export function evalCalcFormula(parts, ctx) {
+  if (!Array.isArray(parts) || !parts.length) return 0;
+  let result = 0;
+  let started = false;
+  for (const p of parts) {
+    const path = String(p?.path ?? "").trim();
+    if (!path) continue;
+    const raw = foundry.utils.getProperty(ctx, path);
+    const v = Number(raw);
+    const num = Number.isFinite(v) ? v : 0;
+    const op = VALID_OPS.has(p?.op) ? p.op : "+";
+    if (!started) {
+      result = (op === "-") ? -num : num;
+      started = true;
+      continue;
+    }
+    switch (op) {
+      case "+": result += num; break;
+      case "-": result -= num; break;
+      case "*": result *= num; break;
+      case "/": result = (num !== 0) ? result / num : result; break;
+    }
+  }
+  return result;
+}
+
+export function applyCalculationsToActor(actor) {
+  const calc = CONFIG?.SD?.calculations;
+  if (!calc || !actor) return;
+  const sys = actor.system;
+  if (!sys) return;
+  for (const sec of CALC_SECTIONS) {
+    const list = calc[sec];
+    if (!Array.isArray(list) || !list.length) continue;
+    if (!sys[sec] || typeof sys[sec] !== "object") sys[sec] = {};
+    for (const entry of list) {
+      const key = entry?.key;
+      if (!key) continue;
+
+      if (entry?.useGraph && typeof entry.compiledFormula === "string" && entry.compiledFormula.trim()) {
+        try {
+          const resolved = FormulaEngine.evaluate(entry.compiledFormula, actor);
+          const num = Number(resolved);
+          if (Number.isFinite(num)) {
+            sys[sec][key] = Math.trunc(num);
+            continue;
+          }
+        } catch(e) {
+          console.warn("SD | calc graph evaluation failed", sec, key, e);
+        }
+      }
+
+      const parts = Array.isArray(entry.parts) ? entry.parts : [];
+      if (!parts.length) continue;
+      const v = evalCalcFormula(parts, actor);
+      sys[sec][key] = Math.trunc(v);
+    }
+  }
 }
 
 export function loadSettings() {
@@ -112,6 +229,13 @@ export function loadSettings() {
   delete result.uiFontSize;
   delete result.uiBtnFontSize;
 
+  result.calculations = normalizeCalculations(result.calculations ?? defaults.calculations);
+  for (const sec of CALC_SECTIONS) {
+    if (!result.calculations[sec].length) {
+      result.calculations[sec] = foundry.utils.deepClone(defaults.calculations[sec] ?? []);
+    }
+  }
+
   return result;
 }
 
@@ -146,6 +270,18 @@ export function buildActorBaseDefaults(actorType) {
     if (Number.isFinite(v))  updates[`system.resources.${key}.value`] = Math.trunc(v);
     if (Number.isFinite(mx)) updates[`system.resources.${key}.max`]   = Math.max(0, Math.trunc(mx));
     if (Number.isFinite(mn)) updates[`system.resources.${key}.min`]   = Math.trunc(mn);
+  }
+
+  for (const sec of CALC_SECTIONS) {
+    const list = cfg.calculations?.[sec];
+    if (!Array.isArray(list)) continue;
+    for (const entry of list) {
+      const k = entry?.key;
+      if (!k) continue;
+      const dn = Number(entry.default);
+      if (!Number.isFinite(dn)) continue;
+      updates[`system.${sec}.${k}`] = Math.trunc(dn);
+    }
   }
 
   return Object.keys(updates).length ? updates : null;
@@ -194,6 +330,8 @@ export function applySettings(cfg) {
 
   CONFIG.SD.modifierFormula = cfg.modifierFormula ?? "halved";
 
+  CONFIG.SD.calculations = normalizeCalculations(cfg.calculations);
+
   CONFIG.SD.computeModifier = computeModifier;
   CONFIG.SD.compileModifierExpr = compileModifierExpr;
 
@@ -228,6 +366,11 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       removeResource:   SystemConfig._onRemoveResource,
       addCurrency:      SystemConfig._onAddCurrency,
       removeCurrency:   SystemConfig._onRemoveCurrency,
+      addCalcEntry:     SystemConfig._onAddCalcEntry,
+      removeCalcEntry:  SystemConfig._onRemoveCalcEntry,
+      addCalcPart:      SystemConfig._onAddCalcPart,
+      removeCalcPart:   SystemConfig._onRemoveCalcPart,
+      editCalcGraph:    SystemConfig._onEditCalcGraph,
       resetDefaults:    SystemConfig._onResetDefaults,
       saveAndClose:     SystemConfig._onSaveAndClose
     }
@@ -273,6 +416,18 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         applyColorScheme(id);
       });
     });
+
+    this.element.querySelectorAll('input[type="checkbox"][name^="calc_"][name$="_useGraph"]').forEach(cb => {
+      cb.addEventListener("change", async () => {
+        try {
+          const cfg = this._collectFormCfg();
+          await saveSettings(cfg);
+          this.render();
+        } catch(e) {
+          console.warn("SD | useGraph toggle failed", e);
+        }
+      });
+    });
   }
 
   async _prepareContext(options) {
@@ -296,6 +451,27 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         initialMin:   Number(val?.initialMin   ?? 0)
       })),
       currencyEntries: (cfg.currencies ?? []).map(c => ({ key: c.key, label: c.label })),
+      calcSections: CALC_SECTIONS.map(sec => ({
+        section: sec,
+        title: { defense: "Defense", initiative: "Initiative", movement: "Movement" }[sec],
+        icon:  { defense: "fa-shield-halved", initiative: "fa-bolt", movement: "fa-person-running" }[sec],
+        entries: (cfg.calculations?.[sec] ?? []).map((e, ei) => ({
+          key:      e.key,
+          label:    e.label,
+          default:  Number.isFinite(Number(e.default)) ? Math.trunc(Number(e.default)) : 0,
+          useGraph: !!e.useGraph,
+          hasGraph: !!(e.graphData && Array.isArray(e.graphData.nodes) && e.graphData.nodes.length),
+          graphNodeCount: (e.graphData?.nodes?.length ?? 0),
+          index:    ei,
+          parts:    (e.parts ?? []).map((p, pi) => ({
+            op: p.op, path: p.path, index: pi,
+            isPlus:  p.op === "+",
+            isMinus: p.op === "-",
+            isMul:   p.op === "*",
+            isDiv:   p.op === "/"
+          }))
+        }))
+      })),
       currentScheme:   cfg.colorScheme ?? "default",
       schemeEntries:   COLOR_SCHEMES.map(s => ({
         id:       s.id,
@@ -372,7 +548,121 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       cfg.colorScheme = THEME_IDS.has(id) ? id : "default";
     }
 
+    if (!cfg.calculations) cfg.calculations = { defense: [], initiative: [], movement: [] };
+    for (const sec of CALC_SECTIONS) {
+      const list = Array.isArray(cfg.calculations[sec]) ? cfg.calculations[sec] : [];
+      for (let ei = 0; ei < list.length; ei++) {
+        const e   = list[ei];
+        const kK  = `calc_${sec}_${ei}_key`;
+        const lK  = `calc_${sec}_${ei}_label`;
+        const dK  = `calc_${sec}_${ei}_default`;
+        const gK  = `calc_${sec}_${ei}_useGraph`;
+        if (raw[kK] !== undefined) e.key   = String(raw[kK]).trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "") || e.key;
+        if (raw[lK] !== undefined) e.label = String(raw[lK]);
+        if (raw[dK] !== undefined) {
+          const dn = Number(raw[dK]);
+          e.default = Number.isFinite(dn) ? Math.trunc(dn) : 0;
+        }
+        e.useGraph = !!raw[gK];
+        const parts = Array.isArray(e.parts) ? e.parts : (e.parts = []);
+        for (let pi = 0; pi < parts.length; pi++) {
+          const opK = `calc_${sec}_${ei}_p${pi}_op`;
+          const pK  = `calc_${sec}_${ei}_p${pi}_path`;
+          if (raw[opK] !== undefined && VALID_OPS.has(raw[opK])) parts[pi].op = raw[opK];
+          if (raw[pK]  !== undefined) parts[pi].path = String(raw[pK]).trim();
+        }
+      }
+      cfg.calculations[sec] = list;
+    }
+
     return cfg;
+  }
+
+  static async _onAddCalcEntry(event, target) {
+    const sec = target.dataset.section;
+    if (!CALC_SECTIONS.includes(sec)) return;
+    const cfg = this._collectFormCfg();
+    if (!cfg.calculations) cfg.calculations = { defense: [], initiative: [], movement: [] };
+    if (!Array.isArray(cfg.calculations[sec])) cfg.calculations[sec] = [];
+    const used = new Set(cfg.calculations[sec].map(e => e.key));
+    let n = cfg.calculations[sec].length + 1;
+    let key = `entry${n}`;
+    while (used.has(key)) { n++; key = `entry${n}`; }
+    cfg.calculations[sec].push({ key, label: `Entry ${n}`, default: 0, parts: [{ op: "+", path: "" }] });
+    await saveSettings(cfg);
+    this.render();
+  }
+
+  static async _onRemoveCalcEntry(event, target) {
+    const sec = target.dataset.section;
+    const idx = Number(target.dataset.index);
+    if (!CALC_SECTIONS.includes(sec) || !Number.isFinite(idx)) return;
+    const cfg = this._collectFormCfg();
+    if (!Array.isArray(cfg.calculations?.[sec])) return;
+    cfg.calculations[sec].splice(idx, 1);
+    await saveSettings(cfg);
+    this.render();
+  }
+
+  static async _onAddCalcPart(event, target) {
+    const sec = target.dataset.section;
+    const idx = Number(target.dataset.index);
+    if (!CALC_SECTIONS.includes(sec) || !Number.isFinite(idx)) return;
+    const cfg = this._collectFormCfg();
+    const entry = cfg.calculations?.[sec]?.[idx];
+    if (!entry) return;
+    if (!Array.isArray(entry.parts)) entry.parts = [];
+    entry.parts.push({ op: "+", path: "" });
+    await saveSettings(cfg);
+    this.render();
+  }
+
+  static async _onRemoveCalcPart(event, target) {
+    const sec = target.dataset.section;
+    const idx = Number(target.dataset.index);
+    const pIdx = Number(target.dataset.partIndex);
+    if (!CALC_SECTIONS.includes(sec) || !Number.isFinite(idx) || !Number.isFinite(pIdx)) return;
+    const cfg = this._collectFormCfg();
+    const entry = cfg.calculations?.[sec]?.[idx];
+    if (!entry || !Array.isArray(entry.parts)) return;
+    entry.parts.splice(pIdx, 1);
+    await saveSettings(cfg);
+    this.render();
+  }
+
+  static async _onEditCalcGraph(event, target) {
+    const sec = target.dataset.section;
+    const idx = Number(target.dataset.index);
+    if (!CALC_SECTIONS.includes(sec) || !Number.isFinite(idx)) return;
+    const cfg   = this._collectFormCfg();
+    const entry = cfg.calculations?.[sec]?.[idx];
+    if (!entry) return;
+    let FormulaGraph;
+    try {
+      ({ FormulaGraph } = await import("../builder/formula-graph.mjs"));
+    } catch(e) {
+      console.warn("SD | Failed to load FormulaGraph", e);
+      ui.notifications?.error?.("Could not open graph editor (see console).");
+      return;
+    }
+    const app = this;
+    const graph = new FormulaGraph(null, null, null, null, null, {
+      customLoad: () => entry.graphData ?? null,
+      customSave: async (data, compiled) => {
+        const fresh   = app._collectFormCfg();
+        const target2 = fresh.calculations?.[sec]?.[idx];
+        if (target2) {
+          target2.graphData       = data;
+          target2.compiledFormula = compiled;
+          target2.useGraph        = true;
+          await saveSettings(fresh);
+          applySettings(fresh);
+          app.render();
+          ui.notifications?.info?.(`Graph saved for ${sec}.${target2.key}`);
+        }
+      }
+    });
+    graph.open();
   }
 
   static async _onSaveAndClose(event, target) {

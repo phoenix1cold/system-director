@@ -584,9 +584,15 @@ export class WidgetRenderer {
   }
 
   static _render_skill(w, doc) {
-    const rank   = Number(this._get(doc, w.path, 0));
+    const rank    = Number(this._get(doc, w.path, 0));
     const attrMod = Number(w.attrMod ?? 0);
-    const bonus  = rank + attrMod;
+    let bonus;
+    if (w.modValueFormula) {
+      const resolved = Number(FormulaEngine.evaluate(w.modValueFormula, doc));
+      bonus = isNaN(resolved) ? (rank + attrMod) : resolved;
+    } else {
+      bonus = rank + attrMod;
+    }
     const bs     = bonus >= 0 ? `+${bonus}` : `${bonus}`;
     const e      = this._esc;
 
@@ -609,15 +615,50 @@ export class WidgetRenderer {
     const action = onClickFml ? "attrModClick" : "widgetRoll";
     const macroBtn = this._copyMacroBtn_skill(w);
 
-    return `<div class="widget widget-skill">
-  <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.path ? this._copyBtn(w.path, "rank") : ""}</div>
-  <div class="attr-box">
-    <input type="number" name="${e(w.path)}" value="${e(rank)}" class="attr-score">
-    <button type="button" class="skill-roll attr-mod" data-action="${action}"
+    const variant = w.variant || "default";
+
+    const bonusBtn = `<button type="button" class="skill-bonus" data-action="${action}"
             ${dataOnClick}
-            title="Roll ${e(w.label)}">${bs}</button>
-    ${macroBtn}
-  </div>
+            title="Roll ${e(w.label)}">${bs}</button>`;
+
+    const nameBlock = `<div class="skill-name">${e(w.label)}${w.path ? this._copyBtn(w.path, "rank") : ""}</div>`;
+
+    if (variant === "row-rank") {
+      const rankInput = `<input type="number" name="${e(w.path)}" value="${e(rank)}" class="skill-rank-input" min="0" step="1">`;
+      return `<div class="widget widget-skill skill-row-rank">
+  ${nameBlock}
+  ${rankInput}
+  ${bonusBtn}
+  ${macroBtn}
+</div>`;
+    }
+
+    if (variant === "pips") {
+      const pipMax = Math.max(5, Math.min(20, Number(w.pipMax ?? 5)));
+      const pipsHtml = Array.from({ length: pipMax }, (_, i) => {
+        const filled = i < rank;
+        return `<span class="skill-pip ${filled ? "filled" : ""}" data-rank="${i + 1}" data-path="${e(w.path)}" data-action="skillPipClick" title="Set rank to ${i + 1}"></span>`;
+      }).join("");
+      return `<div class="widget widget-skill skill-pips">
+  ${nameBlock}
+  <div class="skill-pip-row" data-path="${e(w.path)}" data-action="skillPipReset" title="Right-click to reset">${pipsHtml}</div>
+  ${bonusBtn}
+  ${macroBtn}
+</div>`;
+    }
+
+    if (variant === "pill") {
+      return `<div class="widget widget-skill skill-pill">
+  ${nameBlock}
+  ${bonusBtn}
+  ${macroBtn}
+</div>`;
+    }
+
+    return `<div class="widget widget-skill">
+  ${nameBlock}
+  ${bonusBtn}
+  ${macroBtn}
 </div>`;
   }
 

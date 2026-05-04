@@ -780,33 +780,7 @@
   background: transparent !important;
 }
 
-.sd-w-skill.sd-v-table {
-  display: grid !important;
-  grid-template-columns: 1fr auto !important;
-  padding: 2px 6px !important;
-  border-bottom: 1px dotted var(--sd-border) !important;
-}
-.sd-w-skill.sd-v-check {
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-}
-.sd-w-skill.sd-v-check::before {
-  content: "";
-  width: 12px; height: 12px;
-  border: 1px solid var(--sd-border);
-  border-radius: 2px;
-  background: var(--sd-bg-3);
-  flex-shrink: 0;
-}
-.sd-w-skill.sd-v-pill {
-  display: inline-flex !important; gap: 8px !important;
-  background: var(--sd-accent-glow) !important;
-  color: var(--sd-accent) !important;
-  border: 1px solid var(--sd-accent-dim) !important;
-  border-radius: 999px !important;
-  padding: 2px 10px !important;
-}
+
 
 .sd-w-derived.sd-v-stat-card {
   display: flex !important; flex-direction: column !important; align-items: center !important;

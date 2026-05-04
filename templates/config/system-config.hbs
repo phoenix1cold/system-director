@@ -144,6 +144,116 @@
       </div>
     </div>
 
+    {{#each calcSections as |sec|}}
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas {{sec.icon}}"></i> {{sec.title}}
+        <span class="section-hint">Configure how each value is calculated</span>
+        <button type="button" class="config-add-btn"
+                data-action="addCalcEntry" data-section="{{sec.section}}">
+          <i class="fas fa-plus"></i> Add
+        </button>
+      </h3>
+      <div class="calc-config-list">
+        {{#each sec.entries as |entry|}}
+        <div class="calc-config-entry"
+             style="border:1px solid var(--sd-border);border-radius:6px;padding:8px;margin-bottom:8px;background:var(--sd-bg-2,rgba(255,255,255,0.02));">
+          <div class="calc-config-entry-header"
+               style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <input type="text"
+                   name="calc_{{sec.section}}_{{entry.index}}_key"
+                   value="{{entry.key}}"
+                   placeholder="key"
+                   title="Field key. Stored at system.{{sec.section}}.<key>"
+                   style="width:120px;font-family:monospace;" />
+            <input type="text"
+                   name="calc_{{sec.section}}_{{entry.index}}_label"
+                   value="{{entry.label}}"
+                   placeholder="Display label"
+                   style="flex:1;min-width:140px;" />
+            <label class="number-wrap" title="Default value applied to NEW actors only (system.{{sec.section}}.{{entry.key}})"
+                   style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sd-text-3);">
+              <span class="initial-lbl">Base</span>
+              <input type="number" step="1"
+                     name="calc_{{sec.section}}_{{entry.index}}_default"
+                     value="{{entry.default}}"
+                     style="width:60px;" />
+            </label>
+            <label class="checkbox-wrap" title="Use a node-graph (visual formula) instead of the operator list. The graph compiles to a Formula Engine expression."
+                   style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sd-text-3);">
+              <input type="checkbox"
+                     name="calc_{{sec.section}}_{{entry.index}}_useGraph"
+                     {{#if entry.useGraph}}checked{{/if}} />
+              <span>Node graph</span>
+            </label>
+            <button type="button" class="config-add-btn"
+                    data-action="editCalcGraph"
+                    data-section="{{sec.section}}"
+                    data-index="{{entry.index}}"
+                    title="Open the node-graph editor for this entry"
+                    style="font-size:10px;padding:2px 8px;">
+              <i class="fas fa-diagram-project"></i> Edit graph{{#if entry.hasGraph}} ({{entry.graphNodeCount}}){{/if}}
+            </button>
+            <button type="button" class="config-remove-btn"
+                    data-action="removeCalcEntry"
+                    data-section="{{sec.section}}"
+                    data-index="{{entry.index}}"
+                    title="Remove this entry">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+          <div class="calc-parts-list" style="display:{{#if entry.useGraph}}none{{else}}flex{{/if}};flex-direction:column;gap:4px;">
+            {{#each entry.parts as |part|}}
+            <div class="calc-part-row" style="display:flex;align-items:center;gap:6px;">
+              <select name="calc_{{sec.section}}_{{entry.index}}_p{{part.index}}_op"
+                      style="width:60px;font-family:monospace;font-size:13px;">
+                <option value="+" {{#if part.isPlus}}selected{{/if}}>+</option>
+                <option value="-" {{#if part.isMinus}}selected{{/if}}>−</option>
+                <option value="*" {{#if part.isMul}}selected{{/if}}>×</option>
+                <option value="/" {{#if part.isDiv}}selected{{/if}}>÷</option>
+              </select>
+              <input type="text"
+                     name="calc_{{sec.section}}_{{entry.index}}_p{{part.index}}_path"
+                     value="{{part.path}}"
+                     placeholder="system.attributes.attr1.mod"
+                     style="flex:1;font-family:monospace;font-size:11px;" />
+              <button type="button" class="config-remove-btn"
+                      data-action="removeCalcPart"
+                      data-section="{{sec.section}}"
+                      data-index="{{entry.index}}"
+                      data-part-index="{{part.index}}"
+                      title="Remove this term">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            {{/each}}
+            <button type="button" class="config-add-btn"
+                    data-action="addCalcPart"
+                    data-section="{{sec.section}}"
+                    data-index="{{entry.index}}"
+                    style="align-self:flex-start;font-size:10px;padding:2px 8px;">
+              <i class="fas fa-plus"></i> Add term
+            </button>
+          </div>
+          {{#if entry.useGraph}}
+          <div class="calc-graph-hint" style="font-size:10px;color:var(--sd-text-3);font-style:italic;padding:4px 2px;">
+            Using node graph &mdash; click "Edit graph" to configure. The compiled formula sets the value at <code>system.{{sec.section}}.{{entry.key}}</code>.
+            {{#unless entry.hasGraph}}<span style="color:var(--sd-warning,#d8a44a);">Graph is empty &mdash; falling back to Base value.</span>{{/unless}}
+          </div>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        <strong>Base</strong> = starting value for newly created actors (existing actors keep their values).
+        <strong>Formula</strong>: term1 OP term2 OP term3 … (the first operator is the sign of the first term).
+        Leave the formula empty to skip recomputation and use the stored base value as-is.
+        Paths are resolved against the actor (e.g. <code>system.attributes.attr1.mod</code>).
+      </p>
+    </div>
+    {{/each}}
+
     <div class="config-section">
       <h3 class="config-section-title">
         <i class="fas fa-calculator"></i> Mechanics

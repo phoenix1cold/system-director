@@ -94,6 +94,25 @@ export const NODE_DEFS = {
     isAttrOutput:true
   },
 
+  skill_rank_val: {
+    title:"Skill Rank", color:"#1a4a7a", cat:"_skill",
+    desc:"Live numeric value of this skill rank (read-only, always present in skill graphs).",
+    inputs:[], outputs:[{id:"value",label:"Value",type:"value.number"}],
+    fields:[{key:"path",label:"Rank Path",type:"path",default:"system.skills.skill1.rank"}],
+    isSkillRank: true,
+    compile:(n)=>`{${n.data.path??"system.skills.skill1.rank"}}`
+  },
+  skill_output: {
+    title:"SKILL OUTPUT", color:"#1a4a7a", cat:"_skill",
+    desc:"Skill widget output. Wire modValue to set what the bonus button shows and rolls.",
+    inputs:[
+      {id:"modValue", label:"Mod Value", type:"value.number"}
+    ],
+    outputs:[],
+    fields:[],
+    isSkillOutput:true
+  },
+
   branch: {
     title:"Branch", color:"#8a2a8a", cat:"Flow",
     desc:"If Condition is TRUE runs True path; otherwise False path",
@@ -4893,6 +4912,8 @@ export class FormulaGraph {
     this.configMode   = opts.mode === "config";
     this.sheetTrigger = opts.mode === "sheetTrigger";
     this.actionGraph  = opts.mode === "actionGraph";
+    this.customLoad   = typeof opts.customLoad === "function" ? opts.customLoad : null;
+    this.customSave   = typeof opts.customSave === "function" ? opts.customSave : null;
     this.win          = null;
     this.edgeSVG      = null;
     this.nodesEl      = null;
@@ -5507,6 +5528,21 @@ export class FormulaGraph {
   }
 
   _loadGraph() {
+    if (this.customLoad) {
+      let s = null;
+      try { s = this.customLoad(); } catch(e) { console.warn("[sd] formula-graph: customLoad failed", e); }
+      if (s?.nodes?.length) {
+        this.nodes    = foundry.utils.deepClone(s.nodes);
+        this.edges    = foundry.utils.deepClone(s.edges ?? []);
+        this.comments = foundry.utils.deepClone(s.comments ?? []);
+        migrateGraph(this);
+        const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
+        this._id = (Math.max(0,...numIds) + 2) || 2;
+      } else {
+        this._addOutputNode();
+      }
+      return;
+    }
     if (this.configMode && this.widget) {
       const s = this.widget.configGraph;
       if (s?.nodes?.length) {
@@ -5576,6 +5612,8 @@ export class FormulaGraph {
       migrateGraph(this);
       if (this.widget?.type === "attribute") {
         this._migrateAttrGraph();
+      } else if (this.widget?.type === "skill") {
+        this._migrateSkillGraph();
       }
       const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
       this._id = (Math.max(0,...numIds) + 2) || 2;
@@ -5586,6 +5624,8 @@ export class FormulaGraph {
         this._addTriggerOutputNodes();
       } else if (this.widget?.type === "attribute") {
         this._addAttributeDefaultGraph();
+      } else if (this.widget?.type === "skill") {
+        this._addSkillDefaultGraph();
       } else {
         this._addOutputNode();
         const f = this.targetInput?.value??"";
@@ -5607,6 +5647,18 @@ export class FormulaGraph {
   }
 
   async _saveGraph() {
+    if (this.customSave) {
+      const data = {
+        nodes:    this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
+        edges:    this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
+        comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
+      };
+      let compiled = "0";
+      try { compiled = this.compile(); } catch(e) { console.warn("[sd] formula-graph: compile failed", e); }
+      try { await this.customSave(data, compiled); }
+      catch(e) { console.warn("[sd] formula-graph: customSave failed", e); }
+      return;
+    }
     if (this.configMode && this.saveCtx) {
       const {tab, row, w, doc} = this.saveCtx;
       const graphData = {
@@ -5680,6 +5732,16 @@ export class FormulaGraph {
             widget.onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
             widget.modFormula = undefined;
             widget.formula    = undefined;
+          } else if (this.widget?.type === "skill") {
+            const sklOut = this.nodes.find(n => n.type === "skill_output");
+            if (sklOut) {
+              const mvEdge = this.edges.find(e => e.toNode === sklOut.id && e.toPin === "modValue");
+              const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
+              widget.modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
+            }
+            const onClickNode = this.nodes.find(n => n.type === "on_click");
+            const clickEdge   = onClickNode ? this.edges.find(e => e.fromNode === onClickNode.id && e.fromPin === "exec") : null;
+            widget.onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
           }
         }
         await doc.update({"system.customTabs":tabs});
@@ -5794,9 +5856,9 @@ export class FormulaGraph {
   }
 
   compile() {
-    const attrOut = this.nodes.find(n=>n.type==="attr_output");
-    if (attrOut) {
-      const mvEdge = this.edges.find(e=>e.toNode===attrOut.id&&e.toPin==="modValue");
+    const valOut = this.nodes.find(n=>n.type==="attr_output" || n.type==="skill_output");
+    if (valOut) {
+      const mvEdge = this.edges.find(e=>e.toNode===valOut.id&&e.toPin==="modValue");
       if (mvEdge) {
         const modSrc = this.nodes.find(n=>n.id===mvEdge.fromNode);
         if (modSrc) return this._compileValue(modSrc, new Set(), mvEdge.fromPin);
@@ -6351,7 +6413,7 @@ export class FormulaGraph {
       if (typeof el._refreshAttrCard === "function") el._refreshAttrCard();
     });
 
-    const liveTargetNode = this.nodes.find(n => n.type === "output" || n.type === "attr_output");
+    const liveTargetNode = this.nodes.find(n => n.type === "output" || n.type === "attr_output" || n.type === "skill_output");
     if (liveTargetNode) {
       const outEl = this.nodesEl?.querySelector(`[data-nid="${liveTargetNode.id}"]`);
       if (outEl) {
@@ -6378,14 +6440,20 @@ export class FormulaGraph {
 
     const badge = this.win.querySelector("#gmode-badge");
     if (!badge) return;
-    const hasAttrOut = this.nodes.some(n=>n.type==="attr_output");
-    const hasOnClick = this.nodes.some(n=>n.type==="on_click");
-    const hasOutput  = this.nodes.some(n=>n.type==="output");
+    const hasAttrOut  = this.nodes.some(n=>n.type==="attr_output");
+    const hasSkillOut = this.nodes.some(n=>n.type==="skill_output");
+    const hasOnClick  = this.nodes.some(n=>n.type==="on_click");
+    const hasOutput   = this.nodes.some(n=>n.type==="output");
     if (hasAttrOut) {
       badge.style.display = "block";
       badge.style.color   = "#e8c060";
       badge.style.borderColor = "#7a4a1a";
       badge.textContent   = "✓ Attribute graph — wire modValue (display) + On Click exec chain";
+    } else if (hasSkillOut) {
+      badge.style.display = "block";
+      badge.style.color   = "#60c0e8";
+      badge.style.borderColor = "#1a4a7a";
+      badge.textContent   = "✓ Skill graph — wire modValue (display) + On Click exec chain";
     } else if (hasOnClick) {
       badge.style.display = "block";
       badge.style.color   = "#5ae07a";
@@ -6603,7 +6671,7 @@ export class FormulaGraph {
       await this._saveGraph(); this.close();
     });
     win.querySelector("#gsave").addEventListener("click", async () => {
-      if (this.targetInput && this.widget?.type !== "attribute") {
+      if (this.targetInput && this.widget?.type !== "attribute" && this.widget?.type !== "skill") {
         const f = this.compile();
         this.targetInput.value = f;
         this.targetInput.dispatchEvent(new Event("input",{bubbles:true}));
@@ -6935,6 +7003,43 @@ export class FormulaGraph {
     this._id = 20;
   }
 
+  _addSkillDefaultGraph() {
+    const rankPath = this.widget?.path ?? "system.skills.skill1.rank";
+    const rankNode = { id:"skill_rank_val", type:"skill_rank_val", x:60,  y:160, data:{ path: rankPath } };
+    const trigNode = { id:"skill_on_click", type:"on_click",       x:60,  y:330, data:{} };
+    const outNode  = { id:"skill_output",   type:"skill_output",   x:500, y:240, data:{} };
+
+    this.nodes.push(rankNode, trigNode, outNode);
+
+    this.edges.push({ id:"e_rk_out", fromNode:"skill_rank_val", fromPin:"value", toNode:"skill_output", toPin:"modValue" });
+
+    this._id = 20;
+  }
+
+  _migrateSkillGraph() {
+    if (!this.nodes.find(n => n.type === "skill_output")) {
+      const oldOut = this.nodes.find(n => n.type === "output");
+      const valEdge = oldOut ? this.edges.find(e => e.toNode === oldOut.id && e.toPin === "value") : null;
+      this.nodes = this.nodes.filter(n => n.type !== "output");
+      this.edges = this.edges.filter(e => e.toNode !== (oldOut?.id ?? "__none__") && e.fromNode !== (oldOut?.id ?? "__none__"));
+      this.nodes.push({ id:"skill_output", type:"skill_output", x: oldOut?.x ?? 500, y: oldOut?.y ?? 240, data:{} });
+      if (valEdge) {
+        this.edges.push({ id:`e_mig_${Date.now()}`, fromNode:valEdge.fromNode, fromPin:valEdge.fromPin, toNode:"skill_output", toPin:"modValue" });
+      }
+    }
+    if (!this.nodes.find(n => n.type === "skill_rank_val")) {
+      const rankPath = this.widget?.path ?? "system.skills.skill1.rank";
+      this.nodes.unshift({ id:"skill_rank_val", type:"skill_rank_val", x:60, y:160, data:{ path: rankPath } });
+    }
+    if (!this.nodes.find(n => n.type === "on_click")) {
+      this.nodes.push({ id:"skill_on_click", type:"on_click", x:60, y:330, data:{} });
+    }
+    const sklOut = this.nodes.find(n => n.type === "skill_output");
+    if (sklOut) {
+      this.edges = this.edges.filter(e => !(e.toNode === sklOut.id && e.toPin === "exec"));
+    }
+  }
+
   _migrateAttrGraph() {
     const hasNew = this.nodes.some(n => n.type === "attr_score_val" || n.type === "attr_output");
     if (!hasNew) {
@@ -7171,12 +7276,12 @@ export class FormulaGraph {
   _renderNode(node) {
     this.nodesEl.querySelector(`[data-nid="${node.id}"]`)?.remove();
     const def=NODE_DEFS[node.type]; if(!def) return;
-    const isOut = node.type==="output" || node.type==="attr_output" || node.type==="attr_score_val" || node.type==="on_click";
+    const isOut = node.type==="output" || node.type==="attr_output" || node.type==="attr_score_val" || node.type==="skill_output" || node.type==="skill_rank_val" || node.type==="on_click";
 
     const el=document.createElement("div");
     el.dataset.nid=node.id;
 
-    const W_BASE = def.wideNode ? 440 : def.isAttackBranch ? 340 : def.isBranch ? 280 : def.isAction ? 320 : (def.isOutput||def.isAttrOutput) ? 220 : 250;
+    const W_BASE = def.wideNode ? 440 : def.isAttackBranch ? 340 : def.isBranch ? 280 : def.isAction ? 320 : (def.isOutput||def.isAttrOutput||def.isSkillOutput) ? 220 : 250;
 
     const _allPinLabels = [
       ...(def.inputs ?? []).map(p => p.label ?? ""),
@@ -7229,6 +7334,9 @@ export class FormulaGraph {
     if (def.isOutput) {
       const PASSIVE = new Set(["text","derived","image","section","richtext","tags"]);
       if (this.widget && PASSIVE.has(this.widget.type)) {
+        inputPins = inputPins.filter(p => p.type !== "exec");
+      }
+      if (this.customLoad || this.customSave) {
         inputPins = inputPins.filter(p => p.type !== "exec");
       }
     }
@@ -7392,6 +7500,33 @@ export class FormulaGraph {
 
       el.addEventListener("input", _refreshAttrCard);
       el._refreshAttrCard = _refreshAttrCard;
+    }
+
+    if (node.type === "skill_rank_val") {
+      const body = el.querySelector(".gnbody");
+      const card = document.createElement("div");
+      card.className = "gn-skill-card";
+      card.style.cssText = "margin:4px 8px 5px;border:1px solid #1a3a4a;border-radius:5px;background:#04090e;padding:5px 8px;display:flex;flex-direction:column;gap:3px;align-items:center";
+
+      const rankDisplay = document.createElement("div");
+      rankDisplay.style.cssText = "font-size:28px;font-weight:700;color:#60c0e8;font-family:monospace;line-height:1;letter-spacing:-1px";
+
+      card.appendChild(rankDisplay);
+      body.appendChild(card);
+
+      const _refreshSkillCard = () => {
+        const doc = this.doc;
+        const p = node.data.path ?? "";
+        if (!doc || !p) { rankDisplay.textContent = "—"; return; }
+        const raw = foundry.utils.getProperty(doc, p);
+        const rank = raw !== undefined && raw !== null ? Number(raw) : null;
+        if (rank === null || isNaN(rank)) { rankDisplay.textContent = "?"; return; }
+        rankDisplay.textContent = String(rank);
+      };
+      _refreshSkillCard();
+
+      el.addEventListener("input", _refreshSkillCard);
+      el._refreshAttrCard = _refreshSkillCard;
     }
 
     el.querySelectorAll("input[placeholder*='drag']").forEach(inp=>{
@@ -7760,7 +7895,7 @@ export class FormulaGraph {
           return len > max ? len : max;
         }, 0);
         const def2 = NODE_DEFS[node.type] ?? {};
-        const W_BASE2 = def2.wideNode ? 400 : def2.isAttackBranch ? 340 : def2.isBranch ? 290 : def2.isAction ? 320 : (def2.isOutput||def2.isAttrOutput) ? 240 : 260;
+        const W_BASE2 = def2.wideNode ? 400 : def2.isAttackBranch ? 340 : def2.isBranch ? 290 : def2.isAction ? 320 : (def2.isOutput||def2.isAttrOutput||def2.isSkillOutput) ? 240 : 260;
         const W_NEW = Math.max(W_BASE2, _longestNow > 0 ? Math.min(520, 100 + Math.ceil(_longestNow * 7.5)) : 0);
         _nodeEl.style.width = W_NEW + "px";
       }

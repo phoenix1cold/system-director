@@ -151,7 +151,7 @@
       "cardDrawButton": { "default": "По умолчанию", "deck": "Колода", "pile": "Стопка" },
       "effects":        { "default": "По умолчанию", "chips": "Чипы", "icons": "Только иконки" },
       "spellbook":      { "default": "По умолчанию", "grimoire": "Гримуар", "grid": "Сетка", "minimal": "Минимальный" },
-      "skill":          { "default": "По умолчанию", "table": "Таблица", "check": "Галочка", "pill": "Пилюля" },
+      "skill":          { "default": "По умолчанию (в строку)", "pill": "Пилюля", "row-rank": "Строка + ранг", "pips": "Пипы" },
       "derived":        { "default": "По умолчанию", "stat-card": "Статкарта", "formula-badge": "Значок формулы", "inline": "В строку", "pill": "Пилюля" }
     },
     "ActionHud": {

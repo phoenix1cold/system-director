@@ -2568,9 +2568,13 @@
 
 .sd .widget-skill {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
-  padding: 3px 0;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--sd-w-bg, transparent);
+  border: 1px solid var(--sd-w-border, transparent);
+  border-radius: var(--sd-r, 4px);
 }
 
 .sd .widget-skill .skill-name {
@@ -2580,33 +2584,108 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.sd .widget-skill .skill-rank {
-  width: 36px;
+.sd .widget-skill .skill-bonus {
+  font-size: var(--sd-btn-font-size);
+  font-weight: 700;
+  color: var(--sd-accent);
+  background: var(--sd-bg-3);
+  border: 1px solid var(--sd-border);
+  cursor: pointer;
+  min-width: 40px;
+  text-align: center;
+  padding: 4px 10px;
+  border-radius: var(--sd-r, 4px);
+  transition: background .15s, color .15s, border-color .15s;
+  line-height: 1.2;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.sd .widget-skill .skill-bonus:hover {
+  background: var(--sd-accent-glow);
+  border-color: var(--sd-accent);
+  color: var(--sd-text);
+}
+
+.sd .widget-skill.skill-pill {
+  background: var(--sd-accent-glow);
+  border: 1px solid var(--sd-accent-dim, var(--sd-accent));
+  border-radius: 999px;
+  padding: 2px 12px;
+  gap: 10px;
+}
+
+.sd .widget-skill.skill-pill .skill-bonus {
+  background: transparent;
+  border: none;
+  color: var(--sd-accent);
+  padding: 2px 6px;
+  min-width: auto;
+}
+
+.sd .widget-skill.skill-pill .skill-bonus:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: transparent;
+}
+
+.sd .widget-skill.skill-row-rank {
+  gap: 6px;
+}
+
+.sd .widget-skill.skill-row-rank .skill-rank-input {
+  width: 44px;
   text-align: center;
   font-size: var(--sd-fs-m2);
   height: 26px;
   flex-shrink: 0;
+  background: var(--sd-bg-3);
+  border: 1px solid var(--sd-border);
+  color: var(--sd-text);
+  border-radius: var(--sd-r, 4px);
+  padding: 2px 4px;
 }
 
-.sd .widget-skill .skill-roll {
-  font-size: var(--sd-btn-font-size);
-  font-weight: 700;
-  color: var(--sd-accent);
-  background: none;
-  border: none;
-  cursor: pointer;
-  min-width: 32px;
-  text-align: right;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: background .15s;
-  line-height: 1.4;
+.sd .widget-skill.skill-row-rank .skill-rank-input::-webkit-inner-spin-button {
+  opacity: 0.5;
+}
+
+.sd .widget-skill.skill-pips {
+  gap: 8px;
+}
+
+.sd .widget-skill .skill-pip-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   flex-shrink: 0;
 }
 
-.sd .widget-skill .skill-roll:hover { background: var(--sd-accent-glow); }
+.sd .widget-skill .skill-pip {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid var(--sd-border);
+  background: var(--sd-bg-3);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, transform .08s;
+}
+
+.sd .widget-skill .skill-pip:hover {
+  border-color: var(--sd-accent);
+  transform: scale(1.15);
+}
+
+.sd .widget-skill .skill-pip.filled {
+  background: var(--sd-accent);
+  border-color: var(--sd-accent);
+  box-shadow: 0 0 4px var(--sd-accent-glow, rgba(255,200,80,0.4));
+}
 
 .sd-dialog-config input[type="text"],
 .sd-dialog-config input[type="number"],

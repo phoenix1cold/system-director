@@ -641,7 +641,7 @@ export const WIDGET_VARIANTS = {
   cardDrawButton: ["default", "deck", "pile"],
   effects:        ["default", "chips", "icons"],
   spellbook:      ["default", "grimoire", "grid", "minimal"],
-  skill:          ["default", "table", "check", "pill"],
+  skill:          ["default", "pill", "row-rank", "pips"],
   derived:        ["default", "stat-card", "formula-badge", "inline", "pill"]
 };
 

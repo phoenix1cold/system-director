@@ -6,6 +6,26 @@ import { ButtonExecutor } from "../helpers/button-executor.mjs";
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
+function _stripInvalidNumbers(obj, schemaField) {
+  if (!obj || typeof obj !== "object" || !schemaField?.fields) return;
+  for (const [key, sub] of Object.entries(schemaField.fields)) {
+    if (!(key in obj)) continue;
+    const val = obj[key];
+    const cls = sub?.constructor?.name;
+    if (cls === "NumberField") {
+      const n = Number(val);
+      const allowNull = sub.nullable === true;
+      const empty = val === "" || val === null || val === undefined;
+      if (empty || !Number.isFinite(n)) {
+        if (allowNull && val === null) continue;
+        delete obj[key];
+      }
+    } else if (cls === "SchemaField" && val && typeof val === "object") {
+      _stripInvalidNumbers(val, sub);
+    }
+  }
+}
+
 function _promptTabName(current = "") {
   return new Promise(resolve => {
     const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
@@ -61,6 +81,20 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _editMode = false;
 
   get title() { return this.document.name; }
+
+  _processFormData(event, form, formData) {
+    try {
+      const raw = formData?.object ? JSON.parse(JSON.stringify(formData.object)) : null;
+      console.debug("SD | _processFormData raw object →", raw);
+    } catch {}
+    const data = super._processFormData(event, form, formData);
+    const schema = this.document.system?.schema ?? this.document.system?.constructor?.schema;
+    if (schema && data && typeof data === "object" && data.system) {
+      _stripInvalidNumbers(data.system, schema);
+    }
+    try { console.debug("SD | _processFormData expanded+cleaned →", JSON.parse(JSON.stringify(data))); } catch {}
+    return data;
+  }
 
   async _prepareContext(options) {
     const base   = await super._prepareContext(options);
@@ -129,6 +163,25 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       if (cReset && !cReset.dataset.sdDirect) {
         ev.stopPropagation();
         await this.document.update({ [cReset.dataset.path]: 0 });
+        return;
+      }
+      const skillPip = ev.target.closest(".skill-pip[data-path][data-rank]");
+      if (skillPip) {
+        ev.stopPropagation();
+        const path = skillPip.dataset.path;
+        const r    = Number(skillPip.dataset.rank) || 0;
+        const cur  = Number(_readPath(path)) || 0;
+        const next = cur === r ? r - 1 : r;
+        await this.document.update({ [path]: Math.max(0, next) });
+      }
+    });
+
+    root.addEventListener("contextmenu", async ev => {
+      const pipRow = ev.target.closest(".skill-pip-row[data-path]");
+      if (pipRow) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        await this.document.update({ [pipRow.dataset.path]: 0 });
       }
     });
   }
@@ -297,7 +350,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     let html = `<div style="font-size:11px;color:var(--sd-text-3);margin-bottom:8px;line-height:1.6">
       GM-only key/value pairs attached to this actor. Path: <code style="background:var(--sd-bg);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--sd-accent)">system.hiddenFields.name</code>
-      ${ed ? `<button data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}
+      ${ed ? `<button type="button" data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}
     </div>`;
 
     if (!hf.length) {
@@ -308,7 +361,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           <input type="text" data-hf-key="${e(k)}" data-hf-rename value="${e(k)}" style="width:130px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-accent);font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>
           <input type="text" data-hf-key="${e(k)}" data-hf-val value="${e(String(v))}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-w-fg,var(--sd-text));font-size:11px;padding:3px 6px" ${!ed?"disabled":""}>
           <button type="button" data-hf-action="copy-path" data-hf-key="${e(k)}" title="Copy path: system.hiddenFields.${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
-          ${ed?`<button data-hf-action="remove" data-hf-key="${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 4px">✕</button>`:""}
+          ${ed?`<button type="button" data-hf-action="remove" data-hf-key="${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 4px">✕</button>`:""}
         </div>`;
       }
     }
