@@ -167,10 +167,41 @@ function wireHudWidget(cell, widgetDef, actor) {
     return foundry.utils.getProperty(actor, path);
   };
 
-  cell.querySelectorAll("input[data-path]").forEach(inp => {
+  cell.querySelectorAll("input[data-path], input[name]").forEach(inp => {
     inp.addEventListener("change", async () => {
-      const v = inp.type === "number" ? Number(inp.value) : inp.value;
-      try { await actor.update({ [inp.dataset.path]: v }); } catch(e) {}
+      const path = inp.dataset.path || inp.getAttribute("name");
+      if (!path || path.startsWith("__")) return;
+      let v;
+      if (inp.type === "checkbox") v = inp.checked;
+      else if (inp.type === "number") v = Number(inp.value);
+      else v = inp.value;
+      try { await actor.update({ [path]: v }); } catch(e) {}
+    });
+  });
+
+  cell.querySelectorAll("select[data-path], select[name]").forEach(sel => {
+    sel.addEventListener("change", async () => {
+      const path = sel.dataset.path || sel.getAttribute("name");
+      if (!path) return;
+      try { await actor.update({ [path]: sel.value }); } catch(e) {}
+    });
+  });
+
+  cell.querySelectorAll("textarea[data-path], textarea[name]").forEach(ta => {
+    ta.addEventListener("change", async () => {
+      const path = ta.dataset.path || ta.getAttribute("name");
+      if (!path) return;
+      try { await actor.update({ [path]: ta.value }); } catch(e) {}
+    });
+  });
+
+  cell.querySelectorAll("[data-action='widgetSelectPill']").forEach(btn => {
+    btn.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      const path = btn.dataset.path;
+      const value = btn.dataset.value ?? "";
+      if (!path) return;
+      try { await actor.update({ [path]: value }); } catch(e) {}
     });
   });
 
