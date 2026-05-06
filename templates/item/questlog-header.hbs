@@ -1,0 +1,19 @@
+<header class="sheet-header item-header questlog-header">
+  <div class="actor-portrait">
+    <img src="{{item.img}}" alt="{{item.name}}"
+         data-action="editImage"
+         class="portrait-img {{#unless isEditable}}readonly{{/unless}}" />
+  </div>
+
+  <div class="actor-identity">
+    <input class="actor-name" type="text" name="name"
+           value="{{item.name}}"
+           placeholder="{{localize 'SD.QuestLog.Name'}}"
+           {{#unless isEditable}}disabled{{/unless}} />
+    <div class="item-meta">
+      <span class="badge questlog-badge"><i class="fas fa-scroll"></i> {{localize 'SD.QuestLog.TypeLabel'}}</span>
+      <span class="badge questlog-count">{{localize 'SD.QuestLog.NQuests'}}: {{questCount}}</span>
+      {{#if isGM}}<span class="badge questlog-gm-badge"><i class="fas fa-user-shield"></i> GM</span>{{/if}}
+    </div>
+  </div>
+</header>

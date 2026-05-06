@@ -65,6 +65,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       editImage:         CharacterSheet._onEditImage,
       openRollDialog:    CharacterSheet._onOpenRollDialog,
       openProgression:   CharacterSheet._onOpenProgression,
+      openTrade:         CharacterSheet._onOpenTrade,
       openBuilder:       CharacterSheet._onOpenBuilder,
       openSheetTriggers: CharacterSheet._onOpenSheetTriggers,
       toggleEditMode:    CharacterSheet._onToggleEditMode
@@ -346,9 +347,97 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const sys = this.document.system;
     const ed  = this.isEditable;
     const e   = s => String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-    const hf  = Object.entries(sys.hiddenFields??{});
 
-    let html = `<div style="font-size:11px;color:var(--sd-text-3);margin-bottom:8px;line-height:1.6">
+    const TRADER_KEYS = new Set(["trader","autoTrade","priceDistortion","tradeCategories"]);
+    const allHf = sys.hiddenFields ?? {};
+    const hf  = Object.entries(allHf).filter(([k]) => !TRADER_KEYS.has(k));
+    const _truthy = v => (v === true || v === "true" || v === 1 || v === "1" || v === "yes" || v === "on");
+    const isTrader   = _truthy(allHf.trader);
+    const autoTrade  = _truthy(allHf.autoTrade);
+    const priceDist  = (allHf.priceDistortion === undefined || allHf.priceDistortion === null || allHf.priceDistortion === "") ? 100 : Number(allHf.priceDistortion);
+    const tradeCats  = String(allHf.tradeCategories ?? "");
+
+    const _i18n = (k, f) => { const v = game.i18n?.localize?.(k); return (!v || v === k) ? f : v; };
+
+    const _curList = (Array.isArray(CONFIG?.SD?.currencies) && CONFIG.SD.currencies.length)
+      ? CONFIG.SD.currencies
+      : [{ key: "primary", label: "Gold" }, { key: "secondary", label: "Silver" }, { key: "tertiary", label: "Copper" }];
+
+    let html = `<div class="sys-section" style="margin-bottom:12px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:6px;padding:10px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--sd-stamina);margin-bottom:6px">
+        <i class="fas fa-store"></i> ${e(_i18n("SD.Trade.TraderSettings","Trader settings"))}
+      </div>
+      <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.5">${e(_i18n("SD.Trade.TraderHint","Mark this actor as a merchant. Traders appear in the partner picker even off-scene. AutoTrade lets players shop directly without GM approval."))}</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end">
+        <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:var(--sd-text)">
+          <input type="checkbox" data-hf-trader="trader" ${isTrader?"checked":""} ${!ed?"disabled":""} style="accent-color:var(--sd-stamina);width:15px;height:15px;cursor:inherit">
+          ${e(_i18n("SD.Trade.IsTrader","Trader"))}
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:var(--sd-text)">
+          <input type="checkbox" data-hf-trader="autoTrade" ${autoTrade?"checked":""} ${!ed?"disabled":""} style="accent-color:var(--sd-stamina);width:15px;height:15px;cursor:inherit">
+          ${e(_i18n("SD.Trade.AutoTrade","AutoTrade"))}
+        </label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2);flex:0 0 130px">
+          <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(_i18n("SD.Trade.PriceDistortion","Price distortion %"))}</span>
+          <input type="number" min="0" step="1" data-hf-trader="priceDistortion" value="${priceDist}" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2);flex:1;min-width:160px">
+          <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(_i18n("SD.Trade.TradeCategories","Buys categories (CSV)"))}</span>
+          <input type="text" data-hf-trader="tradeCategories" value="${e(tradeCats)}" placeholder="weapon, armor, consumable" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 7px">
+        </label>
+      </div>
+    </div>`;
+
+    if (isTrader) {
+      const invItems = [...(this.document.items ?? [])].filter(it => it.type === "inventory");
+      const _curOptionsHTML = (sel) => {
+        const opts = [`<option value="" ${sel?"":"selected"}>— ${e(_i18n("SD.Trade.UseItem","use item's"))} —</option>`]
+          .concat(_curList.map(c => `<option value="${e(c.key)}" ${c.key===sel?"selected":""}>${e(c.label ?? c.key)}</option>`));
+        return opts.join("");
+      };
+      let table = `<div class="sys-section" style="margin-bottom:12px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:6px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--sd-stamina);margin-bottom:6px">
+          <i class="fas fa-cart-shopping"></i> ${e(_i18n("SD.Trade.ShopTitle","Shop"))} — ${e(_i18n("SD.InventoryFlags","Inventory"))}
+        </div>
+        <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.5">${e(_i18n("SD.Trade.ShopTableHint","Toggle Saleable to list items in the autotrade shop. Price/currency override the item's base values for this trader copy."))}</p>`;
+      if (!invItems.length) {
+        table += `<div style="font-size:11px;color:var(--sd-text-3);font-style:italic;text-align:center;padding:14px">${e(_i18n("SD.Trade.NoInventory","No inventory items on this actor."))}</div>`;
+      } else {
+        table += `<div style="display:grid;grid-template-columns:24px 1fr 90px 60px 90px 110px;gap:6px 8px;align-items:center;font-size:10px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--sd-border);padding-bottom:4px;margin-bottom:6px">
+          <span></span>
+          <span>${e(_i18n("SD.Trade.Item","Item"))}</span>
+          <span>${e(_i18n("SD.Category","Category"))}</span>
+          <span>${e(_i18n("SD.Trade.Stock","Stock"))}</span>
+          <span title="${e(_i18n("SD.Trade.PriceOverrideHint","Empty = use item's base price"))}">${e(_i18n("SD.Trade.SalePriceOverride","Price"))}</span>
+          <span>${e(_i18n("SD.Trade.SaleCurrency","Currency"))}</span>
+        </div>`;
+        for (const it of invItems) {
+          const ihf = it.system?.hiddenFields ?? {};
+          const isSale = _truthy(ihf.saleable);
+          const sP = (ihf.salePrice === undefined || ihf.salePrice === null || ihf.salePrice === "") ? "" : Number(ihf.salePrice);
+          const sCur = String(ihf.saleCurrency ?? "");
+          const stk = Number(it.system?.quantity ?? 0);
+          const cat = String(it.system?.category ?? "");
+          table += `<div style="display:grid;grid-template-columns:24px 1fr 90px 60px 90px 110px;gap:6px 8px;align-items:center;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.04)">
+            <input type="checkbox" data-shop-item-id="${e(it.id)}" data-shop-field="saleable" ${isSale?"checked":""} ${!ed?"disabled":""} title="${e(_i18n("SD.Trade.Saleable","Saleable"))}" style="accent-color:var(--sd-stamina);width:14px;height:14px;cursor:${ed?"pointer":"not-allowed"};margin:0">
+            <div style="display:flex;align-items:center;gap:6px;min-width:0">
+              <img src="${e(it.img||"icons/svg/item-bag.svg")}" style="width:22px;height:22px;border-radius:3px;object-fit:cover;flex-shrink:0">
+              <span style="font-size:12px;color:var(--sd-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e(it.name)}">${e(it.name)}</span>
+            </div>
+            <span style="font-size:11px;color:var(--sd-text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(cat || "—")}</span>
+            <span style="font-size:11px;color:var(--sd-text-2);text-align:center">${stk}</span>
+            <input type="number" min="0" step="any" data-shop-item-id="${e(it.id)}" data-shop-field="salePrice" value="${sP}" placeholder="${Number(it.system?.price ?? 0)}" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:3px 6px;text-align:right">
+            <select data-shop-item-id="${e(it.id)}" data-shop-field="saleCurrency" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:3px 6px">
+              ${_curOptionsHTML(sCur)}
+            </select>
+          </div>`;
+        }
+      }
+      table += `</div>`;
+      html += table;
+    }
+
+    html += `<div style="font-size:11px;color:var(--sd-text-3);margin-bottom:8px;line-height:1.6">
       GM-only key/value pairs attached to this actor. Path: <code style="background:var(--sd-bg);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--sd-accent)">system.hiddenFields.name</code>
       ${ed ? `<button type="button" data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}
     </div>`;
@@ -426,6 +515,32 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         delete fields[oldKey];
         fields[newKey] = val;
         await _hfReplace(fields);
+      });
+    });
+
+    panel.querySelectorAll("[data-hf-trader]").forEach(inp => {
+      inp.addEventListener("change", async () => {
+        const key = inp.dataset.hfTrader;
+        let val;
+        if (inp.type === "checkbox") val = inp.checked;
+        else if (inp.type === "number") val = (inp.value === "" ? 0 : Number(inp.value));
+        else val = inp.value;
+        await this.document.update({ [`system.hiddenFields.${key}`]: val });
+        if (key === "trader") this.render(false);
+      });
+    });
+
+    panel.querySelectorAll("[data-shop-field]").forEach(inp => {
+      inp.addEventListener("change", async () => {
+        const itemId = inp.dataset.shopItemId;
+        const field  = inp.dataset.shopField;
+        const item   = this.document.items?.get?.(itemId);
+        if (!item) return;
+        let val;
+        if (inp.type === "checkbox")    val = inp.checked;
+        else if (inp.type === "number") val = (inp.value === "" ? "" : Number(inp.value));
+        else                            val = inp.value;
+        await item.update({ [`system.hiddenFields.${field}`]: val });
       });
     });
 
@@ -1092,6 +1207,36 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
+    cell.querySelectorAll("[data-action='questMarkerOpen']").forEach(btn => {
+      btn.addEventListener("click", async ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const logUuid = btn.dataset.qmLog || "";
+        const qid     = btn.dataset.qmQid || "";
+        if (!logUuid) return;
+        try {
+          const log = await fromUuid(logUuid);
+          if (!log) return;
+          await log.sheet?.render?.(true);
+          if (qid) {
+            setTimeout(() => {
+              try {
+                const sheet = log.sheet;
+                const root = sheet?.element?.[0] ?? sheet?.element ?? null;
+                const li = root?.querySelector?.(`.sd-quest-row[data-quest-id="${qid}"]`);
+                if (li) {
+                  li.click();
+                  li.scrollIntoView({ block: "center", behavior: "smooth" });
+                }
+              } catch {}
+            }, 250);
+          }
+        } catch(e) {
+          console.error("SD | questMarkerOpen:", e);
+        }
+      });
+    });
+
     cell.querySelectorAll("[data-action='slotItemUse']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const slotId = btn.dataset.slotId;
@@ -1253,17 +1398,41 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    cell.querySelectorAll("[data-item-drag], [data-slot-item-drag]").forEach(el => {
+    cell.querySelectorAll("[data-item-drag]").forEach(el => {
       el.setAttribute("draggable", "true");
       el.addEventListener("dragstart", ev => {
         const actor = doc instanceof Actor ? doc : doc.actor;
         const itemId = el.dataset.itemId;
-        const uuid   = el.dataset.itemUuid
-          ?? (itemId ? (actor?.items?.get(itemId)?.uuid ?? doc.items?.get(itemId)?.uuid) : null);
+        const item = actor?.items?.get(itemId) ?? doc.items?.get(itemId);
+        const uuid = item?.uuid ?? el.dataset.itemUuid ?? null;
         if (!uuid && !itemId) return;
-        const dragData = { type: "Item", uuid, _id: itemId };
+        const dragData = {
+          type: "Item",
+          uuid,
+          _id: itemId,
+          sdSrc: actor ? { kind: "inventory", actorUuid: actor.uuid, itemId } : null
+        };
         ev.dataTransfer.setData("text/plain", JSON.stringify(dragData));
-        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.effectAllowed = "all";
+      });
+    });
+
+    cell.querySelectorAll("[data-slot-item-drag]").forEach(el => {
+      el.setAttribute("draggable", "true");
+      el.addEventListener("dragstart", ev => {
+        const actor = doc instanceof Actor ? doc : doc.actor;
+        const slotId = el.dataset.slotId || "";
+        const idx = parseInt(el.dataset.slotIndex ?? "-1");
+        if (!actor || !slotId || isNaN(idx) || idx < 0) return;
+        const dragData = {
+          type: "Item",
+          uuid: el.dataset.itemUuid || "",
+          _id:  el.dataset.itemId   || "",
+          sdSrc: { kind: "slot", actorUuid: actor.uuid, slotId, index: idx }
+        };
+        ev.dataTransfer.setData("text/plain", JSON.stringify(dragData));
+        ev.dataTransfer.effectAllowed = "all";
+        ev.stopPropagation();
       });
     });
 
@@ -1273,8 +1442,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const itemId = row.dataset.itemId;
         const item   = actor?.items?.get(itemId) ?? doc.items?.get(itemId);
         if (!item) return;
-        ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "Item", uuid: item.uuid, _id: item.id }));
-        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.setData("text/plain", JSON.stringify({
+          type: "Item", uuid: item.uuid, _id: item.id,
+          sdSrc: actor ? { kind: "inventory", actorUuid: actor.uuid, itemId: item.id } : null
+        }));
+        ev.dataTransfer.effectAllowed = "all";
       });
     });
 
@@ -1292,38 +1464,16 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
       dz.addEventListener("drop", async ev => {
         ev.preventDefault();
+        ev.stopPropagation();
         dz.style.background = "";
         dz.style.color = "#555";
         dz.style.borderColor = "var(--sd-accent-dim)";
         try {
-          const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
-          const item = data.uuid ? await fromUuid(data.uuid) : null;
-          if (item) {
-            const { SlotManager } = await import("../data/item-slots.mjs");
-            const slotId = dz.dataset.sdSlotDrop;
-
-            const defs = doc.system.slotDefinitions ?? [];
-            if (!defs.find(d => d.id === slotId)) {
-              const allWidgets = (doc.system.customTabs ?? [])
-                .flatMap(t => (t.rows ?? []).flatMap(r => r.widgets ?? []));
-              const wCfg = allWidgets.find(ww => ww.type === "slot" && ww.slotId === slotId);
-              const newDefs = foundry.utils.deepClone(defs);
-              newDefs.push({
-                id:              slotId,
-                label:           wCfg?.label ?? slotId,
-                allowedTypes:    [],
-                allowedCategories: [],
-                attrFilters:     [],
-                maxCount:        wCfg?.maxCount ?? 1,
-                displayMode:     "compact",
-                removable:       true,
-                consumeOnRemove: false
-              });
-              await doc.update({ "system.slotDefinitions": newDefs });
-            }
-
-            await SlotManager.addToSlot(doc, slotId, item);
-          }
+          const data = CharacterSheet._readSdDragData(ev);
+          if (!data) return;
+          const slotId = dz.dataset.sdSlotDrop;
+          const target = doc instanceof Actor ? doc : (doc?.actor ?? null);
+          await CharacterSheet._handleSlotDrop(ev, target, slotId, data);
         } catch(err) { console.warn("SD | slot drop:", err); }
       });
     });
@@ -2161,48 +2311,21 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       zone.style.borderColor = "";
       zone.style.color       = "";
 
-      let data;
-      try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return; }
+      const data = CharacterSheet._readSdDragData(ev);
+      if (!data) return;
+
+      const target = this.document;
 
       if (zone.dataset.sdSlotDrop !== undefined) {
         const slotId = zone.dataset.sdSlotDrop;
-        const item   = data.uuid ? await fromUuid(data.uuid) : null;
-        if (item) {
-          const { SlotManager } = await import("../data/item-slots.mjs");
-
-          const defs = this.document.system.slotDefinitions ?? [];
-          if (!defs.find(d => d.id === slotId)) {
-            const allWidgets = (this.document.system.customTabs ?? [])
-              .flatMap(t => (t.rows ?? []).flatMap(r => r.widgets ?? []));
-            const wCfg = allWidgets.find(w => w.type === "slot" && w.slotId === slotId);
-            const newDefs = foundry.utils.deepClone(defs);
-            newDefs.push({
-              id:              slotId,
-              label:           wCfg?.label ?? slotId,
-              allowedTypes:    [],
-              allowedCategories: [],
-              attrFilters:     [],
-              maxCount:        wCfg?.maxCount ?? 1,
-              displayMode:     "compact",
-              removable:       true,
-              consumeOnRemove: false
-            });
-            await this.document.update({ "system.slotDefinitions": newDefs });
-          }
-
-          await SlotManager.addToSlot(this.document, slotId, item);
+        if (target instanceof Actor) {
+          await CharacterSheet._handleSlotDrop(ev, target, slotId, data);
         }
         return;
       }
 
-      if (this.document instanceof Actor) {
-        let item = null;
-        if (data.uuid)    item = await fromUuid(data.uuid);
-        else if (data.id) item = game.items?.get(data.id);
-        if (item) {
-          await this.document.createEmbeddedDocuments("Item", [item.toObject()]);
-          ui.notifications.info(`Added "${item.name}" to ${this.document.name}`);
-        }
+      if (target instanceof Actor) {
+        await CharacterSheet._handleInventoryDrop(ev, target, data);
       }
     });
   }
@@ -2259,6 +2382,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ProgressionApp.open(this.document);
   }
 
+  static async _onOpenTrade(event, target) {
+    const { SDTrade } = await import("../helpers/trade.mjs");
+    await SDTrade.openFor(this.document);
+  }
+
   static async _onOpenBuilder(event, target) {
     const { Toolbox } = await import("../builder/toolbox-app.mjs");
     Toolbox.toggle();
@@ -2276,5 +2404,124 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this._buildTabNav();
     this._buildTabPanels();
     this._showEditModeBadge();
+  }
+
+  static _readSdDragData(ev) {
+    let data;
+    try { data = JSON.parse(ev.dataTransfer?.getData("text/plain") || "null"); }
+    catch { return null; }
+    if (!data || data.type !== "Item") return null;
+    return data;
+  }
+
+  static async _resolveSlotSnapshot(srcActor, slotId, index) {
+    if (!srcActor) return null;
+    const arr = srcActor.system?.slotContents?.[slotId]?.contents ?? [];
+    return arr[index] ?? null;
+  }
+
+  static async _ensureSlotDef(actor, slotId) {
+    const defs = actor.system.slotDefinitions ?? [];
+    if (defs.find(d => d.id === slotId)) return;
+    const allWidgets = (actor.system.customTabs ?? [])
+      .flatMap(t => (t.rows ?? []).flatMap(r => r.widgets ?? []));
+    const wCfg = allWidgets.find(ww => ww.type === "slot" && ww.slotId === slotId);
+    const newDefs = foundry.utils.deepClone(defs);
+    newDefs.push({
+      id:              slotId,
+      label:           wCfg?.label ?? slotId,
+      allowedTypes:    [],
+      allowedCategories: [],
+      attrFilters:     [],
+      maxCount:        wCfg?.maxCount ?? 1,
+      displayMode:     "compact",
+      removable:       true,
+      consumeOnRemove: false
+    });
+    await actor.update({ "system.slotDefinitions": newDefs });
+  }
+
+  static async _handleSlotDrop(ev, targetActor, slotId, dragData) {
+    if (!targetActor || !slotId || !dragData) return;
+    const isShift = !!ev.shiftKey;
+    const src = dragData.sdSrc ?? null;
+
+    const { SlotManager } = await import("../data/item-slots.mjs");
+    await CharacterSheet._ensureSlotDef(targetActor, slotId);
+
+    if (src?.kind === "slot" && src.actorUuid === targetActor.uuid && src.slotId === slotId) return;
+
+    let payload = null;
+    if (src?.kind === "slot") {
+      const srcActor = await fromUuid(src.actorUuid);
+      payload = await CharacterSheet._resolveSlotSnapshot(srcActor, src.slotId, src.index);
+    } else if (dragData.uuid) {
+      try { payload = await fromUuid(dragData.uuid); } catch { payload = null; }
+    }
+    if (!payload) return;
+
+    const result = await SlotManager.addToSlot(targetActor, slotId, payload);
+    if (!result) return;
+
+    if (isShift) return;
+    if (!src) return;
+
+    if (src.kind === "inventory") {
+      const srcActor = await fromUuid(src.actorUuid);
+      const srcItem = srcActor?.items?.get(src.itemId);
+      if (srcItem) await srcItem.delete();
+    } else if (src.kind === "slot") {
+      const srcActor = await fromUuid(src.actorUuid);
+      if (srcActor) await SlotManager.removeFromSlot(srcActor, src.slotId, src.index);
+    }
+  }
+
+  static async _handleInventoryDrop(ev, targetActor, dragData) {
+    if (!targetActor || !dragData) return;
+    const isShift = !!ev.shiftKey;
+    const src = dragData.sdSrc ?? null;
+
+    if (src?.kind === "inventory" && src.actorUuid === targetActor.uuid) return;
+
+    let payloadData = null;
+    let liveItem = null;
+
+    if (src?.kind === "slot") {
+      const srcActor = await fromUuid(src.actorUuid);
+      payloadData = await CharacterSheet._resolveSlotSnapshot(srcActor, src.slotId, src.index);
+    } else if (dragData.uuid) {
+      try { liveItem = await fromUuid(dragData.uuid); } catch { liveItem = null; }
+      if (liveItem) payloadData = liveItem.toObject();
+    } else if (dragData._id) {
+      liveItem = game.items?.get(dragData._id) ?? null;
+      if (liveItem) payloadData = liveItem.toObject();
+    }
+    if (!payloadData) return;
+
+    const cleaned = foundry.utils.deepClone(payloadData);
+    delete cleaned._id;
+    delete cleaned._sourceUuid;
+    delete cleaned._slotId;
+    delete cleaned._slotIndex;
+
+    const created = await targetActor.createEmbeddedDocuments("Item", [cleaned]);
+    if (!created?.length) return;
+
+    ui.notifications?.info?.(`${isShift ? "Copied" : "Added"} "${cleaned.name}" to ${targetActor.name}`);
+
+    if (isShift) return;
+    if (!src) return;
+
+    if (src.kind === "inventory") {
+      const srcActor = await fromUuid(src.actorUuid);
+      const srcItem = srcActor?.items?.get(src.itemId);
+      if (srcItem) await srcItem.delete();
+    } else if (src.kind === "slot") {
+      const srcActor = await fromUuid(src.actorUuid);
+      if (srcActor) {
+        const { SlotManager } = await import("../data/item-slots.mjs");
+        await SlotManager.removeFromSlot(srcActor, src.slotId, src.index);
+      }
+    }
   }
 }

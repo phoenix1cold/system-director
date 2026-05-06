@@ -1,6 +1,6 @@
 import { FormulaEngine }   from "../helpers/formula-engine.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
-import { WIDGET_VARIANTS } from "./widget-registry.mjs";
+import { WIDGET_VARIANTS, WIDGET_TYPES } from "./widget-registry.mjs";
 
 const FIELD_DEFS = {
   text:      [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Read Only","readOnly","boolean"]],
@@ -36,6 +36,17 @@ const FIELD_DEFS = {
   image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
   derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]],
 
+  questMarker: [
+    ["Label", "label", "text"],
+    ["Widget Key", "widgetKey", "text"],
+    ["Locked QuestLog (optional)", "questLogUuid", "dropUuid", ["Item.questlog"]],
+    ["Icon when a quest is active (FA class)", "iconActive", "text"],
+    ["Icon when no active quest (FA class)", "iconNone", "text"],
+    ["Compact (icon-only)", "compact", "select", ["no", "yes"]],
+    ["Text when no active quest", "placeholder", "text"],
+    ["Tooltip preview length (chars)", "tooltipLength", "number"]
+  ],
+
   cardHand: [
     ["Label","label"],
     ["Widget Key","widgetKey","text"],
@@ -62,6 +73,17 @@ const FIELD_DEFS = {
     ["Show count badge","showCount","select",["yes","no"]]
   ]
 };
+
+for (const [type, def] of Object.entries(WIDGET_TYPES ?? {})) {
+  if (Array.isArray(FIELD_DEFS[type])) continue;
+  const cf = Array.isArray(def?.configFields) ? def.configFields : null;
+  if (!cf?.length) continue;
+  FIELD_DEFS[type] = cf.map(f => {
+    const tup = [f.label ?? f.key ?? "", f.key, f.type ?? "text"];
+    if (Array.isArray(f.options)) tup.push(f.options);
+    return tup;
+  });
+}
 
 for (const [type, variants] of Object.entries(WIDGET_VARIANTS)) {
   if (!variants?.length) continue;
@@ -439,6 +461,27 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>`;
     }
 
+    if (type === "dropUuid") {
+      const allow = Array.isArray(opts) && opts.length ? opts.join(", ") : "any document";
+      return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(lbl)}</label>
+        <div class="wcfg-drop-uuid" data-field-target="${esc(key)}"
+             data-allow-types="${esc(opts.join(","))}"
+             style="display:flex;gap:5px;align-items:center;border:1px dashed var(--sd-border);border-radius:4px;padding:4px;background:var(--sd-bg)">
+          <input type="text" data-field="${esc(key)}" data-ftype="text"
+            value="${esc(cur ?? "")}" placeholder="Drop ${esc(allow)} here, or paste UUID"
+            style="${IS}flex:1;border:none;background:transparent">
+          <button type="button" class="wcfg-clear-uuid" data-target="${esc(key)}"
+            title="Clear"
+            style="background:none;border:none;color:var(--sd-danger-dim);cursor:pointer;font-size:14px;padding:0 4px;line-height:1;flex-shrink:0">✕</button>
+        </div>
+        <div style="font-size:9px;color:var(--sd-text-3);margin-top:3px;line-height:1.4">
+          Drag a ${esc(allow)} from a sidebar / compendium directly onto this field, or paste its UUID.
+        </div>
+      </div>`;
+    }
+
     if (type === "actionGraph") {
       const hasGraph = !!(w.graphData && Array.isArray(w.graphData.nodes) && w.graphData.nodes.length);
       const status = hasGraph
@@ -630,6 +673,61 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   popup.querySelectorAll("input[data-field]").forEach(inp => {
     inp.addEventListener("focus", () => { _lastFocused = inp; });
+  });
+
+  popup.querySelectorAll(".wcfg-drop-uuid").forEach(zone => {
+    const key = zone.dataset.fieldTarget;
+    const inp = zone.querySelector(`input[data-field="${CSS.escape(key)}"]`);
+    if (!inp) return;
+    const allow = String(zone.dataset.allowTypes || "").split(",").map(s => s.trim()).filter(Boolean);
+    zone.addEventListener("dragover", ev => {
+      ev.preventDefault();
+      zone.style.background = "var(--sd-bg-2, #2c2538)";
+      zone.style.borderColor = "var(--sd-accent)";
+    });
+    zone.addEventListener("dragleave", () => {
+      zone.style.background = "var(--sd-bg)";
+      zone.style.borderColor = "var(--sd-border)";
+    });
+    zone.addEventListener("drop", async ev => {
+      ev.preventDefault();
+      zone.style.background = "var(--sd-bg)";
+      zone.style.borderColor = "var(--sd-border)";
+      let raw;
+      try { raw = JSON.parse(ev.dataTransfer.getData("text/plain") || "null"); } catch { raw = null; }
+      if (!raw) return;
+      let uuid = null;
+      if (typeof raw === "string") uuid = raw;
+      else if (raw.uuid) uuid = raw.uuid;
+      else if (raw.type && raw.id) uuid = `${raw.type}.${raw.id}`;
+      if (!uuid) return;
+      if (allow.length) {
+        try {
+          const doc = await fromUuid(uuid);
+          const docType = doc?.documentName === "Item" ? `Item.${doc.type}` : doc?.documentName;
+          const ok = allow.some(a => a === doc?.documentName || a === docType || a === doc?.type);
+          if (!ok) {
+            ui.notifications?.warn?.(`This widget expects: ${allow.join(", ")}`);
+            return;
+          }
+        } catch {}
+      }
+      inp.value = uuid;
+      inp.dispatchEvent(new Event("input", { bubbles: true }));
+      inp.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
+
+  popup.querySelectorAll(".wcfg-clear-uuid").forEach(btn => {
+    btn.addEventListener("click", ev => {
+      ev.preventDefault();
+      const key = btn.dataset.target;
+      const inp = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`);
+      if (!inp) return;
+      inp.value = "";
+      inp.dispatchEvent(new Event("input", { bubbles: true }));
+      inp.dispatchEvent(new Event("change", { bubbles: true }));
+    });
   });
 
   popup.querySelectorAll("input[data-ftype='path'], input[data-ftype='formula']").forEach(inp => {

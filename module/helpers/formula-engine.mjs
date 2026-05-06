@@ -30,13 +30,13 @@ export class FormulaEngine {
         const val = foundry.utils.getProperty(doc, match);
         if (val !== undefined && val !== null && typeof val !== "object") {
           console.debug(`SD | Formula: bare path "${match}" resolved to ${val}. Wrap in {curly braces} for clarity.`);
-          return String(val);
+          return this._safeLiteral(val);
         }
 
         const rd = (doc instanceof Actor ? doc : doc.actor)?.getRollData?.() ?? {};
         const rdVal = foundry.utils.getProperty(rd, match);
         if (rdVal !== undefined && rdVal !== null && typeof rdVal !== "object") {
-          return String(rdVal);
+          return this._safeLiteral(rdVal);
         }
         return match;
       });
@@ -76,10 +76,20 @@ export class FormulaEngine {
       cur = cur.replace(/\{([^{}]+)\}/g, (match, inner) => {
         const val = this._resolveToken(inner.trim(), doc);
         if (val === undefined || val === null) return "0";
-        return String(val);
+        return this._safeLiteral(val);
       });
     }
     return cur;
+  }
+
+  static _safeLiteral(val) {
+    const t = typeof val;
+    if (t === "number")  return Number.isFinite(val) ? String(val) : "0";
+    if (t === "boolean") return val ? "true" : "false";
+    const s = String(val ?? "");
+    if (s === "") return '""';
+    if (/^-?\d+(?:\.\d+)?$/.test(s)) return s;
+    return JSON.stringify(s);
   }
 
   static _sdResolveCardForToken(payload) {
@@ -780,6 +790,94 @@ export class FormulaEngine {
       const payload = this._sdDecodeCardPayload(b64);
       const stack = this._sdResolveStackForToken(payload);
       return this._sdReadStackProp(stack, prop);
+    }
+
+    if (token.startsWith("questGet:")) {
+      const rest  = token.slice("questGet:".length);
+      const parts = rest.split(":");
+      const prop  = parts[0] ?? "";
+      const qid   = parts[1] ?? "";
+      const sid   = parts[2] ?? "";
+
+      if (qid === "__SDQ_THIS__" || sid === "__SDQ_THIS_SUB__") return "";
+      let log = (doc instanceof Item && doc.type === "questlog") ? doc : null;
+      if (!log) {
+        const a = (doc instanceof Actor) ? doc : doc?.actor;
+        if (a) {
+          log = (a.items?.contents ?? []).find(i => i.type === "questlog") ?? null;
+        }
+      }
+      if (!log) return "";
+      const quest = (log.system?.quests ?? []).find(q => q?.id === qid);
+      if (!quest) return "";
+      switch (prop) {
+        case "status":      return String(quest.status ?? "");
+        case "isCompleted": return quest.status === "completed" ? 1 : 0;
+        case "isFailed":    return quest.status === "failed"    ? 1 : 0;
+        case "isActive":    return quest.status === "active"    ? 1 : 0;
+        case "subtaskDone": {
+          const s = (quest.subtasks ?? []).find(x => x?.id === sid);
+          return s?.done ? 1 : 0;
+        }
+      }
+      return "";
+    }
+
+    if (token.startsWith("sdActorOnScene:")) {
+      const ref = token.slice("sdActorOnScene:".length).trim();
+      const scene = game.scenes?.viewed ?? null;
+      if (!scene) return 0;
+      let actorId = "";
+      let a = game.actors?.get(ref);
+      if (!a && ref) a = (game.actors?.contents ?? []).find(x => x.name === ref) ?? null;
+      if (a) actorId = a.id;
+      if (!actorId) return 0;
+      const tokens = scene.tokens?.contents ?? [];
+      for (const t of tokens) {
+        if (t.actorId === actorId) return 1;
+        if (t.actor?.id === actorId) return 1;
+      }
+      return 0;
+    }
+
+    if (token.startsWith("sdFieldEq:")) {
+      const rest = token.slice("sdFieldEq:".length);
+      const [propPart, refPart, pathPart, expPart] = rest.split("|");
+      const prop = propPart ?? "eq";
+      const ref  = (refPart ?? "").trim();
+      const path = (pathPart ?? "").trim();
+      const exp  = expPart ?? "";
+
+      let target = null;
+      if (!ref) {
+        target = game.user?.character ?? null;
+      } else {
+        target = game.actors?.get(ref) ?? null;
+        if (!target) target = (game.actors?.contents ?? []).find(x => x.name === ref) ?? null;
+      }
+      if (!target || !path) return prop === "raw" ? "" : 0;
+      const val = foundry.utils.getProperty(target, path);
+      if (prop === "raw") return val === undefined || val === null ? "" : String(val);
+      return String(val ?? "") === String(exp ?? "") ? 1 : 0;
+    }
+
+    if (token.startsWith("currentUser:")) {
+      const prop = token.slice("currentUser:".length);
+      const u = game.user;
+      if (!u) return "";
+      switch (prop) {
+        case "id":   return String(u.id ?? "");
+        case "name": return String(u.name ?? "");
+        case "role": {
+          const role = u.role ?? 0;
+          if (u.isGM) return "gm";
+          if (role >= 3) return "trusted";
+          if (role >= 1) return "player";
+          return "none";
+        }
+        case "isGM": return u.isGM ? 1 : 0;
+      }
+      return "";
     }
 
     if (token.startsWith("__")) {

@@ -588,6 +588,32 @@ export const WIDGET_TYPES = {
     ]
   },
 
+  questMarker: {
+    id:    "questMarker",
+    label: "Quest Marker",
+    icon:  "fa-flag",
+    desc:  "Show actor's currently active quest with link to its log",
+    defaultSpan: 3,
+    defaults: {
+      label:         "",
+      questLogUuid:  "",
+      iconActive:    "fa-flag",
+      iconNone:      "fa-flag-checkered",
+      compact:       "no",
+      placeholder:   "No active quest",
+      tooltipLength: 240
+    },
+    configFields: [
+      { key: "label",         type: "text",     label: "Header label (optional)" },
+      { key: "questLogUuid",  type: "dropUuid", label: "Locked QuestLog (optional)", options: ["Item.questlog"] },
+      { key: "iconActive",    type: "text",     label: "Icon when a quest is active (FA class)" },
+      { key: "iconNone",      type: "text",     label: "Icon when no active quest (FA class)" },
+      { key: "compact",       type: "select",   label: "Compact (icon-only)", options: ["no","yes"] },
+      { key: "placeholder",   type: "text",     label: "Text when no active quest" },
+      { key: "tooltipLength", type: "number",   label: "Tooltip preview length (chars)" }
+    ]
+  },
+
   cardDrawButton: {
     id:    "cardDrawButton",
     label: "Card Draw Button",
@@ -639,6 +665,7 @@ export const WIDGET_VARIANTS = {
   slot:           ["default", "framed", "round", "ghost"],
   cardHand:       ["default", "fan", "stack", "grid"],
   cardDrawButton: ["default", "deck", "pile"],
+  questMarker:    ["default", "compact", "framed", "ghost"],
   effects:        ["default", "chips", "icons"],
   spellbook:      ["default", "grimoire", "grid", "minimal"],
   skill:          ["default", "pill", "row-rank", "pips"],
@@ -674,7 +701,8 @@ export const WIDGET_PALETTE_ORDER = [
   "toggle", "attribute", "attributeGroup", "skill", "progress", "tracker", "tokenPool", "clock",
   "slot", "inventory", "effects", "spellbook",
   "select", "tags", "image", "section", "vsection", "richtext",
-  "cardHand", "cardDrawButton"
+  "cardHand", "cardDrawButton",
+  "questMarker"
 ];
 
 export function createWidget(type, overrides = {}) {

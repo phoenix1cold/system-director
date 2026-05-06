@@ -340,7 +340,7 @@ export class WidgetRenderer {
 
     const e = this._esc;
     const items = contents.map((c, i) => `
-      <li class="slot-mini-item" data-slot-id="${e(w.slotId)}" data-slot-index="${i}">
+      <li class="slot-mini-item" draggable="true" data-slot-item-drag data-slot-id="${e(w.slotId)}" data-slot-index="${i}" data-item-id="${e(c._id ?? "")}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? "")}">
         <img class="slot-mini-img" src="${e(c.img ?? "icons/svg/item-bag.svg")}" alt="${e(c.name ?? "")}">
         <span>${e(c.name ?? "")}</span>
         <button type="button" class="slot-item-use item-use-btn" data-action="slotItemUse" data-slot-id="${e(w.slotId)}" data-slot-index="${i}" title="Use">
@@ -378,7 +378,7 @@ export class WidgetRenderer {
         const nm  = e(c.name ?? "");
         const itemId   = e(c._id ?? "");
         const itemUuid = e(c._sourceUuid ?? c.uuid ?? "");
-        rows += `<li class="sd-hud-pop-row" data-slot-id="${slotId}" data-slot-index="${i}">
+        rows += `<li class="sd-hud-pop-row" draggable="true" data-slot-item-drag data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUuid}">
           <img src="${img}" alt="${nm}">
           <span class="sd-hud-pop-name" title="${nm}">${nm}</span>
           <button type="button" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="Use"><i class="fas fa-play"></i></button>
@@ -397,7 +397,9 @@ export class WidgetRenderer {
       const c   = contents[i];
       const img = e(c.img ?? "icons/svg/item-bag.svg");
       const nm  = e(c.name ?? "");
-      icons += `<button type="button" class="slot-hud-icon" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="${nm}">
+      const itemId   = e(c._id ?? "");
+      const itemUuid = e(c._sourceUuid ?? c.uuid ?? "");
+      icons += `<button type="button" class="slot-hud-icon" draggable="true" data-slot-item-drag data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUuid}" title="${nm}">
         <img src="${img}" alt="${nm}">
         <span class="slot-hud-icon-remove" data-sd-slot-remove="${slotId}" data-sd-slot-idx="${i}" title="Remove">×</span>
       </button>`;
@@ -491,15 +493,18 @@ export class WidgetRenderer {
     <i class="fas fa-arrow-down-to-line"></i> Drop items here
   </div>`;
 
-    const categoryOrder = ["weapon", "armor", "shield", "consumable", "ammo", "magazine", "tool", "gear", "container", "treasure", "other"];
+    const _legacyOrder = ["weapon", "armor", "shield", "consumable", "ammo", "magazine", "tool", "gear", "container", "treasure", "other"];
+    const _customCats  = Object.keys(grouped).filter(c => !_legacyOrder.includes(c)).sort();
+    const categoryOrder = [..._legacyOrder, ..._customCats, ""];
 
     for (const cat of categoryOrder) {
       const catItems = grouped[cat];
       if (!catItems || catItems.length === 0) continue;
 
+      const _catLbl = cat ? cat.toUpperCase() : "—";
       html += `
   <div class="item-category">
-    <div class="category-header">${cat.toUpperCase()}</div>
+    <div class="category-header">${e(_catLbl)}</div>
     <ul class="item-list">`;
 
       for (const item of catItems) {
@@ -1508,6 +1513,97 @@ export class WidgetRenderer {
 
   static _renderUnknown(w) {
     return `<div class="widget"><div class="widget-label">[${this._esc(w.type)}]</div></div>`;
+  }
+
+  static _render_questMarker(w, doc) {
+    const e = this._esc;
+    const label = w.label ? e(w.label) : "";
+    const compact = (w.compact === "yes" || w.compact === true);
+    const tooltipLen = Math.max(40, Number(w.tooltipLength) || 240);
+    const lockedUuid = String(w.questLogUuid || "").trim();
+    const placeholder = e(w.placeholder ?? "No active quest");
+    const iconActive = e(this._faClass(w.iconActive || "fa-flag"));
+    const iconNone   = e(this._faClass(w.iconNone   || "fa-flag-checkered"));
+
+    const isActor = doc?.documentName === "Actor";
+    const aRaw = isActor ? (doc.system?.activeQuest ?? null) : null;
+    const active = (aRaw && typeof aRaw === "object" && (aRaw.questLogUuid || aRaw.questId)) ? aRaw : null;
+    const activeUuid = active?.questLogUuid ? String(active.questLogUuid) : "";
+    const activeQid  = active?.questId      ? String(active.questId)      : "";
+
+    let log = null, quest = null, mismatch = false;
+    const tryResolve = (uuid) => {
+      if (!uuid) return null;
+      try { return fromUuidSync?.(uuid) ?? null; } catch { return null; }
+    };
+
+    if (activeUuid && activeQid) {
+      log = tryResolve(activeUuid);
+      if (log?.documentName === "Item" && log.type === "questlog") {
+        quest = (log.system?.quests ?? []).find(q => q.id === activeQid) ?? null;
+      }
+      if (lockedUuid && lockedUuid !== activeUuid) {
+        mismatch = true;
+        log = null; quest = null;
+      }
+    }
+
+    const lockedLog = (!log && lockedUuid) ? tryResolve(lockedUuid) : null;
+
+    const openLogUuid = activeUuid || lockedUuid;
+    const openLogName = (log?.name) || (lockedLog?.name) || "";
+    const headerHtml = label ? `<div class="widget-label">${label}</div>` : "";
+
+    if (!quest) {
+      const note = mismatch ? "Active quest not in this QuestLog."
+                : (lockedLog ? `Open ${lockedLog.name}` : placeholder);
+      const openAttrs = openLogUuid
+        ? `data-action="questMarkerOpen" data-qm-log="${e(openLogUuid)}" data-qm-qid=""`
+        : `disabled`;
+      const cursor = openLogUuid ? "pointer" : "default";
+      const opacity = openLogUuid ? "" : "opacity:.6;";
+      return `<div class="widget widget-quest-marker widget-empty">
+  ${headerHtml}
+  <button type="button" class="qm-row qm-open" ${openAttrs}
+    title="${e(note)}"
+    style="display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--sd-border);border-radius:5px;background:var(--sd-bg);min-height:28px;width:100%;cursor:${cursor};${opacity}color:var(--sd-text-2)">
+    <i class="fas ${iconNone}" style="color:var(--sd-text-3);flex-shrink:0"></i>
+    ${compact ? "" : `<span style="flex:1;font-size:12px;color:var(--sd-text-3);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left">${e(note)}</span>`}
+    ${openLogUuid ? `<i class="fas fa-up-right-from-square" style="font-size:10px;opacity:.6;flex-shrink:0"></i>` : ""}
+  </button>
+</div>`;
+    }
+
+    const qName = e(quest.name || "Quest");
+    const qIcon = e(this._faClass(quest.icon || "fa-flag"));
+    const desc  = String(quest.description || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const ttip  = e(desc.length > tooltipLen ? desc.slice(0, tooltipLen - 1) + "…" : desc);
+    const status = e(quest.status || "available");
+
+    if (compact) {
+      return `<div class="widget widget-quest-marker widget-compact" data-qm-log="${e(activeUuid)}" data-qm-qid="${e(activeQid)}" title="${qName}${ttip ? " — " + ttip : ""}">
+  ${headerHtml}
+  <button type="button" class="qm-open" data-action="questMarkerOpen" data-qm-log="${e(activeUuid)}" data-qm-qid="${e(activeQid)}"
+    style="display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--sd-accent-dim,var(--sd-border));border-radius:5px;background:var(--sd-bg);color:var(--sd-accent);cursor:pointer;min-height:28px;width:100%">
+    <i class="fas ${iconActive}" style="color:var(--sd-accent);flex-shrink:0"></i>
+    <i class="fas ${qIcon}" style="opacity:.85;flex-shrink:0"></i>
+    <span style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.5px">${status}</span>
+  </button>
+</div>`;
+    }
+
+    return `<div class="widget widget-quest-marker" data-qm-log="${e(activeUuid)}" data-qm-qid="${e(activeQid)}">
+  ${headerHtml}
+  <button type="button" class="qm-row qm-open" data-action="questMarkerOpen" data-qm-log="${e(activeUuid)}" data-qm-qid="${e(activeQid)}"
+    title="${ttip || qName}"
+    style="display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--sd-accent-dim,var(--sd-border));border-radius:5px;background:var(--sd-bg);color:var(--sd-text-1);cursor:pointer;min-height:28px;width:100%;text-align:left">
+    <i class="fas ${iconActive}" style="color:var(--sd-accent);flex-shrink:0"></i>
+    <i class="fas ${qIcon}" style="opacity:.85;flex-shrink:0"></i>
+    <span class="qm-name" style="flex:1;font-size:12px;font-weight:600;color:var(--sd-text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${qName}</span>
+    <span class="qm-status" style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">${status}</span>
+    <i class="fas fa-up-right-from-square" style="font-size:10px;color:var(--sd-accent);opacity:.7;flex-shrink:0"></i>
+  </button>
+</div>`;
   }
 
   static _render_inventory_compact(w, doc, items) {

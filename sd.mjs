@@ -21,6 +21,7 @@ import { InventoryData }       from "./module/data/item-inventory.mjs";
 import { AbilityData, FeatureData } from "./module/data/item-ability.mjs";
 import { ClassData }           from "./module/data/item-class.mjs";
 import { SkillTreeData }       from "./module/data/item-skilltree.mjs";
+import { QuestLogData }        from "./module/data/item-questlog.mjs";
 
 import { SDActor }       from "./module/documents/actor.mjs";
 import { SDItem }        from "./module/documents/item.mjs";
@@ -35,6 +36,11 @@ import { SystemConfig, applySettings, buildActorBaseDefaults } from "./module/he
 import { installColorSchemeObserver } from "./module/helpers/color-schemes.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 import { SDActionHUD, SDActionHUDConfig, registerActionHudSettings, mountActionHudHooks } from "./module/helpers/action-hud.mjs";
+import { SDTrade }             from "./module/helpers/trade.mjs";
+import { SDQuest }             from "./module/helpers/quest.mjs";
+
+SDTrade.init();
+SDQuest.init();
 
 globalThis.SD = {};
 
@@ -130,7 +136,8 @@ Hooks.once("init", () => {
     ability:   AbilityData,
     feature:   FeatureData,
     class:     ClassData,
-    skilltree: SkillTreeData
+    skilltree: SkillTreeData,
+    questlog:  QuestLogData
   };
 
   CONFIG.Actor.trackableAttributes = {
@@ -163,9 +170,18 @@ Hooks.once("init", () => {
 
   if (LegacyItemSheet) ItemsCollection.unregisterSheet("core", LegacyItemSheet);
   ItemsCollection.registerSheet("sd", SDItemSheet, {
+    types:       ["inventory","ability","feature","class","skilltree"],
     makeDefault: true,
     label:       "SD.Sheets.Item"
   });
+
+  import("./module/sheets/questlog-sheet.mjs").then(({ SDQuestLogSheet }) => {
+    ItemsCollection.registerSheet("sd", SDQuestLogSheet, {
+      types:       ["questlog"],
+      makeDefault: true,
+      label:       "SD.Sheets.QuestLog"
+    });
+  }).catch(e => console.error("SD | failed to register QuestLog sheet:", e));
 
   game.settings.registerMenu("sd", "systemConfig", {
     name:   "SD.Settings.SystemConfig",
@@ -490,6 +506,31 @@ Hooks.on("updateCards", _sdRerenderForCardsStack);
 Hooks.on("createCard", (card) => _sdRerenderForCardsStack(card?.parent));
 Hooks.on("updateCard", (card) => _sdRerenderForCardsStack(card?.parent));
 Hooks.on("deleteCard", (card) => _sdRerenderForCardsStack(card?.parent));
+
+
+function _sdRerenderActorSheetsLinkedToQuestLog(item) {
+  try {
+    if (!item || item.documentName !== "Item" || item.type !== "questlog") return;
+    const logUuid = item.uuid;
+    const apps = [];
+    for (const app of Object.values(ui.windows ?? {})) apps.push(app);
+    const v2 = foundry.applications?.instances;
+    if (v2?.values) for (const app of v2.values()) apps.push(app);
+    else if (v2 && typeof v2 === "object") for (const app of Object.values(v2)) apps.push(app);
+    const seen = new Set();
+    for (const app of apps) {
+      if (!app || seen.has(app)) continue;
+      seen.add(app);
+      const doc = app.document ?? app.object ?? null;
+      if (doc?.documentName !== "Actor") continue;
+      const aq = doc.system?.activeQuest;
+      if (aq?.questLogUuid === logUuid) {
+        try { app.render(false); } catch {}
+      }
+    }
+  } catch(e) { console.warn("SD | rerender actors for questlog:", e); }
+}
+Hooks.on("updateItem", (item, _changes, _opts, _userId) => _sdRerenderActorSheetsLinkedToQuestLog(item));
 
 Hooks.on("renderChatMessageHTML", (message, html) => {
 

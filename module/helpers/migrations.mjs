@@ -221,6 +221,36 @@ export const MIGRATIONS = [
         return changed ? { "system.resources": merged } : null;
       });
     }
+  },
+
+  {
+    version:     "0.5.3",
+    description: "Trade: backfill inventory.category for items lacking it; reset legacy currency \"gp\" to first configured currency.",
+    run: async () => {
+      const _curList = (Array.isArray(CONFIG?.SD?.currencies) && CONFIG.SD.currencies.length)
+        ? CONFIG.SD.currencies
+        : [{ key: "primary" }, { key: "secondary" }, { key: "tertiary" }];
+      const knownKeys = new Set(_curList.map(c => c.key));
+      const firstKey  = _curList[0]?.key ?? "primary";
+
+      await migrateItems(data => {
+        if (data.type !== "inventory") return null;
+        const upd = {};
+        const cat = data.system?.category;
+
+        if (cat === undefined || cat === null) {
+          upd["system.category"] = "";
+        }
+        const cur = data.system?.currency;
+        if (typeof cur === "string" && !knownKeys.has(cur)) {
+
+          upd["system.currency"] = firstKey;
+        } else if (cur === undefined || cur === null) {
+          upd["system.currency"] = firstKey;
+        }
+        return Object.keys(upd).length ? upd : null;
+      });
+    }
   }
 
 ];

@@ -2,7 +2,7 @@
   "id": "sd",
   "title": "System Director",
   "description": "SD beta",
-  "version": "beta 0.5.1",
+  "version": "beta 0.5.5",
   "compatibility": {
     "minimum": "13",
     "verified": "14"
@@ -96,6 +96,11 @@
       "skilltree": {
         "htmlFields": [
           "description"
+        ]
+      },
+      "questlog": {
+        "htmlFields": [
+          "chainDescription"
         ]
       }
     }

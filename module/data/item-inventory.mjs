@@ -11,20 +11,12 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
     return {
-      category: new StringField({
-        initial: "gear",
-        choices: ["weapon","armor","shield","consumable","ammo","magazine","tool","gear","container","treasure","other"],
-        blank: false
-      }),
-      rarity: new StringField({
-        initial: "common",
-        choices: ["common","uncommon","rare","very-rare","legendary","artifact","unique"],
-        blank: false
-      }),
+      category: new StringField({ initial: "", blank: true }),
+      rarity:   new StringField({ initial: "", blank: true }),
       weight:   new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
       quantity: new NumberField({ required: true, integer: true,  initial: 1, min: 0, nullable: false }),
       price:    new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
-      currency: new StringField({ initial: "gp", blank: false }),
+      currency: new StringField({ initial: "primary", blank: false }),
       equipped:    new BooleanField({ initial: false }),
       equippable:  new BooleanField({ initial: false }),
       equipRequirements: new StringField({ initial: "", blank: true }),

@@ -4603,7 +4603,463 @@ export const NODE_DEFS = {
     isEvent:true, eventHook:"cardDrawn"
   },
 
+
+  on_quest_activated: {
+    title:"On Quest Activated", color:"#c04040", cat:"Quest", wideNode:true,
+    desc:"Fires when a quest in this QuestLog becomes active on any actor. Outputs the actor and quest involved.",
+    inputs:[],
+    outputs:[
+      {id:"exec",         label:"→ On Activated",  type:"exec"},
+      {id:"questId",      label:"Quest Id",         type:"value.string"},
+      {id:"questLogUuid", label:"QuestLog Uuid",    type:"value.string"},
+      {id:"actorId",      label:"Actor Id",         type:"value.string"}
+    ],
+    fields:[
+      {key:"questIdFilter", label:"Only quest id (optional, blank = any)", type:"text", default:""}
+    ],
+    isEvent:true, eventHook:"sdQuestActivated"
+  },
+
+  on_quest_completed: {
+    title:"On Quest Completed", color:"#c04040", cat:"Quest", wideNode:true,
+    desc:"Fires when a quest in this QuestLog is marked Completed.",
+    inputs:[],
+    outputs:[
+      {id:"exec",         label:"→ On Completed",  type:"exec"},
+      {id:"questId",      label:"Quest Id",         type:"value.string"},
+      {id:"questLogUuid", label:"QuestLog Uuid",    type:"value.string"}
+    ],
+    fields:[
+      {key:"questIdFilter", label:"Only quest id (optional)", type:"text", default:""}
+    ],
+    isEvent:true, eventHook:"sdQuestCompleted"
+  },
+
+  on_quest_failed: {
+    title:"On Quest Failed", color:"#c04040", cat:"Quest", wideNode:true,
+    desc:"Fires when a quest in this QuestLog is marked Failed.",
+    inputs:[],
+    outputs:[
+      {id:"exec",         label:"→ On Failed",      type:"exec"},
+      {id:"questId",      label:"Quest Id",         type:"value.string"},
+      {id:"questLogUuid", label:"QuestLog Uuid",    type:"value.string"}
+    ],
+    fields:[
+      {key:"questIdFilter", label:"Only quest id (optional)", type:"text", default:""}
+    ],
+    isEvent:true, eventHook:"sdQuestFailed"
+  },
+
+  on_subtask_done: {
+    title:"On Subtask Done", color:"#c04040", cat:"Quest", wideNode:true,
+    desc:"Fires when a subtask of a quest in this QuestLog is marked done.",
+    inputs:[],
+    outputs:[
+      {id:"exec",         label:"→ On Subtask Done",type:"exec"},
+      {id:"questId",      label:"Quest Id",         type:"value.string"},
+      {id:"subtaskId",    label:"Subtask Id",       type:"value.string"}
+    ],
+    fields:[
+      {key:"questIdFilter",   label:"Only quest id (optional)",   type:"text", default:""},
+      {key:"subtaskIdFilter", label:"Only subtask id (optional)", type:"text", default:""}
+    ],
+    isEvent:true, eventHook:"sdSubtaskDone"
+  },
+
+  on_quest_revealed: {
+    title:"On GM Reveal", color:"#c04040", cat:"Quest", wideNode:true,
+    desc:"Fires when GM toggles 'Reveal' on a quest in this QuestLog (visible-to-players override).",
+    inputs:[],
+    outputs:[
+      {id:"exec",      label:"→ On Reveal",  type:"exec"},
+      {id:"questId",   label:"Quest Id",      type:"value.string"},
+      {id:"revealed",  label:"Revealed?",     type:"value.bool"}
+    ],
+    fields:[],
+    isEvent:true, eventHook:"sdQuestRevealed"
+  },
+
+
+  quest_activate: {
+    title:"Activate Quest", color:"#3a8a60", cat:"Quest", wideNode:true,
+    desc:"Set status of a quest to 'active'. If 'Set on actor' is wired or filled, also writes actor.system.activeQuest.",
+    inputs:[
+      {id:"exec",     label:"",          type:"exec"},
+      {id:"questId",  label:"Quest Id",   type:"value.string"},
+      {id:"actorRef", label:"Actor (id/uuid/this/triggering)", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"→",       type:"exec"}],
+    fields:[
+      {key:"questId",  label:"Quest Id (default — this quest's id, or filter)", type:"text", default:"this"},
+      {key:"actorRef", label:"Actor (id, uuid, 'this'=triggering, blank=current user's char)", type:"text", default:""}
+    ],
+    toAction:(n,inp)=>({
+      type:"questAction", op:"activate",
+      questLogUuid:"this",
+      questId:  String(inp.questId  ?? n.data.questId  ?? "this"),
+      actorRef: String(inp.actorRef ?? n.data.actorRef ?? "")
+    })
+  },
+
+  quest_complete: {
+    title:"Complete Quest", color:"#3a8a60", cat:"Quest",
+    desc:"Set status of a quest to 'completed' and fire sdQuestCompleted hook.",
+    inputs:[
+      {id:"exec",    label:"",         type:"exec"},
+      {id:"questId", label:"Quest Id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+    ],
+    toAction:(n,inp)=>({
+      type:"questAction", op:"complete",
+      questLogUuid:"this",
+      questId: String(inp.questId ?? n.data.questId ?? "this")
+    })
+  },
+
+  quest_fail: {
+    title:"Fail Quest", color:"#a04050", cat:"Quest",
+    desc:"Set status of a quest to 'failed' and fire sdQuestFailed.",
+    inputs:[
+      {id:"exec",    label:"",         type:"exec"},
+      {id:"questId", label:"Quest Id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+    ],
+    toAction:(n,inp)=>({
+      type:"questAction", op:"fail",
+      questLogUuid:"this",
+      questId: String(inp.questId ?? n.data.questId ?? "this")
+    })
+  },
+
+  quest_lock: {
+    title:"Lock Quest", color:"#7a7a8a", cat:"Quest",
+    desc:"Set status of a quest to 'locked' (hidden from players regardless of visibility).",
+    inputs:[
+      {id:"exec",    label:"",         type:"exec"},
+      {id:"questId", label:"Quest Id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+    ],
+    toAction:(n,inp)=>({
+      type:"questAction", op:"lock",
+      questLogUuid:"this",
+      questId: String(inp.questId ?? n.data.questId ?? "this")
+    })
+  },
+
+  quest_make_available: {
+    title:"Make Quest Available", color:"#5a8ad8", cat:"Quest",
+    desc:"Set status of a quest to 'available' (unlocked for activation).",
+    inputs:[
+      {id:"exec",    label:"",         type:"exec"},
+      {id:"questId", label:"Quest Id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+    ],
+    toAction:(n,inp)=>({
+      type:"questAction", op:"available",
+      questLogUuid:"this",
+      questId: String(inp.questId ?? n.data.questId ?? "this")
+    })
+  },
+
+  subtask_set_done: {
+    title:"Set Subtask Done", color:"#3a8a60", cat:"Quest", wideNode:true,
+    desc:"Mark a subtask done/undone. Fires sdSubtaskDone when becoming done.",
+    inputs:[
+      {id:"exec",       label:"",          type:"exec"},
+      {id:"questId",    label:"Quest Id",   type:"value.string"},
+      {id:"subtaskId",  label:"Subtask Id", type:"value.string"},
+      {id:"done",       label:"Done",       type:"value.bool"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId",   label:"Quest Id (default 'this')",   type:"text", default:"this"},
+      {key:"subtaskId", label:"Subtask Id",                  type:"text", default:""},
+      {key:"done",      label:"Done value (when no input)",  type:"select", default:"true", options:["true","false"]}
+    ],
+    toAction:(n,inp)=>({
+      type:"questAction", op:"subtaskDone",
+      questLogUuid:"this",
+      questId:   String(inp.questId   ?? n.data.questId   ?? "this"),
+      subtaskId: String(inp.subtaskId ?? n.data.subtaskId ?? ""),
+      done: (inp.done !== undefined && inp.done !== "")
+              ? !!(inp.done === true || inp.done === "true" || Number(inp.done) === 1)
+              : (n.data.done === "false" ? false : true)
+    })
+  },
+
+  quest_show_to_player: {
+    title:"Show Quest To Player", color:"#5a8ad8", cat:"Quest", wideNode:true,
+    desc:"Add a player (userId) to a quest's perPlayer visibility list. Switches mode to 'perPlayer' if not already.",
+    inputs:[
+      {id:"exec",    label:"",         type:"exec"},
+      {id:"questId", label:"Quest Id", type:"value.string"},
+      {id:"userId",  label:"User Id",  type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"},
+      {key:"userId",  label:"User Id ('this'=triggering, blank=all)", type:"text", default:""}
+    ],
+    toAction:(n,inp)=>({
+      type:"questAction", op:"showToPlayer",
+      questLogUuid:"this",
+      questId: String(inp.questId ?? n.data.questId ?? "this"),
+      userId:  String(inp.userId  ?? n.data.userId  ?? "")
+    })
+  },
+
+  quest_toggle_gm_reveal: {
+    title:"Toggle GM Reveal", color:"#d8a83a", cat:"Quest",
+    desc:"Toggle the GM 'Revealed' override on a quest (makes it visible to players regardless of visibility mode).",
+    inputs:[
+      {id:"exec",    label:"",         type:"exec"},
+      {id:"questId", label:"Quest Id", type:"value.string"},
+      {id:"on",      label:"On (bool, blank=toggle)", type:"value.bool"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"},
+      {key:"on",      label:"On (true/false, blank=toggle)", type:"select", default:"toggle", options:["toggle","true","false"]}
+    ],
+    toAction:(n,inp)=>{
+      const onIn = inp.on;
+      let on = null;
+      if (onIn !== undefined && onIn !== "" && onIn !== null) {
+        on = !!(onIn === true || onIn === "true" || Number(onIn) === 1);
+      } else if (n.data.on === "true")  on = true;
+      else if (n.data.on === "false") on = false;
+      return {
+        type:"questAction", op:"toggleReveal",
+        questLogUuid:"this",
+        questId: String(inp.questId ?? n.data.questId ?? "this"),
+        on
+      };
+    }
+  },
+
+
+  reward_reveal: {
+    title:"Reveal Reward", color:"#d8a83a", cat:"Quest", wideNode:true,
+    desc:"Toggle GM-reveal on a reward — overrides hidden/onCompletion/conditional visibility so players can see it.",
+    inputs:[
+      {id:"exec",     label:"",          type:"exec"},
+      {id:"questId",  label:"Quest Id",  type:"value.string"},
+      {id:"rewardId", label:"Reward Id", type:"value.string"},
+      {id:"on",       label:"On (blank=toggle)", type:"value.bool"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId",  label:"Quest Id (default 'this')",  type:"text", default:"this"},
+      {key:"rewardId", label:"Reward Id (required)",       type:"text", default:""},
+      {key:"on",       label:"On (true/false, blank=toggle)", type:"select", default:"toggle", options:["toggle","true","false"]}
+    ],
+    toAction:(n,inp)=>{
+      const onIn = inp.on;
+      let on = null;
+      if (onIn !== undefined && onIn !== "" && onIn !== null) {
+        on = !!(onIn === true || onIn === "true" || Number(onIn) === 1);
+      } else if (n.data.on === "true")  on = true;
+      else if (n.data.on === "false") on = false;
+      return {
+        type:"questAction", op:"rewardReveal",
+        questLogUuid:"this",
+        questId:  String(inp.questId  ?? n.data.questId  ?? "this"),
+        rewardId: String(inp.rewardId ?? n.data.rewardId ?? ""),
+        on
+      };
+    }
+  },
+
+  reward_make_claimable: {
+    title:"Make Reward Claimable", color:"#3a8a60", cat:"Quest", wideNode:true,
+    desc:"Set the reward's 'claimable' flag, enabling/disabling the player's Claim button.",
+    inputs:[
+      {id:"exec",     label:"",          type:"exec"},
+      {id:"questId",  label:"Quest Id",  type:"value.string"},
+      {id:"rewardId", label:"Reward Id", type:"value.string"},
+      {id:"on",       label:"On (blank=true)", type:"value.bool"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId",  label:"Quest Id (default 'this')",  type:"text", default:"this"},
+      {key:"rewardId", label:"Reward Id (required)",       type:"text", default:""},
+      {key:"on",       label:"On (true/false, blank=true)", type:"select", default:"true", options:["true","false"]}
+    ],
+    toAction:(n,inp)=>{
+      const onIn = inp.on;
+      let on = true;
+      if (onIn !== undefined && onIn !== "" && onIn !== null) {
+        on = !!(onIn === true || onIn === "true" || Number(onIn) === 1);
+      } else if (n.data.on === "true")  on = true;
+      else if (n.data.on === "false") on = false;
+      return {
+        type:"questAction", op:"rewardMakeClaimable",
+        questLogUuid:"this",
+        questId:  String(inp.questId  ?? n.data.questId  ?? "this"),
+        rewardId: String(inp.rewardId ?? n.data.rewardId ?? ""),
+        on
+      };
+    }
+  },
+
+  reward_grant_all: {
+    title:"Grant Reward To All", color:"#a0408a", cat:"Quest", wideNode:true,
+    desc:"Force-grant a reward to every player who has a character (skips claim, applies items/currency/path-changes).",
+    inputs:[
+      {id:"exec",     label:"",          type:"exec"},
+      {id:"questId",  label:"Quest Id",  type:"value.string"},
+      {id:"rewardId", label:"Reward Id", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
+    fields:[
+      {key:"questId",  label:"Quest Id (default 'this')", type:"text", default:"this"},
+      {key:"rewardId", label:"Reward Id (required)",      type:"text", default:""}
+    ],
+    toAction:(n,inp)=>({
+      type:"questAction", op:"rewardGrantAll",
+      questLogUuid:"this",
+      questId:  String(inp.questId  ?? n.data.questId  ?? "this"),
+      rewardId: String(inp.rewardId ?? n.data.rewardId ?? "")
+    })
+  },
+
+
+  quest_status: {
+    title:"Quest Status", color:"#5a4ec0", cat:"Quest", wideNode:true,
+    desc:"Pure source — read the current status of a quest as a string ('locked'/'available'/'active'/'completed'/'failed').",
+    inputs:[],
+    outputs:[
+      {id:"status",     label:"Status",      type:"value.string"},
+      {id:"isCompleted",label:"Completed?",  type:"value.bool"},
+      {id:"isFailed",   label:"Failed?",     type:"value.bool"},
+      {id:"isActive",   label:"Active?",     type:"value.bool"}
+    ],
+    fields:[
+      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+    ],
+    compilePin:(n, _i, fromPin) => {
+      const raw = String(n.data?.questId ?? "this");
+      const qid = (raw === "this" || raw === "") ? "__SDQ_THIS__" : raw.replace(/[^A-Za-z0-9_-]/g, "");
+      const prop = String(fromPin ?? "status").replace(/[^A-Za-z0-9_]/g, "");
+      return `{questGet:${prop || "status"}:${qid}}`;
+    }
+  },
+
+  quest_is_active: {
+    title:"Quest Is Active?", color:"#5a4ec0", cat:"Quest",
+    desc:"Pure source — true if a quest's status is 'active' (regardless of which actor).",
+    inputs:[],
+    outputs:[{id:"value", label:"Active?", type:"value.bool"}],
+    fields:[
+      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+    ],
+    compilePin:(n)=>{
+      const raw = String(n.data?.questId ?? "this");
+      const qid = (raw === "this" || raw === "") ? "__SDQ_THIS__" : raw.replace(/[^A-Za-z0-9_-]/g, "");
+      return `{questGet:isActive:${qid}}`;
+    }
+  },
+
+  subtask_done: {
+    title:"Subtask Done?", color:"#5a4ec0", cat:"Quest", wideNode:true,
+    desc:"Pure source — true if a subtask is marked done.",
+    inputs:[],
+    outputs:[{id:"value", label:"Done?", type:"value.bool"}],
+    fields:[
+      {key:"questId",   label:"Quest Id (default 'this')", type:"text", default:"this"},
+      {key:"subtaskId", label:"Subtask Id (default 'this')", type:"text", default:"this"}
+    ],
+    compilePin:(n)=>{
+      const rawQ = String(n.data?.questId ?? "this");
+      const qid = (rawQ === "this" || rawQ === "") ? "__SDQ_THIS__" : rawQ.replace(/[^A-Za-z0-9_-]/g, "");
+      const rawS = String(n.data?.subtaskId ?? "this");
+      const sid = (rawS === "this" || rawS === "") ? "__SDQ_THIS_SUB__" : rawS.replace(/[^A-Za-z0-9_-]/g, "");
+      return `{questGet:subtaskDone:${qid}:${sid}}`;
+    }
+  },
+
+  current_user_id: {
+    title:"Current User", color:"#5a4ec0", cat:"Quest",
+    desc:"Pure source — id and role of the user the script runs for.",
+    inputs:[],
+    outputs:[
+      {id:"id",   label:"User Id",  type:"value.string"},
+      {id:"name", label:"User Name",type:"value.string"},
+      {id:"role", label:"Role",     type:"value.string"},
+      {id:"isGM", label:"Is GM?",   type:"value.bool"}
+    ],
+    fields:[],
+    compilePin:(_n, _i, fromPin) => {
+      const prop = String(fromPin ?? "id").replace(/[^A-Za-z0-9_]/g, "");
+      return `{currentUser:${prop || "id"}}`;
+    }
+  },
+
+  actor_on_scene: {
+    title:"Actor On Scene?", color:"#5a4ec0", cat:"Quest", wideNode:true,
+    desc:"Pure source — true if the given actor (by id or name) has at least one token on the currently viewed scene.",
+    inputs:[],
+    outputs:[{id:"value", label:"On Scene?", type:"value.bool"}],
+    fields:[
+      {key:"actorRef", label:"Actor (id or exact name)", type:"text", default:""}
+    ],
+    compilePin:(n)=>{
+      const ref = String(n.data?.actorRef ?? "").replace(/[^A-Za-z0-9_\- ]/g, "");
+      return `{sdActorOnScene:${ref}}`;
+    }
+  },
+
+  field_equals: {
+    title:"Field Value Equals?", color:"#5a4ec0", cat:"Quest", wideNode:true,
+    desc:"Pure source — true if a path on a referenced actor equals the given value (string compare). Use to gate quest progress on actor stats / flags.",
+    inputs:[],
+    outputs:[
+      {id:"value", label:"Equals?", type:"value.bool"},
+      {id:"raw",   label:"Raw",      type:"value.string"}
+    ],
+    fields:[
+      {key:"actorRef", label:"Actor (id, name, blank=current user's char)", type:"text", default:""},
+      {key:"path",     label:"Path on actor", type:"path", default:"system.attributes.attr1.value"},
+      {key:"expected", label:"Expected value (string compare)", type:"text", default:""}
+    ],
+    compilePin:(n, _i, fromPin)=>{
+      const ref = String(n.data?.actorRef ?? "").replace(/[^A-Za-z0-9_\- ]/g, "");
+      const path = String(n.data?.path ?? "").replace(/[^A-Za-z0-9_.]/g, "");
+      const exp  = String(n.data?.expected ?? "").replace(/[^A-Za-z0-9_.\- ]/g, "");
+      const prop = (fromPin === "raw") ? "raw" : "eq";
+      return `{sdFieldEq:${prop}|${ref}|${path}|${exp}}`;
+    }
+  },
+
 };
+
+(() => {
+
+  const OUT_OF_SHEET_FIELD = {
+    key:     "outOfSheet",
+    label:   "Standalone (fire when item is not on an actor)",
+    type:    "bool",
+    default: false
+  };
+  for (const def of Object.values(NODE_DEFS)) {
+    if (!def?.isEvent) continue;
+    const fields = Array.isArray(def.fields) ? def.fields : [];
+    if (fields.some(f => f?.key === "outOfSheet")) continue;
+    def.fields = [...fields, OUT_OF_SHEET_FIELD];
+  }
+})();
 
 const EVENT_PIN_TOKENS = {
   on_update:       { path: "{__eventPath}", oldValue: "{__eventOldValue}", newValue: "{__eventNewValue}" },
@@ -4621,7 +5077,12 @@ const EVENT_PIN_TOKENS = {
     value:     "{__cardDrawnValue}",
     stackId:   "{__cardDrawnStackId}",
     stackName: "{__cardDrawnStackName}"
-  }
+  },
+  on_quest_activated: { questId: "{__questId}", questLogUuid: "{__questLogUuid}", actorId: "{__questActorId}" },
+  on_quest_completed: { questId: "{__questId}", questLogUuid: "{__questLogUuid}" },
+  on_quest_failed:    { questId: "{__questId}", questLogUuid: "{__questLogUuid}" },
+  on_subtask_done:    { questId: "{__questId}", subtaskId: "{__subtaskId}" },
+  on_quest_revealed:  { questId: "{__questId}", revealed: "{__questRevealed}" }
 };
 
 const _ROLL_META_BASIC = {
@@ -4694,6 +5155,7 @@ const BRANCH_PIN_TOKENS = {
 const CATS = [
   {id:"Flow",       color:"#8a3a8a"},
   {id:"Events",     color:"#c04040"},
+  {id:"Quest",      color:"#a04060"},
   {id:"Attribute",  color:"#7a4a1a"},
   {id:"Sources",    color:"#2a6a9a"},
   {id:"Dice",       color:"#9a6a1a"},
@@ -4912,6 +5374,8 @@ export class FormulaGraph {
     this.configMode   = opts.mode === "config";
     this.sheetTrigger = opts.mode === "sheetTrigger";
     this.actionGraph  = opts.mode === "actionGraph";
+    this.chainTrigger = opts.mode === "chainTrigger";
+    this.questTrigger = opts.mode === "questTrigger";
     this.customLoad   = typeof opts.customLoad === "function" ? opts.customLoad : null;
     this.customSave   = typeof opts.customSave === "function" ? opts.customSave : null;
     this.win          = null;
@@ -5531,6 +5995,7 @@ export class FormulaGraph {
     if (this.customLoad) {
       let s = null;
       try { s = this.customLoad(); } catch(e) { console.warn("[sd] formula-graph: customLoad failed", e); }
+      if (s && typeof s === "object" && s._graphData?.nodes?.length) s = s._graphData;
       if (s?.nodes?.length) {
         this.nodes    = foundry.utils.deepClone(s.nodes);
         this.edges    = foundry.utils.deepClone(s.edges ?? []);
@@ -5538,7 +6003,7 @@ export class FormulaGraph {
         migrateGraph(this);
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
-      } else {
+      } else if (!this.chainTrigger && !this.questTrigger) {
         this._addOutputNode();
       }
       return;
@@ -5648,14 +6113,21 @@ export class FormulaGraph {
 
   async _saveGraph() {
     if (this.customSave) {
-      const data = {
+      const graphData = {
         nodes:    this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges:    this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
         comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
       };
       let compiled = "0";
       try { compiled = this.compile(); } catch(e) { console.warn("[sd] formula-graph: compile failed", e); }
-      try { await this.customSave(data, compiled); }
+      let payload = graphData;
+      if (this.chainTrigger || this.questTrigger) {
+        let compiledObj = {};
+        try { compiledObj = JSON.parse(compiled); } catch { compiledObj = {}; }
+        payload = (compiledObj && compiledObj._trigger === "multi") ? compiledObj : {};
+        payload._graphData = graphData;
+      }
+      try { await this.customSave(payload, compiled); }
       catch(e) { console.warn("[sd] formula-graph: customSave failed", e); }
       return;
     }
@@ -6628,20 +7100,27 @@ export class FormulaGraph {
 
   _buildPal() {
     const ALLOWED_CONFIG_CATS = new Set(["Sources", "Math"]);
+    const ALLOWED_QUEST_CATS  = new Set(["Flow", "Quest", "Sources", "Math", "Compare", "Logic"]);
+    const ALLOWED_QUEST_SOURCES = new Set([
+      "literal", "literal_str", "get_path", "actor_ref", "item_uuid", "fa_icon"
+    ]);
     const IMPLICIT_CLICK_WIDGETS = new Set([
       "rollButton","counter","dice","toggle","tracker","clock",
       "tokenPool","diceTray","number","resource","progress","richtext"
     ]);
-    const isWidgetGraph   = !!this.widget && !this.configMode;
-    const isAttrGraph     = this.widget?.type === "attribute";
-    const isItemGraph     = !!this.itemSaveCtx && !this.widget;
-    const isSheetTrigger  = !!this.sheetTrigger;
-    const hidesEvents     = !isSheetTrigger
+    const isWidgetGraph    = !!this.widget && !this.configMode;
+    const isAttrGraph      = this.widget?.type === "attribute";
+    const isItemGraph      = !!this.itemSaveCtx && !this.widget;
+    const isSheetTrigger   = !!this.sheetTrigger;
+    const isQuestModeAny   = !!(this.chainTrigger || this.questTrigger);
+    const hidesEvents      = !isSheetTrigger && !isQuestModeAny
       && ((isWidgetGraph && !isAttrGraph) || isAttrGraph || isItemGraph);
-    const hidesOnClick    = isSheetTrigger || (isWidgetGraph && !isAttrGraph
+    const hidesOnClick     = isSheetTrigger || isQuestModeAny || (isWidgetGraph && !isAttrGraph
       && IMPLICIT_CLICK_WIDGETS.has(this.widget?.type));
 
     const rows = CATS.map(cat=>{
+      if (isQuestModeAny && !ALLOWED_QUEST_CATS.has(cat.id)) return "";
+
       const nodes = Object.entries(NODE_DEFS).filter(([type,d]) => {
         if (d.isWidgetConfig) return false;
         if (d.hidden) return false;
@@ -6650,6 +7129,11 @@ export class FormulaGraph {
         if (hidesOnClick && type === "on_click") return false;
         if (isSheetTrigger && type === "output") return false;
         if (this.actionGraph && type === "output") return false;
+        if (isQuestModeAny) {
+          if (type === "output") return false;
+          if (d.cat === "Sources" && !ALLOWED_QUEST_SOURCES.has(type)) return false;
+          if (d.isEvent && d.cat !== "Quest") return false;
+        }
         return d.cat === cat.id;
       });
       if (!nodes.length) return "";
@@ -7825,7 +8309,22 @@ export class FormulaGraph {
     }
 
     let inp;
-    if(field.type==="select"){
+    if(field.type==="bool"){
+      inp=document.createElement("input");
+      inp.type="checkbox";
+      const curB = node.data[field.key];
+      inp.checked = (curB === undefined || curB === null) ? !!field.default : !!curB;
+      inp.style.cssText = "width:16px;height:16px;cursor:pointer;accent-color:var(--sd-accent);margin:0;flex-shrink:0";
+      inp.dataset.fieldType=field.type;
+      inp.addEventListener("mousedown",ev=>ev.stopPropagation());
+      inp.addEventListener("change",ev=>{
+        node.data[field.key]=ev.target.checked;
+        this._updatePreview();
+      });
+      wrap.appendChild(inp);
+      return wrap;
+    }
+    else if(field.type==="select"){
       inp=document.createElement("select");
       inp.style.cssText=IS+";cursor:pointer";
 

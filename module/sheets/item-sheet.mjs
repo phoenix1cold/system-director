@@ -918,7 +918,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const locked  = LOCKED_HIDDEN_FIELDS[this.document.type] ?? [];
     const lockedKeys = new Set(locked.map(f=>f.key));
     const stored  = sys.hiddenFields ?? {};
-    const userRows = Object.entries(stored).filter(([k])=>!lockedKeys.has(k));
+    const _structuredKeys = (this.document.type === "inventory")
+      ? new Set(["saleable","salePrice","salePricePath","saleCurrency","equippable"])
+      : new Set();
+    const userRows = Object.entries(stored).filter(([k])=>!lockedKeys.has(k) && !_structuredKeys.has(k));
     const hfEmpty  = locked.length === 0 && userRows.length === 0;
 
     const renderLockedRow = ({key,placeholder}) => {
@@ -942,16 +945,55 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     const isInv = this.document.type === "inventory";
     const da=sys.declaredAttrs??[];
+
+    const _curList = (Array.isArray(CONFIG?.SD?.currencies) && CONFIG.SD.currencies.length)
+      ? CONFIG.SD.currencies
+      : [{ key: "primary", label: "Gold" }, { key: "secondary", label: "Silver" }, { key: "tertiary", label: "Copper" }];
+    const _catSeen = new Set();
+    try {
+      for (const it of (game.items ?? [])) {
+        if (it.type === "inventory" && it.system?.category) _catSeen.add(String(it.system.category));
+      }
+      for (const a of (game.actors ?? [])) {
+        for (const it of (a.items ?? [])) {
+          if (it.type === "inventory" && it.system?.category) _catSeen.add(String(it.system.category));
+        }
+      }
+    } catch (_) { /* best-effort */ }
+    const _catSuggestions = [..._catSeen].filter(Boolean).sort();
+    const _datalistId = "sd-inv-cat-suggest";
+    const curCat   = String(sys.category ?? "");
+    const curPrice = Number(sys.price ?? 0);
+    const curItemCurrency = String(sys.currency ?? _curList[0]?.key ?? "primary");
+
     p.innerHTML=`
-${isInv ? `<div class="sys-section" style="margin-bottom:12px">
-  <div class="sys-section-header"><i class="fas fa-shield-halved"></i> Inventory Flags</div>
-  <div style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:4px 0">
+${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option value="${e(c)}">`).join("")}</datalist>
+<div class="sys-section" style="margin-bottom:12px">
+  <div class="sys-section-header"><i class="fas fa-shield-halved"></i> ${e(game.i18n?.localize?.("SD.InventoryFlags") ?? "Inventory")}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 12px;padding:4px 0;align-items:end">
+    <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2)">
+      <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(game.i18n?.localize?.("SD.Category") ?? "Category")}</span>
+      <input type="text" data-sys-field="category" list="${_datalistId}" value="${e(curCat)}" placeholder="${e(game.i18n?.localize?.("SD.NoCategory") ?? "no category")}" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2)">
+      <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(game.i18n?.localize?.("SD.Price") ?? "Price")}</span>
+      <input type="number" min="0" step="any" data-sys-field="price" value="${curPrice}" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2)">
+      <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(game.i18n?.localize?.("SD.Currency") ?? "Currency")}</span>
+      <select data-sys-field="currency" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 6px">
+        ${_curList.map(c => `<option value="${e(c.key)}" ${c.key===curItemCurrency?"selected":""}>${e(c.label ?? c.key)}</option>`).join("")}
+      </select>
+    </label>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:6px 0 0;border-top:1px solid var(--sd-border);margin-top:8px">
     <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:var(--sd-text)">
       <input type="checkbox" data-sys-hf-val="equippable" ${(sys.hiddenFields?.equippable ?? sys.equippable)?"checked":""} ${!ed?"disabled":""} style="accent-color:var(--sd-accent);width:15px;height:15px;cursor:inherit">
       ${e(game.i18n?.localize?.("SD.Equippable") ?? "Equippable")}
     </label>
   </div>
-</div>` : ""}
+</div>
+` : ""}
 <div class="sys-section">
   <div class="sys-section-header"><i class="fas fa-eye-slash"></i> Hidden Fields
     ${ed?`<button data-sys-action="addHiddenField" style="margin-left:auto" class="sys-add-btn"><i class="fas fa-plus"></i> Add</button>`:""}
@@ -1875,6 +1917,15 @@ ${isInv ? `<div class="sys-section" style="margin-bottom:12px">
       }); return;
     }
     if (el.dataset.sysHfVal!==undefined) { const val=el.type==="checkbox"?el.checked:el.value; await this.document.update({[`system.hiddenFields.${el.dataset.sysHfVal}`]:val}); return; }
+    if (el.dataset.sysField!==undefined) {
+      const path = el.dataset.sysField;
+      let val;
+      if (el.type === "checkbox") val = el.checked;
+      else if (el.type === "number") val = (el.value === "" ? 0 : Number(el.value));
+      else val = el.value;
+      await this.document.update({ [`system.${path}`]: val });
+      return;
+    }
     if (el.dataset.sysDaName!==undefined) { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); const a=attrs.find(x=>x.id===el.dataset.sysDaName); if(a){a.name=el.value; await this.document.update({"system.declaredAttrs":attrs});} return; }
     if (el.dataset.sysDaPath!==undefined) { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); const a=attrs.find(x=>x.id===el.dataset.sysDaPath); if(a){a.path=el.value; await this.document.update({"system.declaredAttrs":attrs});} return; }
     if (el.dataset.sysSlot!==undefined) {

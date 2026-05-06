@@ -104,7 +104,9 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
 
       hiddenFields: new ObjectField({ initial: {} }),
 
-      biography: BiographyField()
+      biography: BiographyField(),
+
+      activeQuest: new ObjectField({ initial: {} })
     };
   }
 

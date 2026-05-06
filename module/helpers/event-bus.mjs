@@ -9,8 +9,16 @@ const HOOK_MAP = {
   restFlag:           ["updateActor"],
   itemEquipped:       ["sdItemEquipped"],
   itemUnequipped:     ["sdItemUnequipped"],
-  cardDrawn:          ["createCard"]
+  cardDrawn:          ["createCard"],
+
+  sdQuestActivated:   ["sdQuestActivated"],
+  sdQuestCompleted:   ["sdQuestCompleted"],
+  sdQuestFailed:      ["sdQuestFailed"],
+  sdSubtaskDone:      ["sdSubtaskDone"],
+  sdQuestRevealed:    ["sdQuestRevealed"]
 };
+
+const QUEST_HOOKS = new Set(["sdQuestActivated","sdQuestCompleted","sdQuestFailed","sdSubtaskDone","sdQuestRevealed"]);
 
 class EventBus {
   constructor() {
@@ -21,13 +29,23 @@ class EventBus {
 
   init() {
     for (const actor of game.actors ?? []) this._registerActor(actor);
+    for (const item of game.items ?? []) this._registerWorldItem(item);
 
     Hooks.on("createActor", (actor) => this._registerActor(actor));
     Hooks.on("updateActor", (actor) => this._registerActor(actor));
     Hooks.on("deleteActor", (actor) => this._unregisterByActor(actor.id));
-    Hooks.on("createItem",  (item)  => { if (item.actor) this._registerActor(item.actor); });
-    Hooks.on("updateItem",  (item)  => { if (item.actor) this._registerActor(item.actor); });
-    Hooks.on("deleteItem",  (item)  => { if (item.actor) this._registerActor(item.actor); });
+    Hooks.on("createItem",  (item)  => {
+      if (item.actor) this._registerActor(item.actor);
+      else            this._registerWorldItem(item);
+    });
+    Hooks.on("updateItem",  (item)  => {
+      if (item.actor) this._registerActor(item.actor);
+      else            this._registerWorldItem(item);
+    });
+    Hooks.on("deleteItem",  (item)  => {
+      if (item.actor) this._registerActor(item.actor);
+      else            this._unregisterByDocUuid(item.uuid);
+    });
   }
 
   _unregisterByActor(actorId) {
@@ -44,11 +62,32 @@ class EventBus {
     }
   }
 
+  _unregisterByDocUuid(docUuid) {
+    if (!docUuid) return;
+    for (const [hook, map] of this._reg.entries()) {
+      for (const key of [...map.keys()]) {
+        if (map.get(key)?.docUuid === docUuid) map.delete(key);
+      }
+      if (!map.size) {
+        const id = this._hookIds.get(hook);
+        if (id !== undefined) Hooks.off(hook, id);
+        this._hookIds.delete(hook);
+        this._reg.delete(hook);
+      }
+    }
+  }
+
   _registerActor(actor) {
     if (!actor) return;
     this._unregisterByActor(actor.id);
     this._scanDoc(actor, actor);
     for (const item of (actor.items ?? [])) this._scanDoc(actor, item);
+  }
+
+  _registerWorldItem(item) {
+    if (!item || item.actor) return;
+    this._unregisterByDocUuid(item.uuid);
+    this._scanDoc(null, item);
   }
 
   _scanDoc(actor, doc) {
@@ -67,13 +106,33 @@ class EventBus {
       const raw = typeof stg === "string" ? stg : JSON.stringify(stg);
       this._registerPayload(actor, doc, "__sheetTrigger", raw);
     }
+
+    if (doc.documentName === "Item" && doc.type === "questlog") {
+      const cg = doc.system?.chainGraph;
+      if (cg) {
+        const raw = typeof cg === "string" ? cg : JSON.stringify(cg);
+        this._registerPayload(actor, doc, "__questChain", raw, { questLogUuid: doc.uuid });
+      }
+      for (const q of (doc.system?.quests ?? [])) {
+        const qg = q?.questGraph;
+        if (!qg) continue;
+        const raw = typeof qg === "string" ? qg : JSON.stringify(qg);
+        if (typeof raw !== "string" || !raw.startsWith("{")) continue;
+        this._registerPayload(actor, doc, `__questGraph::${q.id}`, raw, {
+          questLogUuid: doc.uuid,
+          questId:      q.id
+        });
+      }
+    }
   }
 
-  _registerPayload(actor, doc, widgetId, raw) {
+  _registerPayload(actor, doc, widgetId, raw, extra = {}) {
     if (typeof raw !== "string" || !raw.startsWith("{")) return;
     let obj; try { obj = JSON.parse(raw); } catch { return; }
     if (obj?._trigger !== "multi" || !obj._events) return;
     const macros = obj._macros ?? null;
+    const isWorldItem = !actor;
+    const isQuestGraph = !!extra?.questLogUuid;
 
     for (const [evKey, ev] of Object.entries(obj._events)) {
       if (evKey === "onClick") continue;
@@ -81,18 +140,34 @@ class EventBus {
       const foundryHooks = HOOK_MAP[eventHook];
       if (!foundryHooks || !ev?.actions?.length) continue;
 
+      const outOfSheet = !!ev?.data?.outOfSheet;
+
+      if (isWorldItem && !isQuestGraph && !outOfSheet) continue;
+
+      const validForWorld = (h) => h === "updateItem" || h === "createItem" || h === "deleteItem"
+        || h === "createCard" || h === "combatTurnStart" || h === "combatTurnEnd"
+        || QUEST_HOOKS.has(h);
+
       for (const hookName of foundryHooks) {
+
+        if (isWorldItem && !validForWorld(hookName)) continue;
+
+        if (QUEST_HOOKS.has(hookName) && !isQuestGraph) continue;
         const key = `${doc.uuid}::${widgetId}::${evKey}::${hookName}`;
         if (!this._reg.has(hookName)) this._bind(hookName);
         this._reg.get(hookName).set(key, {
-          actorId:   actor.id,
+          actorId:   actor?.id ?? null,
           docUuid:   doc.uuid,
           widgetId,
           eventKey:  evKey,
           eventHook,
           actions:   ev.actions,
           data:      ev.data ?? {},
-          macros
+          outOfSheet,
+          macros,
+
+          questLogUuid: extra?.questLogUuid ?? null,
+          questId:      extra?.questId      ?? null
         });
       }
     }
@@ -116,13 +191,15 @@ class EventBus {
 
   _matches(hookName, args, entry) {
     const firstDoc = args[0];
-    const actor    = game.actors?.get(entry.actorId);
-    if (!actor) return false;
+    const isWorldItemEntry = !entry.actorId;
+    const actor    = isWorldItemEntry ? null : game.actors?.get(entry.actorId);
+    if (!isWorldItemEntry && !actor) return false;
 
     switch (hookName) {
       case "updateActor":
       case "createActor":
       case "deleteActor": {
+        if (isWorldItemEntry) return false;
         if (firstDoc?.id !== entry.actorId) return false;
         return this._matchesSynthetic(hookName, args, entry);
       }
@@ -130,11 +207,17 @@ class EventBus {
       case "createItem":
       case "deleteItem": {
         const host = firstDoc?.actor;
+        if (isWorldItemEntry) {
+          if (host) return false;
+          if (firstDoc?.uuid !== entry.docUuid) return false;
+          return this._matchesSynthetic(hookName, args, entry);
+        }
         if (!host || host.id !== entry.actorId) return false;
         return this._matchesSynthetic(hookName, args, entry);
       }
       case "combatTurnStart":
       case "combatTurnEnd": {
+        if (isWorldItemEntry) return entry.outOfSheet === true;
         const combat = firstDoc;
         const turnIdx = combat?.turn ?? 0;
         const combatant = combat?.turns?.[turnIdx];
@@ -155,6 +238,24 @@ class EventBus {
         if (hostId !== entry.actorId) return false;
         if (entry.docUuid && !entry.docUuid.includes(".Item.")) return true;
         if (entry.docUuid && item?.uuid && entry.docUuid !== item.uuid) return false;
+        return true;
+      }
+      case "sdQuestActivated":
+      case "sdQuestCompleted":
+      case "sdQuestFailed":
+      case "sdQuestRevealed":
+      case "sdSubtaskDone": {
+        const payload = args[0] ?? {};
+        if (entry.questLogUuid && payload.questLogUuid !== entry.questLogUuid) return false;
+
+        if (entry.questId && payload.questId && payload.questId !== entry.questId) return false;
+
+        const qFilter = entry.data?.questIdFilter;
+        if (qFilter && payload.questId !== qFilter) return false;
+        if (hookName === "sdSubtaskDone") {
+          const sFilter = entry.data?.subtaskIdFilter;
+          if (sFilter && payload.subtaskId !== sFilter) return false;
+        }
         return true;
       }
       case "createCard": {
@@ -206,8 +307,8 @@ class EventBus {
 
   async _run(entry, args, hookName) {
     const { ButtonExecutor } = await import("./button-executor.mjs");
-    const actor = game.actors.get(entry.actorId);
-    if (!actor) return;
+    const actor = entry.actorId ? game.actors.get(entry.actorId) : null;
+    if (entry.actorId && !actor) return;
 
     const doc = await fromUuid(entry.docUuid).catch(() => null);
     const itemCtx = doc?.documentName === "Item" ? doc : null;
@@ -272,6 +373,26 @@ class EventBus {
         const [item] = args;
         rt.__eventItemId   = item?.id   ?? "";
         rt.__eventItemName = item?.name ?? "";
+        break;
+      }
+      case "sdQuestActivated":
+      case "sdQuestCompleted":
+      case "sdQuestFailed":
+      case "sdQuestRevealed":
+      case "sdSubtaskDone": {
+        const payload = args[0] ?? {};
+        rt.__questId      = payload.questId      ?? entry.questId      ?? "";
+        rt.__questLogUuid = payload.questLogUuid ?? entry.questLogUuid ?? "";
+        rt.__questActorId = payload.actorId      ?? "";
+        rt.__questUserId  = payload.userId       ?? game.user?.id ?? "";
+        rt.__subtaskId    = payload.subtaskId    ?? "";
+        rt.__questRevealed= payload.revealed === true || payload.revealed === "true" ? 1 : 0;
+        rt.__sdQuestCtx = {
+          questLogUuid: rt.__questLogUuid,
+          questId:      rt.__questId,
+          subtaskId:    rt.__subtaskId,
+          actorId:      rt.__questActorId
+        };
         break;
       }
       case "cardDrawn": {

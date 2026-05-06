@@ -652,6 +652,13 @@ export class ButtonExecutor {
         for (const k of Object.keys(evRt)) {
           formula = formula.replace(new RegExp(`\\{${k}\\}`, "g"), String(evRt[k] ?? ""));
         }
+
+        if (evRt.__questId !== undefined && evRt.__questId !== "") {
+          formula = formula.replace(/__SDQ_THIS__/g, String(evRt.__questId));
+        }
+        if (evRt.__subtaskId !== undefined && evRt.__subtaskId !== "") {
+          formula = formula.replace(/__SDQ_THIS_SUB__/g, String(evRt.__subtaskId));
+        }
       }
       if (runtime.__lastRollTableResult !== undefined) {
         formula = formula.replace(/\{__lastRollTableResult\}/g, String(runtime.__lastRollTableResult));
@@ -744,6 +751,31 @@ export class ButtonExecutor {
     };
 
     switch (action.type) {
+
+      case "questAction": {
+        try {
+          const resolved = {
+            ...action,
+            questId:   _injectRuntime(String(action.questId   ?? "")),
+            subtaskId: _injectRuntime(String(action.subtaskId ?? "")),
+            userId:    _injectRuntime(String(action.userId    ?? "")),
+            actorRef:  _injectRuntime(String(action.actorRef  ?? "")),
+            rewardId:  _injectRuntime(String(action.rewardId  ?? ""))
+          };
+          const ctx = {
+            questLogUuid: runtime?.__questLogUuid ?? (item?.documentName === "Item" && item.type === "questlog" ? item.uuid : ""),
+            questId:      runtime?.__questId      ?? "",
+            subtaskId:    runtime?.__subtaskId    ?? "",
+            actorId:      runtime?.__questActorId ?? actor?.id ?? "",
+            userId:       runtime?.__questUserId  ?? game.user?.id ?? ""
+          };
+          const { SDQuest } = await import("./quest.mjs");
+          await SDQuest.applyAction(resolved, ctx);
+        } catch (err) {
+          console.error("SD | questAction failed", err);
+        }
+        break;
+      }
 
       case "roll": {
         const safeActor = actor ?? null;
