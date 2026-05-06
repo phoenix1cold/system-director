@@ -350,30 +350,4 @@
 
   {{/if}}
 
-  {{#if isFeature}}
-  <div class="details-grid two-col">
-    <div class="detail-group">
-      <label>{{localize "SD.Category"}}</label>
-      <select name="system.category" {{#unless isEditable}}disabled{{/unless}}>
-        {{#each (array "general" "racial" "class" "background" "feat" "talent" "perk" "flaw" "other") as |cat|}}
-        <option value="{{cat}}" {{#if (eq ../system.category cat)}}selected{{/if}}>{{capitalize cat}}</option>
-        {{/each}}
-      </select>
-    </div>
-    <div class="detail-group">
-      <label>{{localize "SD.Level"}}</label>
-      <input type="number" name="system.level" value="{{system.level}}" min="0"
-             {{#unless isEditable}}disabled{{/unless}} />
-    </div>
-    <div class="detail-group">
-      <label>{{localize "SD.Activation"}}</label>
-      <select name="system.activation.type" {{#unless isEditable}}disabled{{/unless}}>
-        {{#each (array "passive" "action" "bonus" "reaction" "special") as |t|}}
-        <option value="{{t}}" {{#if (eq ../system.activation.type t)}}selected{{/if}}>{{capitalize t}}</option>
-        {{/each}}
-      </select>
-    </div>
-  </div>
-  {{/if}}
-
 </section>

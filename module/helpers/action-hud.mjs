@@ -45,6 +45,15 @@ export function registerActionHudSettings() {
     default: { x: null, y: null }
   });
 
+  game.settings.register("sd", "actionHudLocked", {
+    name:    "SD Action HUD lock",
+    scope:   "client",
+    config:  false,
+    type:    Boolean,
+    default: false,
+    onChange: () => SDActionHUD._refreshLockUI()
+  });
+
   game.settings.register("sd", "actionHudBgOpacity", {
     name:    "SD.ActionHud.Settings.BgOpacity",
     hint:    "SD.ActionHud.Settings.BgOpacityHint",
@@ -616,6 +625,23 @@ export class SDActionHUD {
 
   static _userHidden = false;
 
+  static _inFlightPos = null;
+
+  static _refreshLockUI() {
+    const root = document.getElementById("sd-action-hud");
+    if (!root) return;
+    let locked = false;
+    try { locked = !!game.settings.get("sd", "actionHudLocked"); } catch(_) {}
+    root.classList.toggle("sd-action-hud-locked", locked);
+    const btn = root.querySelector("[data-action='lockToggle']");
+    if (btn) {
+      const icon = btn.querySelector("i");
+      if (icon) icon.className = locked ? "fas fa-lock" : "fas fa-lock-open";
+      btn.title = locked ? "Unlock position (drag to move)" : "Lock position";
+      btn.classList.toggle("active", locked);
+    }
+  }
+
   static _ensureRoot() {
     let root = document.getElementById("sd-action-hud");
     if (root) return root;
@@ -627,6 +653,7 @@ export class SDActionHUD {
       <div class="sd-action-hud-bar">
         <span class="sd-action-hud-title"><i class="fas fa-bullseye"></i> <span class="sd-actor-name"></span></span>
         <span class="sd-action-hud-spacer"></span>
+        <button type="button" class="sd-action-hud-lock" title="Lock position" data-action="lockToggle"><i class="fas fa-lock-open"></i></button>
         <button type="button" class="sd-action-hud-edit" title="Toggle edit mode (GM)" data-action="editToggle"><i class="fas fa-pencil"></i></button>
         <button type="button" class="sd-action-hud-list" title="Open layout list (GM)" data-action="editList"><i class="fas fa-list"></i></button>
         <button type="button" class="sd-action-hud-close" title="Hide HUD" data-action="close"><i class="fas fa-xmark"></i></button>
@@ -639,9 +666,13 @@ export class SDActionHUD {
     let drag = null;
     bar.addEventListener("pointerdown", (ev) => {
       if (ev.target.closest("button")) return;
+      let locked = false;
+      try { locked = !!game.settings.get("sd", "actionHudLocked"); } catch(_) {}
+      if (locked) return;
       const r = root.getBoundingClientRect();
       drag = { dx: ev.clientX - r.left, dy: ev.clientY - r.top };
-      bar.setPointerCapture(ev.pointerId);
+      root.style.transform = "";
+      try { bar.setPointerCapture(ev.pointerId); } catch(_) {}
     });
     bar.addEventListener("pointermove", (ev) => {
       if (!drag) return;
@@ -651,12 +682,17 @@ export class SDActionHUD {
       root.style.top  = `${y}px`;
       root.style.right = "auto";
       root.style.bottom = "auto";
+      root.style.transform = "";
     });
-    const endDrag = async () => {
+    const endDrag = async (ev) => {
       if (!drag) return;
       drag = null;
+      try { bar.releasePointerCapture(ev.pointerId); } catch(_) {}
       const r = root.getBoundingClientRect();
-      try { await game.settings.set("sd", "actionHudPos", { x: r.left, y: r.top }); } catch(e) {}
+      const newPos = { x: r.left, y: r.top };
+      SDActionHUD._inFlightPos = newPos;
+      try { await game.settings.set("sd", "actionHudPos", newPos); } catch(e) {}
+      if (SDActionHUD._inFlightPos === newPos) SDActionHUD._inFlightPos = null;
     };
     bar.addEventListener("pointerup",   endDrag);
     bar.addEventListener("pointercancel", endDrag);
@@ -666,6 +702,17 @@ export class SDActionHUD {
       SDActionHUD._userHidden = true;
       root.style.display = "none";
     });
+
+    const lockBtn = root.querySelector("[data-action='lockToggle']");
+    if (lockBtn) {
+      lockBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        let locked = false;
+        try { locked = !!game.settings.get("sd", "actionHudLocked"); } catch(_) {}
+        try { await game.settings.set("sd", "actionHudLocked", !locked); } catch(_) {}
+        SDActionHUD._refreshLockUI();
+      });
+    }
 
     const editBtn = root.querySelector("[data-action='editToggle']");
     if (editBtn) {
@@ -791,19 +838,28 @@ export class SDActionHUD {
     const scale = Math.min(Math.max(Number(game.settings.get("sd", "actionHudScale") ?? 100), 50), 200) / 100;
     root.style.setProperty("--sd-hud-scale", scale);
 
-    const pos = game.settings.get("sd", "actionHudPos") ?? {};
+    const savedPos = game.settings.get("sd", "actionHudPos") ?? {};
+    const pos = (SDActionHUD._inFlightPos
+                 && Number.isFinite(SDActionHUD._inFlightPos.x)
+                 && Number.isFinite(SDActionHUD._inFlightPos.y))
+      ? SDActionHUD._inFlightPos
+      : savedPos;
     if (Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
       root.style.left = `${pos.x}px`;
       root.style.top  = `${pos.y}px`;
       root.style.right = "auto";
       root.style.bottom = "auto";
+      root.style.transform = "";
     } else {
 
       root.style.left = "50%";
       root.style.bottom = "120px";
       root.style.top = "auto";
+      root.style.right = "auto";
       root.style.transform = "translateX(-50%)";
     }
+
+    SDActionHUD._refreshLockUI();
 
     const nameEl = root.querySelector(".sd-actor-name");
     if (nameEl) nameEl.textContent = actor.name ?? "";

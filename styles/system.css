@@ -698,8 +698,7 @@
 }
 
 .sd .item-list,
-.sd .ability-list,
-.sd .feature-list {
+.sd .ability-list {
   list-style: none;
   display: flex;
   flex-direction: column;
@@ -707,8 +706,7 @@
 }
 
 .sd .item-row,
-.sd .ability-row,
-.sd .feature-row {
+.sd .ability-row {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -720,8 +718,7 @@
   min-width: 0;
 }
 .sd .item-row:hover,
-.sd .ability-row:hover,
-.sd .feature-row:hover { border-color: var(--sd-border-2); background: var(--sd-bg-3); }
+.sd .ability-row:hover { border-color: var(--sd-border-2); background: var(--sd-bg-3); }
 .sd .item-row.equipped { border-left: 3px solid var(--sd-accent); }
 
 .sd .item-img {
@@ -3625,12 +3622,17 @@
 .sd-prog-fc-row {
   display: flex; align-items: center; gap: 3px;
   margin-bottom: 3px;
+  flex-wrap: wrap;
 }
 .sd-prog-fc-path {
-  flex: 1; min-width: 0;
+  flex: 1 1 100%; min-width: 0;
   background: var(--prog-card2); border: 1px solid var(--prog-border);
   border-radius: 3px; color: var(--prog-text); font-size: 10px;
   padding: 2px 5px; font-family: monospace;
+}
+.sd-prog-fc-path,
+.sd-prog-fc-row .nc-path {
+  box-sizing: border-box;
 }
 .sd-prog-fc-mode {
   background: var(--prog-card2); border: 1px solid var(--prog-border);
@@ -3661,16 +3663,30 @@
 }
 
 .sd-prog-effect-chip {
-  display: flex; align-items: center;
+  display: flex; align-items: center; gap: 3px;
   background: var(--prog-card2); border: 1px solid var(--prog-border);
   border-radius: 4px; padding: 3px 6px; font-size: 11px;
   margin-bottom: 3px;
+  min-width: 0;
+}
+.sd-prog-effect-chip.disabled { opacity: .5; }
+.sd-prog-effect-chip .sd-prog-effect-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sd-prog-effect-chip .sd-prog-effect-count {
+  font-size: 9px; font-weight: 700; color: var(--prog-accent);
+  background: rgba(123,104,238,.12);
+  padding: 1px 5px; border-radius: 8px;
+  flex-shrink: 0;
 }
 .sd-prog-effect-chip button {
-  margin-left: auto; background: none; border: none;
+  background: none; border: none;
   color: var(--prog-text2); cursor: pointer; font-size: 10px;
+  padding: 0 2px; flex-shrink: 0;
 }
-.sd-prog-effect-chip button:hover { color: var(--sd-danger); }
+.sd-prog-effect-chip button:hover { color: var(--prog-accent); }
+.sd-prog-effect-chip button[data-action='removeEffect']:hover { color: var(--sd-danger); }
 
 .sd-prog-empty       { color: var(--prog-text2); font-style: italic; font-size: 12px; text-align: center; padding: 20px; }
 .sd-prog-empty-small { color: var(--prog-text2); font-size: 11px; font-style: italic; }
@@ -3806,7 +3822,7 @@
 .sd-prog-node-tool:hover        { background: var(--sd-accent-dim); color: var(--sd-accent-text,#fff); }
 .sd-prog-node-tool.danger:hover { background: var(--sd-danger-dim);   color: var(--sd-accent-text,#fff); }
 
-.sd-prog-fc-row { display: flex; align-items: center; gap: 4px; }
+.sd-prog-fc-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 
 .sd-card-mults {
   display: flex;
@@ -4032,6 +4048,13 @@
   font-size: 11px;
 }
 #sd-action-hud button:hover { background: rgba(255,255,255,0.08); }
+#sd-action-hud .sd-action-hud-lock.active {
+  color: var(--sd-accent, #7b68ee);
+  border-color: var(--sd-accent, #7b68ee);
+  background: rgba(123,104,238,0.12);
+}
+#sd-action-hud.sd-action-hud-locked .sd-action-hud-bar { cursor: default; }
+#sd-action-hud.sd-action-hud-locked .sd-action-hud-bar:active { cursor: default; }
 
 #sd-action-hud .sd-action-hud-widget {
 

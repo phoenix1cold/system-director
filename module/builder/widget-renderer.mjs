@@ -494,7 +494,7 @@ export class WidgetRenderer {
   </div>`;
 
     const _legacyOrder = ["weapon", "armor", "shield", "consumable", "ammo", "magazine", "tool", "gear", "container", "treasure", "other"];
-    const _customCats  = Object.keys(grouped).filter(c => !_legacyOrder.includes(c)).sort();
+    const _customCats  = Object.keys(grouped).filter(c => !_legacyOrder.includes(c) && c !== "").sort();
     const categoryOrder = [..._legacyOrder, ..._customCats, ""];
 
     for (const cat of categoryOrder) {

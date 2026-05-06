@@ -224,6 +224,12 @@ export const MIGRATIONS = [
   },
 
   {
+    version:     "0.5.6",
+    description: "Convert deprecated 'feature' items to 'ability' items.",
+    run: async () => convertLegacyFeatureItems()
+  },
+
+  {
     version:     "0.5.3",
     description: "Trade: backfill inventory.category for items lacking it; reset legacy currency \"gp\" to first configured currency.",
     run: async () => {
@@ -254,3 +260,61 @@ export const MIGRATIONS = [
   }
 
 ];
+
+export async function convertLegacyFeatureItems() {
+  const _abilityActivationType = (t) => {
+    const allowed = ["action","bonus","reaction","minute","hour","special","none"];
+    if (t === "passive") return "none";
+    return allowed.includes(t) ? t : "none";
+  };
+
+  const _abilityCategory = (c) => {
+    const allowed = ["active","passive","reaction","free","special"];
+    return allowed.includes(c) ? c : "passive";
+  };
+
+  const _buildAbilitySystem = (oldSys) => ({
+    category:    _abilityCategory(oldSys.category),
+    school:      "",
+    level:       { value: Number(oldSys.level ?? 0) || 0, max: 9 },
+    activation:  {
+      type:      _abilityActivationType(oldSys.activation?.type),
+      cost:      Number(oldSys.activation?.cost ?? 0) || 0,
+      condition: ""
+    },
+    uses: {
+      enabled: !!oldSys.uses?.enabled,
+      value:   Number(oldSys.uses?.value ?? 0) || 0,
+      max:     Number(oldSys.uses?.max ?? 0) || 0,
+      per:     oldSys.uses?.per ?? "day"
+    },
+    tags:           Array.isArray(oldSys.tags) ? oldSys.tags : [],
+    description:    oldSys.description ?? "",
+    source:         oldSys.source ?? "",
+    flags:          oldSys.flags ?? {},
+    onClickGraph:   oldSys.onClickGraph   ?? {},
+    onClickFormula: oldSys.onClickFormula ?? ""
+  });
+
+  const _convert = async (collection) => {
+    const items = [...collection].filter(i => i.type === "feature");
+    for (const item of items) {
+      try {
+        const old = item.toObject();
+        const newSys = _buildAbilitySystem(old.system ?? {});
+        await item.update(
+          { type: "ability", system: newSys },
+          { diff: false, recursive: false }
+        );
+        CONFIG.debug?.sd && console.log(`SD | Converted feature → ability: ${item.name}`);
+      } catch (err) {
+        console.warn(`SD | Failed to convert feature item ${item?.name}:`, err);
+      }
+    }
+  };
+
+  await _convert(game.items);
+  for (const actor of game.actors) {
+    await _convert(actor.items);
+  }
+}

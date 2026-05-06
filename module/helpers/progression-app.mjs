@@ -302,10 +302,13 @@ export class ProgressionApp extends ApplicationV2 {
       }
       for (let j = 0; j < effects.length; j++) {
         const ef = effects[j];
-        html += `<div class="sd-prog-effect-chip">
+        const efTitle = ef.disabled ? `${e(ef.name ?? "Effect")} (${loc("SD.Progression.EffectDisabled")})` : e(ef.name ?? "Effect");
+        html += `<div class="sd-prog-effect-chip${ef.disabled ? " disabled" : ""}" title="${efTitle}">
           <img src="${e(ef.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
-          ${e(ef.name ?? "Effect")}
-          ${em ? `<button type="button" data-action="removeEffect" data-level-idx="${i}" data-effect-idx="${j}"><i class="fas fa-times"></i></button>` : ""}
+          <span class="sd-prog-effect-name">${e(ef.name ?? "Effect")}</span>
+          ${ef.changes?.length ? `<span class="sd-prog-effect-count" title="${loc("SD.Progression.EffectChangesCount")}">${ef.changes.length}</span>` : ""}
+          ${em ? `<button type="button" data-action="editEffect" data-level-idx="${i}" data-effect-idx="${j}" title="${loc("SD.Progression.EditEffect")}"><i class="fas fa-pen"></i></button>` : ""}
+          ${em ? `<button type="button" data-action="removeEffect" data-level-idx="${i}" data-effect-idx="${j}" title="${loc("SD.Progression.RemoveEffect")}"><i class="fas fa-times"></i></button>` : ""}
         </div>`;
       }
 
@@ -687,6 +690,11 @@ export class ProgressionApp extends ApplicationV2 {
         await this._removeEffect(+target.dataset.levelIdx, +target.dataset.effectIdx);
         break;
 
+      case "editEffect":
+        if (!isGM) return;
+        await this._editEffect(+target.dataset.levelIdx, +target.dataset.effectIdx);
+        break;
+
       case "acquireNode": {
         const nodeId = target.closest("[data-node-id]")?.dataset?.nodeId ?? target.dataset.nodeId;
         if (nodeId) await this._acquireNode(nodeId);
@@ -814,6 +822,143 @@ export class ProgressionApp extends ApplicationV2 {
     const levels = dc(this._levels);
     levels[levelIdx]?.effects?.splice(effectIdx, 1);
     await this._saveLevels(levels);
+    this.render();
+  }
+
+  async _editEffect(levelIdx, effectIdx) {
+    const levels = dc(this._levels);
+    const ef = levels?.[levelIdx]?.effects?.[effectIdx];
+    if (!ef) return;
+
+    const M = (typeof CONST !== "undefined" && CONST.ACTIVE_EFFECT_MODES) ? CONST.ACTIVE_EFFECT_MODES : { CUSTOM: 0, MULTIPLY: 1, ADD: 2, DOWNGRADE: 3, UPGRADE: 4, OVERRIDE: 5 };
+    const modeOptions = [
+      { v: M.ADD,       label: "+ Add" },
+      { v: M.MULTIPLY,  label: "× Multiply" },
+      { v: M.OVERRIDE,  label: "= Override" },
+      { v: M.UPGRADE,   label: "↑ Upgrade" },
+      { v: M.DOWNGRADE, label: "↓ Downgrade" },
+      { v: M.CUSTOM,    label: "ƒ Custom" }
+    ];
+
+    const _changeRow = (c, j) => `
+      <div class="sd-prog-fc-row" data-idx="${j}">
+        <input type="text" class="ec-key" value="${e(c.key ?? "")}" placeholder="system.attributes.str.value" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
+        <select class="ec-mode" style="font-size:11px;">
+          ${modeOptions.map(o => `<option value="${o.v}" ${Number(c.mode) === o.v ? "selected" : ""}>${o.label}</option>`).join("")}
+        </select>
+        <input type="text" class="ec-value" value="${e(c.value ?? "")}" placeholder="0" style="width:80px;">
+        <input type="number" class="ec-priority" value="${Number.isFinite(Number(c.priority)) ? Number(c.priority) : ""}" placeholder="prio" title="Priority" style="width:54px;">
+        <button type="button" class="ec-del-row" title="${loc("SD.Delete")}"><i class="fas fa-times"></i></button>
+      </div>`;
+
+    const changeRows = (ef.changes ?? []).map(_changeRow).join("");
+
+    const content = `<div style="display:flex;flex-direction:column;gap:10px;padding:8px;min-width:420px;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label style="min-width:80px;">${loc("SD.Progression.EffectName")}</label>
+        <input id="ee-name" type="text" value="${e(ef.name ?? "")}" style="flex:1;">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label style="min-width:80px;">${loc("SD.Progression.EffectIcon")}</label>
+        <input id="ee-icon" type="text" value="${e(ef.icon ?? "icons/svg/aura.svg")}" style="flex:1;">
+        <button type="button" id="ee-pick-icon" title="${loc("SD.Progression.BrowseIcon")}"><i class="fas fa-folder-open"></i></button>
+      </div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+        <label style="display:flex;gap:6px;align-items:center;font-size:12px;">
+          <input id="ee-disabled" type="checkbox" ${ef.disabled ? "checked" : ""}> ${loc("SD.Progression.EffectDisabled")}
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:12px;">
+          <input id="ee-transfer" type="checkbox" ${ef.transfer !== false ? "checked" : ""}> ${loc("SD.Progression.EffectTransfer")}
+        </label>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--sd-text-3);display:flex;align-items:center;justify-content:space-between;">
+          <span><i class="fas fa-sliders-h"></i> ${loc("SD.Progression.EffectChanges")}</span>
+          <button type="button" id="ee-add-change" style="font-size:11px;padding:3px 8px;">
+            <i class="fas fa-plus"></i> ${loc("SD.Progression.AddChange")}</button>
+        </div>
+        <div id="ee-changes" style="display:flex;flex-direction:column;gap:6px;">${changeRows}</div>
+      </div>
+    </div>`;
+
+    const result = await foundry.applications.api.DialogV2.prompt({
+      window:  { title: `${loc("SD.Progression.EditEffect")}: ${ef.name ?? ""}` },
+      content,
+      ok: {
+        label:    loc("SD.Save"),
+        icon:     "fas fa-save",
+        callback: (event, btn, dialog) => {
+          const el = dialog.element;
+          const name     = el.querySelector("#ee-name")?.value?.trim() || ef.name || "Effect";
+          const icon     = el.querySelector("#ee-icon")?.value?.trim() || "icons/svg/aura.svg";
+          const disabled = !!el.querySelector("#ee-disabled")?.checked;
+          const transfer = !!el.querySelector("#ee-transfer")?.checked;
+          const changes = [];
+          el.querySelectorAll("#ee-changes .sd-prog-fc-row").forEach(row => {
+            const key      = row.querySelector(".ec-key")?.value?.trim();
+            const mode     = parseInt(row.querySelector(".ec-mode")?.value);
+            const value    = row.querySelector(".ec-value")?.value ?? "";
+            const priority = parseInt(row.querySelector(".ec-priority")?.value);
+            if (!key) return;
+            const ch = { key, mode: Number.isFinite(mode) ? mode : M.ADD, value };
+            if (Number.isFinite(priority)) ch.priority = priority;
+            changes.push(ch);
+          });
+          return { name, icon, disabled, transfer, changes };
+        }
+      },
+      render: (event, dialog) => {
+        const el = dialog.element;
+
+        el.addEventListener("click", ev => {
+          if (ev.target.closest(".ec-del-row")) {
+            ev.target.closest(".sd-prog-fc-row")?.remove();
+          }
+        });
+
+        el.querySelector("#ee-add-change")?.addEventListener("click", () => {
+          const container = el.querySelector("#ee-changes");
+          const idx = container.querySelectorAll(".sd-prog-fc-row").length;
+          const div = document.createElement("div");
+          div.className = "sd-prog-fc-row";
+          div.dataset.idx = idx;
+          div.innerHTML = `
+            <input type="text" class="ec-key" value="" placeholder="system.attributes.str.value" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
+            <select class="ec-mode" style="font-size:11px;">
+              ${modeOptions.map(o => `<option value="${o.v}" ${o.v === M.ADD ? "selected" : ""}>${o.label}</option>`).join("")}
+            </select>
+            <input type="text" class="ec-value" value="0" style="width:80px;">
+            <input type="number" class="ec-priority" value="" placeholder="prio" title="Priority" style="width:54px;">
+            <button type="button" class="ec-del-row"><i class="fas fa-times"></i></button>`;
+          container.appendChild(div);
+        });
+
+        el.querySelector("#ee-pick-icon")?.addEventListener("click", async () => {
+          try {
+            const FP = foundry.applications.apps.FilePicker?.implementation ?? FilePicker;
+            new FP({
+              type:    "image",
+              current: el.querySelector("#ee-icon")?.value ?? "",
+              callback: (path) => { const inp = el.querySelector("#ee-icon"); if (inp) inp.value = path; }
+            }).render(true);
+          } catch (err) { console.warn("SD | FilePicker failed:", err); }
+        });
+      },
+      rejectClose: false
+    });
+
+    if (!result) return;
+
+    const lvls = dc(this._levels);
+    const target = lvls?.[levelIdx]?.effects?.[effectIdx];
+    if (!target) return;
+    target.name     = result.name;
+    target.icon     = result.icon;
+    target.img      = result.icon;
+    target.disabled = result.disabled;
+    target.transfer = result.transfer;
+    target.changes  = result.changes;
+    await this._saveLevels(lvls);
     this.render();
   }
 
@@ -1020,7 +1165,7 @@ export class ProgressionApp extends ApplicationV2 {
 
     const fcRows = (node.fieldChanges ?? []).map((fc, j) => `
       <div class="sd-prog-fc-row" data-idx="${j}">
-        <input type="text" class="nc-path" value="${e(fc.path)}" placeholder="system.advancement.level" style="flex:1;min-width:0;">
+        <input type="text" class="nc-path" value="${e(fc.path)}" placeholder="system.advancement.level" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
         <select class="nc-mode">
           <option value="add"      ${fc.mode === "add"      ? "selected" : ""}>+</option>
           <option value="set"      ${fc.mode === "set"      ? "selected" : ""}>=</option>
@@ -1097,7 +1242,7 @@ export class ProgressionApp extends ApplicationV2 {
           div.className = "sd-prog-fc-row";
           div.dataset.idx = idx;
         div.innerHTML = `
-        <input type="text" class="nc-path" value="system.skillPoints.max" placeholder="system...." style="flex:1;min-width:0;">
+        <input type="text" class="nc-path" value="system.skillPoints.max" placeholder="system...." style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
         <select class="nc-mode"><option value="add">+</option><option value="set">=</option><option value="multiply">×</option></select>
         <input type="text" class="nc-value" value="1" style="width:56px;">
         <button type="button" class="nc-del-fc"><i class="fas fa-times"></i></button>`;

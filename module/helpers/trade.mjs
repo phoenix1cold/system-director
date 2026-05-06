@@ -832,23 +832,81 @@ export class SDTradeWindow extends ApplicationV2 {
     root.querySelectorAll('.sd-tw-items[data-drop-zone="init"], .sd-tw-items[data-drop-zone="part"]').forEach(dropZone => {
       const sideKey = dropZone.dataset.dropZone;
       const targetActor = actorBySide(sideKey);
-      dropZone.addEventListener("dragover", ev => { ev.preventDefault(); dropZone.style.background = "var(--sd-accent-glow,rgba(123,104,238,.15))"; });
-      dropZone.addEventListener("dragleave", () => { dropZone.style.background = ""; });
+
+      const onOver  = ev => { ev.preventDefault(); ev.stopPropagation(); dropZone.style.background = "var(--sd-accent-glow,rgba(123,104,238,.15))"; };
+      const onEnter = ev => { ev.preventDefault(); ev.stopPropagation(); };
+      const onLeave = () => { dropZone.style.background = ""; };
+
+      dropZone.addEventListener("dragenter", onEnter);
+      dropZone.addEventListener("dragover",  onOver);
+      dropZone.addEventListener("dragleave", onLeave);
+
       dropZone.addEventListener("drop", async (ev) => {
         ev.preventDefault();
+        ev.stopPropagation();
         dropZone.style.background = "";
         try {
-          const data = JSON.parse(ev.dataTransfer.getData("text/plain") || "{}");
-          if (data.type !== "Item") return;
+          const raw = ev.dataTransfer?.getData("text/plain")
+                   || ev.dataTransfer?.getData("application/json")
+                   || "";
+          const data = raw ? JSON.parse(raw) : null;
+          if (!data) return;
+
+          if (data.type && data.type !== "Item") return;
+          if (data.sdType || data.sdTypeAlt) return;
+          const looksLikeItem = !!(data.uuid || data._id || data.id || data.sdSrc?.itemId || data.actorId);
+          if (!looksLikeItem) return;
+
+          const candidateIds = [
+            data.sdSrc?.itemId,
+            data._id,
+            data.id,
+            (typeof data.uuid === "string" ? data.uuid.split(".").pop() : null)
+          ].filter(Boolean);
+
           let item = null;
-          if (data.uuid) item = await fromUuid(data.uuid).catch(() => null);
-          if (!item) return;
-          if (item.parent?.id !== targetActor?.id) {
+
+          if (targetActor) {
+            for (const id of candidateIds) {
+              const it = targetActor.items?.get(id);
+              if (it) { item = it; break; }
+            }
+          }
+
+          if (!item && data.sdSrc?.kind === "inventory" && data.sdSrc?.actorUuid && data.sdSrc?.itemId) {
+            const srcActor = await fromUuid(data.sdSrc.actorUuid).catch(() => null);
+            item = srcActor?.items?.get(data.sdSrc.itemId) ?? null;
+          }
+          if (!item && data.uuid) {
+            item = await fromUuid(data.uuid).catch(() => null);
+          }
+          if (!item && data._id && data.actorId) {
+            const srcActor = game.actors?.get(data.actorId);
+            item = srcActor?.items?.get(data._id) ?? null;
+          }
+
+          if (!item) {
+            console.warn("SD | trade drop: could not resolve", { data, targetActorUuid: targetActor?.uuid });
+            ui.notifications?.warn?.(_i18n("SD.Trade.DropResolveFail", "Could not resolve dropped item."));
+            return;
+          }
+
+          const ownerMatches = !!(targetActor
+            && item.parent
+            && (item.parent.uuid === targetActor.uuid
+                || item.parent.id  === targetActor.id));
+          const onTargetActor = !!(targetActor && targetActor.items?.get(item.id));
+
+          if (!ownerMatches && !onTargetActor) {
             ui.notifications?.warn?.(_i18n("SD.Trade.OnlyOwn","Items must come from this actor's own inventory."));
             return;
           }
+
           this._addItemToOffer(sideKey, item.id, 1);
-        } catch (err) { console.warn("SD | trade drop", err); }
+        } catch (err) {
+          console.warn("SD | trade drop", err);
+          ui.notifications?.error?.(_i18n("SD.Trade.DropError", "Failed to add item to trade."));
+        }
       });
     });
 

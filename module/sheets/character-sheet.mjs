@@ -1414,6 +1414,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         };
         ev.dataTransfer.setData("text/plain", JSON.stringify(dragData));
         ev.dataTransfer.effectAllowed = "all";
+        ev.stopPropagation();
       });
     });
 
@@ -1447,6 +1448,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           sdSrc: actor ? { kind: "inventory", actorUuid: actor.uuid, itemId: item.id } : null
         }));
         ev.dataTransfer.effectAllowed = "all";
+        ev.stopPropagation();
       });
     });
 

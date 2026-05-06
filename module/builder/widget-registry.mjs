@@ -115,7 +115,7 @@ export const WIDGET_TYPES = {
       { key: "label",             type: "text",   label: "Label" },
       { key: "slotId",            type: "text",   label: "Slot ID" },
       { key: "maxCount",          type: "number", label: "Max Items" },
-      { key: "allowedTypes",      type: "tags",   label: "Allowed Types (inventory, ability, feature)" },
+      { key: "allowedTypes",      type: "tags",   label: "Allowed Types (inventory, ability)" },
       { key: "allowedCategories", type: "tags",   label: "Allowed Categories (weapon, armor, etc)" }
     ]
   },

@@ -146,47 +146,25 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
 export class FeatureData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
-    const {
-      StringField, NumberField, BooleanField,
-      SchemaField, ArrayField, HTMLField, ObjectField
-    } = foundry.data.fields;
-
     return {
-      category: new StringField({
-        initial: "general",
-        choices: ["general","racial","class","background","feat","talent","perk","flaw","other"],
-        blank: false
-      }),
-
+      category: new StringField({ initial: "general", blank: true }),
       level: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
-
       activation: new SchemaField({
-        type:  new StringField({ initial: "passive", choices: ["passive","action","bonus","reaction","special"], blank: false }),
-        cost:  new NumberField({ required: true, integer: true, initial: 0, nullable: false })
+        type: new StringField({ initial: "passive", blank: true }),
+        cost: new NumberField({ required: true, integer: true, initial: 0, nullable: false })
       }),
-
       uses: new SchemaField({
         enabled: new BooleanField({ initial: false }),
         value:   new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
         max:     new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
         per:     new StringField({ initial: "day", blank: true })
       }),
-
-      tags:        new ArrayField(new StringField({ blank: false })),
+      tags:        new ArrayField(new StringField({ blank: true })),
       description: new HTMLField({ initial: "", blank: true }),
       source:      new StringField({ initial: "", blank: true }),
       flags:       new ObjectField({ initial: {} }),
-
       onClickGraph:   new ObjectField({ initial: {} }),
-      onClickFormula: new StringField({ initial: "", blank: true }),
+      onClickFormula: new StringField({ initial: "", blank: true })
     };
   }
-
-  static migrateData(source) { return super.migrateData(source); }
-
-  prepareDerivedData() {
-    super.prepareDerivedData();
-  }
-
-  get isPassive() { return this.activation.type === "passive"; }
 }

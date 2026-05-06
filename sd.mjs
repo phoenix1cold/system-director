@@ -286,6 +286,13 @@ Hooks.on("preCreateActor", (actor, data, _options, _userId) => {
 Hooks.once("ready", async () => {
   if (game.user.isGM) {
     await runMigrations();
+
+    try {
+      const { convertLegacyFeatureItems } = await import("./module/helpers/migrations.mjs");
+      await convertLegacyFeatureItems();
+    } catch (err) {
+      console.warn("SD | feature→ability cleanup failed:", err);
+    }
   }
   const { GridManager }    = await import("./module/builder/grid-manager.mjs");
   const { WidgetRenderer } = await import("./module/builder/widget-renderer.mjs");

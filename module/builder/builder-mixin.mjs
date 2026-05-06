@@ -401,8 +401,12 @@ export function BuilderMixin(Base) {
         dz.addEventListener("dragover", ev => { ev.preventDefault(); dz.classList.add("drag-over"); });
         dz.addEventListener("dragleave", () => dz.classList.remove("drag-over"));
         dz.addEventListener("drop", async ev => {
-          ev.preventDefault();
           dz.classList.remove("drag-over");
+
+          if (this.document instanceof Actor) return;
+
+          ev.preventDefault();
+          ev.stopPropagation();
           const data = this._parseDrop(ev);
           if (!data) return;
 
