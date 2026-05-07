@@ -256,6 +256,23 @@ Hooks.once("init", () => {
   console.log("SD | Initialisation complete.");
 });
 
+// Hide deprecated "feature" item type from the create dialog (existing
+// feature items remain valid via the schema and are auto-converted to ability
+// on world load by convertLegacyFeatureItems()).
+const _sdRemoveFeatureOption = (root) => {
+  if (!root) return;
+  root.querySelectorAll?.('select[name="type"] option[value="feature"]').forEach(o => o.remove());
+};
+Hooks.on("renderDialogV2", (_dialog, html) => _sdRemoveFeatureOption(html));
+Hooks.on("renderDialog", (_dialog, html) => _sdRemoveFeatureOption(html?.[0] ?? html));
+Hooks.on("renderApplication", (_app, html) => _sdRemoveFeatureOption(html?.[0] ?? html));
+Hooks.on("preCreateItem", (_item, data) => {
+  if (data?.type === "feature") {
+    ui.notifications?.warn?.('Item type "feature" is deprecated; please create an "ability" instead.');
+    return false;
+  }
+});
+
 Hooks.on("preCreateActor", (actor, data, _options, _userId) => {
   if (data?.type === "character") {
     const ptLink = foundry.utils.getProperty(data, "prototypeToken.actorLink");

@@ -1333,10 +1333,29 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
   _wireAllInteractions() {
     const root=this.element; if (!root) return;
     const con=root.querySelector(".sd-panels-container"); if (!con) return;
-    if (con._sdWired) return;
+    if (con._sdWired) { this._wirePerElementInteractions(con); return; }
     con._sdWired = true;
     con.addEventListener("click", this._onPanelClick.bind(this));
     con.addEventListener("change", this._onPanelChange.bind(this));
+
+    con.addEventListener("click", async ev => {
+      const skillPip = ev.target.closest(".skill-pip[data-path][data-rank]");
+      if (!skillPip) return;
+      ev.stopPropagation();
+      const path = skillPip.dataset.path;
+      const r    = Number(skillPip.dataset.rank) || 0;
+      const cur  = Number(foundry.utils.getProperty(this.document, path)) || 0;
+      const next = cur === r ? r - 1 : r;
+      await this.document.update({ [path]: Math.max(0, next) });
+    });
+
+    con.addEventListener("contextmenu", async ev => {
+      const pipRow = ev.target.closest(".skill-pip-row[data-path]");
+      if (!pipRow) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      await this.document.update({ [pipRow.dataset.path]: 0 });
+    });
 
     con.addEventListener("click", async ev => {
       const btn = ev.target.closest("[data-action='removeFromSlot']");
@@ -1430,6 +1449,130 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       }
     });
 
+    this._wirePerElementInteractions(con);
+
+    con.addEventListener("click", async ev => {
+      const btn = ev.target.closest("[data-action='abilityDelete']");
+      if (!btn) return;
+      ev.stopPropagation();
+      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
+      if (!actor) return;
+      const item = actor.items?.get(btn.dataset.itemId);
+      if (!item) return;
+      const ok = await foundry.applications.api.DialogV2.confirm({
+        window: { title: "Remove Ability" },
+        content: `<p>Remove <strong>${item.name}</strong> from this actor?</p>`
+      }).catch(() => false);
+      if (ok) await item.delete();
+    });
+
+    con.addEventListener("click", ev => {
+      const btn = ev.target.closest("[data-action='abilityEdit']");
+      if (!btn) return;
+      ev.stopPropagation();
+      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
+      const item = actor?.items?.get(btn.dataset.itemId);
+      if (item) item.sheet.render(true);
+    });
+
+    con.addEventListener("click", async ev => {
+      const btn = ev.target.closest("[data-action='abilityCast']");
+      if (!btn) return;
+      ev.stopPropagation();
+      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
+      const item  = actor?.items?.get(btn.dataset.itemId);
+      if (item) await item.use({});
+    });
+
+    con.addEventListener("click", async ev => {
+      const btn = ev.target.closest("[data-action='slotRestore']");
+      if (!btn) return;
+      ev.stopPropagation();
+      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
+      if (!actor) return;
+      const lvl      = btn.dataset.level;
+      const idx      = Number(btn.dataset.slotIdx ?? 0);
+      const slotPath = `system.spellSlots.${lvl}`;
+      const slot     = foundry.utils.getProperty(actor, slotPath) ?? {};
+      const sv       = Number(slot.value ?? 0);
+      const sm       = Number(slot.max   ?? 0);
+      const isFilled = idx < sv;
+      const newVal   = isFilled ? Math.max(0, sv - 1) : Math.min(sm, sv + 1);
+      await actor.update({ [`${slotPath}.value`]: newVal });
+    });
+
+    con.addEventListener("change", async ev => {
+      const inp = ev.target.closest("[data-action='slotSetMax']");
+      if (!inp) return;
+      ev.stopPropagation();
+      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
+      if (!actor) return;
+      const lvl      = inp.dataset.level;
+      const newMax   = Math.max(0, Math.min(20, parseInt(inp.value) || 0));
+      const slotPath = `system.spellSlots.${lvl}`;
+      const slot     = foundry.utils.getProperty(actor, slotPath) ?? {};
+      const sv       = Math.min(Number(slot.value ?? 0), newMax);
+      await actor.update({ [`${slotPath}.max`]: newMax, [`${slotPath}.value`]: sv });
+    });
+
+    con.addEventListener("change", async ev => {
+      const inp = ev.target.closest(".sb-mana-input");
+      if (!inp || !inp.name) return;
+      ev.stopPropagation();
+      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
+      const target = actor ?? this.document;
+      await target.update({ [inp.name]: Math.max(0, parseInt(inp.value) || 0) });
+    });
+
+    con.addEventListener("dragover", ev => {
+      const dz = ev.target.closest(".sb-drop-zone");
+      if (!dz) return;
+      ev.preventDefault();
+      dz.style.background  = "var(--sd-accent-glow)";
+      dz.style.color       = "var(--sd-accent)";
+      dz.style.borderColor = "var(--sd-accent)";
+    });
+    con.addEventListener("dragleave", ev => {
+      const dz = ev.target.closest(".sb-drop-zone");
+      if (!dz) return;
+      dz.style.background  = "";
+      dz.style.color       = "#555";
+      dz.style.borderColor = "var(--sd-accent-dim)";
+    });
+    con.addEventListener("drop", async ev => {
+      const dz = ev.target.closest(".sb-drop-zone");
+      if (!dz) return;
+      ev.preventDefault();
+      dz.style.background  = "";
+      dz.style.color       = "#555";
+      dz.style.borderColor = "var(--sd-accent-dim)";
+      try {
+        const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
+        const item = data.uuid ? await fromUuid(data.uuid) : null;
+        if (!item) return;
+        if (item.type !== "ability") { ui.notifications.warn(`"${item.name}" is not an ability item.`); return; }
+        const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
+        if (actor) {
+          const wantType = String(dz.dataset.wantType ?? "").trim();
+          const obj = item.toObject();
+          obj.system ??= {};
+          obj.system.hiddenFields = {
+            cost:     "",
+            pathUses: "",
+            type:     "",
+            ...(obj.system.hiddenFields ?? {})
+          };
+          if (wantType && !String(obj.system.hiddenFields.type ?? "").trim()) {
+            obj.system.hiddenFields.type = wantType;
+          }
+          await actor.createEmbeddedDocuments("Item", [obj]);
+          ui.notifications.info(`Added "${item.name}" to ${actor.name}`);
+        }
+      } catch(err) { console.warn("SD | spellbook drop (item-sheet):", err); }
+    });
+  }
+
+  _wirePerElementInteractions(con) {
     con.querySelectorAll(".widget-copy-path").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -1742,124 +1885,180 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       });
     });
 
-    con.addEventListener("click", async ev => {
-      const btn = ev.target.closest("[data-action='abilityDelete']");
-      if (!btn) return;
-      ev.stopPropagation();
-      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
-      if (!actor) return;
-      const item = actor.items?.get(btn.dataset.itemId);
-      if (!item) return;
-      const ok = await foundry.applications.api.DialogV2.confirm({
-        window: { title: "Remove Ability" },
-        content: `<p>Remove <strong>${item.name}</strong> from this actor?</p>`
-      }).catch(() => false);
-      if (ok) await item.delete();
+    const _readPath = (path) => {
+      if (!path) return 0;
+      if (path.startsWith("system.hiddenFields.")) {
+        const key = path.slice("system.hiddenFields.".length);
+        return this.document?.system?.hiddenFields?.[key] ?? 0;
+      }
+      return foundry.utils.getProperty(this.document, path) ?? 0;
+    };
+
+    con.querySelectorAll("[data-step]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const step  = parseFloat(btn.dataset.step);
+        const path  = btn.dataset.path;
+        if (!path) return;
+        const cur   = Number(_readPath(path)) || 0;
+        const dsMin = btn.dataset.min;
+        const dsMax = btn.dataset.max;
+        const min   = (dsMin !== undefined && dsMin !== "") ? parseFloat(dsMin) : -Infinity;
+        const max   = (dsMax !== undefined && dsMax !== "") ? parseFloat(dsMax) :  Infinity;
+        await this.document.update({ [path]: Math.clamp(cur + step, min, max) });
+      });
     });
 
-    con.addEventListener("click", ev => {
-      const btn = ev.target.closest("[data-action='abilityEdit']");
-      if (!btn) return;
-      ev.stopPropagation();
-      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
-      const item = actor?.items?.get(btn.dataset.itemId);
-      if (item) item.sheet.render(true);
-    });
-
-    con.addEventListener("click", async ev => {
-      const btn = ev.target.closest("[data-action='abilityCast']");
-      if (!btn) return;
-      ev.stopPropagation();
-      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
-      const item  = actor?.items?.get(btn.dataset.itemId);
-      if (item) await item.use({});
-    });
-
-    con.addEventListener("click", async ev => {
-      const btn = ev.target.closest("[data-action='slotRestore']");
-      if (!btn) return;
-      ev.stopPropagation();
-      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
-      if (!actor) return;
-      const lvl      = btn.dataset.level;
-      const idx      = Number(btn.dataset.slotIdx ?? 0);
-      const slotPath = `system.spellSlots.${lvl}`;
-      const slot     = foundry.utils.getProperty(actor, slotPath) ?? {};
-      const sv       = Number(slot.value ?? 0);
-      const sm       = Number(slot.max   ?? 0);
-      const isFilled = idx < sv;
-      const newVal   = isFilled ? Math.max(0, sv - 1) : Math.min(sm, sv + 1);
-      await actor.update({ [`${slotPath}.value`]: newVal });
-    });
-
-    con.addEventListener("change", async ev => {
-      const inp = ev.target.closest("[data-action='slotSetMax']");
-      if (!inp) return;
-      ev.stopPropagation();
-      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
-      if (!actor) return;
-      const lvl      = inp.dataset.level;
-      const newMax   = Math.max(0, Math.min(20, parseInt(inp.value) || 0));
-      const slotPath = `system.spellSlots.${lvl}`;
-      const slot     = foundry.utils.getProperty(actor, slotPath) ?? {};
-      const sv       = Math.min(Number(slot.value ?? 0), newMax);
-      await actor.update({ [`${slotPath}.max`]: newMax, [`${slotPath}.value`]: sv });
-    });
-
-    con.addEventListener("change", async ev => {
-      const inp = ev.target.closest(".sb-mana-input");
-      if (!inp || !inp.name) return;
-      ev.stopPropagation();
-      const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
-      const target = actor ?? this.document;
-      await target.update({ [inp.name]: Math.max(0, parseInt(inp.value) || 0) });
-    });
-
-    con.addEventListener("dragover", ev => {
-      const dz = ev.target.closest(".sb-drop-zone");
-      if (!dz) return;
-      ev.preventDefault();
-      dz.style.background  = "var(--sd-accent-glow)";
-      dz.style.color       = "var(--sd-accent)";
-      dz.style.borderColor = "var(--sd-accent)";
-    });
-    con.addEventListener("dragleave", ev => {
-      const dz = ev.target.closest(".sb-drop-zone");
-      if (!dz) return;
-      dz.style.background  = "";
-      dz.style.color       = "#555";
-      dz.style.borderColor = "var(--sd-accent-dim)";
-    });
-    con.addEventListener("drop", async ev => {
-      const dz = ev.target.closest(".sb-drop-zone");
-      if (!dz) return;
-      ev.preventDefault();
-      dz.style.background  = "";
-      dz.style.color       = "#555";
-      dz.style.borderColor = "var(--sd-accent-dim)";
-      try {
-        const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
-        const item = data.uuid ? await fromUuid(data.uuid) : null;
-        if (!item) return;
-        if (item.type !== "ability") { ui.notifications.warn(`"${item.name}" is not an ability item.`); return; }
-        const actor = this.document.actor ?? (this.document instanceof Actor ? this.document : null);
-        if (actor) {
-          const wantType = String(dz.dataset.wantType ?? "").trim();
-          const obj = item.toObject();
-          obj.system ??= {};
-          obj.system.hiddenFields = {
-            cost:     "",
-            pathUses: "",
-            type:     "",
-            ...(obj.system.hiddenFields ?? {})
-          };
-          if (wantType && !String(obj.system.hiddenFields.type ?? "").trim()) {
-            obj.system.hiddenFields.type = wantType;
-          }
-          await actor.createEmbeddedDocuments("Item", [obj]);
-          ui.notifications.info(`Added "${item.name}" to ${actor.name}`);
+    con.querySelectorAll("[data-roll]").forEach(el => {
+      el.addEventListener("click", async () => {
+        let formula = el.dataset.roll;
+        if (!formula || formula.trim().startsWith("[")) return;
+        try {
+          const { FormulaEngine } = await import("../helpers/formula-engine.mjs");
+          formula = FormulaEngine.resolveForRoll(formula, this.document);
+        } catch(e) {}
+        try {
+          const roll = new Roll(formula, this.document.getRollData?.() ?? {});
+          await roll.evaluate();
+          await roll.toMessage({
+            speaker: ChatMessage.getSpeaker({ actor: this.document.actor ?? this.document }),
+            flavor:  el.dataset.flavor
+          });
+        } catch(e) {
+          console.error("SD | data-roll error:", e, "formula:", formula);
         }
-      } catch(err) { console.warn("SD | spellbook drop (item-sheet):", err); }
+      });
+    });
+
+    con.querySelectorAll("[data-toggle]").forEach(tog => {
+      tog.addEventListener("click", async () => {
+        await this.document.update({ [tog.dataset.toggle]: tog.dataset.on !== "true" });
+      });
+    });
+
+    con.querySelectorAll("[data-action='attrModClick']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const doc = this.document;
+        const onClickFml = btn.dataset.attrOnclick;
+        if (onClickFml) {
+          const trimmed = onClickFml.trim();
+          if (trimmed.startsWith("[")) {
+            try {
+              const actions = JSON.parse(trimmed);
+              const actorCtx = doc instanceof Actor ? doc : doc.actor ?? null;
+              const itemCtx  = doc instanceof Actor ? null : doc;
+              const fakeBtnDef = { label: btn.dataset.flavor ?? "" };
+              const runtime = {};
+              for (const action of actions) {
+                await ButtonExecutor._runAction(action, itemCtx ?? { system: {}, actor: actorCtx }, actorCtx, fakeBtnDef, runtime);
+              }
+            } catch(err) { console.error("SD | attrModClick exec error:", err); }
+            return;
+          }
+        }
+        let formula = btn.dataset.attrRoll || "1d20";
+        try {
+          const { FormulaEngine } = await import("../helpers/formula-engine.mjs");
+          formula = FormulaEngine.resolveForRoll(formula, doc);
+        } catch(e) {}
+        try {
+          const roll = new Roll(formula, doc.getRollData?.() ?? {});
+          await roll.evaluate();
+          await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: doc.actor ?? doc }), flavor: btn.dataset.flavor });
+        } catch(e) { console.error("SD | attrModClick roll error:", e, "formula:", formula); }
+      });
+    });
+
+    con.querySelectorAll("[data-copy-macro]").forEach(btn => {
+      btn.addEventListener("click", async ev => {
+        ev.stopPropagation();
+        const script = btn.dataset.copyMacro;
+        if (!script) return;
+        try {
+          await navigator.clipboard.writeText(script);
+          const icon = btn.querySelector("i");
+          if (icon) {
+            icon.className = "fas fa-check";
+            icon.style.color = "#5a9e5a";
+            setTimeout(() => { icon.className = "fas fa-scroll"; icon.style.color = ""; }, 1200);
+          }
+          ui.notifications.info("Macro script copied to clipboard!");
+        } catch {
+          await foundry.applications.api.DialogV2.prompt({
+            window:  { title: "Macro Script" },
+            content: `<p style="font-size:11px;color:var(--sd-w-label, var(--sd-text-3));margin-bottom:6px">Copy the script below into a new Macro (type: Script):</p>
+              <textarea style="width:100%;height:160px;font-family:monospace;font-size:11px;background:var(--sd-bg);color:#c0c0e0;border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;padding:6px;box-sizing:border-box;resize:vertical"
+                readonly onclick="this.select()">${script}</textarea>`,
+            ok: { label: "Close" }
+          });
+        }
+      });
+    });
+
+    con.querySelectorAll("[data-action='questMarkerOpen']").forEach(btn => {
+      btn.addEventListener("click", async ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const logUuid = btn.dataset.qmLog || "";
+        if (!logUuid) return;
+        try {
+          const log = await fromUuid(logUuid);
+          if (!log) return;
+          await log.sheet?.render?.(true);
+        } catch(e) { console.error("SD | questMarkerOpen:", e); }
+      });
+    });
+
+    con.querySelectorAll("[data-action='cardFlip']").forEach(btn => {
+      btn.addEventListener("click", async ev => {
+        ev.stopPropagation();
+        if (btn.dataset.sdBusy === "1") return;
+        btn.dataset.sdBusy = "1";
+        const wasDisabled = btn.disabled;
+        btn.disabled = true;
+        try {
+          const stack = await fromUuid(btn.dataset.stackUuid);
+          const card  = stack?.cards?.get?.(btn.dataset.cardId);
+          if (card) await card.update({ face: card.face === null ? 0 : null });
+        } catch(e) { console.error("SD | cardFlip:", e); }
+        finally { delete btn.dataset.sdBusy; btn.disabled = wasDisabled; }
+      });
+    });
+
+    con.querySelectorAll("[data-action='cardStripScroll']").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const dir = Number(btn.dataset.dir) || 1;
+        const strip = btn.parentElement?.querySelector(".sd-cardhand-strip");
+        if (strip) strip.scrollBy({ left: dir * 200, behavior: "smooth" });
+      });
+    });
+
+    con.querySelectorAll("[data-action='cardStackShuffle']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try {
+          const stack = await fromUuid(btn.dataset.stackUuid);
+          if (stack) await stack.shuffle({ chatNotification: true });
+        } catch(e) { console.error("SD | cardStackShuffle:", e); }
+      });
+    });
+
+    con.querySelectorAll("[data-action='cardStackRecall']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try {
+          const stack = await fromUuid(btn.dataset.stackUuid);
+          if (stack) await stack.recall({ chatNotification: true });
+        } catch(e) { console.error("SD | cardStackRecall:", e); }
+      });
+    });
+
+    con.querySelectorAll("[data-action='cardStackFlipAll']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try {
+          const stack = await fromUuid(btn.dataset.stackUuid);
+          if (!stack) return;
+          const updates = stack.cards.map(c => ({ _id: c.id, face: c.face === null ? 0 : null }));
+          await stack.updateEmbeddedDocuments("Card", updates);
+        } catch(e) { console.error("SD | cardStackFlipAll:", e); }
+      });
     });
   }
 

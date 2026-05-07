@@ -499,7 +499,7 @@ export const NODE_DEFS = {
     }
   },
 
-  add:  {title:"Add",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[{key:"sep",label:"Sep",type:"text",default:""},_ROUND_FIELD],compile:(n,i)=>{ const sep=n.data.sep??""; if (sep) return `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})`; return _round(`(${i.a??"0"}+${i.b??"0"})`, n.data); }},
+  add:  {title:"Add",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"",type:"value.any"}],fields:[{key:"sep",label:"Sep",type:"text",default:""},_ROUND_FIELD],compile:(n,i)=>{ const sep=n.data.sep??""; if (sep) return `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})`; return _round(`(${i.a??"0"}+${i.b??"0"})`, n.data); }},
   sub:  {title:"Sub",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}-${i.b??"0"})`, n.data)},
   mul:  {title:"Mul",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}*${i.b??"0"})`, n.data)},
   div:  {title:"Div",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}/${i.b??"1"})`, n.data)},
