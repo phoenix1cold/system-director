@@ -385,6 +385,30 @@ function registerSettings() {
     default: "1d20"
   });
 
+  game.settings.register("sd", "initiativeUseGraph", {
+    name:    "SD.Settings.InitiativeUseGraph",
+    scope:   "world",
+    config:  false,
+    type:    Boolean,
+    default: false
+  });
+
+  game.settings.register("sd", "initiativeGraph", {
+    name:    "SD.Settings.InitiativeGraph",
+    scope:   "world",
+    config:  false,
+    type:    Object,
+    default: { nodes: [], edges: [], comments: [] }
+  });
+
+  game.settings.register("sd", "initiativeGraphCompiled", {
+    name:    "SD.Settings.InitiativeGraphCompiled",
+    scope:   "world",
+    config:  false,
+    type:    String,
+    default: ""
+  });
+
   game.settings.register("sd", "useEncumbrance", {
     name:    "SD.Settings.UseEncumbrance",
     hint:    "SD.Settings.UseEncumbranceHint",
@@ -456,20 +480,93 @@ function registerHandlebarsHelpers() {
   Handlebars.registerHelper("concat", (...args) => args.slice(0, -1).join(""));
 }
 
-Hooks.once("ready", () => {
+function applyInitiativeFromAllSettings() {
   try {
-    const formula = game.settings.get("sd", "initiativeFormula");
-    if (formula) {
-      game.system.initiative = formula;
-      CONFIG.Combat.initiative.formula = formula;
+    const formula  = String(game.settings.get("sd", "initiativeFormula") ?? "1d20");
+    const useGraph = !!game.settings.get("sd", "initiativeUseGraph");
+    const compiled = String(game.settings.get("sd", "initiativeGraphCompiled") ?? "");
+    const effective = (useGraph && compiled.trim()) ? compiled.trim() : formula;
+    if (effective) {
+      game.system.initiative = effective;
+      if (CONFIG?.Combat?.initiative) CONFIG.Combat.initiative.formula = effective;
     }
   } catch(e) {  }
+}
+
+async function _sdResolveInitiativeFormulaForActor(actor) {
+  const useGraph = !!game.settings.get("sd", "initiativeUseGraph");
+  const compiled = String(game.settings.get("sd", "initiativeGraphCompiled") ?? "");
+  const fallback = String(game.settings.get("sd", "initiativeFormula") ?? "1d20") || "1d20";
+  const raw = (useGraph && compiled.trim()) ? compiled.trim() : fallback;
+  if (!raw) return "1d20";
+  try {
+    const { FormulaEngine } = await import("./module/helpers/formula-engine.mjs");
+    if (actor && /[{}]/.test(raw)) return FormulaEngine.resolveForRoll(raw, actor) || raw;
+  } catch(e) { console.warn("SD | resolveForRoll failed", e); }
+  return raw;
+}
+
+function _installInitiativeOverride() {
+  const CombatantCls = CONFIG?.Combatant?.documentClass;
+  if (!CombatantCls?.prototype) return;
+  if (CombatantCls.prototype.__sdInitiativePatched) return;
+  CombatantCls.prototype.__sdInitiativePatched = true;
+
+  const _origGetFormula = CombatantCls.prototype._getInitiativeFormula;
+  CombatantCls.prototype._getInitiativeFormula = function() {
+    const orig = _origGetFormula?.call(this);
+    const useGraph = (() => { try { return !!game.settings.get("sd", "initiativeUseGraph"); } catch { return false; } })();
+    const compiled = (() => { try { return String(game.settings.get("sd", "initiativeGraphCompiled") ?? ""); } catch { return ""; } })();
+    const fallback = (() => { try { return String(game.settings.get("sd", "initiativeFormula") ?? "1d20"); } catch { return "1d20"; } })();
+    const raw = (useGraph && compiled.trim()) ? compiled.trim() : (fallback || orig || "1d20");
+    if (!raw) return "1d20";
+    if (!/[{}]/.test(raw)) return raw;
+    try {
+      const FormulaEngine = globalThis.SD?.FormulaEngine;
+      if (FormulaEngine && this.actor) {
+        return FormulaEngine.resolveForRoll(raw, this.actor) || raw;
+      }
+    } catch(e) { console.warn("SD | _getInitiativeFormula resolveForRoll failed", e); }
+    return raw;
+  };
+
+  const _origGetInitiativeRoll = CombatantCls.prototype.getInitiativeRoll;
+  CombatantCls.prototype.getInitiativeRoll = function(formula) {
+    let f = formula;
+    if (!f) f = this._getInitiativeFormula();
+    if (typeof f === "string" && /[{}]/.test(f)) {
+      try {
+        const FormulaEngine = globalThis.SD?.FormulaEngine;
+        if (FormulaEngine && this.actor) f = FormulaEngine.resolveForRoll(f, this.actor) || f;
+      } catch(e) { console.warn("SD | getInitiativeRoll resolveForRoll failed", e); }
+    }
+    return _origGetInitiativeRoll.call(this, f);
+  };
+}
+
+Hooks.once("ready", async () => {
+  applyInitiativeFromAllSettings();
+
+  try {
+    const { FormulaEngine } = await import("./module/helpers/formula-engine.mjs");
+    globalThis.SD = globalThis.SD ?? {};
+    globalThis.SD.FormulaEngine = FormulaEngine;
+  } catch(e) { console.warn("SD | Could not import FormulaEngine for initiative", e); }
+
+  try { _installInitiativeOverride(); } catch(e) { console.warn("SD | initiative override failed", e); }
 
   try { mountActionHudHooks(); } catch(e) { console.warn("SD | mountActionHudHooks failed:", e); }
+
+  void _sdResolveInitiativeFormulaForActor;
 });
 
 Hooks.on("updateSetting", (setting) => {
-  if (setting.key !== "sd.initiativeFormula") return;
+  const k = setting?.key;
+  if (k === "sd.initiativeUseGraph" || k === "sd.initiativeGraphCompiled" || k === "sd.initiativeGraph") {
+    applyInitiativeFromAllSettings();
+    return;
+  }
+  if (k !== "sd.initiativeFormula") return;
   const formula = setting.value;
   if (formula) {
     game.system.initiative = formula;
@@ -1135,8 +1232,19 @@ html.addEventListener("click", async (e) => {
   if (!saveActor) { ui.notifications.warn(game.i18n.localize("SD.ChatSave.ActorNotFound")); return; }
   if (!game.user.isGM && !saveActor.isOwner) { ui.notifications.warn(game.i18n.localize("SD.ChatSave.NotOwner")); return; }
 
-  const saveMod = Number(foundry.utils.getProperty(saveActor, modifierPath) ?? 0);
-  const baseFormula = `${rollFormula} + ${saveMod}`;
+  const _rawMod = foundry.utils.getProperty(saveActor, modifierPath);
+  const _modVal = (_rawMod && typeof _rawMod === "object" && "value" in _rawMod) ? _rawMod.value : _rawMod;
+  const saveMod = Number(_modVal ?? 0) || 0;
+
+  let _rollFormulaResolved = rollFormula;
+  try {
+    const FE = globalThis.SD?.FormulaEngine;
+    if (FE && /[{}]|[A-Za-z_][\w]*\.[A-Za-z_]/.test(String(rollFormula))) {
+      _rollFormulaResolved = FE.resolveForRoll(String(rollFormula), saveActor) || rollFormula;
+    }
+  } catch (e) { console.warn("SD | save-button: resolveForRoll(rollFormula) failed", e); }
+
+  const baseFormula = `${_rollFormulaResolved} + ${saveMod}`;
 
   let rollTotal;
   let modeTag = "";
@@ -1259,6 +1367,7 @@ html.querySelectorAll(".sd-save-selected-btn").forEach(btn => {
     const rollDialogue = btn.dataset.saveRollDialogue  ?? card?.dataset.saveRollDialogue ?? "no";
     const advFormula   = btn.dataset.saveAdvFormula    ?? card?.dataset.saveAdvFormula    ?? "";
     const disFormula   = btn.dataset.saveDisFormula    ?? card?.dataset.saveDisFormula    ?? "";
+    const rollFormula  = btn.dataset.saveRollFormula   ?? card?.dataset.saveRollFormula   ?? "1d20";
     const timeout      = Number(btn.dataset.saveTimeout ?? 0);
     const checkType    = btn.dataset.saveType          ?? card?.dataset.saveType    ?? "save";
     const buttonLabel  = btn.dataset.buttonLabel       ?? "Roll Save";

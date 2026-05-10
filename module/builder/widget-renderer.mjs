@@ -418,7 +418,7 @@ export class WidgetRenderer {
     const isActor = doc instanceof Actor;
     if (!isActor) return `<div class="widget widget-inventory"><p style="color:var(--sd-text-3)">Inventory widget only works on Actor sheets</p></div>`;
 
-    let items = [...(doc.items ?? [])];
+    let items = [...(doc.items ?? [])].filter(item => item.type === "inventory");
     const categories = w.categories ?? [];
     const columns = w.columns ?? [];
 

@@ -1,7 +1,7 @@
 # System Director
 
 <p align="center">
-  <a href="https://discord.gg/wSfn962R">
+  <a href="https://discord.gg/PMKkb7wS">
     <img alt="Join the Discord" src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white">
   </a>
   &nbsp;

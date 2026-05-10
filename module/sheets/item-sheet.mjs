@@ -1,6 +1,7 @@
 import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
+import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpers/effect-editor.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -419,11 +420,19 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     if (ed) itemsZone.innerHTML = `<span style="font-size:10px;color:var(--sd-text-3);text-align:center;padding:4px">Drop items here</span>`;
     (lv.items ?? []).forEach((it, j) => {
       const chip = document.createElement("div");
-      chip.style.cssText = "display:flex;align-items:center;gap:4px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;padding:2px 5px;font-size:10px;color:var(--sd-text-2);";
+      chip.style.cssText = "display:flex;align-items:center;gap:4px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;padding:2px 5px;font-size:10px;color:var(--sd-text-2);cursor:context-menu;";
+      chip.title = "Right-click to open item";
+      chip.dataset.snapshotRef = `cls:${idx}:${j}`;
       chip.innerHTML = `<img src="${e(it.img ?? "icons/svg/item-bag.svg")}" style="width:14px;height:14px;border-radius:2px;object-fit:cover">
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(it.name ?? "Item")}</span>
         ${ed ? `<button type="button" class="cls-del-item" data-level-idx="${idx}" data-item-idx="${j}"
           style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:0 1px">✕</button>` : ""}`;
+      chip.addEventListener("contextmenu", async ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const snap = (this.document.system.levels?.[idx]?.items ?? [])[j];
+        if (snap) await openItemSheetFromSnapshot(snap, this.document.parent ?? null);
+      });
       itemsZone.appendChild(chip);
       if (ed) { const hint = itemsZone.querySelector("span"); if (hint) hint.remove(); }
     });
@@ -476,8 +485,11 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     (lv.effects ?? []).forEach((ef, j) => {
       const chip = document.createElement("div");
       chip.style.cssText = "display:flex;align-items:center;gap:4px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;padding:2px 5px;font-size:10px;color:var(--sd-text-2);";
-      chip.innerHTML = `<img src="${e(ef.icon ?? "icons/svg/aura.svg")}" style="width:14px;height:14px;border-radius:2px">
-        <span style="flex:1">${e(ef.name ?? "Effect")}</span>
+      chip.innerHTML = `<img src="${e(ef.icon ?? ef.img ?? "icons/svg/aura.svg")}" style="width:14px;height:14px;border-radius:2px">
+        <span style="flex:1${ef.disabled ? ";opacity:.5;text-decoration:line-through" : ""}">${e(ef.name ?? "Effect")}</span>
+        ${(ef.changes ?? []).length ? `<span style="font-size:9px;color:var(--sd-text-3)" title="Changes">${(ef.changes ?? []).length}</span>` : ""}
+        ${ed ? `<button type="button" class="cls-edit-ef" data-level-idx="${idx}" data-ef-idx="${j}" title="Edit effect"
+          style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px"><i class="fas fa-pen"></i></button>` : ""}
         ${ed ? `<button type="button" class="cls-del-ef" data-level-idx="${idx}" data-ef-idx="${j}"
           style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px">✕</button>` : ""}`;
       efList.appendChild(chip);
@@ -581,17 +593,45 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     panel.querySelectorAll(".cls-add-ef").forEach(btn =>
       btn.addEventListener("click", async ev => {
-        const name = await foundry.applications.api.DialogV2.prompt({
-          window:  { title: "Effect Name" },
-          content: `<div style="padding:8px"><input id="ef-name" type="text" value="New Effect" style="width:100%"></div>`,
-          ok:      { callback: (_e, _b, dlg) => dlg.querySelector("#ef-name")?.value ?? "" },
-          rejectClose: false
-        });
-        if (!name) return;
-        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
         const li   = parseInt(ev.currentTarget.dataset.levelIdx);
+        const seed = {
+          name: "New Effect",
+          icon: "icons/svg/aura.svg",
+          img:  "icons/svg/aura.svg",
+          changes: [],
+          disabled: false,
+          duration: {},
+          flags: {}
+        };
+        const updated = await editEffectViaStandardConfig(seed, {
+          parent: this.document,
+          title:  `Add Effect`
+        });
+        if (!updated) return;
+        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
         lvls[li].effects ??= [];
-        lvls[li].effects.push({ _id: foundry.utils.randomID(8), name, icon: "icons/svg/aura.svg", changes: [], disabled: false, duration: {}, flags: {} });
+        const eff = { ...updated };
+        delete eff._id;
+        lvls[li].effects.push(eff);
+        await this.document.update({ "system.levels": lvls });
+      })
+    );
+
+    panel.querySelectorAll(".cls-edit-ef").forEach(btn =>
+      btn.addEventListener("click", async ev => {
+        const li = parseInt(ev.currentTarget.dataset.levelIdx);
+        const ei = parseInt(ev.currentTarget.dataset.efIdx);
+        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+        const ef   = lvls[li]?.effects?.[ei];
+        if (!ef) return;
+        const updated = await editEffectViaStandardConfig(ef, {
+          parent: this.document,
+          title:  `Edit Effect: ${ef.name ?? ""}`
+        });
+        if (!updated) return;
+        const merged = { ...ef, ...updated };
+        delete merged._id;
+        lvls[li].effects[ei] = merged;
         await this.document.update({ "system.levels": lvls });
       })
     );
@@ -686,6 +726,14 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
             display:flex;flex-direction:column;align-items:center;justify-content:center;
             gap:3px;overflow:hidden;z-index:2;box-sizing:border-box;padding:4px;`;
           el.dataset.nodeId = node.id;
+          if (node.item) el.title = "Right-click to open item";
+          el.addEventListener("contextmenu", async ev => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const liveNode = (this.document.system.nodes ?? []).find(n => n.id === node.id);
+            const snap     = liveNode?.item;
+            if (snap) await openItemSheetFromSnapshot(snap, this.document.parent ?? null);
+          });
           if (node.item?.img) {
             el.innerHTML += `<img src="${e(node.item.img)}" style="width:34px;height:34px;object-fit:cover;border-radius:4px;pointer-events:none">`;
           } else {
@@ -837,29 +885,53 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           const ns     = foundry.utils.deepClone(this.document.system.nodes ?? []);
           const node   = ns.find(n => n.id === nodeId);
           if (!node) return;
+
+          const escAttr = (s) => this._e(s);
+          const workingEffects = foundry.utils.deepClone(node.effects ?? []);
+          const _renderEffectRow = (ef, j) => `
+            <div class="stn-eff-row" data-idx="${j}" style="display:flex;align-items:center;gap:6px;padding:3px 6px;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg);">
+              <img src="${escAttr(ef.icon ?? ef.img ?? "icons/svg/aura.svg")}" style="width:18px;height:18px;border-radius:2px;">
+              <span style="flex:1;font-size:11px;${ef.disabled ? "opacity:.5;text-decoration:line-through;" : ""}">${escAttr(ef.name ?? "Effect")}</span>
+              <span style="font-size:10px;color:var(--sd-text-3);">${(ef.changes ?? []).length} ch.</span>
+              <button type="button" class="stn-edit-eff" data-idx="${j}" title="Edit effect" style="background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:0 4px;"><i class="fas fa-pen"></i></button>
+              <button type="button" class="stn-del-eff" data-idx="${j}" title="Delete" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px;">✕</button>
+            </div>`;
+          const _renderEffectsHTML = () => (workingEffects.length
+            ? workingEffects.map((ef, j) => _renderEffectRow(ef, j)).join("")
+            : `<span style="font-size:10px;color:var(--sd-text-3);font-style:italic">No effects yet.</span>`);
+
           const fcRows = (node.fieldChanges ?? []).map((fc, j) => `
             <div class="stn-fc-row" style="display:flex;align-items:center;gap:3px;margin-bottom:3px">
-              <input type="text" class="stn-fc-path" value="${this._e(fc.path)}" placeholder="system.advancement.level"
+              <input type="text" class="stn-fc-path" value="${escAttr(fc.path)}" placeholder="system.advancement.level"
                 style="flex:1;min-width:0;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;font-family:monospace;padding:2px 4px">
               <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
                 <option value="add" ${fc.mode==="add"?"selected":""}>+</option>
                 <option value="set" ${fc.mode==="set"?"selected":""}>=</option>
                 <option value="multiply" ${fc.mode==="multiply"?"selected":""}>×</option>
               </select>
-              <input type="text" class="stn-fc-val" value="${this._e(fc.value)}" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
+              <input type="text" class="stn-fc-val" value="${escAttr(fc.value)}" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
               <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>
             </div>`).join("");
           const content = `<div style="display:flex;flex-direction:column;gap:10px;padding:8px">
             <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Label
-              <input id="stn-label" type="text" value="${this._e(node.label??'')}" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
+              <input id="stn-label" type="text" value="${escAttr(node.label??'')}" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
             <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Max Acquires
-              <input id="stn-max" type="number" value="${node.maxAcquire??1}" min="1" style="width:80px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
+              <input id="stn-max" type="text" inputmode="numeric" value="${node.maxAcquire??1}" style="width:80px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
+            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Cost
+              <input id="stn-cost" type="text" inputmode="numeric" value="${node.cost??1}" style="width:80px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
             <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Cell Color
               <input id="stn-color" type="color" value="${node.color||'var(--sd-bg)'}" style="width:56px;height:28px"></label>
             <div>
               <div style="font-size:11px;font-weight:600;color:var(--sd-text-3);margin-bottom:5px"><i class="fas fa-sliders-h"></i> Field Changes
                 <button type="button" id="stn-add-fc" style="margin-left:8px;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+ Add</button></div>
               <div id="stn-fcs">${fcRows}</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--sd-text-3);margin-bottom:5px;display:flex;align-items:center;gap:6px;">
+                <span><i class="fas fa-magic"></i> Active Effects</span>
+                <button type="button" id="stn-add-eff" style="margin-left:auto;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+ Add Effect</button>
+              </div>
+              <div id="stn-effs" style="display:flex;flex-direction:column;gap:3px;">${_renderEffectsHTML()}</div>
             </div>
           </div>`;
           const ok = await foundry.applications.api.DialogV2.prompt({
@@ -869,7 +941,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
               label: "Save", icon: "fas fa-save",
               callback: (_ev, _btn, dlg) => {
                 node.label      = dlg.querySelector("#stn-label")?.value ?? node.label;
-                node.maxAcquire = parseInt(dlg.querySelector("#stn-max")?.value) || 1;
+                const maxRaw    = parseInt(dlg.querySelector("#stn-max")?.value);
+                node.maxAcquire = Number.isFinite(maxRaw) && maxRaw >= 1 ? maxRaw : (node.maxAcquire ?? 1);
+                const costRaw   = parseInt(dlg.querySelector("#stn-cost")?.value);
+                node.cost       = Number.isFinite(costRaw) && costRaw >= 0 ? costRaw : (Number.isFinite(node.cost) ? node.cost : 1);
                 node.color      = dlg.querySelector("#stn-color")?.value ?? "";
                 const fcs = [];
                 dlg.querySelectorAll("#stn-fcs .stn-fc-row").forEach(row => {
@@ -879,6 +954,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
                   if (path) fcs.push({ path, mode, value });
                 });
                 node.fieldChanges = fcs;
+                node.effects      = workingEffects.map(ef => { const c = { ...ef }; delete c._id; return c; });
                 return true;
               }
             },
@@ -898,12 +974,79 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
                   <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>`;
                 dlg.querySelector("#stn-fcs")?.appendChild(div);
               });
+
+              const refreshEffects = () => {
+                const cont = dlg.querySelector("#stn-effs");
+                if (cont) cont.innerHTML = _renderEffectsHTML();
+              };
+
+              dlg.querySelector("#stn-add-eff")?.addEventListener("click", async (evt) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+                const seed = {
+                  name: "New Effect",
+                  icon: "icons/svg/aura.svg",
+                  img:  "icons/svg/aura.svg",
+                  changes: [],
+                  disabled: false,
+                  duration: {},
+                  flags: {}
+                };
+                const updated = await editEffectViaStandardConfig(seed, {
+                  parent: this.document,
+                  title:  `Add Effect`
+                });
+                if (!updated) return;
+                const eff = { ...updated };
+                delete eff._id;
+                workingEffects.push(eff);
+                refreshEffects();
+              });
+
+              dlg.addEventListener("click", async (evt) => {
+                const editBtn = evt.target.closest(".stn-edit-eff");
+                if (editBtn) {
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  const idx = parseInt(editBtn.dataset.idx);
+                  const cur = workingEffects[idx];
+                  if (!cur) return;
+                  const updated = await editEffectViaStandardConfig(cur, {
+                    parent: this.document,
+                    title:  `Edit Effect: ${cur.name ?? ""}`
+                  });
+                  if (!updated) return;
+                  const merged = { ...cur, ...updated };
+                  delete merged._id;
+                  workingEffects[idx] = merged;
+                  refreshEffects();
+                  return;
+                }
+                const delBtn = evt.target.closest(".stn-del-eff");
+                if (delBtn) {
+                  evt.preventDefault();
+                  evt.stopPropagation();
+                  const idx = parseInt(delBtn.dataset.idx);
+                  if (Number.isFinite(idx)) {
+                    workingEffects.splice(idx, 1);
+                    refreshEffects();
+                  }
+                }
+              });
             },
             rejectClose: false
           }).catch(() => false);
           if (ok) {
             const ni = ns.findIndex(n => n.id === nodeId);
-            if (ni >= 0) { ns[ni] = node; await this.document.update({ "system.nodes": ns }); }
+            if (ni >= 0) {
+              ns[ni] = node;
+              try {
+                await this.document.update({ "system.nodes": ns });
+              } catch (err) {
+                console.error("SD | Failed to save skill tree node config:", err);
+                ui.notifications?.error?.(`Failed to save node: ${err?.message ?? err}`);
+              }
+            }
           }
         });
       });

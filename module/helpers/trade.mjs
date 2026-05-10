@@ -914,14 +914,68 @@ export class SDTradeWindow extends ApplicationV2 {
       btn.addEventListener("click", () => this._removeItemFromOffer(btn.dataset.side, btn.dataset.id));
     });
     root.querySelectorAll(".sd-tw-qty").forEach(inp => {
+      inp.addEventListener("input",  () => this._setQty(inp.dataset.side, inp.dataset.id, Number(inp.value || 1), { silent: true }));
       inp.addEventListener("change", () => this._setQty(inp.dataset.side, inp.dataset.id, Number(inp.value || 1)));
     });
     root.querySelectorAll(".sd-tw-cur").forEach(inp => {
+      inp.addEventListener("input",  () => this._setCurrency(inp.dataset.side, inp.dataset.key, Number(inp.value || 0), { silent: true }));
       inp.addEventListener("change", () => this._setCurrency(inp.dataset.side, inp.dataset.key, Number(inp.value || 0)));
     });
 
+    root.querySelector(".sd-tw-ready")?.addEventListener("mousedown", () => this._flushOfferInputs());
     root.querySelector(".sd-tw-ready")?.addEventListener("click", () => this._toggleReady());
     root.querySelector(".sd-tw-cancel")?.addEventListener("click", () => this._cancel());
+  }
+
+  /**
+   * Read every currency/qty input currently in the DOM and push the latest
+   * value into the offer state. This is a defensive flush so that even if the
+   * `change` event hasn't fired yet (e.g. user clicked Ready while still
+   * focused inside a number input) the trade is committed with the values the
+   * user actually typed. Pure state update — no refresh, no broadcast — so it
+   * is safe to call from a mousedown handler without breaking the click.
+   */
+  _flushOfferInputs() {
+    const root = this.element;
+    if (!root) return;
+    const st = SDTrade._state.get(this.requestId);
+    if (!st) return;
+    let changed = false;
+
+    root.querySelectorAll(".sd-tw-cur").forEach(inp => {
+      const side = inp.dataset.side;
+      if (!this._canEdit(side)) return;
+      const offer = this._offer(side);
+      if (!offer) return;
+      const key = inp.dataset.key;
+      const v = Math.max(0, Number(inp.value || 0));
+      if (offer.currency[key] !== v) { offer.currency[key] = v; changed = true; }
+    });
+
+    root.querySelectorAll(".sd-tw-qty").forEach(inp => {
+      const side = inp.dataset.side;
+      if (!this._canEdit(side)) return;
+      const offer = this._offer(side);
+      if (!offer) return;
+      const id = inp.dataset.id;
+      const it = offer.items.find(i => i.id === id);
+      if (!it) return;
+      const v = Math.max(1, Number(inp.value || 1));
+      if (it.qty !== v) { it.qty = v; changed = true; }
+    });
+
+    if (changed && !st.sameUser) {
+      for (const side of ["init","part"]) {
+        if (!this._canEdit(side)) continue;
+        game.socket.emit(SOCKET_NS, {
+          type: "trade.update",
+          requestId: this.requestId,
+          from: game.user.id,
+          side,
+          offer: st.offers[side]
+        });
+      }
+    }
   }
 
   _mySide() {
@@ -946,7 +1000,7 @@ export class SDTradeWindow extends ApplicationV2 {
     return st.offers[sideKey] ?? (st.offers[sideKey] = { items: [], currency: {} });
   }
 
-  _broadcastSide(sideKey) {
+  _broadcastSide(sideKey, { silent = false } = {}) {
     const st = SDTrade._state.get(this.requestId);
     if (!st) return;
     const offer = st.offers[sideKey];
@@ -962,7 +1016,14 @@ export class SDTradeWindow extends ApplicationV2 {
         offer
       });
     }
-    this.refresh();
+    if (silent) return;
+    // Defer the refresh to the next tick so in-flight DOM events (notably the
+    // click on the Ready button after an input lost focus) can complete on the
+    // existing DOM nodes before innerHTML is replaced. Without this, a user
+    // who types a currency amount and clicks Ready ends up with mousedown on
+    // the old button and mouseup on a freshly-rendered button — the click
+    // never fires and money-only trades silently fail.
+    setTimeout(() => this.refresh(), 0);
   }
 
   _addItemToOffer(sideKey, itemId, qty) {
@@ -983,22 +1044,26 @@ export class SDTradeWindow extends ApplicationV2 {
     this._broadcastSide(sideKey);
   }
 
-  _setQty(sideKey, itemId, qty) {
+  _setQty(sideKey, itemId, qty, { silent = false } = {}) {
     if (!this._canEdit(sideKey)) return;
     const offer = this._offer(sideKey);
     if (!offer) return;
     const it = offer.items.find(i => i.id === itemId);
     if (!it) return;
-    it.qty = Math.max(1, Number(qty || 1));
-    this._broadcastSide(sideKey);
+    const v = Math.max(1, Number(qty || 1));
+    if (it.qty === v) return;
+    it.qty = v;
+    this._broadcastSide(sideKey, { silent });
   }
 
-  _setCurrency(sideKey, key, amt) {
+  _setCurrency(sideKey, key, amt, { silent = false } = {}) {
     if (!this._canEdit(sideKey)) return;
     const offer = this._offer(sideKey);
     if (!offer) return;
-    offer.currency[key] = Math.max(0, Number(amt || 0));
-    this._broadcastSide(sideKey);
+    const v = Math.max(0, Number(amt || 0));
+    if (offer.currency[key] === v) return;
+    offer.currency[key] = v;
+    this._broadcastSide(sideKey, { silent });
   }
 
   async _toggleReady() {

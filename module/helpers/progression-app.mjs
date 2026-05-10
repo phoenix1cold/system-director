@@ -1,9 +1,14 @@
+import { editEffectViaStandardConfig as _sharedEditEffect, openItemSheetFromSnapshot as _sharedOpenItem } from "./effect-editor.mjs";
+
 const { ApplicationV2 } = foundry.applications.api;
 
 function rndId()      { return foundry.utils.randomID(8); }
 function dc(obj)      { return foundry.utils.deepClone(obj); }
 function e(str)       { return String(str ?? "").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
 function loc(key)     { return game.i18n.localize(key); }
+
+const DEFAULT_SP_VALUE_PATH = "system.skillPoints.value";
+const DEFAULT_SP_MAX_PATH   = "system.skillPoints.max";
 
 function getNestedValue(obj, path) {
   return path.split(".").reduce((cur, k) => cur?.[k], obj);
@@ -21,6 +26,17 @@ function buildFieldUpdate(actor, { path, mode, value }) {
   }
   return { [path]: newVal };
 }
+
+function _readActorPath(actor, path, fallback = 0) {
+  if (!path) return fallback;
+  try {
+    const v = foundry.utils.getProperty(actor, path);
+    return (v === undefined || v === null) ? fallback : v;
+  } catch { return fallback; }
+}
+
+const _openItemSheetFromSnapshot   = _sharedOpenItem;
+const _editEffectViaStandardConfig = _sharedEditEffect;
 
 export class ProgressionApp extends ApplicationV2 {
 
@@ -55,6 +71,7 @@ export class ProgressionApp extends ApplicationV2 {
     this._tab          = "levelup";
     this._editMode     = false;
     this._connectFrom  = null;
+    this._activeTabId  = null;
   }
 
   get title() {
@@ -69,22 +86,68 @@ export class ProgressionApp extends ApplicationV2 {
     return this._actor.getFlag("sd", "progression.state") ?? { appliedLevel: 0, acquiredNodes: {} };
   }
 
+  _normalizeTabs(cfg) {
+    if (Array.isArray(cfg?.tabs) && cfg.tabs.length) {
+      return cfg.tabs.map((t, i) => ({
+        id:                   t?.id ?? `tab_${i}`,
+        name:                 t?.name ?? `${loc("SD.Progression.TabDefaultName") || "Track"} ${i + 1}`,
+        classItemId:          t?.classItemId ?? null,
+        skilltreeItemId:      t?.skilltreeItemId ?? null,
+        inlineLevels:         t?.inlineLevels ?? [],
+        inlineSkilltree:      t?.inlineSkilltree ?? null,
+        skillPointsPathValue: t?.skillPointsPathValue ?? DEFAULT_SP_VALUE_PATH,
+        skillPointsPathMax:   t?.skillPointsPathMax   ?? DEFAULT_SP_MAX_PATH
+      }));
+    }
+    return [{
+      id:                   "default",
+      name:                 loc("SD.Progression.TabDefaultName") || "Main",
+      classItemId:          cfg?.classItemId ?? null,
+      skilltreeItemId:      cfg?.skilltreeItemId ?? null,
+      inlineLevels:         cfg?.inlineLevels ?? [],
+      inlineSkilltree:      cfg?.inlineSkilltree ?? null,
+      skillPointsPathValue: cfg?.skillPointsPathValue ?? DEFAULT_SP_VALUE_PATH,
+      skillPointsPathMax:   cfg?.skillPointsPathMax   ?? DEFAULT_SP_MAX_PATH
+    }];
+  }
+
+  get _tabs() {
+    return this._normalizeTabs(this._config);
+  }
+
+  _getActiveTab() {
+    const tabs = this._tabs;
+    if (!tabs.length) return null;
+    const t = tabs.find(t => t.id === this._activeTabId);
+    return t ?? tabs[0];
+  }
+
   get _levels() {
-    const cfg = this._config;
-    if (cfg.classItemId) {
-      const item = this._actor.items.get(cfg.classItemId);
+    const tab = this._getActiveTab();
+    if (!tab) return [];
+    if (tab.classItemId) {
+      const item = this._actor.items.get(tab.classItemId);
       if (item?.type === "class") return item.system.levels ?? [];
     }
-    return cfg.inlineLevels ?? [];
+    return tab.inlineLevels ?? [];
   }
 
   get _skilltree() {
-    const cfg = this._config;
-    if (cfg.skilltreeItemId) {
-      const item = this._actor.items.get(cfg.skilltreeItemId);
+    const tab = this._getActiveTab();
+    if (!tab) return null;
+    if (tab.skilltreeItemId) {
+      const item = this._actor.items.get(tab.skilltreeItemId);
       if (item?.type === "skilltree") return item.system;
     }
-    return cfg.inlineSkilltree ?? null;
+    return tab.inlineSkilltree ?? null;
+  }
+
+  get _spValuePath() {
+    return this._getActiveTab()?.skillPointsPathValue ?? DEFAULT_SP_VALUE_PATH;
+  }
+
+  get _spMaxPath() {
+    return this._getActiveTab()?.skillPointsPathMax ?? DEFAULT_SP_MAX_PATH;
   }
 
   async _renderHTML(context, options) {
@@ -98,6 +161,8 @@ export class ProgressionApp extends ApplicationV2 {
   async _prepareContext(options) { return {}; }
 
   _buildHTML() {
+    const tabs      = this._tabs;
+    const activeTab = this._getActiveTab();
     const levels    = this._levels;
     const st        = this._skilltree;
     const state     = this._state;
@@ -107,13 +172,39 @@ export class ProgressionApp extends ApplicationV2 {
 
     const hasLevels = levels.length > 0 || em;
     const hasST     = st !== null || em;
-    const bothTabs  = hasLevels && hasST;
+    const bothSubTabs = hasLevels && hasST;
 
     let html = `<div class="sd-prog-app" data-actor-id="${this._actor.id}">`;
 
+    if (tabs.length > 1 || em) {
+      html += `<div class="sd-prog-tabnav" style="display:flex;align-items:center;gap:4px;padding:4px 6px;border-bottom:1px solid var(--sd-border);background:var(--sd-bg-2);flex-wrap:wrap;">`;
+      for (const t of tabs) {
+        const isActive = (t.id === activeTab?.id);
+        html += `<a class="sd-prog-track ${isActive ? "active" : ""}" data-action="selectTrack" data-track-id="${e(t.id)}"
+                   style="padding:3px 10px;border-radius:6px;cursor:pointer;font-size:12px;background:${isActive ? "var(--sd-accent-bg, var(--sd-bg-3))" : "transparent"};border:1px solid ${isActive ? "var(--sd-accent)" : "var(--sd-border)"};color:${isActive ? "var(--sd-accent)" : "var(--sd-text-2)"};display:inline-flex;align-items:center;gap:4px;">`;
+        if (em && isGM) {
+          html += `<input type="text" class="sd-prog-track-name" data-action="renameTrack" data-track-id="${e(t.id)}"
+                     value="${e(t.name)}" style="background:transparent;border:none;color:inherit;font-size:12px;width:${Math.max(80, (t.name?.length ?? 4) * 7)}px;text-align:center;">`;
+        } else {
+          html += `<span>${e(t.name)}</span>`;
+        }
+        if (em && isGM && tabs.length > 1) {
+          html += `<button type="button" class="sd-prog-track-del" data-action="deleteTrack" data-track-id="${e(t.id)}" title="${loc("SD.Progression.DeleteTrack")}"
+                     style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 2px;"><i class="fas fa-times"></i></button>`;
+        }
+        html += `</a>`;
+      }
+      if (em && isGM) {
+        html += `<button type="button" class="sd-prog-track-add" data-action="addTrack" title="${loc("SD.Progression.AddTrack")}"
+                   style="padding:3px 8px;border-radius:6px;cursor:pointer;font-size:12px;background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text-2);">
+                   <i class="fas fa-plus"></i> ${loc("SD.Progression.AddTrack")}</button>`;
+      }
+      html += `</div>`;
+    }
+
     html += `<div class="sd-prog-topbar">`;
 
-    if (bothTabs) {
+    if (bothSubTabs) {
       html += `
         <a class="sd-prog-tab ${this._tab === "levelup"   ? "active" : ""}" data-tab="levelup">
           <i class="fas fa-arrow-circle-up"></i> ${loc("SD.Progression.LevelUp")}</a>
@@ -134,12 +225,30 @@ export class ProgressionApp extends ApplicationV2 {
 
     html += `</div>`;
 
+    if (em && isGM) {
+      const valPath = this._spValuePath;
+      const maxPath = this._spMaxPath;
+      html += `<div class="sd-prog-sp-paths" style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--sd-border);background:var(--sd-bg-2);font-size:11px;flex-wrap:wrap;">
+        <span style="color:var(--sd-label);font-weight:600;text-transform:uppercase;letter-spacing:.04em;"><i class="fas fa-route"></i> ${loc("SD.Progression.SkillPointsPathHint") || "Skill Points Path"}</span>
+        <label style="display:inline-flex;align-items:center;gap:4px;color:var(--sd-text-3);">${loc("SD.Progression.SkillPointsValuePath") || "Value"}
+          <input type="text" data-action="spSetValuePath" value="${e(valPath)}"
+                 placeholder="${DEFAULT_SP_VALUE_PATH}"
+                 style="width:200px;font-size:11px;padding:2px 4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);">
+        </label>
+        <label style="display:inline-flex;align-items:center;gap:4px;color:var(--sd-text-3);">${loc("SD.Progression.SkillPointsMaxPath") || "Max"}
+          <input type="text" data-action="spSetMaxPath" value="${e(maxPath)}"
+                 placeholder="${DEFAULT_SP_MAX_PATH}"
+                 style="width:200px;font-size:11px;padding:2px 4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);">
+        </label>
+      </div>`;
+    }
+
     html += `<div class="sd-prog-body">`;
 
-    if (!bothTabs || this._tab === "levelup") {
+    if (!bothSubTabs || this._tab === "levelup") {
       html += this._buildLevelUpHTML(levels, state, cfg, em, isGM);
     }
-    if (!bothTabs || this._tab === "skilltree") {
+    if (!bothSubTabs || this._tab === "skilltree") {
       html += this._buildSkillTreeHTML(st, state, cfg, em, isGM);
     }
 
@@ -160,7 +269,8 @@ export class ProgressionApp extends ApplicationV2 {
       </div>`;
 
     if (em && isGM) {
-      const ci = cfg.classItemId ? this._actor.items.get(cfg.classItemId) : null;
+      const tab = this._getActiveTab();
+      const ci  = tab?.classItemId ? this._actor.items.get(tab.classItemId) : null;
       html += `<div class="sd-prog-source-drop" data-action="dropClassItem" title="${loc("SD.Progression.DropClassHere")}">`;
       if (ci) {
         html += `<img src="${ci.img ?? "icons/svg/item-bag.svg"}" style="width:18px;height:18px;border-radius:3px;margin-right:4px;">
@@ -238,7 +348,9 @@ export class ProgressionApp extends ApplicationV2 {
       }
       for (let j = 0; j < items.length; j++) {
         const it = items[j];
-        html += `<div class="sd-prog-item-chip" draggable="false">
+        html += `<div class="sd-prog-item-chip" draggable="false"
+          data-snapshot-ref="level:${i}:${j}"
+          title="${loc("SD.Progression.RightClickOpen") || "Right-click to open item"}">
           <img src="${e(it.img ?? "icons/svg/item-bag.svg")}">
           <span>${e(it.name ?? "Item")}</span>
           ${em ? `<button type="button" data-action="removeLevelItem" data-level-idx="${i}" data-item-idx="${j}"><i class="fas fa-times"></i></button>` : ""}
@@ -326,14 +438,16 @@ export class ProgressionApp extends ApplicationV2 {
     const acquiredNodes = state.acquiredNodes ?? {};
     const CELL = 74;
     const GAP  = 5;
+    const tab  = this._getActiveTab();
 
     let html = `<div class="sd-prog-skilltree">`;
 
   html += `<div class="sd-prog-st-toolbar">`;
 
-  const sp = this._actor.system?.skillPoints ?? { value: 0, max: 0 };
-  const spValue = sp.value ?? 0;
-  const spMax = sp.max ?? 0;
+  const valPath = this._spValuePath;
+  const maxPath = this._spMaxPath;
+  const spValue = Number(_readActorPath(this._actor, valPath, 0)) || 0;
+  const spMax   = Number(_readActorPath(this._actor, maxPath, 0)) || 0;
 
   html += `<div class="sd-prog-sp-block" style="display:flex;align-items:center;gap:6px;padding:2px 8px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;margin-right:auto;">
     <i class="fas fa-star" style="color:var(--sd-accent);font-size:12px;"></i>
@@ -343,11 +457,11 @@ export class ProgressionApp extends ApplicationV2 {
     <span style="color:var(--sd-text-3);flex-shrink:0;">/</span>
     <input type="number" data-action="spSetMax" value="${spMax}" min="0" style="width:40px;text-align:center;font-size:13px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);padding:2px;box-sizing:border-box;">
     <button type="button" data-action="spStep" data-step="1" style="width:22px;height:22px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:14px;line-height:1;flex-shrink:0;">+</button>
-    <button type="button" data-action="spCopyPath" title="system.skillPoints.value" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px;flex-shrink:0;"><i class="fas fa-copy"></i></button>
+    <button type="button" data-action="spCopyPath" title="${e(valPath)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px;flex-shrink:0;"><i class="fas fa-copy"></i></button>
   </div>`;
 
   if (em && isGM) {
-    const sti = cfg.skilltreeItemId ? this._actor.items.get(cfg.skilltreeItemId) : null;
+    const sti = tab?.skilltreeItemId ? this._actor.items.get(tab.skilltreeItemId) : null;
     html += `<div class="sd-prog-source-drop" data-action="dropSkilltreeItem">`;
     if (sti) {
       html += `<img src="${sti.img ?? "icons/svg/item-bag.svg"}" style="width:18px;height:18px;border-radius:3px;margin-right:4px;">
@@ -359,7 +473,7 @@ export class ProgressionApp extends ApplicationV2 {
     }
     html += `</div>`;
 
-    if (!cfg.skilltreeItemId) {
+    if (!tab?.skilltreeItemId) {
       const cols = st?.cols ?? 8;
       const rows = st?.rows ?? 5;
       html += `
@@ -455,8 +569,8 @@ export class ProgressionApp extends ApplicationV2 {
         const maxAcq = node.maxAcquire ?? 1;
         const nodeCost = node.cost ?? 1;
         const acquired = count >= maxAcq;
-        const sp = this._actor.system?.skillPoints ?? { value: 0, max: 0 };
-        const canAfford = (sp.value ?? 0) >= nodeCost;
+        const spValueForNode = Number(_readActorPath(this._actor, this._spValuePath, 0)) || 0;
+        const canAfford = spValueForNode >= nodeCost;
         const canAcquire = !acquired && canAfford && this._canAcquireNode(node, conns, acquiredNodes, nodes);
           const connecting = this._connectFrom === node.id;
 
@@ -470,8 +584,10 @@ export class ProgressionApp extends ApplicationV2 {
 
           const bgStyle = node.color ? `background:${node.color};` : "";
 
+          const nodeTitle = node.item ? (loc("SD.Progression.RightClickOpen") || "Right-click to open item") : "";
           html += `<div class="${cls}" style="${style}${bgStyle}"
                    data-node-id="${e(node.id)}"
+                   ${nodeTitle ? `title="${nodeTitle}"` : ""}
                    data-action="${em ? "stNodeClick" : canAcquire ? "acquireNode" : ""}">`;
 
           if (node.item?.img) {
@@ -573,35 +689,92 @@ export class ProgressionApp extends ApplicationV2 {
 
     el.querySelectorAll("[data-action='spStep']").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const step = parseInt(btn.dataset.step) || 1;
-        const sp = this._actor.system?.skillPoints ?? { value: 0, max: 0 };
-        const newVal = Math.max(0, (sp.value ?? 0) + step);
-        await this._actor.update({ "system.skillPoints.value": newVal });
+        const step   = parseInt(btn.dataset.step) || 1;
+        const path   = this._spValuePath;
+        const cur    = Number(_readActorPath(this._actor, path, 0)) || 0;
+        const newVal = Math.max(0, cur + step);
+        await this._actor.update({ [path]: newVal });
         this.render();
       });
     });
 
     el.querySelectorAll("[data-action='spSetValue']").forEach(inp => {
       inp.addEventListener("change", async () => {
-        const v = Math.max(0, parseInt(inp.value) || 0);
-        await this._actor.update({ "system.skillPoints.value": v });
+        const v    = Math.max(0, parseInt(inp.value) || 0);
+        const path = this._spValuePath;
+        await this._actor.update({ [path]: v });
         this.render();
       });
     });
 
     el.querySelectorAll("[data-action='spSetMax']").forEach(inp => {
       inp.addEventListener("change", async () => {
-        const v = Math.max(0, parseInt(inp.value) || 0);
-        await this._actor.update({ "system.skillPoints.max": v });
+        const v    = Math.max(0, parseInt(inp.value) || 0);
+        const path = this._spMaxPath;
+        await this._actor.update({ [path]: v });
         this.render();
       });
     });
 
     el.querySelectorAll("[data-action='spCopyPath']").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const path = "system.skillPoints.value";
+        const path = this._spValuePath;
         try { await navigator.clipboard.writeText(path); ui.notifications.info(`Copied: ${path}`); }
         catch { ui.notifications.warn("Could not copy to clipboard"); }
+      });
+    });
+
+    el.querySelectorAll("[data-action='spSetValuePath']").forEach(inp => {
+      inp.addEventListener("change", async () => {
+        const v = String(inp.value ?? "").trim() || DEFAULT_SP_VALUE_PATH;
+        await this._setActiveTabField("skillPointsPathValue", v);
+        this.render();
+      });
+    });
+
+    el.querySelectorAll("[data-action='spSetMaxPath']").forEach(inp => {
+      inp.addEventListener("change", async () => {
+        const v = String(inp.value ?? "").trim() || DEFAULT_SP_MAX_PATH;
+        await this._setActiveTabField("skillPointsPathMax", v);
+        this.render();
+      });
+    });
+
+    el.querySelectorAll("[data-action='renameTrack']").forEach(inp => {
+      inp.addEventListener("click",  ev => ev.stopPropagation());
+      inp.addEventListener("change", async ev => {
+        ev.stopPropagation();
+        const id = inp.dataset.trackId;
+        await this._renameTab(id, inp.value);
+      });
+    });
+
+    el.querySelectorAll(".sd-prog-item-chip[data-snapshot-ref]").forEach(chip => {
+      chip.addEventListener("contextmenu", ev => {
+        ev.preventDefault();
+        const ref = chip.dataset.snapshotRef ?? "";
+        const [scope, ...idxs] = ref.split(":");
+        if (scope === "level") {
+          const li = parseInt(idxs[0]); const ii = parseInt(idxs[1]);
+          const it = this._levels?.[li]?.items?.[ii];
+          if (it) _openItemSheetFromSnapshot(it, this._actor);
+        } else if (scope === "node") {
+          const id = idxs[0];
+          const node = (this._skilltree?.nodes ?? []).find(n => n.id === id);
+          if (node?.item) _openItemSheetFromSnapshot(node.item, this._actor);
+        }
+      });
+    });
+
+    el.querySelectorAll(".sd-prog-st-node[data-node-id]").forEach(nodeEl => {
+      nodeEl.addEventListener("contextmenu", ev => {
+        const id = nodeEl.dataset.nodeId;
+        const node = (this._skilltree?.nodes ?? []).find(n => n.id === id);
+        if (node?.item) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          _openItemSheetFromSnapshot(node.item, this._actor);
+        }
       });
     });
 
@@ -736,14 +909,33 @@ export class ProgressionApp extends ApplicationV2 {
 
       case "unlinkClass":
         if (!isGM) return;
-        await this._setConfigField("classItemId", null);
+        await this._setActiveTabField("classItemId", null);
         this.render();
         break;
 
       case "unlinkSkilltree":
         if (!isGM) return;
-        await this._setConfigField("skilltreeItemId", null);
+        await this._setActiveTabField("skilltreeItemId", null);
         this.render();
+        break;
+
+      case "selectTrack": {
+        const id = target.dataset.trackId;
+        if (id) {
+          this._activeTabId = id;
+          this.render();
+        }
+        break;
+      }
+
+      case "addTrack":
+        if (!isGM) return;
+        await this._addTab();
+        break;
+
+      case "deleteTrack":
+        if (!isGM) return;
+        await this._deleteTab(target.dataset.trackId ?? target.closest("[data-track-id]")?.dataset?.trackId);
         break;
 
       case "close":    this.close();    break;
@@ -777,8 +969,8 @@ export class ProgressionApp extends ApplicationV2 {
     const levels = dc(this._levels);
     if (!levels[levelIdx]) return;
     levels[levelIdx].fieldChanges ??= [];
-    levels[levelIdx].fieldChanges.push({ path: "system.skillPoints.max", mode: "add", value: "1" });
-    levels[levelIdx].fieldChanges.push({ path: "system.skillPoints.value", mode: "add", value: "1" });
+    levels[levelIdx].fieldChanges.push({ path: this._spMaxPath,   mode: "add", value: "1" });
+    levels[levelIdx].fieldChanges.push({ path: this._spValuePath, mode: "add", value: "1" });
     await this._saveLevels(levels);
     this.render();
   }
@@ -830,134 +1022,17 @@ export class ProgressionApp extends ApplicationV2 {
     const ef = levels?.[levelIdx]?.effects?.[effectIdx];
     if (!ef) return;
 
-    const M = (typeof CONST !== "undefined" && CONST.ACTIVE_EFFECT_MODES) ? CONST.ACTIVE_EFFECT_MODES : { CUSTOM: 0, MULTIPLY: 1, ADD: 2, DOWNGRADE: 3, UPGRADE: 4, OVERRIDE: 5 };
-    const modeOptions = [
-      { v: M.ADD,       label: "+ Add" },
-      { v: M.MULTIPLY,  label: "× Multiply" },
-      { v: M.OVERRIDE,  label: "= Override" },
-      { v: M.UPGRADE,   label: "↑ Upgrade" },
-      { v: M.DOWNGRADE, label: "↓ Downgrade" },
-      { v: M.CUSTOM,    label: "ƒ Custom" }
-    ];
-
-    const _changeRow = (c, j) => `
-      <div class="sd-prog-fc-row" data-idx="${j}">
-        <input type="text" class="ec-key" value="${e(c.key ?? "")}" placeholder="system.attributes.str.value" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
-        <select class="ec-mode" style="font-size:11px;">
-          ${modeOptions.map(o => `<option value="${o.v}" ${Number(c.mode) === o.v ? "selected" : ""}>${o.label}</option>`).join("")}
-        </select>
-        <input type="text" class="ec-value" value="${e(c.value ?? "")}" placeholder="0" style="width:80px;">
-        <input type="number" class="ec-priority" value="${Number.isFinite(Number(c.priority)) ? Number(c.priority) : ""}" placeholder="prio" title="Priority" style="width:54px;">
-        <button type="button" class="ec-del-row" title="${loc("SD.Delete")}"><i class="fas fa-times"></i></button>
-      </div>`;
-
-    const changeRows = (ef.changes ?? []).map(_changeRow).join("");
-
-    const content = `<div style="display:flex;flex-direction:column;gap:10px;padding:8px;min-width:420px;">
-      <div style="display:flex;gap:8px;align-items:center;">
-        <label style="min-width:80px;">${loc("SD.Progression.EffectName")}</label>
-        <input id="ee-name" type="text" value="${e(ef.name ?? "")}" style="flex:1;">
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <label style="min-width:80px;">${loc("SD.Progression.EffectIcon")}</label>
-        <input id="ee-icon" type="text" value="${e(ef.icon ?? "icons/svg/aura.svg")}" style="flex:1;">
-        <button type="button" id="ee-pick-icon" title="${loc("SD.Progression.BrowseIcon")}"><i class="fas fa-folder-open"></i></button>
-      </div>
-      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
-        <label style="display:flex;gap:6px;align-items:center;font-size:12px;">
-          <input id="ee-disabled" type="checkbox" ${ef.disabled ? "checked" : ""}> ${loc("SD.Progression.EffectDisabled")}
-        </label>
-        <label style="display:flex;gap:6px;align-items:center;font-size:12px;">
-          <input id="ee-transfer" type="checkbox" ${ef.transfer !== false ? "checked" : ""}> ${loc("SD.Progression.EffectTransfer")}
-        </label>
-      </div>
-      <div>
-        <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--sd-text-3);display:flex;align-items:center;justify-content:space-between;">
-          <span><i class="fas fa-sliders-h"></i> ${loc("SD.Progression.EffectChanges")}</span>
-          <button type="button" id="ee-add-change" style="font-size:11px;padding:3px 8px;">
-            <i class="fas fa-plus"></i> ${loc("SD.Progression.AddChange")}</button>
-        </div>
-        <div id="ee-changes" style="display:flex;flex-direction:column;gap:6px;">${changeRows}</div>
-      </div>
-    </div>`;
-
-    const result = await foundry.applications.api.DialogV2.prompt({
-      window:  { title: `${loc("SD.Progression.EditEffect")}: ${ef.name ?? ""}` },
-      content,
-      ok: {
-        label:    loc("SD.Save"),
-        icon:     "fas fa-save",
-        callback: (event, btn, dialog) => {
-          const el = dialog.element;
-          const name     = el.querySelector("#ee-name")?.value?.trim() || ef.name || "Effect";
-          const icon     = el.querySelector("#ee-icon")?.value?.trim() || "icons/svg/aura.svg";
-          const disabled = !!el.querySelector("#ee-disabled")?.checked;
-          const transfer = !!el.querySelector("#ee-transfer")?.checked;
-          const changes = [];
-          el.querySelectorAll("#ee-changes .sd-prog-fc-row").forEach(row => {
-            const key      = row.querySelector(".ec-key")?.value?.trim();
-            const mode     = parseInt(row.querySelector(".ec-mode")?.value);
-            const value    = row.querySelector(".ec-value")?.value ?? "";
-            const priority = parseInt(row.querySelector(".ec-priority")?.value);
-            if (!key) return;
-            const ch = { key, mode: Number.isFinite(mode) ? mode : M.ADD, value };
-            if (Number.isFinite(priority)) ch.priority = priority;
-            changes.push(ch);
-          });
-          return { name, icon, disabled, transfer, changes };
-        }
-      },
-      render: (event, dialog) => {
-        const el = dialog.element;
-
-        el.addEventListener("click", ev => {
-          if (ev.target.closest(".ec-del-row")) {
-            ev.target.closest(".sd-prog-fc-row")?.remove();
-          }
-        });
-
-        el.querySelector("#ee-add-change")?.addEventListener("click", () => {
-          const container = el.querySelector("#ee-changes");
-          const idx = container.querySelectorAll(".sd-prog-fc-row").length;
-          const div = document.createElement("div");
-          div.className = "sd-prog-fc-row";
-          div.dataset.idx = idx;
-          div.innerHTML = `
-            <input type="text" class="ec-key" value="" placeholder="system.attributes.str.value" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
-            <select class="ec-mode" style="font-size:11px;">
-              ${modeOptions.map(o => `<option value="${o.v}" ${o.v === M.ADD ? "selected" : ""}>${o.label}</option>`).join("")}
-            </select>
-            <input type="text" class="ec-value" value="0" style="width:80px;">
-            <input type="number" class="ec-priority" value="" placeholder="prio" title="Priority" style="width:54px;">
-            <button type="button" class="ec-del-row"><i class="fas fa-times"></i></button>`;
-          container.appendChild(div);
-        });
-
-        el.querySelector("#ee-pick-icon")?.addEventListener("click", async () => {
-          try {
-            const FP = foundry.applications.apps.FilePicker?.implementation ?? FilePicker;
-            new FP({
-              type:    "image",
-              current: el.querySelector("#ee-icon")?.value ?? "",
-              callback: (path) => { const inp = el.querySelector("#ee-icon"); if (inp) inp.value = path; }
-            }).render(true);
-          } catch (err) { console.warn("SD | FilePicker failed:", err); }
-        });
-      },
-      rejectClose: false
+    const updated = await _editEffectViaStandardConfig(ef, {
+      parent: this._actor,
+      title:  `${loc("SD.Progression.EditEffect")}: ${ef.name ?? ""}`
     });
-
-    if (!result) return;
+    if (!updated) return;
 
     const lvls = dc(this._levels);
     const target = lvls?.[levelIdx]?.effects?.[effectIdx];
     if (!target) return;
-    target.name     = result.name;
-    target.icon     = result.icon;
-    target.img      = result.icon;
-    target.disabled = result.disabled;
-    target.transfer = result.transfer;
-    target.changes  = result.changes;
+    Object.assign(target, updated);
+    target.img = updated.img ?? updated.icon ?? target.img;
     await this._saveLevels(lvls);
     this.render();
   }
@@ -1117,8 +1192,9 @@ export class ProgressionApp extends ApplicationV2 {
       ui.notifications.warn(loc("SD.Progression.PrereqsNotMet")); return;
     }
 
-    const sp = this._actor.system?.skillPoints ?? { value: 0, max: 0 };
-    if ((sp.value ?? 0) < nodeCost) {
+    const valPath = this._spValuePath;
+    const curSP   = Number(_readActorPath(this._actor, valPath, 0)) || 0;
+    if (curSP < nodeCost) {
       ui.notifications.warn(loc("SD.Progression.NotEnoughPoints")); return;
     }
 
@@ -1133,9 +1209,7 @@ export class ProgressionApp extends ApplicationV2 {
     const actor = this._actor;
 
     if (nodeCost > 0) {
-      await actor.update({
-        "system.skillPoints.value": (sp.value ?? 0) - nodeCost
-      });
+      await actor.update({ [valPath]: curSP - nodeCost });
     }
 
     const updates = {};
@@ -1175,6 +1249,19 @@ export class ProgressionApp extends ApplicationV2 {
         <button type="button" class="nc-del-fc"><i class="fas fa-times"></i></button>
       </div>`).join("");
 
+    const _renderEffectRows = (effects) => (effects ?? []).map((ef, j) => `
+      <div class="sd-prog-eff-row" data-idx="${j}" style="display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg-2);">
+        <img src="${e(ef.icon ?? ef.img ?? "icons/svg/aura.svg")}" style="width:20px;height:20px;border-radius:3px;">
+        <span style="flex:1;font-size:12px;${ef.disabled ? "opacity:.5;text-decoration:line-through;" : ""}">${e(ef.name ?? "Effect")}</span>
+        <span style="font-size:11px;color:var(--sd-text-3);">${(ef.changes ?? []).length} ${loc("SD.Progression.Changes") || "changes"}</span>
+        <button type="button" class="nc-edit-eff" data-idx="${j}" title="${loc("SD.Progression.EditEffect") || "Edit effect"}" style="font-size:11px;padding:2px 6px;"><i class="fas fa-pen"></i></button>
+        <button type="button" class="nc-del-eff" data-idx="${j}" title="${loc("SD.Delete") || "Delete"}" style="font-size:11px;padding:2px 6px;"><i class="fas fa-times"></i></button>
+      </div>`).join("");
+
+    const effectRows = _renderEffectRows(node.effects ?? []);
+
+    const defaultMaxPath = this._spMaxPath || DEFAULT_SP_MAX_PATH;
+
     const content = `<div style="display:flex;flex-direction:column;gap:10px;padding:8px;">
       <div style="display:flex;gap:8px;align-items:center;">
         <label style="min-width:80px;">${loc("SD.Progression.NodeLabel")}</label>
@@ -1199,6 +1286,14 @@ export class ProgressionApp extends ApplicationV2 {
         <div id="nc-fcs" style="display:flex;flex-direction:column;gap:4px;">${fcRows}</div>
         <button type="button" id="nc-add-fc" style="margin-top:6px;font-size:11px;padding:3px 8px;">
           <i class="fas fa-plus"></i> ${loc("SD.Progression.AddFieldChange")}</button>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--sd-text-3);display:flex;align-items:center;justify-content:space-between;">
+          <span><i class="fas fa-magic"></i> ${loc("SD.Progression.NodeEffects") || "Active Effects"}</span>
+          <button type="button" id="nc-add-eff" style="font-size:11px;padding:3px 8px;">
+            <i class="fas fa-plus"></i> ${loc("SD.Progression.AddEffect") || "Add Effect"}</button>
+        </div>
+        <div id="nc-effs" style="display:flex;flex-direction:column;gap:4px;">${effectRows}</div>
       </div>
     </div>`;
 
@@ -1228,10 +1323,40 @@ export class ProgressionApp extends ApplicationV2 {
       },
       render: (event, dialog) => {
         const el = dialog.element;
+        const safeNodeMaxPath = defaultMaxPath;
 
-        el.addEventListener("click", ev => {
+        el.addEventListener("click", async ev => {
           if (ev.target.closest(".nc-del-fc")) {
             ev.target.closest(".sd-prog-fc-row")?.remove();
+            return;
+          }
+          const editBtn = ev.target.closest(".nc-edit-eff");
+          if (editBtn) {
+            ev.preventDefault();
+            const idx = parseInt(editBtn.dataset.idx);
+            const ef  = (node.effects ?? [])[idx];
+            if (!ef) return;
+            const updated = await _editEffectViaStandardConfig(ef, {
+              parent: this._actor,
+              title:  `${loc("SD.Progression.EditEffect") || "Edit effect"}: ${ef.name ?? ""}`
+            });
+            if (!updated) return;
+            node.effects[idx] = { ...ef, ...updated };
+            const cont = el.querySelector("#nc-effs");
+            if (cont) cont.innerHTML = _renderEffectRows(node.effects);
+            return;
+          }
+          const delBtn = ev.target.closest(".nc-del-eff");
+          if (delBtn) {
+            ev.preventDefault();
+            const idx = parseInt(delBtn.dataset.idx);
+            if (Number.isFinite(idx)) {
+              node.effects ??= [];
+              node.effects.splice(idx, 1);
+              const cont = el.querySelector("#nc-effs");
+              if (cont) cont.innerHTML = _renderEffectRows(node.effects);
+            }
+            return;
           }
         });
 
@@ -1242,11 +1367,31 @@ export class ProgressionApp extends ApplicationV2 {
           div.className = "sd-prog-fc-row";
           div.dataset.idx = idx;
         div.innerHTML = `
-        <input type="text" class="nc-path" value="system.skillPoints.max" placeholder="system...." style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
+        <input type="text" class="nc-path" value="${e(safeNodeMaxPath)}" placeholder="system...." style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
         <select class="nc-mode"><option value="add">+</option><option value="set">=</option><option value="multiply">×</option></select>
         <input type="text" class="nc-value" value="1" style="width:56px;">
         <button type="button" class="nc-del-fc"><i class="fas fa-times"></i></button>`;
           container.appendChild(div);
+        });
+
+        el.querySelector("#nc-add-eff")?.addEventListener("click", async () => {
+          const newEf = {
+            name:     loc("SD.Progression.NewEffect") || "New Effect",
+            icon:     "icons/svg/aura.svg",
+            img:      "icons/svg/aura.svg",
+            disabled: false,
+            transfer: true,
+            changes:  []
+          };
+          const updated = await _editEffectViaStandardConfig(newEf, {
+            parent: this._actor,
+            title:  `${loc("SD.Progression.EditEffect") || "Edit effect"}: ${newEf.name}`
+          });
+          if (!updated) return;
+          node.effects ??= [];
+          node.effects.push({ ...newEf, ...updated });
+          const cont = el.querySelector("#nc-effs");
+          if (cont) cont.innerHTML = _renderEffectRows(node.effects);
         });
       },
       rejectClose: false
@@ -1327,7 +1472,7 @@ export class ProgressionApp extends ApplicationV2 {
       const d = item.toObject(); delete d._id;
       [actorItem] = await this._actor.createEmbeddedDocuments("Item", [d]);
     }
-    await this._setConfigField("classItemId", actorItem.id);
+    await this._setActiveTabField("classItemId", actorItem.id);
     this.render();
   }
 
@@ -1344,7 +1489,7 @@ export class ProgressionApp extends ApplicationV2 {
       const d = item.toObject(); delete d._id;
       [actorItem] = await this._actor.createEmbeddedDocuments("Item", [d]);
     }
-    await this._setConfigField("skilltreeItemId", actorItem.id);
+    await this._setActiveTabField("skilltreeItemId", actorItem.id);
     this.render();
   }
 
@@ -1353,18 +1498,20 @@ export class ProgressionApp extends ApplicationV2 {
   }
 
   async _saveLevels(levels) {
-    const cfg = this._config;
-    if (cfg.classItemId) {
-      const item = this._actor.items.get(cfg.classItemId);
+    const tab = this._getActiveTab();
+    if (!tab) return;
+    if (tab.classItemId) {
+      const item = this._actor.items.get(tab.classItemId);
       if (item) { await item.update({ "system.levels": levels }); return; }
     }
-    await this._actor.setFlag("sd", "progression.config.inlineLevels", levels);
+    await this._setActiveTabField("inlineLevels", levels);
   }
 
   async _saveSkilltree(st) {
-    const cfg = this._config;
-    if (cfg.skilltreeItemId) {
-      const item = this._actor.items.get(cfg.skilltreeItemId);
+    const tab = this._getActiveTab();
+    if (!tab) return;
+    if (tab.skilltreeItemId) {
+      const item = this._actor.items.get(tab.skilltreeItemId);
       if (item) {
         await item.update({
           "system.cols": st.cols, "system.rows": st.rows,
@@ -1373,12 +1520,120 @@ export class ProgressionApp extends ApplicationV2 {
         return;
       }
     }
-    await this._actor.setFlag("sd", "progression.config.inlineSkilltree", st);
+    await this._setActiveTabField("inlineSkilltree", st);
   }
 
-  async _setConfigField(field, value) {
-    const cfg   = dc(this._config);
-    cfg[field]  = value;
+  async _writeNormalizedConfig(cfg) {
+    const out = dc(cfg ?? {});
+    const tabs = this._normalizeTabs(out);
+    out.tabs = tabs;
+    delete out.classItemId;
+    delete out.skilltreeItemId;
+    delete out.inlineLevels;
+    delete out.inlineSkilltree;
+    delete out.skillPointsPathValue;
+    delete out.skillPointsPathMax;
+    if (!out.activeTabId || !tabs.find(t => t.id === out.activeTabId)) {
+      out.activeTabId = tabs[0]?.id ?? null;
+    }
+    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
+    await this._actor.setFlag("sd", "progression.config", out);
+    return out;
+  }
+
+  async _setActiveTabField(field, value) {
+    const cfg = dc(this._config);
+    const tabs = this._normalizeTabs(cfg);
+    const activeId = this._activeTabId ?? tabs[0]?.id;
+    const idx = tabs.findIndex(t => t.id === activeId);
+    if (idx < 0) return;
+    tabs[idx] = { ...tabs[idx], [field]: value };
+    cfg.tabs = tabs;
+    cfg.activeTabId = tabs[idx].id;
+    delete cfg.classItemId;
+    delete cfg.skilltreeItemId;
+    delete cfg.inlineLevels;
+    delete cfg.inlineSkilltree;
+    delete cfg.skillPointsPathValue;
+    delete cfg.skillPointsPathMax;
+    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
+    await this._actor.setFlag("sd", "progression.config", cfg);
+    this._activeTabId = tabs[idx].id;
+  }
+
+  async _addTab() {
+    const cfg = dc(this._config);
+    const tabs = this._normalizeTabs(cfg);
+    const id = `tab_${rndId()}`;
+    tabs.push({
+      id,
+      name: `${loc("SD.Progression.TabDefaultName") || "Track"} ${tabs.length + 1}`,
+      classItemId: null,
+      skilltreeItemId: null,
+      inlineLevels: [],
+      inlineSkilltree: null,
+      skillPointsPathValue: DEFAULT_SP_VALUE_PATH,
+      skillPointsPathMax: DEFAULT_SP_MAX_PATH
+    });
+    cfg.tabs = tabs;
+    cfg.activeTabId = id;
+    delete cfg.classItemId;
+    delete cfg.skilltreeItemId;
+    delete cfg.inlineLevels;
+    delete cfg.inlineSkilltree;
+    delete cfg.skillPointsPathValue;
+    delete cfg.skillPointsPathMax;
+    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
+    await this._actor.setFlag("sd", "progression.config", cfg);
+    this._activeTabId = id;
+    this.render();
+  }
+
+  async _deleteTab(id) {
+    if (!id) return;
+    const cfg = dc(this._config);
+    const tabs = this._normalizeTabs(cfg);
+    if (tabs.length <= 1) return;
+    const idx = tabs.findIndex(t => t.id === id);
+    if (idx < 0) return;
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window:  { title: loc("SD.Progression.DeleteTrack") || "Delete Track" },
+      content: `<p>${(loc("SD.Progression.DeleteTrackConfirm") || "Delete track \"{name}\"?").replace("{name}", e(tabs[idx].name))}</p>`,
+      yes: { label: loc("SD.Delete") || "Delete", icon: "fas fa-trash" }
+    });
+    if (!confirmed) return;
+    tabs.splice(idx, 1);
+    cfg.tabs = tabs;
+    if (cfg.activeTabId === id || this._activeTabId === id) {
+      cfg.activeTabId = tabs[0]?.id ?? null;
+      this._activeTabId = cfg.activeTabId;
+    }
+    delete cfg.classItemId;
+    delete cfg.skilltreeItemId;
+    delete cfg.inlineLevels;
+    delete cfg.inlineSkilltree;
+    delete cfg.skillPointsPathValue;
+    delete cfg.skillPointsPathMax;
+    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
+    await this._actor.setFlag("sd", "progression.config", cfg);
+    this.render();
+  }
+
+  async _renameTab(id, name) {
+    if (!id) return;
+    const cfg = dc(this._config);
+    const tabs = this._normalizeTabs(cfg);
+    const idx = tabs.findIndex(t => t.id === id);
+    if (idx < 0) return;
+    tabs[idx].name = String(name ?? "").trim() || tabs[idx].name;
+    cfg.tabs = tabs;
+    delete cfg.classItemId;
+    delete cfg.skilltreeItemId;
+    delete cfg.inlineLevels;
+    delete cfg.inlineSkilltree;
+    delete cfg.skillPointsPathValue;
+    delete cfg.skillPointsPathMax;
+    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
     await this._actor.setFlag("sd", "progression.config", cfg);
   }
 

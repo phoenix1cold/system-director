@@ -113,6 +113,27 @@ export const NODE_DEFS = {
     isSkillOutput:true
   },
 
+  init_on_roll: {
+    title:"On Initiative Roll", color:"#b05000", cat:"_initiative",
+    desc:"Fixed entry point fired when initiative is rolled. The compiled formula from this graph is used as the world initiative formula.",
+    inputs:[],
+    outputs:[{id:"exec", label:"→ Execute", type:"exec"}],
+    fields:[],
+    isTrigger: true,
+    isInitTrigger: true
+  },
+
+  init_output: {
+    title:"INITIATIVE OUTPUT", color:"#b05000", cat:"_initiative",
+    desc:"Initiative formula output. Wire Initiative value (a roll value or number) to set the world initiative formula.",
+    inputs:[
+      {id:"value", label:"Initiative value", type:"value.any"}
+    ],
+    outputs:[],
+    fields:[],
+    isInitOutput: true
+  },
+
   branch: {
     title:"Branch", color:"#8a2a8a", cat:"Flow",
     desc:"If Condition is TRUE runs True path; otherwise False path",
@@ -5376,6 +5397,7 @@ export class FormulaGraph {
     this.actionGraph  = opts.mode === "actionGraph";
     this.chainTrigger = opts.mode === "chainTrigger";
     this.questTrigger = opts.mode === "questTrigger";
+    this.initiativeMode = opts.mode === "initiative";
     this.customLoad   = typeof opts.customLoad === "function" ? opts.customLoad : null;
     this.customSave   = typeof opts.customSave === "function" ? opts.customSave : null;
     this.win          = null;
@@ -6001,8 +6023,11 @@ export class FormulaGraph {
         this.edges    = foundry.utils.deepClone(s.edges ?? []);
         this.comments = foundry.utils.deepClone(s.comments ?? []);
         migrateGraph(this);
+        if (this.initiativeMode) this._ensureInitiativeNodes();
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
+      } else if (this.initiativeMode) {
+        this._addInitiativeDefaultGraph();
       } else if (!this.chainTrigger && !this.questTrigger) {
         this._addOutputNode();
       }
@@ -6334,6 +6359,16 @@ export class FormulaGraph {
       if (mvEdge) {
         const modSrc = this.nodes.find(n=>n.id===mvEdge.fromNode);
         if (modSrc) return this._compileValue(modSrc, new Set(), mvEdge.fromPin);
+      }
+      return "0";
+    }
+
+    const initOut = this.nodes.find(n=>n.type==="init_output");
+    if (initOut) {
+      const vEdge = this.edges.find(e=>e.toNode===initOut.id&&e.toPin==="value");
+      if (vEdge) {
+        const src = this.nodes.find(n=>n.id===vEdge.fromNode);
+        return src ? this._compileValue(src, new Set(), vEdge.fromPin) : "0";
       }
       return "0";
     }
@@ -6900,8 +6935,11 @@ export class FormulaGraph {
         if (this.doc && f && f !== "0") {
           try {
             const resolved = f.replace(/\{([^}]+)\}/g, (_, p) => {
-              const v = foundry.utils.getProperty(this.doc, p);
-              return v !== undefined && v !== null ? String(v) : p;
+              let v = foundry.utils.getProperty(this.doc, p);
+              if (v && typeof v === "object" && "value" in v && typeof v.value !== "object") v = v.value;
+              if (v === undefined || v === null) return "0";
+              if (typeof v === "object") return "0";
+              return String(v);
             });
             liveText = `${f}\n→ ${resolved}`;
           } catch {  }
@@ -7470,6 +7508,21 @@ export class FormulaGraph {
     this.nodes.push({id:"output",type:"output",x:660,y:230,data:{}});
   }
 
+  _addInitiativeDefaultGraph() {
+    this.nodes.push({ id:"init_on_roll", type:"init_on_roll", x:80,  y:160, data:{} });
+    this.nodes.push({ id:"init_output",  type:"init_output",  x:560, y:160, data:{} });
+    this._id = 20;
+  }
+
+  _ensureInitiativeNodes() {
+    if (!this.nodes.find(n => n.type === "init_on_roll")) {
+      this.nodes.unshift({ id:"init_on_roll", type:"init_on_roll", x:80, y:160, data:{} });
+    }
+    if (!this.nodes.find(n => n.type === "init_output")) {
+      this.nodes.push({ id:"init_output", type:"init_output", x:560, y:160, data:{} });
+    }
+  }
+
   _addAttributeDefaultGraph() {
     const attrKey   = this.saveCtx?.attrKey;
     const scorePath = this.widget?.path
@@ -7566,6 +7619,7 @@ export class FormulaGraph {
 
   _delNode(id) {
     if(id==="output") return;
+    if(id==="init_on_roll" || id==="init_output") return;
     this.nodes=this.nodes.filter(n=>n.id!==id);
     this.edges=this.edges.filter(e=>e.fromNode!==id&&e.toNode!==id);
     this.nodesEl.querySelector(`[data-nid="${id}"]`)?.remove();

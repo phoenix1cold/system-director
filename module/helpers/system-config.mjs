@@ -310,6 +310,22 @@ export function compileModifierExpr(scoreExpr) {
   }
 }
 
+export function applyInitiativeFormulaFromSettings() {
+  if (!game?.settings) return;
+  let formula = "1d20";
+  let useGraph = false;
+  let compiled = "";
+  try { formula  = String(game.settings.get("sd", "initiativeFormula") ?? "1d20"); } catch {}
+  try { useGraph = !!game.settings.get("sd", "initiativeUseGraph"); } catch {}
+  try { compiled = String(game.settings.get("sd", "initiativeGraphCompiled") ?? ""); } catch {}
+  const effective = (useGraph && compiled.trim()) ? compiled.trim() : formula;
+  if (!effective) return;
+  try {
+    if (game.system) game.system.initiative = effective;
+    if (CONFIG?.Combat?.initiative) CONFIG.Combat.initiative.formula = effective;
+  } catch(e) { console.warn("SD | Could not apply initiative formula:", e); }
+}
+
 export function applySettings(cfg) {
   if (!CONFIG.SD) return;
 
@@ -334,6 +350,8 @@ export function applySettings(cfg) {
 
   CONFIG.SD.computeModifier = computeModifier;
   CONFIG.SD.compileModifierExpr = compileModifierExpr;
+
+  applyInitiativeFormulaFromSettings();
 
   const scale = Math.min(Math.max(Number(cfg.uiScale ?? 100), 50), 200) / 100;
   document.documentElement.style.setProperty("--sd-ui-scale", scale);
@@ -371,6 +389,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       addCalcPart:      SystemConfig._onAddCalcPart,
       removeCalcPart:   SystemConfig._onRemoveCalcPart,
       editCalcGraph:    SystemConfig._onEditCalcGraph,
+      editInitiativeGraph: SystemConfig._onEditInitiativeGraph,
       resetDefaults:    SystemConfig._onResetDefaults,
       saveAndClose:     SystemConfig._onSaveAndClose
     }
@@ -434,9 +453,26 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const base = await super._prepareContext(options);
     const cfg  = loadSettings();
 
+    let initFormula = "1d20";
+    let initUseGraph = false;
+    let initCompiled = "";
+    let initGraph = null;
+    try { initFormula  = String(game.settings.get("sd", "initiativeFormula") ?? "1d20"); } catch {}
+    try { initUseGraph = !!game.settings.get("sd", "initiativeUseGraph"); } catch {}
+    try { initCompiled = String(game.settings.get("sd", "initiativeGraphCompiled") ?? ""); } catch {}
+    try { initGraph    = game.settings.get("sd", "initiativeGraph") ?? null; } catch {}
+    const initNodeCount = (initGraph && Array.isArray(initGraph.nodes)) ? initGraph.nodes.length : 0;
+
     return {
       ...base,
       cfg,
+      initiative: {
+        formula:        initFormula,
+        useGraph:       initUseGraph,
+        compiled:       initCompiled,
+        hasGraph:       initNodeCount > 0,
+        graphNodeCount: initNodeCount
+      },
       attrEntries: Object.entries(cfg.attributes).map(([key, val]) => ({
         key,
         label:   val,
@@ -538,6 +574,9 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     if (raw.modifierFormula !== undefined) cfg.modifierFormula = raw.modifierFormula;
+
+    cfg.__initiativeFormula  = raw.initiativeFormula  !== undefined ? String(raw.initiativeFormula) : null;
+    cfg.__initiativeUseGraph = !!raw.initiativeUseGraph;
 
     if (raw.uiScale !== undefined) {
       cfg.uiScale = Math.min(Math.max(Number(raw.uiScale) || 100, 50), 200);
@@ -667,11 +706,75 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static async _onSaveAndClose(event, target) {
     const cfg = this._collectFormCfg();
+
+    const initFormula  = cfg.__initiativeFormula;
+    const initUseGraph = cfg.__initiativeUseGraph;
+    delete cfg.__initiativeFormula;
+    delete cfg.__initiativeUseGraph;
+
     await saveSettings(cfg);
+
+    try {
+      if (typeof initFormula === "string") {
+        await game.settings.set("sd", "initiativeFormula", initFormula || "1d20");
+      }
+      await game.settings.set("sd", "initiativeUseGraph", !!initUseGraph);
+    } catch(e) {
+      console.warn("SD | Could not save initiative settings:", e);
+    }
+
     applySettings(cfg);
 
     ui.notifications.info(game.i18n.localize("SD.Settings.Saved"));
     this.close();
+  }
+
+  static async _onEditInitiativeGraph(event, target) {
+    let FormulaGraph;
+    try {
+      ({ FormulaGraph } = await import("../builder/formula-graph.mjs"));
+    } catch(e) {
+      console.warn("SD | Failed to load FormulaGraph", e);
+      ui.notifications?.error?.("Could not open graph editor (see console).");
+      return;
+    }
+
+    try {
+      const cfg = this._collectFormCfg();
+      const before = await game.settings.get("sd", "initiativeUseGraph").catch(() => false);
+      delete cfg.__initiativeFormula;
+      delete cfg.__initiativeUseGraph;
+      await saveSettings(cfg);
+      void before;
+    } catch(e) {
+      console.warn("SD | Could not persist form before opening initiative graph", e);
+    }
+
+    const app = this;
+    const graph = new FormulaGraph(null, null, null, null, null, {
+      mode: "initiative",
+      customLoad: () => {
+        try {
+          const g = game.settings.get("sd", "initiativeGraph");
+          return g ?? null;
+        } catch { return null; }
+      },
+      customSave: async (data, compiled) => {
+        try {
+          await game.settings.set("sd", "initiativeGraph", data);
+          await game.settings.set("sd", "initiativeGraphCompiled", String(compiled ?? ""));
+          await game.settings.set("sd", "initiativeUseGraph", true);
+          if (CONFIG?.Combat?.initiative) CONFIG.Combat.initiative.formula = String(compiled ?? "1d20") || "1d20";
+          if (game.system) game.system.initiative = String(compiled ?? "1d20") || "1d20";
+          ui.notifications?.info?.(game.i18n.localize("SD.Settings.InitiativeGraphSaved"));
+          app.render();
+        } catch(e) {
+          console.warn("SD | Could not save initiative graph", e);
+          ui.notifications?.error?.("Could not save initiative graph (see console).");
+        }
+      }
+    });
+    graph.open();
   }
 
   static async _onResetDefaults(event, target) {

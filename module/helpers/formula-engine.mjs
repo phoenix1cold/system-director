@@ -27,14 +27,14 @@ export class FormulaEngine {
       result = result.replace(/\b([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*){1,})\b/gi, (match) => {
         if (/^\d+d\d+/i.test(match)) return match;
         if (/^(Math|floor|ceil|round|abs|max|min)$/.test(match)) return match;
-        const val = foundry.utils.getProperty(doc, match);
+        const val = this._asScalar(foundry.utils.getProperty(doc, match));
         if (val !== undefined && val !== null && typeof val !== "object") {
           console.debug(`SD | Formula: bare path "${match}" resolved to ${val}. Wrap in {curly braces} for clarity.`);
           return this._safeLiteral(val);
         }
 
         const rd = (doc instanceof Actor ? doc : doc.actor)?.getRollData?.() ?? {};
-        const rdVal = foundry.utils.getProperty(rd, match);
+        const rdVal = this._asScalar(foundry.utils.getProperty(rd, match));
         if (rdVal !== undefined && rdVal !== null && typeof rdVal !== "object") {
           return this._safeLiteral(rdVal);
         }
@@ -49,6 +49,15 @@ export class FormulaEngine {
       console.warn("SD | resolveForRoll error:", e);
       return formula;
     }
+  }
+
+  static _asScalar(val) {
+    if (val === undefined || val === null) return val;
+    if (typeof val !== "object") return val;
+    if ("value" in val && val.value !== null && val.value !== undefined && typeof val.value !== "object") {
+      return val.value;
+    }
+    return val;
   }
 
   static isFormula(str) {
@@ -892,11 +901,11 @@ export class FormulaEngine {
 
     if (token === "random") return Math.random();
 
-    const val = foundry.utils.getProperty(doc, token);
+    const val = this._asScalar(foundry.utils.getProperty(doc, token));
     if (val !== undefined && val !== null && typeof val !== "object") return val;
     const _actor2 = (doc instanceof Actor) ? null : (doc?.actor ?? null);
     if (_actor2) {
-      const val2 = foundry.utils.getProperty(_actor2, token);
+      const val2 = this._asScalar(foundry.utils.getProperty(_actor2, token));
       if (val2 !== undefined && val2 !== null && typeof val2 !== "object") return val2;
     }
     if (val !== undefined && val !== null) return 0;

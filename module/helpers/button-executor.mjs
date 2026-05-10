@@ -3944,8 +3944,21 @@ export class ButtonExecutor {
         break;
       }
 
-      const dc = Number(_injectRuntime(String(action.dc ?? 15)));
-      const resolvedDC = isNaN(dc) ? 15 : dc;
+      const _dcRaw = _injectRuntime(String(action.dc ?? 15));
+      let _dcResolved = Number(_dcRaw);
+      if (!Number.isFinite(_dcResolved)) {
+        try {
+          const v = FormulaEngine.evaluate(String(_dcRaw ?? ""), saveActors[0] ?? actor ?? {});
+          _dcResolved = Number(v);
+        } catch { _dcResolved = NaN; }
+      }
+      if (!Number.isFinite(_dcResolved)) {
+        try {
+          const v = foundry.utils.getProperty(saveActors[0] ?? actor ?? {}, String(_dcRaw ?? ""));
+          if (v != null) _dcResolved = Number(v);
+        } catch { /* ignore */ }
+      }
+      const resolvedDC = Number.isFinite(_dcResolved) ? _dcResolved : 15;
       const modifierPath = action.modifierPath ?? "system.attributes.attr1.mod";
       const flavor = action.flavor ?? "Saving Throw";
       const buttonLabel = action.buttonLabel ?? "Roll Save";
@@ -3964,10 +3977,20 @@ export class ButtonExecutor {
         custom:  game.i18n.localize("SD.ChatSave.CustomCheck")
       }[checkType] ?? checkType;
 
+      const _resolveDisplayFormula = (raw, ctx) => {
+        if (!raw) return "1d20";
+        const s = String(raw);
+        if (!/[{}]|[A-Za-z_][\w]*\.[A-Za-z_]/.test(s)) return s;
+        try { return FormulaEngine.resolveForRoll(s, ctx) || s; }
+        catch { return s; }
+      };
       const actorRows = saveActors.map(tActor => {
-        const saveMod = Number(foundry.utils.getProperty(tActor, modifierPath) ?? 0);
-        const sign    = saveMod >= 0 ? `+${saveMod}` : String(saveMod);
-        const modLbl  = modifierPath.split(".").pop()?.toUpperCase() ?? "MOD";
+        const _rawMod  = foundry.utils.getProperty(tActor, modifierPath);
+        const _modVal  = (_rawMod && typeof _rawMod === "object" && "value" in _rawMod) ? _rawMod.value : _rawMod;
+        const saveMod  = Number(_modVal ?? 0) || 0;
+        const sign     = saveMod >= 0 ? `+${saveMod}` : String(saveMod);
+        const modLbl   = modifierPath.split(".").pop()?.toUpperCase() ?? "MOD";
+        const rollDisp = _resolveDisplayFormula(rollFormula, tActor);
         return `
           <div class="sd-save-actor-row" data-actor-id="${tActor.id}"
                style="display:flex;align-items:center;gap:8px;padding:7px 0;
@@ -3978,7 +4001,7 @@ export class ButtonExecutor {
             <div style="flex:1;min-width:0;">
               <div style="font-size:12px;font-weight:700;color:#191813;
                           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${tActor.name}</div>
-              <div style="font-size:10px;color:#8888a0;">${rollFormula} <span style="color:#c8a0ff">${sign}</span>
+              <div style="font-size:10px;color:#8888a0;">${rollDisp} <span style="color:#c8a0ff">${sign}</span>
                    <span style="color:#555555;margin-left:4px;">${modLbl}</span></div>
             </div>
             <button type="button" class="sd-save-roll-btn"

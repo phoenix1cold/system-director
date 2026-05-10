@@ -2500,6 +2500,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
     if (!payloadData) return;
 
+    if (payloadData.type === "ability") {
+      ui.notifications?.warn?.("Ability items belong in a Spellbook widget, not Inventory.");
+      return;
+    }
+    if (payloadData.type && payloadData.type !== "inventory") {
+      ui.notifications?.warn?.(`Items of type "${payloadData.type}" cannot be placed in Inventory.`);
+      return;
+    }
+
     const cleaned = foundry.utils.deepClone(payloadData);
     delete cleaned._id;
     delete cleaned._sourceUuid;

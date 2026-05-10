@@ -272,6 +272,36 @@
           </option>
         </select>
       </div>
+
+      <div class="config-field-row" style="align-items:center;gap:8px;flex-wrap:wrap;">
+        <label style="flex-shrink:0;min-width:160px;">{{localize "SD.Settings.InitiativeFormula"}}</label>
+        <input type="text"
+               name="initiativeFormula"
+               value="{{initiative.formula}}"
+               placeholder="1d20"
+               style="flex:1;min-width:120px;font-family:monospace;font-size:12px;"
+               {{#if initiative.useGraph}}disabled{{/if}} />
+        <label class="checkbox-wrap" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sd-text-3);"
+               title="{{localize "SD.Settings.InitiativeUseGraphHint"}}">
+          <input type="checkbox" name="initiativeUseGraph" {{#if initiative.useGraph}}checked{{/if}} />
+          <span>{{localize "SD.Settings.InitiativeUseGraph"}}</span>
+        </label>
+        <button type="button" class="config-add-btn"
+                data-action="editInitiativeGraph"
+                title="{{localize "SD.Settings.InitiativeEditGraph"}}"
+                style="font-size:10px;padding:2px 8px;">
+          <i class="fas fa-diagram-project"></i> {{localize "SD.Settings.InitiativeEditGraph"}}{{#if initiative.hasGraph}} ({{initiative.graphNodeCount}}){{/if}}
+        </button>
+      </div>
+      {{#if initiative.useGraph}}
+      <p class="section-hint-text" style="font-size:10px;color:var(--sd-text-3);font-style:italic;">
+        <i class="fas fa-info-circle"></i>
+        {{localize "SD.Settings.InitiativeGraphActive"}}
+        {{#if initiative.compiled}}<code>{{initiative.compiled}}</code>{{/if}}
+        {{#unless initiative.hasGraph}}<span style="color:var(--sd-warning,#d8a44a);">{{localize "SD.Settings.InitiativeGraphEmpty"}}</span>{{/unless}}
+      </p>
+      {{/if}}
+
       <p class="section-hint-text">
         <i class="fas fa-info-circle"></i>
         Rolls are configured directly on character/item sheets using the Dice Button widget.
