@@ -920,7 +920,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
             <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Cost
               <input id="stn-cost" type="text" inputmode="numeric" value="${node.cost??1}" style="width:80px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
             <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Cell Color
-              <input id="stn-color" type="color" value="${node.color||'var(--sd-bg)'}" style="width:56px;height:28px"></label>
+              <input id="stn-color" type="color" value="${/^#[0-9a-f]{6}$/i.test(String(node.color ?? "")) ? node.color : '#1a1a2e'}" style="width:56px;height:28px"></label>
             <div>
               <div style="font-size:11px;font-weight:600;color:var(--sd-text-3);margin-bottom:5px"><i class="fas fa-sliders-h"></i> Field Changes
                 <button type="button" id="stn-add-fc" style="margin-left:8px;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+ Add</button></div>
@@ -940,14 +940,17 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
             ok: {
               label: "Save", icon: "fas fa-save",
               callback: (_ev, _btn, dlg) => {
-                node.label      = dlg.querySelector("#stn-label")?.value ?? node.label;
-                const maxRaw    = parseInt(dlg.querySelector("#stn-max")?.value);
+                // Foundry v14 DialogV2: `dlg` here is the *application instance*,
+                // not the DOM root. Use `dlg.element` for DOM queries.
+                const root = dlg?.element ?? dlg;
+                node.label      = root.querySelector("#stn-label")?.value ?? node.label;
+                const maxRaw    = parseInt(root.querySelector("#stn-max")?.value);
                 node.maxAcquire = Number.isFinite(maxRaw) && maxRaw >= 1 ? maxRaw : (node.maxAcquire ?? 1);
-                const costRaw   = parseInt(dlg.querySelector("#stn-cost")?.value);
+                const costRaw   = parseInt(root.querySelector("#stn-cost")?.value);
                 node.cost       = Number.isFinite(costRaw) && costRaw >= 0 ? costRaw : (Number.isFinite(node.cost) ? node.cost : 1);
-                node.color      = dlg.querySelector("#stn-color")?.value ?? "";
+                node.color      = root.querySelector("#stn-color")?.value ?? "";
                 const fcs = [];
-                dlg.querySelectorAll("#stn-fcs .stn-fc-row").forEach(row => {
+                root.querySelectorAll("#stn-fcs .stn-fc-row").forEach(row => {
                   const path  = row.querySelector(".stn-fc-path")?.value?.trim();
                   const mode  = row.querySelector(".stn-fc-mode")?.value ?? "add";
                   const value = row.querySelector(".stn-fc-val")?.value ?? "0";
@@ -959,8 +962,13 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
               }
             },
             render: (_ev, dlg) => {
-              dlg.addEventListener("click", ev => { if (ev.target.closest(".stn-del-fc")) ev.target.closest(".stn-fc-row")?.remove(); });
-              dlg.querySelector("#stn-add-fc")?.addEventListener("click", () => {
+              // Foundry v14 DialogV2: `dlg` here is the *application instance*,
+              // not the DOM root. Use `dlg.element` for DOM queries and event
+              // delegation — calling `addEventListener` on the app instance
+              // throws because DialogV2 only supports a fixed event whitelist.
+              const root = dlg?.element ?? dlg;
+              root.addEventListener("click", ev => { if (ev.target.closest(".stn-del-fc")) ev.target.closest(".stn-fc-row")?.remove(); });
+              root.querySelector("#stn-add-fc")?.addEventListener("click", () => {
                 const div = document.createElement("div");
                 div.className = "stn-fc-row";
                 div.style.cssText = "display:flex;align-items:center;gap:3px;margin-bottom:3px";
@@ -972,15 +980,15 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
                   </select>
                   <input type="text" class="stn-fc-val" value="1" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
                   <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>`;
-                dlg.querySelector("#stn-fcs")?.appendChild(div);
+                root.querySelector("#stn-fcs")?.appendChild(div);
               });
 
               const refreshEffects = () => {
-                const cont = dlg.querySelector("#stn-effs");
+                const cont = root.querySelector("#stn-effs");
                 if (cont) cont.innerHTML = _renderEffectsHTML();
               };
 
-              dlg.querySelector("#stn-add-eff")?.addEventListener("click", async (evt) => {
+              root.querySelector("#stn-add-eff")?.addEventListener("click", async (evt) => {
                 evt.preventDefault();
                 evt.stopPropagation();
                 const seed = {
@@ -1003,7 +1011,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
                 refreshEffects();
               });
 
-              dlg.addEventListener("click", async (evt) => {
+              root.addEventListener("click", async (evt) => {
                 const editBtn = evt.target.closest(".stn-edit-eff");
                 if (editBtn) {
                   evt.preventDefault();

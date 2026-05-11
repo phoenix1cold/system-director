@@ -3944,17 +3944,18 @@ export class ButtonExecutor {
         break;
       }
 
+      const _dcDoc = item ?? actor ?? saveActors[0] ?? {};
       const _dcRaw = _injectRuntime(String(action.dc ?? 15));
       let _dcResolved = Number(_dcRaw);
       if (!Number.isFinite(_dcResolved)) {
         try {
-          const v = FormulaEngine.evaluate(String(_dcRaw ?? ""), saveActors[0] ?? actor ?? {});
+          const v = FormulaEngine.evaluate(String(_dcRaw ?? ""), _dcDoc);
           _dcResolved = Number(v);
         } catch { _dcResolved = NaN; }
       }
       if (!Number.isFinite(_dcResolved)) {
         try {
-          const v = foundry.utils.getProperty(saveActors[0] ?? actor ?? {}, String(_dcRaw ?? ""));
+          const v = foundry.utils.getProperty(_dcDoc, String(_dcRaw ?? ""));
           if (v != null) _dcResolved = Number(v);
         } catch { /* ignore */ }
       }
