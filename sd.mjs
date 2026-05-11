@@ -1346,14 +1346,53 @@ html.addEventListener("click", async (e) => {
   }
 
   const message = card.closest(".chat-message");
+  let chatMsg = null;
   if (message) {
-    const msgId   = message.dataset.messageId;
-    const chatMsg = game.messages.get(msgId);
+    const msgId = message.dataset.messageId;
+    chatMsg = game.messages.get(msgId);
     if (chatMsg) {
       const existing = chatMsg.getFlag("sd", "saveResult") ?? {};
       existing[saveActor.id] = { total: rollTotal, pass, actorId: saveActor.id, userId: game.user.id };
       await chatMsg.setFlag("sd", "saveResult", existing);
     }
+  }
+
+  // Execute the Pass / Fail branches that were compiled from the Save / Check
+  // Button node (passActions / failActions in the chat message's sd flag).
+  // Without this, downstream nodes wired to the Save / Check Button's pass /
+  // fail exec outputs — most importantly Apply Effect — never run.
+  try {
+    const passActions = chatMsg?.getFlag("sd", "passActions") ?? [];
+    const failActions = chatMsg?.getFlag("sd", "failActions") ?? [];
+    const branch = pass ? passActions : failActions;
+    if (Array.isArray(branch) && branch.length) {
+      const { ButtonExecutor } = await import("./module/helpers/button-executor.mjs");
+      const synthBtn = {
+        __lastRoll:    rollTotal,
+        __lastFormula: finalFormula,
+        __lastMargin:  rollTotal - dc,
+        __lastDC:      dc
+      };
+      const runtime = {
+        __lastRoll:    rollTotal,
+        __lastFormula: finalFormula,
+        __lastMargin:  rollTotal - dc,
+        __lastDC:      dc,
+        savedTargets:  pass ? [saveActor.id] : [],
+        failedTargets: pass ? [] : [saveActor.id],
+        allTargets:    [saveActor.id],
+        currentTarget: saveActor.id
+      };
+      for (const sub of branch) {
+        try {
+          await ButtonExecutor._runAction(sub, null, saveActor, synthBtn, runtime);
+        } catch (err) {
+          console.error("SD | save-button branch action failed:", err, sub);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("SD | save-button: failed to run pass/fail branch:", err);
   }
 });
 

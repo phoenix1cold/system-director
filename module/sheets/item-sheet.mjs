@@ -1989,6 +1989,17 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       if (!textarea || !editWrap) return;
       const doc = this.document;
 
+      // Sheet has `submitOnChange: true`, so any `change` event bubbling out
+      // of the textarea triggers a full form submit → doc.update → re-render
+      // → editor DOM is destroyed before the Save button's click can fire,
+      // losing whatever the user typed. The textarea is intentionally not
+      // a form field (no `name` attribute), so its content never needs to go
+      // through the form submission path — block the bubbling and we keep
+      // the editor alive until Save / Cancel actually run.
+      const _stopBubble = ev => ev.stopPropagation();
+      textarea.addEventListener("input",  _stopBubble);
+      textarea.addEventListener("change", _stopBubble);
+
       const openEdit = () => {
         display.style.display  = "none";
         editWrap.style.display = "block";
@@ -2005,7 +2016,9 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         display.style.display  = "block";
       };
 
+      let _savedOnMouseDown = false;
       const saveRichtext = async () => {
+        if (_savedOnMouseDown) { _savedOnMouseDown = false; return; }
         const val  = textarea.value;
         const path = textarea.dataset.path;
         if (path) await doc.update({ [path]: val });
@@ -2019,6 +2032,17 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       };
 
       display.addEventListener("click", openEdit);
+      // Capture the value on `mousedown` (fires before the textarea's blur),
+      // so even if a stray form submit slips through and re-renders the DOM
+      // before our `click` handler can run, the data is already persisted.
+      btnSave?.addEventListener("mousedown", () => {
+        const val  = textarea.value;
+        const path = textarea.dataset.path;
+        if (path) {
+          _savedOnMouseDown = true;
+          doc.update({ [path]: val }).catch(err => console.error("SD | richtext save failed:", err));
+        }
+      });
       btnSave?.addEventListener("click", saveRichtext);
       btnCancel?.addEventListener("click", cancelRichtext);
 
