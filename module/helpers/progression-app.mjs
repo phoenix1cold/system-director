@@ -1,4 +1,5 @@
 import { editEffectViaStandardConfig as _sharedEditEffect, openItemSheetFromSnapshot as _sharedOpenItem } from "./effect-editor.mjs";
+import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -49,7 +50,7 @@ export class ProgressionApp extends ApplicationV2 {
       resizable:   true,
       minimizable: true
     },
-    position: { width: 720, height: 560 }
+    position: { width: 1080, height: 620 }
   };
 
   static _instances = new Map();
@@ -72,6 +73,19 @@ export class ProgressionApp extends ApplicationV2 {
     this._editMode     = false;
     this._connectFrom  = null;
     this._activeTabId  = null;
+    this._pinnedPreview = null;
+    this._variantSel    = new Map();
+    this._previewTabId  = null;
+  }
+
+  _variantKey(levelIdx, choiceIdx) {
+    return `${levelIdx}:${choiceIdx}`;
+  }
+  _getVariantSel(levelIdx, choiceIdx) {
+    return this._variantSel.get(this._variantKey(levelIdx, choiceIdx)) ?? 0;
+  }
+  _setVariantSel(levelIdx, choiceIdx, optIdx) {
+    this._variantSel.set(this._variantKey(levelIdx, choiceIdx), optIdx);
   }
 
   get title() {
@@ -243,7 +257,8 @@ export class ProgressionApp extends ApplicationV2 {
       </div>`;
     }
 
-    html += `<div class="sd-prog-body">`;
+    html += `<div class="sd-prog-main">`;
+    html += `<div class="sd-prog-body sd-prog-left">`;
 
     if (!bothSubTabs || this._tab === "levelup") {
       html += this._buildLevelUpHTML(levels, state, cfg, em, isGM);
@@ -252,8 +267,323 @@ export class ProgressionApp extends ApplicationV2 {
       html += this._buildSkillTreeHTML(st, state, cfg, em, isGM);
     }
 
-    html += `</div></div>`;
+    html += `</div>`;
+    html += this._buildPreviewHTML();
+    html += `</div>`;
+
+    html += `</div>`;
     return html;
+  }
+
+  _buildPreviewHTML() {
+    const pin   = this._pinnedPreview;
+    const inner = this._renderPreviewInner(pin);
+    return `<aside class="sd-prog-right sd-prog-preview" data-pinned="${pin ? "1" : "0"}">
+      ${inner}
+    </aside>`;
+  }
+
+  _renderPreviewInner(payload) {
+    if (!payload) {
+      return `<div class="sd-prog-preview-empty">
+        <i class="fas fa-magnifying-glass"></i>
+        <p>${loc("SD.Progression.PreviewHint") || "Hover an item or effect to preview it. Click to pin."}</p>
+      </div>`;
+    }
+    const kind = payload.kind;
+    if (kind === "item")    return this._renderItemPreview(payload.data, payload.label, payload.subtitle);
+    if (kind === "effect")  return this._renderEffectPreview(payload.data, payload.label);
+    if (kind === "fc")      return this._renderFcPreview(payload.data, payload.label);
+    if (kind === "node")    return this._renderNodePreview(payload.data);
+    return "";
+  }
+
+  _previewHeader(title, subtitle, img, isPinned) {
+    const sub = subtitle ? `<div class="sd-prog-preview-sub">${e(subtitle)}</div>` : "";
+    return `<header class="sd-prog-preview-hdr">
+      <div class="sd-prog-preview-img">${img ? `<img src="${e(img)}" alt="">` : `<i class="fas fa-image"></i>`}</div>
+      <div class="sd-prog-preview-title-wrap">
+        <div class="sd-prog-preview-title">${e(title)}</div>
+        ${sub}
+      </div>
+      <div class="sd-prog-preview-actions">
+        ${isPinned ? `<button type="button" class="sd-prog-preview-unpin" data-action="unpinPreview" title="${loc("SD.Progression.Unpin") || "Unpin"}"><i class="fas fa-thumbtack"></i></button>` : ""}
+      </div>
+    </header>`;
+  }
+
+  _renderItemPreview(item, label, subtitle) {
+    if (!item) return "";
+    const name = label || item.name || "Item";
+    const img  = item.img || "icons/svg/item-bag.svg";
+    const type = item.type || subtitle || "";
+
+    const tabs = this._collectPreviewTabs(item);
+    if (!tabs.length) {
+      const body = `<div class="sd-prog-preview-body">
+        <div class="sd-prog-preview-empty-mini">${loc("SD.Progression.NoDescription") || "No information."}</div>
+      </div>`;
+      return this._previewHeader(name, type, img, !!this._pinnedPreview) + body;
+    }
+
+    let activeId = this._previewTabId;
+    if (!activeId || !tabs.some(t => t.id === activeId)) activeId = tabs[0].id;
+    const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0];
+
+    let body = `<div class="sd-prog-preview-body">`;
+
+    if (tabs.length > 1) {
+      body += `<nav class="sd-prog-preview-tabs">`;
+      for (const t of tabs) {
+        body += `<button type="button" class="sd-prog-preview-tab${t.id === activeTab.id ? " active" : ""}" data-preview-tab-id="${e(t.id)}">${t.iconHtml ?? ""}${e(t.label)}</button>`;
+      }
+      body += `</nav>`;
+    }
+
+    body += `<div class="sd-prog-preview-tab-panel" data-tab-id="${e(activeTab.id)}">`;
+    body += activeTab.render();
+    body += `</div>`;
+
+    body += `</div>`;
+
+    return this._previewHeader(name, type, img, !!this._pinnedPreview) + body;
+  }
+
+  _collectPreviewTabs(item) {
+    const sys = item.system ?? {};
+    const customTabs = Array.isArray(sys.customTabs) ? sys.customTabs : [];
+    const out = [];
+
+    for (const tab of customTabs) {
+      const rows = Array.isArray(tab.rows) ? tab.rows : [];
+      const hasContent = rows.some(r => Array.isArray(r.widgets) && r.widgets.length > 0);
+      if (!hasContent && !tab.label) continue;
+      out.push({
+        id: tab.id ?? `custom-${out.length}`,
+        label: tab.label || (loc("SD.Progression.Tab") || "Tab"),
+        iconHtml: `<i class="fas fa-folder"></i>`,
+        render: () => this._renderPreviewTabRows(item, rows)
+      });
+    }
+
+    const effects = Array.isArray(item.effects) ? item.effects : [];
+    if (effects.length) {
+      out.push({
+        id: "_sys_effects",
+        label: loc("SD.Progression.Effects") || "Effects",
+        iconHtml: `<i class="fas fa-sparkles"></i>`,
+        render: () => this._renderPreviewEffectsList(effects)
+      });
+    }
+
+    const tags = Array.isArray(sys.tags) ? sys.tags.filter(Boolean) : [];
+    if (tags.length) {
+      out.push({
+        id: "_sys_tags",
+        label: loc("SD.Progression.Tags") || "Tags",
+        iconHtml: `<i class="fas fa-tags"></i>`,
+        render: () => {
+          let h = `<div class="sd-prog-preview-tags">`;
+          for (const t of tags) h += `<span class="sd-prog-preview-tag">${e(t)}</span>`;
+          h += `</div>`;
+          return h;
+        }
+      });
+    }
+
+    if (out.length === 0) {
+      const desc = String(sys.description ?? "").trim();
+      if (desc) {
+        out.push({
+          id: "_sys_desc",
+          label: loc("SD.Progression.Description") || "Description",
+          iconHtml: `<i class="fas fa-scroll"></i>`,
+          render: () => `<div class="sd-prog-preview-html">${desc}</div>`
+        });
+      }
+    }
+
+    return out;
+  }
+
+  _renderPreviewTabRows(item, rows) {
+    if (!rows.length) {
+      return `<div class="sd-prog-preview-empty-mini">${loc("SD.Progression.EmptyTab") || "Empty tab."}</div>`;
+    }
+    let html = `<div class="sd-prog-preview-rows">`;
+    for (const row of rows) {
+      const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+      html += `<div class="sd-prog-preview-row" style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:6px;align-items:start;min-width:0;">`;
+      for (const w of (row.widgets ?? [])) {
+        if (w?.type === "vsection") {
+          html += this._renderPreviewVSection(item, w);
+        } else {
+          html += this._renderPreviewCell(item, row, w);
+        }
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  _renderPreviewVSection(item, vs) {
+    const span = Math.max(1, Math.min(9, Number(vs.span) || 1));
+    let html = `<div class="sd-prog-preview-vsection" style="grid-column:span ${span};display:flex;flex-direction:column;gap:5px;padding:6px;border:1px dashed var(--prog-border, rgba(255,255,255,.1));border-radius:5px;min-width:0;">`;
+    if (vs.label) html += `<div class="sd-prog-preview-vsection-title">${e(vs.label)}</div>`;
+    for (const cw of (vs.widgets ?? [])) {
+      if (cw?.type === "vsection") {
+        html += this._renderPreviewVSection(item, cw);
+      } else {
+        html += this._renderPreviewCell(item, { cols: 1 }, cw, true);
+      }
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  _renderPreviewCell(item, row, w, insideVS = false) {
+    if (!w) return "";
+    const rowCols = Math.max(1, Math.min(9, Number(row.cols) || 3));
+    const span = insideVS ? 1 : Math.max(1, Math.min(rowCols, Number(w.span) || 1));
+    let inner = "";
+    try {
+      inner = WidgetRenderer.render(w, item, false) ?? "";
+    } catch (err) {
+      inner = `<div class="sd-prog-preview-widget-err">${e(String(err?.message ?? err))}</div>`;
+    }
+    if (!inner?.trim()) return "";
+    return `<div class="sd-prog-preview-cell" style="grid-column:span ${span};min-width:0;">${inner}</div>`;
+  }
+
+  _renderPreviewEffectsList(effects) {
+    let html = `<div class="sd-prog-preview-effects-list">`;
+    for (const ef of effects) {
+      const changes = Array.isArray(ef.changes) ? ef.changes : [];
+      const disabled = !!ef.disabled;
+      html += `<div class="sd-prog-preview-effect-card${disabled ? " is-disabled" : ""}">
+        <div class="sd-prog-preview-effect-hdr">
+          <img src="${e(ef.icon ?? ef.img ?? "icons/svg/aura.svg")}" alt="">
+          <span class="sd-prog-preview-effect-name">${e(ef.name ?? "Effect")}</span>
+          ${disabled ? `<span class="sd-prog-preview-pill is-off">${loc("SD.Progression.EffectDisabled") || "Disabled"}</span>` : `<span class="sd-prog-preview-pill is-on">${loc("SD.Progression.Enabled") || "Enabled"}</span>`}
+        </div>`;
+      if (changes.length) {
+        html += `<div class="sd-prog-preview-changes">`;
+        for (const ch of changes) {
+          const modeNum = Number(ch.mode);
+          const sym = modeNum === 5 ? "↑" : modeNum === 4 ? "↓" : modeNum === 3 ? "×" : modeNum === 6 ? "=" : modeNum === 1 ? "+" : modeNum === 0 ? "⊕" : "?";
+          html += `<div class="sd-prog-preview-change-row">
+            <code>${e(ch.key ?? "")}</code>
+            <span class="sd-prog-preview-change-sym">${sym}</span>
+            <strong>${e(String(ch.value ?? ""))}</strong>
+          </div>`;
+        }
+        html += `</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  _renderEffectPreview(ef, label) {
+    if (!ef) return "";
+    const name = label || ef.name || "Effect";
+    const img  = ef.icon || ef.img || "icons/svg/aura.svg";
+    const changes = Array.isArray(ef.changes) ? ef.changes : [];
+    const disabled = !!ef.disabled;
+
+    let body = `<div class="sd-prog-preview-body">`;
+
+    body += `<div class="sd-prog-preview-section">
+      <div class="sd-prog-preview-section-title"><i class="fas fa-magic"></i> ${loc("SD.Progression.Effects") || "Effect"}</div>
+      <div class="sd-prog-preview-meta">
+        <span class="sd-prog-preview-pill ${disabled ? "is-off" : "is-on"}">${disabled ? (loc("SD.Progression.EffectDisabled") || "Disabled") : (loc("SD.Progression.EffectEnabled") || "Enabled")}</span>
+        <span class="sd-prog-preview-pill">${changes.length} ${loc("SD.Progression.EffectChanges") || "changes"}</span>
+      </div>
+    </div>`;
+
+    if (changes.length) {
+      body += `<div class="sd-prog-preview-section">
+        <div class="sd-prog-preview-section-title"><i class="fas fa-sliders-h"></i> ${loc("SD.Progression.Changes") || "Changes"}</div>
+        <div class="sd-prog-preview-changes">`;
+      for (const ch of changes) {
+        const modeNum = Number(ch.mode);
+        const sym = modeNum === 5 ? "↑" : modeNum === 4 ? "↓" : modeNum === 3 ? "×" : modeNum === 6 ? "=" : modeNum === 1 ? "+" : modeNum === 0 ? "⊕" : "?";
+        body += `<div class="sd-prog-preview-change-row">
+          <code>${e(ch.key ?? "")}</code>
+          <span class="sd-prog-preview-change-sym">${sym}</span>
+          <strong>${e(String(ch.value ?? ""))}</strong>
+        </div>`;
+      }
+      body += `</div></div>`;
+    } else {
+      body += `<div class="sd-prog-preview-empty-mini">${loc("SD.Progression.NoChanges") || "This effect has no changes."}</div>`;
+    }
+
+    body += `</div>`;
+
+    return this._previewHeader(name, loc("SD.Progression.Effects") || "Effect", img, !!this._pinnedPreview) + body;
+  }
+
+  _renderFcPreview(fc, label) {
+    if (!fc) return "";
+    const name = label || (fc.path || "Field Change");
+    const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
+    const body = `<div class="sd-prog-preview-body">
+      <div class="sd-prog-preview-section">
+        <div class="sd-prog-preview-section-title"><i class="fas fa-sliders-h"></i> ${loc("SD.Progression.FieldChange") || "Field Change"}</div>
+        <div class="sd-prog-preview-fc">
+          <code>${e(fc.path ?? "")}</code>
+          <span class="sd-prog-preview-fc-sym">${sym}</span>
+          <strong>${e(String(fc.value ?? ""))}</strong>
+        </div>
+      </div>
+    </div>`;
+    return this._previewHeader(name, loc("SD.Progression.FieldChange") || "Field Change", "icons/svg/upgrade.svg", !!this._pinnedPreview) + body;
+  }
+
+  _renderNodePreview(node) {
+    if (!node) return "";
+    if (node.item) {
+      let inner = this._renderItemPreview(node.item, node.label || node.item.name, node.item.type);
+      const extras = [];
+      if (typeof node.cost === "number")       extras.push(`<span class="sd-prog-preview-pill"><i class="fas fa-star"></i> ${node.cost} ${loc("SD.Progression.SkillPoints") || "SP"}</span>`);
+      if ((node.maxAcquire ?? 1) > 1)          extras.push(`<span class="sd-prog-preview-pill"><i class="fas fa-redo"></i> ×${node.maxAcquire}</span>`);
+      if (node.fieldChanges?.length)           extras.push(`<span class="sd-prog-preview-pill"><i class="fas fa-sliders-h"></i> ${node.fieldChanges.length} ${loc("SD.Progression.FieldChanges") || "field changes"}</span>`);
+      if (node.effects?.length)                extras.push(`<span class="sd-prog-preview-pill"><i class="fas fa-magic"></i> ${node.effects.length} ${loc("SD.Progression.Effects") || "effects"}</span>`);
+      if (extras.length) {
+        inner = inner.replace('<div class="sd-prog-preview-body">', `<div class="sd-prog-preview-body"><div class="sd-prog-preview-meta">${extras.join("")}</div>`);
+      }
+      return inner;
+    }
+    const name = node.label || "Skill Node";
+    let body = `<div class="sd-prog-preview-body">
+      <div class="sd-prog-preview-meta">
+        ${typeof node.cost === "number" ? `<span class="sd-prog-preview-pill"><i class="fas fa-star"></i> ${node.cost} ${loc("SD.Progression.SkillPoints") || "SP"}</span>` : ""}
+        ${(node.maxAcquire ?? 1) > 1   ? `<span class="sd-prog-preview-pill"><i class="fas fa-redo"></i> ×${node.maxAcquire}</span>` : ""}
+      </div>`;
+    if (node.fieldChanges?.length) {
+      body += `<div class="sd-prog-preview-section">
+        <div class="sd-prog-preview-section-title"><i class="fas fa-sliders-h"></i> ${loc("SD.Progression.FieldChanges") || "Field Changes"}</div>
+        <div class="sd-prog-preview-changes">`;
+      for (const fc of node.fieldChanges) {
+        const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
+        body += `<div class="sd-prog-preview-change-row"><code>${e(fc.path ?? "")}</code><span class="sd-prog-preview-change-sym">${sym}</span><strong>${e(String(fc.value ?? ""))}</strong></div>`;
+      }
+      body += `</div></div>`;
+    }
+    if (node.effects?.length) {
+      body += `<div class="sd-prog-preview-section">
+        <div class="sd-prog-preview-section-title"><i class="fas fa-magic"></i> ${loc("SD.Progression.Effects") || "Effects"}</div>
+        <div class="sd-prog-preview-changes">`;
+      for (const ef of node.effects) {
+        body += `<div class="sd-prog-preview-change-row"><img src="${e(ef.icon ?? ef.img ?? "icons/svg/aura.svg")}" style="width:14px;height:14px;border-radius:2px;"><span>${e(ef.name ?? "Effect")}</span><strong>${(ef.changes ?? []).length}</strong></div>`;
+      }
+      body += `</div></div>`;
+    }
+    body += `</div>`;
+    return this._previewHeader(name, loc("SD.Progression.SkillNode") || "Skill Node", "icons/svg/upgrade.svg", !!this._pinnedPreview) + body;
   }
 
   _buildLevelUpHTML(levels, state, cfg, em, isGM) {
@@ -337,96 +667,286 @@ export class ProgressionApp extends ApplicationV2 {
       html += `</div></div>`;
 
       html += `<div class="sd-prog-le-rewards">`;
+      html += this._renderColumnItems(lv, i, em, isGM);
+      html += this._renderColumnFieldChanges(lv, i, em, isGM);
+      html += this._renderColumnEffects(lv, i, em, isGM);
+      html += `</div>`;
 
-      html += `<div class="sd-prog-le-col">
-        <div class="sd-prog-le-sec-title"><i class="fas fa-backpack"></i> ${loc("SD.Progression.Items")}</div>
-        <div class="sd-prog-items-zone ${em ? "droppable" : ""}" data-drop-target="levelItem" data-level-idx="${i}">`;
+      html += `</div>`;
+    }
 
-      const items = lv.items ?? [];
-      if (items.length === 0 && em) {
-        html += `<span class="sd-prog-drop-hint"><i class="fas fa-arrow-alt-circle-down"></i> ${loc("SD.Progression.DropItemsHere")}</span>`;
-      }
-      for (let j = 0; j < items.length; j++) {
-        const it = items[j];
-        html += `<div class="sd-prog-item-chip" draggable="false"
-          data-snapshot-ref="level:${i}:${j}"
-          title="${loc("SD.Progression.RightClickOpen") || "Right-click to open item"}">
-          <img src="${e(it.img ?? "icons/svg/item-bag.svg")}">
-          <span>${e(it.name ?? "Item")}</span>
-          ${em ? `<button type="button" data-action="removeLevelItem" data-level-idx="${i}" data-item-idx="${j}"><i class="fas fa-times"></i></button>` : ""}
+    html += `</div></div>`;
+    return html;
+  }
+
+  _renderColumnItems(lv, i, em, isGM) {
+    const items   = lv.items ?? [];
+    const choices = (lv.choices ?? []).map((c, gi) => ({ ch: c, gi })).filter(o => (o.ch.kind ?? "items") === "items");
+
+    let html = `<div class="sd-prog-le-col" data-col="items">
+      <div class="sd-prog-le-sec-title">
+        <i class="fas fa-backpack"></i> ${loc("SD.Progression.Items")}
+        ${em && isGM ? `<button type="button" class="sd-prog-mini-add" data-action="addChoice" data-level-idx="${i}" data-kind="items" title="${loc("SD.Progression.AddItemsChoice") || "Add items choice group"}"><i class="fas fa-code-branch"></i></button>` : ""}
+      </div>
+      <div class="sd-prog-items-zone ${em ? "droppable" : ""}" data-drop-target="levelItem" data-level-idx="${i}">`;
+
+    if (items.length === 0 && em) {
+      html += `<span class="sd-prog-drop-hint"><i class="fas fa-arrow-alt-circle-down"></i> ${loc("SD.Progression.DropItemsHere")}</span>`;
+    }
+    for (let j = 0; j < items.length; j++) {
+      const it = items[j];
+      html += `<div class="sd-prog-item-chip" draggable="false"
+        data-preview-kind="item"
+        data-preview-ref="level:${i}:items:${j}"
+        data-snapshot-ref="level:${i}:${j}"
+        title="${loc("SD.Progression.RightClickOpen") || "Right-click to open item"}">
+        <img src="${e(it.img ?? "icons/svg/item-bag.svg")}">
+        <span>${e(it.name ?? "Item")}</span>
+        ${em ? `<button type="button" data-action="removeLevelItem" data-level-idx="${i}" data-item-idx="${j}" data-stop-preview="1"><i class="fas fa-times"></i></button>` : ""}
+      </div>`;
+    }
+    html += `</div>`;
+
+    for (const { ch, gi } of choices) html += this._renderChoiceGroup(lv, i, gi, ch, "items", em, isGM);
+
+    html += `</div>`;
+    return html;
+  }
+
+  _renderColumnFieldChanges(lv, i, em, isGM) {
+    const fcs     = lv.fieldChanges ?? [];
+    const choices = (lv.choices ?? []).map((c, gi) => ({ ch: c, gi })).filter(o => (o.ch.kind ?? "items") === "fieldChanges");
+
+    let html = `<div class="sd-prog-le-col" data-col="fieldChanges">
+      <div class="sd-prog-le-sec-title">
+        <i class="fas fa-sliders-h"></i> ${loc("SD.Progression.FieldChanges")}
+        ${em ? `<button type="button" class="sd-prog-mini-add" data-action="addFieldChange" data-level-idx="${i}" title="${loc("SD.Progression.AddFieldChange")}"><i class="fas fa-plus"></i></button>` : ""}
+        ${em && isGM ? `<button type="button" class="sd-prog-mini-add" data-action="addChoice" data-level-idx="${i}" data-kind="fieldChanges" title="${loc("SD.Progression.AddFcChoice") || "Add field-change choice group"}"><i class="fas fa-code-branch"></i></button>` : ""}
+      </div>`;
+
+    if (fcs.length === 0 && !em) {
+      html += `<span class="sd-prog-empty-small">—</span>`;
+    }
+    for (let j = 0; j < fcs.length; j++) {
+      const fc = fcs[j];
+      if (em) {
+        const mAdd  = fc.mode === "add"      ? "selected" : "";
+        const mSet  = fc.mode === "set"      ? "selected" : "";
+        const mMul  = fc.mode === "multiply" ? "selected" : "";
+        html += `<div class="sd-prog-fc-row"
+          data-preview-kind="fc"
+          data-preview-ref="level:${i}:fc:${j}">
+          <input type="text" class="sd-prog-fc-path" value="${e(fc.path)}"
+                 placeholder="system.resources.hp.max"
+                 data-action="fcChangePath" data-level-idx="${i}" data-fc-idx="${j}">
+          <select class="sd-prog-fc-mode" data-action="fcChangeMode" data-level-idx="${i}" data-fc-idx="${j}">
+            <option value="add"      ${mAdd}>+</option>
+            <option value="set"      ${mSet}>=</option>
+            <option value="multiply" ${mMul}>×</option>
+          </select>
+          <input type="text" class="sd-prog-fc-value" value="${e(fc.value)}"
+                 placeholder="0"
+                 data-action="fcChangeValue" data-level-idx="${i}" data-fc-idx="${j}">
+          <button type="button" class="sd-prog-fc-del" data-action="removeFc" data-level-idx="${i}" data-fc-idx="${j}" data-stop-preview="1">
+            <i class="fas fa-times"></i></button>
+        </div>`;
+      } else {
+        const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
+        html += `<div class="sd-prog-fc-view"
+          data-preview-kind="fc"
+          data-preview-ref="level:${i}:fc:${j}">
+          <code>${e(fc.path)}</code>
+          <span class="sd-prog-fc-sym">${sym}</span>
+          <strong>${e(fc.value)}</strong>
         </div>`;
       }
+    }
 
+    for (const { ch, gi } of choices) html += this._renderChoiceGroup(lv, i, gi, ch, "fieldChanges", em, isGM);
+
+    html += `</div>`;
+    return html;
+  }
+
+  _renderColumnEffects(lv, i, em, isGM) {
+    const effects = lv.effects ?? [];
+    const choices = (lv.choices ?? []).map((c, gi) => ({ ch: c, gi })).filter(o => (o.ch.kind ?? "items") === "effects");
+
+    let html = `<div class="sd-prog-le-col" data-col="effects">
+      <div class="sd-prog-le-sec-title">
+        <i class="fas fa-magic"></i> ${loc("SD.Progression.Effects")}
+        ${em ? `<button type="button" class="sd-prog-mini-add" data-action="addEffect" data-level-idx="${i}" title="${loc("SD.Progression.AddEffect") || "Add effect"}"><i class="fas fa-plus"></i></button>` : ""}
+        ${em && isGM ? `<button type="button" class="sd-prog-mini-add" data-action="addChoice" data-level-idx="${i}" data-kind="effects" title="${loc("SD.Progression.AddEffectsChoice") || "Add effects choice group"}"><i class="fas fa-code-branch"></i></button>` : ""}
+      </div>`;
+
+    if (effects.length === 0 && !em) {
+      html += `<span class="sd-prog-empty-small">—</span>`;
+    }
+    for (let j = 0; j < effects.length; j++) {
+      const ef = effects[j];
+      const efTitle = ef.disabled ? `${e(ef.name ?? "Effect")} (${loc("SD.Progression.EffectDisabled")})` : e(ef.name ?? "Effect");
+      html += `<div class="sd-prog-effect-chip${ef.disabled ? " disabled" : ""}"
+        data-preview-kind="effect"
+        data-preview-ref="level:${i}:effects:${j}"
+        title="${efTitle}">
+        <img src="${e(ef.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
+        <span class="sd-prog-effect-name">${e(ef.name ?? "Effect")}</span>
+        ${ef.changes?.length ? `<span class="sd-prog-effect-count" title="${loc("SD.Progression.EffectChangesCount")}">${ef.changes.length}</span>` : ""}
+        ${em ? `<button type="button" data-action="editEffect" data-level-idx="${i}" data-effect-idx="${j}" title="${loc("SD.Progression.EditEffect")}" data-stop-preview="1"><i class="fas fa-pen"></i></button>` : ""}
+        ${em ? `<button type="button" data-action="removeEffect" data-level-idx="${i}" data-effect-idx="${j}" title="${loc("SD.Progression.RemoveEffect")}" data-stop-preview="1"><i class="fas fa-times"></i></button>` : ""}
+      </div>`;
+    }
+
+    for (const { ch, gi } of choices) html += this._renderChoiceGroup(lv, i, gi, ch, "effects", em, isGM);
+
+    html += `</div>`;
+    return html;
+  }
+
+  _renderChoiceGroup(lv, i, gi, ch, kind, em, isGM) {
+    const opts  = Array.isArray(ch.options) ? ch.options : [];
+    const picks = Math.max(1, Number(ch.picks) || 1);
+    const sel   = Math.min(this._getVariantSel(i, gi), Math.max(0, opts.length - 1));
+
+    let html = `<div class="sd-prog-choice-grp sd-prog-choice-inline" data-choice-idx="${gi}" data-level-idx="${i}" data-kind="${e(kind)}">`;
+
+    html += `<div class="sd-prog-choice-inline-hdr">
+      <span class="sd-prog-choice-inline-icon"><i class="fas fa-code-branch"></i></span>
+      ${em && isGM
+        ? `<input type="text" class="sd-prog-choice-label" value="${e(ch.label ?? "")}"
+                 placeholder="${loc("SD.Progression.ChoiceLabelPlaceholder") || "Variant label"}"
+                 data-action="choiceChangeLabel" data-level-idx="${i}" data-choice-idx="${gi}">`
+        : `<span class="sd-prog-choice-inline-label">${e(ch.label || loc("SD.Progression.Variants") || "Variants")}</span>`}
+      <span class="sd-prog-choice-inline-meta">${loc("SD.Progression.Pick") || "Pick"} ${picks}</span>
+      ${em && isGM ? `<label class="sd-prog-choice-picks-mini" title="${loc("SD.Progression.Picks") || "Picks"}">
+        <i class="fas fa-hand-pointer"></i>
+        <input type="number" min="1" step="1" value="${picks}"
+               data-action="choiceChangePicks" data-level-idx="${i}" data-choice-idx="${gi}">
+      </label>` : ""}
+      ${em && isGM ? `<button type="button" class="sd-prog-choice-del" data-action="removeChoice" data-level-idx="${i}" data-choice-idx="${gi}" title="${loc("SD.Progression.RemoveChoice") || "Remove variants"}"><i class="fas fa-times"></i></button>` : ""}
+    </div>`;
+
+    if (opts.length === 0) {
+      html += `<div class="sd-prog-choice-inline-body is-empty">`;
+      if (em && isGM) {
+        if (kind === "items") {
+          html += `<div class="sd-prog-items-zone sd-prog-choice-zone droppable" data-drop-target="choiceItem" data-level-idx="${i}" data-choice-idx="${gi}">
+            <span class="sd-prog-drop-hint"><i class="fas fa-arrow-alt-circle-down"></i> ${loc("SD.Progression.DropItemsHere")}</span>
+          </div>`;
+        } else if (kind === "effects") {
+          html += `<button type="button" class="sd-prog-mini-add wide" data-action="addChoiceEffect" data-level-idx="${i}" data-choice-idx="${gi}"><i class="fas fa-plus"></i> ${loc("SD.Progression.AddEffectOption") || "Add effect option"}</button>`;
+        } else if (kind === "fieldChanges") {
+          html += `<button type="button" class="sd-prog-mini-add wide" data-action="addChoiceFc" data-level-idx="${i}" data-choice-idx="${gi}"><i class="fas fa-plus"></i> ${loc("SD.Progression.AddFcOption") || "Add field-change option"}</button>`;
+        }
+      } else {
+        html += `<span class="sd-prog-empty-small">${loc("SD.Progression.NoOptions") || "No options."}</span>`;
+      }
       html += `</div></div>`;
+      return html;
+    }
 
-      html += `<div class="sd-prog-le-col">
-        <div class="sd-prog-le-sec-title">
-          <i class="fas fa-sliders-h"></i> ${loc("SD.Progression.FieldChanges")}
-          ${em ? `<button type="button" class="sd-prog-mini-add" data-action="addFieldChange" data-level-idx="${i}"><i class="fas fa-plus"></i></button>` : ""}
-        </div>`;
+    html += `<div class="sd-prog-choice-inline-row">`;
+    html += `<div class="sd-prog-choice-inline-current">`;
 
-      const fcs = lv.fieldChanges ?? [];
-      if (fcs.length === 0 && !em) {
-        html += `<span class="sd-prog-empty-small">—</span>`;
-      }
-      for (let j = 0; j < fcs.length; j++) {
-        const fc = fcs[j];
-        if (em) {
-          const mAdd  = fc.mode === "add"      ? "selected" : "";
-          const mSet  = fc.mode === "set"      ? "selected" : "";
-          const mMul  = fc.mode === "multiply" ? "selected" : "";
-          html += `<div class="sd-prog-fc-row">
-            <input type="text" class="sd-prog-fc-path" value="${e(fc.path)}"
+    if (em && isGM) {
+      if (kind === "items") {
+        html += `<div class="sd-prog-items-zone sd-prog-choice-zone droppable" data-drop-target="choiceItem" data-level-idx="${i}" data-choice-idx="${gi}">`;
+        for (let j = 0; j < opts.length; j++) {
+          const it = opts[j];
+          const active = j === sel ? " active-variant" : "";
+          html += `<div class="sd-prog-item-chip${active}"
+            data-preview-kind="item"
+            data-preview-ref="choice:${i}:${gi}:${j}">
+            <img src="${e(it.img ?? "icons/svg/item-bag.svg")}">
+            <span>${e(it.name ?? "Item")}</span>
+            <button type="button" data-action="removeChoiceOption" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}" data-stop-preview="1"><i class="fas fa-times"></i></button>
+          </div>`;
+        }
+        html += `</div>`;
+      } else if (kind === "effects") {
+        html += `<div class="sd-prog-choice-list">`;
+        for (let j = 0; j < opts.length; j++) {
+          const ef = opts[j];
+          const active = j === sel ? " active-variant" : "";
+          html += `<div class="sd-prog-effect-chip${ef.disabled ? " disabled" : ""}${active}"
+            data-preview-kind="effect"
+            data-preview-ref="choice:${i}:${gi}:${j}">
+            <img src="${e(ef.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
+            <span class="sd-prog-effect-name">${e(ef.name ?? "Effect")}</span>
+            ${ef.changes?.length ? `<span class="sd-prog-effect-count">${ef.changes.length}</span>` : ""}
+            <button type="button" data-action="editChoiceEffect" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}" title="${loc("SD.Progression.EditEffect")}" data-stop-preview="1"><i class="fas fa-pen"></i></button>
+            <button type="button" data-action="removeChoiceOption" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}" data-stop-preview="1"><i class="fas fa-times"></i></button>
+          </div>`;
+        }
+        html += `<button type="button" class="sd-prog-mini-add wide" data-action="addChoiceEffect" data-level-idx="${i}" data-choice-idx="${gi}"><i class="fas fa-plus"></i> ${loc("SD.Progression.AddEffectOption") || "Add effect"}</button>`;
+        html += `</div>`;
+      } else if (kind === "fieldChanges") {
+        html += `<div class="sd-prog-choice-list">`;
+        for (let j = 0; j < opts.length; j++) {
+          const fc = opts[j];
+          const mAdd = fc.mode === "add" ? "selected" : "";
+          const mSet = fc.mode === "set" ? "selected" : "";
+          const mMul = fc.mode === "multiply" ? "selected" : "";
+          const active = j === sel ? " active-variant" : "";
+          html += `<div class="sd-prog-fc-row${active}"
+            data-preview-kind="fc"
+            data-preview-ref="choice:${i}:${gi}:${j}">
+            <input type="text" class="sd-prog-fc-path" value="${e(fc.path ?? "")}"
                    placeholder="system.resources.hp.max"
-                   data-action="fcChangePath" data-level-idx="${i}" data-fc-idx="${j}">
-            <select class="sd-prog-fc-mode" data-action="fcChangeMode" data-level-idx="${i}" data-fc-idx="${j}">
+                   data-action="choiceFcChangePath" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">
+            <select class="sd-prog-fc-mode" data-action="choiceFcChangeMode" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">
               <option value="add"      ${mAdd}>+</option>
               <option value="set"      ${mSet}>=</option>
               <option value="multiply" ${mMul}>×</option>
             </select>
-            <input type="text" class="sd-prog-fc-value" value="${e(fc.value)}"
+            <input type="text" class="sd-prog-fc-value" value="${e(fc.value ?? "")}"
                    placeholder="0"
-                   data-action="fcChangeValue" data-level-idx="${i}" data-fc-idx="${j}">
-            <button type="button" class="sd-prog-fc-del" data-action="removeFc" data-level-idx="${i}" data-fc-idx="${j}">
+                   data-action="choiceFcChangeValue" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">
+            <button type="button" class="sd-prog-fc-del" data-action="removeChoiceOption" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}" data-stop-preview="1">
               <i class="fas fa-times"></i></button>
           </div>`;
-        } else {
-          const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
-          html += `<div class="sd-prog-fc-view">
-            <code>${e(fc.path)}</code>
-            <span class="sd-prog-fc-sym">${sym}</span>
-            <strong>${e(fc.value)}</strong>
-          </div>`;
         }
+        html += `<button type="button" class="sd-prog-mini-add wide" data-action="addChoiceFc" data-level-idx="${i}" data-choice-idx="${gi}"><i class="fas fa-plus"></i> ${loc("SD.Progression.AddFcOption") || "Add field change"}</button>`;
+        html += `</div>`;
       }
-
-      html += `</div>`;
-
-      html += `<div class="sd-prog-le-col">
-        <div class="sd-prog-le-sec-title">
-          <i class="fas fa-magic"></i> ${loc("SD.Progression.Effects")}
-          ${em ? `<button type="button" class="sd-prog-mini-add" data-action="addEffect" data-level-idx="${i}"><i class="fas fa-plus"></i></button>` : ""}
-        </div>`;
-
-      const effects = lv.effects ?? [];
-      if (effects.length === 0) {
+    } else {
+      const opt = opts[sel];
+      if (!opt) {
         html += `<span class="sd-prog-empty-small">—</span>`;
-      }
-      for (let j = 0; j < effects.length; j++) {
-        const ef = effects[j];
-        const efTitle = ef.disabled ? `${e(ef.name ?? "Effect")} (${loc("SD.Progression.EffectDisabled")})` : e(ef.name ?? "Effect");
-        html += `<div class="sd-prog-effect-chip${ef.disabled ? " disabled" : ""}" title="${efTitle}">
-          <img src="${e(ef.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
-          <span class="sd-prog-effect-name">${e(ef.name ?? "Effect")}</span>
-          ${ef.changes?.length ? `<span class="sd-prog-effect-count" title="${loc("SD.Progression.EffectChangesCount")}">${ef.changes.length}</span>` : ""}
-          ${em ? `<button type="button" data-action="editEffect" data-level-idx="${i}" data-effect-idx="${j}" title="${loc("SD.Progression.EditEffect")}"><i class="fas fa-pen"></i></button>` : ""}
-          ${em ? `<button type="button" data-action="removeEffect" data-level-idx="${i}" data-effect-idx="${j}" title="${loc("SD.Progression.RemoveEffect")}"><i class="fas fa-times"></i></button>` : ""}
+      } else if (kind === "items") {
+        html += `<div class="sd-prog-item-chip variant-display"
+          data-preview-kind="item"
+          data-preview-ref="choice:${i}:${gi}:${sel}">
+          <img src="${e(opt.img ?? "icons/svg/item-bag.svg")}">
+          <span>${e(opt.name ?? "Item")}</span>
+        </div>`;
+      } else if (kind === "effects") {
+        html += `<div class="sd-prog-effect-chip variant-display"
+          data-preview-kind="effect"
+          data-preview-ref="choice:${i}:${gi}:${sel}">
+          <img src="${e(opt.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
+          <span class="sd-prog-effect-name">${e(opt.name ?? "Effect")}</span>
+          ${opt.changes?.length ? `<span class="sd-prog-effect-count">${opt.changes.length}</span>` : ""}
+        </div>`;
+      } else if (kind === "fieldChanges") {
+        const sym = opt.mode === "set" ? "=" : opt.mode === "multiply" ? "×" : "+";
+        html += `<div class="sd-prog-fc-view variant-display"
+          data-preview-kind="fc"
+          data-preview-ref="choice:${i}:${gi}:${sel}">
+          <code>${e(opt.path ?? "")}</code>
+          <span class="sd-prog-fc-sym">${sym}</span>
+          <strong>${e(String(opt.value ?? ""))}</strong>
         </div>`;
       }
+    }
 
-      html += `</div>`;
+    html += `</div>`;
 
-      html += `</div>`;
+    if (opts.length > 1) {
+      html += `<div class="sd-prog-variant-switcher" data-level-idx="${i}" data-choice-idx="${gi}">`;
+      for (let j = 0; j < opts.length; j++) {
+        html += `<button type="button" class="sd-prog-variant-btn${j === sel ? " active" : ""}" data-action="pickVariant" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">${j + 1}</button>`;
+      }
       html += `</div>`;
     }
 
@@ -587,6 +1107,8 @@ export class ProgressionApp extends ApplicationV2 {
           const nodeTitle = node.item ? (loc("SD.Progression.RightClickOpen") || "Right-click to open item") : "";
           html += `<div class="${cls}" style="${style}${bgStyle}"
                    data-node-id="${e(node.id)}"
+                   data-preview-kind="node"
+                   data-preview-ref="node:${e(node.id)}"
                    ${nodeTitle ? `title="${nodeTitle}"` : ""}
                    data-action="${em ? "stNodeClick" : canAcquire ? "acquireNode" : ""}">`;
 
@@ -645,6 +1167,116 @@ export class ProgressionApp extends ApplicationV2 {
     return prereqs.every(pid => (acquiredNodes[pid] ?? 0) > 0);
   }
 
+  _resolvePreview(ref) {
+    if (!ref) return null;
+    const parts = String(ref).split(":");
+    const scope = parts[0];
+    if (scope === "level") {
+      const li   = parseInt(parts[1]);
+      const sub  = parts[2];
+      const j    = parseInt(parts[3]);
+      const lv   = this._levels?.[li];
+      if (!lv) return null;
+      if (sub === "items") {
+        const it = lv.items?.[j];
+        return it ? { kind: "item", data: it, label: it.name, subtitle: it.type } : null;
+      }
+      if (sub === "fc") {
+        const fc = lv.fieldChanges?.[j];
+        return fc ? { kind: "fc", data: fc, label: fc.path } : null;
+      }
+      if (sub === "effects") {
+        const ef = lv.effects?.[j];
+        return ef ? { kind: "effect", data: ef, label: ef.name } : null;
+      }
+    } else if (scope === "choice") {
+      const li = parseInt(parts[1]);
+      const gi = parseInt(parts[2]);
+      const oi = parseInt(parts[3]);
+      const ch = this._levels?.[li]?.choices?.[gi];
+      if (!ch) return null;
+      const opt = ch.options?.[oi];
+      if (!opt) return null;
+      const kind = ch.kind ?? "items";
+      if (kind === "items")        return { kind: "item",   data: opt, label: opt.name, subtitle: opt.type };
+      if (kind === "effects")      return { kind: "effect", data: opt, label: opt.name };
+      if (kind === "fieldChanges") return { kind: "fc",     data: opt, label: opt.path };
+    } else if (scope === "node") {
+      const id   = parts[1];
+      const node = this._skilltree?.nodes?.find(n => n.id === id);
+      return node ? { kind: "node", data: node } : null;
+    }
+    return null;
+  }
+
+  _refreshPreviewPane() {
+    const root = this.element?.querySelector(".sd-prog-preview");
+    if (!root) return;
+    const payload = this._pinnedPreview ?? this._hoverPreview;
+    root.dataset.pinned = this._pinnedPreview ? "1" : "0";
+    root.innerHTML = this._renderPreviewInner(payload);
+    this._wirePreviewPaneEvents(root);
+  }
+
+  _wirePreviewPaneEvents(root) {
+    const unpin = root.querySelector("[data-action='unpinPreview']");
+    if (unpin) unpin.addEventListener("click", ev => { ev.stopPropagation(); this._pinnedPreview = null; this._refreshPreviewPane(); });
+
+    root.querySelectorAll("[data-preview-tab-id]").forEach(btn => {
+      btn.addEventListener("click", ev => {
+        ev.stopPropagation();
+        this._previewTabId = btn.dataset.previewTabId;
+        this._refreshPreviewPane();
+      });
+    });
+  }
+
+  _wirePreviewHandlers(el) {
+    const refresh = () => this._refreshPreviewPane();
+    const samePayload = (a, b) => {
+      if (!a || !b) return false;
+      if (a.kind !== b.kind) return false;
+      const aRef = a.data?._id ?? a.data?.id ?? a.data?.path ?? a.data?.name;
+      const bRef = b.data?._id ?? b.data?.id ?? b.data?.path ?? b.data?.name;
+      return aRef === bRef;
+    };
+
+    el.querySelectorAll("[data-preview-ref]").forEach(node => {
+      node.addEventListener("mouseenter", () => {
+        if (this._pinnedPreview) return;
+        const payload = this._resolvePreview(node.dataset.previewRef);
+        if (!samePayload(this._hoverPreview, payload)) this._previewTabId = null;
+        this._hoverPreview = payload;
+        refresh();
+      });
+      node.addEventListener("mouseleave", () => {
+        if (this._pinnedPreview) return;
+        this._hoverPreview = null;
+        refresh();
+      });
+      node.addEventListener("click", ev => {
+        if (ev.target.closest("[data-stop-preview]")) return;
+        if (ev.target.closest("input,select,textarea")) return;
+        const btnAction = ev.target.closest("button[data-action]");
+        if (btnAction && btnAction !== node) return;
+        const payload = this._resolvePreview(node.dataset.previewRef);
+        if (!payload) return;
+        if (samePayload(this._pinnedPreview, payload)) {
+          this._pinnedPreview = null;
+        } else {
+          if (!samePayload(this._pinnedPreview, payload)) this._previewTabId = null;
+          this._pinnedPreview = payload;
+        }
+        this._hoverPreview = null;
+        refresh();
+      });
+    });
+
+    // Re-wire preview pane events (unpin + tabs) on initial render
+    const previewRoot = el.querySelector(".sd-prog-preview");
+    if (previewRoot) this._wirePreviewPaneEvents(previewRoot);
+  }
+
   _onRender(context, options) {
     const el = this.element;
 
@@ -655,6 +1287,8 @@ export class ProgressionApp extends ApplicationV2 {
     el.querySelectorAll(".sd-progression-app [data-action], .window-content [data-action]").forEach(btn =>
       btn.addEventListener("click", ev => { ev.stopPropagation(); this._handleAction(btn); })
     );
+
+    this._wirePreviewHandlers(el);
 
     el.querySelectorAll("[data-action='changeLevelLabel']").forEach(inp =>
       inp.addEventListener("change", ev =>
@@ -671,6 +1305,31 @@ export class ProgressionApp extends ApplicationV2 {
     el.querySelectorAll("[data-action='fcChangeValue']").forEach(inp =>
       inp.addEventListener("change", ev =>
         this._updateFc(+ev.target.dataset.levelIdx, +ev.target.dataset.fcIdx, "value", ev.target.value))
+    );
+
+    el.querySelectorAll("[data-action='choiceChangeLabel']").forEach(inp =>
+      inp.addEventListener("change", ev =>
+        this._updateChoiceField(+ev.target.dataset.levelIdx, +ev.target.dataset.choiceIdx, "label", ev.target.value))
+    );
+    el.querySelectorAll("[data-action='choiceChangeKind']").forEach(sel =>
+      sel.addEventListener("change", ev =>
+        this._updateChoiceField(+ev.target.dataset.levelIdx, +ev.target.dataset.choiceIdx, "kind", ev.target.value, true))
+    );
+    el.querySelectorAll("[data-action='choiceChangePicks']").forEach(inp =>
+      inp.addEventListener("change", ev =>
+        this._updateChoiceField(+ev.target.dataset.levelIdx, +ev.target.dataset.choiceIdx, "picks", Math.max(1, Number(ev.target.value) || 1)))
+    );
+    el.querySelectorAll("[data-action='choiceFcChangePath']").forEach(inp =>
+      inp.addEventListener("change", ev =>
+        this._updateChoiceFc(+ev.target.dataset.levelIdx, +ev.target.dataset.choiceIdx, +ev.target.dataset.optIdx, "path", ev.target.value))
+    );
+    el.querySelectorAll("[data-action='choiceFcChangeMode']").forEach(sel =>
+      sel.addEventListener("change", ev =>
+        this._updateChoiceFc(+ev.target.dataset.levelIdx, +ev.target.dataset.choiceIdx, +ev.target.dataset.optIdx, "mode", ev.target.value))
+    );
+    el.querySelectorAll("[data-action='choiceFcChangeValue']").forEach(inp =>
+      inp.addEventListener("change", ev =>
+        this._updateChoiceFc(+ev.target.dataset.levelIdx, +ev.target.dataset.choiceIdx, +ev.target.dataset.optIdx, "value", ev.target.value))
     );
 
     el.querySelectorAll("[data-action='stSetCols']").forEach(inp =>
@@ -806,6 +1465,20 @@ export class ProgressionApp extends ApplicationV2 {
         if (action === "dropSkilltreeItem") this._handleSkilltreeItemDrop(ev);
       });
     });
+
+    el.querySelectorAll(".sd-prog-items-zone.droppable").forEach(zone => {
+      zone.addEventListener("dragover",  ev => { ev.preventDefault(); zone.classList.add("drag-over"); });
+      zone.addEventListener("dragleave", ()  => zone.classList.remove("drag-over"));
+      zone.addEventListener("drop",      ev  => {
+        zone.classList.remove("drag-over");
+        const target = zone.dataset.dropTarget;
+        if (target === "levelItem") {
+          this._handleItemDrop(ev, +zone.dataset.levelIdx);
+        } else if (target === "choiceItem") {
+          this._handleChoiceItemDrop(ev, +zone.dataset.levelIdx, +zone.dataset.choiceIdx);
+        }
+      });
+    });
   }
 
   async _handleAction(target) {
@@ -866,6 +1539,50 @@ export class ProgressionApp extends ApplicationV2 {
       case "editEffect":
         if (!isGM) return;
         await this._editEffect(+target.dataset.levelIdx, +target.dataset.effectIdx);
+        break;
+
+      case "addChoice":
+        if (!isGM) return;
+        await this._addChoice(+target.dataset.levelIdx, target.dataset.kind ?? "items");
+        break;
+
+      case "pickVariant": {
+        const li = +target.dataset.levelIdx;
+        const ci = +target.dataset.choiceIdx;
+        const oi = +target.dataset.optIdx;
+        this._setVariantSel(li, ci, oi);
+        this.render();
+        break;
+      }
+
+      case "unpinPreview":
+        this._pinnedPreview = null;
+        this._refreshPreviewPane();
+        break;
+
+      case "removeChoice":
+        if (!isGM) return;
+        await this._removeChoice(+target.dataset.levelIdx, +target.dataset.choiceIdx);
+        break;
+
+      case "removeChoiceOption":
+        if (!isGM) return;
+        await this._removeChoiceOption(+target.dataset.levelIdx, +target.dataset.choiceIdx, +target.dataset.optIdx);
+        break;
+
+      case "addChoiceEffect":
+        if (!isGM) return;
+        await this._addChoiceEffect(+target.dataset.levelIdx, +target.dataset.choiceIdx);
+        break;
+
+      case "editChoiceEffect":
+        if (!isGM) return;
+        await this._editChoiceEffect(+target.dataset.levelIdx, +target.dataset.choiceIdx, +target.dataset.optIdx);
+        break;
+
+      case "addChoiceFc":
+        if (!isGM) return;
+        await this._addChoiceFc(+target.dataset.levelIdx, +target.dataset.choiceIdx);
         break;
 
       case "acquireNode": {
@@ -1037,6 +1754,115 @@ export class ProgressionApp extends ApplicationV2 {
     this.render();
   }
 
+  async _addChoice(levelIdx, kind = "items") {
+    const safeKind = ["items", "effects", "fieldChanges"].includes(kind) ? kind : "items";
+    const levels = dc(this._levels);
+    if (!levels[levelIdx]) return;
+    levels[levelIdx].choices ??= [];
+    levels[levelIdx].choices.push({
+      id: rndId(),
+      label: "",
+      kind: safeKind,
+      picks: 1,
+      options: []
+    });
+    await this._saveLevels(levels);
+    this.render();
+  }
+
+  async _removeChoice(levelIdx, choiceIdx) {
+    const levels = dc(this._levels);
+    levels[levelIdx]?.choices?.splice(choiceIdx, 1);
+    await this._saveLevels(levels);
+    this.render();
+  }
+
+  async _updateChoiceField(levelIdx, choiceIdx, field, value, clearOptionsOnKindChange = false) {
+    const levels = dc(this._levels);
+    const ch = levels?.[levelIdx]?.choices?.[choiceIdx];
+    if (!ch) return;
+    ch[field] = value;
+    if (clearOptionsOnKindChange && field === "kind") ch.options = [];
+    await this._saveLevels(levels);
+    if (clearOptionsOnKindChange) this.render();
+  }
+
+  async _removeChoiceOption(levelIdx, choiceIdx, optIdx) {
+    const levels = dc(this._levels);
+    levels?.[levelIdx]?.choices?.[choiceIdx]?.options?.splice(optIdx, 1);
+    await this._saveLevels(levels);
+    this.render();
+  }
+
+  async _handleChoiceItemDrop(event, levelIdx, choiceIdx) {
+    event.preventDefault();
+    const data = (foundry.applications.ux?.TextEditor?.implementation ?? TextEditor).getDragEventData(event);
+    if (data?.type !== "Item") return;
+    const item = await this._resolveDropItem(data);
+    if (!item) return;
+
+    const snap          = item.toObject();
+    snap._sourceUuid    = data.uuid;
+    const levels        = dc(this._levels);
+    const ch = levels?.[levelIdx]?.choices?.[choiceIdx];
+    if (!ch) return;
+    ch.options ??= [];
+    ch.options.push(snap);
+    await this._saveLevels(levels);
+    this.render();
+  }
+
+  async _addChoiceEffect(levelIdx, choiceIdx) {
+    const name = await this._promptString(loc("SD.Progression.EffectName"), loc("SD.Progression.NewEffect"));
+    if (!name) return;
+    const levels = dc(this._levels);
+    const ch = levels?.[levelIdx]?.choices?.[choiceIdx];
+    if (!ch) return;
+    ch.options ??= [];
+    ch.options.push({
+      _id: rndId(), name, icon: "icons/svg/aura.svg",
+      origin: this._actor.uuid, changes: [], disabled: false, duration: {}, flags: {}
+    });
+    await this._saveLevels(levels);
+    this.render();
+  }
+
+  async _editChoiceEffect(levelIdx, choiceIdx, optIdx) {
+    const levels = dc(this._levels);
+    const ef = levels?.[levelIdx]?.choices?.[choiceIdx]?.options?.[optIdx];
+    if (!ef) return;
+    const updated = await _editEffectViaStandardConfig(ef, {
+      parent: this._actor,
+      title:  `${loc("SD.Progression.EditEffect")}: ${ef.name ?? ""}`
+    });
+    if (!updated) return;
+    const lvls = dc(this._levels);
+    const target = lvls?.[levelIdx]?.choices?.[choiceIdx]?.options?.[optIdx];
+    if (!target) return;
+    Object.assign(target, updated);
+    target.img = updated.img ?? updated.icon ?? target.img;
+    await this._saveLevels(lvls);
+    this.render();
+  }
+
+  async _addChoiceFc(levelIdx, choiceIdx) {
+    const levels = dc(this._levels);
+    const ch = levels?.[levelIdx]?.choices?.[choiceIdx];
+    if (!ch) return;
+    ch.options ??= [];
+    ch.options.push({ path: this._spMaxPath, mode: "add", value: "1" });
+    await this._saveLevels(levels);
+    this.render();
+  }
+
+  async _updateChoiceFc(levelIdx, choiceIdx, optIdx, field, value) {
+    const levels = dc(this._levels);
+    const fc = levels?.[levelIdx]?.choices?.[choiceIdx]?.options?.[optIdx];
+    if (!fc) return;
+    fc[field] = value;
+    await this._saveLevels(levels);
+  }
+
   async _applyLevel(levelIdx) {
     const levels = this._levels;
     const lv     = levels[levelIdx];
@@ -1049,6 +1875,13 @@ export class ProgressionApp extends ApplicationV2 {
     });
     if (!confirmed) return;
 
+    const choiceGroups = Array.isArray(lv.choices) ? lv.choices.filter(c => Array.isArray(c.options) && c.options.length > 0) : [];
+    let pickedByGroup = null;
+    if (choiceGroups.length) {
+      pickedByGroup = await ProgressionApp._promptChoices(lv, choiceGroups);
+      if (!pickedByGroup) return;
+    }
+
     const actor = this._actor;
 
     const snapshot = {
@@ -1060,11 +1893,29 @@ export class ProgressionApp extends ApplicationV2 {
     };
 
     const updates = {};
-    for (const fc of (lv.fieldChanges ?? [])) {
+    const collectFieldChange = (fc) => {
+      if (!fc || !fc.path) return;
       if (!(fc.path in snapshot.prevValues)) {
         snapshot.prevValues[fc.path] = getNestedValue(actor, fc.path);
       }
       Object.assign(updates, buildFieldUpdate(actor, fc));
+    };
+    for (const fc of (lv.fieldChanges ?? [])) collectFieldChange(fc);
+
+    const extraItems   = [];
+    const extraEffects = [];
+    if (pickedByGroup) {
+      for (let gi = 0; gi < choiceGroups.length; gi++) {
+        const ch = choiceGroups[gi];
+        const picks = pickedByGroup[gi] ?? [];
+        for (const optIdx of picks) {
+          const opt = ch.options[optIdx];
+          if (!opt) continue;
+          if (ch.kind === "items")        extraItems.push(opt);
+          else if (ch.kind === "effects") extraEffects.push(opt);
+          else if (ch.kind === "fieldChanges") collectFieldChange(opt);
+        }
+      }
     }
 
     if (!("system.advancement.level" in snapshot.prevValues)) {
@@ -1074,13 +1925,13 @@ export class ProgressionApp extends ApplicationV2 {
 
     if (Object.keys(updates).length) await actor.update(updates);
 
-    const itemDatas = (lv.items ?? []).map(snap => { const d = dc(snap); delete d._id; return d; });
+    const itemDatas = [...(lv.items ?? []), ...extraItems].map(snap => { const d = dc(snap); delete d._id; return d; });
     if (itemDatas.length) {
       const created = await actor.createEmbeddedDocuments("Item", itemDatas);
       snapshot.grantedItemIds = (created ?? []).map(d => d.id);
     }
 
-    const effectDatas = (lv.effects ?? []).map(ef => { const d = dc(ef); delete d._id; return d; });
+    const effectDatas = [...(lv.effects ?? []), ...extraEffects].map(ef => { const d = dc(ef); delete d._id; return d; });
     if (effectDatas.length) {
       const created = await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
       snapshot.grantedEffectIds = (created ?? []).map(d => d.id);
@@ -1094,6 +1945,152 @@ export class ProgressionApp extends ApplicationV2 {
 
     ui.notifications.info(loc("SD.Progression.LevelApplied").replace("{level}", lv.level));
     this.render();
+  }
+
+  /**
+   * Show a grid-based picker for the level's choice groups.
+   * Returns a Map of groupIndex -> Array<optionIndex>, or null if cancelled.
+   */
+  static async _promptChoices(lv, choiceGroups) {
+    const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+
+    const groupsHtml = choiceGroups.map((ch, gi) => {
+      const picks = Math.max(1, Number(ch.picks) || 1);
+      const opts  = Array.isArray(ch.options) ? ch.options : [];
+      const kind  = ch.kind ?? "items";
+
+      const kindLabel = kind === "items" ? loc("SD.Progression.Items")
+                     : kind === "effects" ? loc("SD.Progression.Effects")
+                     : loc("SD.Progression.FieldChanges");
+
+      const cards = opts.map((opt, oi) => {
+        let title = "";
+        let icon  = "icons/svg/mystery-man.svg";
+        let body  = "";
+        if (kind === "items") {
+          title = opt.name ?? "Item";
+          icon  = opt.img ?? "icons/svg/item-bag.svg";
+          const t = opt.type ?? "";
+          if (t) body = `<div class="sd-prog-pick-card-sub">${escHtml(t)}</div>`;
+        } else if (kind === "effects") {
+          title = opt.name ?? "Effect";
+          icon  = opt.icon ?? opt.img ?? "icons/svg/aura.svg";
+          const cnt = Array.isArray(opt.changes) ? opt.changes.length : 0;
+          if (cnt) body = `<div class="sd-prog-pick-card-sub">${cnt} ${loc("SD.Progression.EffectChanges")}</div>`;
+        } else {
+          title = opt.path ?? "(field)";
+          const sym = opt.mode === "set" ? "=" : opt.mode === "multiply" ? "×" : "+";
+          body = `<div class="sd-prog-pick-card-sub"><code>${escHtml(opt.path ?? "")}</code> <strong>${escHtml(sym)} ${escHtml(opt.value ?? "")}</strong></div>`;
+          icon = "icons/svg/upgrade.svg";
+        }
+        return `<button type="button" class="sd-prog-pick-card" data-group="${gi}" data-opt="${oi}">
+          <img src="${escHtml(icon)}" alt="">
+          <div class="sd-prog-pick-card-name">${escHtml(title)}</div>
+          ${body}
+        </button>`;
+      }).join("");
+
+      const headerLabel = ch.label ? escHtml(ch.label) : `${kindLabel}`;
+      return `<section class="sd-prog-pick-group" data-group="${gi}" data-picks="${picks}" data-selected="0">
+        <header class="sd-prog-pick-group-hdr">
+          <div class="sd-prog-pick-group-title">
+            <i class="fas fa-code-branch"></i>
+            <span>${headerLabel}</span>
+            <span class="sd-prog-pick-group-kind">${kindLabel}</span>
+          </div>
+          <div class="sd-prog-pick-group-counter">
+            <span class="sd-prog-pick-cur">0</span> / <span class="sd-prog-pick-max">${picks}</span>
+          </div>
+        </header>
+        <div class="sd-prog-pick-grid">${cards}</div>
+      </section>`;
+    }).join("");
+
+    const content = `<div class="sd-prog-pick-dialog">
+      <div class="sd-prog-pick-intro">${loc("SD.Progression.PickIntro").replace("{level}", lv.level)}</div>
+      ${groupsHtml}
+    </div>`;
+
+    const result = await foundry.applications.api.DialogV2.wait({
+      window:  { title: loc("SD.Progression.PickTitle") },
+      classes: ["sd", "sd-progression-pick"],
+      content,
+      position: { width: 720 },
+      buttons: [
+        {
+          action: "ok",
+          label:  loc("SD.Progression.Apply"),
+          icon:   "fas fa-check",
+          default: true,
+          callback: (event, button, dialog) => {
+            const root = dialog.element;
+            const out  = {};
+            const groups = root.querySelectorAll(".sd-prog-pick-group");
+            for (const g of groups) {
+              const gi    = Number(g.dataset.group);
+              const picks = Number(g.dataset.picks);
+              const sel   = [...g.querySelectorAll(".sd-prog-pick-card.is-selected")].map(b => Number(b.dataset.opt));
+              if (sel.length !== picks) {
+                const msg = (loc("SD.Progression.PickMustChoose") || "Choose {n} options").replace("{n}", picks);
+                ui.notifications.warn(msg);
+                return false;
+              }
+              out[gi] = sel;
+            }
+            return out;
+          }
+        }
+      ],
+      render: (event, dialog) => {
+        const root = dialog.element;
+
+        const updateApplyState = () => {
+          let allValid = true;
+          for (const g of root.querySelectorAll(".sd-prog-pick-group")) {
+            const max = Number(g.dataset.picks);
+            const sel = g.querySelectorAll(".sd-prog-pick-card.is-selected").length;
+            if (sel !== max) { allValid = false; break; }
+          }
+          const okBtn = root.querySelector("button[data-action='ok']");
+          if (okBtn) {
+            okBtn.disabled = !allValid;
+            okBtn.classList.toggle("is-disabled", !allValid);
+          }
+        };
+
+        root.querySelectorAll(".sd-prog-pick-group").forEach(group => {
+          const max = Number(group.dataset.picks);
+          const cur = group.querySelector(".sd-prog-pick-cur");
+          group.querySelectorAll(".sd-prog-pick-card").forEach(btn => {
+            btn.addEventListener("click", (ev) => {
+              ev.preventDefault();
+              const selected = group.querySelectorAll(".sd-prog-pick-card.is-selected").length;
+              if (btn.classList.contains("is-selected")) {
+                btn.classList.remove("is-selected");
+              } else {
+                if (max === 1) {
+                  group.querySelectorAll(".sd-prog-pick-card.is-selected").forEach(b => b.classList.remove("is-selected"));
+                  btn.classList.add("is-selected");
+                } else if (selected < max) {
+                  btn.classList.add("is-selected");
+                }
+              }
+              const c = group.querySelectorAll(".sd-prog-pick-card.is-selected").length;
+              if (cur) cur.textContent = String(c);
+              group.dataset.selected = String(c);
+              updateApplyState();
+            });
+          });
+        });
+
+        updateApplyState();
+      },
+      rejectClose: false
+    }).catch(() => null);
+
+    if (result === null || result === undefined) return null;
+    if (result === false) return null;
+    return result;
   }
 
   async _rollbackLevel(levelIdx) {

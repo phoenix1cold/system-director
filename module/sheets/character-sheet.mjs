@@ -124,6 +124,18 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     TabManager.activate(this);
   }
 
+  // submitOnChange auto-submits the form on any input/change event from a
+  // descendant. Our inline editors (richtext textarea, wcfg popup inputs)
+  // must NOT trigger a sheet submit — submitting tears down their DOM mid-edit
+  // and silently discards user input. The popup lives in document.body so it
+  // isn't a descendant of the sheet form, but its synthetic change events can
+  // still surface here when the user is editing widget styles. Guard both.
+  _onChangeForm(formConfig, event) {
+    const t = event?.target;
+    if (t?.closest?.(".richtext-editor, .richtext-edit-wrap, .sd-wcfg-popup")) return;
+    return super._onChangeForm(formConfig, event);
+  }
+
   _wireTrackerDelegation() {
     const root = this.element;
     if (!root || root.dataset.sdTrackerDelegated === "1") return;

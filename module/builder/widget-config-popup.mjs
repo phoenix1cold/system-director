@@ -369,12 +369,12 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     <div class="wcfg-f" style="margin-top:10px;border-top:1px solid var(--sd-bg-3);padding-top:10px">
       <label class="wcfg-lbl" style="margin-bottom:4px;display:block">Show if…</label>
       <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:5px;align-items:center">
-        <select id="wcfg-showif-key" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px">
+        <select id="wcfg-showif-key" data-field="showIfKey" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px">
           <option value="">— Always show —</option>
           ${_showIfSources.map(s => `<option value="${esc(s.value)}" ${_showIfKey===s.value?"selected":""}>${esc(s.label)}</option>`).join("")}
         </select>
         <span style="color:var(--sd-text-3);font-size:11px;flex-shrink:0">=</span>
-        <input id="wcfg-showif-value" type="text" placeholder="e.g. true, 1, sword"
+        <input id="wcfg-showif-value" data-field="showIfValue" data-ftype="text" type="text" placeholder="e.g. true, 1, sword"
           value="${esc(_showIfValue)}"
           style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px;width:100%;box-sizing:border-box">
       </div>
@@ -799,15 +799,12 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     });
   });
 
-  const _syncShowIf = () => {
-    const keyEl = popup.querySelector("#wcfg-showif-key");
-    const valEl = popup.querySelector("#wcfg-showif-value");
-    if (!keyEl) return;
-    w.showIfKey   = keyEl.value;
-    w.showIfValue = valEl?.value ?? "";
-  };
-  popup.querySelector("#wcfg-showif-key")?.addEventListener("change", _syncShowIf);
-  popup.querySelector("#wcfg-showif-value")?.addEventListener("input",  _syncShowIf);
+  // showIf key/value live entirely in the popup until save. Previously these
+  // were written directly back onto `w` on every keystroke, which mutated the
+  // live widget reference inside doc.system.customTabs without going through
+  // doc.update — causing inconsistent state between renders and, when the
+  // doSave overwrote unrelated fields, silently reverting unsaved edits.
+  // The values are now collected in doSave by reading the popup directly.
 
   const slotRowsContainer = popup.querySelector("#wcfg-slotrows");
   const slotAddBtn        = popup.querySelector("#wcfg-slot-add");
@@ -953,6 +950,47 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       changes[el.dataset.field] = el.value;
     });
 
+    // Path validation: detect path-type fields whose values don't resolve in
+    // the document schema (and aren't under a known writable prefix like
+    // hiddenFields / flags / slotContents). Foundry silently drops unknown
+    // keys on doc.update, so without this dialog a renamed path looks like
+    // "Save button doesn't work" to the user.
+    const _unknownPaths = [];
+    popup.querySelectorAll("input[data-field][data-ftype='path']").forEach(el => {
+      const raw = String(el.value ?? "").trim();
+      if (!raw) return;
+      if (_isPathWritable(doc, raw)) return;
+      _unknownPaths.push({ key: el.dataset.field, value: raw, input: el });
+    });
+
+    const _hfUpdates = {};
+    if (_unknownPaths.length) {
+      const listHtml = _unknownPaths.map(p => {
+        const newKey = _hiddenFieldKeyFor(p.value);
+        return `<li style="margin-bottom:4px"><code>${esc(p.value)}</code> &rarr; <code>system.hiddenFields.${esc(newKey)}</code></li>`;
+      }).join("");
+      const confirmed = await foundry.applications.api.DialogV2.confirm({
+        window: { title: "Create new data path?" },
+        content: `
+          <div style="padding:8px;font-size:12px;line-height:1.5">
+            <p style="margin:0 0 8px 0">The following path${_unknownPaths.length>1?"s do":" does"} not exist in this document's schema and would be silently dropped on save:</p>
+            <ul style="margin:0 0 8px 18px;padding:0">${listHtml}</ul>
+            <p style="margin:0;color:var(--sd-text-2,#aaa)">Create ${_unknownPaths.length>1?"them":"it"} automatically as <code>system.hiddenFields.&lt;name&gt;</code>? You can store and read freely from hidden fields.</p>
+          </div>`,
+        rejectClose: false
+      });
+      if (confirmed) {
+        for (const p of _unknownPaths) {
+          const newKey  = _hiddenFieldKeyFor(p.value);
+          const newPath = `system.hiddenFields.${newKey}`;
+          changes[p.key] = newPath;
+          if (p.input) p.input.value = newPath;
+          const existing = foundry.utils.getProperty(doc, newPath);
+          if (existing === undefined) _hfUpdates[newPath] = "";
+        }
+      }
+    }
+
     const tabs   = foundry.utils.deepClone(doc.system.customTabs ?? []);
     const _findWidgetDeep = (list, id) => {
       if (!Array.isArray(list)) return null;
@@ -977,12 +1015,12 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         if (defIdx !== -1) {
           if (changes.maxCount !== undefined) defs[defIdx].maxCount = Math.max(1, parseInt(changes.maxCount) || 1);
           if (changes.label    !== undefined) defs[defIdx].label    = changes.label || defs[defIdx].label;
-          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs });
+          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates });
         } else {
-          await doc.update({ "system.customTabs": tabs });
+          await doc.update({ "system.customTabs": tabs, ..._hfUpdates });
         }
       } else {
-        await doc.update({ "system.customTabs": tabs });
+        await doc.update({ "system.customTabs": tabs, ..._hfUpdates });
       }
 
       ui.notifications?.info?.(`Widget "${widget.label || widget.type}" saved.`);
@@ -1070,4 +1108,43 @@ function _buildPathList(doc) {
   }
 
   return paths;
+}
+
+// Returns true when `path` either resolves to an existing property on `doc` or
+// targets a writable bag the schema declares as an ObjectField / flags-style
+// container. Anything else would be silently dropped by Foundry on update.
+function _isPathWritable(doc, path) {
+  if (!doc || typeof path !== "string") return true;
+  if (!path) return true;
+
+  if (path.startsWith("system.hiddenFields.")) return true;
+  if (path.startsWith("system.flags."))        return true;
+  if (path.startsWith("flags."))               return true;
+  if (path.startsWith("system.slotContents.")) return true;
+  if (path.startsWith("system.customFields.")) return true;
+
+  if (foundry.utils.getProperty(doc, path) !== undefined) return true;
+
+  const declared = doc.system?.declaredAttrs ?? [];
+  if (declared.some(a => a?.path && (a.path === path || path.startsWith(a.path + ".")))) return true;
+
+  return false;
+}
+
+// Convert a user-typed path or bare identifier into a safe hidden-field key.
+// Examples:
+//   "my_notes"                       → "my_notes"
+//   "system.biography.notes_a"       → "notes_a"
+//   "system.hiddenFields.foo.bar"    → "foo_bar"
+//   "Some Label!"                    → "Some_Label_"
+function _hiddenFieldKeyFor(raw) {
+  let s = String(raw ?? "").trim();
+  if (s.startsWith("system.hiddenFields.")) s = s.slice("system.hiddenFields.".length);
+  else {
+    const parts = s.split(".").filter(Boolean);
+    s = parts[parts.length - 1] || "field";
+  }
+  s = s.replace(/[^A-Za-z0-9_]/g, "_");
+  if (!/^[A-Za-z_]/.test(s)) s = "_" + s;
+  return s;
 }

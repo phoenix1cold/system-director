@@ -898,6 +898,16 @@ export class SDActionHUD {
         const isTransparent = explicitTransparent || (defaultTransparent && !explicitOpaque);
         if (isTransparent) cell.dataset.transparent = "true";
 
+        const DROPDOWN_TYPES = ["inventory", "effects", "spellbook"];
+        const supportsHideLabel = !DROPDOWN_TYPES.includes(widgetDef.type);
+        if (entry.hideLabel === true && supportsHideLabel) cell.dataset.hideLabel = "true";
+
+        if (Number.isFinite(entry.scale) && entry.scale > 0 && entry.scale !== 100) {
+          const s = Math.min(Math.max(entry.scale, 25), 400) / 100;
+          cell.style.setProperty("--sd-hud-cell-scale", s);
+          cell.dataset.cellScaled = "true";
+        }
+
         const COMPACTABLE = ["inventory", "effects", "spellbook", "slot"];
         let renderDef = widgetDef;
         if (COMPACTABLE.includes(widgetDef.type)) {
@@ -963,14 +973,24 @@ export class SDActionHUD {
       const entry = entries[i];
       if (!entry) return;
 
+      const widgetDef = SDActionHUD._resolveWidget(entry, SDActionHUD._actor);
+      const widgetType = widgetDef?.type ?? "";
+      const DROPDOWN_TYPES = ["inventory", "effects", "spellbook"];
+      const supportsHideLabel = !DROPDOWN_TYPES.includes(widgetType);
+
       let overlay = cell.querySelector(".sd-hud-cell-overlay");
       if (!overlay) {
         overlay = document.createElement("div");
         overlay.className = "sd-hud-cell-overlay";
+        const hideLabelBtn = supportsHideLabel
+          ? `<button type="button" data-act="hideLabel" title="${game.i18n.localize("SD.ActionHud.Cell.HideLabel")}"><i class="fas fa-tag"></i></button>`
+          : "";
         overlay.innerHTML = `
           <div class="sd-hud-cell-bar">
             <span class="sd-hud-cell-grab" title="Drag"><i class="fas fa-up-down-left-right"></i></span>
             <span class="sd-hud-cell-label"></span>
+            <button type="button" data-act="scale" title="${game.i18n.localize("SD.ActionHud.Cell.Scale")}"><i class="fas fa-expand"></i></button>
+            ${hideLabelBtn}
             <button type="button" data-act="transparent" title="Toggle transparent background"><i class="fas fa-droplet-slash"></i></button>
             <button type="button" data-act="edit" title="Edit"><i class="fas fa-gear"></i></button>
             <button type="button" data-act="delete" title="Remove"><i class="fas fa-trash"></i></button>
@@ -1094,6 +1114,32 @@ export class SDActionHUD {
         });
       }
 
+      const hideLblBtn = overlay.querySelector("button[data-act='hideLabel']");
+      if (hideLblBtn) {
+        hideLblBtn.classList.toggle("is-on", entry.hideLabel === true);
+        hideLblBtn.addEventListener("click", async (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const idx = i;
+          await SDActionHUD._mutateEntries((arr) => {
+            if (!arr[idx]) return;
+            if (arr[idx].hideLabel === true) delete arr[idx].hideLabel;
+            else arr[idx].hideLabel = true;
+          });
+        });
+      }
+
+      const scaleBtn = overlay.querySelector("button[data-act='scale']");
+      if (scaleBtn) {
+        const isScaled = Number.isFinite(entry.scale) && entry.scale > 0 && entry.scale !== 100;
+        scaleBtn.classList.toggle("is-on", isScaled);
+        scaleBtn.addEventListener("click", async (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          await SDActionHUD._editCellScale(i);
+        });
+      }
+
       const editBtn = overlay.querySelector("button[data-act='edit']");
       editBtn?.addEventListener("click", async (ev) => {
         ev.preventDefault();
@@ -1195,6 +1241,44 @@ export class SDActionHUD {
     }
   }
 
+  static async _editCellScale(idx) {
+    if (!this._actor) return;
+    const layout = foundry.utils.deepClone(game.settings.get("sd", "actionHud") ?? {});
+    const typeKey = this._actor.type === "npc" ? "npc" : "character";
+    const arr = layout?.[typeKey]?.entries;
+    const entry = Array.isArray(arr) ? arr[idx] : null;
+    if (!entry) return;
+
+    const current = Number.isFinite(entry.scale) && entry.scale > 0 ? entry.scale : 100;
+    const html = `
+      <div style="display:flex;flex-direction:column;gap:8px;padding:4px 2px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <span style="min-width:60px">${game.i18n.localize("SD.ActionHud.Cell.ScalePct")}</span>
+          <input type="range" name="scale" min="25" max="400" step="5" value="${current}" style="flex:1" oninput="this.nextElementSibling.value=this.value">
+          <output style="min-width:42px;text-align:right;font-variant-numeric:tabular-nums">${current}</output>
+        </label>
+        <p style="margin:0;font-size:10px;opacity:.7">${game.i18n.localize("SD.ActionHud.Cell.ScaleHint")}</p>
+      </div>`;
+    const result = await foundry.applications.api.DialogV2.prompt({
+      window: { title: game.i18n.localize("SD.ActionHud.Cell.ScaleTitle") },
+      content: html,
+      ok: {
+        label: game.i18n.localize("SD.Save"),
+        callback: (event, button, dialog) => {
+          const inp = dialog.element.querySelector("input[name='scale']");
+          const n = Number(inp?.value ?? 100);
+          return Number.isFinite(n) ? Math.min(Math.max(n, 25), 400) : 100;
+        }
+      }
+    });
+    if (result === null || result === undefined) return;
+    await this._mutateEntries((arrCur) => {
+      if (!arrCur[idx]) return;
+      if (result === 100) delete arrCur[idx].scale;
+      else arrCur[idx].scale = result;
+    });
+  }
+
   static async _editEntry(idx) {
     if (!this._actor) return;
     const layout = foundry.utils.deepClone(game.settings.get("sd", "actionHud") ?? {});
@@ -1288,21 +1372,40 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
     }
     const keys = [...keysSet].sort();
 
+    const DROPDOWN_TYPES = ["inventory", "effects", "spellbook"];
+    const _resolveType = (e) => {
+      if (e.inlineWidget) return e.inlineWidget.type ?? "";
+      if (!e.widgetKey) return "";
+      for (const a of (game.actors ?? [])) {
+        if (a.type !== this._activeType) continue;
+        for (const w of collectActorWidgets(a)) {
+          if ((w.widgetKey ?? "").trim() === String(e.widgetKey).trim()) return w.type ?? "";
+        }
+      }
+      return "";
+    };
+
     return {
       ...base,
       activeType: this._activeType,
       isCharacter: this._activeType === "character",
       isNpc:       this._activeType === "npc",
-      entries: entries.map((e, idx) => ({
-        idx,
-        x: Number.isFinite(e.x) ? e.x : 0,
-        y: Number.isFinite(e.y) ? e.y : 0,
-        w: Number.isFinite(e.w) ? e.w : "",
-        h: Number.isFinite(e.h) ? e.h : "",
-        widgetKey: e.widgetKey ?? "",
-        label: e.label ?? "",
-        inlineLabel: e.inlineWidget ? `[inline: ${e.inlineWidget.type ?? "?"}]` : ""
-      })),
+      entries: entries.map((e, idx) => {
+        const t = _resolveType(e);
+        return {
+          idx,
+          x: Number.isFinite(e.x) ? e.x : 0,
+          y: Number.isFinite(e.y) ? e.y : 0,
+          w: Number.isFinite(e.w) ? e.w : "",
+          h: Number.isFinite(e.h) ? e.h : "",
+          scale: Number.isFinite(e.scale) && e.scale > 0 ? e.scale : "",
+          hideLabel: e.hideLabel === true,
+          supportsHideLabel: !DROPDOWN_TYPES.includes(t),
+          widgetKey: e.widgetKey ?? "",
+          label: e.label ?? "",
+          inlineLabel: e.inlineWidget ? `[inline: ${e.inlineWidget.type ?? "?"}]` : ""
+        };
+      }),
       keys
     };
   }
@@ -1342,6 +1445,23 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
       }
       if (raw[kKey] !== undefined) e.widgetKey = String(raw[kKey] ?? "").trim();
       if (raw[lKey] !== undefined) e.label = String(raw[lKey] ?? "").trim();
+
+      const sKey = `entry_${i}_scale`;
+      if (raw[sKey] !== undefined) {
+        const v = String(raw[sKey] ?? "").trim();
+        if (v === "") delete e.scale;
+        else {
+          const n = Number(v);
+          if (Number.isFinite(n) && n > 0 && n !== 100) e.scale = Math.min(Math.max(n, 25), 400);
+          else delete e.scale;
+        }
+      }
+      const hKeyHide = `entry_${i}_hideLabel`;
+      if (Object.prototype.hasOwnProperty.call(raw, hKeyHide)) {
+        const v = raw[hKeyHide];
+        if (v && v !== "0" && v !== false) e.hideLabel = true;
+        else delete e.hideLabel;
+      }
     }
 
     layout[this._activeType].entries = entries;

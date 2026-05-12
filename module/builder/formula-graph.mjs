@@ -31,10 +31,60 @@ function _slugLabel(s) {
   return out.replace(/^_+|_+$/g, "").replace(/__+/g, "_") || "_";
 }
 
+const _NG_LANG_CACHE = { en: null, ru: null };
+const _NG_DEFAULT_LANG = "en";
+
+function _ngLangSetting() {
+  try {
+    const v = globalThis.game?.settings?.get?.("sd", "nodeGraphLanguage");
+    if (typeof v === "string" && v) return v;
+  } catch {  }
+  return "auto";
+}
+
+function _ngLookupCached(lang, key) {
+  const dict = _NG_LANG_CACHE[lang];
+  if (dict && Object.prototype.hasOwnProperty.call(dict, key)) return dict[key];
+  return undefined;
+}
+
+export async function _loadNodeGraphLangs() {
+  const base = (() => {
+    try {
+      const sys = globalThis.game?.system;
+      if (sys?.id) return `systems/${sys.id}/lang`;
+    } catch {  }
+    return "systems/sd/lang";
+  })();
+  const langs = ["en", "ru"];
+  await Promise.all(langs.map(async (l) => {
+    if (_NG_LANG_CACHE[l]) return;
+    try {
+      const res = await fetch(`${base}/${l}.json`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      _NG_LANG_CACHE[l] = j && typeof j === "object" ? j : {};
+    } catch (e) {
+      console.warn(`SD | failed to load node-graph lang '${l}':`, e);
+      _NG_LANG_CACHE[l] = {};
+    }
+  }));
+}
+
 function _NL(text) {
   if (!text) return text;
   try {
     const key  = `SD.Graph.${_slugLabel(text)}`;
+    const lang = _ngLangSetting();
+
+    if (lang !== "auto") {
+      const direct = _ngLookupCached(lang, key);
+      if (typeof direct === "string" && direct !== "") return direct;
+      const fb = _ngLookupCached(_NG_DEFAULT_LANG, key);
+      if (typeof fb === "string" && fb !== "") return fb;
+      return text;
+    }
+
     const i18n = globalThis.game?.i18n;
     if (i18n?.has?.(key)) return i18n.localize(key);
     if (i18n?.localize) {
@@ -7260,11 +7310,11 @@ export class FormulaGraph {
         return d.cat === cat.id;
       });
       if (!nodes.length) return "";
-      return `<div style="padding:5px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${cat.color};border-top:1px solid rgba(255,255,255,.05);margin-top:4px">${cat.id}</div>
-        ${nodes.map(([type,d])=>`<div class="gpal" data-type="${type}" draggable="true" title="${esc(d.desc??d.title)}"
+      return `<div style="padding:5px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${cat.color};border-top:1px solid rgba(255,255,255,.05);margin-top:4px">${esc(_NL(cat.id))}</div>
+        ${nodes.map(([type,d])=>`<div class="gpal" data-type="${type}" draggable="true" title="${esc(_NL(d.desc??d.title))}"
           style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:grab;border-radius:8px;margin:1px 4px;transition:.15s">
           <div style="width:9px;height:9px;border-radius:${d.isAction?'2px':'50%'};flex-shrink:0;background:${d.color};opacity:.9"></div>
-          <span style="font-size:11px;color:#98a6c6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.title}</span>
+          <span style="font-size:11px;color:#98a6c6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(_NL(d.title))}</span>
         </div>`).join("")}`;
     }).join("");
     return rows;
@@ -8690,7 +8740,7 @@ export class FormulaGraph {
       if (!compat) continue;
       candidates.push({ type, def, pin: compat });
     }
-    candidates.sort((a, b) => (a.def.cat ?? "").localeCompare(b.def.cat ?? "") || (a.def.title ?? a.type).localeCompare(b.def.title ?? b.type));
+    candidates.sort((a, b) => (_NL(a.def.cat ?? "")).localeCompare(_NL(b.def.cat ?? "")) || _NL(a.def.title ?? a.type).localeCompare(_NL(b.def.title ?? b.type)));
 
     document.getElementById("sd-quick-insert-menu")?.remove();
     const menu = document.createElement("div");
@@ -8702,13 +8752,13 @@ export class FormulaGraph {
       font-family:'Signika',sans-serif;color:var(--sd-text);padding:6px 0`;
 
     const head = document.createElement("div");
-    head.textContent = `Insert node compatible with ${pinSubtype(fromType) || "exec"}`;
+    head.textContent = `${_NL("Insert node compatible with")} ${pinSubtype(fromType) || "exec"}`;
     head.style.cssText = "padding:6px 12px;font-size:11px;color:#98a6c6;border-bottom:1px solid #2a2a3e";
     menu.appendChild(head);
 
     if (!candidates.length) {
       const empty = document.createElement("div");
-      empty.textContent = "No compatible nodes";
+      empty.textContent = _NL("No compatible nodes");
       empty.style.cssText = "padding:8px 12px;color:var(--sd-text-3)";
       menu.appendChild(empty);
     } else {
@@ -8717,12 +8767,12 @@ export class FormulaGraph {
         if (c.def.cat !== lastCat) {
           lastCat = c.def.cat;
           const sec = document.createElement("div");
-          sec.textContent = lastCat ?? "Other";
+          sec.textContent = _NL(lastCat ?? "Other");
           sec.style.cssText = "padding:4px 12px 2px;font-size:10px;color:#74a7ff;text-transform:uppercase;letter-spacing:.5px";
           menu.appendChild(sec);
         }
         const item = document.createElement("div");
-        item.textContent = c.def.title ?? c.type;
+        item.textContent = _NL(c.def.title ?? c.type);
         item.style.cssText = "padding:5px 14px;font-size:12px;cursor:pointer";
         item.addEventListener("mouseenter", () => item.style.background = "#1f2538");
         item.addEventListener("mouseleave", () => item.style.background = "");

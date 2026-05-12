@@ -40,7 +40,22 @@ export class ClassData extends foundry.abstract.TypeDataModel {
 
           effects:      new ArrayField(new ObjectField(), { initial: [] }),
 
-          fieldChanges: new ArrayField(FieldChangeField(), { initial: [] })
+          fieldChanges: new ArrayField(FieldChangeField(), { initial: [] }),
+
+          choices: new ArrayField(
+            new SchemaField({
+              id:      new StringField({ initial: "", blank: true }),
+              label:   new StringField({ initial: "", blank: true }),
+              kind:    new StringField({
+                initial: "items",
+                choices: { items: "Items", effects: "Effects", fieldChanges: "Field Changes" },
+                blank: false
+              }),
+              picks:   new NumberField({ required: true, integer: true, initial: 1, min: 1, nullable: false }),
+              options: new ArrayField(new ObjectField(), { initial: [] })
+            }),
+            { initial: [] }
+          )
         }),
         { initial: [] }
       ),

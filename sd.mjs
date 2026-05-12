@@ -241,6 +241,32 @@ Hooks.once("init", () => {
     default: {}
   });
 
+  game.settings.register("sd", "nodeGraphLanguage", {
+    name:    "SD.Settings.NodeGraphLanguage",
+    hint:    "SD.Settings.NodeGraphLanguageHint",
+    scope:   "client",
+    config:  true,
+    type:    String,
+    default: "auto",
+    choices: {
+      auto: "SD.Settings.NodeGraphLanguageOption.Auto",
+      en:   "SD.Settings.NodeGraphLanguageOption.English",
+      ru:   "SD.Settings.NodeGraphLanguageOption.Russian"
+    },
+    onChange: () => {
+      try {
+        document.querySelectorAll(".graph-window, .toolbox-window").forEach(el => el.dispatchEvent(new CustomEvent("sd-reload", { bubbles: true })));
+      } catch {}
+    }
+  });
+
+  (async () => {
+    try {
+      const { _loadNodeGraphLangs } = await import("./module/builder/formula-graph.mjs");
+      await _loadNodeGraphLangs();
+    } catch (e) { console.warn("SD | failed to preload node-graph lang dicts:", e); }
+  })();
+
   registerActionHudSettings();
 
   registerSettings();

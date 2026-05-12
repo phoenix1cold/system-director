@@ -761,13 +761,13 @@ export class WidgetRenderer {
     }
     return `<div class="widget widget-richtext">
   <div class="widget-label">${e(w.label)}</div>
-  <div class="richtext-display" data-path="${e(w.path)}"
-       style="min-height:60px;cursor:text;padding:6px 8px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;font-size:12px;color:var(--sd-w-fg,var(--sd-text-2));line-height:1.6;word-break:break-word">
+  <div class="richtext-display" data-path="${e(w.path)}" data-widget-id="${e(w.id ?? "")}"
+       style="min-height:60px;cursor:text;padding:6px 8px;background:var(--sd-w-bg,var(--sd-bg));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;font-size:12px;color:var(--sd-w-fg,var(--sd-text-2));line-height:1.6;word-break:break-word">
     ${val || "<span style='opacity:.35;font-style:italic'>Click to edit…</span>"}
   </div>
   <div class="richtext-edit-wrap" style="display:none;position:relative">
-    <textarea class="richtext-editor" data-path="${e(w.path)}"
-      style="width:100%;min-height:80px;resize:vertical;background:var(--sd-bg);border:1px solid var(--sd-accent);border-radius:4px 4px 0 0;color:var(--sd-w-fg,var(--sd-text));font-size:12px;padding:6px 8px;box-sizing:border-box;font-family:inherit;line-height:1.6;display:block"
+    <textarea class="richtext-editor" data-path="${e(w.path)}" data-widget-id="${e(w.id ?? "")}"
+      style="width:100%;min-height:80px;resize:vertical;background:var(--sd-w-bg,var(--sd-bg));border:1px solid var(--sd-accent);border-radius:4px 4px 0 0;color:var(--sd-w-fg,var(--sd-text));font-size:12px;padding:6px 8px;box-sizing:border-box;font-family:inherit;line-height:1.6;display:block"
       placeholder="Enter text…">${e(val)}</textarea>
     <div style="display:flex;gap:6px;padding:4px 0 2px">
       <button type="button" class="richtext-save" style="flex:1;background:rgba(76,175,80,.18);border:1px solid var(--sd-success);border-radius:4px;color:var(--sd-success);cursor:pointer;font-size:11px;padding:4px 8px">✓ Save</button>

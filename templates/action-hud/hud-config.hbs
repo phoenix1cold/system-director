@@ -60,6 +60,22 @@
             <input type="number" name="entry_{{idx}}_h" value="{{h}}" step="1" placeholder="auto"/>
           </label>
         </div>
+        <div class="hud-entry-opts">
+          <label class="hud-entry-scale">{{localize "SD.ActionHud.Cell.ScalePct"}}
+            <input type="number" name="entry_{{idx}}_scale" value="{{scale}}" min="25" max="400" step="5" placeholder="100"/>
+          </label>
+          {{#if supportsHideLabel}}
+            <label class="hud-entry-hide-label">
+              <input type="hidden" name="entry_{{idx}}_hideLabel" value="0"/>
+              <input type="checkbox" name="entry_{{idx}}_hideLabel" value="1" {{#if hideLabel}}checked{{/if}}/>
+              {{localize "SD.ActionHud.Cell.HideLabel"}}
+            </label>
+          {{else}}
+            <span class="hud-entry-hide-label-na" title="{{localize 'SD.ActionHud.Cell.HideLabelNAHint'}}">
+              <i class="fas fa-circle-info"></i> {{localize "SD.ActionHud.Cell.HideLabelNA"}}
+            </span>
+          {{/if}}
+        </div>
         <div class="hud-entry-actions">
           <button type="button" data-action="moveUp" data-idx="{{idx}}" title="Move up">
             <i class="fas fa-arrow-up"></i>

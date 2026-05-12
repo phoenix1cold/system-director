@@ -93,6 +93,18 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     this._wireAllInteractions();
   }
 
+  // submitOnChange auto-submits the form on any input/change event from a
+  // descendant. Our inline editors (richtext textarea, wcfg popup inputs)
+  // must NOT trigger a sheet submit — submitting tears down their DOM mid-edit
+  // and silently discards user input. The popup lives in document.body so it
+  // isn't a descendant of the sheet form, but its synthetic change events can
+  // still surface here when the user is editing widget styles. Guard both.
+  _onChangeForm(formConfig, event) {
+    const t = event?.target;
+    if (t?.closest?.(".richtext-editor, .richtext-edit-wrap, .sd-wcfg-popup")) return;
+    return super._onChangeForm(formConfig, event);
+  }
+
   _buildTabNav() {
     const root = this.element;
     if (!root) return;
@@ -499,7 +511,162 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     grid.appendChild(itemsCol); grid.appendChild(fcCol); grid.appendChild(efCol);
     wrap.appendChild(grid);
+
+    this._renderClassLevelChoices(wrap, lv, idx, ed);
+
     container.appendChild(wrap);
+  }
+
+  _renderClassLevelChoices(wrap, lv, idx, ed) {
+    const e = this._e.bind(this);
+    const choices = Array.isArray(lv.choices) ? lv.choices : [];
+
+    const section = document.createElement("div");
+    section.className = "cls-choices";
+    section.dataset.levelIdx = idx;
+    section.style.cssText = "border-top:1px solid var(--sd-bg-3);padding:8px 10px;display:flex;flex-direction:column;gap:6px;";
+
+    const hdr = document.createElement("div");
+    hdr.style.cssText = "display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sd-text-3);letter-spacing:.06em;";
+    hdr.innerHTML = `<i class="fas fa-code-branch" style="color:var(--sd-accent)"></i><span>Choices</span>
+      ${ed ? `<button type="button" class="cls-add-choice" data-level-idx="${idx}" title="Add choice group"
+        style="margin-left:auto;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:12px">+</button>` : ""}`;
+    section.appendChild(hdr);
+
+    if (!choices.length && !ed) return;
+
+    if (!choices.length && ed) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "font-size:10px;color:var(--sd-text-3);font-style:italic;padding:4px 0;";
+      empty.textContent = "No choice groups. Click + to add a fork.";
+      section.appendChild(empty);
+    }
+
+    for (let g = 0; g < choices.length; g++) {
+      const ch    = choices[g];
+      const kind  = ch.kind ?? "items";
+      const picks = Math.max(1, Number(ch.picks) || 1);
+      const opts  = Array.isArray(ch.options) ? ch.options : [];
+
+      const grp = document.createElement("div");
+      grp.dataset.choiceIdx = g;
+      grp.style.cssText = "background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:4px;";
+
+      const gh = document.createElement("div");
+      gh.style.cssText = "display:flex;align-items:center;gap:4px;";
+      if (ed) {
+        gh.innerHTML = `
+          <select class="cls-choice-kind" data-level-idx="${idx}" data-choice-idx="${g}"
+            style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px">
+            <option value="items"        ${kind === "items"        ? "selected" : ""}>Items</option>
+            <option value="effects"      ${kind === "effects"      ? "selected" : ""}>Effects</option>
+            <option value="fieldChanges" ${kind === "fieldChanges" ? "selected" : ""}>Field Changes</option>
+          </select>
+          <input type="text" class="cls-choice-label" data-level-idx="${idx}" data-choice-idx="${g}" value="${e(ch.label ?? "")}"
+            placeholder="Label (optional)"
+            style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 5px">
+          <label style="font-size:10px;color:var(--sd-text-3);display:flex;align-items:center;gap:3px">Picks
+            <input type="number" class="cls-choice-picks" data-level-idx="${idx}" data-choice-idx="${g}" value="${picks}" min="1" step="1"
+              style="width:44px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px;text-align:center"></label>
+          <button type="button" class="cls-del-choice" data-level-idx="${idx}" data-choice-idx="${g}"
+            style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px"><i class="fas fa-times"></i></button>`;
+      } else {
+        const kindLabel = kind === "items" ? "Items" : kind === "effects" ? "Effects" : "Field Changes";
+        gh.innerHTML = `
+          <span style="font-size:10px;color:var(--sd-accent);font-weight:700;text-transform:uppercase">${kindLabel}</span>
+          ${ch.label ? `<span style="font-size:10px;color:var(--sd-text-2)">${e(ch.label)}</span>` : ""}
+          <span style="margin-left:auto;font-size:10px;color:var(--sd-text-3)">Pick ${picks} / ${opts.length}</span>`;
+      }
+      grp.appendChild(gh);
+
+      const body = document.createElement("div");
+      body.style.cssText = "display:flex;flex-direction:column;gap:3px;";
+
+      if (kind === "items") {
+        const zone = document.createElement("div");
+        zone.className = "cls-choice-items-zone";
+        zone.dataset.levelIdx = idx;
+        zone.dataset.choiceIdx = g;
+        zone.style.cssText = `min-height:28px;border:1px dashed ${ed ? "var(--sd-border)" : "transparent"};border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:3px;`;
+        if (ed && opts.length === 0) zone.innerHTML = `<span style="font-size:10px;color:var(--sd-text-3);text-align:center;padding:4px">Drop items here</span>`;
+        opts.forEach((it, j) => {
+          const chip = document.createElement("div");
+          chip.style.cssText = "display:flex;align-items:center;gap:4px;background:var(--sd-bg-2);border:1px solid var(--sd-bg-3);border-radius:3px;padding:2px 5px;font-size:10px;color:var(--sd-text-2);";
+          chip.innerHTML = `<img src="${e(it.img ?? "icons/svg/item-bag.svg")}" style="width:14px;height:14px;border-radius:2px;object-fit:cover">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(it.name ?? "Item")}</span>
+            ${ed ? `<button type="button" class="cls-del-choice-opt" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}"
+              style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:0 1px">✕</button>` : ""}`;
+          zone.appendChild(chip);
+        });
+        body.appendChild(zone);
+      } else if (kind === "effects") {
+        if (ed) {
+          const addBtn = document.createElement("button");
+          addBtn.type = "button";
+          addBtn.className = "cls-add-choice-effect";
+          addBtn.dataset.levelIdx = idx;
+          addBtn.dataset.choiceIdx = g;
+          addBtn.style.cssText = "align-self:flex-start;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:2px 6px";
+          addBtn.innerHTML = `<i class="fas fa-plus"></i> New Effect`;
+          body.appendChild(addBtn);
+        }
+        opts.forEach((ef, j) => {
+          const chip = document.createElement("div");
+          chip.style.cssText = "display:flex;align-items:center;gap:4px;background:var(--sd-bg-2);border:1px solid var(--sd-bg-3);border-radius:3px;padding:2px 5px;font-size:10px;color:var(--sd-text-2);";
+          chip.innerHTML = `<img src="${e(ef.icon ?? ef.img ?? "icons/svg/aura.svg")}" style="width:14px;height:14px;border-radius:2px">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(ef.name ?? "Effect")}</span>
+            ${ef.changes?.length ? `<span style="font-size:9px;color:var(--sd-text-3)">${ef.changes.length}</span>` : ""}
+            ${ed ? `<button type="button" class="cls-edit-choice-ef" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}"
+              style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:0 1px"><i class="fas fa-pen"></i></button>
+              <button type="button" class="cls-del-choice-opt" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}"
+              style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:0 1px">✕</button>` : ""}`;
+          body.appendChild(chip);
+        });
+      } else {
+        if (ed) {
+          const addBtn = document.createElement("button");
+          addBtn.type = "button";
+          addBtn.className = "cls-add-choice-fc";
+          addBtn.dataset.levelIdx = idx;
+          addBtn.dataset.choiceIdx = g;
+          addBtn.style.cssText = "align-self:flex-start;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:2px 6px";
+          addBtn.innerHTML = `<i class="fas fa-plus"></i> Add Field Change`;
+          body.appendChild(addBtn);
+        }
+        opts.forEach((fc, j) => {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;gap:2px;";
+          if (ed) {
+            row.innerHTML = `
+              <input type="text" class="cls-choice-fc-path" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}" value="${e(fc.path ?? "")}"
+                placeholder="system.resources.hp.max"
+                style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px">
+              <select class="cls-choice-fc-mode" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}"
+                style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px">
+                <option value="add"      ${fc.mode === "add"      ? "selected" : ""}>+</option>
+                <option value="set"      ${fc.mode === "set"      ? "selected" : ""}>=</option>
+                <option value="multiply" ${fc.mode === "multiply" ? "selected" : ""}>×</option>
+              </select>
+              <input type="text" class="cls-choice-fc-val" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}" value="${e(fc.value ?? "")}"
+                placeholder="0"
+                style="width:54px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px">
+              <button type="button" class="cls-del-choice-opt" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}"
+                style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:0 1px">✕</button>`;
+          } else {
+            const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
+            row.innerHTML = `<code style="font-size:10px;color:var(--sd-text-2)">${e(fc.path ?? "")}</code>
+              <span style="font-size:10px;color:var(--sd-accent)">${sym}</span>
+              <strong style="font-size:10px;color:var(--sd-text)">${e(fc.value ?? "")}</strong>`;
+          }
+          body.appendChild(row);
+        });
+      }
+
+      grp.appendChild(body);
+      section.appendChild(grp);
+    }
+
+    wrap.appendChild(section);
   }
 
   _wireClassDropZones(panel) {
@@ -645,6 +812,154 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         await this.document.update({ "system.levels": lvls });
       })
     );
+
+    this._wireClassChoiceZones(panel);
+  }
+
+  _wireClassChoiceZones(panel) {
+    if (!this.isEditable) return;
+
+    panel.querySelectorAll(".cls-add-choice").forEach(btn =>
+      btn.addEventListener("click", async ev => {
+        const li   = parseInt(ev.currentTarget.dataset.levelIdx);
+        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+        if (!lvls[li]) return;
+        lvls[li].choices ??= [];
+        lvls[li].choices.push({ id: foundry.utils.randomID(), label: "", kind: "items", picks: 1, options: [] });
+        await this.document.update({ "system.levels": lvls });
+      })
+    );
+
+    panel.querySelectorAll(".cls-del-choice").forEach(btn =>
+      btn.addEventListener("click", async ev => {
+        const li = parseInt(ev.currentTarget.dataset.levelIdx);
+        const gi = parseInt(ev.currentTarget.dataset.choiceIdx);
+        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+        lvls[li]?.choices?.splice(gi, 1);
+        await this.document.update({ "system.levels": lvls });
+      })
+    );
+
+    const _saveChoiceField = async (el, field, transform = (v) => v) => {
+      const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+      const li = parseInt(el.dataset.levelIdx);
+      const gi = parseInt(el.dataset.choiceIdx);
+      const ch = lvls?.[li]?.choices?.[gi];
+      if (!ch) return;
+      ch[field] = transform(el.value);
+      if (field === "kind") ch.options = [];
+      await this.document.update({ "system.levels": lvls });
+    };
+    panel.querySelectorAll(".cls-choice-kind").forEach(el =>
+      el.addEventListener("change", () => _saveChoiceField(el, "kind"))
+    );
+    panel.querySelectorAll(".cls-choice-label").forEach(el =>
+      el.addEventListener("change", () => _saveChoiceField(el, "label"))
+    );
+    panel.querySelectorAll(".cls-choice-picks").forEach(el =>
+      el.addEventListener("change", () => _saveChoiceField(el, "picks", v => Math.max(1, Number(v) || 1)))
+    );
+
+    panel.querySelectorAll(".cls-del-choice-opt").forEach(btn =>
+      btn.addEventListener("click", async ev => {
+        const li = parseInt(ev.currentTarget.dataset.levelIdx);
+        const gi = parseInt(ev.currentTarget.dataset.choiceIdx);
+        const oi = parseInt(ev.currentTarget.dataset.optIdx);
+        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+        lvls?.[li]?.choices?.[gi]?.options?.splice(oi, 1);
+        await this.document.update({ "system.levels": lvls });
+      })
+    );
+
+    panel.querySelectorAll(".cls-choice-items-zone").forEach(zone => {
+      zone.addEventListener("dragover",  ev => { ev.preventDefault(); zone.style.borderColor = "var(--sd-accent)"; });
+      zone.addEventListener("dragleave", ()  => zone.style.borderColor = "var(--sd-border)");
+      zone.addEventListener("drop",      async ev => {
+        zone.style.borderColor = "var(--sd-border)";
+        ev.preventDefault();
+        const data = TextEditor.getDragEventData(ev);
+        if (data?.type !== "Item") return;
+        let item;
+        try { item = await fromUuid(data.uuid); } catch { return; }
+        if (!item) return;
+        const li = parseInt(zone.dataset.levelIdx);
+        const gi = parseInt(zone.dataset.choiceIdx);
+        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+        const ch = lvls?.[li]?.choices?.[gi];
+        if (!ch) return;
+        ch.options ??= [];
+        const snap = item.toObject(); snap._sourceUuid = data.uuid;
+        ch.options.push(snap);
+        await this.document.update({ "system.levels": lvls });
+      });
+    });
+
+    panel.querySelectorAll(".cls-add-choice-effect").forEach(btn =>
+      btn.addEventListener("click", async ev => {
+        const li = parseInt(ev.currentTarget.dataset.levelIdx);
+        const gi = parseInt(ev.currentTarget.dataset.choiceIdx);
+        const seed = {
+          name: "New Effect", icon: "icons/svg/aura.svg", img: "icons/svg/aura.svg",
+          changes: [], disabled: false, duration: {}, flags: {}
+        };
+        const updated = await editEffectViaStandardConfig(seed, {
+          parent: this.document, title: "Add Effect"
+        });
+        if (!updated) return;
+        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+        const ch = lvls?.[li]?.choices?.[gi];
+        if (!ch) return;
+        ch.options ??= [];
+        const eff = { ...updated }; delete eff._id;
+        ch.options.push(eff);
+        await this.document.update({ "system.levels": lvls });
+      })
+    );
+
+    panel.querySelectorAll(".cls-edit-choice-ef").forEach(btn =>
+      btn.addEventListener("click", async ev => {
+        const li = parseInt(ev.currentTarget.dataset.levelIdx);
+        const gi = parseInt(ev.currentTarget.dataset.choiceIdx);
+        const oi = parseInt(ev.currentTarget.dataset.optIdx);
+        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+        const ef = lvls?.[li]?.choices?.[gi]?.options?.[oi];
+        if (!ef) return;
+        const updated = await editEffectViaStandardConfig(ef, {
+          parent: this.document, title: `Edit Effect: ${ef.name ?? ""}`
+        });
+        if (!updated) return;
+        const merged = { ...ef, ...updated }; delete merged._id;
+        lvls[li].choices[gi].options[oi] = merged;
+        await this.document.update({ "system.levels": lvls });
+      })
+    );
+
+    panel.querySelectorAll(".cls-add-choice-fc").forEach(btn =>
+      btn.addEventListener("click", async ev => {
+        const li = parseInt(ev.currentTarget.dataset.levelIdx);
+        const gi = parseInt(ev.currentTarget.dataset.choiceIdx);
+        const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+        const ch = lvls?.[li]?.choices?.[gi];
+        if (!ch) return;
+        ch.options ??= [];
+        ch.options.push({ path: "system.resources.hp.max", mode: "add", value: "1" });
+        await this.document.update({ "system.levels": lvls });
+      })
+    );
+
+    const _saveChoiceFcField = async (el, field) => {
+      const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
+      const li = parseInt(el.dataset.levelIdx);
+      const gi = parseInt(el.dataset.choiceIdx);
+      const oi = parseInt(el.dataset.optIdx);
+      const opt = lvls?.[li]?.choices?.[gi]?.options?.[oi];
+      if (!opt) return;
+      opt[field] = el.value;
+      await this.document.update({ "system.levels": lvls });
+    };
+    panel.querySelectorAll(".cls-choice-fc-path").forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "path")));
+    panel.querySelectorAll(".cls-choice-fc-mode").forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "mode")));
+    panel.querySelectorAll(".cls-choice-fc-val" ).forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "value")));
   }
 
   _buildSkilltreePanel(isActive) {
