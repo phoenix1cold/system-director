@@ -79,8 +79,8 @@ export class WidgetRenderer {
   }
 
   static _getValue(w, doc, fallback = "") {
-    if (w.valueFormula && FormulaEngine.isFormula(w.valueFormula)) {
-      return FormulaEngine.evaluate(w.valueFormula, doc);
+    if (w.valueFormula !== undefined && w.valueFormula !== null && String(w.valueFormula).trim() !== "") {
+      return FormulaEngine.evaluate(String(w.valueFormula), doc);
     }
     if (w.path) return this._get(doc, w.path, fallback);
     if (w.staticValue !== undefined && w.staticValue !== "") return w.staticValue;
@@ -141,6 +141,28 @@ export class WidgetRenderer {
       .replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  static _escAllowFaIcon(val) {
+    const s = String(val ?? "");
+    if (!s) return "";
+    const reIcon = /^\s*<i\s+class\s*=\s*"((?:fa|fas|far|fab|fad|fal|fat)\s+fa-[a-z0-9-]+)"(?:\s+style\s*=\s*"([^"<>]{0,120})")?\s*>\s*<\/i>\s*$/i;
+    const m = reIcon.exec(s);
+    if (m) {
+      const cls = m[1];
+      let safeStyle = "";
+      if (m[2]) {
+        const parts = m[2].split(";").map(p => p.trim()).filter(Boolean);
+        const kept = [];
+        for (const p of parts) {
+          if (/^color\s*:\s*(?:#[0-9a-f]{3,8}|rgb[a]?\([\d.\s,%]+\)|[a-z]+)$/i.test(p)) kept.push(p);
+          else if (/^font-size\s*:\s*\d{1,3}px$/i.test(p)) kept.push(p);
+        }
+        if (kept.length) safeStyle = ` style="${kept.join(";")}"`;
+      }
+      return `<i class="${cls}"${safeStyle}></i>`;
+    }
+    return this._esc(s);
+  }
+
   static _sanitizeVariant(v) {
     const raw = String(v ?? "").trim().toLowerCase();
     if (!raw || raw === "default") return "";
@@ -183,13 +205,13 @@ export class WidgetRenderer {
     if (hasFormula) {
       return `<div class="widget widget-text">
   <div class="widget-label">${esc(w.label)} <span style="color:var(--sd-accent-2);font-size:9px" title="Formula: ${esc(w.valueFormula)}">ƒ</span></div>
-  <div class="widget-formula-val">${esc(String(val))}</div>
+  <div class="widget-formula-val">${this._escAllowFaIcon(val)}</div>
 </div>`;
     }
     if (isReadOnly) {
       return `<div class="widget widget-text widget-text--readonly">
   <div class="widget-label">${esc(w.label)} <span style="color:var(--sd-text-3);font-size:9px;margin-left:2px" title="Read only">🔒</span></div>
-  <div class="widget-text-readonly-val" style="background:var(--sd-w-bg,var(--sd-bg-2));border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;padding:3px 7px;font-size:12px;color:var(--sd-w-fg,var(--sd-text-3));min-height:22px;word-break:break-word">${esc(String(val))}</div>
+  <div class="widget-text-readonly-val" style="background:var(--sd-w-bg,var(--sd-bg-2));border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;padding:3px 7px;font-size:12px;color:var(--sd-w-fg,var(--sd-text-3));min-height:22px;word-break:break-word">${this._escAllowFaIcon(val)}</div>
 </div>`;
     }
     return `<div class="widget widget-text">

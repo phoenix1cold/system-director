@@ -2613,7 +2613,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
   static async _onFireButton(event, target) { const i=parseInt(target.dataset.btnIndex); const b=this.document.system.buttons?.[i]; if(b) await ButtonExecutor.execute(b,this.document,this.document.actor); }
 
   async _saveAsTemplate() {
-    const name = await foundry.applications.api.DialogV2.wait({
+    const result = await foundry.applications.api.DialogV2.wait({
       window: { title: "Save as Template" },
       content: `<div style="padding:8px 0">
         <label style="font-size:12px;color:var(--sd-text-2)">Template name:</label>
@@ -2626,13 +2626,20 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           label: "Save",
           icon: "fas fa-floppy-disk",
           default: true,
-          callback: (event, button, dialog) =>
-            dialog.element.querySelector("input[name='tplName']")?.value?.trim() || null
+          callback: (event, button, dialog) => {
+            const v = dialog.element.querySelector("input[name='tplName']")?.value?.trim();
+            return { __sdOk: true, __sdValue: v && v.length ? v : null };
+          }
         },
-        { action: "cancel", label: "Cancel", callback: () => null }
+        {
+          action: "cancel", label: "Cancel",
+          callback: () => ({ __sdOk: false, __sdValue: null })
+        }
       ],
       rejectClose: false
-    }).catch(() => null);
+    }).catch(() => ({ __sdOk: false, __sdValue: null }));
+    if (!result || typeof result !== "object" || !result.__sdOk) return;
+    const name = (typeof result.__sdValue === "string" && result.__sdValue.length) ? result.__sdValue : null;
     if (!name) return;
 
     const doc = this.document;

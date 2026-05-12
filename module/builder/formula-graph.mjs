@@ -198,8 +198,8 @@ export const NODE_DEFS = {
     }
   },
   get_path: {
-    title:"Get Field", color:"#1a4060", cat:"Sources",
-    desc:"Read any field from the actor or item by dot-path",
+    title:"Get Field Value", color:"#1a4060", cat:"Sources",
+    desc:"Read any field from the actor or item by dot-path. Outputs the value at the given path.",
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"path",label:"Path",type:"path",default:"system.resources.hp.value"}],
     compile:(n)=>`{${n.data.path??""}}`
@@ -217,6 +217,47 @@ export const NODE_DEFS = {
     inputs:[], outputs:[{id:"v",label:"Path",type:"value.path"}],
     fields:[{key:"key",label:"Widget",type:"widget-picker",default:""}],
     compile:(n)=>`{widgetPath:${n.data.key??""}}`
+  },
+  get_name: {
+    title:"Get Name", color:"#1a4060", cat:"Sources",
+    desc:"Returns the display name of an Item, Widget, Token, Actor or Sheet by UUID, ID, widget key, or name. Pick a Kind to constrain the lookup, or leave it on Auto to try each kind in order. The Ref pin (if connected) overrides the static reference.",
+    inputs:[
+      {id:"ref", label:"Ref", type:"value.any"}
+    ],
+    outputs:[{id:"v", label:"Name", type:"value.string"}],
+    fields:[
+      {key:"kind", label:"Kind", type:"select", default:"auto",
+        options:[
+          {value:"auto",   label:"Auto (try all)"},
+          {value:"item",   label:"Item (uuid / id / name)"},
+          {value:"widget", label:"Widget (widget key)"},
+          {value:"token",  label:"Token (id / uuid / name)"},
+          {value:"actor",  label:"Actor / Sheet (uuid / id / name)"},
+          {value:"sheet",  label:"Sheet (uuid)"}
+        ]},
+      {key:"ref", label:"Ref / UUID / Key / Name", type:"text", default:"",
+        placeholder:"Actor.xxxxx, Scene.x.Token.y, widgetKey, item name…"}
+    ],
+    isPure:true,
+    compile:(n,i)=>{
+      const _unquote = (v) => {
+        if (v == null) return null;
+        const s = String(v).trim();
+        if (s.length >= 2 && ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'")))) {
+          return s.slice(1, -1);
+        }
+        return s;
+      };
+      const r = (i.ref !== undefined && i.ref !== null && String(i.ref).trim() !== "")
+        ? _unquote(i.ref)
+        : String(n.data.ref ?? "");
+      const kind = String(n.data.kind ?? "auto").trim() || "auto";
+      const _b64 = (s) => {
+        try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); }
+        catch { return ""; }
+      };
+      return `{__sdName:${kind}|${_b64(r)}}`;
+    }
   },
   actor_ref: {
     title:"Actor @Ref", color:"#1a4060", cat:"Sources",
@@ -274,21 +315,17 @@ export const NODE_DEFS = {
 
   fa_icon: {
     title:"FA Icon", color:"#2a4060", cat:"Sources",
-    desc:"Font Awesome icon picker — outputs the full FA class (`fas fa-heart`), the bare name (`fa-heart`), the color string and a ready-to-use `<i>` HTML snippet. Pipe `Class` into a Tracker / Token Pool / Button icon pin, and `Color` into their colour pin for themed pips.",
+    desc:"Font Awesome icon picker — single text output containing a ready-to-render `<i class=\"…\"></i>` HTML snippet. Drop it into Chat Output, a Richtext widget or a Text widget (sheet renders the icon for plain FA snippets) and it appears as an actual icon, not as the literal class text.",
     inputs:[
-      {id:"icon",  label:"Icon",  type:"value.string"},
-      {id:"color", label:"Color", type:"value.string"}
+      {id:"icon", label:"Icon", type:"value.string"}
     ],
     outputs:[
-      {id:"class", label:"Class", type:"value.string"},
-      {id:"name",  label:"Name",  type:"value.string"},
-      {id:"color", label:"Color", type:"value.string"},
-      {id:"html",  label:"HTML",  type:"value.string"}
+      {id:"v", label:"Icon", type:"value.string"}
     ],
     fields:[
-      {key:"icon",  label:"FA Icon",    type:"text",   default:"fa-heart",
+      {key:"icon",  label:"FA Icon", type:"text",   default:"fa-heart",
        placeholder:"fa-heart, fa-star, fa-skull…"},
-      {key:"style", label:"Style",      type:"select", default:"fas",
+      {key:"style", label:"Style",   type:"select", default:"fas",
         options:[
           {value:"fas", label:"Solid"},
           {value:"far", label:"Regular"},
@@ -297,11 +334,11 @@ export const NODE_DEFS = {
           {value:"fal", label:"Light"},
           {value:"fat", label:"Thin"}
         ]},
-      {key:"color", label:"Color",      type:"text",   default:"#e04040",
+      {key:"color", label:"Color",   type:"text",   default:"#e04040",
        placeholder:"#e04040"},
-      {key:"size",  label:"Size (px)",  type:"number", default:16}
+      {key:"size",  label:"Size px", type:"number", default:16}
     ],
-    compilePin:(n, i, fromPin) => {
+    compile:(n, i) => {
       const _unquote = (v) => {
         if (v == null) return null;
         const s = String(v).trim();
@@ -310,9 +347,12 @@ export const NODE_DEFS = {
         }
         return s;
       };
-      let iconRaw  = _unquote(i.icon)  ?? n.data.icon  ?? "fa-heart";
-      const colorRaw = _unquote(i.color) ?? n.data.color ?? "#e04040";
-      const style    = String(n.data.style ?? "fas").trim() || "fas";
+      const _quote = (s) => JSON.stringify(String(s ?? ""));
+
+      const iconRaw = _unquote(i?.icon) ?? n.data.icon ?? "fa-heart";
+      const style   = String(n.data.style ?? "fas").trim() || "fas";
+      const colorRaw = String(n.data.color ?? "#e04040").trim() || "#e04040";
+      const size     = Math.max(1, Number(n.data.size ?? 16) || 16);
 
       let cleaned = String(iconRaw).trim()
         .replace(/\bfa-(solid|regular|brands|duotone|light|thin|sharp)\b/gi, "")
@@ -321,16 +361,10 @@ export const NODE_DEFS = {
       if (!cleaned) cleaned = "fa-heart";
       if (!/^fa-/.test(cleaned)) cleaned = "fa-" + cleaned;
 
-      const faClass = `${style} ${cleaned}`.trim();
-
-      if (fromPin === "name")  return cleaned;
-      if (fromPin === "color") return colorRaw;
-      if (fromPin === "html") {
-        const size = Math.max(1, Number(n.data.size ?? 16) || 16);
-        return `<i class="${faClass}" style="color:${colorRaw};font-size:${size}px"></i>`;
-      }
-
-      return faClass;
+      const safeColor = /^(?:#[0-9a-f]{3,8}|rgb[a]?\([^)]+\)|[a-z]+)$/i.test(colorRaw) ? colorRaw : "#e04040";
+      const faClass   = `${style} ${cleaned}`.trim();
+      const html      = `<i class="${faClass}" style="color:${safeColor};font-size:${size}px"></i>`;
+      return _quote(html);
     }
   },
 
@@ -535,8 +569,24 @@ export const NODE_DEFS = {
          outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],
          compile:(n,i)=>_round(`max(${i.lo??"0"},min(${i.hi??"0"},${i.v??"0"}))`, n.data)},
 
-  eq: {title:"==",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}==${i.b??"0"})`},
-  neq:{title:"≠", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}!=${i.b??"0"})`},
+  eq: {title:"==",color:"#6a1a6a",cat:"Compare",desc:"Equality check. Works for both numbers (5 == 5) and text (\"hello\" == \"hello\", Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
+    const a = (i.a !== undefined && i.a !== null && i.a !== "") ? i.a : "0";
+    const b = (i.b !== undefined && i.b !== null && i.b !== "") ? i.b : "0";
+    const _b64 = (s) => {
+      try { return btoa(unescape(encodeURIComponent(String(s)))); }
+      catch { return ""; }
+    };
+    return `{__sdEq:${_b64(a)}|${_b64(b)}}`;
+  }},
+  neq:{title:"≠", color:"#6a1a6a",cat:"Compare",desc:"Inequality check. Works for both numbers and text (Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
+    const a = (i.a !== undefined && i.a !== null && i.a !== "") ? i.a : "0";
+    const b = (i.b !== undefined && i.b !== null && i.b !== "") ? i.b : "0";
+    const _b64 = (s) => {
+      try { return btoa(unescape(encodeURIComponent(String(s)))); }
+      catch { return ""; }
+    };
+    return `{__sdNeq:${_b64(a)}|${_b64(b)}}`;
+  }},
   gt: {title:">", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>${i.b??"0"})`},
   lt: {title:"<", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<${i.b??"0"})`},
   gte:{title:">=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>=${i.b??"0"})`},
@@ -1330,7 +1380,8 @@ export const NODE_DEFS = {
 
   get_spell_slots: {
     title:"Spell Slots", color:"#1a4060", cat:"Sources",
-    desc:"Get remaining spell slots for a given level on actor",
+    hidden:true,
+    desc:"(Removed) Spell Slots node has been retired. Use Get Field Value on the relevant resource path instead.",
     inputs:[], outputs:[{id:"v",label:"Remaining",type:"value.number"}],
     fields:[{key:"level",label:"Spell Level",type:"number",default:1}],
     compile:(n)=>`{spellSlots:${n.data.level??1}}`
@@ -1338,7 +1389,8 @@ export const NODE_DEFS = {
 
   act_restore_slot: {
     title:"Restore Slot", color:"#1a4a2a", cat:"Resources",
-    desc:"Restore one spell slot of given level on actor",
+    hidden:true,
+    desc:"(Removed) Spell-slot restore has been retired together with the Spell Slots node. Use Modify Field on the relevant resource path instead.",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"level",label:"Level",type:"value.number"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[{key:"level",label:"Default Level",type:"number",default:1}],
@@ -3927,14 +3979,17 @@ export const NODE_DEFS = {
 
   equipped_count: {
     title:"Equipped Count", color:"#2e6e4a", cat:"Sources",
-    desc:"Returns the count of items with `system.equipped:true` on the owning actor, optionally filtered by category.",
+    desc:"Returns the count of items with `system.equipped:true` on the owning actor, optionally filtered by category. Type a free-form category string (matches `system.category` on the item, Cyrillic / Latin / any text). Leave empty or `any` to count all equipped items.",
     inputs:[], outputs:[{id:"value", label:"N", type:"value.any"}],
     fields:[
-      {key:"category", label:"Category", type:"select", default:"any",
-        options:["any","weapon","armor","shield","consumable","ammo","magazine","tool","gear","container","treasure","other"]}
+      {key:"category", label:"Category", type:"text", default:"",
+        placeholder:"any (or item category, e.g. weapon / оружие / магия)"}
     ],
     isPure:true,
-    compile:(n)=>`{__sdEqCount:${n.data.category ?? "any"}}`
+    compile:(n)=>{
+      const cat = String(n.data.category ?? "").trim();
+      return `{__sdEqCount:${cat}}`;
+    }
   },
 
   act_delay: {
@@ -5991,7 +6046,7 @@ export class FormulaGraph {
   }
 
   async _promptText(label, def = "") {
-    return foundry.applications.api.DialogV2.wait({
+    const result = await foundry.applications.api.DialogV2.wait({
       window: { title: "Graph Editor" },
       modal: true,
       content: `<div style="padding:8px 0">
@@ -6004,13 +6059,21 @@ export class FormulaGraph {
           action: "ok", label: "OK", icon: "fas fa-check", default: true,
           callback: (ev, btn, dialog) => {
             const root = dialog?.element ?? dialog;
-            return root?.querySelector?.("input[name='val']")?.value?.trim() || null;
+            const v = root?.querySelector?.("input[name='val']")?.value?.trim();
+            return { __sdOk: true, __sdValue: v && v.length ? v : null };
           }
         },
-        { action: "cancel", label: "Cancel", callback: () => null }
+        {
+          action: "cancel", label: "Cancel",
+          callback: () => ({ __sdOk: false, __sdValue: null })
+        }
       ],
       rejectClose: false
-    }).catch(() => null);
+    }).catch(() => ({ __sdOk: false, __sdValue: null }));
+
+    if (!result || typeof result !== "object" || !result.__sdOk) return null;
+    const v = result.__sdValue;
+    return (typeof v === "string" && v.length) ? v : null;
   }
 
   _loadGraph() {
@@ -6178,10 +6241,25 @@ export class FormulaGraph {
             if (src) compiledIns[pin.id] = this._compileValue(src, new Set(), e.fromPin);
           }
         }
+
+        const _unwrapStringLiteral = (v) => {
+          if (typeof v !== "string") return v;
+          const s = v.trim();
+          if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
+            try { return JSON.parse(s); } catch { return v; }
+          }
+          if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
+            return s.slice(1, -1);
+          }
+          return v;
+        };
         for (const field of (def.fields ?? [])) {
-          const val = compiledIns[field.key] !== undefined
+          let val = compiledIns[field.key] !== undefined
             ? compiledIns[field.key]
             : cfgNode.data[field.key] ?? field.default ?? "";
+          if (compiledIns[field.key] !== undefined && field.type !== "number") {
+            val = _unwrapStringLiteral(val);
+          }
           widget[field.key] = field.type === "number" ? Number(val) : val;
         }
         widget.configGraph = graphData;
@@ -6334,14 +6412,21 @@ export class FormulaGraph {
       }
     }
 
-    const tabs = self?.system?.customTabs ?? actor?.system?.customTabs ?? [];
-    for (const tab of tabs) {
-      for (const row of (tab.rows ?? [])) {
-        for (const w of (row.widgets ?? [])) {
-          if (w.widgetKey) idx.widgets.push({ key: w.widgetKey, label: `${w.label || w.type} (${w.widgetKey})`, type: w.type });
-        }
+    const _collectWidgets = (list) => {
+      if (!Array.isArray(list)) return;
+      for (const w of list) {
+        if (!w) continue;
+        if (w.widgetKey) idx.widgets.push({ key: w.widgetKey, label: `${w.label || w.type} (${w.widgetKey})`, type: w.type });
+        if (Array.isArray(w.widgets)) _collectWidgets(w.widgets);
       }
-    }
+    };
+    const _indexDoc = (d) => {
+      const tabs = d?.system?.customTabs ?? [];
+      for (const tab of tabs) for (const row of (tab.rows ?? [])) _collectWidgets(row.widgets);
+    };
+    _indexDoc(self);
+    if (actor && actor !== self) _indexDoc(actor);
+    for (const item of (actor?.items ?? [])) _indexDoc(item);
 
     return idx;
   }

@@ -526,7 +526,7 @@
   "SD.Graph.Get_Actor_Slot_ID": "Get Actor Slot ID",
   "SD.Graph.Get_All_Targets": "Get All Targets",
   "SD.Graph.Get_Combat_State": "Get Combat State",
-  "SD.Graph.Get_Field": "Get Field",
+  "SD.Graph.Get_Field": "Get Field Value",
   "SD.Graph.Get_Selected_Token": "Get Selected Token",
   "SD.Graph.Get_Self": "Get Self",
   "SD.Graph.Get_Target": "Get Target",

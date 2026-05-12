@@ -548,7 +548,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   async _saveAsTemplate() {
-    const name = await foundry.applications.api.DialogV2.wait({
+    const result = await foundry.applications.api.DialogV2.wait({
       window: { title: "Save as Template" },
       content: `<div style="padding:8px 0">
         <label style="font-size:12px;color:var(--sd-w-label, var(--sd-text-3))">Template name:</label>
@@ -561,13 +561,20 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           label: "Save",
           icon: "fas fa-floppy-disk",
           default: true,
-          callback: (event, button, dialog) =>
-            dialog.element.querySelector("input[name='tplName']")?.value?.trim() || null
+          callback: (event, button, dialog) => {
+            const v = dialog.element.querySelector("input[name='tplName']")?.value?.trim();
+            return { __sdOk: true, __sdValue: v && v.length ? v : null };
+          }
         },
-        { action: "cancel", label: "Cancel", callback: () => null }
+        {
+          action: "cancel", label: "Cancel",
+          callback: () => ({ __sdOk: false, __sdValue: null })
+        }
       ],
       rejectClose: false
-    }).catch(() => null);
+    }).catch(() => ({ __sdOk: false, __sdValue: null }));
+    if (!result || typeof result !== "object" || !result.__sdOk) return;
+    const name = (typeof result.__sdValue === "string" && result.__sdValue.length) ? result.__sdValue : null;
     if (!name) return;
 
     const doc = this.document;

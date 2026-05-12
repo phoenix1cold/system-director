@@ -42,6 +42,11 @@ export const NODE_TYPE_MIGRATIONS = {
 
 export const NODE_FIELD_MIGRATIONS = {
 
+  fa_icon: {
+    dropPinsIn:   ["color"],
+    pinRenameOut: { class: "v", name: "v", color: "v", html: "v" }
+  },
+
   act_damage: {
     dataRename:   { critFormula: "critAmount" },
     pinRenameIn:  { critFormula: "critAmount" }

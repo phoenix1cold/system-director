@@ -721,12 +721,13 @@ export class ButtonExecutor {
         const v = vars[name];
         return v === undefined || v === null ? dflt : String(v);
       });
-      formula = formula.replace(/\{__sdEqCount:([A-Za-z]+)\}/g, (_, cat) => {
+      formula = formula.replace(/\{__sdEqCount:([^}]*)\}/g, (_, cat) => {
         const owner = actor ?? item?.parent ?? null;
         const items = owner?.items?.contents ?? [];
+        const c = String(cat ?? "").trim();
         const n = items.filter(i => i?.type === "inventory"
           && i.system?.equipped === true
-          && (cat === "any" || i.system?.category === cat)).length;
+          && (c === "" || c === "any" || i.system?.category === c)).length;
         return String(n);
       });
       return formula;
@@ -1012,6 +1013,15 @@ export class ButtonExecutor {
         let stfValue = String(action.value ?? "");
         try { stfValue = _injectRuntime(stfValue); } catch {}
         stfValue = _stfResolveTokens(stfValue);
+
+        try {
+          const _trimmed = stfValue.trim();
+          if (_trimmed.length >= 2 && _trimmed.startsWith('"') && _trimmed.endsWith('"')) {
+            stfValue = JSON.parse(_trimmed);
+          } else if (_trimmed.length >= 2 && _trimmed.startsWith("'") && _trimmed.endsWith("'")) {
+            stfValue = _trimmed.slice(1, -1);
+          }
+        } catch {}
 
         if (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '""' && action.actorOverride !== "0") {
           const stfOverride = typeof action.actorOverride === "string"

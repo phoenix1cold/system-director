@@ -526,7 +526,7 @@
   "SD.Graph.Get_Actor_Slot_ID": "ID слота актёра",
   "SD.Graph.Get_All_Targets": "Получить все цели",
   "SD.Graph.Get_Combat_State": "Состояние боя",
-  "SD.Graph.Get_Field": "Получить поле",
+  "SD.Graph.Get_Field": "Получить значение поля",
   "SD.Graph.Get_Selected_Token": "Получить выбранный токен",
   "SD.Graph.Get_Self": "Получить Self",
   "SD.Graph.Get_Target": "Получить цель",

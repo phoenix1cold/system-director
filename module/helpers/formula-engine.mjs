@@ -61,16 +61,224 @@ export class FormulaEngine {
   }
 
   static isFormula(str) {
-    return /[{}+\-*\/]|floor|ceil|round|max|min|abs|item:|slot/.test(str ?? "");
+    const s = String(str ?? "");
+    if (/[{}+\-*\/]|floor|ceil|round|max|min|abs|item:|slot/.test(s)) return true;
+    const t = s.trim();
+    if (t.length >= 2 && ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")))) return true;
+    if (t !== "" && /^-?\d+(?:\.\d+)?$/.test(t)) return true;
+    return false;
+  }
+
+  static _actorFor(doc) {
+    if (!doc) return null;
+    try {
+      if (typeof Actor !== "undefined" && doc instanceof Actor) return doc;
+    } catch {  }
+    if (doc?.documentName === "Actor") return doc;
+    if (doc?.actor) return doc.actor;
+    return null;
+  }
+
+  static _readDocProperty(doc, path) {
+    if (!doc || !path) return undefined;
+    const HF = "system.hiddenFields.";
+    if (path.startsWith(HF)) {
+      const k = path.slice(HF.length);
+      const v = doc?.system?.hiddenFields?.[k];
+      return v;
+    }
+    try {
+      return foundry.utils.getProperty(doc, path);
+    } catch {
+      return undefined;
+    }
+  }
+
+  static _readWidgetValue(w, doc) {
+    if (!w) return 0;
+    const owner = this._findWidgetOwner(w, doc) ?? doc;
+
+    if (w.valueFormula !== undefined && w.valueFormula !== null && String(w.valueFormula).trim() !== "") {
+      return this.evaluate(String(w.valueFormula), owner);
+    }
+
+    const t = String(w.type ?? "");
+
+    if (t === "derived" || t === "calc" || t === "computed") {
+      const v = this.evaluate(w.formula ?? "0", owner);
+      const dp = Number(w.decimalPlaces ?? 0);
+      if (typeof v === "number" && Number.isFinite(v) && dp > 0) {
+        return Number(v.toFixed(dp));
+      }
+      return v;
+    }
+
+    if (t === "resource" || t === "progress") {
+      const v = this._asScalar(this._readDocProperty(owner, w.pathValue));
+      if (v !== undefined && v !== null && typeof v !== "object") return v;
+    }
+
+    if (t === "toggle") {
+      const v = this._readDocProperty(owner, w.path);
+      if (v === true || v === false) return v ? 1 : 0;
+      if (v === "true" || v === 1 || v === "1") return 1;
+      if (v === undefined || v === null || v === "" || v === "false" || v === 0 || v === "0") return 0;
+      return v ? 1 : 0;
+    }
+
+    if (t === "richtext") {
+      const v = w.path ? this._readDocProperty(owner, w.path) : (w.staticHtml ?? "");
+      if (typeof v === "string" && v) return v.replace(/<[^>]+>/g, "").trim();
+      return "";
+    }
+
+    if (t === "tags") {
+      const v = this._readDocProperty(owner, w.path);
+      if (Array.isArray(v)) return v.join(", ");
+      if (typeof v === "string") return v;
+      return "";
+    }
+
+    if (t === "select") {
+      const v = this._readDocProperty(owner, w.path);
+      return (v === undefined || v === null) ? "" : v;
+    }
+
+    if (t === "diceTray") {
+      const flag = w.flagPath ? this._readDocProperty(owner, w.flagPath) : null;
+      if (flag && typeof flag === "object") {
+        if ("total" in flag) return Number(flag.total) || 0;
+        if ("result" in flag) return Number(flag.result) || 0;
+      }
+      return 0;
+    }
+
+    if (t === "section") {
+      return String(w.label ?? "");
+    }
+
+    if (t === "image") {
+      return String(w.staticSrc ?? "");
+    }
+
+    if (t === "inventory") {
+      const actor = this._actorFor(owner);
+      if (!actor) return 0;
+      const cats = Array.isArray(w.categories) ? w.categories : [];
+      const items = actor.items?.contents ?? actor.items ?? [];
+      const filtered = cats.length
+        ? items.filter(i => i?.type === "inventory" && cats.includes(i.system?.category))
+        : items.filter(i => i?.type === "inventory");
+      return filtered.length;
+    }
+    if (t === "effects") {
+      const actor = this._actorFor(owner);
+      return actor?.effects?.contents?.length ?? actor?.effects?.size ?? 0;
+    }
+    if (t === "spellbook") {
+      const actor = this._actorFor(owner);
+      if (!actor) return 0;
+      const filter = String(w.abilityType ?? "").trim();
+      const items = actor.items?.contents ?? actor.items ?? [];
+      const filtered = items.filter(i => i?.type === "ability" && (filter === "" || i.system?.abilityType === filter));
+      return filtered.length;
+    }
+
+    if (t === "slot") {
+      const slotId = String(w.slotId ?? "");
+      if (slotId) {
+        const sc = this._readDocProperty(owner, `system.slotContents.${slotId}`);
+        if (sc && typeof sc === "object") {
+          if (Array.isArray(sc.contents)) return sc.contents.length;
+          if (Number.isFinite(Number(sc.count))) return Number(sc.count);
+        }
+      }
+      return 0;
+    }
+
+    if (w.path) {
+      const v = this._asScalar(this._readDocProperty(owner, w.path));
+      if (v !== undefined && v !== null && typeof v !== "object") return v;
+    }
+    if (w.pathValue) {
+      const v = this._asScalar(this._readDocProperty(owner, w.pathValue));
+      if (v !== undefined && v !== null && typeof v !== "object") return v;
+    }
+
+    if (w.staticValue !== undefined && w.staticValue !== "") return w.staticValue;
+
+    if (typeof w.label === "string" && w.label) return w.label;
+    return 0;
+  }
+
+  static _findWidgetOwner(w, doc) {
+    const _has = (d) => {
+      const _walk = (list) => {
+        if (!Array.isArray(list)) return false;
+        for (const ww of list) {
+          if (!ww) continue;
+          if (ww === w) return true;
+          if (_walk(ww.widgets)) return true;
+        }
+        return false;
+      };
+      const tabs = d?.system?.customTabs ?? [];
+      for (const tab of tabs) for (const row of (tab.rows ?? [])) {
+        if (_walk(row.widgets)) return true;
+      }
+      return false;
+    };
+    if (_has(doc)) return doc;
+    if (doc?.actor && doc.actor !== doc && _has(doc.actor)) return doc.actor;
+    const items = Array.isArray(doc?.items) ? doc.items : (doc?.items?.contents ?? []);
+    for (const item of items) {
+      if (_has(item)) return item;
+    }
+    return null;
   }
 
   static _findWidgetByKey(doc, key) {
-    const tabs = doc?.system?.customTabs ?? [];
-    for (const tab of tabs) {
-      for (const row of (tab.rows ?? [])) {
-        for (const w of (row.widgets ?? [])) {
-          if (w.widgetKey === key) return w;
+    if (!key) return null;
+    const want = String(key);
+
+    const _walk = (list) => {
+      if (!Array.isArray(list)) return null;
+      for (const w of list) {
+        if (!w) continue;
+        if (w.widgetKey === want) return w;
+        const nested = _walk(w.widgets);
+        if (nested) return nested;
+      }
+      return null;
+    };
+
+    const _scan = (doc) => {
+      const tabs = doc?.system?.customTabs ?? [];
+      for (const tab of tabs) {
+        for (const row of (tab.rows ?? [])) {
+          const hit = _walk(row.widgets);
+          if (hit) return hit;
         }
+      }
+      return null;
+    };
+
+    let w = _scan(doc);
+    if (w) return w;
+
+    if (doc?.actor && doc.actor !== doc) {
+      w = _scan(doc.actor);
+      if (w) return w;
+    }
+    if (Array.isArray(doc?.items)) {
+      for (const item of doc.items) {
+        w = _scan(item);
+        if (w) return w;
+      }
+    } else if (doc?.items?.contents) {
+      for (const item of doc.items.contents) {
+        w = _scan(item);
+        if (w) return w;
       }
     }
     return null;
@@ -207,17 +415,189 @@ export class FormulaEngine {
     }
   }
 
+  static _b64decodeUtf8(b64) {
+    if (!b64) return "";
+    try {
+      const bin = (typeof atob === "function")
+        ? atob(b64)
+        : (typeof Buffer !== "undefined" ? Buffer.from(b64, "base64").toString("binary") : "");
+      try { return decodeURIComponent(escape(bin)); }
+      catch { return bin; }
+    } catch (e) {
+      return "";
+    }
+  }
+
+  static _evalSideForCompare(expr, doc) {
+    if (expr === undefined || expr === null) return "";
+    const s = String(expr);
+    if (!s.trim()) return "";
+
+    if (s.trim().startsWith('"') && s.trim().endsWith('"')) {
+      try { return JSON.parse(s.trim()); } catch {}
+    }
+    if (s.trim().startsWith("'") && s.trim().endsWith("'")) {
+      return s.trim().slice(1, -1);
+    }
+
+    const resolved = this._resolveRefs(s, doc);
+    if (resolved.trim().startsWith('"') && resolved.trim().endsWith('"')) {
+      try { return JSON.parse(resolved.trim()); } catch {}
+    }
+    const evald = this._evalMath(resolved);
+    if (typeof evald === "string") {
+      const t = evald.trim();
+      if (t.startsWith('"') && t.endsWith('"')) {
+        try { return JSON.parse(t); } catch {}
+      }
+    }
+    return evald;
+  }
+
+  static _looseEq(a, b) {
+    if (a === b) return true;
+    if (typeof a === "number" && typeof b === "number") return a === b;
+
+    const na = Number(a);
+    const nb = Number(b);
+    if (Number.isFinite(na) && Number.isFinite(nb) && String(a).trim() !== "" && String(b).trim() !== "") {
+      if (na === nb) return true;
+    }
+
+    const sa = String(a ?? "");
+    const sb = String(b ?? "");
+    return sa === sb;
+  }
+
   static _resolveToken(token, doc) {
+    if (token.startsWith("__sdEq:") || token.startsWith("__sdNeq:")) {
+      const isNeq = token.startsWith("__sdNeq:");
+      const rest  = token.slice(isNeq ? "__sdNeq:".length : "__sdEq:".length);
+      const sep   = rest.indexOf("|");
+      if (sep < 0) return 0;
+      const a = this._b64decodeUtf8(rest.slice(0, sep));
+      const b = this._b64decodeUtf8(rest.slice(sep + 1));
+      const aVal = this._evalSideForCompare(a, doc);
+      const bVal = this._evalSideForCompare(b, doc);
+      const eq = this._looseEq(aVal, bVal);
+      return (isNeq ? !eq : eq) ? 1 : 0;
+    }
+
+    if (token.startsWith("__sdName:")) {
+      const rest = token.slice("__sdName:".length);
+      const sep  = rest.indexOf("|");
+      if (sep < 0) return "";
+      const kind   = rest.slice(0, sep).trim();
+      const b64Ref = rest.slice(sep + 1).trim();
+      let   ref    = this._b64decodeUtf8(b64Ref);
+
+      if (ref.startsWith('"') && ref.endsWith('"')) {
+        try { ref = JSON.parse(ref); } catch {}
+      } else if (ref.startsWith("'") && ref.endsWith("'")) {
+        ref = ref.slice(1, -1);
+      }
+      ref = String(ref ?? "").trim();
+      if (!ref) return "";
+
+      const _byUuid = (s) => {
+        try { return fromUuidSync?.(s) ?? null; } catch { return null; }
+      };
+      const actor = doc instanceof Actor ? doc : (doc?.actor ?? null);
+
+      const _tryItem = () => {
+        if (ref.includes(".")) {
+          const d = _byUuid(ref);
+          if (d?.documentName === "Item") return d?.name ?? "";
+        }
+        if (actor) {
+          const byId = actor.items?.get?.(ref);
+          if (byId) return byId.name ?? "";
+          const byName = actor.items?.find?.(i => i.name === ref);
+          if (byName) return byName.name ?? "";
+        }
+        try {
+          const byCollectionId = game?.items?.get?.(ref);
+          if (byCollectionId) return byCollectionId.name ?? "";
+          const byCollectionName = game?.items?.getName?.(ref);
+          if (byCollectionName) return byCollectionName.name ?? "";
+        } catch {}
+        return "";
+      };
+      const _tryWidget = () => {
+        const w = this._findWidgetByKey(doc, ref);
+        return w?.label ?? "";
+      };
+      const _tryToken = () => {
+        try {
+          if (typeof canvas !== "undefined") {
+            const tk = canvas?.tokens?.get?.(ref);
+            if (tk) return tk.name ?? tk.document?.name ?? "";
+            const tkByName = canvas?.tokens?.placeables?.find?.(t => (t.name ?? t.document?.name) === ref);
+            if (tkByName) return tkByName.name ?? tkByName.document?.name ?? "";
+          }
+        } catch {}
+        if (ref.startsWith("Scene.")) {
+          const d = _byUuid(ref);
+          if (d?.documentName === "Token") return d?.name ?? "";
+        }
+        return "";
+      };
+      const _tryActor = () => {
+        if (ref.includes(".")) {
+          const d = _byUuid(ref);
+          if (d) return d?.name ?? "";
+        }
+        try {
+          const a = game?.actors?.get?.(ref) ?? game?.actors?.getName?.(ref);
+          if (a) return a.name ?? "";
+        } catch {}
+        return "";
+      };
+      const _trySheet = () => {
+        if (ref.includes(".")) {
+          const d = _byUuid(ref);
+          if (d) return d?.name ?? "";
+        }
+        return "";
+      };
+
+      switch (kind) {
+        case "item":   return _tryItem();
+        case "widget": return _tryWidget();
+        case "token":  return _tryToken();
+        case "actor":  return _tryActor();
+        case "sheet":  return _trySheet();
+        case "auto":
+        default: {
+          if (ref.includes(".")) {
+            const d = _byUuid(ref);
+            if (d) return d?.name ?? "";
+          }
+          const fns = [_tryWidget, _tryItem, _tryToken, _tryActor];
+          for (const fn of fns) {
+            const n = fn();
+            if (n) return n;
+          }
+          return "";
+        }
+      }
+    }
+
+    if (token.startsWith("__sdEqCount:")) {
+      const cat   = token.slice("__sdEqCount:".length).trim();
+      const owner = doc instanceof Actor ? doc : (doc?.actor ?? null);
+      const items = owner?.items?.contents ?? [];
+      const n = items.filter(i => i?.type === "inventory"
+        && i.system?.equipped === true
+        && (cat === "" || cat === "any" || i.system?.category === cat)).length;
+      return n;
+    }
+
     if (token.startsWith("widget:")) {
       const key    = token.slice("widget:".length);
       const w      = this._findWidgetByKey(doc, key);
       if (!w) return 0;
-      if (w.valueFormula && this.isFormula(w.valueFormula)) {
-        return this.evaluate(w.valueFormula, doc);
-      }
-      if (w.path) return foundry.utils.getProperty(doc, w.path) ?? 0;
-      if (w.pathValue) return foundry.utils.getProperty(doc, w.pathValue) ?? 0;
-      return 0;
+      return this._readWidgetValue(w, doc);
     }
 
     if (token.startsWith("widgetPath:")) {

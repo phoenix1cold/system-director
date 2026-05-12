@@ -625,7 +625,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   async _prompt(label, defaultValue = "") {
-    return foundry.applications.api.DialogV2.wait({
+    const result = await foundry.applications.api.DialogV2.wait({
       window: { title: "Sheet Builder" },
       modal: true,
       content: `<div style="padding:8px 0">
@@ -641,12 +641,20 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
           default: true,
           callback: (event, button, dialog) => {
             const root = dialog?.element ?? dialog;
-            return root?.querySelector?.("input[name='val']")?.value?.trim() || null;
+            const v = root?.querySelector?.("input[name='val']")?.value?.trim();
+            return { __sdOk: true, __sdValue: v && v.length ? v : null };
           }
         },
-        { action: "cancel", label: "Cancel", callback: () => null }
+        {
+          action: "cancel", label: "Cancel",
+          callback: () => ({ __sdOk: false, __sdValue: null })
+        }
       ],
       rejectClose: false
-    }).catch(() => null);
+    }).catch(() => ({ __sdOk: false, __sdValue: null }));
+
+    if (!result || typeof result !== "object" || !result.__sdOk) return null;
+    const v = result.__sdValue;
+    return (typeof v === "string" && v.length) ? v : null;
   }
 }
