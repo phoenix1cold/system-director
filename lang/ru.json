@@ -1018,6 +1018,7 @@
   "SD.Graph.systemattributesattr1mod": "system.attributes.attr1.mod",
   "SD.Graph.systemresourceshpvalue": "system.resources.hp.value",
   "SD.Graph.To_chat": "В чат",
+  "SD.Graph.To_Formula": "В формулу",
   "SD.Graph.Roll_dialog": "Диалог броска",
   "SD.Graph.Roll_formula": "Формула броска",
   "SD.Graph.Adv_formula_pinGtfield": "Формула преим. (пин>поле)",

@@ -3165,64 +3165,66 @@ export class ButtonExecutor {
         }
         dlgButtons.push({ action:"cancel", label: cancelLabel, icon:"fas fa-times" });
 
-        const dlg = new DialogV2({
-          window:      { title },
-          content:     _renderBody(state),
-          buttons:     dlgButtons,
-          rejectClose: false,
-          render: (_e, dialog) => {
-            const root = dialog.element;
-            if (!root) return;
-            const _refresh = () => {
-              const body = root.querySelector(".window-content") || root;
-              const formArea = body.querySelector(".dialog-content") || body;
-
-              try {
-                const newHtml = _renderBody(state);
-                const target = root.querySelector(".dialog-content") || root.querySelector(".window-content");
-                if (target) target.innerHTML = newHtml;
-                _attach();
-              } catch (err) { console.warn("SD | Dialog Builder refresh failed:", err); }
-            };
-            const _attach = () => {
-              const inputs = root.querySelectorAll("[data-sd-dlg-id]");
-              inputs.forEach(el => {
-                const id = el.getAttribute("data-sd-dlg-id");
-                const onChange = () => {
-                  if (el.type === "checkbox") state[id] = !!el.checked;
-                  else if (el.type === "number") state[id] = Number(el.value);
-                  else state[id] = el.value;
-
-                  const refRe = new RegExp(`\\{${id}\\}`);
-                  const condDirty = elements.some(e =>
-                    e && (refRe.test(e.visibleWhen || "") || refRe.test(e.disabledWhen || ""))
-                  );
-                  if (condDirty) _refresh();
-                };
-                el.addEventListener("change", onChange);
-                el.addEventListener("input",  onChange);
-              });
-            };
-            _attach();
-          }
-        });
-
+        // V14 DialogV2 normalizes options.buttons into a Record keyed by action,
+        // so we can't mutate it post-construction. Wrap callbacks before passing
+        // them in, and use the `close` option to capture dismissal.
         const result = await new Promise((resolve) => {
           let resolved = false;
-          dlg.options.buttons = dlg.options.buttons.map(b => {
+          const _finish = (val) => {
+            if (resolved) return;
+            resolved = true;
+            resolve(val);
+          };
+          const wrappedButtons = dlgButtons.map(b => {
             const orig = b.callback;
             return {
               ...b,
               callback: (...args) => {
-                if (resolved) return;
-                resolved = true;
-                if (b.action === "cancel") { resolve(null); return; }
+                if (b.action === "cancel") { _finish(null); return; }
                 const r = (typeof orig === "function") ? orig(...args) : `${b.action}|`;
-                resolve(r);
+                _finish(r);
               }
             };
           });
-          dlg.addEventListener?.("close", () => { if (!resolved) { resolved = true; resolve(null); } });
+          const dlg = new DialogV2({
+            window:      { title },
+            content:     _renderBody(state),
+            buttons:     wrappedButtons,
+            rejectClose: false,
+            close:       () => { _finish(null); },
+            render: (_e, dialog) => {
+              const root = dialog.element;
+              if (!root) return;
+              const _refresh = () => {
+                try {
+                  const newHtml = _renderBody(state);
+                  const target = root.querySelector(".dialog-content") || root.querySelector(".window-content");
+                  if (target) target.innerHTML = newHtml;
+                  _attach();
+                } catch (err) { console.warn("SD | Dialog Builder refresh failed:", err); }
+              };
+              const _attach = () => {
+                const inputs = root.querySelectorAll("[data-sd-dlg-id]");
+                inputs.forEach(el => {
+                  const id = el.getAttribute("data-sd-dlg-id");
+                  const onChange = () => {
+                    if (el.type === "checkbox") state[id] = !!el.checked;
+                    else if (el.type === "number") state[id] = Number(el.value);
+                    else state[id] = el.value;
+
+                    const refRe = new RegExp(`\\{${id}\\}`);
+                    const condDirty = elements.some(e =>
+                      e && (refRe.test(e.visibleWhen || "") || refRe.test(e.disabledWhen || ""))
+                    );
+                    if (condDirty) _refresh();
+                  };
+                  el.addEventListener("change", onChange);
+                  el.addEventListener("input",  onChange);
+                });
+              };
+              _attach();
+            }
+          });
           dlg.render(true);
         });
 

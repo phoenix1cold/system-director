@@ -30,13 +30,13 @@ export class FormulaEngine {
         const val = this._asScalar(foundry.utils.getProperty(doc, match));
         if (val !== undefined && val !== null && typeof val !== "object") {
           console.debug(`SD | Formula: bare path "${match}" resolved to ${val}. Wrap in {curly braces} for clarity.`);
-          return this._safeLiteral(val);
+          return this._safeLiteral(val, true);
         }
 
         const rd = (doc instanceof Actor ? doc : doc.actor)?.getRollData?.() ?? {};
         const rdVal = this._asScalar(foundry.utils.getProperty(rd, match));
         if (rdVal !== undefined && rdVal !== null && typeof rdVal !== "object") {
-          return this._safeLiteral(rdVal);
+          return this._safeLiteral(rdVal, true);
         }
         return match;
       });
@@ -291,21 +291,38 @@ export class FormulaEngine {
     while (cur !== prev && pass++ < 8 && /\{[^{}]+\}/.test(cur)) {
       prev = cur;
       cur = cur.replace(/\{([^{}]+)\}/g, (match, inner) => {
-        const val = this._resolveToken(inner.trim(), doc);
+        const trimmed = inner.trim();
+        if (trimmed.startsWith("raw:")) {
+          const val = this._resolveToken(trimmed.slice(4).trim(), doc);
+          if (val === undefined || val === null) return "0";
+          if (typeof val === "object") return "0";
+          return String(val);
+        }
+        const val = this._resolveToken(trimmed, doc);
         if (val === undefined || val === null) return "0";
-        return this._safeLiteral(val);
+        return this._safeLiteral(val, rollMode);
       });
     }
     return cur;
   }
 
-  static _safeLiteral(val) {
+  static _looksLikeRollExpr(s) {
+    if (!/^[\sA-Za-z0-9+\-*/().,@_#\[\]!?<>=:]+$/.test(s)) return false;
+    if (/\d+\s*d\s*\d+/i.test(s))                    return true;
+    if (/[+\-*/]/.test(s))                            return true;
+    if (/@[A-Za-z_]/.test(s))                         return true;
+    if (/\b(?:floor|ceil|round|abs|min|max)\s*\(/i.test(s)) return true;
+    return false;
+  }
+
+  static _safeLiteral(val, rollMode = false) {
     const t = typeof val;
     if (t === "number")  return Number.isFinite(val) ? String(val) : "0";
     if (t === "boolean") return val ? "true" : "false";
     const s = String(val ?? "");
-    if (s === "") return '""';
+    if (s === "") return rollMode ? "0" : '""';
     if (/^-?\d+(?:\.\d+)?$/.test(s)) return s;
+    if (rollMode && this._looksLikeRollExpr(s.trim())) return s.trim();
     return JSON.stringify(s);
   }
 

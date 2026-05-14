@@ -558,6 +558,31 @@ export const NODE_DEFS = {
     }
   },
 
+  to_formula: {
+    title:"To Formula", color:"#7a4500", cat:"Dice",
+    desc:"Strip surrounding quotes from a string and mark it to be inlined into a dice formula raw, without JSON quoting. Use this when a field contains a roll expression (e.g. `1d6`, `2d20+@mod`) that should be rolled as dice instead of being treated as a literal text term. Plain text values still work — they are simply emitted unquoted into the formula.",
+    inputs:[{id:"in", label:"In", type:"value.string"}],
+    outputs:[{id:"v", label:"Formula", type:"value.string"}],
+    fields:[{key:"value", label:"", type:"text", default:"", placeholder:"e.g. 1d6, 2d20+@mod"}],
+    compile:(n, i) => {
+      let s = (i.in != null && i.in !== "") ? String(i.in) : String(n.data?.value ?? "");
+      if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
+        try {
+          const t = JSON.parse(s);
+          if (typeof t === "string") s = t;
+        } catch {}
+      } else if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
+        s = s.slice(1, -1).replace(/\\(.)/g, "$1");
+      }
+      s = s.replace(/\{([^{}]+)\}/g, (m, inner) => {
+        const t = inner.trim();
+        if (t.startsWith("raw:")) return m;
+        return `{raw:${t}}`;
+      });
+      return s;
+    }
+  },
+
   formula_add: {
     title:"Formula + Mod", color:"#7a4500", cat:"Dice",
     desc:"Append a +/- modifier to a formula. Mod accepts numbers (`5`, `-3`) or expressions (`@mod`, `1d4`). Stack multiple of these to chain bonuses.",
