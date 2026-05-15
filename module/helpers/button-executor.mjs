@@ -2554,24 +2554,40 @@ export class ButtonExecutor {
 
       case "setVar": {
         const { FormulaEngine } = await import("./formula-engine.mjs");
-        const varName = action.name ?? "myVar";
+        const varName = String(action.name ?? "myVar").trim() || "myVar";
         let val = action.value ?? 0;
         try {
           let s = _injectRuntime(String(val));
           s = FormulaEngine.resolveForRoll(s, item ?? actor ?? {});
           val = FormulaEngine.evaluate(s, item ?? actor ?? {});
-        } catch {  }
+        } catch (e) {
+          console.warn(`SD | setVar(${varName}) evaluate failed:`, e);
+        }
+
+        if (typeof val === "string") {
+          const t = val.trim();
+          if (t !== "" && /^-?\d+(?:\.\d+)?$/.test(t)) {
+            const n = Number(t);
+            if (Number.isFinite(n)) val = n;
+          }
+        }
+
         if (action.scope === "world") {
           if (game.user.isGM) {
             const vars = game.settings.get("sd", "systemSettings")?.vars ?? {};
             vars[varName] = val;
             const cur = game.settings.get("sd", "systemSettings") ?? {};
             await game.settings.set("sd", "systemSettings", { ...cur, vars });
+          } else {
+            console.warn(`SD | setVar(${varName}) skipped — world scope requires GM.`);
           }
         } else {
-
           const a = actor ?? item?.actor;
-          if (a) await a.setFlag("sd", `vars.${varName}`, val);
+          if (!a) {
+            console.warn(`SD | setVar(${varName}) skipped — no actor available.`);
+          } else {
+            await a.setFlag("sd", `vars.${varName}`, val);
+          }
         }
         break;
       }

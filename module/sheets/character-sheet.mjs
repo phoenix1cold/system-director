@@ -1805,14 +1805,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    cell.querySelectorAll(".widget-select-input[data-path]").forEach(sel => {
-      sel.addEventListener("change", async () => {
-        const path = sel.dataset.path;
-        if (!path) return;
-        await this.document.update({ [path]: sel.value });
-      });
-    });
-
     cell.querySelectorAll(".sd-tag-add[data-path]").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();

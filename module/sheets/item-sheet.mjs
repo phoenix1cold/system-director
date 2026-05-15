@@ -2219,14 +2219,6 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       });
     });
 
-    con.querySelectorAll(".widget-select-input[data-path]").forEach(sel => {
-      sel.addEventListener("change", async () => {
-        const path = sel.dataset.path;
-        if (!path) return;
-        await this.document.update({ [path]: sel.value });
-      });
-    });
-
     con.querySelectorAll(".sd-tag-add[data-path]").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();

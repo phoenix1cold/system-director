@@ -447,24 +447,44 @@ export class FormulaEngine {
 
   static _evalSideForCompare(expr, doc) {
     if (expr === undefined || expr === null) return "";
-    const s = String(expr);
-    if (!s.trim()) return "";
+    const s = String(expr).trim();
+    if (!s) return "";
 
-    if (s.trim().startsWith('"') && s.trim().endsWith('"')) {
-      try { return JSON.parse(s.trim()); } catch {}
-    }
-    if (s.trim().startsWith("'") && s.trim().endsWith("'")) {
-      return s.trim().slice(1, -1);
+    if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
+      return s.slice(1, -1);
     }
 
-    const resolved = this._resolveRefs(s, doc);
-    if (resolved.trim().startsWith('"') && resolved.trim().endsWith('"')) {
-      try { return JSON.parse(resolved.trim()); } catch {}
+    let str = s;
+    let prev = null;
+    let pass = 0;
+    while (prev !== str && pass++ < 8 && /\{[^{}]+\}/.test(str)) {
+      prev = str;
+      str = str.replace(/\{([^{}]+)\}/g, (_match, inner) => {
+        const trimmed = inner.trim();
+        const tk = trimmed.startsWith("raw:") ? trimmed.slice(4).trim() : trimmed;
+        const val = this._resolveToken(tk, doc);
+        if (val === undefined || val === null) return "";
+        if (typeof val === "object") return "";
+        return String(val);
+      });
     }
-    const evald = this._evalMath(resolved);
+
+    let unwrapPasses = 0;
+    while (typeof str === "string" && unwrapPasses++ < 4) {
+      const t = str.trim();
+      if (t.length < 2 || !t.startsWith('"') || !t.endsWith('"')) break;
+      try {
+        const parsed = JSON.parse(t);
+        if (typeof parsed !== "string" || parsed === t) { str = parsed; break; }
+        str = parsed;
+      } catch { break; }
+    }
+    if (typeof str !== "string") return str;
+
+    const evald = this._evalMath(str);
     if (typeof evald === "string") {
       const t = evald.trim();
-      if (t.startsWith('"') && t.endsWith('"')) {
+      if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
         try { return JSON.parse(t); } catch {}
       }
     }
