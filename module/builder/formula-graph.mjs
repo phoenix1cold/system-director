@@ -8569,18 +8569,28 @@ export class FormulaGraph {
     inp.addEventListener("focus",()=>inp.style.borderColor="var(--sd-accent)");
     inp.addEventListener("blur", ()=>inp.style.borderColor="#1a1a28");
     inp.addEventListener("mousedown",ev=>ev.stopPropagation());
+    const _IS_TEXTUAL = (field.type === "text" || field.type === "textarea" || field.type === "path" || field.type === "formula");
+    const _fullRerenderIfDynamic = () => {
+      const _defV = NODE_DEFS[node.type];
+      const _hasVis = _defV?.fields?.some(f => typeof f.visibleIf === "function");
+      const _hasDyn = typeof _defV?.computeDynamicOutputs === "function";
+      if (_hasVis || _hasDyn) {
+        this._renderNode(node);
+        this._scheduleEdges?.();
+        return true;
+      }
+      return false;
+    };
+    if (_IS_TEXTUAL) {
+      inp.addEventListener("change", () => { _fullRerenderIfDynamic(); });
+    }
     inp.addEventListener("input",ev=>{
       node.data[field.key]=inp.type==="number"?Number(ev.target.value):ev.target.value;
       this._updatePreview();
       if(field.type==="path" && liveBadge) _refreshLiveBadge();
 
-      {
-        const _defV = NODE_DEFS[node.type];
-        const _hasVis = _defV?.fields?.some(f => typeof f.visibleIf === "function");
-        const _hasDyn = typeof _defV?.computeDynamicOutputs === "function";
-        if (_hasVis || _hasDyn) {
-          this._renderNode(node); this._scheduleEdges?.(); return;
-        }
+      if (!_IS_TEXTUAL) {
+        if (_fullRerenderIfDynamic()) return;
       }
       const _def2 = NODE_DEFS[node.type];
       if (_def2?.isSequence && field.key === "count") {
@@ -8654,8 +8664,13 @@ export class FormulaGraph {
       const to  =this._pinScreen(edge.toNode,  edge.toPin,  "input");
       if(!from||!to) continue;
 
-      const def = NODE_DEFS[this.nodes.find(n=>n.id===edge.fromNode)?.type??""];
-      const fromPinDef = [...(def?.outputs??[])].find(p=>p.id===edge.fromPin);
+      const fromNode  = this.nodes.find(n=>n.id===edge.fromNode);
+      const def       = NODE_DEFS[fromNode?.type ?? ""];
+      const dynOuts   = (def && typeof def.computeDynamicOutputs === "function")
+        ? (def.computeDynamicOutputs(fromNode) ?? [])
+        : [];
+      const fromPinDef = dynOuts.find(p=>p.id===edge.fromPin)
+                       ?? [...(def?.outputs??[])].find(p=>p.id===edge.fromPin);
       const isExec = fromPinDef?.type==="exec";
       const subColor = subtypeColor(fromPinDef?.type);
 

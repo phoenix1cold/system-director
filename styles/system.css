@@ -2563,6 +2563,44 @@
 
 .sd .widget-attribute .attr-mod:hover { background: var(--sd-accent-glow); }
 
+/* Attribute widget — "Roll Button" variant */
+.sd .widget-attribute.widget-attribute--roll .attr-roll-btn,
+.sd .sd-w-attribute.sd-v-roll-button .attr-roll-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 3px;
+  padding: 4px 12px;
+  border: 1px solid var(--sd-accent, #7b68ee);
+  border-radius: 999px;
+  background: var(--sd-accent-glow, rgba(123,104,238,.12));
+  color: var(--sd-w-fg, var(--sd-text, #e6e6f0));
+  font-size: var(--sd-btn-font-size);
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .05s;
+  line-height: 1.4;
+}
+.sd .widget-attribute.widget-attribute--roll .attr-roll-btn i,
+.sd .sd-w-attribute.sd-v-roll-button .attr-roll-btn i {
+  font-size: 12px;
+  color: var(--sd-accent, #7b68ee);
+}
+.sd .widget-attribute.widget-attribute--roll .attr-roll-btn:hover,
+.sd .sd-w-attribute.sd-v-roll-button .attr-roll-btn:hover {
+  background: var(--sd-accent, #7b68ee);
+  color: #fff;
+}
+.sd .widget-attribute.widget-attribute--roll .attr-roll-btn:hover i,
+.sd .sd-w-attribute.sd-v-roll-button .attr-roll-btn:hover i {
+  color: #fff;
+}
+.sd .widget-attribute.widget-attribute--roll .attr-roll-btn:active,
+.sd .sd-w-attribute.sd-v-roll-button .attr-roll-btn:active { transform: translateY(1px); }
+
 .sd .widget-skill {
   display: flex;
   flex-direction: row;
@@ -5545,6 +5583,49 @@
 }
 [data-preview-ref]:hover {
   filter: brightness(1.1);
+}
+
+/* ============================================================
+   Floating item preview popup
+   Used by inventory / spellbook / effects widgets on character sheet.
+   Reuses .sd-prog-preview-* skin from the progression preview.
+   ============================================================ */
+#sd-item-preview-popup.sd-item-preview-popup {
+  position: fixed;
+  z-index: 10000;
+  width: 360px;
+  max-width: 90vw;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 8px;
+  background: var(--prog-bg, var(--sd-bg-2, #1a1d28));
+  border: 1px solid var(--prog-border, #3a3d4d);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--prog-text, #e6e6f0);
+}
+#sd-item-preview-popup[data-pinned="1"] {
+  border-color: var(--prog-accent, #7b68ee);
+  box-shadow: 0 12px 28px rgba(0,0,0,.55), 0 0 0 1px var(--prog-accent, #7b68ee) inset;
+}
+#sd-item-preview-popup .sd-item-preview-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--prog-text2, #a8aab3);
+  opacity: .55;
+  font-size: 11px;
+  border: 1px dashed var(--prog-border, #3a3d4d);
+}
+[data-sd-preview-ref] {
+  cursor: default;
 }
 
 /* Apply-choices dialog: disabled state */

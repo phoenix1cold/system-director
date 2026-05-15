@@ -146,7 +146,7 @@
       "rollButton":     { "default": "Default", "d20": "d20", "flat": "Flat", "stamp": "Stamp" },
       "toggle":         { "default": "Switch", "checkbox": "Checkbox", "pill": "Pill", "led": "LED" },
       "select":         { "default": "Default", "pills": "Pills", "segmented": "Segmented", "radio": "Radio" },
-      "attribute":      { "default": "Default", "stat-card": "Stat Card", "inline": "Inline", "badge": "Badge" },
+      "attribute":      { "default": "Default", "stat-card": "Stat Card", "inline": "Inline", "badge": "Badge", "roll-button": "Roll Button" },
       "attributeGroup": { "default": "Default", "row": "Row", "grid": "Grid", "dice": "Dice" },
       "tags":           { "default": "Default", "outline": "Outline", "solid": "Solid", "soft": "Soft" },
       "image":          { "default": "Default", "framed": "Framed", "circle": "Circle", "polaroid": "Polaroid", "token": "Token" },

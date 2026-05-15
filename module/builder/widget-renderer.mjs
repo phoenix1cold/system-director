@@ -362,7 +362,7 @@ export class WidgetRenderer {
 
     const e = this._esc;
     const items = contents.map((c, i) => `
-      <li class="slot-mini-item" draggable="true" data-slot-item-drag data-slot-id="${e(w.slotId)}" data-slot-index="${i}" data-item-id="${e(c._id ?? "")}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? "")}">
+      <li class="slot-mini-item" draggable="true" data-slot-item-drag data-sd-preview-ref="slot" data-slot-id="${e(w.slotId)}" data-slot-index="${i}" data-item-id="${e(c._id ?? "")}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? "")}">
         <img class="slot-mini-img" src="${e(c.img ?? "icons/svg/item-bag.svg")}" alt="${e(c.name ?? "")}">
         <span>${e(c.name ?? "")}</span>
         <button type="button" class="slot-item-use item-use-btn" data-action="slotItemUse" data-slot-id="${e(w.slotId)}" data-slot-index="${i}" title="Use">
@@ -400,7 +400,7 @@ export class WidgetRenderer {
         const nm  = e(c.name ?? "");
         const itemId   = e(c._id ?? "");
         const itemUuid = e(c._sourceUuid ?? c.uuid ?? "");
-        rows += `<li class="sd-hud-pop-row" draggable="true" data-slot-item-drag data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUuid}">
+        rows += `<li class="sd-hud-pop-row" draggable="true" data-slot-item-drag data-sd-preview-ref="slot" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUuid}">
           <img src="${img}" alt="${nm}">
           <span class="sd-hud-pop-name" title="${nm}">${nm}</span>
           <button type="button" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="Use"><i class="fas fa-play"></i></button>
@@ -421,7 +421,7 @@ export class WidgetRenderer {
       const nm  = e(c.name ?? "");
       const itemId   = e(c._id ?? "");
       const itemUuid = e(c._sourceUuid ?? c.uuid ?? "");
-      icons += `<button type="button" class="slot-hud-icon" draggable="true" data-slot-item-drag data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUuid}" title="${nm}">
+      icons += `<button type="button" class="slot-hud-icon" draggable="true" data-slot-item-drag data-sd-preview-ref="slot" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUuid}" title="${nm}">
         <img src="${img}" alt="${nm}">
         <span class="slot-hud-icon-remove" data-sd-slot-remove="${slotId}" data-sd-slot-idx="${i}" title="Remove">×</span>
       </button>`;
@@ -548,7 +548,7 @@ export class WidgetRenderer {
           : "";
 
         html += `
-      <li class="item-row ${equipped}" data-item-id="${item.id}" data-item-drag>
+      <li class="item-row ${equipped}" data-item-id="${item.id}" data-sd-preview-ref="item:${e(item.id)}" data-item-drag>
         <img class="item-img" src="${e(item.img)}" alt="${e(item.name)}">
         <span class="item-name">${e(item.name)}</span>
         ${qty > 1 ? `<span class="item-qty">×${qty}</span>` : ""}
@@ -598,6 +598,21 @@ export class WidgetRenderer {
     const dataOnClick = onClickFml
       ? `data-attr-onclick="${e(onClickFml)}"`
       : `data-attr-roll="1d20+(${mod})" data-flavor="${e(w.flavor || w.label)}"`;
+
+    const variant = this._sanitizeVariant(w.variant);
+
+    if (variant === "roll-button") {
+      const rollLabel = e(w.rollButtonLabel || "ROLL");
+      return `<div class="widget widget-attribute widget-attribute--roll">
+  <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.path ? this._copyBtn(w.path, "score") : ""}</div>
+  <div class="attr-box">
+    <input type="number" name="${e(w.path)}" value="${e(score)}" class="attr-score">
+    <button type="button" class="attr-roll-btn" data-action="attrModClick"
+            ${dataOnClick}
+            title="${e(w.label)} — click to roll"><i class="fas fa-dice-d20"></i><span>${rollLabel}</span></button>
+  </div>
+</div>`;
+    }
 
     return `<div class="widget widget-attribute">
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.path ? this._copyBtn(w.path, "score") : ""}</div>
@@ -809,7 +824,7 @@ export class WidgetRenderer {
       const dur      = _durLabel(ef);
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
       rows += `
-      <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}">
+      <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}" data-sd-preview-ref="effect:${e(ef.id)}">
         <img class="effect-img" src="${e(ef.img ?? ef.icon ?? 'icons/svg/aura.svg')}" alt="${e(ef.name)}">
         <span class="effect-name">${e(ef.name)}</span>
         ${dur ? `<span class="effect-dur">${e(dur)}</span>` : ""}
@@ -1497,7 +1512,7 @@ export class WidgetRenderer {
       : "";
 
     return `
-      <li class="sb-ability-row ${equipped}" data-item-id="${esc(ab.id)}" draggable="true"
+      <li class="sb-ability-row ${equipped}" data-item-id="${esc(ab.id)}" data-sd-preview-ref="item:${esc(ab.id)}" draggable="true"
           style="display:flex;align-items:center;gap:5px;padding:3px 4px;border-radius:4px;
                  list-style:none;cursor:default;transition:background .1s"
           onmouseenter="this.style.background='rgba(123,104,238,.07)'"
@@ -1647,7 +1662,7 @@ export class WidgetRenderer {
       const equipBtn  = isInv
         ? `<button type="button" class="sd-hud-pop-btn-equip ${equipped ? "is-on" : ""}" data-action="itemEquip" data-item-id="${e(item.id)}" title="${equipped ? "Unequip" : "Equip"}"${equippable ? "" : ' style="opacity:.45"'}><i class="fas ${equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>`
         : "";
-      rows += `<li class="sd-hud-pop-row" data-item-id="${e(item.id)}">
+      rows += `<li class="sd-hud-pop-row" data-item-id="${e(item.id)}" data-sd-preview-ref="item:${e(item.id)}">
         <img src="${e(item.img)}" alt="${e(item.name)}">
         <span class="sd-hud-pop-name" title="${e(item.name)}">${e(item.name)}</span>
         ${qty > 1 ? `<span class="sd-hud-pop-qty">×${qty}</span>` : ""}
@@ -1675,7 +1690,7 @@ export class WidgetRenderer {
     for (const ef of effects) {
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
       const offCls   = ef.disabled ? "sd-hud-pop-row--off" : "";
-      rows += `<li class="sd-hud-pop-row ${offCls}" data-effect-id="${e(ef.id)}">
+      rows += `<li class="sd-hud-pop-row ${offCls}" data-effect-id="${e(ef.id)}" data-sd-preview-ref="effect:${e(ef.id)}">
         <img src="${e(ef.img ?? ef.icon ?? 'icons/svg/aura.svg')}" alt="${e(ef.name)}">
         <span class="sd-hud-pop-name" title="${e(ef.name)}">${e(ef.name)}</span>
         ${canEdit ? `<button type="button" data-action="effectToggle" data-effect-id="${e(ef.id)}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
@@ -1701,7 +1716,7 @@ export class WidgetRenderer {
     for (const ab of abilities) {
       const hf   = ab.system?.hiddenFields ?? {};
       const cost = Number(hf.cost ?? 0) || 0;
-      rows += `<li class="sd-hud-pop-row" data-item-id="${e(ab.id)}">
+      rows += `<li class="sd-hud-pop-row" data-item-id="${e(ab.id)}" data-sd-preview-ref="item:${e(ab.id)}">
         <img src="${e(ab.img ?? "icons/svg/book.svg")}" alt="${e(ab.name)}">
         <span class="sd-hud-pop-name" title="${e(ab.name)}">${e(ab.name)}</span>
         ${cost > 0 ? `<span class="sd-hud-pop-qty" title="cost">${cost}</span>` : ""}

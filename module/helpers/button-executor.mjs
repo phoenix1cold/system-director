@@ -3145,29 +3145,93 @@ export class ButtonExecutor {
           .map((el, i) => ({ el, idx: i }))
           .filter(({ el }) => el && el.type === "rollButton");
         let dlgButtons = [];
-        if (rollButtons.length > 0) {
-          let btnSeq = 0;
-          for (const { el } of rollButtons) {
-            const execIdx = Number.isInteger(el.execIndex) ? el.execIndex : btnSeq;
-            const pinId   = (Number.isInteger(el.execIndex)) ? `el${el.execIndex}_exec` : `btn${btnSeq}`;
-            btnSeq++;
-            if (btnSeq > 8) break;
-            dlgButtons.push({
-              action: `__sd_${pinId}__${el.id ?? ""}`,
-              label:  el.label ?? "Roll",
-              icon:   el.icon ?? "fas fa-dice-d20",
-              default: btnSeq === 1,
-              callback: () => `${pinId}|${el.id ?? ""}|${el.emit === false ? "no" : "yes"}`
-            });
-          }
-        } else {
-          dlgButtons.push({ action:"ok", label: okLabel, icon:"fas fa-check", default:true, callback: () => "ok||yes" });
+        let btnSeq = 0;
+        for (const { el } of rollButtons) {
+          const pinId   = (Number.isInteger(el.execIndex)) ? `el${el.execIndex}_exec` : `btn${btnSeq}`;
+          btnSeq++;
+          if (btnSeq > 8) break;
+          dlgButtons.push({
+            action: `__sd_${pinId}__${el.id ?? ""}`,
+            label:  el.label ?? "Roll",
+            icon:   el.icon ?? "fas fa-dice-d20",
+            default: false,
+            callback: () => `${pinId}|${el.id ?? ""}|${el.emit === false ? "no" : "yes"}`
+          });
         }
+        // Always add an explicit Submit button so the `Submit →` exec output
+        // can be fired without having to define an element-button.
+        dlgButtons.push({
+          action:  "__sd_submit",
+          label:   okLabel,
+          icon:    "fas fa-check",
+          default: rollButtons.length === 0,
+          callback: () => "submit||yes"
+        });
         dlgButtons.push({ action:"cancel", label: cancelLabel, icon:"fas fa-times" });
 
-        // V14 DialogV2 normalizes options.buttons into a Record keyed by action,
-        // so we can't mutate it post-construction. Wrap callbacks before passing
-        // them in, and use the `close` option to capture dismissal.
+        // Shared root reference so we can resync `state` from DOM right
+        // before resolving on a button click (defensive: even if our `change`
+        // listeners failed to bind for any reason, the values still get read).
+        let _dlgRoot = null;
+
+        const _syncStateFromDom = () => {
+          if (!_dlgRoot) return;
+          const inputs = _dlgRoot.querySelectorAll("[data-sd-dlg-id]");
+          inputs.forEach(el => {
+            const id = el.getAttribute("data-sd-dlg-id");
+            if (!id) return;
+            if (el.type === "checkbox") state[id] = !!el.checked;
+            else if (el.type === "number") state[id] = Number(el.value);
+            else state[id] = el.value;
+          });
+        };
+
+        const _bindInputs = (root) => {
+          if (!root) return;
+          const inputs = root.querySelectorAll("[data-sd-dlg-id]");
+          inputs.forEach(el => {
+            if (el.dataset.sdBound === "1") return;
+            el.dataset.sdBound = "1";
+            const id = el.getAttribute("data-sd-dlg-id");
+            const onChange = () => {
+              if (el.type === "checkbox") state[id] = !!el.checked;
+              else if (el.type === "number") state[id] = Number(el.value);
+              else state[id] = el.value;
+
+              const refRe = new RegExp(`\\{${id}\\}`);
+              const condDirty = elements.some(e =>
+                e && (refRe.test(e.visibleWhen || "") || refRe.test(e.disabledWhen || ""))
+              );
+              if (condDirty) _refresh(root);
+            };
+            el.addEventListener("change", onChange);
+            el.addEventListener("input",  onChange);
+          });
+        };
+
+        const _refresh = (root) => {
+          if (!root) return;
+          try {
+            const newHtml = _renderBody(state);
+            const target = root.querySelector("[data-sd-dlg-form]")
+                        ?? root.querySelector(".dialog-content")
+                        ?? root.querySelector(".window-content")
+                        ?? root;
+            if (target) target.innerHTML = newHtml;
+            _bindInputs(root);
+          } catch (err) { console.warn("SD | Dialog Builder refresh failed:", err); }
+        };
+
+        const _onRender = (root) => {
+          if (!root) return;
+          _dlgRoot = root;
+          _bindInputs(root);
+        };
+
+        // V13/V14 DialogV2 normalizes options.buttons into a Record keyed by
+        // action, so we wrap callbacks before passing them in. Each wrapped
+        // callback resyncs state from DOM before deciding the result, so
+        // unsaved input values are always captured.
         const result = await new Promise((resolve) => {
           let resolved = false;
           const _finish = (val) => {
@@ -3181,51 +3245,48 @@ export class ButtonExecutor {
               ...b,
               callback: (...args) => {
                 if (b.action === "cancel") { _finish(null); return; }
+                _syncStateFromDom();
                 const r = (typeof orig === "function") ? orig(...args) : `${b.action}|`;
                 _finish(r);
               }
             };
           });
+
+          // Wrap body in marker so the render hook can find ours among multiple dialogs.
+          const bodyHtml = `<div data-sd-dlg-form>${_renderBody(state)}</div>`;
+
+          // Use both: a Hooks.on("renderDialogV2") listener (most reliable in V13+)
+          // and the constructor `render` option. The hook is scoped to dialogs that
+          // contain our `[data-sd-dlg-form]` marker, so it won't fire for unrelated dialogs.
+          const _hookId = Hooks.on("renderDialogV2", (app, htmlOrEl) => {
+            const root = htmlOrEl?.[0] ?? htmlOrEl ?? app?.element ?? null;
+            if (!root?.querySelector?.("[data-sd-dlg-form]")) return;
+            _onRender(root);
+          });
+
           const dlg = new DialogV2({
             window:      { title },
-            content:     _renderBody(state),
+            content:     bodyHtml,
             buttons:     wrappedButtons,
             rejectClose: false,
-            close:       () => { _finish(null); },
+            close:       () => {
+              try { Hooks.off("renderDialogV2", _hookId); } catch {}
+              _finish(null);
+            },
             render: (_e, dialog) => {
-              const root = dialog.element;
-              if (!root) return;
-              const _refresh = () => {
-                try {
-                  const newHtml = _renderBody(state);
-                  const target = root.querySelector(".dialog-content") || root.querySelector(".window-content");
-                  if (target) target.innerHTML = newHtml;
-                  _attach();
-                } catch (err) { console.warn("SD | Dialog Builder refresh failed:", err); }
-              };
-              const _attach = () => {
-                const inputs = root.querySelectorAll("[data-sd-dlg-id]");
-                inputs.forEach(el => {
-                  const id = el.getAttribute("data-sd-dlg-id");
-                  const onChange = () => {
-                    if (el.type === "checkbox") state[id] = !!el.checked;
-                    else if (el.type === "number") state[id] = Number(el.value);
-                    else state[id] = el.value;
-
-                    const refRe = new RegExp(`\\{${id}\\}`);
-                    const condDirty = elements.some(e =>
-                      e && (refRe.test(e.visibleWhen || "") || refRe.test(e.disabledWhen || ""))
-                    );
-                    if (condDirty) _refresh();
-                  };
-                  el.addEventListener("change", onChange);
-                  el.addEventListener("input",  onChange);
-                });
-              };
-              _attach();
+              const root = dialog?.element ?? null;
+              _onRender(root);
             }
           });
           dlg.render(true);
+
+          // Safety-net: remove the hook once dialog promise resolves, in case
+          // `close` did not fire for some reason.
+          Promise.resolve().then(() => {
+            // Hook is unhooked in close anyway; this is a defensive cleanup
+            // scheduled when the outer promise settles. We can't easily wait
+            // here, so we leave it for `close`.
+          });
         });
 
         if (buttonDef) buttonDef.__dlgState = { ...state };

@@ -656,7 +656,7 @@ export const WIDGET_VARIANTS = {
   rollButton:     ["default", "d20", "flat", "stamp"],
   toggle:         ["default", "checkbox", "pill", "led"],
   select:         ["default", "pills", "segmented", "radio"],
-  attribute:      ["default", "stat-card", "inline", "badge"],
+  attribute:      ["default", "stat-card", "inline", "badge", "roll-button"],
   attributeGroup: ["default", "row", "grid", "dice"],
   tags:           ["default", "outline", "solid", "soft"],
   image:          ["default", "framed", "circle", "polaroid", "token"],

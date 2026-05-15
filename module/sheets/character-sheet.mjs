@@ -2,6 +2,7 @@ import { TabManager } from "../helpers/tabs.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { GridManager }    from "../builder/grid-manager.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
+import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -121,6 +122,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this._showEditModeBadge();
     this._wireInventoryDropZones();
     this._wireTrackerDelegation();
+    ItemPreviewPopup.attach(this.element, this.document);
     TabManager.activate(this);
   }
 

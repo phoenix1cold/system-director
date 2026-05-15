@@ -146,7 +146,7 @@
       "rollButton":     { "default": "По умолчанию", "d20": "d20", "flat": "Плоская", "stamp": "Штамп" },
       "toggle":         { "default": "Переключатель", "checkbox": "Галочка", "pill": "Пилюля", "led": "Светодиод" },
       "select":         { "default": "По умолчанию", "pills": "Пилюли", "segmented": "Сегментированный", "radio": "Радио" },
-      "attribute":      { "default": "По умолчанию", "stat-card": "Статкарта", "inline": "В строку", "badge": "Значок" },
+      "attribute":      { "default": "По умолчанию", "stat-card": "Статкарта", "inline": "В строку", "badge": "Значок", "roll-button": "Кнопка ROLL" },
       "attributeGroup": { "default": "По умолчанию", "row": "В строку", "grid": "Сетка", "dice": "Кубики" },
       "tags":           { "default": "По умолчанию", "outline": "Контур", "solid": "Заливка", "soft": "Мягкие" },
       "image":          { "default": "По умолчанию", "framed": "В рамке", "circle": "Круг", "polaroid": "Polaroid", "token": "Токен" },
