@@ -79,6 +79,27 @@ export class FormulaEngine {
     return null;
   }
 
+  static _resolveItemRef(ref, doc) {
+    if (!ref) return null;
+    const actor = this._actorFor(doc);
+    if (ref.includes(".")) {
+      try { return fromUuidSync?.(ref) ?? null; } catch { return null; }
+    }
+    if (actor) {
+      const byId = actor.items?.get?.(ref);
+      if (byId) return byId;
+      const byName = actor.items?.find?.(i => i.name === ref);
+      if (byName) return byName;
+    }
+    try {
+      const byCollectionId = game?.items?.get?.(ref);
+      if (byCollectionId) return byCollectionId;
+      const byCollectionName = game?.items?.getName?.(ref);
+      if (byCollectionName) return byCollectionName;
+    } catch {}
+    return null;
+  }
+
   static _readDocProperty(doc, path) {
     if (!doc || !path) return undefined;
     const HF = "system.hiddenFields.";
@@ -518,6 +539,52 @@ export class FormulaEngine {
       const bVal = this._evalSideForCompare(b, doc);
       const eq = this._looseEq(aVal, bVal);
       return (isNeq ? !eq : eq) ? 1 : 0;
+    }
+
+    if (token.startsWith("__sdMatch:")) {
+      const rest = token.slice("__sdMatch:".length);
+      const parts = rest.split("|");
+      if (parts.length < 3) return "";
+      const mode    = String(parts[0] || "str").toLowerCase();
+      const valExpr = this._b64decodeUtf8(parts[1]);
+      const defExpr = this._b64decodeUtf8(parts[2]);
+
+      const _normArr = (v) => {
+        if (Array.isArray(v)) return v.map(x => String(x ?? "")).join(",");
+        return String(v ?? "");
+      };
+      const _toMatchKey = (v) => {
+        if (mode === "num") {
+          const n = Number(v);
+          return Number.isFinite(n) ? n : null;
+        }
+        if (mode === "arr") return _normArr(v);
+        return String(v ?? "");
+      };
+
+      const valResolved = this._evalSideForCompare(valExpr, doc);
+      const valKey = _toMatchKey(valResolved);
+
+      for (let k = 3; k + 1 < parts.length; k += 2) {
+        const caseExpr   = this._b64decodeUtf8(parts[k]);
+        const resultExpr = this._b64decodeUtf8(parts[k + 1]);
+        if (caseExpr === "" && resultExpr === "") continue;
+        const caseResolved = this._evalSideForCompare(caseExpr, doc);
+        const caseKey = _toMatchKey(caseResolved);
+        let hit = false;
+        if (mode === "num") {
+          if (valKey !== null && caseKey !== null && valKey === caseKey) hit = true;
+        } else {
+          if (valKey === caseKey) hit = true;
+        }
+        if (hit) {
+          if (resultExpr === "") return mode === "num" ? 0 : "";
+          return this._evalSideForCompare(resultExpr, doc);
+        }
+      }
+
+      if (defExpr === "") return mode === "num" ? 0 : "";
+      return this._evalSideForCompare(defExpr, doc);
     }
 
     if (token.startsWith("__sdName:")) {
@@ -1304,6 +1371,180 @@ export class FormulaEngine {
         case "isGM": return u.isGM ? 1 : 0;
       }
       return "";
+    }
+
+    if (token.startsWith("combat:")) {
+      const prop = token.slice("combat:".length);
+      const combat = (typeof game !== "undefined") ? game?.combat : null;
+      if (!combat) {
+        if (prop === "active" || prop === "started") return 0;
+        if (prop === "round" || prop === "turn") return 0;
+        return "";
+      }
+      switch (prop) {
+        case "active":
+        case "started":     return combat.started ? 1 : 0;
+        case "round":       return Number(combat.round ?? 0);
+        case "turn":        return Number(combat.turn ?? 0);
+        case "combatantId": return combat.turns?.[combat.turn ?? 0]?.id ?? "";
+        case "actorId":     return combat.turns?.[combat.turn ?? 0]?.actorId ?? "";
+        case "actorName": {
+          const a = combat.turns?.[combat.turn ?? 0]?.actor;
+          return a?.name ?? "";
+        }
+        case "turnCount":   return combat.turns?.length ?? 0;
+        case "id":          return combat.id ?? "";
+        default:            return "";
+      }
+    }
+
+    if (token.startsWith("compendium:")) {
+      const rest = token.slice("compendium:".length);
+      const sep  = rest.indexOf("|");
+      const packId = (sep >= 0 ? rest.slice(0, sep) : rest).trim();
+      const prop   = sep >= 0 ? rest.slice(sep + 1).trim() : "uuids";
+      if (!packId) return prop === "count" ? 0 : "";
+      const pack = (typeof game !== "undefined") ? game?.packs?.get?.(packId) : null;
+      if (!pack) return prop === "count" ? 0 : "";
+      const index = pack.index?.contents ?? [];
+      switch (prop) {
+        case "uuids":
+        case "uuid":  return index.map(e => e.uuid ?? `${pack.collection}.${e._id}`).filter(Boolean).join(",");
+        case "ids":
+        case "id":    return index.map(e => e._id ?? e.id).filter(Boolean).join(",");
+        case "names":
+        case "name":  return index.map(e => e.name ?? "").filter(Boolean).join(",");
+        case "count":
+        case "length":return index.length;
+        case "types":
+        case "type":  return index.map(e => e.type ?? "").filter(Boolean).join(",");
+        default:      return "";
+      }
+    }
+
+    if (token.startsWith("itemMapField:")) {
+      const rest = token.slice("itemMapField:".length);
+      const sep  = rest.indexOf("|");
+      if (sep < 0) return "";
+      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const path = rest.slice(sep + 1);
+      if (!path) return "";
+      const out = [];
+      for (const ref of list) {
+        const it = this._resolveItemRef(ref, doc);
+        if (!it) { out.push(""); continue; }
+        const v = foundry.utils.getProperty(it, path);
+        out.push(v === undefined || v === null || typeof v === "object" ? "" : String(v));
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("itemNames:")) {
+      const list = token.slice("itemNames:".length).split(",").map(s => s.trim()).filter(Boolean);
+      const out = [];
+      for (const ref of list) {
+        const it = this._resolveItemRef(ref, doc);
+        out.push(it?.name ?? "");
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("itemAgg:")) {
+      const parts = token.slice("itemAgg:".length).split("|");
+      if (parts.length < 3) return 0;
+      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const path = parts[1];
+      const op   = parts[2];
+      const nums = [];
+      for (const ref of list) {
+        const it = this._resolveItemRef(ref, doc);
+        if (!it) continue;
+        const v = Number(foundry.utils.getProperty(it, path));
+        if (!isNaN(v)) nums.push(v);
+      }
+      if (op === "count") return nums.length;
+      if (!nums.length)   return 0;
+      if (op === "sum")   return nums.reduce((s,n)=>s+n,0);
+      if (op === "avg")   return nums.reduce((s,n)=>s+n,0) / nums.length;
+      if (op === "min")   return Math.min(...nums);
+      if (op === "max")   return Math.max(...nums);
+      return 0;
+    }
+
+    if (token.startsWith("itemFilter:")) {
+      const parts  = token.slice("itemFilter:".length).split("|");
+      if (parts.length < 4) return "";
+      const list   = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const path   = parts[1];
+      const op     = parts[2];
+      const cmpRaw = parts.slice(3).join("|");
+      const cmpNum = Number(cmpRaw);
+      const isNum  = cmpRaw.trim() !== "" && !isNaN(cmpNum);
+      const out = [];
+      for (const ref of list) {
+        const it = this._resolveItemRef(ref, doc);
+        if (!it) continue;
+        const fv = foundry.utils.getProperty(it, path);
+        if (fv === undefined || fv === null || typeof fv === "object") continue;
+        const lv = isNum ? Number(fv)  : String(fv);
+        const rv = isNum ? cmpNum      : String(cmpRaw);
+        let ok = false;
+        switch (op) {
+          case "==": ok = (lv === rv); break;
+          case "!=": ok = (lv !== rv); break;
+          case ">":  ok = (lv >   rv); break;
+          case "<":  ok = (lv <   rv); break;
+          case ">=": ok = (lv >=  rv); break;
+          case "<=": ok = (lv <=  rv); break;
+          case "contains":   ok = String(fv).includes(String(cmpRaw)); break;
+          case "startsWith": ok = String(fv).startsWith(String(cmpRaw)); break;
+          case "endsWith":   ok = String(fv).endsWith(String(cmpRaw)); break;
+          default:   ok = false;
+        }
+        if (ok) out.push(ref);
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("itemSort:")) {
+      const parts = token.slice("itemSort:".length).split("|");
+      if (parts.length < 3) return "";
+      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const path = parts[1];
+      const op   = parts[2];
+      const annotated = list.map(ref => {
+        const it = this._resolveItemRef(ref, doc);
+        const v  = it ? Number(foundry.utils.getProperty(it, path)) : NaN;
+        return { ref, v: isNaN(v) ? null : v };
+      });
+      annotated.sort((x, y) => {
+        if (x.v === null && y.v === null) return 0;
+        if (x.v === null) return  1;
+        if (y.v === null) return -1;
+        return op === "asc" ? (x.v - y.v) : (y.v - x.v);
+      });
+      return annotated.map(e => e.ref).join(",");
+    }
+
+    if (token.startsWith("itemFindExtreme:")) {
+      const parts = token.slice("itemFindExtreme:".length).split("|");
+      if (parts.length < 3) return "";
+      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const path = parts[1];
+      const op   = parts[2];
+      let best  = "";
+      let bestV = null;
+      for (const ref of list) {
+        const it = this._resolveItemRef(ref, doc);
+        if (!it) continue;
+        const v = Number(foundry.utils.getProperty(it, path));
+        if (isNaN(v)) continue;
+        if (bestV === null || (op === "min" ? v < bestV : v > bestV)) {
+          bestV = v;
+          best  = ref;
+        }
+      }
+      return best;
     }
 
     if (token.startsWith("__")) {

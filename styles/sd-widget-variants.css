@@ -827,3 +827,362 @@
   padding: 3px 14px !important;
   font-weight: 700 !important;
 }
+
+
+/* ============================================================
+ * Card-slider and card-grid variants
+ * (inventory / spellbook / effects: 3 cards per row,
+ *  with horizontal scroll + nav buttons or vertical infinite scroll)
+ * ============================================================ */
+
+.sd-cards-container {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Track */
+.sd-cards-track {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  scroll-behavior: smooth;
+}
+
+/* Slider: horizontal scroll, 3 visible cards, snap on cards */
+.sd-cards-container[data-card-mode="card-slider"] {
+  padding: 0 28px;
+}
+.sd-cards-container[data-card-mode="card-slider"] .sd-cards-track {
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 16px) / 3);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 4px;
+}
+.sd-cards-container[data-card-mode="card-slider"] .sd-item-card {
+  scroll-snap-align: start;
+}
+
+/* Slider nav buttons */
+.sd-cards-nav {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sd-bg-2, rgba(20,20,28,.7));
+  color: var(--sd-text, #d3d3d3);
+  border: 1px solid var(--sd-border, rgba(255,255,255,.1));
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  z-index: 2;
+  transition: background .15s, color .15s;
+}
+.sd-cards-nav:hover {
+  background: var(--sd-accent, #7b68ee);
+  color: var(--sd-accent-text, #fff);
+}
+.sd-cards-nav-prev { left: 0; }
+.sd-cards-nav-next { right: 0; }
+
+/* Grid: vertical scroll, 3 columns, infinite-style */
+.sd-cards-container[data-card-mode="card-grid"] .sd-cards-track {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-height: 520px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-content: start;
+  padding-right: 4px;
+}
+
+/* Custom scrollbar to look nice in both modes */
+.sd-cards-track::-webkit-scrollbar { height: 8px; width: 8px; }
+.sd-cards-track::-webkit-scrollbar-thumb {
+  background: var(--sd-border, rgba(255,255,255,.15));
+  border-radius: 4px;
+}
+.sd-cards-track::-webkit-scrollbar-thumb:hover {
+  background: var(--sd-accent-dim, rgba(123,104,238,.4));
+}
+
+/* Card itself */
+.sd-item-card {
+  background: var(--sd-bg-2, #1a1a22);
+  border: 1px solid var(--sd-border, rgba(255,255,255,.1));
+  border-radius: var(--sd-r, 6px);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--sd-text, #d3d3d3);
+  position: relative;
+  transition: border-color .15s, box-shadow .15s;
+}
+.sd-item-card:hover {
+  border-color: var(--sd-accent-dim, rgba(123,104,238,.4));
+}
+.sd-item-card.is-equipped {
+  border-color: var(--sd-accent, #7b68ee);
+  box-shadow: inset 0 0 0 1px var(--sd-accent-glow, rgba(123,104,238,.15));
+}
+.sd-item-card.is-disabled { opacity: .55; }
+
+/* Card header (img + title + subtitle) */
+.sd-item-card-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.sd-item-card-img {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background: var(--sd-bg, #11111a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.sd-item-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sd-item-card-img i {
+  color: var(--sd-text-3, rgba(255,255,255,.4));
+  font-size: 14px;
+}
+.sd-item-card-title-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sd-item-card-title {
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sd-text, #d3d3d3);
+}
+.sd-item-card-sub {
+  font-size: 10px;
+  color: var(--sd-text-3, rgba(255,255,255,.5));
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+/* Card body (inline-like preview content) */
+.sd-item-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--sd-text-2, #b8b8b8);
+  max-height: 220px;
+  overflow: auto;
+}
+.sd-item-card-body::-webkit-scrollbar { width: 6px; height: 6px; }
+.sd-item-card-body::-webkit-scrollbar-thumb {
+  background: var(--sd-border, rgba(255,255,255,.12));
+  border-radius: 3px;
+}
+.sd-item-card-empty {
+  font-size: 11px;
+  color: var(--sd-text-3, rgba(255,255,255,.45));
+  font-style: italic;
+}
+.sd-item-card-section { display: flex; flex-direction: column; gap: 4px; }
+
+/* Collapsible tabs inside a card */
+.sd-item-card-tab {
+  border: 1px solid var(--sd-border, rgba(255,255,255,.08));
+  border-radius: 4px;
+  padding: 0;
+  margin: 0;
+  background: var(--sd-bg, rgba(0,0,0,.15));
+}
+.sd-item-card-tab > summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sd-text-2, #c5c5c5);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.sd-item-card-tab > summary::-webkit-details-marker { display: none; }
+.sd-item-card-tab > summary::before {
+  content: "▸";
+  font-size: 9px;
+  transition: transform .15s;
+}
+.sd-item-card-tab[open] > summary::before { transform: rotate(90deg); }
+.sd-item-card-tab > summary i { font-size: 10px; opacity: .8; }
+.sd-item-card-tab-body {
+  padding: 4px 6px 6px 6px;
+  border-top: 1px solid var(--sd-border, rgba(255,255,255,.06));
+}
+
+/* Meta pills (qty / weight / category / cost / duration) */
+.sd-item-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.sd-item-card-meta:empty { display: none; }
+.sd-item-card-pill {
+  background: var(--sd-bg, rgba(255,255,255,.06));
+  border: 1px solid var(--sd-border, rgba(255,255,255,.08));
+  color: var(--sd-text-2, #c5c5c5);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* Action buttons row */
+.sd-item-card-actions {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+.sd-card-btn {
+  background: var(--sd-bg, rgba(0,0,0,.25));
+  border: 1px solid var(--sd-border, rgba(255,255,255,.1));
+  color: var(--sd-text-2, #c5c5c5);
+  border-radius: 4px;
+  padding: 3px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.sd-card-btn:hover {
+  background: var(--sd-bg-3, rgba(255,255,255,.06));
+  border-color: var(--sd-accent-dim, rgba(123,104,238,.4));
+  color: var(--sd-text, #fff);
+}
+.sd-card-btn-use {
+  background: rgba(72,187,120,.12);
+  border-color: rgba(72,187,120,.35);
+  color: rgba(180,230,200,.95);
+}
+.sd-card-btn-use:hover {
+  background: rgba(72,187,120,.22);
+  border-color: rgba(72,187,120,.6);
+  color: #fff;
+}
+.sd-card-btn-equip.on {
+  background: var(--sd-accent-glow, rgba(123,104,238,.15));
+  border-color: var(--sd-accent, #7b68ee);
+  color: var(--sd-accent, #7b68ee);
+}
+.sd-card-btn-del:hover {
+  background: rgba(220,80,80,.18);
+  border-color: rgba(220,80,80,.5);
+  color: rgba(255,200,200,.95);
+}
+
+/* Extra columns under each card (inventory) */
+.sd-item-card-extra-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 4px;
+  padding-top: 6px;
+  margin-top: 2px;
+  border-top: 1px dashed var(--sd-border, rgba(255,255,255,.08));
+}
+.sd-item-card-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.sd-item-card-col-label {
+  font-size: 9px;
+  color: var(--sd-text-3, rgba(255,255,255,.45));
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sd-item-card-col-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sd-text, #e2e2e2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Drop zone shown under the cards container so users can drag items /
+ * abilities / effects in (the cards themselves don't have a hover preview
+ * — they ARE the preview — so a dedicated drop zone is needed). */
+.widget-cards-wrap .sd-cards-drop-zone {
+  margin-top: 8px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--sd-text-3, rgba(255,255,255,.5));
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  background: var(--sd-bg, rgba(0,0,0,.1));
+  border: 1px dashed var(--sd-accent-dim, rgba(123,104,238,.4));
+  border-radius: var(--sd-r, 6px);
+  cursor: copy;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.widget-cards-wrap .sd-cards-drop-zone i { opacity: .5; }
+.widget-cards-wrap .sd-cards-drop-zone:hover,
+.widget-cards-wrap .sd-cards-drop-zone.sd-cards-drop-zone-over {
+  background: var(--sd-accent-glow, rgba(123,104,238,.15));
+  color: var(--sd-accent, #7b68ee);
+  border-color: var(--sd-accent, #7b68ee);
+}
+
+/* On narrow widgets, drop to 2 / 1 columns */
+@container (max-width: 380px) {
+  .sd-cards-container[data-card-mode="card-grid"] .sd-cards-track {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sd-cards-container[data-card-mode="card-slider"] .sd-cards-track {
+    grid-auto-columns: calc((100% - 8px) / 2);
+  }
+}
+@container (max-width: 240px) {
+  .sd-cards-container[data-card-mode="card-grid"] .sd-cards-track,
+  .sd-cards-container[data-card-mode="card-slider"] .sd-cards-track {
+    grid-template-columns: 1fr;
+    grid-auto-columns: 100%;
+  }
+}

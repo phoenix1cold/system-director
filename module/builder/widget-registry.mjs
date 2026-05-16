@@ -661,13 +661,13 @@ export const WIDGET_VARIANTS = {
   tags:           ["default", "outline", "solid", "soft"],
   image:          ["default", "framed", "circle", "polaroid", "token"],
   section:        ["default", "underline", "divider", "tab", "pill"],
-  inventory:      ["default", "list", "grid", "iconbar", "cards"],
+  inventory:      ["default", "list", "grid", "iconbar", "cards", "card-slider", "card-grid"],
   slot:           ["default", "framed", "round", "ghost"],
   cardHand:       ["default", "fan", "stack", "grid"],
   cardDrawButton: ["default", "deck", "pile"],
   questMarker:    ["default", "compact", "framed", "ghost"],
-  effects:        ["default", "chips", "icons"],
-  spellbook:      ["default", "grimoire", "grid", "minimal"],
+  effects:        ["default", "chips", "icons", "card-slider", "card-grid"],
+  spellbook:      ["default", "grimoire", "grid", "minimal", "card-slider", "card-grid"],
   skill:          ["default", "pill", "row-rank", "pips"],
   derived:        ["default", "stat-card", "formula-badge", "inline", "pill"]
 };

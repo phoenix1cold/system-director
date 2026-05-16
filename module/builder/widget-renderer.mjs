@@ -1,4 +1,5 @@
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
+import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 
 export class WidgetRenderer {
 
@@ -452,6 +453,11 @@ export class WidgetRenderer {
       return this._render_inventory_compact(w, doc, items);
     }
 
+    const variantId = this._sanitizeVariant(w.variant);
+    if (variantId === "card-slider" || variantId === "card-grid") {
+      return this._render_inventory_cards(w, doc, items, variantId, columns);
+    }
+
     const grouped = {};
     items.forEach(item => {
       const cat = item.system?.category ?? "other";
@@ -810,6 +816,11 @@ export class WidgetRenderer {
       return this._render_effects_compact(w, doc, filtered, canEdit);
     }
 
+    const variantId = this._sanitizeVariant(w.variant);
+    if (variantId === "card-slider" || variantId === "card-grid") {
+      return this._render_effects_cards(w, doc, filtered, canEdit, variantId);
+    }
+
     const _durLabel = (ef) => {
       const d = ef.duration;
       if (!d) return "";
@@ -868,6 +879,11 @@ export class WidgetRenderer {
       return this._render_spellbook_compact(w, doc, abilities, wantType);
     }
 
+    const variantId = this._sanitizeVariant(w.variant);
+    if (variantId === "card-slider" || variantId === "card-grid") {
+      return this._render_spellbook_cards(w, doc, abilities, wantType, variantId);
+    }
+
     const typeBadge = wantType
       ? `<span class="sb-type-badge" style="margin-left:8px;padding:1px 7px;border-radius:3px;background:var(--sd-accent-glow);color:var(--sd-accent);font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">${e(wantType)}</span>`
       : "";
@@ -894,6 +910,187 @@ export class WidgetRenderer {
   </div>
 </div>`;
     return html;
+  }
+
+  static _cardsShell(innerHtml, mode, e, label, extraHeader = "", dropZoneHtml = "") {
+    const isSlider = mode === "card-slider";
+    const prevNext = isSlider
+      ? `<button type="button" class="sd-cards-nav sd-cards-nav-prev" data-action="cardSliderPrev" title="Previous"><i class="fas fa-chevron-left"></i></button>
+         <button type="button" class="sd-cards-nav sd-cards-nav-next" data-action="cardSliderNext" title="Next"><i class="fas fa-chevron-right"></i></button>`
+      : "";
+    return `<div class="widget widget-cards-wrap">
+  <div class="widget-label">${e(label)}${extraHeader}</div>
+  <div class="sd-cards-container" data-card-mode="${e(mode)}">
+    ${prevNext}
+    <div class="sd-cards-track">${innerHtml}</div>
+  </div>
+  ${dropZoneHtml}
+</div>`;
+  }
+
+  static _renderItemCardSafe(item) {
+    try { return ItemPreviewPopup.renderItemCardHTML(item) ?? ""; }
+    catch (err) {
+      console.warn("SD | renderItemCardHTML error:", err);
+      return `<div class="sd-item-card-empty">${this._esc(item?.name ?? "Item")}</div>`;
+    }
+  }
+
+  static _renderEffectCardSafe(ef) {
+    try { return ItemPreviewPopup.renderEffectCardHTML(ef) ?? ""; }
+    catch (err) {
+      console.warn("SD | renderEffectCardHTML error:", err);
+      return `<div class="sd-item-card-empty">${this._esc(ef?.name ?? "Effect")}</div>`;
+    }
+  }
+
+  static _render_inventory_cards(w, doc, items, mode, columns) {
+    const e = this._esc;
+    const dropZone = `<div class="inventory-drop-zone sd-cards-drop-zone" data-drop-zone="item">
+      <i class="fas fa-arrow-down-to-line"></i><span>Drop items here</span>
+    </div>`;
+    if (!items.length) {
+      return this._cardsShell(
+        `<div class="empty-list" style="grid-column:1/-1"><i class="fas fa-backpack"></i><span>No items - drag to add</span></div>`,
+        mode, e, w.label ?? "Inventory", "", dropZone
+      );
+    }
+
+    let inner = "";
+    for (const item of items) {
+      const sys      = item.system ?? {};
+      const isInv    = item.type === "inventory";
+      const equipped = sys.equipped ? " is-equipped" : "";
+      const equippable = !!sys.equippable;
+      const cardBody = this._renderItemCardSafe(item);
+
+      const equipBtn = isInv
+        ? `<button type="button" class="sd-card-btn sd-card-btn-equip${sys.equipped ? " on" : ""}" data-action="itemEquip" data-item-id="${e(item.id)}" title="${sys.equipped ? "Unequip" : "Equip"}"${equippable ? "" : ' style="opacity:.45"'}>
+             <i class="fas ${sys.equipped ? "fa-shield-halved" : "fa-shield"}"></i>
+           </button>`
+        : "";
+
+      let extraColsHtml = "";
+      if (Array.isArray(columns) && columns.length > 0) {
+        let cells = "";
+        for (const col of columns) {
+          const val = sys?.hiddenFields?.[col] ?? sys?.[col] ?? "";
+          cells += `<div class="sd-item-card-col"><span class="sd-item-card-col-label">${e(col)}</span><span class="sd-item-card-col-value">${e(String(val))}</span></div>`;
+        }
+        extraColsHtml = `<div class="sd-item-card-extra-cols">${cells}</div>`;
+      }
+
+      const qty    = Number(sys.quantity ?? 1);
+      const weight = w.showWeight ? Number(sys.weight ?? 0) : null;
+      const metaPills = `<div class="sd-item-card-meta">
+        ${qty > 1 ? `<span class="sd-item-card-pill">×${qty}</span>` : ""}
+        ${weight !== null ? `<span class="sd-item-card-pill">${weight} lb</span>` : ""}
+        ${sys.category ? `<span class="sd-item-card-pill">${e(sys.category)}</span>` : ""}
+      </div>`;
+
+      inner += `<article class="sd-item-card${equipped}" data-item-id="${e(item.id)}" data-item-drag draggable="true">
+        ${cardBody}
+        ${metaPills}
+        <div class="sd-item-card-actions">
+          <button type="button" class="sd-card-btn sd-card-btn-use" data-action="itemUse" data-item-id="${e(item.id)}" title="Use / Roll"><i class="fas fa-play"></i><span>Use</span></button>
+          ${equipBtn}
+          <button type="button" class="sd-card-btn" data-action="itemEdit" data-item-id="${e(item.id)}" title="Edit"><i class="fas fa-edit"></i></button>
+          <button type="button" class="sd-card-btn sd-card-btn-del" data-action="itemDelete" data-item-id="${e(item.id)}" title="Delete"><i class="fas fa-trash"></i></button>
+        </div>
+        ${extraColsHtml}
+      </article>`;
+    }
+
+    return this._cardsShell(inner, mode, e, w.label ?? "Inventory", "", dropZone);
+  }
+
+  static _render_effects_cards(w, doc, effects, canEdit, mode) {
+    const e = this._esc;
+    const dropZone = canEdit
+      ? `<div class="sd-effect-drop-zone sd-cards-drop-zone" data-action="effectDrop">
+          <i class="fas fa-arrow-down-to-line"></i><span>Drop active effects here</span>
+        </div>`
+      : "";
+    if (!effects.length) {
+      return this._cardsShell(
+        `<div class="empty-list" style="grid-column:1/-1"><i class="fas fa-sparkles"></i><span>No effects</span></div>`,
+        mode, e, w.label ?? "Effects",
+        canEdit ? `<button type="button" class="effect-create-btn" data-action="effectCreate" title="Add Effect"><i class="fas fa-plus"></i></button>` : "",
+        dropZone
+      );
+    }
+
+    let inner = "";
+    for (const ef of effects) {
+      const cardBody = this._renderEffectCardSafe(ef);
+      const disabled = ef.disabled ? " is-disabled" : "";
+      const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
+
+      const dur = ef.duration?.rounds ? `${ef.duration.rounds}r`
+               : ef.duration?.seconds ? `${ef.duration.seconds}s` : "";
+      const metaPills = `<div class="sd-item-card-meta">
+        ${dur ? `<span class="sd-item-card-pill">${e(dur)}</span>` : ""}
+        ${ef.transfer ? `<span class="sd-item-card-pill">passive</span>` : ""}
+      </div>`;
+
+      inner += `<article class="sd-item-card${disabled}" data-effect-id="${e(ef.id)}">
+        ${cardBody}
+        ${metaPills}
+        <div class="sd-item-card-actions">
+          ${canEdit ? `<button type="button" class="sd-card-btn" data-action="effectToggle" data-effect-id="${e(ef.id)}" title="${ef.disabled ? "Enable" : "Disable"}"><i class="fas ${eyeIcon}"></i></button>` : ""}
+          <button type="button" class="sd-card-btn" data-action="effectEdit" data-effect-id="${e(ef.id)}" title="Edit"><i class="fas fa-pen"></i></button>
+          ${canEdit ? `<button type="button" class="sd-card-btn sd-card-btn-del" data-action="effectDelete" data-effect-id="${e(ef.id)}" title="Delete"><i class="fas fa-trash"></i></button>` : ""}
+        </div>
+      </article>`;
+    }
+
+    return this._cardsShell(
+      inner, mode, e, w.label ?? "Effects",
+      canEdit ? `<button type="button" class="effect-create-btn" data-action="effectCreate" title="Add Effect"><i class="fas fa-plus"></i></button>` : "",
+      dropZone
+    );
+  }
+
+  static _render_spellbook_cards(w, doc, abilities, wantType, mode) {
+    const e = this._esc;
+    const label = w.label ?? "Spellbook";
+    const typeBadge = wantType
+      ? `<span class="sb-type-badge" style="margin-left:8px;padding:1px 7px;border-radius:3px;background:var(--sd-accent-glow);color:var(--sd-accent);font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">${e(wantType)}</span>`
+      : "";
+    const dropZone = `<div class="sb-drop-zone sd-cards-drop-zone" data-action="spellbookDrop" data-want-type="${e(wantType)}">
+      <i class="fas fa-arrow-down-to-line"></i><span>Drop ability items here</span>
+    </div>`;
+
+    if (!abilities.length) {
+      const empty = `<div class="empty-list" style="grid-column:1/-1"><i class="fas fa-book-sparkles"></i><span>No abilities${wantType ? ` of type "${e(wantType)}"` : ""} — drag ability items here</span></div>`;
+      return this._cardsShell(empty, mode, e, label, typeBadge, dropZone);
+    }
+
+    let inner = "";
+    for (const ab of abilities) {
+      const cardBody = this._renderItemCardSafe(ab);
+      const hf       = ab.system?.hiddenFields ?? {};
+      const cost     = Number(hf.cost ?? 0) || 0;
+      const pathUses = String(hf.pathUses ?? "").trim();
+      const equipped = ab.system?.equipped ? " is-equipped" : "";
+
+      const metaPills = `<div class="sd-item-card-meta">
+        ${cost > 0 ? `<span class="sd-item-card-pill" title="${e(pathUses || "no resource path")}">${cost}</span>` : ""}
+        ${wantType ? `<span class="sd-item-card-pill">${e(wantType)}</span>` : ""}
+      </div>`;
+
+      inner += `<article class="sd-item-card${equipped}" data-item-id="${e(ab.id)}" draggable="true">
+        ${cardBody}
+        ${metaPills}
+        <div class="sd-item-card-actions">
+          <button type="button" class="sd-card-btn sd-card-btn-use" data-action="abilityCast" data-item-id="${e(ab.id)}" title="Use ${e(ab.name)}"><i class="fas fa-play"></i><span>Cast</span></button>
+          <button type="button" class="sd-card-btn" data-action="abilityEdit" data-item-id="${e(ab.id)}" title="Edit"><i class="fas fa-pen"></i></button>
+          <button type="button" class="sd-card-btn sd-card-btn-del" data-action="abilityDelete" data-item-id="${e(ab.id)}" title="Remove from actor"><i class="fas fa-trash"></i></button>
+        </div>
+      </article>`;
+    }
+
+    return this._cardsShell(inner, mode, e, label, typeBadge, dropZone);
   }
 
   static _render_progress(w, doc) {

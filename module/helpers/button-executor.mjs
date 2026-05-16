@@ -197,7 +197,7 @@ export function ButtonConditionField() {
 
 export function ButtonActionField() {
   return new SchemaField({
-    type:     new StringField({ initial: "roll", choices: ["roll","modifyField","createItem","removeItem","playSound","runMacro","message"], blank: false }),
+    type:     new StringField({ initial: "roll", choices: ["roll","modifyField","createItem","removeItem","createItemArray","removeItemArray","playSound","runMacro","message"], blank: false }),
 
     formula:  new StringField({ initial: "1d6", blank: true }),
     flavor:   new StringField({ initial: "", blank: true }),
@@ -1121,6 +1121,88 @@ export class ButtonExecutor {
         }
         if (toDelete) await toDelete.delete();
         else ui.notifications.warn(`Item not found on ${actor.name}.`);
+        break;
+      }
+
+      case "createItemArray": {
+        if (!actor) { ui.notifications.warn("No actor context for Add Item Array."); break; }
+        const refs = String(action.items ?? "")
+          .split(",").map(s => s.trim()).filter(Boolean);
+        if (!refs.length) break;
+        const qty = Number(action.qty ?? 1);
+        let allowedCats = null;
+        if (action.inventoryWidget) {
+          const widgetKey = action.inventoryWidget;
+          const tabs = actor.system?.customTabs ?? [];
+          for (const tab of tabs) {
+            for (const row of (tab.rows ?? [])) {
+              for (const w of (row.widgets ?? [])) {
+                if (w.widgetKey === widgetKey && w.type === "inventory") {
+                  allowedCats = w.categories ?? [];
+                }
+              }
+            }
+          }
+        }
+        const objs = [];
+        for (const ref of refs) {
+          let src = null;
+          if (ref.includes(".")) {
+            try { src = await fromUuid(ref); } catch (e) { console.warn("SD | createItemArray fromUuid error:", ref, e); }
+          }
+          if (!src) {
+            const byId   = game.items?.get?.(ref);
+            const byName = byId ? null : game.items?.getName?.(ref);
+            src = byId ?? byName ?? null;
+          }
+          if (!src) continue;
+          const obj = src.toObject();
+          if (qty > 1 && "quantity" in (obj.system ?? {})) obj.system.quantity = qty;
+          if (allowedCats && allowedCats.length > 0 && !obj.system?.category) {
+            obj.system = obj.system ?? {};
+            obj.system.category = allowedCats[0];
+          }
+          objs.push(obj);
+        }
+        if (objs.length) await actor.createEmbeddedDocuments("Item", objs);
+        break;
+      }
+
+      case "removeItemArray": {
+        if (!actor) break;
+        const refs = String(action.items ?? "")
+          .split(",").map(s => s.trim()).filter(Boolean);
+        if (!refs.length) break;
+        let allowedCats = null;
+        if (action.inventoryWidget) {
+          const widgetKey = action.inventoryWidget;
+          const tabs = actor.system?.customTabs ?? [];
+          for (const tab of tabs) {
+            for (const row of (tab.rows ?? [])) {
+              for (const w of (row.widgets ?? [])) {
+                if (w.widgetKey === widgetKey && w.type === "inventory") {
+                  allowedCats = w.categories ?? [];
+                }
+              }
+            }
+          }
+        }
+        const ids = new Set();
+        for (const ref of refs) {
+          let candidate = null;
+          if (ref.includes(".")) {
+            try {
+              const src = await fromUuid(ref);
+              if (src) candidate = actor.items.find(i => i.name === src.name);
+            } catch {}
+          }
+          if (!candidate) candidate = actor.items.get?.(ref) ?? null;
+          if (!candidate) candidate = actor.items.find?.(i => i.name === ref) ?? null;
+          if (!candidate) continue;
+          if (allowedCats && allowedCats.length > 0 && !allowedCats.includes(candidate.system?.category)) continue;
+          ids.add(candidate.id);
+        }
+        if (ids.size) await actor.deleteEmbeddedDocuments("Item", [...ids]);
         break;
       }
 

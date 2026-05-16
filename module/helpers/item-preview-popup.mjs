@@ -504,4 +504,93 @@ export class ItemPreviewPopup {
     body += `</div>`;
     return this._header(name, _loc("SD.Progression.Effects", "Effect"), img, isPinned) + body;
   }
+
+  /**
+   * Render a self-contained "card" for an item without any popup chrome.
+   * Used by inventory/spellbook card-slider / card-grid widget variants so each
+   * card looks like the hover preview without the pin button.
+   *
+   * Tabs (if any) are rendered as collapsible <details> sections so each card
+   * stays interactive without requiring shared state.
+   */
+  static renderItemCardHTML(item) {
+    if (!item) return "";
+    const name = item.name || "Item";
+    const img  = item.img || "icons/svg/item-bag.svg";
+    const subtitle = item.type || "";
+
+    const header = `<header class="sd-item-card-hdr">
+      <div class="sd-item-card-img">${img ? `<img src="${_esc(img)}" alt="">` : `<i class="fas fa-image"></i>`}</div>
+      <div class="sd-item-card-title-wrap">
+        <div class="sd-item-card-title" title="${_esc(name)}">${_esc(name)}</div>
+        ${subtitle ? `<div class="sd-item-card-sub">${_esc(subtitle)}</div>` : ""}
+      </div>
+    </header>`;
+
+    const tabs = this._collectItemTabs(item);
+    let body = `<div class="sd-item-card-body">`;
+    if (!tabs.length) {
+      body += `<div class="sd-item-card-empty">${_esc(_loc("SD.Progression.NoDescription", "No information."))}</div>`;
+    } else if (tabs.length === 1) {
+      body += `<div class="sd-item-card-section">${tabs[0].render()}</div>`;
+    } else {
+      for (let i = 0; i < tabs.length; i++) {
+        const t = tabs[i];
+        const open = i === 0 ? " open" : "";
+        body += `<details class="sd-item-card-tab"${open}>
+          <summary>${t.iconHtml ?? ""}<span>${_esc(t.label)}</span></summary>
+          <div class="sd-item-card-tab-body">${t.render()}</div>
+        </details>`;
+      }
+    }
+    body += `</div>`;
+    return header + body;
+  }
+
+  /**
+   * Render a self-contained "card" for an ActiveEffect for the
+   * effects card-slider / card-grid widget variants.
+   */
+  static renderEffectCardHTML(ef) {
+    if (!ef) return "";
+    const name = ef.name || "Effect";
+    const img  = ef.icon || ef.img || "icons/svg/aura.svg";
+    const changes  = Array.isArray(ef.changes) ? ef.changes : [];
+    const disabled = !!ef.disabled;
+
+    const header = `<header class="sd-item-card-hdr">
+      <div class="sd-item-card-img"><img src="${_esc(img)}" alt=""></div>
+      <div class="sd-item-card-title-wrap">
+        <div class="sd-item-card-title" title="${_esc(name)}">${_esc(name)}</div>
+        <div class="sd-item-card-sub">${_esc(_loc("SD.Progression.Effects", "Effect"))}</div>
+      </div>
+    </header>`;
+
+    let body = `<div class="sd-item-card-body">
+      <div class="sd-prog-preview-meta">
+        <span class="sd-prog-preview-pill ${disabled ? "is-off" : "is-on"}">${_esc(disabled
+          ? _loc("SD.Progression.EffectDisabled", "Disabled")
+          : _loc("SD.Progression.EffectEnabled", "Enabled"))}</span>
+        <span class="sd-prog-preview-pill">${changes.length} ${_esc(_loc("SD.Progression.EffectChanges", "changes"))}</span>
+      </div>`;
+    if (changes.length) {
+      body += `<div class="sd-prog-preview-changes">`;
+      for (const ch of changes) {
+        const m = Number(ch.mode);
+        const sym = m === 5 ? "↑" : m === 4 ? "↓" : m === 3 ? "×" : m === 6 ? "=" : m === 1 ? "+" : m === 0 ? "⊕" : "?";
+        body += `<div class="sd-prog-preview-change-row">
+          <code>${_esc(ch.key ?? "")}</code>
+          <span class="sd-prog-preview-change-sym">${sym}</span>
+          <strong>${_esc(String(ch.value ?? ""))}</strong>
+        </div>`;
+      }
+      body += `</div>`;
+    }
+    const desc = String(ef.description ?? "").trim();
+    if (desc) {
+      body += `<div class="sd-prog-preview-html">${desc}</div>`;
+    }
+    body += `</div>`;
+    return header + body;
+  }
 }

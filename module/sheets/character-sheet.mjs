@@ -1145,6 +1145,17 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
+    cell.querySelectorAll("[data-action='cardSliderPrev'], [data-action='cardSliderNext']").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const container = btn.closest(".sd-cards-container");
+        const track = container?.querySelector(".sd-cards-track");
+        if (!track) return;
+        const dir = btn.dataset.action === "cardSliderNext" ? 1 : -1;
+        const step = Math.max(120, Math.round(track.clientWidth / 3));
+        track.scrollBy({ left: dir * step, behavior: "smooth" });
+      });
+    });
+
     cell.querySelectorAll("[data-action='cardStackShuffle']").forEach(btn => {
       btn.addEventListener("click", async () => {
         try {
@@ -1571,6 +1582,50 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           content: `<p>Delete <strong>${ef.name}</strong>?</p>`
         });
         if (ok) await ef.delete();
+      });
+    });
+
+    cell.querySelectorAll(".sd-effect-drop-zone").forEach(dz => {
+      dz.addEventListener("dragover", ev => {
+        ev.preventDefault();
+        dz.classList.add("sd-cards-drop-zone-over");
+      });
+      dz.addEventListener("dragleave", () => {
+        dz.classList.remove("sd-cards-drop-zone-over");
+      });
+      dz.addEventListener("drop", async ev => {
+        ev.preventDefault();
+        dz.classList.remove("sd-cards-drop-zone-over");
+        try {
+          const data = JSON.parse(ev.dataTransfer.getData("text/plain") || "null");
+          if (!data) return;
+          if (!(doc instanceof Actor)) return;
+
+          if (data.type === "ActiveEffect" && data.uuid) {
+            const src = await fromUuid(data.uuid);
+            if (!src) return;
+            const obj = src.toObject();
+            delete obj._id;
+            await doc.createEmbeddedDocuments("ActiveEffect", [obj]);
+            ui.notifications?.info?.(`Added effect "${obj.name}" to ${doc.name}`);
+          } else if (data.type === "Item" && data.uuid) {
+            const src = await fromUuid(data.uuid);
+            const effects = src?.effects?.contents ?? [];
+            if (!effects.length) {
+              ui.notifications?.warn?.(`"${src?.name ?? "Item"}" has no effects to transfer.`);
+              return;
+            }
+            const objs = effects.map(ef => {
+              const o = ef.toObject();
+              delete o._id;
+              return o;
+            });
+            await doc.createEmbeddedDocuments("ActiveEffect", objs);
+            ui.notifications?.info?.(`Copied ${objs.length} effect(s) from "${src.name}".`);
+          }
+        } catch (err) {
+          console.warn("SD | effect drop:", err);
+        }
       });
     });
 

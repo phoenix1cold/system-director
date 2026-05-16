@@ -671,6 +671,108 @@ export const NODE_DEFS = {
   or: {title:"OR", color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}||${i.b??"0"})`},
   not:{title:"NOT",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(!${i.a??"0"})`},
 
+  match_num: {
+    title:"Match Number", color:"#6a1a1a", cat:"Logic",
+    desc:"Compare Value against each Case (top→bottom) by numeric equality and emit the matching Result. Cases and Results are independent input pins — wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
+    wideNode:true,
+    inputs:[
+      {id:"value",   label:"Value",   type:"value.number"},
+      {id:"default", label:"Default", type:"value.any"}
+    ],
+    outputs:[{id:"out", label:"Out", type:"value.any"}],
+    fields:[],
+    dynamicPins:[
+      { base:"c", label:"Case",   max:32, type:"value.number" },
+      { base:"r", label:"Result", max:32, type:"value.any" }
+    ],
+    dynamicPinsPaired:true,
+    compile:(n,i)=>{
+      const _b64 = (s) => {
+        try { return btoa(unescape(encodeURIComponent(String(s)))); }
+        catch { return ""; }
+      };
+      const value = (i.value !== undefined && i.value !== null && i.value !== "") ? i.value : "0";
+      const def   = (i.default !== undefined && i.default !== null && i.default !== "") ? i.default : "0";
+      const pairs = [];
+      for (let k = 0; k < 32; k++) {
+        const c = i[`c${k}`];
+        const r = i[`r${k}`];
+        if ((c === undefined || c === null || c === "") &&
+            (r === undefined || r === null || r === "")) continue;
+        pairs.push(`${_b64(c ?? "")}|${_b64(r ?? "")}`);
+      }
+      return `{__sdMatch:num|${_b64(value)}|${_b64(def)}${pairs.length ? "|" + pairs.join("|") : ""}}`;
+    }
+  },
+
+  match_str: {
+    title:"Match Text", color:"#6a1a1a", cat:"Logic",
+    desc:"Compare Value against each Case (top→bottom) by exact string equality and emit the matching Result. Cases and Results are independent input pins — wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
+    wideNode:true,
+    inputs:[
+      {id:"value",   label:"Value",   type:"value.string"},
+      {id:"default", label:"Default", type:"value.any"}
+    ],
+    outputs:[{id:"out", label:"Out", type:"value.any"}],
+    fields:[],
+    dynamicPins:[
+      { base:"c", label:"Case",   max:32, type:"value.string" },
+      { base:"r", label:"Result", max:32, type:"value.any" }
+    ],
+    dynamicPinsPaired:true,
+    compile:(n,i)=>{
+      const _b64 = (s) => {
+        try { return btoa(unescape(encodeURIComponent(String(s)))); }
+        catch { return ""; }
+      };
+      const value = (i.value !== undefined && i.value !== null && i.value !== "") ? i.value : "";
+      const def   = (i.default !== undefined && i.default !== null && i.default !== "") ? i.default : "";
+      const pairs = [];
+      for (let k = 0; k < 32; k++) {
+        const c = i[`c${k}`];
+        const r = i[`r${k}`];
+        if ((c === undefined || c === null || c === "") &&
+            (r === undefined || r === null || r === "")) continue;
+        pairs.push(`${_b64(c ?? "")}|${_b64(r ?? "")}`);
+      }
+      return `{__sdMatch:str|${_b64(value)}|${_b64(def)}${pairs.length ? "|" + pairs.join("|") : ""}}`;
+    }
+  },
+
+  match_arr: {
+    title:"Match Array", color:"#6a1a1a", cat:"Logic",
+    desc:"Compare Value against each Case (top→bottom) by exact CSV-string equality (\"a,b,c\") and emit the matching Result. Cases and Results are independent input pins — wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
+    wideNode:true,
+    inputs:[
+      {id:"value",   label:"Value",   type:"value.array"},
+      {id:"default", label:"Default", type:"value.any"}
+    ],
+    outputs:[{id:"out", label:"Out", type:"value.any"}],
+    fields:[],
+    dynamicPins:[
+      { base:"c", label:"Case",   max:32, type:"value.array" },
+      { base:"r", label:"Result", max:32, type:"value.any" }
+    ],
+    dynamicPinsPaired:true,
+    compile:(n,i)=>{
+      const _b64 = (s) => {
+        try { return btoa(unescape(encodeURIComponent(String(s)))); }
+        catch { return ""; }
+      };
+      const value = (i.value !== undefined && i.value !== null && i.value !== "") ? i.value : "";
+      const def   = (i.default !== undefined && i.default !== null && i.default !== "") ? i.default : "";
+      const pairs = [];
+      for (let k = 0; k < 32; k++) {
+        const c = i[`c${k}`];
+        const r = i[`r${k}`];
+        if ((c === undefined || c === null || c === "") &&
+            (r === undefined || r === null || r === "")) continue;
+        pairs.push(`${_b64(c ?? "")}|${_b64(r ?? "")}`);
+      }
+      return `{__sdMatch:arr|${_b64(value)}|${_b64(def)}${pairs.length ? "|" + pairs.join("|") : ""}}`;
+    }
+  },
+
   act_roll_value: {
     title:"Roll → Value", color:"#8a4400", cat:"Roll",
     desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls. Outputs: Result (final sum), Formula (resolved string), Min/Max/Avg (theoretical bounds & expected value), Dice Array (every active die's value as a CSV array — pipe into Array Join / Array Length / Get Element / Filter to inspect individual die results, e.g. 2d6 → \"3,5\"). For crit / fumble logic use Attack Check or Roll Check — Roll Value is intentionally just numbers and dice.",
@@ -1668,6 +1770,131 @@ export const NODE_DEFS = {
     ],
     isAction:true, wideNode:true,
     toAction:(n)=>({type:"removeItem", uuid:n.data.uuid??"", itemName:n.data.itemName??"", inventoryWidget:n.data.inventoryWidget??""})
+  },
+
+  act_add_item_array: {
+    title:"Add Item Array", color:"#2a4a2a", cat:"Items",
+    desc:"Add every item from an array (UUIDs or owned names/ids) as copies to the actor's inventory. Feed a Compendium Item UUIDs node or any value.array of item references. Qty per item can be set. Optionally scope to an inventory widget.",
+    inputs:[
+      {id:"exec",  label:"",       type:"exec"},
+      {id:"items", label:"Items",  type:"value.array"},
+      {id:"qty",   label:"Qty",    type:"value.number"}
+    ],
+    outputs:[{id:"exec",label:"",type:"exec"}],
+    fields:[
+      {key:"qty",            label:"Qty per item",     type:"number",        default:1},
+      {key:"inventoryWidget",label:"Inventory Widget", type:"widget-picker", default:""}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:"createItemArray",
+      items:           inp.items ?? "",
+      qty:             Number(inp.qty ?? n.data.qty ?? 1),
+      inventoryWidget: n.data.inventoryWidget ?? ""
+    })
+  },
+
+  act_remove_item_array: {
+    title:"Remove Item Array", color:"#6a2a2a", cat:"Items",
+    desc:"Remove every item listed in the array (matches by name, id, or UUID source name) from the actor's inventory. Optionally scope to an inventory widget.",
+    inputs:[
+      {id:"exec",  label:"",      type:"exec"},
+      {id:"items", label:"Items", type:"value.array"}
+    ],
+    outputs:[{id:"exec",label:"",type:"exec"}],
+    fields:[
+      {key:"inventoryWidget", label:"Inventory Widget",  type:"widget-picker", default:""}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:"removeItemArray",
+      items:           inp.items ?? "",
+      inventoryWidget: n.data.inventoryWidget ?? ""
+    })
+  },
+
+  item_arr_names: {
+    title:"Item Array Names", color:"#3a7a3a", cat:"Items",
+    desc:"Resolve each ref in an array of items (UUIDs / owned ids / names) and return their display names as a comma-joined array.",
+    inputs:[{id:"items", label:"Items", type:"value.array"}],
+    outputs:[{id:"v", label:"Names", type:"value.array"}],
+    fields:[],
+    compile:(_n,i)=>`{itemNames:${i.items ?? ""}}`
+  },
+
+  item_arr_map_field: {
+    title:"Item Map Field", color:"#3a7a3a", cat:"Items",
+    desc:"For every item in the array, read the same field path and return all values as a comma-joined array. Use to feed numeric arrays into Aggregate / Find / Filter.",
+    inputs:[{id:"items", label:"Items", type:"value.array"}],
+    outputs:[{id:"v", label:"Values", type:"value.array"}],
+    fields:[
+      {key:"path", label:"Field", type:"path", default:"system.quantity"}
+    ],
+    compile:(n,i)=>`{itemMapField:${i.items ?? ""}|${n.data.path ?? ""}}`
+  },
+
+  item_arr_aggregate: {
+    title:"Item Aggregate Field", color:"#3a7a3a", cat:"Items",
+    desc:"Reduce a numeric field across all items in the array. Sum / Avg / Min / Max / Count. Non-numeric values are skipped.",
+    inputs:[{id:"items", label:"Items", type:"value.array"}],
+    outputs:[{id:"v", label:"Result", type:"value.number"}],
+    fields:[
+      {key:"path", label:"Field", type:"path",   default:"system.quantity"},
+      {key:"op",   label:"Op",    type:"select", default:"sum", options:["sum","avg","min","max","count"]}
+    ],
+    compile:(n,i)=>`{itemAgg:${i.items ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "sum"}}`
+  },
+
+  item_arr_filter: {
+    title:"Item Filter by Field", color:"#3a7a3a", cat:"Items",
+    desc:"Keep only items whose field passes `field <op> value`. Numeric comparisons when value parses as a number, string equality otherwise. Outputs a comma-joined list to feed back into other Items / Array nodes.",
+    inputs:[
+      {id:"items", label:"Items", type:"value.array"},
+      {id:"value", label:"Value", type:"value.any"}
+    ],
+    outputs:[{id:"v", label:"Filtered", type:"value.array"}],
+    fields:[
+      {key:"path", label:"Field", type:"path",   default:"system.quantity"},
+      {key:"op",   label:"Op",    type:"select", default:">", options:["==","!=",">","<",">=","<=","contains","startsWith","endsWith"]},
+      {key:"value",label:"Value", type:"text",   default:"0"}
+    ],
+    compile:(n,i)=>{
+      const cmpRaw = (i.value !== undefined && i.value !== null && i.value !== "")
+        ? String(i.value)
+        : String(n.data.value ?? "0");
+      let cmp = cmpRaw.trim();
+      if (cmp.length >= 2 && (
+            (cmp.startsWith('"') && cmp.endsWith('"')) ||
+            (cmp.startsWith("'") && cmp.endsWith("'"))
+          )) {
+        cmp = cmp.slice(1, -1);
+      }
+      return `{itemFilter:${i.items ?? ""}|${n.data.path ?? ""}|${n.data.op ?? ">"}|${cmp}}`;
+    }
+  },
+
+  item_arr_sort: {
+    title:"Item Sort by Field", color:"#3a7a3a", cat:"Items",
+    desc:"Sort item refs by a numeric field. Ascending or descending. Items with non-numeric values go to the end.",
+    inputs:[{id:"items", label:"Items", type:"value.array"}],
+    outputs:[{id:"v", label:"Sorted", type:"value.array"}],
+    fields:[
+      {key:"path", label:"Field", type:"path",   default:"system.quantity"},
+      {key:"op",   label:"Order", type:"select", default:"desc", options:["desc","asc"]}
+    ],
+    compile:(n,i)=>`{itemSort:${i.items ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "desc"}}`
+  },
+
+  item_arr_find_extreme: {
+    title:"Item Find Top by Field", color:"#3a7a3a", cat:"Items",
+    desc:"Returns the ref of the item with the highest (max) or lowest (min) field value in the array.",
+    inputs:[{id:"items", label:"Items", type:"value.array"}],
+    outputs:[{id:"v", label:"Item", type:"value.string"}],
+    fields:[
+      {key:"path", label:"Field", type:"path",   default:"system.quantity"},
+      {key:"op",   label:"Pick",  type:"select", default:"max", options:["max","min"]}
+    ],
+    compile:(n,i)=>`{itemFindExtreme:${i.items ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "max"}}`
   },
 
   act_use_slot_item: {
@@ -3909,6 +4136,28 @@ export const NODE_DEFS = {
     isEvent:true, eventHook:"combatTurnEnd"
   },
 
+  on_combat_start: {
+    title:"On Start Combat", color:"#c04040", cat:"Events",
+    desc:"Fires once when a combat encounter begins (this actor must be one of the combatants).",
+    inputs:[], outputs:[
+      {id:"exec",  label:"→ On Combat Start", type:"exec"},
+      {id:"round", label:"Round",             type:"value.number"}
+    ],
+    fields:[],
+    isEvent:true, eventHook:"combatEncounterStart"
+  },
+
+  on_combat_end: {
+    title:"On End Combat", color:"#c04040", cat:"Events",
+    desc:"Fires when a combat encounter is deleted/ends (this actor must be one of the combatants).",
+    inputs:[], outputs:[
+      {id:"exec",  label:"→ On Combat End", type:"exec"},
+      {id:"round", label:"Final Round",     type:"value.number"}
+    ],
+    fields:[],
+    isEvent:true, eventHook:"combatEncounterEnd"
+  },
+
   on_effect_apply: {
     title:"On Effect Apply", color:"#c04040", cat:"Events",
     desc:"Fires when an Active Effect is applied to this actor.",
@@ -3974,7 +4223,7 @@ export const NODE_DEFS = {
     ],
     fields:[
       {key:"event", label:"Event", type:"select", default:"update",
-       options:["create","update","delete","turnStart","turnEnd","damageTaken","rest","equip","unequip","effectApply"]},
+       options:["create","update","delete","turnStart","turnEnd","combatStart","combatEnd","damageTaken","rest","equip","unequip","effectApply"]},
       {key:"pathFilter", label:"Only path (update only)", type:"path", default:"", placeholder:"system.resources.hp.value"},
       {key:"nameFilter", label:"Only name (effect only)", type:"text", default:""}
     ],
@@ -4181,19 +4430,92 @@ export const NODE_DEFS = {
 
   get_combat_state: {
     title:"Get Combat State", color:"#2a4a6a", cat:"Sources",
-    desc:"Value outputs about the current encounter: is combat active (0/1), current round, active combatant index.",
+    desc:"Value outputs about the current encounter: is combat active (0/1), current round, active combatant index, active combatant id/actor.",
     inputs:[],
     outputs:[
       {id:"active",      label:"Active?",       type:"value.bool"},
       {id:"round",       label:"Round",         type:"value.number"},
-      {id:"turn",        label:"Turn index",    type:"value.number"}
+      {id:"turn",        label:"Turn index",    type:"value.number"},
+      {id:"combatantId", label:"Combatant Id",  type:"value.string"},
+      {id:"actorId",     label:"Actor Id",      type:"value.string"},
+      {id:"actorName",   label:"Actor Name",    type:"value.string"}
     ],
     fields:[],
-    compile:(_, _i, _n, outPin)=>{
-      if (outPin === "active") return `({combat:active})`;
-      if (outPin === "round")  return `({combat:round})`;
-      if (outPin === "turn")   return `({combat:turn})`;
+    compile:(_n, _i, _node, outPin)=>{
+      if (outPin === "active")      return `{combat:active}`;
+      if (outPin === "round")       return `{combat:round}`;
+      if (outPin === "turn")        return `{combat:turn}`;
+      if (outPin === "combatantId") return `{combat:combatantId}`;
+      if (outPin === "actorId")     return `{combat:actorId}`;
+      if (outPin === "actorName")   return `{combat:actorName}`;
       return "0";
+    },
+    compilePin:(_n, _i, pin)=>{
+      if (pin === "active")      return `{combat:active}`;
+      if (pin === "round")       return `{combat:round}`;
+      if (pin === "turn")        return `{combat:turn}`;
+      if (pin === "combatantId") return `{combat:combatantId}`;
+      if (pin === "actorId")     return `{combat:actorId}`;
+      if (pin === "actorName")   return `{combat:actorName}`;
+      return "0";
+    }
+  },
+
+  get_compendium_uuids: {
+    title:"Compendium Item UUIDs", color:"#2a4a6a", cat:"Sources",
+    desc:"Returns all item UUIDs in a compendium pack as an array. Drag a compendium from the sidebar into the Pack field or type its id (e.g. 'world.my-items' or 'system-director.weapons'). Feeds into Add Item Array, item array ops, etc.",
+    inputs:[{id:"pack", label:"Pack Id", type:"value.string"}],
+    outputs:[
+      {id:"v",   label:"UUIDs",  type:"value.array"},
+      {id:"len", label:"Count",  type:"value.number"}
+    ],
+    fields:[
+      {key:"pack", label:"Pack Id", type:"text", default:"", placeholder:"e.g. world.my-items"}
+    ],
+    compile:(n,i)=>{
+      const pack = (i.pack != null && i.pack !== "") ? String(i.pack) : (n.data.pack ?? "");
+      return `{compendium:${pack}|uuids}`;
+    },
+    compilePin:(n,i,pin)=>{
+      const pack = (i.pack != null && i.pack !== "") ? String(i.pack) : (n.data.pack ?? "");
+      if (pin === "len") return `{compendium:${pack}|count}`;
+      return `{compendium:${pack}|uuids}`;
+    }
+  },
+
+  get_compendium_count: {
+    title:"Compendium Item Count", color:"#2a4a6a", cat:"Sources",
+    desc:"Returns the number of items in a compendium pack.",
+    inputs:[{id:"pack", label:"Pack Id", type:"value.string"}],
+    outputs:[{id:"v", label:"Count", type:"value.number"}],
+    fields:[
+      {key:"pack", label:"Pack Id", type:"text", default:"", placeholder:"e.g. world.my-items"}
+    ],
+    compile:(n,i)=>{
+      const pack = (i.pack != null && i.pack !== "") ? String(i.pack) : (n.data.pack ?? "");
+      return `{compendium:${pack}|count}`;
+    }
+  },
+
+  get_compendium_names: {
+    title:"Compendium Item Names", color:"#2a4a6a", cat:"Sources",
+    desc:"Returns the names of all items in a compendium pack as an array (comma-joined).",
+    inputs:[{id:"pack", label:"Pack Id", type:"value.string"}],
+    outputs:[
+      {id:"v",   label:"Names",  type:"value.array"},
+      {id:"len", label:"Count",  type:"value.number"}
+    ],
+    fields:[
+      {key:"pack", label:"Pack Id", type:"text", default:"", placeholder:"e.g. world.my-items"}
+    ],
+    compile:(n,i)=>{
+      const pack = (i.pack != null && i.pack !== "") ? String(i.pack) : (n.data.pack ?? "");
+      return `{compendium:${pack}|names}`;
+    },
+    compilePin:(n,i,pin)=>{
+      const pack = (i.pack != null && i.pack !== "") ? String(i.pack) : (n.data.pack ?? "");
+      if (pin === "len") return `{compendium:${pack}|count}`;
+      return `{compendium:${pack}|names}`;
     }
   },
 
@@ -6556,6 +6878,8 @@ export class FormulaGraph {
           delete:       "deleteDocument",
           turnStart:    "combatTurnStart",
           turnEnd:      "combatTurnEnd",
+          combatStart:  "combatEncounterStart",
+          combatEnd:    "combatEncounterEnd",
           damageTaken:  "hpDecrease",
           rest:         "restFlag",
           equip:        "itemEquipped",
@@ -8042,15 +8366,35 @@ export class FormulaGraph {
     if(def.dynamicPins) {
       const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [{ ...def.dynamicPins, label: "Text" }];
       const dynPins = [];
-      for(const grp of groups) {
-        const {base, label, max, type} = grp;
+      if (def.dynamicPinsPaired && groups.length >= 2) {
+        const maxAll = Math.min(...groups.map(g => g.max));
         let connected = -1;
-        for(let i=0;i<max;i++){
-          if(this.edges.some(e=>e.toNode===node.id&&e.toPin===`${base}${i}`)) connected=i;
+        for (let i = 0; i < maxAll; i++) {
+          for (const grp of groups) {
+            if (this.edges.some(e => e.toNode === node.id && e.toPin === `${grp.base}${i}`)) {
+              connected = i;
+              break;
+            }
+          }
         }
-        const show = Math.min(connected+2, max);
-        const pinType = type ?? "value.any";
-        for(let i=0;i<show;i++) dynPins.push({id:`${base}${i}`,label:`${label} ${i+1}`,type:pinType});
+        const show = Math.min(connected + 2, maxAll);
+        for (let i = 0; i < show; i++) {
+          for (const grp of groups) {
+            const pinType = grp.type ?? "value.any";
+            dynPins.push({ id: `${grp.base}${i}`, label: `${grp.label} ${i + 1}`, type: pinType });
+          }
+        }
+      } else {
+        for(const grp of groups) {
+          const {base, label, max, type} = grp;
+          let connected = -1;
+          for(let i=0;i<max;i++){
+            if(this.edges.some(e=>e.toNode===node.id&&e.toPin===`${base}${i}`)) connected=i;
+          }
+          const show = Math.min(connected+2, max);
+          const pinType = type ?? "value.any";
+          for(let i=0;i<show;i++) dynPins.push({id:`${base}${i}`,label:`${label} ${i+1}`,type:pinType});
+        }
       }
       inputPins = [...inputPins, ...dynPins];
     }

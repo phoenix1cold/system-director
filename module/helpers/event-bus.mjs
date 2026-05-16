@@ -1,15 +1,17 @@
 const HOOK_MAP = {
-  updateDocument:     ["updateActor", "updateItem"],
-  createDocument:     ["createActor", "createItem"],
-  deleteDocument:     ["deleteActor", "deleteItem"],
-  combatTurnStart:    ["combatTurnStart"],
-  combatTurnEnd:      ["combatTurnEnd"],
-  createActiveEffect: ["createActiveEffect"],
-  hpDecrease:         ["updateActor"],
-  restFlag:           ["updateActor"],
-  itemEquipped:       ["sdItemEquipped"],
-  itemUnequipped:     ["sdItemUnequipped"],
-  cardDrawn:          ["createCard"],
+  updateDocument:        ["updateActor", "updateItem"],
+  createDocument:        ["createActor", "createItem"],
+  deleteDocument:        ["deleteActor", "deleteItem"],
+  combatTurnStart:       ["combatTurnStart"],
+  combatTurnEnd:         ["combatTurnEnd"],
+  combatEncounterStart:  ["combatEncounterStart"],
+  combatEncounterEnd:    ["combatEncounterEnd"],
+  createActiveEffect:    ["createActiveEffect"],
+  hpDecrease:            ["updateActor"],
+  restFlag:              ["updateActor"],
+  itemEquipped:          ["sdItemEquipped"],
+  itemUnequipped:        ["sdItemUnequipped"],
+  cardDrawn:             ["createCard"],
 
   sdQuestActivated:   ["sdQuestActivated"],
   sdQuestCompleted:   ["sdQuestCompleted"],
@@ -17,6 +19,67 @@ const HOOK_MAP = {
   sdSubtaskDone:      ["sdSubtaskDone"],
   sdQuestRevealed:    ["sdQuestRevealed"]
 };
+
+function _installCombatHookBridge() {
+  if (globalThis.__sdCombatBridgeInstalled) return;
+  globalThis.__sdCombatBridgeInstalled = true;
+
+  const _turnAt = (combat, idx) => {
+    if (!combat || idx == null || idx < 0) return null;
+    return combat.turns?.[idx] ?? null;
+  };
+
+  const _wrapCombatAtTurn = (combat, turnIdx, round) => {
+    if (!combat) return null;
+    const view = Object.create(combat);
+    Object.defineProperty(view, "turn",  { value: turnIdx, enumerable: true });
+    Object.defineProperty(view, "round", { value: round,   enumerable: true });
+    return view;
+  };
+
+  Hooks.on("combatTurnChange", (combat, prior, current) => {
+    try {
+      const priorCombatant = (prior?.combatantId)
+        ? combat?.combatants?.get?.(prior.combatantId) ?? combat?.turns?.find?.(t => t.id === prior.combatantId) ?? null
+        : null;
+      if (priorCombatant) {
+        const priorTurnIdx = combat?.turns?.findIndex?.(t => t.id === prior.combatantId) ?? -1;
+        const priorView = (priorTurnIdx >= 0)
+          ? _wrapCombatAtTurn(combat, priorTurnIdx, prior.round ?? combat.round)
+          : combat;
+        Hooks.callAll("combatTurnEnd", priorView);
+      }
+      if (current?.combatantId) {
+        Hooks.callAll("combatTurnStart", combat);
+      }
+    } catch (e) {
+      console.warn("SD | combatTurnChange bridge failed", e);
+    }
+  });
+
+  Hooks.on("combatStart", (combat, updateData) => {
+    try {
+      Hooks.callAll("combatEncounterStart", combat);
+      const turnIdx = updateData?.turn ?? combat?.turn ?? 0;
+      if (_turnAt(combat, turnIdx)) {
+        Hooks.callAll("combatTurnStart", combat);
+      }
+    } catch (e) {
+      console.warn("SD | combatStart bridge failed", e);
+    }
+  });
+
+  Hooks.on("deleteCombat", (combat) => {
+    try {
+      if (combat?.started && _turnAt(combat, combat.turn ?? 0)) {
+        Hooks.callAll("combatTurnEnd", combat);
+      }
+      Hooks.callAll("combatEncounterEnd", combat);
+    } catch (e) {
+      console.warn("SD | deleteCombat bridge failed", e);
+    }
+  });
+}
 
 const QUEST_HOOKS = new Set(["sdQuestActivated","sdQuestCompleted","sdQuestFailed","sdSubtaskDone","sdQuestRevealed"]);
 
@@ -28,6 +91,7 @@ class EventBus {
   }
 
   init() {
+    _installCombatHookBridge();
     for (const actor of game.actors ?? []) this._registerActor(actor);
     for (const item of game.items ?? []) this._registerWorldItem(item);
 
@@ -146,6 +210,7 @@ class EventBus {
 
       const validForWorld = (h) => h === "updateItem" || h === "createItem" || h === "deleteItem"
         || h === "createCard" || h === "combatTurnStart" || h === "combatTurnEnd"
+        || h === "combatEncounterStart" || h === "combatEncounterEnd"
         || QUEST_HOOKS.has(h);
 
       for (const hookName of foundryHooks) {
@@ -222,6 +287,16 @@ class EventBus {
         const turnIdx = combat?.turn ?? 0;
         const combatant = combat?.turns?.[turnIdx];
         return combatant?.actorId === entry.actorId;
+      }
+      case "combatEncounterStart":
+      case "combatEncounterEnd": {
+        if (isWorldItemEntry) return entry.outOfSheet === true;
+        const combat = firstDoc;
+        const combatants = combat?.combatants ?? combat?.turns ?? [];
+        for (const c of combatants) {
+          if (c?.actorId === entry.actorId) return true;
+        }
+        return false;
       }
       case "createActiveEffect": {
         const parent = firstDoc?.parent;
@@ -347,6 +422,13 @@ class EventBus {
         const combat = args[0];
         rt.__eventRound       = combat?.round ?? 0;
         rt.__eventCombatantId = combat?.turns?.[combat?.turn ?? 0]?.id ?? "";
+        break;
+      }
+      case "combatEncounterStart":
+      case "combatEncounterEnd": {
+        const combat = args[0];
+        rt.__eventRound      = combat?.round ?? 0;
+        rt.__eventCombatId   = combat?.id ?? "";
         break;
       }
       case "createActiveEffect": {
