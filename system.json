@@ -2,7 +2,7 @@
   "id": "sd",
   "title": "System Director",
   "description": "SD beta",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "compatibility": {
     "minimum": "13",
     "verified": "14"
