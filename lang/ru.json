@@ -131,34 +131,175 @@
       "HighContrast": "Высокая контрастность"
     },
     "WidgetVariants": {
-      "_label":             "Вариант",
-      "_hint":              "Визуальный скин виджета. Данные и поведение не меняются.",
-      "_default":           "По умолчанию",
-      "text":           { "default": "По умолчанию", "boxed": "В рамке", "underline": "Подчёркнутый", "ghost": "Призрак", "inline": "В строку" },
-      "richtext":       { "default": "По умолчанию", "boxed": "В рамке", "scroll": "Свиток" },
-      "number":         { "default": "По умолчанию", "chip": "Чип", "stat": "Статблок", "framed": "В рамке" },
-      "resource":       { "default": "Полоса", "split": "Раздельно (значение / макс)", "heart": "Сердце", "stripes": "Полосы", "digital": "Цифровой" },
-      "progress":       { "default": "По умолчанию", "thin": "Тонкий", "thick": "Толстый", "striped": "Полосатый", "segmented": "Сегментированный" },
-      "clock":          { "default": "Пирог", "ring": "Кольцо", "bar": "Полоса", "fraction": "Дробь" },
-      "counter":        { "default": "По умолчанию", "chunky": "Крупный", "minimal": "Минимальный", "wheel": "Колесо" },
-      "dice":           { "default": "По умолчанию", "d20-big": "Большой d20", "chip": "Чип", "flat": "Плоский" },
-      "button":         { "default": "По умолчанию", "pill": "Пилюля", "outline": "Контур", "ghost": "Призрак", "raised": "Выпуклая", "danger": "Опасная", "soft": "Мягкая" },
-      "rollButton":     { "default": "По умолчанию", "d20": "d20", "flat": "Плоская", "stamp": "Штамп" },
-      "toggle":         { "default": "Переключатель", "checkbox": "Галочка", "pill": "Пилюля", "led": "Светодиод" },
-      "select":         { "default": "По умолчанию", "pills": "Пилюли", "segmented": "Сегментированный", "radio": "Радио" },
-      "attribute":      { "default": "По умолчанию", "stat-card": "Статкарта", "inline": "В строку", "badge": "Значок", "roll-button": "Кнопка ROLL" },
-      "attributeGroup": { "default": "По умолчанию", "row": "В строку", "grid": "Сетка", "dice": "Кубики" },
-      "tags":           { "default": "По умолчанию", "outline": "Контур", "solid": "Заливка", "soft": "Мягкие" },
-      "image":          { "default": "По умолчанию", "framed": "В рамке", "circle": "Круг", "polaroid": "Polaroid", "token": "Токен" },
-      "section":        { "default": "По умолчанию", "underline": "Подчёркивание", "divider": "Разделитель", "tab": "Вкладка", "pill": "Пилюля" },
-      "inventory":      { "default": "По умолчанию", "list": "Список", "grid": "Сетка", "iconbar": "Иконки", "cards": "Карточки", "card-slider": "Слайдер карточек (3 в ряд, с прокруткой)", "card-grid": "Сетка карточек (3 в ряд, бесконечная)" },
-      "slot":           { "default": "По умолчанию", "framed": "В рамке", "round": "Круглый", "ghost": "Призрак" },
-      "cardHand":       { "default": "По умолчанию", "fan": "Веер", "stack": "Стопка", "grid": "Сетка" },
-      "cardDrawButton": { "default": "По умолчанию", "deck": "Колода", "pile": "Стопка" },
-      "effects":        { "default": "По умолчанию", "chips": "Чипы", "icons": "Только иконки", "card-slider": "Слайдер карточек (3 в ряд, с прокруткой)", "card-grid": "Сетка карточек (3 в ряд, бесконечная)" },
-      "spellbook":      { "default": "По умолчанию", "grimoire": "Гримуар", "grid": "Сетка", "minimal": "Минимальный", "card-slider": "Слайдер карточек (3 в ряд, с прокруткой)", "card-grid": "Сетка карточек (3 в ряд, бесконечная)" },
-      "skill":          { "default": "По умолчанию (в строку)", "pill": "Пилюля", "row-rank": "Строка + ранг", "pips": "Пипы" },
-      "derived":        { "default": "По умолчанию", "stat-card": "Статкарта", "formula-badge": "Значок формулы", "inline": "В строку", "pill": "Пилюля" }
+      "_label": "Вариант",
+      "_hint": "Визуальный скин виджета. Данные и поведение не меняются.",
+      "_default": "По умолчанию",
+      "text": {
+        "default": "По умолчанию",
+        "boxed": "В рамке",
+        "underline": "Подчёркнутый",
+        "ghost": "Призрак",
+        "inline": "В строку"
+      },
+      "richtext": {
+        "default": "По умолчанию",
+        "boxed": "В рамке",
+        "scroll": "Свиток"
+      },
+      "number": {
+        "default": "По умолчанию",
+        "chip": "Чип",
+        "stat": "Статблок",
+        "framed": "В рамке"
+      },
+      "resource": {
+        "default": "Полоса",
+        "split": "Раздельно (значение / макс)",
+        "heart": "Сердце",
+        "stripes": "Полосы",
+        "digital": "Цифровой",
+        "pulse": "ЭКГ (анимация)",
+        "orb": "Сфера (стиль Diablo)"
+      },
+      "progress": {
+        "default": "По умолчанию",
+        "thin": "Тонкий",
+        "thick": "Толстый",
+        "striped": "Полосатый",
+        "segmented": "Сегментированный"
+      },
+      "clock": {
+        "default": "Пирог",
+        "ring": "Кольцо",
+        "bar": "Полоса",
+        "fraction": "Дробь"
+      },
+      "counter": {
+        "default": "По умолчанию",
+        "chunky": "Крупный",
+        "minimal": "Минимальный",
+        "wheel": "Колесо"
+      },
+      "dice": {
+        "default": "По умолчанию",
+        "d20-big": "Большой d20",
+        "chip": "Чип",
+        "flat": "Плоский"
+      },
+      "button": {
+        "default": "По умолчанию",
+        "pill": "Пилюля",
+        "outline": "Контур",
+        "ghost": "Призрак",
+        "raised": "Выпуклая",
+        "danger": "Опасная",
+        "soft": "Мягкая"
+      },
+      "rollButton": {
+        "default": "По умолчанию",
+        "d20": "d20",
+        "flat": "Плоская",
+        "stamp": "Штамп"
+      },
+      "toggle": {
+        "default": "Переключатель",
+        "checkbox": "Галочка",
+        "pill": "Пилюля",
+        "led": "Светодиод"
+      },
+      "select": {
+        "default": "По умолчанию",
+        "pills": "Пилюли",
+        "segmented": "Сегментированный",
+        "radio": "Радио"
+      },
+      "attribute": {
+        "default": "По умолчанию",
+        "stat-card": "Статкарта",
+        "inline": "В строку",
+        "badge": "Значок",
+        "roll-button": "Кнопка ROLL"
+      },
+      "attributeGroup": {
+        "default": "По умолчанию",
+        "row": "В строку",
+        "grid": "Сетка",
+        "dice": "Кубики"
+      },
+      "tags": {
+        "default": "По умолчанию",
+        "outline": "Контур",
+        "solid": "Заливка",
+        "soft": "Мягкие"
+      },
+      "image": {
+        "default": "По умолчанию",
+        "framed": "В рамке",
+        "circle": "Круг",
+        "polaroid": "Polaroid",
+        "token": "Токен"
+      },
+      "section": {
+        "default": "По умолчанию",
+        "underline": "Подчёркивание",
+        "divider": "Разделитель",
+        "tab": "Вкладка",
+        "pill": "Пилюля"
+      },
+      "inventory": {
+        "default": "По умолчанию",
+        "list": "Список",
+        "grid": "Сетка",
+        "iconbar": "Иконки",
+        "cards": "Карточки",
+        "card-slider": "Слайдер карточек (3 в ряд, с прокруткой)",
+        "card-grid": "Сетка карточек (3 в ряд, бесконечная)"
+      },
+      "slot": {
+        "default": "По умолчанию",
+        "framed": "В рамке",
+        "round": "Круглый",
+        "ghost": "Призрак"
+      },
+      "cardHand": {
+        "default": "По умолчанию",
+        "fan": "Веер",
+        "stack": "Стопка",
+        "grid": "Сетка"
+      },
+      "cardDrawButton": {
+        "default": "По умолчанию",
+        "deck": "Колода",
+        "pile": "Стопка"
+      },
+      "effects": {
+        "default": "По умолчанию",
+        "chips": "Чипы",
+        "icons": "Только иконки",
+        "card-slider": "Слайдер карточек (3 в ряд, с прокруткой)",
+        "card-grid": "Сетка карточек (3 в ряд, бесконечная)"
+      },
+      "spellbook": {
+        "default": "По умолчанию",
+        "grimoire": "Гримуар",
+        "grid": "Сетка",
+        "minimal": "Минимальный",
+        "card-slider": "Слайдер карточек (3 в ряд, с прокруткой)",
+        "card-grid": "Сетка карточек (3 в ряд, бесконечная)"
+      },
+      "skill": {
+        "default": "По умолчанию (в строку)",
+        "pill": "Пилюля",
+        "row-rank": "Строка + ранг",
+        "pips": "Пипы"
+      },
+      "derived": {
+        "default": "По умолчанию",
+        "stat-card": "Статкарта",
+        "formula-badge": "Значок формулы",
+        "inline": "В строку",
+        "pill": "Пилюля"
+      }
     },
     "ActionHud": {
       "Title": "Action HUD",
@@ -192,7 +333,12 @@
         "ScaleHint": "Масштаб для отдельного виджета (25–400%). 100% = без масштабирования. Применяется поверх глобального масштаба HUD.",
         "HideLabel": "Скрыть заголовок виджета",
         "HideLabelNA": "Заголовок недоступен (выпадающий виджет)",
-        "HideLabelNAHint": "Inventory, Spellbook и Effects показывают заголовок внутри выпадающего списка, поэтому скрыть его отдельно нельзя."
+        "HideLabelNAHint": "Inventory, Spellbook и Effects показывают заголовок внутри выпадающего списка, поэтому скрыть его отдельно нельзя.",
+        "Variant": "Вариант (override)",
+        "VariantHint": "Использовать в Action HUD этот вариант виджета вместо выбранного на листе персонажа. «По листу» наследует вариант, заданный на листе.",
+        "VariantInherit": "По листу",
+        "VariantNA": "Override недоступен (inline-виджет)",
+        "VariantNAHint": "У этого типа виджета нет выбираемых вариантов или запись является inline-виджетом со своим собственным вариантом."
       }
     },
     "RollDialog": {
@@ -1030,11 +1176,9 @@
   "SD.Graph.eg_2d20kh1_Plus_Atmod": "напр. 2d20kh1 + @mod",
   "SD.Graph.eg_2d20kl1_Plus_Atmod": "напр. 2d20kl1 + @mod",
   "SD.Graph.eg_1d20_2d6_d20_empty_Eq_1d20": "напр. 1d20, 2d6, d20 (пусто = 1d20)",
-
   "SD.Sheets.QuestLog": "Журнал квестов",
   "TYPES.Item.questlog": "Журнал квестов",
   "ITEM.TypeQuestlog": "Журнал квестов",
-
   "SD.QuestLog.Name": "Название журнала",
   "SD.QuestLog.TypeLabel": "Журнал квестов",
   "SD.QuestLog.NQuests": "Квестов",
@@ -1153,14 +1297,12 @@
   "SD.OK": "OK",
   "SD.Cancel": "Отмена",
   "SD.Delete": "Удалить",
-
   "SD.Equippable": "Носимый",
   "SD.InventoryFlags": "Инвентарь",
   "SD.Category": "Категория",
   "SD.NoCategory": "без категории",
   "SD.Price": "Цена",
   "SD.Currency": "Валюта",
-
   "SD.Trade.OpenBtn": "Торговать",
   "SD.Trade.Title": "Торговля",
   "SD.Trade.PickPartner": "Выбрать партнёра",
@@ -1210,7 +1352,6 @@
   "SD.Trade.CancelTrade": "Отменить сделку",
   "SD.Trade.CancelTitle": "Отмена сделки",
   "SD.Trade.CancelConfirm": "Отменить сделку? Окно закроется у обоих.",
-
   "SD.Trade.ShopTitle": "Магазин",
   "SD.Trade.BuyTab": "Купить",
   "SD.Trade.SellTab": "Продать",
@@ -1228,7 +1369,6 @@
   "SD.Trade.NotEnoughStock": "Недостаточно товара.",
   "SD.Trade.WrongCategory": "Торговец не покупает эту категорию.",
   "SD.Trade.TraderBroke": "У торговца не хватает денег.",
-
   "SD.Trade.SaleSettings": "Параметры продажи",
   "SD.Trade.SaleHint": "Включите, чтобы предмет был выставлен в магазине автоторговца. Цена/валюта продажи перекрывают базовые для этого экземпляра.",
   "SD.Trade.Saleable": "Продаётся",
@@ -1236,14 +1376,12 @@
   "SD.Trade.SalePricePath": "Путь к цене",
   "SD.Trade.SaleCurrency": "Валюта (переопр.)",
   "SD.Trade.UseItem": "брать с предмета",
-
   "SD.Trade.TraderSettings": "Настройки торговца",
   "SD.Trade.TraderHint": "Отметьте актёра как торговца. Торговцы появляются в выборе партнёра вне сцены. AutoTrade позволяет игрокам торговать без GM.",
   "SD.Trade.IsTrader": "Торговец",
   "SD.Trade.AutoTrade": "AutoTrade",
   "SD.Trade.PriceDistortion": "Искажение цены, %",
   "SD.Trade.TradeCategories": "Скупает категории (CSV)",
-
   "SD.Trade.ShopTableHint": "Включите Продаётся, чтобы предмет появился в магазине автоторговца. Цена/валюта здесь перекрывают базовые для этого экземпляра.",
   "SD.Trade.NoInventory": "У актёра нет предметов инвентаря.",
   "SD.Trade.Item": "Предмет",

@@ -247,23 +247,368 @@ export class WidgetRenderer {
   }
 
   static _render_resource(w, doc) {
-    const val    = Number(this._get(doc, w.pathValue, 0));
-    const max    = Number(this._get(doc, w.pathMax,   0));
-    const pct    = max > 0 ? Math.round(Math.clamp(val / max, 0, 1) * 100) : 0;
-    const color  = w.color ?? "var(--sd-accent)";
-    const e      = this._esc;
-    const barH   = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "";
-    const barTrk = (typeof w.barTrack === "string" && w.barTrack.trim()) ? w.barTrack.trim() : "";
+    const val      = Number(this._get(doc, w.pathValue, 0));
+    const max      = Number(this._get(doc, w.pathMax,   0));
+    const ratioRaw = max > 0 ? val / max : 0;
+    const pct      = max > 0 ? Math.round(Math.clamp(ratioRaw, 0, 1) * 100) : 0;
+    const pctReal  = max > 0 ? Math.round(ratioRaw * 100) : 0;
+    const color    = w.color ?? "var(--sd-accent)";
+    const e        = this._esc;
+    const barH     = Number(w.barH) > 0 ? `${Number(w.barH)}px` : "";
+    const barTrk   = (typeof w.barTrack === "string" && w.barTrack.trim()) ? w.barTrack.trim() : "";
     const barStyle = [barH ? `height:${barH}` : "", barTrk ? `background:${e(barTrk)}` : ""].filter(Boolean).join(";");
-    return `<div class="widget widget-resource">
+
+    const variant   = String(w.variant || "default");
+    const isPulse   = variant === "pulse";
+    const isOrb     = variant === "orb";
+    const display   = isPulse
+      ? this._renderResourcePulseBody(pctReal, barH)
+      : isOrb
+        ? this._renderResourceOrbBody(val, max, pctReal, color)
+        : `<div class="res-bar"${barStyle ? ` style="${barStyle}"` : ""}><div class="res-bar-fill" style="width:${pct}%;background:${e(color)}"></div></div>`;
+
+    // CSS-custom-property bundle for pulse variant — set on the OUTER
+    // .widget-resource so that the value/max overlay inputs can compute size
+    // and inherit the same colour.
+    const pulseH    = barH || "56px";
+    let outerStyle = "";
+    if (isPulse) {
+      outerStyle = ` style="--sd-pulse-color:${this._pulseColor(pctReal)};--sd-pulse-dur:${this._pulseDuration(pctReal)}ms;--sd-pulse-tremor:${this._pulseTremor(pctReal)}px;--sd-pulse-h:${pulseH}"`;
+    } else if (isOrb) {
+      const theme = this._orbTheme(color);
+      // Resolve actual orb size from the widget's box/bar settings.
+      // Priority: barH (semantically "bar height" → the orb size) → boxW → default 200.
+      // The orb is always rendered as a circle, so width/height are tied together.
+      const numOrNull = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n > 0 ? n : null;
+      };
+      const sizeFromBar = numOrNull(w.barH);
+      const sizeFromBox = numOrNull(w.boxW);
+      let orbSize;
+      if (sizeFromBar !== null && sizeFromBox !== null) {
+        // If both are set, take the smaller so the orb never overflows the
+        // user-defined widget box.
+        orbSize = Math.min(sizeFromBar, sizeFromBox);
+      } else {
+        orbSize = sizeFromBar ?? sizeFromBox ?? 200;
+      }
+      // Clamp to a sane range — animations / ornament dots collapse below ~40px.
+      orbSize = Math.max(40, Math.min(800, Math.round(orbSize)));
+      outerStyle = ` style="--sd-orb-fill:${theme.fill};--sd-orb-fill2:${theme.fill2};--sd-orb-base:${theme.base};--sd-orb-glow:${theme.glow};--sd-orb-glow2:${theme.glow2};--sd-orb-shimmer:${theme.shimmer};--sd-orb-size:${orbSize}px"`;
+    }
+
+    return `<div class="widget widget-resource"${outerStyle}>
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.pathValue ? this._copyBtn(w.pathValue, "value") : ""}${w.pathMax ? this._copyBtn(w.pathMax, "max") : ""}</div>
   <div class="res-row">
     <input type="number" name="${e(w.pathValue)}" value="${e(val)}" class="res-val">
     <span class="res-sep">/</span>
     <input type="number" name="${e(w.pathMax)}" value="${e(max)}" class="res-max">
   </div>
-  <div class="res-bar"${barStyle ? ` style="${barStyle}"` : ""}><div class="res-bar-fill" style="width:${pct}%;background:${e(color)}"></div></div>
+  ${display}
 </div>`;
+  }
+
+  /**
+   * Resource bar — orb (Diablo-style globe) variant.
+   * Renders a circular liquid-filled SVG with animated wave, glow, and
+   * ornament dots. Self-contained: pure CSS animations (no JS hooks needed).
+   * Wave height tracks pct, fill colour comes from CSS vars on the outer.
+   */
+  static _renderResourceOrbBody(val, max, pctReal, color) {
+    const e        = this._esc;
+    const safeColor = e(color);
+    const clamped = Math.max(0, Math.min(100, pctReal));
+    const ratio   = clamped / 100;
+    const r       = 76;
+    const topY    = 100 - r;
+    const botY    = 100 + r;
+    const surfaceY = botY - ratio * (botY - topY);
+    const fillY    = Math.max(24, surfaceY - 2);
+    const fillH    = Math.max(0, 176 - (fillY - 24));
+    const coreY    = Math.max(40, Math.min(145, surfaceY - 15));
+    const coreRx   = (18 + 20 * ratio).toFixed(1);
+    const coreRy   = (10 + 18 * ratio).toFixed(1);
+    const coreOp   = (0.12 + 0.25 * ratio).toFixed(3);
+    const shimY    = (surfaceY - 12).toFixed(1);
+    const shimOp   = (0.08 + 0.12 * ratio).toFixed(3);
+
+    // Deterministic unique id per render — avoids svg <defs> collisions when
+    // several orbs are rendered on the same sheet/HUD.
+    const uid = `o${Math.floor(Math.random() * 1e9).toString(36)}`;
+
+    // Build ornament dots around the metal ring (12 around).
+    let orn = "";
+    for (let i = 0; i < 12; i++) {
+      const a  = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      const ox = (100 + Math.cos(a) * 92).toFixed(2);
+      const oy = (100 + Math.sin(a) * 92).toFixed(2);
+      const rr = i % 3 === 0 ? 3 : 1.8;
+      const cf = i % 3 === 0 ? "#8a6840" : "#4a3820";
+      orn += `<circle cx="${ox}" cy="${oy}" r="${rr}" fill="${cf}"/>`;
+    }
+
+    const showVal = Number.isFinite(val) ? Math.round(val) : 0;
+    const showMax = Number.isFinite(max) ? Math.round(max) : 0;
+    const flatLine = clamped <= 0 ? 1 : 0;
+
+    return `<div class="res-orb" data-orb-empty="${flatLine}">
+  <svg class="res-orb-svg" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <defs>
+      <clipPath id="${uid}-clip"><circle cx="100" cy="100" r="76"/></clipPath>
+      <radialGradient id="${uid}-rim" cx="40%" cy="35%" r="60%">
+        <stop offset="0%" stop-color="#555555" stop-opacity="0.6"/>
+        <stop offset="100%" stop-color="#111111" stop-opacity="1"/>
+      </radialGradient>
+      <radialGradient id="${uid}-shine" cx="35%" cy="28%" r="45%">
+        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+        <stop offset="60%" stop-color="#ffffff" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="${uid}-depth" cx="60%" cy="70%" r="55%">
+        <stop offset="0%" stop-color="#000000" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <circle cx="100" cy="100" r="95" fill="#1a1a1a" stroke="#3a3028" stroke-width="1"/>
+    <circle cx="100" cy="100" r="91" fill="none" stroke="#5a4a38" stroke-width="2.5"/>
+    <circle cx="100" cy="100" r="88" fill="none" stroke="#2a1e18" stroke-width="2"/>
+    <circle cx="100" cy="100" r="85" fill="none" stroke="#6a5040" stroke-width="1"/>
+    <g class="res-orb-ornaments">${orn}</g>
+    <circle cx="100" cy="100" r="77" fill="#0d0608"/>
+    <g clip-path="url(#${uid}-clip)">
+      <rect class="res-orb-base" x="24" y="24" width="152" height="152" fill="var(--sd-orb-base, #1a0000)"/>
+      <rect class="res-orb-fill" x="22" y="${fillY.toFixed(2)}" width="156" height="${fillH.toFixed(2)}" fill="var(--sd-orb-fill, ${safeColor})"/>
+      <g class="res-orb-wave" transform="translate(0 ${surfaceY.toFixed(2)})">
+        <path class="res-orb-wave-path" d="${this._buildOrbWavePath(0)}" fill="var(--sd-orb-fill2, ${safeColor})" opacity="0.7"/>
+        <path class="res-orb-wave-path res-orb-wave-path-2" d="${this._buildOrbWavePath(Math.PI / 2)}" fill="var(--sd-orb-fill2, ${safeColor})" opacity="0.45"/>
+      </g>
+      <ellipse class="res-orb-core" cx="100" cy="${coreY.toFixed(1)}" rx="${coreRx}" ry="${coreRy}" fill="var(--sd-orb-shimmer, #ff6655)" opacity="${coreOp}"/>
+      <rect x="22" y="22" width="156" height="156" fill="url(#${uid}-depth)"/>
+      <ellipse class="res-orb-shimmer" cx="100" cy="${shimY}" rx="30" ry="3" fill="#ffffff" opacity="${shimOp}"/>
+    </g>
+    <circle cx="100" cy="100" r="77" fill="url(#${uid}-rim)"/>
+    <circle cx="100" cy="100" r="77" fill="url(#${uid}-shine)"/>
+    <circle cx="100" cy="100" r="77" fill="none" stroke="#aa8855" stroke-width="1.5"/>
+    <circle cx="100" cy="100" r="74" fill="none" stroke="#442200" stroke-width="1"/>
+  </svg>
+  <div class="res-orb-text">${showVal} / ${showMax}</div>
+</div>`;
+  }
+
+  /** Procedural sine wave path (24..176 x, baseline y=0, depth to y=200). */
+  static _buildOrbWavePath(phase) {
+    const steps = 32, x0 = 24, x1 = 176, amp = 3.2;
+    let d = `M ${x0} 0`;
+    for (let i = 0; i <= steps; i++) {
+      const x = x0 + (x1 - x0) * (i / steps);
+      const a = (i / steps) * Math.PI * 4 + phase;
+      const y = (Math.sin(a) * amp).toFixed(2);
+      d += ` L ${x.toFixed(2)} ${y}`;
+    }
+    d += ` L ${x1} 200 L ${x0} 200 Z`;
+    return d;
+  }
+
+  /**
+   * Derive a Diablo-style theme (fill + glow palette) from the widget color.
+   * Recognises six common named themes and falls back to deriving from any
+   * hex / rgb colour string.
+   */
+  static _orbTheme(color) {
+    const c = String(color ?? "").toLowerCase().trim();
+    const PRESETS = {
+      blood:  { fill: "#cc2222", fill2: "#dd3333", base: "#1a0000", glow: "#aa2222", glow2: "#660000", shimmer: "#ff6655" },
+      mana:   { fill: "#2244cc", fill2: "#3355dd", base: "#00001a", glow: "#2244bb", glow2: "#001166", shimmer: "#66aaff" },
+      poison: { fill: "#33aa22", fill2: "#44bb33", base: "#001a00", glow: "#33aa22", glow2: "#115500", shimmer: "#88ff66" },
+      golden: { fill: "#cc8811", fill2: "#ddaa22", base: "#1a1000", glow: "#ccaa22", glow2: "#664400", shimmer: "#ffe080" },
+      soul:   { fill: "#9922cc", fill2: "#aa33dd", base: "#0f0018", glow: "#9922cc", glow2: "#330055", shimmer: "#dd88ff" },
+      ice:    { fill: "#2288aa", fill2: "#33aacc", base: "#00101a", glow: "#2299bb", glow2: "#003355", shimmer: "#aaeeff" }
+    };
+    if (PRESETS[c]) return PRESETS[c];
+
+    const rgb = this._parseColor(c);
+    if (!rgb) return PRESETS.blood;
+
+    const [r, g, b] = rgb;
+    const hex2 = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+    const mk   = (rr, gg, bb) => `#${hex2(rr)}${hex2(gg)}${hex2(bb)}`;
+
+    // Auto theme: lighter "fill2" + shimmer, darker glow/base.
+    return {
+      fill:    mk(r,            g,            b),
+      fill2:   mk(r * 0.55 + 100, g * 0.55 + 100, b * 0.55 + 100),
+      base:    mk(r * 0.12,     g * 0.12,     b * 0.12),
+      glow:    mk(r * 0.82,     g * 0.82,     b * 0.82),
+      glow2:   mk(r * 0.35,     g * 0.35,     b * 0.35),
+      shimmer: mk(r * 0.5 + 140, g * 0.5 + 140, b * 0.5 + 140)
+    };
+  }
+
+  /** Parse #rgb, #rrggbb, or rgb(...) into [r,g,b], else null. */
+  static _parseColor(c) {
+    const s = String(c ?? "").trim().toLowerCase();
+    if (!s) return null;
+    let m = s.match(/^#([0-9a-f]{6})$/);
+    if (m) return [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16)];
+    m = s.match(/^#([0-9a-f]{3})$/);
+    if (m) return [parseInt(m[1][0] + m[1][0], 16), parseInt(m[1][1] + m[1][1], 16), parseInt(m[1][2] + m[1][2], 16)];
+    m = s.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+    if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
+    return null;
+  }
+
+  /**
+   * Resource bar — pulse (ECG-style) variant.
+   * Renders a scrolling SVG heartbeat. Colour, beat rate, tremor AND
+   * the actual waveform path are derived from the value/max ratio:
+   *   - pctReal > 100  → bright green, slow steady single beat
+   *   - 100 → 50       → green→yellow gradient (per-percent)
+   *   - 50 → 30        → yellow→red gradient, 2 beats per cycle, more noise
+   *   - ≤ 30           → red, 3 beats per cycle, jagged, taller spikes
+   *   - 0              → flat line, no animation
+   * Self-contained: pure CSS animations (no JS hooks needed).
+   */
+  static _renderResourcePulseBody(pctReal, barH) {
+    const dead     = pctReal <= 0          ? 1 : 0;
+    const critical = pctReal > 0 && pctReal <= 30 ? 1 : 0;
+    const heightPx = barH || "56px";
+    const path     = this._buildPulsePath(pctReal);
+
+    return `<div class="res-pulse" data-pulse-dead="${dead}" data-pulse-critical="${critical}" data-pulse-pct="${pctReal}" style="height:${heightPx}">
+      <div class="res-pulse-tremor">
+        <svg class="res-pulse-svg" viewBox="0 0 120 60" preserveAspectRatio="none" aria-hidden="true">
+          <g class="res-pulse-scroll">
+            <path class="res-pulse-line" d="${path}"></path>
+            <path class="res-pulse-line" d="${path}" transform="translate(60,0)"></path>
+            <path class="res-pulse-line" d="${path}" transform="translate(120,0)"></path>
+          </g>
+        </svg>
+      </div>
+    </div>`;
+  }
+
+  /**
+   * Procedural ECG path for the pulse variant.
+   *  - low HP → more beats per tile, higher peaks, more baseline noise,
+   *    occasional premature beats (PVC), uneven spacing.
+   *  - Always starts and ends at (0, BASE) and (60, BASE) so 3 tiles
+   *    chain seamlessly during the scroll animation.
+   *  - Deterministic per pct value (seeded PRNG) so re-renders match
+   *    across the 3 SVG <path> tiles in the same frame.
+   */
+  static _buildPulsePath(pct) {
+    const W = 60, BASE = 30;
+    const clamped = Math.max(0, Math.min(120, pct));
+    if (clamped <= 0) return `M0,${BASE} L${W},${BASE}`;
+
+    // Deterministic Park–Miller PRNG seeded by pct so all 3 tiles match.
+    let seed = (Math.floor(clamped * 137.59) || 1) >>> 0;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+
+    const low      = Math.max(0, Math.min(1, (100 - clamped) / 100));      // 0..1
+    const beats    = clamped >= 70 ? 1 : clamped >= 30 ? 2 : 3;            // more frequent at low HP
+    const noiseAmp = 0.3 + low * 3.2;                                       // baseline jitter
+    const peakAmp  = 14 + low * 13;                                         // tall R spike
+    const sNoise   = 0.4 + low * 1.3;                                       // S amplitude variance
+
+    const segW = W / beats;
+    const out  = [`M0,${BASE.toFixed(2)}`];
+    let   x    = 0;
+
+    const pushLine = (nx, ny) => out.push(`L${nx.toFixed(2)},${ny.toFixed(2)}`);
+    const pushQ    = (cx, cy, nx, ny) => out.push(`Q${cx.toFixed(2)},${cy.toFixed(2)} ${nx.toFixed(2)},${ny.toFixed(2)}`);
+
+    for (let b = 0; b < beats; b++) {
+      const beatEnd  = (b + 1) * segW;
+      // jitter the spike position slightly inside the beat slot
+      const spikeAt  = b * segW + segW * (0.40 + rnd() * 0.20);
+      const ampVar   = peakAmp * (0.75 + rnd() * 0.55);
+      // chance of a premature (smaller, earlier) beat at low HP
+      const stutter  = low > 0.55 && rnd() < 0.4;
+
+      // Pre-spike baseline with noise
+      while (x < spikeAt - 6) {
+        const step = 1.2 + rnd() * 1.6;
+        const nx   = Math.min(spikeAt - 6, x + step);
+        const ny   = BASE + (rnd() - 0.5) * noiseAmp;
+        pushLine(nx, ny);
+        x = nx;
+      }
+      pushLine(spikeAt - 5, BASE);
+      x = spikeAt - 5;
+
+      // P wave (small upward bell)
+      const px = x + 1.6;
+      pushQ(x + 0.8, BASE - 1.6 - rnd() * 1.2, px, BASE);
+      x = px;
+
+      // optional premature beat (small spike before the main one)
+      if (stutter) {
+        x += 0.6; pushLine(x, BASE + 0.4);
+        x += 0.5; pushLine(x, BASE - ampVar * 0.45);
+        x += 0.6; pushLine(x, BASE + ampVar * 0.30);
+        x += 0.8; pushLine(x, BASE);
+      }
+
+      // QRS complex
+      x += 0.7; pushLine(x, BASE + 0.6 + rnd() * 0.8);            // Q dip
+      x += 0.5; pushLine(x, BASE - ampVar);                       // R up (tall spike)
+      x += 0.6; pushLine(x, BASE + ampVar * (0.45 + sNoise * 0.15)); // S down
+      x += 1.0; pushLine(x, BASE);                                // back to baseline
+
+      // T wave (rounded bump)
+      const tx = x + 2.2;
+      pushQ(x + 1.1, BASE - 1.8 - rnd() * 1.8, tx, BASE);
+      x = tx;
+
+      // Post-spike baseline with noise up to the end of this beat slot
+      while (x < beatEnd - 1) {
+        const step = 1.1 + rnd() * 1.5;
+        const nx   = Math.min(beatEnd - 1, x + step);
+        const ny   = BASE + (rnd() - 0.5) * noiseAmp;
+        pushLine(nx, ny);
+        x = nx;
+      }
+      // ensure tile ends cleanly at the beat boundary
+      pushLine(beatEnd, BASE);
+      x = beatEnd;
+    }
+
+    // Guarantee we land exactly at (W, BASE) so tiles chain seamlessly.
+    if (x < W) pushLine(W, BASE);
+    return out.join(" ");
+  }
+
+  /** Smooth color gradient: >100 green, 50 yellow, 30 red, <30 deep red. */
+  static _pulseColor(pct) {
+    const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * Math.max(0, Math.min(1, t))));
+    const rgb = (arr) => `rgb(${arr[0]},${arr[1]},${arr[2]})`;
+    const GREEN  = [ 54, 255, 122];
+    const YELLOW = [255, 216,  77];
+    const RED    = [255,  68,  68];
+    const DEAD   = [120,  18,  18];
+    if (pct >= 100) return rgb(GREEN);
+    if (pct >= 50)  return rgb(mix(GREEN,  YELLOW, (100 - pct) / 50));
+    if (pct >= 30)  return rgb(mix(YELLOW, RED,    (50  - pct) / 20));
+    if (pct > 0)    return rgb(mix(RED,    DEAD,   (30  - pct) / 30));
+    return rgb(DEAD);
+  }
+
+  /** Beat duration in ms — slows at high pct, accelerates as it drops. */
+  static _pulseDuration(pct) {
+    if (pct <= 0)   return 4000;
+    if (pct >= 100) return 1200;
+    if (pct >= 50)  return Math.round(1200 - (100 - pct) * 6);
+    if (pct >= 30)  return Math.round(900  - (50  - pct) * 14);
+    return Math.max(280, Math.round(620 - (30 - pct) * 8));
+  }
+
+  /** Vertical tremor (px) — appears as line goes critical. */
+  static _pulseTremor(pct) {
+    if (pct >= 60) return 0;
+    if (pct >= 30) return +((60 - pct) / 30 * 1.4).toFixed(2);
+    if (pct > 0)   return +(1.4 + (30 - pct) / 30 * 3.2).toFixed(2);
+    return 0;
   }
 
   static _render_dice(w, doc) {
@@ -1536,9 +1881,11 @@ export class WidgetRenderer {
     const disp = (typeof val === "number" && isFinite(val))
       ? (dp > 0 ? val.toFixed(dp) : Math.round(val))
       : String(val);
+    const fsRaw = Number(w.valueFontSize);
+    const fs    = Number.isFinite(fsRaw) && fsRaw > 0 ? `${fsRaw}px` : "18px";
     return `<div class="widget widget-derived">
   <div class="widget-label">${lbl}</div>
-  <div class="widget-derived-value" style="font-size:18px;font-weight:700;text-align:center;color:var(--sd-text);letter-spacing:.02em">${esc(String(disp))}</div>
+  <div class="widget-derived-value" style="font-size:${fs};font-weight:700;text-align:center;color:var(--sd-text);letter-spacing:.02em;line-height:1.15">${esc(String(disp))}</div>
 </div>`;
   }
 

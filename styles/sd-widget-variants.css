@@ -131,6 +131,382 @@
   text-shadow: 0 0 6px var(--sd-accent-glow) !important;
 }
 
+/* ============================================================
+ * Resource bar — pulse (ECG / heartbeat trace) variant
+ *
+ *   .res-pulse              outer frame (grid background, glow)
+ *     .res-pulse-tremor     vertical jitter wrapper (low-HP shake)
+ *       svg.res-pulse-svg   line drawing surface, colour=currentColor
+ *         g.res-pulse-scroll horizontal scrolling group
+ *           path.res-pulse-line repeated 3× to loop seamlessly
+ *
+ * Inline CSS variables set by the renderer per actor value:
+ *   --sd-pulse-color    target colour (green→yellow→red gradient)
+ *   --sd-pulse-dur      beat duration (ms) — shorter = faster heart rate
+ *   --sd-pulse-tremor   vertical jitter amplitude (px)
+ *
+ * data-pulse-dead="1"     → flat-line, no animation, dim red glow
+ * data-pulse-critical="1" → fast beat + outline flash
+ * ============================================================ */
+
+.sd-w-resource.sd-v-pulse { position: relative; }
+.sd-w-resource.sd-v-pulse .res-bar { display: none !important; }
+
+/* current value (left) + max (right) overlaid on the bottom half of the pulse,
+   at ~50% of pulse-area height, in LCD style matching the ECG line */
+.sd-w-resource.sd-v-pulse .res-row {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 4px;
+  height: calc(var(--sd-pulse-h, 56px) * 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  pointer-events: none;
+  z-index: 3;
+}
+.sd-w-resource.sd-v-pulse .res-row .res-sep { display: none !important; }
+.sd-w-resource.sd-v-pulse .res-row input {
+  pointer-events: auto;
+  height: 100% !important;
+  min-width: 0 !important;
+  width: auto !important;
+  padding: 0 4px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  color: var(--sd-pulse-color, #36ff7a) !important;
+  font-family: var(--sd-mono, "Courier New", monospace) !important;
+  font-weight: 700 !important;
+  font-size: calc(var(--sd-pulse-h, 56px) * 0.40) !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  text-shadow:
+    0 0 4px color-mix(in srgb, var(--sd-pulse-color, #36ff7a) 75%, transparent),
+    0 0 10px color-mix(in srgb, var(--sd-pulse-color, #36ff7a) 35%, transparent);
+}
+.sd-w-resource.sd-v-pulse .res-row input:focus {
+  background: rgba(0,0,0,.35) !important;
+}
+.sd-w-resource.sd-v-pulse .widget-label {
+  font-family: var(--sd-mono, "Courier New", monospace) !important;
+  letter-spacing: .12em !important;
+  text-transform: uppercase !important;
+  color: color-mix(in srgb, var(--sd-pulse-color, #36ff7a) 75%, white 25%) !important;
+  text-shadow: 0 0 5px color-mix(in srgb, var(--sd-pulse-color, #36ff7a) 35%, transparent);
+}
+/* hide native spin-buttons inside the ECG display */
+.sd-w-resource.sd-v-pulse .res-row input::-webkit-outer-spin-button,
+.sd-w-resource.sd-v-pulse .res-row input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.sd-w-resource.sd-v-pulse .res-row input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.sd-w-resource.sd-v-pulse .res-pulse {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px) 0/100% 14px,
+    linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px) 0/14px 100%,
+    radial-gradient(120% 80% at 50% 50%, #0a1018 0%, #05080d 100%);
+  border: 1px solid var(--sd-w-bd, rgba(255,255,255,.08));
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 24px rgba(0,0,0,.55),
+    inset 0 0 0 1px rgba(255,255,255,.02);
+  min-height: 40px;
+  margin-top: 2px;
+}
+
+/* moving "scan" highlight - tiny gloss sliding across the screen */
+.sd-w-resource.sd-v-pulse .res-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -25%;
+  width: 35%;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in srgb, var(--sd-pulse-color, #36ff7a) 8%, transparent),
+    transparent);
+  pointer-events: none;
+  z-index: 2;
+  animation: sd-pulse-scan 7s linear infinite;
+}
+
+.sd-w-resource.sd-v-pulse .res-pulse-tremor {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  animation: sd-pulse-tremor 0.22s steps(2, end) infinite;
+  will-change: transform;
+}
+
+.sd-w-resource.sd-v-pulse .res-pulse-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  color: var(--sd-pulse-color, #36ff7a);
+  filter:
+    drop-shadow(0 0 4px currentColor)
+    drop-shadow(0 0 10px color-mix(in srgb, currentColor 55%, transparent));
+  overflow: visible;
+}
+
+.sd-w-resource.sd-v-pulse .res-pulse-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sd-w-resource.sd-v-pulse .res-pulse-scroll {
+  transform-origin: 0 0;
+  animation: sd-pulse-scroll var(--sd-pulse-dur, 1200ms) linear infinite;
+  will-change: transform;
+}
+
+/* one beat is 60 user-units wide → translate by -60 per cycle */
+@keyframes sd-pulse-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-60px); }
+}
+
+@keyframes sd-pulse-tremor {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(0, calc(var(--sd-pulse-tremor, 0px) * -1)); }
+  50%  { transform: translate(0, calc(var(--sd-pulse-tremor, 0px) * 0.6)); }
+  75%  { transform: translate(0, calc(var(--sd-pulse-tremor, 0px) * -0.4)); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes sd-pulse-scan {
+  from { transform: translateX(0); }
+  to   { transform: translateX(400%); }
+}
+
+/* Critical state — emergency flash around the frame, much shorter cycle */
+.sd-w-resource.sd-v-pulse .res-pulse[data-pulse-critical="1"] {
+  animation: sd-pulse-flash 1.2s ease-in-out infinite;
+}
+@keyframes sd-pulse-flash {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 24px rgba(0,0,0,.55),
+      inset 0 0 0 1px rgba(255,255,255,.02);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 28px color-mix(in srgb, var(--sd-pulse-color, #ff4444) 22%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--sd-pulse-color, #ff4444) 55%, transparent),
+      0 0 18px color-mix(in srgb, var(--sd-pulse-color, #ff4444) 45%, transparent);
+  }
+}
+
+/* Dead state — flat-line, no motion */
+.sd-w-resource.sd-v-pulse .res-pulse[data-pulse-dead="1"] .res-pulse-tremor { animation: none; }
+.sd-w-resource.sd-v-pulse .res-pulse[data-pulse-dead="1"] .res-pulse-scroll { animation: none; transform: none; }
+.sd-w-resource.sd-v-pulse .res-pulse[data-pulse-dead="1"] .res-pulse-line {
+  d: path("M0,30 L120,30");
+  opacity: .6;
+  stroke-width: 1.2;
+}
+.sd-w-resource.sd-v-pulse .res-pulse[data-pulse-dead="1"] .res-pulse-svg {
+  filter: drop-shadow(0 0 4px color-mix(in srgb, currentColor 35%, transparent));
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .sd-w-resource.sd-v-pulse .res-pulse-scroll,
+  .sd-w-resource.sd-v-pulse .res-pulse-tremor,
+  .sd-w-resource.sd-v-pulse .res-pulse::after,
+  .sd-w-resource.sd-v-pulse .res-pulse[data-pulse-critical="1"] {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+ * Resource bar — orb (Diablo-style globe) variant
+ *
+ *   .res-orb              outer frame (centers svg, sets aspect)
+ *     svg.res-orb-svg     metal ring + clipped liquid fill + shine
+ *       g.res-orb-wave    animated wave overlay (translated to surface)
+ *     .res-orb-text       HP / MaxHP overlay
+ *
+ * Inline CSS variables set by the renderer on the OUTER .widget-resource:
+ *   --sd-orb-fill       primary fill colour
+ *   --sd-orb-fill2      wave overlay colour
+ *   --sd-orb-base       deep base behind fill
+ *   --sd-orb-glow       outer glow (strong)
+ *   --sd-orb-glow2      outer glow (soft halo)
+ *   --sd-orb-shimmer    inner shine / shimmer colour
+ * ============================================================ */
+.sd-w-resource.sd-v-orb {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 6px 6px 10px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  /*
+   * Override any explicit width coming from Width (PX) box style — the orb is
+   * always centered and we let the container auto-grow to fit the orb size +
+   * the 41/100 number row above it. Otherwise a small Width (e.g. 50px)
+   * would clip the res-row inputs and the orb's drop-shadows.
+   */
+  width: max-content !important;
+  min-width: var(--sd-orb-size, 200px) !important;
+  /* Don't let the cell clip the outer drop-shadow halo. */
+  overflow: visible !important;
+}
+.sd-w-resource.sd-v-orb .widget-label {
+  font-family: var(--sd-font-display, 'Cinzel', serif) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+  color: var(--sd-text-3, #aaa) !important;
+  text-align: center !important;
+  width: 100% !important;
+  justify-content: center !important;
+}
+.sd-w-resource.sd-v-orb .res-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  width: auto !important;
+  max-width: 200px !important;
+  margin-top: -4px !important;
+}
+.sd-w-resource.sd-v-orb .res-row input.res-val,
+.sd-w-resource.sd-v-orb .res-row input.res-max {
+  width: 56px !important;
+  font-size: 11px !important;
+  padding: 2px 4px !important;
+  text-align: center !important;
+  background: rgba(0,0,0,0.35) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  color: var(--sd-text-2, #ddd) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.sd-w-resource.sd-v-orb .res-row .res-sep {
+  color: var(--sd-text-3, #888) !important;
+  font-size: 11px !important;
+}
+
+.sd-w-resource.sd-v-orb .res-orb {
+  position: relative;
+  /*
+   * --sd-orb-size is set on the outer .widget-resource by the renderer based
+   * on Width (PX) / Bar height (PX). Defaults to 200px when neither is set.
+   */
+  width: var(--sd-orb-size, 200px);
+  height: var(--sd-orb-size, 200px);
+  /* Scale the drop-shadow halo with the orb so small orbs aren't dwarfed by
+   * giant blur radii. */
+  filter:
+    drop-shadow(0 0 calc(var(--sd-orb-size, 200px) * 0.09) var(--sd-orb-glow, #aa2222))
+    drop-shadow(0 0 calc(var(--sd-orb-size, 200px) * 0.2)  var(--sd-orb-glow2, #660000));
+  margin-top: 4px;
+}
+.sd-w-resource.sd-v-orb .res-orb-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+/* Animated wave & shimmer — gentle continuous motion */
+.sd-w-resource.sd-v-orb .res-orb-wave-path {
+  animation: sd-orb-wave 3.8s ease-in-out infinite;
+  will-change: transform;
+  transform-origin: 100px 0;
+}
+.sd-w-resource.sd-v-orb .res-orb-wave-path-2 {
+  animation-duration: 5.2s;
+  animation-direction: reverse;
+}
+.sd-w-resource.sd-v-orb .res-orb-core {
+  animation: sd-orb-core-pulse 3.6s ease-in-out infinite;
+  transform-origin: 100px 100px;
+}
+.sd-w-resource.sd-v-orb .res-orb-shimmer {
+  animation: sd-orb-shimmer 4.2s ease-in-out infinite;
+  transform-origin: 100px 100px;
+}
+
+@keyframes sd-orb-wave {
+  0%, 100% { transform: translateX(0px); }
+  50%      { transform: translateX(-8px); }
+}
+@keyframes sd-orb-core-pulse {
+  0%, 100% { opacity: var(--sd-orb-core-op, 0.25); }
+  50%      { opacity: calc(var(--sd-orb-core-op, 0.25) * 0.55); }
+}
+@keyframes sd-orb-shimmer {
+  0%, 100% { opacity: 0.10; transform: translateX(0); }
+  50%      { opacity: 0.18; transform: translateX(6px); }
+}
+
+/* HP / MaxHP overlay, bottom-centered (Cinzel-style if available).
+ * Positioning + font scale with --sd-orb-size so it stays nicely inside the
+ * orb regardless of the user-chosen size. */
+.sd-w-resource.sd-v-orb .res-orb-text {
+  position: absolute;
+  bottom: calc(var(--sd-orb-size, 200px) * 0.16);
+  left: 0; right: 0;
+  text-align: center;
+  font-family: var(--sd-font-display, 'Cinzel', serif);
+  font-size: clamp(9px, calc(var(--sd-orb-size, 200px) * 0.075), 22px);
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 8px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,1);
+  pointer-events: none;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Empty state — drop most of the glow */
+.sd-w-resource.sd-v-orb .res-orb[data-orb-empty="1"] {
+  filter:
+    drop-shadow(0 0 8px var(--sd-orb-glow2, #220000))
+    drop-shadow(0 0 16px rgba(0,0,0,0.6));
+}
+.sd-w-resource.sd-v-orb .res-orb[data-orb-empty="1"] .res-orb-wave-path,
+.sd-w-resource.sd-v-orb .res-orb[data-orb-empty="1"] .res-orb-core,
+.sd-w-resource.sd-v-orb .res-orb[data-orb-empty="1"] .res-orb-shimmer {
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-w-resource.sd-v-orb .res-orb-wave-path,
+  .sd-w-resource.sd-v-orb .res-orb-core,
+  .sd-w-resource.sd-v-orb .res-orb-shimmer {
+    animation: none !important;
+  }
+}
+
 .sd-w-progress.sd-v-thin  .prog-bar,
 .sd-w-progress.sd-v-thin  .progress-bar { height: 3px !important; }
 .sd-w-progress.sd-v-thick .prog-bar,
@@ -376,6 +752,13 @@
   color: var(--sd-text-2) !important;
   font-size: 11px !important; padding: 2px 10px !important;
   cursor: pointer !important; transition: background .12s, border-color .12s, color .12s;
+  /* Auto-size to label, don't collapse, don't ellipsize. */
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  line-height: 1.4 !important;
 }
 .sd-w-select .widget-select-pill:hover {
   border-color: var(--sd-accent) !important; color: var(--sd-accent) !important;
@@ -833,6 +1216,20 @@
  * Card-slider and card-grid variants
  * (inventory / spellbook / effects: 3 cards per row,
  *  with horizontal scroll + nav buttons or vertical infinite scroll)
+ *
+ * Layout inside each card (top → bottom):
+ *   1. Image plate (large square portrait, with floating qty/badge)
+ *   2. Title (centered, uppercase, bold)
+ *   3. Subtitle (centered, small, accent-coloured)
+ *   4. Description body (centered, multi-line)
+ *   5. Meta pills row (centered KV stats / tags)
+ *   6. Action row pinned at bottom:
+ *        primary "use / cast" button (flex 1)
+ *        + small icon buttons (equip / edit / delete)
+ *
+ * Decorative gold-style corner accents are drawn with pure CSS
+ * (corner-image gradients), so they pick up `--sd-accent` from
+ * whichever theme is active.
  * ============================================================ */
 
 .sd-cards-container {
@@ -845,7 +1242,7 @@
 /* Track */
 .sd-cards-track {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   scroll-behavior: smooth;
 }
@@ -856,7 +1253,7 @@
 }
 .sd-cards-container[data-card-mode="card-slider"] .sd-cards-track {
   grid-auto-flow: column;
-  grid-auto-columns: calc((100% - 16px) / 3);
+  grid-auto-columns: calc((100% - 20px) / 3);
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -895,7 +1292,7 @@
 /* Grid: vertical scroll, 3 columns, infinite-style */
 .sd-cards-container[data-card-mode="card-grid"] .sd-cards-track {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  max-height: 520px;
+  max-height: 640px;
   overflow-y: auto;
   overflow-x: hidden;
   align-content: start;
@@ -912,47 +1309,109 @@
   background: var(--sd-accent-dim, rgba(123,104,238,.4));
 }
 
-/* Card itself */
+/* ------------------------------------------------------------
+ * The card frame
+ * ------------------------------------------------------------ */
 .sd-item-card {
-  background: var(--sd-bg-2, #1a1a22);
-  border: 1px solid var(--sd-border, rgba(255,255,255,.1));
-  border-radius: var(--sd-r, 6px);
-  padding: 8px;
+  background:
+    radial-gradient(120% 70% at 50% 0%,
+      color-mix(in srgb, var(--sd-accent, #7b68ee) 8%, transparent) 0%,
+      transparent 60%),
+    linear-gradient(180deg,
+      var(--sd-bg-2, #1a1a22) 0%,
+      var(--sd-bg, #11111a) 100%);
+  border: 1px solid var(--sd-border, rgba(255,255,255,.10));
+  border-radius: 6px;
+  padding: 10px 10px 9px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
   font-size: 12px;
   color: var(--sd-text, #d3d3d3);
   position: relative;
-  transition: border-color .15s, box-shadow .15s;
+  isolation: isolate;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.04) inset,
+    0 6px 16px -8px rgba(0,0,0,.55);
+  transition: border-color .15s, box-shadow .15s, transform .15s;
 }
 .sd-item-card:hover {
   border-color: var(--sd-accent-dim, rgba(123,104,238,.4));
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.06) inset,
+    0 8px 22px -8px rgba(0,0,0,.65);
 }
 .sd-item-card.is-equipped {
   border-color: var(--sd-accent, #7b68ee);
-  box-shadow: inset 0 0 0 1px var(--sd-accent-glow, rgba(123,104,238,.15));
+  box-shadow:
+    0 0 0 1px var(--sd-accent-glow, rgba(123,104,238,.18)) inset,
+    0 8px 22px -8px rgba(0,0,0,.65);
 }
 .sd-item-card.is-disabled { opacity: .55; }
 
-/* Card header (img + title + subtitle) */
+/* Gold-style corner accents (pure CSS, theme-aware) */
+.sd-item-card::before,
+.sd-item-card::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: .55;
+  transition: opacity .15s, border-color .15s;
+}
+.sd-item-card::before {
+  top: 3px;
+  left: 3px;
+  border-top: 1px solid var(--sd-accent, #7b68ee);
+  border-left: 1px solid var(--sd-accent, #7b68ee);
+  border-top-left-radius: 4px;
+}
+.sd-item-card::after {
+  bottom: 3px;
+  right: 3px;
+  border-bottom: 1px solid var(--sd-accent, #7b68ee);
+  border-right: 1px solid var(--sd-accent, #7b68ee);
+  border-bottom-right-radius: 4px;
+}
+.sd-item-card:hover::before,
+.sd-item-card:hover::after { opacity: .9; }
+.sd-item-card.is-equipped::before,
+.sd-item-card.is-equipped::after { opacity: 1; }
+
+/* ------------------------------------------------------------
+ * Header: portrait on top, title + subtitle centered below
+ * ------------------------------------------------------------ */
 .sd-item-card-hdr {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   min-width: 0;
+  position: relative;
 }
 .sd-item-card-img {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 128px;
+  min-height: 64px;
   border-radius: 4px;
-  background: var(--sd-bg, #11111a);
+  background:
+    radial-gradient(circle at 50% 35%,
+      color-mix(in srgb, var(--sd-accent, #7b68ee) 12%, transparent),
+      transparent 65%),
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--sd-bg, #11111a) 80%, #000),
+      var(--sd-bg, #11111a));
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  border: 1px solid var(--sd-border, rgba(255,255,255,.08));
+  box-shadow: inset 0 0 18px rgba(0,0,0,.4);
 }
 .sd-item-card-img img {
   width: 100%;
@@ -960,63 +1419,102 @@
   object-fit: cover;
 }
 .sd-item-card-img i {
-  color: var(--sd-text-3, rgba(255,255,255,.4));
-  font-size: 14px;
+  color: var(--sd-text-3, rgba(255,255,255,.45));
+  font-size: 22px;
 }
+
+/* Thin gold divider between the portrait and the title block —
+ * mimics the divider in the reference. */
 .sd-item-card-title-wrap {
-  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1px;
   min-width: 0;
+  padding-top: 4px;
+  position: relative;
+}
+.sd-item-card-title-wrap::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in srgb, var(--sd-accent, #7b68ee) 60%, transparent),
+    transparent);
+  opacity: .55;
 }
 .sd-item-card-title {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 12px;
-  line-height: 1.15;
+  line-height: 1.2;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--sd-text, #e6e6f0);
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--sd-text, #d3d3d3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  word-break: break-word;
 }
 .sd-item-card-sub {
   font-size: 10px;
-  color: var(--sd-text-3, rgba(255,255,255,.5));
+  color: var(--sd-accent, #7b68ee);
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: .08em;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-top: 1px;
+  max-width: 100%;
 }
 
-/* Card body (inline-like preview content) */
+/* ------------------------------------------------------------
+ * Body: description / tabs
+ * ------------------------------------------------------------ */
 .sd-item-card-body {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 11px;
-  line-height: 1.3;
+  line-height: 1.35;
   color: var(--sd-text-2, #b8b8b8);
-  max-height: 220px;
+  max-height: 180px;
   overflow: auto;
+  text-align: center;
+  padding: 0 2px;
 }
 .sd-item-card-body::-webkit-scrollbar { width: 6px; height: 6px; }
 .sd-item-card-body::-webkit-scrollbar-thumb {
   background: var(--sd-border, rgba(255,255,255,.12));
   border-radius: 3px;
 }
+.sd-item-card-body p { margin: 0 0 .35em; }
+.sd-item-card-body p:last-child { margin-bottom: 0; }
 .sd-item-card-empty {
   font-size: 11px;
   color: var(--sd-text-3, rgba(255,255,255,.45));
   font-style: italic;
+  text-align: center;
 }
 .sd-item-card-section { display: flex; flex-direction: column; gap: 4px; }
 
-/* Collapsible tabs inside a card */
+/* Collapsible tabs inside a card — tabs reset to left-aligned
+ * because they contain mixed structured content. */
 .sd-item-card-tab {
   border: 1px solid var(--sd-border, rgba(255,255,255,.08));
   border-radius: 4px;
   padding: 0;
   margin: 0;
-  background: var(--sd-bg, rgba(0,0,0,.15));
+  background: var(--sd-bg, rgba(0,0,0,.18));
+  text-align: left;
 }
 .sd-item-card-tab > summary {
   display: flex;
@@ -1034,7 +1532,7 @@
 }
 .sd-item-card-tab > summary::-webkit-details-marker { display: none; }
 .sd-item-card-tab > summary::before {
-  content: "▸";
+  content: "\25B8";
   font-size: 9px;
   transition: transform .15s;
 }
@@ -1045,42 +1543,61 @@
   border-top: 1px solid var(--sd-border, rgba(255,255,255,.06));
 }
 
-/* Meta pills (qty / weight / category / cost / duration) */
+/* ------------------------------------------------------------
+ * Meta pills (qty / weight / category / cost / duration)
+ * Centered KV row.
+ * ------------------------------------------------------------ */
 .sd-item-card-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  justify-content: center;
+  gap: 4px 6px;
 }
 .sd-item-card-meta:empty { display: none; }
 .sd-item-card-pill {
-  background: var(--sd-bg, rgba(255,255,255,.06));
-  border: 1px solid var(--sd-border, rgba(255,255,255,.08));
+  background: var(--sd-bg, rgba(0,0,0,.25));
+  border: 1px solid var(--sd-border, rgba(255,255,255,.10));
   color: var(--sd-text-2, #c5c5c5);
-  border-radius: 999px;
+  border-radius: 3px;
   padding: 1px 7px;
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
   white-space: nowrap;
 }
 
-/* Action buttons row */
+/* ------------------------------------------------------------
+ * Action row — pinned at the bottom of the card.
+ * Primary "use / cast" button stretches; secondary icon
+ * buttons sit on the right at a fixed square size.
+ * ------------------------------------------------------------ */
 .sd-item-card-actions {
   display: flex;
-  gap: 3px;
-  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 4px;
   margin-top: auto;
+  padding-top: 2px;
+  flex-wrap: nowrap;
 }
 .sd-card-btn {
-  background: var(--sd-bg, rgba(0,0,0,.25));
-  border: 1px solid var(--sd-border, rgba(255,255,255,.1));
+  background: var(--sd-bg, rgba(0,0,0,.30));
+  border: 1px solid var(--sd-border, rgba(255,255,255,.12));
   color: var(--sd-text-2, #c5c5c5);
   border-radius: 4px;
-  padding: 3px 7px;
+  padding: 0 8px;
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
   cursor: pointer;
+  height: 26px;
+  min-width: 26px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 5px;
   line-height: 1;
+  flex: 0 0 auto;
   transition: background .12s, border-color .12s, color .12s;
 }
 .sd-card-btn:hover {
@@ -1088,14 +1605,27 @@
   border-color: var(--sd-accent-dim, rgba(123,104,238,.4));
   color: var(--sd-text, #fff);
 }
+.sd-card-btn i { font-size: 11px; }
+.sd-card-btn > span { letter-spacing: .06em; }
+
+/* Primary action: flexes to fill leftover space so the row
+ * reads as one cohesive "Activate" button + small icons. */
 .sd-card-btn-use {
-  background: rgba(72,187,120,.12);
-  border-color: rgba(72,187,120,.35);
-  color: rgba(180,230,200,.95);
+  flex: 1 1 auto;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--sd-success, #5ae07a) 18%, transparent),
+      color-mix(in srgb, var(--sd-success, #5ae07a) 8%, transparent));
+  border-color: color-mix(in srgb, var(--sd-success, #5ae07a) 45%, var(--sd-border));
+  color: color-mix(in srgb, var(--sd-success, #5ae07a) 85%, #fff);
+  text-transform: uppercase;
 }
 .sd-card-btn-use:hover {
-  background: rgba(72,187,120,.22);
-  border-color: rgba(72,187,120,.6);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--sd-success, #5ae07a) 30%, transparent),
+      color-mix(in srgb, var(--sd-success, #5ae07a) 14%, transparent));
+  border-color: color-mix(in srgb, var(--sd-success, #5ae07a) 70%, transparent);
   color: #fff;
 }
 .sd-card-btn-equip.on {
@@ -1104,47 +1634,58 @@
   color: var(--sd-accent, #7b68ee);
 }
 .sd-card-btn-del:hover {
-  background: rgba(220,80,80,.18);
-  border-color: rgba(220,80,80,.5);
-  color: rgba(255,200,200,.95);
+  background: color-mix(in srgb, var(--sd-danger, #e05a5a) 18%, transparent);
+  border-color: color-mix(in srgb, var(--sd-danger, #e05a5a) 55%, transparent);
+  color: color-mix(in srgb, var(--sd-danger, #e05a5a) 80%, #fff);
 }
 
-/* Extra columns under each card (inventory) */
+/* When the card has NO description body and NO extra cols
+ * the actions row will inherit margin-top:auto and naturally
+ * stick to the bottom. No extra rules needed. */
+
+/* ------------------------------------------------------------
+ * Extra columns under each card (inventory `columns`)
+ * Two-column KV grid, centered.
+ * ------------------------------------------------------------ */
 .sd-item-card-extra-cols {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-  gap: 4px;
+  gap: 4px 10px;
   padding-top: 6px;
   margin-top: 2px;
-  border-top: 1px dashed var(--sd-border, rgba(255,255,255,.08));
+  border-top: 1px dashed var(--sd-border, rgba(255,255,255,.10));
 }
 .sd-item-card-col {
   display: flex;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  text-align: center;
 }
 .sd-item-card-col-label {
   font-size: 9px;
-  color: var(--sd-text-3, rgba(255,255,255,.45));
+  color: var(--sd-text-3, rgba(255,255,255,.5));
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: .06em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .sd-item-card-col-value {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--sd-text, #e2e2e2);
+  font-variant-numeric: tabular-nums;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Drop zone shown under the cards container so users can drag items /
+/* ------------------------------------------------------------
+ * Drop zone shown under the cards container so users can drag items /
  * abilities / effects in (the cards themselves don't have a hover preview
- * — they ARE the preview — so a dedicated drop zone is needed). */
+ * — they ARE the preview — so a dedicated drop zone is needed).
+ * ------------------------------------------------------------ */
 .widget-cards-wrap .sd-cards-drop-zone {
   margin-top: 8px;
   padding: 8px 12px;
@@ -1170,19 +1711,22 @@
   border-color: var(--sd-accent, #7b68ee);
 }
 
-/* On narrow widgets, drop to 2 / 1 columns */
-@container (max-width: 380px) {
+/* On narrow widgets, drop to 2 / 1 columns and tighten paddings
+ * so the layout never breaks. */
+@container (max-width: 420px) {
   .sd-cards-container[data-card-mode="card-grid"] .sd-cards-track {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .sd-cards-container[data-card-mode="card-slider"] .sd-cards-track {
-    grid-auto-columns: calc((100% - 8px) / 2);
+    grid-auto-columns: calc((100% - 10px) / 2);
   }
 }
-@container (max-width: 240px) {
+@container (max-width: 260px) {
   .sd-cards-container[data-card-mode="card-grid"] .sd-cards-track,
   .sd-cards-container[data-card-mode="card-slider"] .sd-cards-track {
     grid-template-columns: 1fr;
     grid-auto-columns: 100%;
   }
+  .sd-item-card { padding: 9px 9px 8px; }
+  .sd-card-btn { padding: 0 6px; height: 24px; }
 }

@@ -542,12 +542,14 @@ export const WIDGET_TYPES = {
     defaults: {
       label:         "Derived",
       formula:       "0",
-      decimalPlaces: 0
+      decimalPlaces: 0,
+      valueFontSize: 0
     },
     configFields: [
       { key: "label",         type: "text",   label: "Label" },
       { key: "formula",       type: "text",   label: "Formula", mono: true, placeholder: "{system.attributes.attr1.value} * 2" },
-      { key: "decimalPlaces", type: "number", label: "Decimal places (0 = integer)" }
+      { key: "decimalPlaces", type: "number", label: "Decimal places (0 = integer)" },
+      { key: "valueFontSize", type: "number", label: "Value font size (px, 0 = default)" }
     ]
   },
 
@@ -647,7 +649,7 @@ export const WIDGET_VARIANTS = {
   text:           ["default", "boxed", "underline", "ghost", "inline"],
   richtext:       ["default", "boxed", "scroll"],
   number:         ["default", "chip", "stat", "framed"],
-  resource:       ["default", "split", "heart", "stripes", "digital"],
+  resource:       ["default", "split", "heart", "stripes", "digital", "pulse", "orb"],
   progress:       ["default", "thin", "thick", "striped", "segmented"],
   clock:          ["default", "ring", "bar", "fraction"],
   counter:        ["default", "chunky", "minimal", "wheel"],

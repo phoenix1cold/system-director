@@ -131,34 +131,175 @@
       "HighContrast": "High Contrast (A11y)"
     },
     "WidgetVariants": {
-      "_label":             "Variant",
-      "_hint":              "Visual skin for this widget. Data and behaviour are unaffected.",
-      "_default":           "Default",
-      "text":           { "default": "Default", "boxed": "Boxed", "underline": "Underline", "ghost": "Ghost", "inline": "Inline" },
-      "richtext":       { "default": "Default", "boxed": "Boxed", "scroll": "Parchment Scroll" },
-      "number":         { "default": "Default", "chip": "Chip", "stat": "Stat", "framed": "Framed" },
-      "resource":       { "default": "Bar", "split": "Split (value / max)", "heart": "Heart Pulse", "stripes": "Stripes", "digital": "Digital" },
-      "progress":       { "default": "Default", "thin": "Thin", "thick": "Thick", "striped": "Striped", "segmented": "Segmented" },
-      "clock":          { "default": "Pie", "ring": "Ring", "bar": "Bar", "fraction": "Fraction" },
-      "counter":        { "default": "Default", "chunky": "Chunky", "minimal": "Minimal", "wheel": "Wheel" },
-      "dice":           { "default": "Default", "d20-big": "Big d20", "chip": "Chip", "flat": "Flat" },
-      "button":         { "default": "Default", "pill": "Pill", "outline": "Outline", "ghost": "Ghost", "raised": "Raised", "danger": "Danger", "soft": "Soft" },
-      "rollButton":     { "default": "Default", "d20": "d20", "flat": "Flat", "stamp": "Stamp" },
-      "toggle":         { "default": "Switch", "checkbox": "Checkbox", "pill": "Pill", "led": "LED" },
-      "select":         { "default": "Default", "pills": "Pills", "segmented": "Segmented", "radio": "Radio" },
-      "attribute":      { "default": "Default", "stat-card": "Stat Card", "inline": "Inline", "badge": "Badge", "roll-button": "Roll Button" },
-      "attributeGroup": { "default": "Default", "row": "Row", "grid": "Grid", "dice": "Dice" },
-      "tags":           { "default": "Default", "outline": "Outline", "solid": "Solid", "soft": "Soft" },
-      "image":          { "default": "Default", "framed": "Framed", "circle": "Circle", "polaroid": "Polaroid", "token": "Token" },
-      "section":        { "default": "Default", "underline": "Underline", "divider": "Divider", "tab": "Tab", "pill": "Pill" },
-      "inventory":      { "default": "Default", "list": "List", "grid": "Grid", "iconbar": "Icon Bar", "cards": "Cards", "card-slider": "Card Slider (3 per row, scroll)", "card-grid": "Card Grid (3 per row, infinite)" },
-      "slot":           { "default": "Default", "framed": "Framed", "round": "Round", "ghost": "Ghost" },
-      "cardHand":       { "default": "Default", "fan": "Fan", "stack": "Stack", "grid": "Grid" },
-      "cardDrawButton": { "default": "Default", "deck": "Deck", "pile": "Pile" },
-      "effects":        { "default": "Default", "chips": "Chips", "icons": "Icons Only", "card-slider": "Card Slider (3 per row, scroll)", "card-grid": "Card Grid (3 per row, infinite)" },
-      "spellbook":      { "default": "Default", "grimoire": "Grimoire", "grid": "Grid", "minimal": "Minimal", "card-slider": "Card Slider (3 per row, scroll)", "card-grid": "Card Grid (3 per row, infinite)" },
-      "skill":          { "default": "Default (inline)", "pill": "Pill", "row-rank": "Row + Rank", "pips": "Pips" },
-      "derived":        { "default": "Default", "stat-card": "Stat Card", "formula-badge": "Formula Badge", "inline": "Inline", "pill": "Pill" }
+      "_label": "Variant",
+      "_hint": "Visual skin for this widget. Data and behaviour are unaffected.",
+      "_default": "Default",
+      "text": {
+        "default": "Default",
+        "boxed": "Boxed",
+        "underline": "Underline",
+        "ghost": "Ghost",
+        "inline": "Inline"
+      },
+      "richtext": {
+        "default": "Default",
+        "boxed": "Boxed",
+        "scroll": "Parchment Scroll"
+      },
+      "number": {
+        "default": "Default",
+        "chip": "Chip",
+        "stat": "Stat",
+        "framed": "Framed"
+      },
+      "resource": {
+        "default": "Bar",
+        "split": "Split (value / max)",
+        "heart": "Heart Pulse",
+        "stripes": "Stripes",
+        "digital": "Digital",
+        "pulse": "ECG Pulse (animated)",
+        "orb": "Orb (Diablo-style globe)"
+      },
+      "progress": {
+        "default": "Default",
+        "thin": "Thin",
+        "thick": "Thick",
+        "striped": "Striped",
+        "segmented": "Segmented"
+      },
+      "clock": {
+        "default": "Pie",
+        "ring": "Ring",
+        "bar": "Bar",
+        "fraction": "Fraction"
+      },
+      "counter": {
+        "default": "Default",
+        "chunky": "Chunky",
+        "minimal": "Minimal",
+        "wheel": "Wheel"
+      },
+      "dice": {
+        "default": "Default",
+        "d20-big": "Big d20",
+        "chip": "Chip",
+        "flat": "Flat"
+      },
+      "button": {
+        "default": "Default",
+        "pill": "Pill",
+        "outline": "Outline",
+        "ghost": "Ghost",
+        "raised": "Raised",
+        "danger": "Danger",
+        "soft": "Soft"
+      },
+      "rollButton": {
+        "default": "Default",
+        "d20": "d20",
+        "flat": "Flat",
+        "stamp": "Stamp"
+      },
+      "toggle": {
+        "default": "Switch",
+        "checkbox": "Checkbox",
+        "pill": "Pill",
+        "led": "LED"
+      },
+      "select": {
+        "default": "Default",
+        "pills": "Pills",
+        "segmented": "Segmented",
+        "radio": "Radio"
+      },
+      "attribute": {
+        "default": "Default",
+        "stat-card": "Stat Card",
+        "inline": "Inline",
+        "badge": "Badge",
+        "roll-button": "Roll Button"
+      },
+      "attributeGroup": {
+        "default": "Default",
+        "row": "Row",
+        "grid": "Grid",
+        "dice": "Dice"
+      },
+      "tags": {
+        "default": "Default",
+        "outline": "Outline",
+        "solid": "Solid",
+        "soft": "Soft"
+      },
+      "image": {
+        "default": "Default",
+        "framed": "Framed",
+        "circle": "Circle",
+        "polaroid": "Polaroid",
+        "token": "Token"
+      },
+      "section": {
+        "default": "Default",
+        "underline": "Underline",
+        "divider": "Divider",
+        "tab": "Tab",
+        "pill": "Pill"
+      },
+      "inventory": {
+        "default": "Default",
+        "list": "List",
+        "grid": "Grid",
+        "iconbar": "Icon Bar",
+        "cards": "Cards",
+        "card-slider": "Card Slider (3 per row, scroll)",
+        "card-grid": "Card Grid (3 per row, infinite)"
+      },
+      "slot": {
+        "default": "Default",
+        "framed": "Framed",
+        "round": "Round",
+        "ghost": "Ghost"
+      },
+      "cardHand": {
+        "default": "Default",
+        "fan": "Fan",
+        "stack": "Stack",
+        "grid": "Grid"
+      },
+      "cardDrawButton": {
+        "default": "Default",
+        "deck": "Deck",
+        "pile": "Pile"
+      },
+      "effects": {
+        "default": "Default",
+        "chips": "Chips",
+        "icons": "Icons Only",
+        "card-slider": "Card Slider (3 per row, scroll)",
+        "card-grid": "Card Grid (3 per row, infinite)"
+      },
+      "spellbook": {
+        "default": "Default",
+        "grimoire": "Grimoire",
+        "grid": "Grid",
+        "minimal": "Minimal",
+        "card-slider": "Card Slider (3 per row, scroll)",
+        "card-grid": "Card Grid (3 per row, infinite)"
+      },
+      "skill": {
+        "default": "Default (inline)",
+        "pill": "Pill",
+        "row-rank": "Row + Rank",
+        "pips": "Pips"
+      },
+      "derived": {
+        "default": "Default",
+        "stat-card": "Stat Card",
+        "formula-badge": "Formula Badge",
+        "inline": "Inline",
+        "pill": "Pill"
+      }
     },
     "ActionHud": {
       "Title": "Action HUD",
@@ -192,7 +333,12 @@
         "ScaleHint": "Per-widget scale (25–400%). 100% = no scaling. Applied in addition to the global HUD scale.",
         "HideLabel": "Hide widget label",
         "HideLabelNA": "Hide label N/A (dropdown widget)",
-        "HideLabelNAHint": "Inventory, Spellbook, and Effects widgets show their label inside a dropdown trigger, so it cannot be hidden separately."
+        "HideLabelNAHint": "Inventory, Spellbook, and Effects widgets show their label inside a dropdown trigger, so it cannot be hidden separately.",
+        "Variant": "Variant override",
+        "VariantHint": "Use this widget's variant in the Action HUD instead of the one set on the actor sheet. \"Use sheet variant\" inherits whatever variant is configured on the sheet.",
+        "VariantInherit": "Use sheet variant",
+        "VariantNA": "Variant override N/A (inline widget)",
+        "VariantNAHint": "This widget type has no selectable variants, or this entry is an inline widget that already carries its own variant."
       }
     },
     "RollDialog": {
@@ -1041,11 +1187,9 @@
   "SD.Graph.eg_2d20kh1_Plus_Atmod": "e.g. 2d20kh1 + @mod",
   "SD.Graph.eg_2d20kl1_Plus_Atmod": "e.g. 2d20kl1 + @mod",
   "SD.Graph.eg_1d20_2d6_d20_empty_Eq_1d20": "e.g. 1d20, 2d6, d20 (empty = 1d20)",
-
   "SD.Sheets.QuestLog": "Quest Log",
   "TYPES.Item.questlog": "Quest Log",
   "ITEM.TypeQuestlog": "Quest Log",
-
   "SD.QuestLog.Name": "Quest Log Name",
   "SD.QuestLog.TypeLabel": "Quest Log",
   "SD.QuestLog.NQuests": "Quests",
@@ -1164,14 +1308,12 @@
   "SD.OK": "OK",
   "SD.Cancel": "Cancel",
   "SD.Delete": "Delete",
-
   "SD.Equippable": "Equippable",
   "SD.InventoryFlags": "Inventory",
   "SD.Category": "Category",
   "SD.NoCategory": "no category",
   "SD.Price": "Price",
   "SD.Currency": "Currency",
-
   "SD.Trade.OpenBtn": "Trade",
   "SD.Trade.Title": "Trade",
   "SD.Trade.PickPartner": "Pick trade partner",
@@ -1221,7 +1363,6 @@
   "SD.Trade.CancelTrade": "Cancel trade",
   "SD.Trade.CancelTitle": "Cancel Trade",
   "SD.Trade.CancelConfirm": "Cancel this trade? Both sides will close.",
-
   "SD.Trade.ShopTitle": "Shop",
   "SD.Trade.BuyTab": "Buy",
   "SD.Trade.SellTab": "Sell",
@@ -1239,7 +1380,6 @@
   "SD.Trade.NotEnoughStock": "Not enough stock.",
   "SD.Trade.WrongCategory": "Trader does not buy this category.",
   "SD.Trade.TraderBroke": "Trader cannot afford this.",
-
   "SD.Trade.SaleSettings": "Sale settings",
   "SD.Trade.SaleHint": "Mark this item for sale (visible in autotrade shop). Sale price/currency override the item's base price for this trader copy.",
   "SD.Trade.Saleable": "Saleable",
@@ -1247,14 +1387,12 @@
   "SD.Trade.SalePricePath": "Price path",
   "SD.Trade.SaleCurrency": "Currency override",
   "SD.Trade.UseItem": "use item's",
-
   "SD.Trade.TraderSettings": "Trader settings",
   "SD.Trade.TraderHint": "Mark this actor as a merchant. Traders appear in the partner picker even off-scene. AutoTrade lets players shop directly without GM approval.",
   "SD.Trade.IsTrader": "Trader",
   "SD.Trade.AutoTrade": "AutoTrade",
   "SD.Trade.PriceDistortion": "Price distortion %",
   "SD.Trade.TradeCategories": "Buys categories (CSV)",
-
   "SD.Trade.ShopTableHint": "Toggle Saleable to list items in the autotrade shop. Price/currency override the item's base values for this trader copy.",
   "SD.Trade.NoInventory": "No inventory items on this actor.",
   "SD.Trade.Item": "Item",

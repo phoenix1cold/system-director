@@ -1,7 +1,21 @@
 import { WidgetRenderer }  from "../builder/widget-renderer.mjs";
+import { WIDGET_VARIANTS } from "../builder/widget-registry.mjs";
 import { FormulaEngine }   from "./formula-engine.mjs";
 import { ButtonExecutor }  from "./button-executor.mjs";
 import { openInlineWidgetEditor } from "./action-hud-inline-editor.mjs";
+
+/**
+ * Sanitize a variant key for use on a HUD entry. Returns "" for empty / "default"
+ * (which means "inherit the actor sheet's variant"), or the lowercase id of a
+ * variant known to that widget type. Unknown variants are dropped.
+ */
+function _sanitizeHudVariant(raw, widgetType) {
+  const v = String(raw ?? "").trim().toLowerCase();
+  if (!v || v === "default" || v === "__inherit__") return "";
+  const list = WIDGET_VARIANTS?.[widgetType];
+  if (!Array.isArray(list) || !list.includes(v)) return "";
+  return v;
+}
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -60,7 +74,7 @@ export function registerActionHudSettings() {
     scope:   "client",
     config:  true,
     type:    Number,
-    default: 92,
+    default: 0,
     range:   { min: 0, max: 100, step: 1 },
     onChange: () => SDActionHUD.refresh()
   });
@@ -548,10 +562,51 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  const _runActionGraph = async (raw, label) => {
+  // Returns one of:
+  //   { kind: "actions", actions, macros }  → action graph to run as onClick chain
+  //   { kind: "formula", formula }          → plain dice formula to roll
+  //   { kind: "noop" }                      → nothing to do
+  // Handles all three on-disk shapes produced by the formula-graph compiler:
+  //   * "[ ... ]"                          → pure onClick chain (legacy)
+  //   * '{"_trigger":"onClick","actions":[...]}'
+  //   * '{"_trigger":"multi","_events":{onClick:[...], "on_event::...":..., ...}}'
+  // Plus normal dice/formula strings.
+  const _parseHudPayload = (raw) => {
+    if (typeof raw !== "string" || !raw.trim()) return { kind: "noop" };
+    const trimmed = raw.trim();
+    const looksLikeJson = trimmed.startsWith("[") || trimmed.startsWith("{");
+    if (!looksLikeJson) return { kind: "formula", formula: trimmed };
     try {
-      const actions = JSON.parse(raw.trim());
-      const fakeBtnDef = { label: label ?? "" };
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return { kind: "actions", actions: parsed, macros: null };
+      }
+      if (parsed && typeof parsed === "object") {
+        const macros = parsed._macros ?? null;
+        if (parsed._trigger === "onClick") {
+          const a = parsed.actions ?? [];
+          return { kind: "actions", actions: Array.isArray(a) ? a : [], macros };
+        }
+        if (parsed._trigger === "multi") {
+          // The onClick chain may live as either an array directly,
+          // or as { hook, data, actions } when produced via on_event nodes.
+          const slot = parsed._events?.onClick ?? parsed.onClick ?? [];
+          let a = [];
+          if (Array.isArray(slot)) a = slot;
+          else if (Array.isArray(slot?.actions)) a = slot.actions;
+          return { kind: "actions", actions: a, macros };
+        }
+      }
+    } catch(e) {
+      // Fall through — treat as a formula and let Roll surface the error.
+    }
+    return { kind: "formula", formula: trimmed };
+  };
+
+  const _runActionGraph = async (actions, label, macros) => {
+    if (!Array.isArray(actions) || actions.length === 0) return;
+    try {
+      const fakeBtnDef = { label: label ?? "", __macros: macros ?? null };
       const runtime = {};
       for (const a of actions) {
         await ButtonExecutor._runAction(a, { system: {}, actor }, actor, fakeBtnDef, runtime);
@@ -559,36 +614,47 @@ function wireHudWidget(cell, widgetDef, actor) {
     } catch(e) { console.error("SD HUD | action graph error:", e); }
   };
 
+  const _runRollFormula = async (formula, flavor) => {
+    try {
+      const f = FormulaEngine.resolveForRoll(formula, actor);
+      const roll = new Roll(f, actor.getRollData?.() ?? {});
+      await roll.evaluate();
+      await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor });
+    } catch(e) { console.error("SD HUD | roll error:", e, "formula:", formula); }
+  };
+
   cell.querySelectorAll("[data-action='widgetButton']").forEach(btn => {
     btn.addEventListener("click", async () => {
       const raw = btn.dataset.formulaRaw || btn.dataset.formula;
+      const flavor = btn.dataset.flavor ?? "";
       if (!raw) {
-        if (btn.dataset.flavor) {
-          ChatMessage.create({ content: btn.dataset.flavor, speaker: ChatMessage.getSpeaker({ actor }) });
+        if (flavor) {
+          ChatMessage.create({ content: flavor, speaker: ChatMessage.getSpeaker({ actor }) });
         }
         return;
       }
-      const trimmed = raw.trim();
-      if (trimmed.startsWith("[")) return _runActionGraph(raw, btn.dataset.flavor);
-      try {
-        const formula = FormulaEngine.resolveForRoll(raw, actor);
-        const roll = new Roll(formula, actor.getRollData?.() ?? {});
-        await roll.evaluate();
-        await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: btn.dataset.flavor });
-      } catch(e) { console.error("SD HUD | widgetButton error:", e); }
+      const parsed = _parseHudPayload(raw);
+      if (parsed.kind === "actions") {
+        if (parsed.actions.length === 0 && flavor) {
+          // Multi-trigger payload with only non-onClick events (e.g. only On Event)
+          // → mirror sheet behaviour: send the flavour as a chat message so the
+          //   user gets feedback when they tap the button on the HUD.
+          ChatMessage.create({ content: flavor, speaker: ChatMessage.getSpeaker({ actor }) });
+          return;
+        }
+        return _runActionGraph(parsed.actions, flavor, parsed.macros);
+      }
+      if (parsed.kind === "formula") return _runRollFormula(parsed.formula, flavor);
     });
   });
 
   cell.querySelectorAll("[data-action='widgetRoll']").forEach(btn => {
     btn.addEventListener("click", async () => {
-      let formula = btn.dataset.formulaRaw || btn.dataset.formula || "1d20";
-      if (formula.trim().startsWith("[")) return _runActionGraph(formula, btn.dataset.flavor);
-      try { formula = FormulaEngine.resolveForRoll(formula, actor); } catch(e) {}
-      try {
-        const roll = new Roll(formula, actor.getRollData?.() ?? {});
-        await roll.evaluate();
-        await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: btn.dataset.flavor });
-      } catch(e) { console.error("SD HUD | widgetRoll error:", e); }
+      const raw = btn.dataset.formulaRaw || btn.dataset.formula || "1d20";
+      const flavor = btn.dataset.flavor ?? "";
+      const parsed = _parseHudPayload(raw);
+      if (parsed.kind === "actions") return _runActionGraph(parsed.actions, flavor, parsed.macros);
+      if (parsed.kind === "formula") return _runRollFormula(parsed.formula, flavor);
     });
   });
 
@@ -890,7 +956,11 @@ export class SDActionHUD {
         cell.style.position = "absolute";
         cell.style.left = `${x}px`;
         cell.style.top  = `${y}px`;
-        if (Number.isFinite(entry.w) && entry.w > 0) cell.style.width  = `${entry.w}px`;
+        // Use min-* instead of fixed width/height so the cell always auto-grows
+        // when the widget content is larger than the saved entry size (e.g. an
+        // orb widget whose user-defined size exceeds the persisted entry.w/h).
+        // This is what the user expects from "auto-stretch".
+        if (Number.isFinite(entry.w) && entry.w > 0) cell.style.minWidth  = `${entry.w}px`;
         if (Number.isFinite(entry.h) && entry.h > 0) cell.style.minHeight = `${entry.h}px`;
 
         const explicitTransparent = entry.transparent === true;
@@ -914,6 +984,13 @@ export class SDActionHUD {
           if (entry.compact !== false) {
             renderDef = { ...widgetDef, compact: true };
           }
+        }
+
+        // Per-entry variant override — independent of the sheet's selected variant.
+        // entry.variant === "" / undefined / "__inherit__" means "use sheet variant".
+        const hudVariant = _sanitizeHudVariant(entry.variant, widgetDef.type);
+        if (hudVariant) {
+          renderDef = { ...renderDef, variant: hudVariant };
         }
 
         cell.innerHTML = WidgetRenderer.render(renderDef, actor, false) ?? "";
@@ -1078,14 +1155,17 @@ export class SDActionHUD {
         const s = rsz.scale || 1;
         const w = SDActionHUD._snap(rsz.startW + (ev.clientX - rsz.startX) / s, ev.shiftKey);
         const h = SDActionHUD._snap(rsz.startH + (ev.clientY - rsz.startY) / s, ev.shiftKey);
-        cell.style.width = `${Math.max(40, w)}px`;
+        // Use min-width/min-height while resizing so the cell never clips its
+        // widget content. The cell will visually be at least the resize size,
+        // but content (e.g. a large orb) can push it bigger.
+        cell.style.minWidth  = `${Math.max(40, w)}px`;
         cell.style.minHeight = `${Math.max(24, h)}px`;
       });
       const endResize = async () => {
         if (!rsz) return;
         rsz = null;
         try {
-          const w = Math.max(40, parseInt(cell.style.width || "0", 10));
+          const w = Math.max(40, parseInt(cell.style.minWidth || "0", 10));
           const h = Math.max(24, parseInt(cell.style.minHeight || "0", 10));
           const idx = i;
           await SDActionHUD._mutateEntries((arr) => {
@@ -1385,6 +1465,21 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
       return "";
     };
 
+    // Per-entry variant options — "inherit" plus all variants known for that widget type.
+    const _variantOptions = (type, currentRaw) => {
+      const list = Array.isArray(WIDGET_VARIANTS?.[type]) ? WIDGET_VARIANTS[type] : [];
+      const current = String(currentRaw ?? "").trim().toLowerCase();
+      const inheritLabel = game.i18n?.localize?.("SD.ActionHud.Cell.VariantInherit") ?? "Use sheet variant";
+      const opts = [{ value: "", label: inheritLabel, selected: !current }];
+      for (const v of list) {
+        const key = `SD.WidgetVariants.${type}.${v}`;
+        const loc = game.i18n?.localize?.(key);
+        const label = (typeof loc === "string" && loc && loc !== key) ? loc : (v === "default" ? "Default" : v);
+        opts.push({ value: v, label, selected: current === v });
+      }
+      return { has: list.length > 0, opts };
+    };
+
     return {
       ...base,
       activeType: this._activeType,
@@ -1392,6 +1487,7 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
       isNpc:       this._activeType === "npc",
       entries: entries.map((e, idx) => {
         const t = _resolveType(e);
+        const variantInfo = _variantOptions(t, e.variant);
         return {
           idx,
           x: Number.isFinite(e.x) ? e.x : 0,
@@ -1403,7 +1499,10 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
           supportsHideLabel: !DROPDOWN_TYPES.includes(t),
           widgetKey: e.widgetKey ?? "",
           label: e.label ?? "",
-          inlineLabel: e.inlineWidget ? `[inline: ${e.inlineWidget.type ?? "?"}]` : ""
+          inlineLabel: e.inlineWidget ? `[inline: ${e.inlineWidget.type ?? "?"}]` : "",
+          hasVariants: variantInfo.has,
+          variantOptions: variantInfo.opts,
+          widgetType: t
         };
       }),
       keys
@@ -1461,6 +1560,13 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
         const v = raw[hKeyHide];
         if (v && v !== "0" && v !== false) e.hideLabel = true;
         else delete e.hideLabel;
+      }
+
+      const vKey = `entry_${i}_variant`;
+      if (Object.prototype.hasOwnProperty.call(raw, vKey)) {
+        const v = String(raw[vKey] ?? "").trim().toLowerCase();
+        if (!v || v === "__inherit__") delete e.variant;
+        else e.variant = v;
       }
     }
 

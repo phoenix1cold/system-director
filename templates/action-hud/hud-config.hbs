@@ -64,6 +64,20 @@
           <label class="hud-entry-scale">{{localize "SD.ActionHud.Cell.ScalePct"}}
             <input type="number" name="entry_{{idx}}_scale" value="{{scale}}" min="25" max="400" step="5" placeholder="100"/>
           </label>
+          {{#if hasVariants}}
+            <label class="hud-entry-variant" title="{{localize 'SD.ActionHud.Cell.VariantHint'}}">
+              {{localize "SD.ActionHud.Cell.Variant"}}
+              <select name="entry_{{idx}}_variant">
+                {{#each variantOptions}}
+                  <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                {{/each}}
+              </select>
+            </label>
+          {{else}}
+            <span class="hud-entry-variant-na" title="{{localize 'SD.ActionHud.Cell.VariantNAHint'}}">
+              <i class="fas fa-circle-info"></i> {{localize "SD.ActionHud.Cell.VariantNA"}}
+            </span>
+          {{/if}}
           {{#if supportsHideLabel}}
             <label class="hud-entry-hide-label">
               <input type="hidden" name="entry_{{idx}}_hideLabel" value="0"/>
