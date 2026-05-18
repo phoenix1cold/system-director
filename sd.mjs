@@ -26,6 +26,8 @@ import { QuestLogData }        from "./module/data/item-questlog.mjs";
 import { SDActor }       from "./module/documents/actor.mjs";
 import { SDItem }        from "./module/documents/item.mjs";
 
+import { exposeAutoanimationsIntegration } from "./module/integrations/autoanimations.mjs";
+
 import { CharacterSheet }      from "./module/sheets/character-sheet.mjs";
 import { NPCSheet }            from "./module/sheets/npc-sheet.mjs";
 import { SDItemSheet }         from "./module/sheets/item-sheet.mjs";
@@ -118,6 +120,8 @@ Hooks.once("init", () => {
   console.log("SD | Initialising system…");
 
   registerConfig();
+
+  try { exposeAutoanimationsIntegration(); } catch (e) { console.warn("SD | exposeAutoanimationsIntegration failed:", e); }
 
   import("./module/helpers/sd-region.mjs").then(({ SDRegion }) => {
     SDRegion.register();

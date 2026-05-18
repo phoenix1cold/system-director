@@ -1,3 +1,5 @@
+import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
+
 export class SDItem extends Item {
 
   prepareData() {
@@ -102,6 +104,8 @@ export class SDItem extends Item {
 
   async use({ event } = {}) {
     const system = this.system;
+
+    try { AutoanimationsIntegration.playForItem(this, this.actor ?? null); } catch (e) { console.warn("SD | AutoAnimations trigger failed:", e); }
 
     const formula = system.onClickFormula;
     if (formula && formula !== "0") {

@@ -1,5 +1,6 @@
 import { SlotManager } from "../data/item-slots.mjs";
 import { formulaBounds, doubleDice, leadingD20Natural } from "../builder/formula-utils.mjs";
+import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 
 function _writeRollMeta(buttonDef, {
   roll, formula,
@@ -567,6 +568,8 @@ export class ButtonExecutor {
       ui.notifications.warn(game.i18n.format("SD.Buttons.ConditionFailed", { label: button.label }));
       return;
     }
+
+    try { AutoanimationsIntegration.playForItem(item, actor); } catch (e) { console.warn("SD | AutoAnimations trigger failed:", e); }
 
     const runtime = {};
     for (const action of (button.actions ?? [])) {
