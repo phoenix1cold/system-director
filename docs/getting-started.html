@@ -14,9 +14,10 @@
     <h1 data-i18n="ui.nav.start">Getting started</h1>
     <p class="lead"
        data-bilingual
-       data-en="Install the module, build your first sheet, run a node-graph button."
-       data-ru="Установка модуля, первый лист и нодовый граф на кнопке."></p>
+       data-en="Install the module, build your first sheet, run a node-graph button — all in under 10 minutes."
+       data-ru="Установка модуля, первый лист и нодовый граф на кнопке — всё за 10 минут."></p>
 
+    <!-- ═══════ 1. Install ═══════ -->
     <h2 data-bilingual data-en="1. Install" data-ru="1. Установка"></h2>
     <ol>
       <li data-bilingual
@@ -30,6 +31,7 @@
           data-ru='Создайте мир на системе <strong>System Director</strong>. При первом запуске прогоняются миграции и готовятся стили.'></li>
     </ol>
 
+    <!-- ═══════ 2. Builder UI ═══════ -->
     <h2 data-bilingual data-en="2. The Builder UI" data-ru="2. Конструктор листа"></h2>
     <p data-bilingual
        data-en="Open any actor or item sheet. The header has the toolbar:"
@@ -50,48 +52,219 @@
       <li data-bilingual
           data-en="<kbd>fx</kbd> / <kbd>Graph</kbd> — open the node graph for that widget."
           data-ru="<kbd>fx</kbd> / <kbd>Graph</kbd> — открыть нодовый граф этого виджета."></li>
+      <li data-bilingual
+          data-en="<kbd>Trigger</kbd> — open the document-level trigger graph (events fire on lifecycle hooks, not clicks)."
+          data-ru="<kbd>Trigger</kbd> — открыть Trigger-граф уровня документа (срабатывает на событиях жизненного цикла, а не по клику)."></li>
     </ul>
 
     <div class="callout tip">
       <strong data-bilingual data-en="Tip" data-ru="Подсказка"></strong>:
       <span data-bilingual
-            data-en='You can group widgets into a <em>Vertical Section</em>. Drag a widget onto a v-section header to nest it.'
-            data-ru='Виджеты можно группировать в <em>vertical section</em>. Перетащите виджет на заголовок v-секции, чтобы вложить.'></span>
+            data-en='You can group widgets into a <em>Vertical Section</em>. Drag a widget onto a v-section header to nest it. Use v-sections to build multi-column layouts or collapsible groups.'
+            data-ru='Виджеты можно группировать в <em>vertical section</em>. Перетащите виджет на заголовок v-секции, чтобы вложить. Используйте v-секции для многоколоночных раскладок или сворачиваемых групп.'></span>
     </div>
 
+    <!-- ═══════ 3. First Sheet ═══════ -->
     <h2 data-bilingual data-en="3. Build your first sheet" data-ru="3. Соберите первый лист"></h2>
+    <p data-bilingual
+       data-en="Here is a step-by-step recipe for a minimal character sheet with HP, an attribute, and a dice button."
+       data-ru="Пошаговый рецепт минимального листа персонажа с HP, атрибутом и кнопкой броска."></p>
     <ol>
       <li data-bilingual
           data-en='Drag a <strong>Resource Bar</strong> widget into the grid. Set <code>label=HP</code>, <code>pathValue=system.resources.hp.value</code>, <code>pathMax=system.resources.hp.max</code>, <code>color=#e05a5a</code>.'
           data-ru='Бросьте в сетку виджет <strong>Resource Bar</strong>. Заполните <code>label=HP</code>, <code>pathValue=system.resources.hp.value</code>, <code>pathMax=system.resources.hp.max</code>, <code>color=#e05a5a</code>.'></li>
       <li data-bilingual
-          data-en='Drop an <strong>Attribute</strong> widget. <code>label=STR</code>, <code>path=system.attributes.str.score</code>.'
-          data-ru='Бросьте виджет <strong>Attribute</strong>. <code>label=STR</code>, <code>path=system.attributes.str.score</code>.'></li>
+          data-en='Drop an <strong>Attribute</strong> widget. <code>label=STR</code>, <code>path=system.attributes.str.score</code>. This gives you a number box with a clickable modifier button.'
+          data-ru='Бросьте виджет <strong>Attribute</strong>. <code>label=STR</code>, <code>path=system.attributes.str.score</code>. Получите поле с числом и кликабельную кнопку модификатора.'></li>
       <li data-bilingual
-          data-en='Click <kbd>Save</kbd> in the popup. The sheet now shows the new widget — try editing values to confirm they save back to the actor.'
-          data-ru='Нажмите <kbd>Save</kbd> в попапе. Виджет появится на листе — попробуйте поправить значение, оно должно сохраниться на акторе.'></li>
+          data-en='Add a <strong>Dice Button</strong>. <code>formula=1d20+@attr.str.mod</code>. This creates a one-click d20 attack roll using the STR modifier.'
+          data-ru='Добавьте <strong>Dice Button</strong>. <code>formula=1d20+@attr.str.mod</code>. Одноклик — бросок d20 с модификатором СИЛ.'></li>
+      <li data-bilingual
+          data-en='Drop a <strong>Toggle</strong> widget. <code>label=Rage</code>, <code>path=system.hiddenFields.raging</code>. This flips a hidden boolean you can use in formulas or visibleIf conditions.'
+          data-ru='Бросьте виджет <strong>Toggle</strong>. <code>label=Rage</code>, <code>path=system.hiddenFields.raging</code>. Переключает скрытый булев флаг — можно использовать в формулах или условиях visibleIf.'></li>
+      <li data-bilingual
+          data-en='Click <kbd>Save</kbd> in the popup. The sheet now shows the new widgets — try editing values to confirm they save back to the actor.'
+          data-ru='Нажмите <kbd>Save</kbd> в попапе. Виджеты появятся на листе — попробуйте поправить значения, они должны сохраниться на акторе.'></li>
     </ol>
 
-    <h2 data-bilingual data-en="4. Wire up a node graph" data-ru="4. Подключите нодовый граф"></h2>
+    <!-- ═══════ 4. More widget recipes ═══════ -->
+    <h2 data-bilingual data-en="4. Widget recipes" data-ru="4. Рецепты виджетов"></h2>
+    <table class="grid">
+      <thead><tr>
+        <th data-bilingual data-en="Widget" data-ru="Виджет"></th>
+        <th data-bilingual data-en="Use case" data-ru="Применение"></th>
+        <th data-bilingual data-en="Key config" data-ru="Ключевые настройки"></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Inventory</strong></td>
+          <td data-bilingual data-en="Full item table with weight & currency" data-ru="Полная таблица предметов с весом и валютой"></td>
+          <td><code>showCurrency=true, showWeight=true</code></td>
+        </tr>
+        <tr>
+          <td><strong>Spellbook</strong></td>
+          <td data-bilingual data-en="Filtered list of ability items" data-ru="Отфильтрованный список способностей"></td>
+          <td><code>abilityType=spell</code></td>
+        </tr>
+        <tr>
+          <td><strong>Effects</strong></td>
+          <td data-bilingual data-en="Active Effects with toggle/edit/delete" data-ru="Active Effects с тогглом / редактированием / удалением"></td>
+          <td><code>showDisabled=true, showPassive=true</code></td>
+        </tr>
+        <tr>
+          <td><strong>Progress Clock</strong></td>
+          <td data-bilingual data-en="Blades/PbtA segmented clock" data-ru="Сегментные часы (Blades/PbtA)"></td>
+          <td><code>segments=4, path=system.flags.myClock</code></td>
+        </tr>
+        <tr>
+          <td><strong>Token Tracker</strong></td>
+          <td data-bilingual data-en="Pip row for stress, wounds, etc." data-ru="Ряд точек для стресса, ран и т.п."></td>
+          <td><code>maxCount=6, icon=fa-circle, path=system.hiddenFields.stress</code></td>
+        </tr>
+        <tr>
+          <td><strong>Select</strong></td>
+          <td data-bilingual data-en="Dropdown bound to a string field" data-ru="Выпадающий список, привязанный к строковому полю"></td>
+          <td><code>choices=low,medium,high</code></td>
+        </tr>
+        <tr>
+          <td><strong>Counter</strong></td>
+          <td data-bilingual data-en="Big ± stepper for metacurrencies" data-ru="Большой ± счётчик для метавалют"></td>
+          <td><code>min=0, max=10, step=1</code></td>
+        </tr>
+        <tr>
+          <td><strong>Skill</strong></td>
+          <td data-bilingual data-en="Rank + bonus + roll button" data-ru="Уровень + бонус + кнопка броска"></td>
+          <td><code>path=system.skills.acrobatics.rank</code></td>
+        </tr>
+        <tr>
+          <td><strong>Item Slot</strong></td>
+          <td data-bilingual data-en="Equipment slot with type/category filters" data-ru="Слот для предметов с фильтрами по типу/категории"></td>
+          <td><code>maxCount=1, allowedCategories=weapon</code></td>
+        </tr>
+        <tr>
+          <td><strong>Rich Text</strong></td>
+          <td data-bilingual data-en="HTML notes (biography, backstory)" data-ru="HTML заметки (биография, предыстория)"></td>
+          <td><code>path=system.biography.notes</code></td>
+        </tr>
+        <tr>
+          <td><strong>Image</strong></td>
+          <td data-bilingual data-en="Portrait or token image" data-ru="Портрет или изображение токена"></td>
+          <td><code>path=img</code></td>
+        </tr>
+        <tr>
+          <td><strong>Derived</strong></td>
+          <td data-bilingual data-en="Read-only computed value (graph output)" data-ru="Только для чтения — вычисляемое значение (результат графа)"></td>
+          <td data-bilingual data-en="Wire a pure graph ending with Output node" data-ru="Подключите чисто вычислительный граф с нодой Output"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ═══════ 5. Wire up a node graph ═══════ -->
+    <h2 data-bilingual data-en="5. Wire up a node graph" data-ru="5. Подключите нодовый граф"></h2>
     <ol>
       <li data-bilingual
           data-en='Drop a <strong>Dice Button</strong>. Set <code>formula=1d20+@attr.str.mod</code>.'
           data-ru='Бросьте <strong>Dice Button</strong>. <code>formula=1d20+@attr.str.mod</code>.'></li>
       <li data-bilingual
-          data-en='Click <kbd>fx</kbd>. The graph editor opens.'
-          data-ru='Нажмите <kbd>fx</kbd>. Откроется редактор графа.'></li>
+          data-en='Click <kbd>fx</kbd>. The graph editor opens with an <em>On Click</em> entry node already placed.'
+          data-ru='Нажмите <kbd>fx</kbd>. Откроется редактор графа с уже размещённой нодой <em>On Click</em>.'></li>
       <li data-bilingual
-          data-en='Right-click → <kbd>Add Node</kbd> → <em>Dice</em> for a quick advantage/disadvantage prompt, or just connect <em>On Click → Apply Damage</em> for a one-shot attack.'
-          data-ru='ПКМ → <kbd>Add Node</kbd> → <em>Dice</em> для prompt с advantage/disadvantage, или сразу <em>On Click → Apply Damage</em> — выстрел в одно действие.'></li>
+          data-en='Right-click → <kbd>Add Node</kbd> → <em>Dice</em> category → pick a Roll node. Or search by name.'
+          data-ru='ПКМ → <kbd>Add Node</kbd> → категория <em>Dice</em> → выберите ноду Roll. Или поиск по имени.'></li>
       <li data-bilingual
-          data-en='Drag from the small dot (a pin) of one node to a pin of another to make a connection. Pins of compatible types light up.'
-          data-ru='Тяните мышью от точки (пина) одной ноды к пину другой — совместимые подсвечиваются.'></li>
+          data-en='Drag from the small dot (a pin) of one node to a pin of another to make a connection. Pins of compatible types light up. Exec pins (diamond shape) carry execution flow; round pins carry data.'
+          data-ru='Тяните мышью от точки (пина) одной ноды к пину другой — совместимые подсвечиваются. Exec-пины (ромб) несут поток выполнения; круглые пины несут данные.'></li>
       <li data-bilingual
           data-en='Click <kbd>Save</kbd> in the graph editor. Close it, then click the dice button on the sheet — the graph runs.'
           data-ru='Нажмите <kbd>Save</kbd> в графе. Закройте, кликните по кнопке кубика на листе — граф запустится.'></li>
     </ol>
 
-    <h2 data-bilingual data-en="5. Common workflows" data-ru="5. Частые сценарии"></h2>
+    <h3 data-bilingual data-en="Graph example: Attack → Branch → Damage" data-ru="Пример графа: Атака → Branch → Урон"></h3>
+    <p data-bilingual
+       data-en="A common three-node pattern: <code>On Click → Attack Check → Branch (hit?) → Apply Damage</code>. The Attack Check node rolls against the target's AC and outputs Hit/Miss. The Branch node routes exec flow to Apply Damage only on a hit."
+       data-ru="Частый трёхнодный паттерн: <code>On Click → Attack Check → Branch (hit?) → Apply Damage</code>. Attack Check бросает против AC цели и выводит Hit/Miss. Branch направляет exec-поток в Apply Damage только при попадании."></p>
+
+    <h3 data-bilingual data-en="Graph example: Loop over targets" data-ru="Пример графа: Цикл по целям"></h3>
+    <p data-bilingual
+       data-en="<code>On Click → Get All Targets → For Each Token → Apply Damage</code>. The loop body fires once per targeted token, with <code>{__currentTarget}</code> set to the current token id. This way each target gets its own individual damage roll and chat log line."
+       data-ru="<code>On Click → Get All Targets → For Each Token → Apply Damage</code>. Тело цикла срабатывает на каждый таргеченный токен, с <code>{__currentTarget}</code> = id текущего токена. Каждая цель получает свой бросок и строку в чате."></p>
+
+    <h3 data-bilingual data-en="Graph example: Conditional with Dialog" data-ru="Пример графа: Условие с диалогом"></h3>
+    <p data-bilingual
+       data-en="<code>On Click → Dialog Confirm ('Cast Fireball?') → (Yes) → Consume Resource → Apply Damage</code>. The Dialog Confirm node shows a Yes/No popup. On Yes, the chain continues; on No, nothing happens. Useful for expensive abilities."
+       data-ru="<code>On Click → Dialog Confirm ('Cast Fireball?') → (Yes) → Consume Resource → Apply Damage</code>. Dialog Confirm показывает попап Yes/No. При Yes — цепочка продолжается, при No — ничего. Удобно для дорогих способностей."></p>
+
+    <!-- ═══════ 6. Triggers ═══════ -->
+    <h2 data-bilingual data-en="6. Set up a trigger graph" data-ru="6. Настройте Trigger-граф"></h2>
+    <p data-bilingual
+       data-en="The Trigger graph runs on document lifecycle events — not on clicks. Open the actor or item sheet → click <kbd>Trigger</kbd> in the header."
+       data-ru="Trigger-граф срабатывает на событиях жизненного цикла документа — не по клику. Откройте лист актора или предмета → нажмите <kbd>Trigger</kbd> в шапке."></p>
+    <ol>
+      <li data-bilingual
+          data-en='Place an event node: <em>On Turn Start</em>, <em>On Equip</em>, <em>On Damage Taken</em>, etc.'
+          data-ru='Поставьте event-ноду: <em>On Turn Start</em>, <em>On Equip</em>, <em>On Damage Taken</em> и т.д.'></li>
+      <li data-bilingual
+          data-en='Wire the exec output to your action chain. Example: <em>On Turn Start</em> → <em>Apply Healing</em> (amount=5, target=actor) — regeneration every round.'
+          data-ru='Подключите exec-выход к цепочке действий. Пример: <em>On Turn Start</em> → <em>Apply Healing</em> (amount=5, target=actor) — регенерация каждый раунд.'></li>
+      <li data-bilingual
+          data-en='Multiple event nodes can co-exist. Each fires independently when its event occurs.'
+          data-ru='Можно разместить несколько event-нод. Каждая срабатывает независимо при своём событии.'></li>
+    </ol>
+
+    <div class="callout warn">
+      <strong data-bilingual data-en="Important" data-ru="Важно"></strong>:
+      <span data-bilingual
+            data-en="Trigger graphs are <em>event-driven</em> — there is no <em>On Click</em> entry. Don't add Dialog nodes to a Trigger graph that fires often (every turn, every damage tick), or you'll spam dialogs at the players."
+            data-ru="Trigger-графы — <em>событийные</em>, никакого <em>On Click</em> там нет. Не вставляйте диалоговые ноды в часто срабатывающий триггер (каждый ход / каждый урон) — забьёте игроков попапами."></span>
+    </div>
+
+    <h3 data-bilingual data-en="Common trigger patterns" data-ru="Частые паттерны триггеров"></h3>
+    <table class="grid">
+      <thead><tr>
+        <th data-bilingual data-en="Event" data-ru="Событие"></th>
+        <th data-bilingual data-en="Recipe" data-ru="Рецепт"></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><code>on_equip</code></td>
+          <td data-bilingual data-en="Apply Effect (armor AC bonus) to wearer"
+                              data-ru="Накинуть эффект (бонус AC брони) на носителя"></td>
+        </tr>
+        <tr>
+          <td><code>on_unequip</code></td>
+          <td data-bilingual data-en="Remove the matching effect from the wearer"
+                              data-ru="Убрать соответствующий эффект с носителя"></td>
+        </tr>
+        <tr>
+          <td><code>on_turn_start</code></td>
+          <td data-bilingual data-en="Regenerate HP, apply poison tick, recharge ability"
+                              data-ru="Регенерация HP, тик яда, перезарядка способности"></td>
+        </tr>
+        <tr>
+          <td><code>on_turn_end</code></td>
+          <td data-bilingual data-en="End-of-turn save vs ongoing effect"
+                              data-ru="Сейв в конце хода от продолжающегося эффекта"></td>
+        </tr>
+        <tr>
+          <td><code>on_damage_taken</code></td>
+          <td data-bilingual data-en="Shield reaction, apply 'bloodied' status if HP&lt;50%"
+                              data-ru="Реакция щита, статус 'кровит' если HP&lt;50%"></td>
+        </tr>
+        <tr>
+          <td><code>on_rest</code></td>
+          <td data-bilingual data-en="Restore charges, heal to max, reset daily counters"
+                              data-ru="Восстановить заряды, вылечить до максимума, сбросить дневные счётчики"></td>
+        </tr>
+        <tr>
+          <td><code>on_effect_apply</code></td>
+          <td data-bilingual data-en="React when a specific effect lands on the actor"
+                              data-ru="Реагировать когда конкретный эффект накладывается на актора"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ═══════ 7. Common workflows ═══════ -->
+    <h2 data-bilingual data-en="7. Common workflows" data-ru="7. Частые сценарии"></h2>
     <table class="grid">
       <thead><tr>
         <th data-bilingual data-en="Goal" data-ru="Что сделать"></th>
@@ -116,17 +289,34 @@
         <tr>
           <td data-bilingual data-en="Confirm a spell before casting"
                               data-ru="Подтверждать применение заклинания"></td>
-          <td><code>On Click → Dialog Confirm → (Yes) → spell chain</code></td>
+          <td><code>On Click → Dialog Confirm → (Yes) → Consume Resource → spell chain</code></td>
         </tr>
         <tr>
           <td data-bilingual data-en="AoE save: half on success"
                               data-ru="AoE save: половина при успехе"></td>
           <td><code>On Click → Place AoE Save Branch → Apply Damage(targets=Failed[]) + Apply Damage(targets=Saved[], halfOnSave=yes)</code></td>
         </tr>
+        <tr>
+          <td data-bilingual data-en="Pay a resource cost before the ability fires"
+                              data-ru="Оплата ресурса перед срабатыванием способности"></td>
+          <td><code>On Click → Consume Resource (OK/Empty) → ability chain or 'out of charges' notify</code></td>
+        </tr>
+        <tr>
+          <td data-bilingual data-en="Compute a derived value (AC, initiative bonus)"
+                              data-ru="Вычислить производное значение (AC, бонус инициативы)"></td>
+          <td data-bilingual data-en="Derived widget + pure graph ending with Output node"
+                              data-ru="Derived-виджет + чисто вычислительный граф с нодой Output"></td>
+        </tr>
+        <tr>
+          <td data-bilingual data-en="PbtA 2d6 tiered roll (miss/partial/full)"
+                              data-ru="PbtA 2d6 тиры (провал/частично/полный)"></td>
+          <td><code>On Click → Tiered Roll → 3 branches (miss/partial/full) → messages</code></td>
+        </tr>
       </tbody>
     </table>
 
-    <h2 data-bilingual data-en="6. Keyboard shortcuts (in the graph editor)" data-ru="6. Горячие клавиши (в редакторе графа)"></h2>
+    <!-- ═══════ 8. Keyboard shortcuts ═══════ -->
+    <h2 data-bilingual data-en="8. Keyboard shortcuts (in the graph editor)" data-ru="8. Горячие клавиши (в редакторе графа)"></h2>
     <table class="grid">
       <thead><tr>
         <th data-bilingual data-en="Shortcut" data-ru="Клавиши"></th>
@@ -164,11 +354,13 @@
             data-ru="Если кнопка с графом ничего не делает по клику, откройте консоль (F12). Ошибки рантайма пишутся с префиксом <code>[SD]</code> и id ноды."></span>
     </div>
 
-    <h2 data-bilingual data-en="7. Where to go next" data-ru="7. Что дальше"></h2>
+    <!-- ═══════ 9. Where to go next ═══════ -->
+    <h2 data-bilingual data-en="9. Where to go next" data-ru="9. Что дальше"></h2>
     <ul>
-      <li><a href="widgets.html" data-bilingual data-en="Browse all widgets" data-ru="Все виджеты"></a></li>
-      <li><a href="nodes.html"   data-bilingual data-en="Browse all nodes"   data-ru="Все ноды"></a></li>
-      <li><a href="examples.html" data-bilingual data-en="See concrete examples" data-ru="Посмотреть примеры"></a></li>
+      <li><a href="concepts.html" data-bilingual data-en="Core concepts: hidden fields, triggers, declared attributes" data-ru="Концепции: hidden fields, триггеры, объявленные атрибуты"></a></li>
+      <li><a href="widgets.html" data-bilingual data-en="Browse all 26 widgets" data-ru="Все 26 виджетов"></a></li>
+      <li><a href="nodes.html"   data-bilingual data-en="Browse all 167 nodes"   data-ru="Все 167 нод"></a></li>
+      <li><a href="examples.html" data-bilingual data-en="See concrete examples from basic to advanced" data-ru="Примеры от базовых до продвинутых"></a></li>
     </ul>
   </main>
 

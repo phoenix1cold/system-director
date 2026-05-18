@@ -227,7 +227,8 @@
     ],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "A constant number. Type the value in the field or connect the In pin to override it at runtime."
   },
   "literal_str": {
     "title": "Text",
@@ -257,7 +258,8 @@
     ],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "A constant text string. Type the value in the field or connect the In pin to override it at runtime."
   },
   "get_path": {
     "title": "Get Field",
@@ -607,7 +609,8 @@
     ],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Sum of all connected inputs (A + B). If Sep is set, concatenates strings with that separator instead of adding numbers."
   },
   "sub": {
     "title": "Sub",
@@ -635,7 +638,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Subtract B from A (A − B). Both pins accept numbers."
   },
   "mul": {
     "title": "Mul",
@@ -663,7 +667,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Multiply A × B. Both pins accept numbers."
   },
   "div": {
     "title": "Div",
@@ -691,7 +696,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Divide A / B (floating-point). Returns 0 if B is zero."
   },
   "floor": {
     "title": "Floor",
@@ -714,7 +720,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Round A down to the nearest integer (e.g. 3.7 → 3)."
   },
   "ceil": {
     "title": "Ceil",
@@ -737,7 +744,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Round A up to the nearest integer (e.g. 3.2 → 4)."
   },
   "round": {
     "title": "Round",
@@ -760,7 +768,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Standard rounding of A to the nearest integer (e.g. 3.5 → 4, 3.4 → 3)."
   },
   "max2": {
     "title": "Max",
@@ -788,7 +797,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Return the larger of A and B."
   },
   "min2": {
     "title": "Min",
@@ -816,7 +826,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Return the smaller of A and B."
   },
   "abs": {
     "title": "Abs",
@@ -839,7 +850,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Absolute value of A (strips the sign: −5 → 5)."
   },
   "clamp": {
     "title": "Clamp",
@@ -872,7 +884,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Clamp value X into [Min, Max]. Returns Min if X < Min, Max if X > Max, otherwise X."
   },
   "eq": {
     "title": "==",
@@ -900,7 +913,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "True if A equals B (loose comparison: numbers, strings, bools)."
   },
   "neq": {
     "title": "≠",
@@ -928,7 +942,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "True if A does not equal B."
   },
   "gt": {
     "title": ">",
@@ -956,7 +971,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "True if A is strictly greater than B."
   },
   "lt": {
     "title": "<",
@@ -984,7 +1000,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "True if A is strictly less than B."
   },
   "gte": {
     "title": ">=",
@@ -1012,7 +1029,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "True if A is greater than or equal to B."
   },
   "lte": {
     "title": "<=",
@@ -1040,7 +1058,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "True if A is less than or equal to B."
   },
   "and": {
     "title": "AND",
@@ -1068,7 +1087,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Logical AND — True only when every connected input is truthy."
   },
   "or": {
     "title": "OR",
@@ -1096,7 +1116,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Logical OR — True when at least one connected input is truthy."
   },
   "not": {
     "title": "NOT",
@@ -1119,7 +1140,8 @@
     "fields": [],
     "compile": {
       "__fn": true
-    }
+    },
+    "desc": "Logical NOT — inverts a boolean (true ↔ false)."
   },
   "act_roll_value": {
     "title": "Roll → Value",
@@ -2586,7 +2608,8 @@
     ],
     "toAction": {
       "__fn": true
-    }
+    },
+    "desc": "Post a chat message. Supports HTML content, whisper targets, and roll results. Use the template field for rich card layouts."
   },
   "act_add_item": {
     "title": "Add Item",

@@ -13,8 +13,8 @@
   <main class="page">
     <h1 data-bilingual data-en="Concepts" data-ru="Концепции">Concepts</h1>
     <p class="lead" data-bilingual
-       data-en="The pieces of System Director that aren't widgets or nodes — but you'll bump into them as soon as you build a real sheet. Hidden fields, equippable items, the per-document trigger graph, declared attributes, sheet structure."
-       data-ru="Части System Director, которые не являются ни виджетами, ни нодами — но всплывают сразу, как только вы делаете реальный лист. Скрытые поля, экипировка, граф-триггер уровня документа, объявленные атрибуты, структура листа.">
+       data-en="The pieces of System Director that aren't widgets or nodes — but you'll bump into them as soon as you build a real sheet. Hidden fields, equippable items, the per-document trigger graph, declared attributes, sheet structure, variables, Active Effects, AoE, resistances, and formula syntax."
+       data-ru="Части System Director, которые не являются ни виджетами, ни нодами — но всплывают сразу, как только вы делаете реальный лист. Скрытые поля, экипировка, граф-триггер, объявленные атрибуты, структура листа, переменные, Active Effects, AoE, резисты и синтаксис формул.">
     </p>
 
     <nav class="toc">
@@ -27,9 +27,15 @@
         <li><a href="#declared-attrs"  data-bilingual data-en="Declared attributes" data-ru="Объявленные атрибуты"></a></li>
         <li><a href="#paths"           data-bilingual data-en="Document paths" data-ru="Пути в документах"></a></li>
         <li><a href="#widget-states"   data-bilingual data-en="Visibility & disabled states" data-ru="Видимость и заблокированные состояния"></a></li>
+        <li><a href="#variables"       data-bilingual data-en="Variables" data-ru="Переменные"></a></li>
+        <li><a href="#active-effects"  data-bilingual data-en="Active Effects" data-ru="Active Effects (активные эффекты)"></a></li>
+        <li><a href="#aoe"             data-bilingual data-en="Area of Effect (AoE)" data-ru="Область действия (AoE)"></a></li>
+        <li><a href="#resistances"     data-bilingual data-en="Resistances & immunities" data-ru="Резисты и иммунитеты"></a></li>
+        <li><a href="#formula-syntax"  data-bilingual data-en="Formula syntax" data-ru="Синтаксис формул"></a></li>
       </ul>
     </nav>
 
+    <!-- ═══════ Sheet structure ═══════ -->
     <h2 id="sheet-structure" data-bilingual data-en="Sheet structure" data-ru="Структура листа"></h2>
     <p data-bilingual
        data-en="Every actor and item sheet is a tree of <strong>tabs → rows → widgets</strong>. The <em>Edit</em> button toggles build mode; in build mode each row shows a <code>+</code> drop-target. A <strong>Vertical Section</strong> widget is a container — it has its own nested rows of widgets and renders them stacked."
@@ -38,10 +44,11 @@
        data-en="Internally the data lives in <code>system.customTabs</code> on the document. You normally never edit this directly — the builder UI takes care of it. The wiki's <a href='nodes.html'>Get Path / Set Path</a> nodes can read or write into custom-tab fields if you need scripted layouts."
        data-ru="Технически всё хранится в <code>system.customTabs</code> на документе. Руками править не нужно — конструктор сам всё делает. Если нужно скриптовать раскладку — ноды <a href='nodes.html'>Get Path / Modify Field</a> умеют читать/писать в поля кастомных вкладок."></p>
 
+    <!-- ═══════ Hidden fields ═══════ -->
     <h2 id="hidden-fields" data-bilingual data-en="Hidden fields" data-ru="Hidden Fields (скрытые поля)"></h2>
     <p data-bilingual
-       data-en="Hidden fields are arbitrary key-value slots living on every actor and item under <code>system.hiddenFields.&amp;lt;key&amp;gt;</code>. They store things that aren't part of the sheet UI — internal flags, derived markers, persistent state for graphs."
-       data-ru="Hidden Fields — произвольные пары ключ-значение, живущие на каждом акторе и предмете в <code>system.hiddenFields.&amp;lt;ключ&amp;gt;</code>. Это место для внутренних флагов, маркеров, состояний графов — всего, что не отображается напрямую как виджет."></p>
+       data-en="Hidden fields are arbitrary key-value slots living on every actor and item under <code>system.hiddenFields.&lt;key&gt;</code>. They store things that aren't part of the sheet UI — internal flags, derived markers, persistent state for graphs."
+       data-ru="Hidden Fields — произвольные пары ключ-значение, живущие на каждом акторе и предмете в <code>system.hiddenFields.&lt;ключ&gt;</code>. Это место для внутренних флагов, маркеров, состояний графов — всего, что не отображается напрямую как виджет."></p>
     <p data-bilingual
        data-en="<strong>Common uses:</strong>"
        data-ru="<strong>Типичное применение:</strong>"></p>
@@ -61,8 +68,8 @@
        data-ru="<strong>Чтение и запись из графа:</strong>"></p>
     <ul>
       <li data-bilingual
-          data-en="<strong>Read</strong>: <em>Get Path</em> with path <code>system.hiddenFields.&amp;lt;key&amp;gt;</code> → its output value pin is <code>any</code> (cast through <em>To Bool</em> / <em>To Number</em> if needed)."
-          data-ru="<strong>Чтение</strong>: <em>Get Path</em> с путём <code>system.hiddenFields.&amp;lt;ключ&amp;gt;</code> → выход с типом <code>any</code> (приведите к нужному через <em>To Bool</em> / <em>To Number</em> при необходимости)."></li>
+          data-en="<strong>Read</strong>: <em>Get Path</em> with path <code>system.hiddenFields.&lt;key&gt;</code> → its output value pin is <code>any</code> (cast through <em>To Bool</em> / <em>To Number</em> if needed)."
+          data-ru="<strong>Чтение</strong>: <em>Get Path</em> с путём <code>system.hiddenFields.&lt;ключ&gt;</code> → выход с типом <code>any</code> (приведите к нужному через <em>To Bool</em> / <em>To Number</em> при необходимости)."></li>
       <li data-bilingual
           data-en="<strong>Write</strong>: <em>Modify Field</em> (op = <code>set</code>) writes a new value. <em>Toggle Path</em> flips a boolean. <em>Modify Field</em> with op = <code>add</code> increments a number."
           data-ru="<strong>Запись</strong>: <em>Modify Field</em> (op = <code>set</code>) — записать значение. <em>Toggle Path</em> — переключить булево. <em>Modify Field</em> с op = <code>add</code> — прибавить к числу."></li>
@@ -71,6 +78,7 @@
        data-en="See the <a href='examples.html'>Hidden Field — Conditional Visibility</a> example for a working chain."
        data-ru="Готовый рабочий пример — <a href='examples.html'>Hidden Field — условная видимость</a>."></p>
 
+    <!-- ═══════ Equippable items ═══════ -->
     <h2 id="equippable" data-bilingual data-en="Equippable items" data-ru="Equippable — экипировка"></h2>
     <p data-bilingual
        data-en="Inventory items have two related booleans: <code>system.equippable</code> (can it be equipped at all?) and <code>system.equipped</code> (is it currently equipped?). Players see an <strong>Equip</strong> toggle in the item header, but only if <code>equippable === true</code>."
@@ -93,6 +101,7 @@
        data-en="<strong>Reacting to equip / unequip:</strong> use the <em>On Equip</em> and <em>On Unequip</em> event nodes inside the item's Trigger graph (see next section). Examples: <a href='examples.html'>On Equip → Apply Armor Effect</a>, <a href='examples.html'>On Unequip → Remove Effect</a>."
        data-ru="<strong>Реакция на equip/unequip:</strong> event-ноды <em>On Equip</em> и <em>On Unequip</em> внутри Trigger-графа этого предмета (см. ниже). Примеры — <a href='examples.html'>On Equip → Apply Armor Effect</a> и <a href='examples.html'>On Unequip → Remove Effect</a>."></p>
 
+    <!-- ═══════ Triggers ═══════ -->
     <h2 id="triggers" data-bilingual data-en="Triggers — the document-level graph" data-ru="Триггеры — граф уровня документа"></h2>
     <p data-bilingual
        data-en="Every actor and item has, in addition to per-button graphs, a single <strong>Trigger graph</strong> at <code>system.sdTriggerGraph</code>. Open it from the sheet header — there's a <kbd>Trigger</kbd> button next to <kbd>Edit</kbd>. This graph runs automatically on lifecycle events instead of clicks."
@@ -162,14 +171,16 @@
             data-ru="Trigger-графы — <em>событийные</em>, никакого <em>On Click</em> там нет. Не вставляйте диалоговые ноды в часто срабатывающий триггер (каждый ход / каждый урон) — забьёте игроков попапами."></span>
     </p>
 
+    <!-- ═══════ Declared attributes ═══════ -->
     <h2 id="declared-attrs" data-bilingual data-en="Declared attributes" data-ru="Объявленные атрибуты"></h2>
     <p data-bilingual
-       data-en="Items can <strong>declare</strong> attribute paths they want to expose so other parts of the system see them as first-class fields. The <em>Attribute</em> widget on an item's sheet, plus the item's <em>declaredAttrs</em> list, register the path; afterwards <code>@attr.&amp;lt;name&amp;gt;</code> works in formulas, autocomplete shows it, and Get Attribute nodes can pull it without spelling out the path."
-       data-ru="Предметы могут <strong>объявлять</strong> атрибуты, которые они выставляют — чтобы остальная часть системы видела их как полноценные поля. <em>Attribute</em>-виджет на листе предмета и список <em>declaredAttrs</em> регистрируют путь; после этого в формулах работает <code>@attr.&amp;lt;имя&amp;gt;</code>, автодополнение его видит, ноды Get Attribute достают значение без указания пути целиком."></p>
+       data-en="Items can <strong>declare</strong> attribute paths they want to expose so other parts of the system see them as first-class fields. The <em>Attribute</em> widget on an item's sheet, plus the item's <em>declaredAttrs</em> list, register the path; afterwards <code>@attr.&lt;name&gt;</code> works in formulas, autocomplete shows it, and Get Attribute nodes can pull it without spelling out the path."
+       data-ru="Предметы могут <strong>объявлять</strong> атрибуты, которые они выставляют — чтобы остальная часть системы видела их как полноценные поля. <em>Attribute</em>-виджет на листе предмета и список <em>declaredAttrs</em> регистрируют путь; после этого в формулах работает <code>@attr.&lt;имя&gt;</code>, автодополнение его видит, ноды Get Attribute достают значение без указания пути целиком."></p>
     <p data-bilingual
        data-en="Stacking rules apply automatically: if multiple equipped items declare the same attribute, the resolver collects all contributions per the item's stacking strategy (additive / max / min / override)."
        data-ru="Правила стака работают автоматически: если несколько экипированных предметов объявляют один и тот же атрибут, резолвер собирает все вклады согласно стратегии стака предмета (additive / max / min / override)."></p>
 
+    <!-- ═══════ Paths ═══════ -->
     <h2 id="paths" data-bilingual data-en="Document paths" data-ru="Пути в документах"></h2>
     <p data-bilingual
        data-en="Paths are dot-strings used by <em>Get Path</em>, <em>Modify Field</em>, <em>Resource Bar</em>, etc. Common roots:"
@@ -194,6 +205,7 @@
        data-en="In a <em>Resource Bar</em> or <em>Number</em> widget config, the <code>path</code> field is exactly this kind of string. Autocomplete suggests paths from the document schema."
        data-ru="В конфиге <em>Resource Bar</em> или <em>Number</em>-виджета поле <code>path</code> — это ровно такая строка. Автодополнение подсказывает пути из схемы документа."></p>
 
+    <!-- ═══════ Widget states ═══════ -->
     <h2 id="widget-states" data-bilingual data-en="Visibility & disabled states" data-ru="Видимость и заблокированные состояния"></h2>
     <p data-bilingual
        data-en="Most widgets accept two extra config strings: <code>visibleIf</code> and <code>disabledIf</code>. Both are <strong>boolean expressions</strong> evaluated against the document. Examples:"
@@ -211,6 +223,198 @@
     <p data-bilingual
        data-en="<code>disabledIf</code> renders the widget but greyed out / non-interactive. <code>visibleIf</code> hides it entirely."
        data-ru="<code>disabledIf</code> отрисует виджет в неактивном (серый, неинтерактивный) виде. <code>visibleIf</code> скроет полностью."></p>
+
+    <!-- ═══════ NEW: Variables ═══════ -->
+    <h2 id="variables" data-bilingual data-en="Variables" data-ru="Переменные"></h2>
+    <p data-bilingual
+       data-en="The node graph supports <strong>runtime variables</strong> — temporary named values that exist only during a single graph execution. Variables let nodes in different parts of the graph share data without wiring a direct pin connection."
+       data-ru="Нодовый граф поддерживает <strong>рантайм-переменные</strong> — именованные значения, существующие только в пределах одного запуска графа. Переменные позволяют нодам в разных частях графа обмениваться данными без прямой связи пинами."></p>
+    <p data-bilingual
+       data-en="<strong>Built-in variables</strong> (set automatically by certain nodes):"
+       data-ru="<strong>Встроенные переменные</strong> (устанавливаются автоматически некоторыми нодами):"></p>
+    <ul>
+      <li><code>{__currentTarget}</code> — <span data-bilingual
+          data-en="token id of the current loop iteration target (set by For Each Token / For Each Target)" data-ru="id токена текущей итерации цикла (устанавливается For Each Token / For Each Target)"></span></li>
+      <li><code>{__loopIndex}</code> — <span data-bilingual
+          data-en="zero-based iteration index in a loop" data-ru="индекс итерации (с нуля) в цикле"></span></li>
+      <li><code>{__lastRollTotal}</code> — <span data-bilingual
+          data-en="total of the most recent dice roll in this graph run" data-ru="итог последнего броска кубиков в текущем запуске графа"></span></li>
+    </ul>
+    <p data-bilingual
+       data-en="<strong>Custom variables:</strong> use the <em>Set Variable</em> and <em>Get Variable</em> nodes to create your own named variables. Name them descriptively (e.g. <code>attackBonus</code>, <code>selectedAlly</code>). Variables are scoped to the current graph execution and disappear when the graph finishes."
+       data-ru="<strong>Пользовательские переменные:</strong> ноды <em>Set Variable</em> и <em>Get Variable</em> для создания именованных переменных. Называйте описательно (например, <code>attackBonus</code>, <code>selectedAlly</code>). Переменные живут только в текущем запуске графа и исчезают по его завершении."></p>
+
+    <!-- ═══════ NEW: Active Effects ═══════ -->
+    <h2 id="active-effects" data-bilingual data-en="Active Effects" data-ru="Active Effects (активные эффекты)"></h2>
+    <p data-bilingual
+       data-en="Active Effects are Foundry VTT's built-in mechanism for applying temporary or permanent modifiers to actor data. System Director fully integrates with this system."
+       data-ru="Active Effects — встроенный механизм Foundry VTT для наложения временных или постоянных модификаторов на данные актора. System Director полностью интегрирован с этой системой."></p>
+    <p data-bilingual
+       data-en="<strong>Key concepts:</strong>"
+       data-ru="<strong>Ключевые концепции:</strong>"></p>
+    <ul>
+      <li data-bilingual
+          data-en="<strong>Changes</strong>: each effect has an array of <code>{key, value, mode}</code> entries. <code>key</code> is the dot-path on the actor (e.g. <code>system.attributes.str.mod</code>), <code>value</code> is the modifier, and <code>mode</code> is the application mode (2=Add, 5=Override, 1=Multiply, etc.)."
+          data-ru="<strong>Changes</strong>: у каждого эффекта массив записей <code>{key, value, mode}</code>. <code>key</code> — dot-путь на акторе (например, <code>system.attributes.str.mod</code>), <code>value</code> — модификатор, <code>mode</code> — режим применения (2=Add, 5=Override, 1=Multiply и т.д.)."></li>
+      <li data-bilingual
+          data-en="<strong>Duration</strong>: effects can last N rounds, until combat ends, be permanent, or have no duration (instant)."
+          data-ru="<strong>Длительность</strong>: эффекты могут длиться N раундов, до конца боя, быть постоянными или мгновенными."></li>
+      <li data-bilingual
+          data-en="<strong>Transfer</strong>: when an effect on an item has <code>transfer=true</code>, it automatically applies to the owner actor when the item is equipped."
+          data-ru="<strong>Transfer</strong>: когда у эффекта на предмете <code>transfer=true</code>, он автоматически применяется к актору-владельцу при экипировке предмета."></li>
+      <li data-bilingual
+          data-en="<strong>Statuses</strong>: Foundry status effects (poisoned, prone, invisible, etc.) are special Active Effects with a <code>statuses</code> array. The <em>Apply Status</em> node adds them by id."
+          data-ru="<strong>Статусы</strong>: статусные эффекты Foundry (poisoned, prone, invisible и т.п.) — специальные Active Effects с массивом <code>statuses</code>. Нода <em>Apply Status</em> добавляет их по id."></li>
+    </ul>
+    <p data-bilingual
+       data-en="<strong>Graph nodes for effects:</strong>"
+       data-ru="<strong>Ноды графа для эффектов:</strong>"></p>
+    <table class="grid">
+      <thead><tr>
+        <th data-bilingual data-en="Node" data-ru="Нода"></th>
+        <th data-bilingual data-en="Purpose" data-ru="Назначение"></th>
+      </tr></thead>
+      <tbody>
+        <tr><td><code>Apply Effect</code></td>
+            <td data-bilingual data-en="Create or toggle an Active Effect with inline changes JSON" data-ru="Создать или переключить Active Effect с инлайн changes JSON"></td></tr>
+        <tr><td><code>Apply Effect by UUID</code></td>
+            <td data-bilingual data-en="Apply an existing effect from a dropdown to the target" data-ru="Применить существующий эффект из списка к цели"></td></tr>
+        <tr><td><code>Create Effect</code></td>
+            <td data-bilingual data-en="Create a new Active Effect with full control over changes and duration" data-ru="Создать новый Active Effect с полным контролем changes и duration"></td></tr>
+        <tr><td><code>Apply Status</code></td>
+            <td data-bilingual data-en="Add a standard Foundry status (poisoned, prone, etc.)" data-ru="Добавить стандартный статус Foundry (poisoned, prone и т.п.)"></td></tr>
+        <tr><td><code>Remove Effect</code></td>
+            <td data-bilingual data-en="Remove a named effect from the target" data-ru="Удалить именованный эффект с цели"></td></tr>
+        <tr><td><code>Toggle Effect</code></td>
+            <td data-bilingual data-en="Enable/disable an existing effect" data-ru="Включить/выключить существующий эффект"></td></tr>
+        <tr><td><code>Has Effect</code></td>
+            <td data-bilingual data-en="Check if a named effect exists on the target (returns bool)" data-ru="Проверить наличие именованного эффекта на цели (возвращает bool)"></td></tr>
+      </tbody>
+    </table>
+    <p data-bilingual
+       data-en="The <strong>Effects widget</strong> on a sheet displays all Active Effects with toggle/edit/delete controls, making them visible and manageable by the player."
+       data-ru="Виджет <strong>Effects</strong> на листе отображает все Active Effects с кнопками toggle/edit/delete, делая их видимыми и управляемыми игроком."></p>
+
+    <!-- ═══════ NEW: AoE ═══════ -->
+    <h2 id="aoe" data-bilingual data-en="Area of Effect (AoE)" data-ru="Область действия (AoE)"></h2>
+    <p data-bilingual
+       data-en="System Director provides AoE nodes that post interactive template-placement cards to chat. The flow:"
+       data-ru="System Director предоставляет AoE-ноды, которые выкладывают интерактивные карточки размещения шаблона в чат. Поток:"></p>
+    <ol>
+      <li data-bilingual
+          data-en="The caster's graph fires an AoE node (e.g. <em>AoE Save Branch</em>)."
+          data-ru="Граф кастера запускает AoE-ноду (например, <em>AoE Save Branch</em>)."></li>
+      <li data-bilingual
+          data-en="A chat card appears with shape/size controls and a <kbd>Place Template</kbd> button."
+          data-ru="В чате появляется карточка с настройками формы/размера и кнопкой <kbd>Place Template</kbd>."></li>
+      <li data-bilingual
+          data-en="The GM (or player) positions the template on the canvas. All tokens inside are captured."
+          data-ru="ГМ (или игрок) размещает шаблон на канвасе. Все токены внутри захватываются."></li>
+      <li data-bilingual
+          data-en="For AoE Save: each captured token rolls its save. The node outputs two arrays: <code>Failed[]</code> and <code>Saved[]</code>."
+          data-ru="Для AoE Save: каждый захваченный токен бросает сейв. Нода выдаёт два массива: <code>Failed[]</code> и <code>Saved[]</code>."></li>
+      <li data-bilingual
+          data-en="Feed each array into a separate Damage / Heal / Effect node for differentiated outcomes."
+          data-ru="Подключите каждый массив к отдельной ноде Damage / Heal / Effect для дифференцированных результатов."></li>
+    </ol>
+    <p data-bilingual
+       data-en="<strong>Shapes:</strong> <code>circle</code>, <code>cone</code>, <code>line</code>, <code>rect</code>. Size is in grid units."
+       data-ru="<strong>Формы:</strong> <code>circle</code>, <code>cone</code>, <code>line</code>, <code>rect</code>. Размер в клетках сетки."></p>
+    <p data-bilingual
+       data-en="See the <a href='examples.html'>AoE: Save → Damage (Half on Success)</a> example for a complete recipe."
+       data-ru="Полный рецепт — в примере <a href='examples.html'>AoE: сейв → урон (половина при сейве)</a>."></p>
+
+    <!-- ═══════ NEW: Resistances ═══════ -->
+    <h2 id="resistances" data-bilingual data-en="Resistances & immunities" data-ru="Резисты и иммунитеты"></h2>
+    <p data-bilingual
+       data-en="Actors can have damage resistances, vulnerabilities, and immunities stored in <code>system.resistances</code>. When an <em>Apply Damage</em> node fires, it reads the target's resistances for that damage type and scales the amount automatically:"
+       data-ru="Акторы могут иметь резисты, уязвимости и иммунитеты к типам урона, хранящиеся в <code>system.resistances</code>. Когда нода <em>Apply Damage</em> срабатывает, она читает резисты цели для данного типа урона и масштабирует автоматически:"></p>
+    <table class="grid">
+      <thead><tr>
+        <th data-bilingual data-en="Resistance level" data-ru="Уровень резиста"></th>
+        <th data-bilingual data-en="Multiplier" data-ru="Множитель"></th>
+      </tr></thead>
+      <tbody>
+        <tr><td data-bilingual data-en="Immune" data-ru="Иммунитет"></td><td>×0</td></tr>
+        <tr><td data-bilingual data-en="Resistant" data-ru="Резист"></td><td>×0.5</td></tr>
+        <tr><td data-bilingual data-en="Normal" data-ru="Нормальный"></td><td>×1</td></tr>
+        <tr><td data-bilingual data-en="Vulnerable" data-ru="Уязвимость"></td><td>×2</td></tr>
+      </tbody>
+    </table>
+    <p data-bilingual
+       data-en="Standard damage types: <code>slashing</code>, <code>piercing</code>, <code>bludgeoning</code>, <code>fire</code>, <code>cold</code>, <code>lightning</code>, <code>thunder</code>, <code>acid</code>, <code>poison</code>, <code>necrotic</code>, <code>radiant</code>, <code>force</code>, <code>psychic</code>. You can add custom types via system settings."
+       data-ru="Стандартные типы урона: <code>slashing</code>, <code>piercing</code>, <code>bludgeoning</code>, <code>fire</code>, <code>cold</code>, <code>lightning</code>, <code>thunder</code>, <code>acid</code>, <code>poison</code>, <code>necrotic</code>, <code>radiant</code>, <code>force</code>, <code>psychic</code>. Можно добавлять кастомные типы через настройки системы."></p>
+    <p data-bilingual
+       data-en="The <code>halfOnSave</code> flag on the Damage node further halves damage if the target's save succeeded. Combined with resistances, the final formula is: <code>base × resistMultiplier × (halfOnSave &amp;&amp; savePassed ? 0.5 : 1)</code>."
+       data-ru="Флаг <code>halfOnSave</code> на ноде Damage дополнительно уменьшает урон вдвое при успешном сейве цели. В комбинации с резистами итоговая формула: <code>base × resistMultiplier × (halfOnSave &amp;&amp; savePassed ? 0.5 : 1)</code>."></p>
+
+    <!-- ═══════ NEW: Formula syntax ═══════ -->
+    <h2 id="formula-syntax" data-bilingual data-en="Formula syntax" data-ru="Синтаксис формул"></h2>
+    <p data-bilingual
+       data-en="Formulas are used in Dice Button <code>formula</code> fields, Skill <code>rollFormula</code>, and anywhere you see a <em>formula</em> or <em>amount</em> input. The syntax extends standard Foundry roll expressions:"
+       data-ru="Формулы используются в поле <code>formula</code> у Dice Button, <code>rollFormula</code> у Skill и везде, где есть ввод <em>formula</em> или <em>amount</em>. Синтаксис расширяет стандартные выражения бросков Foundry:"></p>
+    <table class="grid">
+      <thead><tr>
+        <th data-bilingual data-en="Syntax" data-ru="Синтаксис"></th>
+        <th data-bilingual data-en="Meaning" data-ru="Значение"></th>
+        <th data-bilingual data-en="Example" data-ru="Пример"></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><code>NdS</code></td>
+          <td data-bilingual data-en="Roll N dice of size S" data-ru="Бросить N кубиков размера S"></td>
+          <td><code>2d6</code>, <code>1d20</code></td>
+        </tr>
+        <tr>
+          <td><code>NdS + M</code></td>
+          <td data-bilingual data-en="Dice plus flat modifier" data-ru="Кубики плюс фиксированный модификатор"></td>
+          <td><code>1d20+5</code></td>
+        </tr>
+        <tr>
+          <td><code>@attr.&lt;name&gt;.mod</code></td>
+          <td data-bilingual data-en="Attribute modifier from roll data" data-ru="Модификатор атрибута из roll data"></td>
+          <td><code>@attr.str.mod</code></td>
+        </tr>
+        <tr>
+          <td><code>@attr.&lt;name&gt;.score</code></td>
+          <td data-bilingual data-en="Attribute score (raw value)" data-ru="Значение атрибута (сырое)"></td>
+          <td><code>@attr.str.score</code></td>
+        </tr>
+        <tr>
+          <td><code>@level</code></td>
+          <td data-bilingual data-en="Actor level" data-ru="Уровень актора"></td>
+          <td><code>1d20+@level</code></td>
+        </tr>
+        <tr>
+          <td><code>@prof</code></td>
+          <td data-bilingual data-en="Proficiency bonus" data-ru="Бонус владения"></td>
+          <td><code>1d20+@attr.dex.mod+@prof</code></td>
+        </tr>
+        <tr>
+          <td><code>@skill.&lt;name&gt;</code></td>
+          <td data-bilingual data-en="Skill bonus" data-ru="Бонус навыка"></td>
+          <td><code>1d20+@skill.stealth</code></td>
+        </tr>
+        <tr>
+          <td><code>floor(expr)</code></td>
+          <td data-bilingual data-en="Round down" data-ru="Округлить вниз"></td>
+          <td><code>floor(@level/2)</code></td>
+        </tr>
+        <tr>
+          <td><code>ceil(expr)</code></td>
+          <td data-bilingual data-en="Round up" data-ru="Округлить вверх"></td>
+          <td><code>ceil(@attr.con.mod/2)</code></td>
+        </tr>
+        <tr>
+          <td><code>min(a,b)</code> / <code>max(a,b)</code></td>
+          <td data-bilingual data-en="Min/max of two values" data-ru="Минимум/максимум двух значений"></td>
+          <td><code>max(1, 1d8+@attr.str.mod)</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p data-bilingual
+       data-en="All <code>@</code>-references are resolved at roll time from the actor's computed roll data. If a reference is missing, it resolves to <code>0</code>."
+       data-ru="Все <code>@</code>-ссылки вычисляются в момент броска из computed roll data актора. Если ссылка отсутствует — разрешается в <code>0</code>."></p>
 
   </main>
 
