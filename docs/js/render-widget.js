@@ -244,6 +244,29 @@ const PREV = {
   derived: (w) => elt("div", { class: "wp-derived" }, [
     elt("span", { class: "wp-label" }, w.label ?? "Total Mod"),
     elt("span", { class: "wp-derived-val" }, "+5")
+  ]),
+
+  attributeGroup: (w) => elt("button", { class: "wp-btn" }, [
+    elt("span", {}, "🎲"),
+    elt("span", {}, w.label ?? "Attributes"),
+    elt("span", { class: "wp-mut" }, " STR DEX WIS")
+  ]),
+
+  cardHand: (w) => elt("div", { class: "wp-inv" }, [
+    elt("div", { class: "wp-inv-head" }, [elt("span", {}, w.label ?? "Hand"), elt("span", { class: "wp-mut" }, "5 cards")]),
+    elt("div", { style: "display:flex;gap:6px;overflow:hidden" }, [
+      elt("div", { class: "wp-image-thumb", innerHTML: "🂡" }),
+      elt("div", { class: "wp-image-thumb", innerHTML: "🂱" }),
+      elt("div", { class: "wp-image-thumb", innerHTML: "🃁" })
+    ])
+  ]),
+
+  questMarker: (w) => elt("div", { class: "wp-fx" }, [
+    elt("div", { class: "wp-fx-row" }, [elt("span", {}, "🚩 Find the Gate"), elt("span", { class: "wp-mut" }, "active")])
+  ]),
+
+  cardDrawButton: (w) => elt("button", { class: "wp-btn" }, [
+    elt("span", {}, "▴"), elt("span", {}, w.label ?? "Draw"), elt("span", { class: "wp-mut" }, String(w.count ?? 1))
   ])
 };
 

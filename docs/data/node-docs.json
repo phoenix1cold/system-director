@@ -1,0 +1,134 @@
+{
+  "_default": {
+    "en": "This node is documented from the current source definition. Check the preview, pin list and fields below; wire exec pins for runtime order and value pins for data.",
+    "ru": "Нода описана по текущему source definition. Ниже смотрите preview, pins и fields; exec-пины отвечают за порядок исполнения, value-пины — за данные."
+  },
+  "pure": {
+    "en": "Pure computation/source node. It has no side effects and is evaluated only when a connected output/action requests its value.",
+    "ru": "Чистая computation/source нода. Она не имеет side effects и вычисляется только когда подключенный output/action запрашивает значение."
+  },
+  "imperative": {
+    "en": "Imperative action/control node. It runs through the exec chain and can change documents, chat, canvas, cards, quests or graph state.",
+    "ru": "Императивная action/control нода. Исполняется через exec chain и может менять documents, chat, canvas, cards, quests или state графа."
+  },
+  "event": {
+    "en": "Event/trigger node. It starts an exec chain after a Foundry or SD hook fires and usually provides event payload values.",
+    "ru": "Event/trigger нода. Запускает exec chain после Foundry или SD hook и обычно отдаёт payload события."
+  },
+  "byCategory": {
+    "Flow": {
+      "en": "Use Flow nodes to decide execution order: branch by boolean, run sequences, loop over arrays/tokens, show dialogs, wait for events or cast generic values into actor/item references.",
+      "ru": "Flow-ноды управляют порядком исполнения: boolean branches, sequences, loops по arrays/tokens, dialogs, ожидание events и cast generic values в actor/item references."
+    },
+    "Sources": {
+      "en": "Source nodes read or synthesize values. They are normally connected into math, compare, roll, damage/effect fields or dialog labels.",
+      "ru": "Source-ноды читают или создают значения. Обычно подключаются в math, compare, roll, damage/effect fields или dialog labels."
+    },
+    "Roll": {
+      "en": "Roll nodes execute Foundry Roll/ChatMessage workflows and pass result metadata onward: total, formula, crit/fumble, margin, tier or save result.",
+      "ru": "Roll-ноды выполняют Foundry Roll/ChatMessage workflow и передают metadata: total, formula, crit/fumble, margin, tier или save result."
+    },
+    "Damage": {
+      "en": "Damage/heal nodes mutate HP paths on selected actors/tokens. Damage can apply resistance factors and save-halving; healing can be silent or chat-confirmed.",
+      "ru": "Damage/heal-ноды меняют HP paths выбранных actors/tokens. Damage учитывает resistance factors и save-halving; heal может быть silent или через chat card."
+    },
+    "Effects": {
+      "en": "Effect nodes target Foundry ActiveEffect/status/Region automation. Verify target actor/token and duration/path fields before using in player-facing buttons.",
+      "ru": "Effect-ноды работают с Foundry ActiveEffect/status/Region automation. Перед player-facing кнопками проверяйте target actor/token и duration/path fields."
+    },
+    "AoE": {
+      "en": "AoE nodes create Regions or collect affected tokens, then expose arrays for damage/heal/effect application and save branches.",
+      "ru": "AoE-ноды создают Regions или собирают затронутые tokens, затем отдают arrays для damage/heal/effect application и save branches."
+    },
+    "Events": {
+      "en": "Event nodes are scanned from actor/item trigger graphs and registered through Foundry Hooks by the SD event bus.",
+      "ru": "Event-ноды сканируются из trigger graphs actors/items и регистрируются через Foundry Hooks event bus SD."
+    },
+    "Items": {
+      "en": "Item nodes operate on embedded actor items, item arrays and slotContents snapshots. Use explicit UUIDs/slot ids when multiple items can match.",
+      "ru": "Item-ноды работают с embedded actor items, item arrays и slotContents snapshots. Используйте явные UUID/slot ids, когда совпадений может быть несколько."
+    },
+    "Quest": {
+      "en": "Quest nodes operate on quest log items, actor activeQuest markers, subtasks, visibility and rewards. Player-triggered actions may route through the SD socket.",
+      "ru": "Quest-ноды работают с quest log items, actor activeQuest markers, subtasks, visibility и rewards. Player-triggered actions могут идти через SD socket."
+    },
+    "Cards": {
+      "en": "Card nodes wrap Foundry Cards stacks. Prefer UUID fields over names in worlds with duplicate deck/hand names.",
+      "ru": "Card-ноды оборачивают Foundry Cards stacks. В мирах с повторяющимися deck/hand names предпочитайте UUID fields."
+    },
+    "Array": {
+      "en": "Array nodes transform target/item/compendium lists. Generic filter/map formulas evaluate per element, so keep paths relative to the element.",
+      "ru": "Array-ноды преобразуют target/item/compendium lists. Generic filter/map formulas вычисляются на каждый element, paths держите relative к element."
+    },
+    "Field Ops": {
+      "en": "Field operation nodes persist values to document paths. Confirm write scope and operation mode; these are common places for irreversible world-state changes.",
+      "ru": "Field operation ноды сохраняют значения в document paths. Проверяйте write scope и operation mode; здесь чаще всего происходят необратимые изменения world state."
+    },
+    "Resources": {
+      "en": "Resource nodes spend/restore counters and slots. Chain their success/failure exec outputs before applying the expensive effect.",
+      "ru": "Resource-ноды тратят/восстанавливают counters и slots. Подключайте success/failure exec outputs до применения дорогого эффекта."
+    },
+    "Macros": {
+      "en": "Macro nodes define reusable subgraphs. Keep Macro Input/Output signatures stable so callers do not break.",
+      "ru": "Macro-ноды задают переиспользуемые subgraphs. Держите signatures Macro Input/Output стабильными, чтобы callers не ломались."
+    },
+    "Widget Config": {
+      "en": "Widget config nodes expose widget values inside configuration graphs. They are mostly internal helpers for declarative widget setup.",
+      "ru": "Widget config-ноды дают доступ к значениям виджета внутри configuration graphs. Это в основном внутренние helpers для декларативной настройки виджетов."
+    }
+  },
+  "byId": {
+    "on_click": {
+      "en": "Primary entry point for button/widget action graphs. Connect its exec output to the first action.",
+      "ru": "Основная точка входа для action graphs кнопок/виджетов. Подключите exec output к первому действию."
+    },
+    "output": {
+      "en": "Terminal node for value graphs and optional exec chains. Derived/attribute graphs should end here with the final value.",
+      "ru": "Финальная нода для value graphs и опциональных exec chains. Derived/attribute graphs заканчивайте здесь итоговым значением."
+    },
+    "branch": {
+      "en": "Splits execution into true/false outputs from a boolean condition. It does not evaluate until its exec input runs.",
+      "ru": "Делит execution на true/false outputs по boolean condition. Не вычисляется, пока не пришёл exec input."
+    },
+    "act_damage": {
+      "en": "Applies damage to actor/token HP path. It can choose base/crit/fumble amount, apply resistance multipliers and use target arrays from AoE nodes.",
+      "ru": "Наносит урон в HP path actor/token. Может выбирать base/crit/fumble amount, учитывать resistance multipliers и принимать target arrays от AoE-нод."
+    },
+    "act_heal": {
+      "en": "Applies healing to actor/token HP path. Use chat card/auto-apply options when players should confirm the heal.",
+      "ru": "Применяет лечение к HP path actor/token. Используйте chat card/auto-apply options, если игроки должны подтвердить лечение."
+    },
+    "act_attack_check": {
+      "en": "Attack workflow node: roll vs AC/DC, expose hit/miss/crit/fumble and branch into follow-up damage or messages.",
+      "ru": "Attack workflow: бросок против AC/DC, outputs hit/miss/crit/fumble и ветки для damage/messages."
+    },
+    "chat_save_button": {
+      "en": "Creates a chat save button/card. Feed save result into Damage half-on-save or effect-application branches.",
+      "ru": "Создаёт chat save button/card. Передавайте save result в Damage half-on-save или effect branches."
+    },
+    "act_place_aoe_save_branch": {
+      "en": "Places an AoE save workflow and returns saved/failed target arrays for separate downstream actions.",
+      "ru": "Создаёт AoE save workflow и возвращает saved/failed target arrays для отдельных downstream actions."
+    },
+    "act_place_aura_save_branch": {
+      "en": "Creates/updates an aura Region and branches targets by save result.",
+      "ru": "Создаёт/обновляет aura Region и разделяет цели по результату save."
+    },
+    "quest_activate": {
+      "en": "Activates a quest, updates actor activeQuest context and fires SD quest activation hooks.",
+      "ru": "Активирует квест, обновляет actor activeQuest context и вызывает SD quest activation hooks."
+    },
+    "reward_grant_all": {
+      "en": "Grants all claimable/revealed rewards according to reward scope and paths/items/currency configuration.",
+      "ru": "Выдаёт все claimable/revealed rewards согласно scope и настройкам paths/items/currency."
+    },
+    "act_card_draw": {
+      "en": "Draws cards from a deck/stack into a target hand/pile. Use count and top/bottom/random mode.",
+      "ru": "Тянет карты из deck/stack в target hand/pile. Используйте count и top/bottom/random mode."
+    },
+    "act_ai_request": {
+      "en": "Calls the optional AI request pipeline and returns generated text for later chat/field use.",
+      "ru": "Вызывает опциональный AI request pipeline и возвращает сгенерированный текст для chat/field use."
+    }
+  }
+}

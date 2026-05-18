@@ -14,8 +14,12 @@
     <h1 data-i18n="ui.nav.nodes">Nodes</h1>
     <p class="lead"
        data-bilingual
-       data-en="All 167 graph nodes. Each card shows the node as it appears in the editor, plus full pin / field details."
-       data-ru="Все 167 нод графа. На каждой карточке нода нарисована как в редакторе плюс полный список пинов и полей."></p>
+       data-en="All current graph nodes, rewritten from the source definitions. Each card shows editor preview, pins, fields, flags and category-level runtime guidance."
+       data-ru="Все актуальные ноды графа, переписанные из текущих source definitions. На каждой карточке есть preview, pins, fields, flags и runtime-пояснения по категориям."></p>
+
+    <div class="callout tip" data-bilingual
+      data-en="Exec pins control order. Value pins carry data. Event nodes register Foundry Hooks. Imperative action nodes are where document writes, chat cards, effects, regions, cards and quests actually happen."
+      data-ru="Exec-пины управляют порядком. Value-пины передают данные. Event-ноды регистрируют Foundry Hooks. Imperative action-ноды выполняют записи документов, chat cards, effects, regions, cards и quests."></div>
 
     <div class="toolbar">
       <input type="search" id="search" placeholder="Search…" data-i18n-attr="placeholder|ui.search">
@@ -42,13 +46,15 @@
     import { bootPage } from "./js/main.js";
     import { pickLocale, getLang } from "./js/i18n.js";
     import { renderNode, nodeKind } from "./js/render-node.js";
+    import { categoryDocs } from "./js/wiki-copy.js";
     await bootPage();
 
-    const [nodes, byCat, i18n, tr] = await Promise.all([
+    const [nodes, byCat, i18n, tr, nodeDocs] = await Promise.all([
       fetch("data/nodes.json").then(r => r.json()),
       fetch("data/nodes-by-category.json").then(r => r.json()),
       fetch("data/i18n.json").then(r => r.json()),
-      fetch("data/translations.json").then(r => r.json())
+      fetch("data/translations.json").then(r => r.json()),
+      fetch("data/node-docs.json").then(r => r.json())
     ]);
 
     // Build pin legend.
@@ -163,7 +169,7 @@
       card.dataset.cat = def.cat ?? "Other";
       card.dataset.kind = nodeKind(def);
       const titleStr = localTitle(id, def);
-      card.dataset.searchKey = (id + " " + titleStr + " " + (def.desc ?? "")).toLowerCase();
+      card.dataset.searchKey = (id + " " + titleStr + " " + (def.desc ?? "") + " " + (def.cat ?? "")).toLowerCase();
 
       // Header
       const header = document.createElement("header");
@@ -194,6 +200,13 @@
       p.className = "desc";
       p.textContent = localDesc(id, def);
       card.appendChild(p);
+      const note = document.createElement("div");
+      note.className = "runtime-note";
+      const docSpecific = nodeDocs.byId?.[id];
+      const docCat = nodeDocs.byCategory?.[def.cat];
+      const docKind = nodeDocs[kind];
+      note.textContent = [docSpecific, docCat, docKind].filter(Boolean).map(x => pickLocale(x)).join(" ");
+      card.appendChild(note);
 
       // Grid: preview | pin lists
       const grid2 = document.createElement("div");
@@ -260,6 +273,13 @@
       const catLabel = pickLocale(i18n.categories[cat]) ?? cat;
       h2.textContent = `${catLabel} (${ids.length})`;
       sec.appendChild(h2);
+      const doc = categoryDocs[cat];
+      if (doc) {
+        const box = document.createElement("div");
+        box.className = "cat-summary";
+        box.innerHTML = `<p>${pickLocale(doc)}</p><div class="chips">${ids.map(id => `<a href="#node-${id}">${id}</a>`).join("")}</div>`;
+        sec.appendChild(box);
+      }
       for (const id of ids) {
         sec.appendChild(buildCard(id, nodes[id]));
       }
@@ -269,7 +289,7 @@
     function renderAll() {
       list.innerHTML = "";
       let total = 0;
-      const catOrder = ["Targeting","Sources","Math","Compare","Logic","Array","Flow","Actions","Effects","AoE","Events","Variables","Macros","Attribute","Dice","_attr","_system"];
+      const catOrder = ["_system","_attr","_skill","_initiative","Targeting","Sources","Attribute","Dice","Math","Compare","Logic","Roll","Damage","Effects","Array","Resources","Field Ops","Flow","Items","Chat","AoE","Events","Variables","Macros","Journal","Cards","Quest","Tables","System","AI","Widget Config"];
       const allCats = new Set(Object.keys(byCat));
       const ordered = [...catOrder.filter(c => allCats.has(c)), ...[...allCats].filter(c => !catOrder.includes(c))];
       for (const cat of ordered) {
@@ -288,9 +308,9 @@
       const kind = kindFilter.value;
       let visible = 0;
       for (const sec of list.children) {
+        const cards = [...sec.children].filter(el => el.classList?.contains("node-detail"));
         let secVisible = 0;
-        for (const card of sec.children) {
-          if (card.tagName !== "DIV") continue;
+        for (const card of cards) {
           let show = true;
           if (q && !card.dataset.searchKey.includes(q)) show = false;
           if (cat && card.dataset.cat !== cat) show = false;

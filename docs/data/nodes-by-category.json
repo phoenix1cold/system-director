@@ -6,16 +6,26 @@
     "attr_score_val",
     "attr_output"
   ],
+  "_skill": [
+    "skill_rank_val",
+    "skill_output"
+  ],
+  "_initiative": [
+    "init_on_roll",
+    "init_output"
+  ],
   "Flow": [
     "branch",
     "on_click",
     "sequence",
     "for_each_target",
     "act_for_each_token",
+    "arr_for_each",
     "switch_node",
     "dialog_switch",
     "dialog_select_array",
     "dialog_text_input",
+    "act_dialog_builder",
     "dialog_confirm",
     "while_loop",
     "gate",
@@ -32,11 +42,13 @@
     "get_path",
     "get_widget",
     "get_widget_path",
+    "get_name",
     "actor_ref",
     "slot_count",
     "slot_field",
     "item_uuid",
     "target_field",
+    "fa_icon",
     "tok_field",
     "get_spell_slots",
     "inv_item_field",
@@ -47,11 +59,13 @@
     "ternary",
     "random_num",
     "get_var",
-    "is_equipped",
     "equipped_count",
     "random_pick",
     "resource_tier",
     "get_combat_state",
+    "get_compendium_uuids",
+    "get_compendium_count",
+    "get_compendium_names",
     "var_get",
     "var_set"
   ],
@@ -59,7 +73,13 @@
     "attr_mod"
   ],
   "Dice": [
-    "dice"
+    "dice",
+    "formula_range",
+    "formula_clamp",
+    "formula_mul",
+    "to_formula",
+    "formula_add",
+    "roll_stat"
   ],
   "Math": [
     "add",
@@ -88,49 +108,42 @@
   "Logic": [
     "and",
     "or",
-    "not"
+    "not",
+    "match_num",
+    "match_str",
+    "match_arr"
   ],
-  "Actions": [
+  "Roll": [
     "act_roll_value",
-    "act_damage",
-    "act_heal",
-    "act_effect",
-    "act_effect_uuid",
-    "act_consume_slot",
-    "act_restore_slot",
-    "act_apply_effect_template",
-    "act_modify",
-    "act_set_initiative",
-    "act_message",
-    "act_add_item",
-    "act_add_slot",
-    "act_remove_slot",
-    "act_remove_item",
-    "act_use_slot_item",
-    "act_use_item",
-    "act_equip",
-    "act_unequip",
-    "act_modify_slot_item_field",
-    "act_modify_inv_item_field",
-    "act_remove_from_inv_item_slot",
-    "act_add_to_inv_item_slot",
     "act_attack_check",
     "act_roll_check",
     "act_tiered_roll",
     "act_dice_pool",
-    "act_spend_token",
-    "act_gain_token",
     "act_progression",
     "act_throw_on_canvas",
     "act_throw_on_sheet",
-    "act_play_sound",
-    "act_run_macro",
-    "act_notify",
-    "act_consume_resource",
-    "act_set_var",
-    "act_open_sheet",
-    "act_roll_table",
     "chat_save_button"
+  ],
+  "Damage": [
+    "act_damage",
+    "act_heal"
+  ],
+  "Effects": [
+    "act_effect",
+    "act_effect_uuid",
+    "act_apply_effect_template",
+    "act_create_effect",
+    "act_apply_status",
+    "act_remove_effect",
+    "act_toggle_effect",
+    "has_effect",
+    "act_place_aura",
+    "act_place_aura_damage",
+    "act_place_aura_heal",
+    "act_place_aura_save_effect",
+    "act_place_aura_targets",
+    "act_place_aura_save_branch",
+    "act_remove_aura"
   ],
   "Array": [
     "arr_length",
@@ -147,27 +160,81 @@
     "arr_intersect",
     "arr_difference",
     "arr_contains",
-    "arr_distinct"
+    "arr_distinct",
+    "arr_make",
+    "arr_split",
+    "arr_join",
+    "arr_push",
+    "arr_get",
+    "arr_first",
+    "arr_last",
+    "arr_reverse",
+    "arr_sum_num",
+    "arr_avg_num",
+    "arr_min_num",
+    "arr_max_num",
+    "arr_random_pick",
+    "arr_filter_generic",
+    "arr_map_formula"
   ],
-  "Effects": [
-    "act_create_effect",
-    "act_apply_status",
-    "act_remove_effect",
-    "act_toggle_effect",
-    "has_effect",
-    "act_place_aura",
-    "act_place_aura_damage",
-    "act_place_aura_heal",
-    "act_place_aura_save_effect",
-    "act_place_aura_save_branch",
-    "act_remove_aura"
+  "Resources": [
+    "act_restore_slot",
+    "act_spend_token",
+    "act_gain_token",
+    "act_consume_resource"
+  ],
+  "Field Ops": [
+    "act_modify",
+    "act_set_text_field",
+    "act_set_initiative",
+    "act_modify_slot_item_field",
+    "act_modify_inv_item_field",
+    "act_set_var"
+  ],
+  "Chat": [
+    "act_message",
+    "act_notify",
+    "act_open_sheet"
+  ],
+  "Items": [
+    "act_add_item",
+    "act_add_slot",
+    "act_remove_slot",
+    "act_remove_item",
+    "act_add_item_array",
+    "act_remove_item_array",
+    "item_arr_names",
+    "item_arr_map_field",
+    "item_arr_aggregate",
+    "item_arr_filter",
+    "item_arr_sort",
+    "item_arr_find_extreme",
+    "act_use_slot_item",
+    "act_use_item",
+    "act_equip",
+    "act_unequip",
+    "act_remove_from_inv_item_slot",
+    "act_add_to_inv_item_slot"
+  ],
+  "AI": [
+    "act_ai_request"
   ],
   "AoE": [
     "act_place_aoe_effect",
     "act_place_aoe_damage",
     "act_place_aoe_heal",
     "act_place_aoe_save_effect",
+    "act_place_aoe_targets",
     "act_place_aoe_save_branch"
+  ],
+  "System": [
+    "act_play_sound",
+    "act_run_macro"
+  ],
+  "Tables": [
+    "act_roll_table",
+    "act_reset_roll_table",
+    "act_show_roll_table"
   ],
   "Events": [
     "on_update",
@@ -175,12 +242,15 @@
     "on_delete",
     "on_turn_start",
     "on_turn_end",
+    "on_combat_start",
+    "on_combat_end",
     "on_effect_apply",
     "on_damage_taken",
     "on_rest",
     "on_equip",
     "on_unequip",
-    "on_event"
+    "on_event",
+    "on_card_drawn"
   ],
   "Targeting": [
     "get_self",
@@ -199,5 +269,69 @@
     "macro_input",
     "macro_output",
     "macro_call"
+  ],
+  "Journal": [
+    "act_show_journal",
+    "act_journal_show_page"
+  ],
+  "Cards": [
+    "act_card_shuffle",
+    "act_card_draw",
+    "act_card_play",
+    "act_card_discard",
+    "act_card_reveal",
+    "act_card_pass",
+    "act_card_recall",
+    "act_card_deal",
+    "act_card_flip",
+    "get_card",
+    "stack_info"
+  ],
+  "Quest": [
+    "on_quest_activated",
+    "on_quest_completed",
+    "on_quest_failed",
+    "on_subtask_done",
+    "on_quest_revealed",
+    "quest_activate",
+    "quest_complete",
+    "quest_fail",
+    "quest_lock",
+    "quest_make_available",
+    "subtask_set_done",
+    "quest_show_to_player",
+    "quest_toggle_gm_reveal",
+    "reward_reveal",
+    "reward_make_claimable",
+    "reward_grant_all",
+    "quest_status",
+    "quest_is_active",
+    "subtask_done",
+    "current_user_id",
+    "actor_on_scene",
+    "field_equals"
+  ],
+  "Widget Config": [
+    "wcfg_text",
+    "wcfg_number",
+    "wcfg_resource",
+    "wcfg_dice",
+    "wcfg_toggle",
+    "wcfg_slot",
+    "wcfg_attribute",
+    "wcfg_skill",
+    "wcfg_progress",
+    "wcfg_clock",
+    "wcfg_tracker",
+    "wcfg_tokenPool",
+    "wcfg_select",
+    "wcfg_derived",
+    "wcfg_tags",
+    "wcfg_image",
+    "wcfg_richtext",
+    "wcfg_section",
+    "wcfg_counter",
+    "wcfg_rollButton",
+    "wcfg_diceTray"
   ]
 }

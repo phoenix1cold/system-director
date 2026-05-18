@@ -17,6 +17,10 @@
        data-en="Every widget you can drop into a sheet — what it does, what config fields it has, and what style fields control its look."
        data-ru="Все виджеты, которые можно бросать на лист — что делают, какие поля настройки и какие стилевые поля у каждого."></p>
 
+    <div class="callout tip" data-bilingual
+      data-en="Widgets are UI components. They store their configuration in sheet layout data and bind visible controls to Foundry document paths or graph actions."
+      data-ru="Виджеты — это UI-компоненты. Их конфигурация хранится в layout листа, а видимые контролы привязываются к Foundry document paths или graph actions."></div>
+
     <div class="toolbar">
       <input type="search" id="search" placeholder="Search…" data-i18n-attr="placeholder|ui.search">
     </div>
@@ -30,6 +34,7 @@
     import { bootPage } from "./js/main.js";
     import { pickLocale, getLang } from "./js/i18n.js";
     import { renderWidgetPreview } from "./js/render-widget.js";
+    import { widgetUsage } from "./js/wiki-copy.js";
     await bootPage();
 
     const [widgetsR, stylesR, trR] = await Promise.all([
@@ -70,8 +75,17 @@
 
         const desc = document.createElement("div");
         desc.className = "desc";
-        desc.textContent = descLocal;
+        const usage = widgetUsage[id];
+        const usageText = usage ? pickLocale(usage) : "";
+        desc.textContent = usageText ? `${descLocal} — ${usageText}` : descLocal;
         card.appendChild(desc);
+
+        if (def.variants?.length) {
+          const variants = document.createElement("div");
+          variants.className = "pin-legend";
+          variants.innerHTML = def.variants.map(v => `<span class="pin-tag"><span class="dot"></span>${v}</span>`).join("");
+          card.appendChild(variants);
+        }
 
         // ----- Preview
         const frame = document.createElement("div");

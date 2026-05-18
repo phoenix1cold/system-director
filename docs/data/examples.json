@@ -2,156 +2,339 @@
   {
     "id": "d20-button",
     "level": "basic",
-    "title": { "en": "Simple d20 Button", "ru": "Простая d20 кнопка" },
+    "title": {
+      "en": "Simple d20 Button",
+      "ru": "Простая d20 кнопка"
+    },
     "desc": {
       "en": "A bare attack roll. Place a Dice Button on the sheet, set its formula to <code>1d20+@attr.str.mod</code> — that's it. No graph needed for vanilla rolls.",
       "ru": "Голая атака d20. Поставьте Dice Button на лист, в formula впишите <code>1d20+@attr.str.mod</code> — всё. Граф не нужен для простых бросков."
     },
     "nodes": [
-      { "type": "dice_button_widget", "title": { "en": "Dice Button", "ru": "Dice Button" }, "subtitle": "1d20+@attr.str.mod", "color": "#7b68ee" }
+      {
+        "type": "dice_button_widget",
+        "title": {
+          "en": "Dice Button",
+          "ru": "Dice Button"
+        },
+        "subtitle": "1d20+@attr.str.mod",
+        "color": "#7b68ee"
+      }
     ],
     "tip": {
       "en": "If you need crit detection, advantage prompt, or follow-up damage — use a graph (next examples).",
       "ru": "Если нужны крит/преимущество/добивание уроном — нужен граф (следующие примеры)."
     }
   },
-
   {
     "id": "heal-self",
     "level": "basic",
-    "title": { "en": "Heal Self", "ru": "Лечение себя" },
+    "title": {
+      "en": "Heal Self",
+      "ru": "Лечение себя"
+    },
     "desc": {
       "en": "On click, restore HP on the actor. The Heal node defaults to <code>target=actor</code>, so just connecting On Click → Heal is enough.",
       "ru": "По клику восстанавливает HP актора. У ноды Heal по умолчанию <code>target=actor</code> — достаточно соединить On Click → Heal."
     },
     "nodes": [
       "on_click",
-      { "ref": "act_heal", "fields": { "amount": "1d8+5", "to": "actor", "label": "Heal" } }
+      {
+        "ref": "act_heal",
+        "fields": {
+          "amount": "1d8+5",
+          "to": "actor",
+          "label": "Heal"
+        }
+      }
     ]
   },
-
   {
     "id": "damage-target",
     "level": "basic",
-    "title": { "en": "Damage Selected Token", "ru": "Урон выбранному токену" },
+    "title": {
+      "en": "Damage Selected Token",
+      "ru": "Урон выбранному токену"
+    },
     "desc": {
       "en": "Pick a token on the canvas, click the button — it takes 2d6 fire damage. Resistances/immunities are applied automatically.",
       "ru": "Выделите токен на канвасе, нажмите кнопку — он получит 2d6 огнём. Резисты/иммунитеты учитываются автоматически."
     },
     "nodes": [
       "on_click",
-      { "ref": "act_damage", "fields": { "amount": "2d6", "type": "fire", "to": "selected_token" } }
+      {
+        "ref": "act_damage",
+        "fields": {
+          "amount": "2d6",
+          "type": "fire",
+          "to": "selected_token"
+        }
+      }
     ]
   },
-
   {
     "id": "attack-then-damage",
     "level": "basic",
-    "title": { "en": "Attack Roll → Damage on Hit", "ru": "Атака → урон при попадании" },
+    "title": {
+      "en": "Attack Roll → Damage on Hit",
+      "ru": "Атака → урон при попадании"
+    },
     "desc": {
       "en": "Roll 1d20+5 vs target AC. On Hit, deal 1d8+3 slashing. On Crit, the same 1d8+3 doubles automatically (Damage uses the upstream Crit ×).",
       "ru": "Бросок 1d20+5 против AC цели. На Hit — 1d8+3 рубящего. На Crit — тот же 1d8+3 автоматически удваивается (Damage учитывает upstream Crit ×)."
     },
     "nodes": [
       "on_click",
-      { "ref": "act_attack_check", "fields": { "roll": "1d20+5", "ac_path": "system.ac.value" } },
-      { "ref": "act_damage", "fields": { "amount": "1d8+3", "type": "slashing" } }
+      {
+        "ref": "act_attack_check",
+        "fields": {
+          "roll": "1d20+5",
+          "ac_path": "system.ac.value"
+        }
+      },
+      {
+        "ref": "act_damage",
+        "fields": {
+          "amount": "1d8+3",
+          "type": "slashing"
+        }
+      }
     ],
     "branches": [
-      { "from": 1, "to": 2, "label": "Hit →" },
-      { "from": 1, "to": 2, "label": "Crit →" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Hit →"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Crit →"
+      }
     ]
   },
-
   {
     "id": "save-half",
     "level": "basic",
-    "title": { "en": "Save for Half Damage", "ru": "Сейв на половину урона" },
+    "title": {
+      "en": "Save for Half Damage",
+      "ru": "Сейв на половину урона"
+    },
     "desc": {
       "en": "Post a save button to chat. On pass, deal half damage. On fail, full damage. Connect Save passed? pin to the Damage node and set halfOnSave=yes.",
       "ru": "Постит save-кнопку в чат. На pass — половина, на fail — полный. Соедините пин «Save passed?» с нодой Damage и поставьте halfOnSave=yes."
     },
     "nodes": [
       "on_click",
-      { "ref": "chat_save_button", "fields": { "dc": 15, "modifier_path": "system.attributes.dex.mod" } },
-      { "ref": "act_damage", "fields": { "amount": "8d6", "type": "fire", "halfOnSave": "yes" } }
+      {
+        "ref": "chat_save_button",
+        "fields": {
+          "dc": 15,
+          "modifier_path": "system.attributes.dex.mod"
+        }
+      },
+      {
+        "ref": "act_damage",
+        "fields": {
+          "amount": "8d6",
+          "type": "fire",
+          "halfOnSave": "yes"
+        }
+      }
     ],
     "branches": [
-      { "from": 1, "to": 2, "label": "Pass →" },
-      { "from": 1, "to": 2, "label": "Fail →" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Pass →"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Fail →"
+      }
     ]
   },
-
   {
     "id": "confirm-spell",
     "level": "basic",
-    "title": { "en": "Confirm Before Cast", "ru": "Подтверждение перед кастом" },
+    "title": {
+      "en": "Confirm Before Cast",
+      "ru": "Подтверждение перед кастом"
+    },
     "desc": {
       "en": "Show Yes/No dialog before consuming the spell slot. Useful for expensive abilities the player might mis-click.",
       "ru": "Показывает Yes/No перед тратой слота. Удобно для дорогих способностей, чтобы не было промаха кликом."
     },
     "nodes": [
       "on_click",
-      { "ref": "dialog_confirm", "fields": { "title": "Cast Fireball?", "message": "This will burn a 3rd-level slot." } },
-      { "ref": "act_consume_resource", "fields": { "path": "system.spells.l3.value" } },
-      { "ref": "act_damage", "fields": { "amount": "8d6", "type": "fire", "to": "all_targets" } }
+      {
+        "ref": "dialog_confirm",
+        "fields": {
+          "title": "Cast Fireball?",
+          "message": "This will burn a 3rd-level slot."
+        }
+      },
+      {
+        "ref": "act_consume_resource",
+        "fields": {
+          "path": "system.spells.l3.value"
+        }
+      },
+      {
+        "ref": "act_damage",
+        "fields": {
+          "amount": "8d6",
+          "type": "fire",
+          "to": "all_targets"
+        }
+      }
     ],
     "branches": [
-      { "from": 1, "to": 2, "label": "Yes →" },
-      { "from": 2, "to": 3, "label": "OK →" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Yes →"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "OK →"
+      }
     ]
   },
-
   {
     "id": "pick-player-bless",
     "level": "advanced",
-    "title": { "en": "Pick a Player → Apply Bless", "ru": "Выбрать игрока → Bless" },
+    "title": {
+      "en": "Pick a Player → Apply Bless",
+      "ru": "Выбрать игрока → Bless"
+    },
     "desc": {
       "en": "Open a dialog with a button per online player; the chosen actor receives a 10-round Bless effect. Works as a buff that the GM/player can target across the party.",
       "ru": "Открывает диалог с кнопкой на каждого онлайн-игрока; выбранный актор получает Bless на 10 раундов. GM/игрок таргетит любого члена пати."
     },
     "nodes": [
       "on_click",
-      { "ref": "get_player_actors", "fields": { "online_only": "yes", "include_gm": "no" } },
-      { "ref": "dialog_select_array", "fields": { "title": "Bless whom?", "label_path": "name" } },
-      { "ref": "act_effect_uuid", "fields": { "rounds": 10, "target": "actor" } }
+      {
+        "ref": "get_player_actors",
+        "fields": {
+          "online_only": "yes",
+          "include_gm": "no"
+        }
+      },
+      {
+        "ref": "dialog_select_array",
+        "fields": {
+          "title": "Bless whom?",
+          "label_path": "name"
+        }
+      },
+      {
+        "ref": "act_effect_uuid",
+        "fields": {
+          "rounds": 10,
+          "target": "actor"
+        }
+      }
     ],
     "branches": [
-      { "from": 2, "to": 3, "label": "Selected →" }
+      {
+        "from": 2,
+        "to": 3,
+        "label": "Selected →"
+      }
     ],
     "data_flow": [
-      { "from": 1, "to": 2, "label": "Players → Items" },
-      { "from": 2, "to": 3, "label": "Selected → Target" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Players → Items"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "Selected → Target"
+      }
     ]
   },
-
   {
     "id": "aoe-save-damage",
     "level": "advanced",
-    "title": { "en": "AoE: Save → Damage (Half on Success)", "ru": "AoE: сейв → урон (половина при сейве)" },
+    "title": {
+      "en": "AoE: Save → Damage (Half on Success)",
+      "ru": "AoE: сейв → урон (половина при сейве)"
+    },
     "desc": {
       "en": "Place a circular AoE save zone, every token inside rolls Dex DC15. Failed targets take full 6d6 fire, saved targets take half. The AoE Save Branch outputs both Failed[] and Saved[] arrays — feed each to its own Damage node.",
       "ru": "Кладёт круг AoE save, все токены внутри кидают Dex DC15. Failed = полный 6d6 огнём, Saved = половина. AoE Save Branch выдаёт Failed[] и Saved[] — подключите их в две Damage ноды."
     },
     "nodes": [
       "on_click",
-      { "ref": "act_place_aoe_save_branch", "title": { "en": "Chat AoE — Save", "ru": "Chat AoE — Save" }, "fields": { "shape": "circle", "size": 20, "dc": 15, "save_path": "system.attributes.dex.mod" } },
-      { "ref": "act_damage", "title": { "en": "Damage (Failed)", "ru": "Damage (Failed)" }, "fields": { "amount": "6d6", "type": "fire" } },
-      { "ref": "act_damage", "title": { "en": "Damage (Saved, half)", "ru": "Damage (Saved, ½)" }, "fields": { "amount": "6d6", "type": "fire", "halfOnSave": "yes" } }
+      {
+        "ref": "act_place_aoe_save_branch",
+        "title": {
+          "en": "Chat AoE — Save",
+          "ru": "Chat AoE — Save"
+        },
+        "fields": {
+          "shape": "circle",
+          "size": 20,
+          "dc": 15,
+          "save_path": "system.attributes.dex.mod"
+        }
+      },
+      {
+        "ref": "act_damage",
+        "title": {
+          "en": "Damage (Failed)",
+          "ru": "Damage (Failed)"
+        },
+        "fields": {
+          "amount": "6d6",
+          "type": "fire"
+        }
+      },
+      {
+        "ref": "act_damage",
+        "title": {
+          "en": "Damage (Saved, half)",
+          "ru": "Damage (Saved, ½)"
+        },
+        "fields": {
+          "amount": "6d6",
+          "type": "fire",
+          "halfOnSave": "yes"
+        }
+      }
     ],
     "branches": [
-      { "from": 1, "to": 2, "label": "Done →" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Done →"
+      }
     ],
     "data_flow": [
-      { "from": 1, "to": 2, "label": "Failed[] → targets" },
-      { "from": 1, "to": 3, "label": "Saved[] → targets" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Failed[] → targets"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "Saved[] → targets"
+      }
     ]
   },
-
   {
     "id": "iterate-targets",
     "level": "advanced",
-    "title": { "en": "Damage Each Targeted Token Separately", "ru": "Урон каждой цели отдельно" },
+    "title": {
+      "en": "Damage Each Targeted Token Separately",
+      "ru": "Урон каждой цели отдельно"
+    },
     "desc": {
       "en": "Run the loop body once per targeted token. Each iteration sets {__currentTarget} = current token id, so Damage applies to that specific token. Use this when you want per-target log lines or per-target rolls instead of one shared roll.",
       "ru": "Тело цикла на каждую цель. На каждой итерации {__currentTarget} = id текущего токена, и Damage применяется к нему. Удобно для отдельной строчки в логе и индивидуальных бросков на каждую цель."
@@ -159,63 +342,149 @@
     "nodes": [
       "on_click",
       "get_all_targets",
-      { "ref": "act_for_each_token" },
-      { "ref": "act_damage", "fields": { "amount": "1d6", "type": "necrotic" } }
+      {
+        "ref": "act_for_each_token"
+      },
+      {
+        "ref": "act_damage",
+        "fields": {
+          "amount": "1d6",
+          "type": "necrotic"
+        }
+      }
     ],
     "branches": [
-      { "from": 2, "to": 3, "label": "Loop →" }
+      {
+        "from": 2,
+        "to": 3,
+        "label": "Loop →"
+      }
     ],
     "data_flow": [
-      { "from": 1, "to": 2, "label": "Targets → Tokens" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Targets → Tokens"
+      }
     ]
   },
-
   {
     "id": "consume-then-act",
     "level": "advanced",
-    "title": { "en": "Pay Cost, Then Act", "ru": "Сначала плата, потом эффект" },
+    "title": {
+      "en": "Pay Cost, Then Act",
+      "ru": "Сначала плата, потом эффект"
+    },
     "desc": {
       "en": "Consume Resource has two exec outputs: OK fires when there was enough, Empty fires when the resource hit zero. Pay-then-act is the canonical pattern for limited-use abilities.",
       "ru": "У Consume Resource два exec-выхода: OK — если хватило, Empty — если пусто. Сначала-плата-потом-эффект — каноничный паттерн для ограниченных способностей."
     },
     "nodes": [
       "on_click",
-      { "ref": "act_consume_resource", "fields": { "amount": 1, "path": "system.resources.charges.value" } },
-      { "ref": "act_damage", "fields": { "amount": "3d6", "type": "lightning" } },
-      { "ref": "act_notify", "fields": { "message": "Out of charges!", "level": "warn" } }
+      {
+        "ref": "act_consume_resource",
+        "fields": {
+          "amount": 1,
+          "path": "system.resources.charges.value"
+        }
+      },
+      {
+        "ref": "act_damage",
+        "fields": {
+          "amount": "3d6",
+          "type": "lightning"
+        }
+      },
+      {
+        "ref": "act_notify",
+        "fields": {
+          "message": "Out of charges!",
+          "level": "warn"
+        }
+      }
     ],
     "branches": [
-      { "from": 1, "to": 2, "label": "OK →" },
-      { "from": 1, "to": 3, "label": "Empty →" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "OK →"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "Empty →"
+      }
     ]
   },
-
   {
     "id": "tiered-roll",
     "level": "advanced",
-    "title": { "en": "PbtA-style 2d6 Tiered Roll", "ru": "PbtA 2d6 — три tier'а" },
+    "title": {
+      "en": "PbtA-style 2d6 Tiered Roll",
+      "ru": "PbtA 2d6 — три tier'а"
+    },
     "desc": {
       "en": "Roll 2d6+stat, route into Miss / Partial / Full based on thresholds. Each branch fires its own follow-up. Classic Powered by the Apocalypse / Blades in the Dark mechanic.",
       "ru": "Бросок 2d6+stat, маршрутизация в Miss / Partial / Full по порогам. Каждая ветка вызывает свой эффект. Классический PbtA / Blades механизм."
     },
     "nodes": [
       "on_click",
-      { "ref": "act_tiered_roll", "fields": { "formula": "2d6+@attr.heart.mod", "tier1_at": 6, "tier2_at": 7, "tier3_at": 10 } },
-      { "ref": "act_message", "title": { "en": "Miss msg", "ru": "Сообщение miss" } },
-      { "ref": "act_message", "title": { "en": "Partial msg", "ru": "Сообщение partial" } },
-      { "ref": "act_message", "title": { "en": "Full hit msg", "ru": "Сообщение full" } }
+      {
+        "ref": "act_tiered_roll",
+        "fields": {
+          "formula": "2d6+@attr.heart.mod",
+          "tier1_at": 6,
+          "tier2_at": 7,
+          "tier3_at": 10
+        }
+      },
+      {
+        "ref": "act_message",
+        "title": {
+          "en": "Miss msg",
+          "ru": "Сообщение miss"
+        }
+      },
+      {
+        "ref": "act_message",
+        "title": {
+          "en": "Partial msg",
+          "ru": "Сообщение partial"
+        }
+      },
+      {
+        "ref": "act_message",
+        "title": {
+          "en": "Full hit msg",
+          "ru": "Сообщение full"
+        }
+      }
     ],
     "branches": [
-      { "from": 1, "to": 2, "label": "Tier 1 →" },
-      { "from": 1, "to": 3, "label": "Tier 2 →" },
-      { "from": 1, "to": 4, "label": "Tier 3 →" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "Tier 1 →"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "Tier 2 →"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "Tier 3 →"
+      }
     ]
   },
-
   {
     "id": "find-lowest-hp",
     "level": "advanced",
-    "title": { "en": "Heal the Lowest-HP Ally", "ru": "Лечить союзника с наименьшим HP" },
+    "title": {
+      "en": "Heal the Lowest-HP Ally",
+      "ru": "Лечить союзника с наименьшим HP"
+    },
     "desc": {
       "en": "Get all targets, sort by HP ascending, take the first one, heal them. Lets you wire up smart 'auto-heal' buttons that always pick the right target.",
       "ru": "Берёт все цели, сортирует по HP по возрастанию, берёт первого, лечит. Позволяет делать «умные» кнопки автолечения с правильным выбором цели."
@@ -223,132 +492,750 @@
     "nodes": [
       "on_click",
       "get_all_targets",
-      { "ref": "arr_sort", "fields": { "field": "system.resources.hp.value", "order": "asc" } },
-      { "ref": "arr_at", "fields": { "index": 0 } },
-      { "ref": "act_heal", "fields": { "amount": "2d4+2" } }
+      {
+        "ref": "arr_sort",
+        "fields": {
+          "field": "system.resources.hp.value",
+          "order": "asc"
+        }
+      },
+      {
+        "ref": "arr_at",
+        "fields": {
+          "index": 0
+        }
+      },
+      {
+        "ref": "act_heal",
+        "fields": {
+          "amount": "2d4+2"
+        }
+      }
     ],
     "branches": [
-      { "from": 0, "to": 4, "label": "exec →" }
+      {
+        "from": 0,
+        "to": 4,
+        "label": "exec →"
+      }
     ],
     "data_flow": [
-      { "from": 1, "to": 2, "label": "tokens" },
-      { "from": 2, "to": 3, "label": "sorted" },
-      { "from": 3, "to": 4, "label": "target" }
+      {
+        "from": 1,
+        "to": 2,
+        "label": "tokens"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "sorted"
+      },
+      {
+        "from": 3,
+        "to": 4,
+        "label": "target"
+      }
     ]
   },
-
   {
     "id": "compute-derived",
     "level": "advanced",
-    "title": { "en": "Computed Modifier (Derived Widget Graph)", "ru": "Вычисляемый модификатор (Derived widget)" },
+    "title": {
+      "en": "Computed Modifier (Derived Widget Graph)",
+      "ru": "Вычисляемый модификатор (Derived widget)"
+    },
     "desc": {
       "en": "Derived widget runs a graph and shows the final number. Here: STR mod + half level + proficiency. The graph is pure (no exec) and ends with an Output node carrying the result.",
       "ru": "Derived widget исполняет граф и показывает итоговое число. Здесь: STR mod + ½ уровня + профишн. Граф — чисто вычислительный (без exec), на выходе нода Output с результатом."
     },
     "nodes": [
-      { "ref": "actor_ref",  "title": "@attr1.mod" },
-      { "ref": "actor_ref",  "title": "@level" },
-      { "ref": "literal", "title": "/2", "fields": { "value": "0.5" } },
-      { "ref": "mul" },
-      { "ref": "actor_ref",  "title": "@prof" },
-      { "ref": "add", "title": { "en": "Sum", "ru": "Сумма" } },
+      {
+        "ref": "actor_ref",
+        "title": "@attr1.mod"
+      },
+      {
+        "ref": "actor_ref",
+        "title": "@level"
+      },
+      {
+        "ref": "literal",
+        "title": "/2",
+        "fields": {
+          "value": "0.5"
+        }
+      },
+      {
+        "ref": "mul"
+      },
+      {
+        "ref": "actor_ref",
+        "title": "@prof"
+      },
+      {
+        "ref": "add",
+        "title": {
+          "en": "Sum",
+          "ru": "Сумма"
+        }
+      },
       "output"
     ],
     "data_flow": [
-      { "from": 0, "to": 5, "label": "STR mod" },
-      { "from": 1, "to": 3, "label": "level" },
-      { "from": 2, "to": 3, "label": "0.5" },
-      { "from": 3, "to": 5, "label": "level/2" },
-      { "from": 4, "to": 5, "label": "prof" },
-      { "from": 5, "to": 6, "label": "total" }
+      {
+        "from": 0,
+        "to": 5,
+        "label": "STR mod"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "level"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "0.5"
+      },
+      {
+        "from": 3,
+        "to": 5,
+        "label": "level/2"
+      },
+      {
+        "from": 4,
+        "to": 5,
+        "label": "prof"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "total"
+      }
     ]
   },
-
   {
     "id": "on-equip-armor",
     "level": "triggers",
-    "title": { "en": "On Equip → Apply Armor Effect", "ru": "При экипировке → накинуть эффект брони" },
+    "title": {
+      "en": "On Equip → Apply Armor Effect",
+      "ru": "При экипировке → накинуть эффект брони"
+    },
     "desc": {
       "en": "Open the item (a piece of armor), open its <kbd>Sheet Trigger</kbd> graph (the document-level graph). Add an <em>On Equip</em> event node and chain it to <em>Apply Effect</em> targeting the wearer. When the player flips the item to equipped, the effect is applied automatically.",
       "ru": "Откройте предмет (броня), откройте у него <kbd>Sheet Trigger</kbd> граф (граф уровня документа). Добавьте event-ноду <em>On Equip</em> и подключите к <em>Apply Effect</em> на носителя. Как только игрок переключит предмет в equipped — эффект применится сам."
     },
     "nodes": [
       "on_equip",
-      { "ref": "act_effect", "fields": { "effectId": "armor_plate_+2", "to": "actor", "label": "Apply Effect" } }
+      {
+        "ref": "act_effect",
+        "fields": {
+          "effectId": "armor_plate_+2",
+          "to": "actor",
+          "label": "Apply Effect"
+        }
+      }
     ],
     "tip": {
       "en": "Pair this with <strong>On Unequip → Remove Effect</strong> on the same item, otherwise the effect lingers when the player takes the armor off.",
       "ru": "Парно сделайте <strong>On Unequip → Remove Effect</strong> на том же предмете, иначе эффект останется когда броню снимут."
     }
   },
-
   {
     "id": "on-unequip-armor",
     "level": "triggers",
-    "title": { "en": "On Unequip → Remove Effect", "ru": "При снятии → убрать эффект" },
+    "title": {
+      "en": "On Unequip → Remove Effect",
+      "ru": "При снятии → убрать эффект"
+    },
     "desc": {
       "en": "Mirror of the previous example. The trigger fires when <code>system.equipped</code> flips from true → false.",
       "ru": "Зеркало предыдущего примера. Триггер сработает, когда <code>system.equipped</code> сменится с true на false."
     },
     "nodes": [
       "on_unequip",
-      { "ref": "act_remove_effect", "fields": { "effectName": "armor_plate_+2", "to": "actor" } }
+      {
+        "ref": "act_remove_effect",
+        "fields": {
+          "effectName": "armor_plate_+2",
+          "to": "actor"
+        }
+      }
     ]
   },
-
   {
     "id": "on-turn-start-regen",
     "level": "triggers",
-    "title": { "en": "On Turn Start → Regenerate HP", "ru": "В начале хода → регенерация HP" },
+    "title": {
+      "en": "On Turn Start → Regenerate HP",
+      "ru": "В начале хода → регенерация HP"
+    },
     "desc": {
       "en": "Sheet-level trigger graph (open the actor sheet → Trigger). Adds 5 HP every time this actor's combat turn begins. Combine with a <em>Branch (HP &lt; max)</em> if you want to stop at full health.",
       "ru": "Граф-триггер уровня листа (на акторе → Trigger). Добавляет 5 HP каждый раз, когда начинается ход этого актора в бою. Можно дополнить нодой <em>Branch (HP &lt; max)</em>, если не хотите перезалечивать выше максимума."
     },
     "nodes": [
       "on_turn_start",
-      { "ref": "act_heal", "fields": { "amount": "5", "to": "actor", "label": "Regen" } }
+      {
+        "ref": "act_heal",
+        "fields": {
+          "amount": "5",
+          "to": "actor",
+          "label": "Regen"
+        }
+      }
     ]
   },
-
   {
     "id": "on-damage-taken-react",
     "level": "triggers",
-    "title": { "en": "On Damage Taken → Reaction", "ru": "При получении урона → реакция" },
+    "title": {
+      "en": "On Damage Taken → Reaction",
+      "ru": "При получении урона → реакция"
+    },
     "desc": {
       "en": "Trigger fires when actor's HP decreases. Pin <code>amount</code> gives how much was lost; <code>newHp</code> gives the post-damage value. Useful for shield reactions, retaliation auras, panic effects.",
       "ru": "Триггер срабатывает при уменьшении HP актора. Пин <code>amount</code> — сколько потеряно; <code>newHp</code> — значение после урона. Удобно для реакций щита, ответных аур, эффектов паники."
     },
     "nodes": [
       "on_damage_taken",
-      { "ref": "lt", "title": { "en": "newHp ≤ 10?", "ru": "newHp ≤ 10?" } },
-      { "ref": "branch", "title": { "en": "Bloodied?", "ru": "Кровит?" } },
-      { "ref": "act_apply_status", "fields": { "status": "bloodied", "to": "actor", "label": "Apply: Bloodied" } }
+      {
+        "ref": "lt",
+        "title": {
+          "en": "newHp ≤ 10?",
+          "ru": "newHp ≤ 10?"
+        }
+      },
+      {
+        "ref": "branch",
+        "title": {
+          "en": "Bloodied?",
+          "ru": "Кровит?"
+        }
+      },
+      {
+        "ref": "act_apply_status",
+        "fields": {
+          "status": "bloodied",
+          "to": "actor",
+          "label": "Apply: Bloodied"
+        }
+      }
     ],
     "branches": [
-      { "from": 0, "to": 2, "label": "exec" },
-      { "from": 2, "to": 3, "label": "true" }
+      {
+        "from": 0,
+        "to": 2,
+        "label": "exec"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "true"
+      }
     ],
     "data_flow": [
-      { "from": 0, "to": 1, "label": "newHp" },
-      { "from": 1, "to": 2, "label": "cond" }
+      {
+        "from": 0,
+        "to": 1,
+        "label": "newHp"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "cond"
+      }
     ]
   },
-
   {
     "id": "hidden-field-toggle",
     "level": "triggers",
-    "title": { "en": "Hidden Field — Conditional Visibility", "ru": "Hidden Field — условная видимость" },
+    "title": {
+      "en": "Hidden Field — Conditional Visibility",
+      "ru": "Hidden Field — условная видимость"
+    },
     "desc": {
       "en": "Hidden Fields are arbitrary <code>true / false / number / string</code> slots on a document (<code>system.hiddenFields.&lt;key&gt;</code>). Widgets check them to decide whether to render. Toggle them from a graph with <em>Set Path</em>. Example: a Toggle widget that flips <code>system.hiddenFields.spellbookOpen</code>; a Spellbook widget below has <em>Visible if</em> set to that key.",
       "ru": "Hidden Fields — произвольные слоты <code>true / false / число / строка</code> на документе (<code>system.hiddenFields.&lt;ключ&gt;</code>). Виджеты смотрят на них чтобы решить, рендериться или нет. Переключаются из графа через <em>Set Path</em>. Пример: Toggle-виджет переключает <code>system.hiddenFields.spellbookOpen</code>; ниже Spellbook-виджет с <em>Visible if</em> = тот же ключ."
     },
     "nodes": [
       "on_click",
-      { "ref": "act_modify", "fields": { "path": "system.hiddenFields.spellbookOpen", "op": "set", "value": "true" }, "title": "Set hiddenFields.spellbookOpen = true" }
+      {
+        "ref": "act_modify",
+        "fields": {
+          "path": "system.hiddenFields.spellbookOpen",
+          "op": "set",
+          "value": "true"
+        },
+        "title": "Set hiddenFields.spellbookOpen = true"
+      }
     ],
     "tip": {
       "en": "Use <strong>Toggle Path</strong> instead of <em>Set Path</em> if you want a single button that flips on/off.",
       "ru": "Используйте <strong>Toggle Path</strong> вместо <em>Set Path</em>, если нужна одна кнопка-переключатель."
     }
+  },
+  {
+    "id": "card-draw-and-play",
+    "level": "advanced",
+    "title": {
+      "en": "Cards: Draw → Inspect Hand → Play",
+      "ru": "Карты: добор → просмотр руки → play"
+    },
+    "desc": {
+      "en": "Draw cards from a Foundry Cards deck into a hand, show the hand widget, then play/discard cards from the hand. Use Cards UUIDs when names are ambiguous.",
+      "ru": "Тянет карты из Foundry Cards deck в hand, показывает hand widget, затем play/discard карты из руки. Если имена неоднозначны, используйте Cards UUID."
+    },
+    "nodes": [
+      "on_click",
+      {
+        "ref": "act_card_draw",
+        "fields": {
+          "count": 2,
+          "how": "top"
+        }
+      },
+      {
+        "ref": "stack_info",
+        "title": {
+          "en": "Hand info",
+          "ru": "Инфо руки"
+        }
+      },
+      {
+        "ref": "act_card_play",
+        "fields": {
+          "mode": "selected"
+        }
+      }
+    ],
+    "branches": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "exec →"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "after draw →"
+      }
+    ],
+    "data_flow": [
+      {
+        "from": 1,
+        "to": 2,
+        "label": "to stack"
+      }
+    ]
+  },
+  {
+    "id": "quest-activate-and-reward",
+    "level": "advanced",
+    "title": {
+      "en": "Quest: Activate → Complete → Grant Rewards",
+      "ru": "Квест: активировать → завершить → выдать награды"
+    },
+    "desc": {
+      "en": "Quest actions operate on quest log items. Activation writes actor activeQuest and fires SD quest hooks; completion can reveal and grant rewards.",
+      "ru": "Quest actions работают с quest log items. Activation записывает actor activeQuest и вызывает SD quest hooks; completion может раскрыть и выдать rewards."
+    },
+    "nodes": [
+      "on_click",
+      {
+        "ref": "quest_activate",
+        "fields": {
+          "questId": "goblin_cave"
+        }
+      },
+      {
+        "ref": "quest_complete",
+        "fields": {
+          "questId": "goblin_cave"
+        }
+      },
+      {
+        "ref": "reward_grant_all",
+        "fields": {
+          "questId": "goblin_cave"
+        }
+      }
+    ],
+    "branches": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "start →"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "complete →"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "rewards →"
+      }
+    ]
+  },
+  {
+    "id": "quest-event-marker",
+    "level": "triggers",
+    "title": {
+      "en": "On Quest Activated → Notify Party",
+      "ru": "При активации квеста → уведомить группу"
+    },
+    "desc": {
+      "en": "Quest event nodes listen to SD quest hooks. Combine them with Quest Marker widget to show the active quest on actor sheets.",
+      "ru": "Quest event-ноды слушают SD quest hooks. Используйте вместе с Quest Marker widget, чтобы показывать активный квест на листах акторов."
+    },
+    "nodes": [
+      "on_quest_activated",
+      {
+        "ref": "act_notify",
+        "fields": {
+          "message": "New quest active!",
+          "level": "info"
+        }
+      },
+      {
+        "ref": "quest_show_to_player"
+      }
+    ],
+    "branches": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "event →"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "show →"
+      }
+    ]
+  },
+  {
+    "id": "aura-damage-save",
+    "level": "advanced",
+    "title": {
+      "en": "Aura: Region Save → Ongoing Damage",
+      "ru": "Аура: Region save → периодический урон"
+    },
+    "desc": {
+      "en": "Create an aura attached to the caster, collect tokens inside it, split saved/failed targets and apply damage/effects. Aura nodes use Foundry Region documents.",
+      "ru": "Создаёт ауру, прикреплённую к кастеру, собирает токены внутри, разделяет saved/failed цели и применяет damage/effects. Aura-ноды используют Foundry Region documents."
+    },
+    "nodes": [
+      "on_click",
+      {
+        "ref": "act_place_aura_save_branch",
+        "fields": {
+          "shape": "circle",
+          "size": 10,
+          "dc": 13
+        }
+      },
+      {
+        "ref": "act_place_aura_damage",
+        "fields": {
+          "amount": "2d6",
+          "type": "radiant"
+        }
+      },
+      {
+        "ref": "act_apply_status",
+        "fields": {
+          "status": "blinded"
+        }
+      }
+    ],
+    "branches": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "create →"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "failed →"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "failed →"
+      }
+    ]
+  },
+  {
+    "id": "roll-table-loot",
+    "level": "advanced",
+    "title": {
+      "en": "RollTable Loot → Add Item",
+      "ru": "RollTable loot → добавить предмет"
+    },
+    "desc": {
+      "en": "Roll a Foundry RollTable, post/show the result, then add the resulting item UUID to the actor inventory. Use this for random treasure or encounter rewards.",
+      "ru": "Бросает Foundry RollTable, показывает результат, затем добавляет выпавший item UUID в inventory актора. Подходит для случайной добычи и наград."
+    },
+    "nodes": [
+      "on_click",
+      {
+        "ref": "act_roll_table",
+        "fields": {
+          "tableName": "Minor Loot"
+        }
+      },
+      {
+        "ref": "act_add_item",
+        "fields": {
+          "target": "actor"
+        }
+      }
+    ],
+    "branches": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "roll →"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "result →"
+      }
+    ]
+  },
+  {
+    "id": "compendium-dialog-summon",
+    "level": "advanced",
+    "title": {
+      "en": "Compendium list → Dialog choice → Add item",
+      "ru": "Compendium list → выбор в диалоге → добавить item"
+    },
+    "desc": {
+      "en": "Read matching compendium UUIDs/names, show them in a selection dialog, then add the selected document to inventory or slot.",
+      "ru": "Читает UUID/name из compendium, показывает выбор в диалоге, затем добавляет выбранный документ в inventory или slot."
+    },
+    "nodes": [
+      "on_click",
+      {
+        "ref": "get_compendium_uuids",
+        "fields": {
+          "pack": "world.abilities"
+        }
+      },
+      {
+        "ref": "dialog_select_array",
+        "fields": {
+          "title": "Choose ability"
+        }
+      },
+      {
+        "ref": "act_add_item",
+        "fields": {
+          "target": "actor"
+        }
+      }
+    ],
+    "branches": [
+      {
+        "from": 0,
+        "to": 2,
+        "label": "open dialog →"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "selected →"
+      }
+    ],
+    "data_flow": [
+      {
+        "from": 1,
+        "to": 2,
+        "label": "uuid[]"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "uuid"
+      }
+    ]
+  },
+  {
+    "id": "ai-flavor-text",
+    "level": "advanced",
+    "title": {
+      "en": "AI request → Chat narration",
+      "ru": "AI request → описание в чат"
+    },
+    "desc": {
+      "en": "Send a controlled prompt to the AI action and post the returned narration to chat. Keep this for flavor text and let the GM review table-impacting output.",
+      "ru": "Отправляет контролируемый prompt в AI action и публикует returned narration в чат. Используйте для flavor text и оставляйте GM review для важных результатов."
+    },
+    "nodes": [
+      "on_click",
+      {
+        "ref": "act_ai_request",
+        "fields": {
+          "prompt": "Describe a critical hit in one sentence"
+        }
+      },
+      {
+        "ref": "act_message"
+      }
+    ],
+    "branches": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "request →"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "post →"
+      }
+    ]
+  },
+  {
+    "id": "array-filter-map-damage",
+    "level": "advanced",
+    "title": {
+      "en": "Array filter/map: target bloodied enemies",
+      "ru": "Array filter/map: цели с низким HP"
+    },
+    "desc": {
+      "en": "Filter all targets by an HP expression, map their names for a chat summary, then damage only the filtered array.",
+      "ru": "Фильтрует все targets по HP expression, собирает имена для chat summary и наносит урон только filtered array."
+    },
+    "nodes": [
+      "on_click",
+      "get_all_targets",
+      {
+        "ref": "arr_filter_generic",
+        "fields": {
+          "formula": "{system.resources.hp.value} <= 10"
+        }
+      },
+      {
+        "ref": "arr_map_field",
+        "fields": {
+          "field": "name"
+        }
+      },
+      {
+        "ref": "arr_join",
+        "fields": {
+          "separator": ", "
+        }
+      },
+      {
+        "ref": "act_message"
+      },
+      {
+        "ref": "act_damage",
+        "fields": {
+          "amount": "1d8",
+          "type": "psychic"
+        }
+      }
+    ],
+    "branches": [
+      {
+        "from": 0,
+        "to": 5,
+        "label": "summary →"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "damage →"
+      }
+    ],
+    "data_flow": [
+      {
+        "from": 1,
+        "to": 2,
+        "label": "targets"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "filtered"
+      },
+      {
+        "from": 3,
+        "to": 4,
+        "label": "names"
+      },
+      {
+        "from": 4,
+        "to": 5,
+        "label": "text"
+      },
+      {
+        "from": 2,
+        "to": 6,
+        "label": "targets"
+      }
+    ]
+  },
+  {
+    "id": "macro-reusable-save",
+    "level": "advanced",
+    "title": {
+      "en": "Reusable macro graph: Save DC package",
+      "ru": "Переиспользуемый macro graph: пакет Save DC"
+    },
+    "desc": {
+      "en": "Put repeated save logic in a macro graph. Macro Input receives actor/attribute/DC, the subgraph rolls or posts a save button, Macro Output returns passed/failed arrays.",
+      "ru": "Повторяемую save-логику вынесите в macro graph. Macro Input принимает actor/attribute/DC, subgraph делает roll/save button, Macro Output возвращает passed/failed arrays."
+    },
+    "nodes": [
+      {
+        "ref": "macro_input",
+        "title": {
+          "en": "Input: targets, DC",
+          "ru": "Input: targets, DC"
+        }
+      },
+      {
+        "ref": "chat_save_button"
+      },
+      {
+        "ref": "macro_output",
+        "title": {
+          "en": "Output: passed?",
+          "ru": "Output: passed?"
+        }
+      },
+      {
+        "ref": "macro_call",
+        "title": {
+          "en": "Call from spell",
+          "ru": "Вызов из spell"
+        }
+      }
+    ],
+    "data_flow": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "targets+dc"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "result"
+      },
+      {
+        "from": 3,
+        "to": 0,
+        "label": "call args"
+      }
+    ]
   }
 ]

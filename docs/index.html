@@ -9,125 +9,63 @@
 </head>
 <body>
   <header class="site-header"></header>
-
   <main class="page">
     <h1 data-i18n="ui.siteTitle">System Director — Wiki</h1>
-    <p class="lead" data-i18n="ui.tagline">Visual sheet builder &amp; node-graph automation for Foundry VTT</p>
+    <p class="lead" data-bilingual
+       data-en="System-agnostic sheet builder and node-graph automation toolkit for Foundry VTT v13/v14."
+       data-ru="System-agnostic конструктор листов и нодовая автоматизация для Foundry VTT v13/v14."></p>
 
-    <div data-bilingual
-         data-en="System Director is a system-agnostic toolkit that lets you build actor &amp; item sheets from drag-and-drop widgets and wire automation between them with a node-based formula graph. This wiki covers all 26 widget types, all 167 graph nodes, and end-to-end usage examples."
-         data-ru="System Director — это system-agnostic тулкит для Foundry VTT: лист персонажа собирается из drag-and-drop виджетов, а автоматизация между ними строится визуально нодами. Эта вики покрывает все 26 виджетов, все 167 нод графа и сквозные примеры использования.">
-    </div>
+    <div id="stats" class="stats-grid"></div>
 
-    <h2 data-i18n="nav.quick" data-bilingual data-en="Quick links" data-ru="Быстрые ссылки"></h2>
+    <div class="callout warn" data-bilingual
+      data-en="This documentation is generated for the current codebase: 30 widgets and 273 node definitions. Node cards are rebuilt from the actual source definitions, not from the old wiki list."
+      data-ru="Эта документация собрана под текущий код: 30 виджетов и 273 определения нод. Карточки нод построены из актуальных исходных definitions, а не из старого списка wiki."></div>
+
+    <h2 data-bilingual data-en="What System Director does" data-ru="Что делает System Director"></h2>
     <div class="cards">
-      <div class="card">
-        <h3 data-i18n="ui.nav.start">Getting started</h3>
-        <p data-bilingual data-en="Install, open the builder, place your first widget, save."
-                          data-ru="Установка, открытие конструктора, первый виджет, сохранение."></p>
-        <a class="btn" href="getting-started.html" data-bilingual data-en="Open" data-ru="Открыть">Open</a>
-      </div>
-      <div class="card">
-        <h3 data-i18n="ui.nav.widgets">Widgets</h3>
-        <p data-bilingual data-en="All widget types — text, resources, dice, slots, inventory, effects, and more."
-                          data-ru="Все типы виджетов — текст, ресурсы, кости, слоты, инвентарь, эффекты и др."></p>
-        <a class="btn" href="widgets.html" data-bilingual data-en="Browse" data-ru="Перейти">Browse</a>
-      </div>
-      <div class="card">
-        <h3 data-i18n="ui.nav.nodes">Nodes</h3>
-        <p data-bilingual data-en="The full graph node catalog: 167 nodes across 17 categories."
-                          data-ru="Полный каталог нод: 167 штук в 17 категориях."></p>
-        <a class="btn" href="nodes.html" data-bilingual data-en="Browse" data-ru="Перейти">Browse</a>
-      </div>
-      <div class="card">
-        <h3 data-i18n="ui.nav.examples">Examples</h3>
-        <p data-bilingual data-en="From a 1d20 button to AoE-save with elemental resists."
-                          data-ru="От простой 1d20-кнопки до AoE save с резистами по стихиям."></p>
-        <a class="btn" href="examples.html" data-bilingual data-en="Browse" data-ru="Перейти">Browse</a>
-      </div>
+      <div class="card"><h3 data-bilingual data-en="Visual sheets" data-ru="Визуальные листы"></h3><p data-bilingual data-en="Build actor and item sheets from tabs, rows, cells and drag-and-drop widgets. Store the layout in system.customTabs." data-ru="Листы акторов и предметов собираются из вкладок, рядов, ячеек и drag-and-drop виджетов. Раскладка хранится в system.customTabs."></p></div>
+      <div class="card"><h3 data-bilingual data-en="Node graph automation" data-ru="Нодовая автоматизация"></h3><p data-bilingual data-en="Wire click actions, rolls, checks, resources, effects, items, quests, cards, AoE and events without writing JavaScript." data-ru="Связывайте клики, броски, проверки, ресурсы, эффекты, предметы, квесты, карты, AoE и события без JavaScript."></p></div>
+      <div class="card"><h3 data-bilingual data-en="Foundry-native data" data-ru="Foundry-native данные"></h3><p data-bilingual data-en="Uses Foundry TypeDataModel, Actor/Item documents, ActiveEffect, ChatMessage, Regions, Cards, Hooks and sockets." data-ru="Использует Foundry TypeDataModel, Actor/Item documents, ActiveEffect, ChatMessage, Regions, Cards, Hooks и sockets."></p></div>
+      <div class="card"><h3 data-bilingual data-en="System building blocks" data-ru="Блоки для своей системы"></h3><p data-bilingual data-en="Attributes, skills, resources, hidden fields, slots, inventories, spell slots, Action HUD, quest logs, card hands and templates." data-ru="Характеристики, навыки, ресурсы, hidden fields, слоты, инвентарь, spell slots, Action HUD, quest logs, руки карт и шаблоны."></p></div>
     </div>
 
-    <h2 data-bilingual data-en="What's in the box" data-ru="Что внутри"></h2>
+    <h2 data-bilingual data-en="Recommended reading order" data-ru="Рекомендуемый порядок чтения"></h2>
+    <ol class="flow-steps">
+      <li data-bilingual data-en="Start with installation and first sheet in Getting started." data-ru="Начните с установки и первого листа на странице «С чего начать»."></li>
+      <li data-bilingual data-en="Read Concepts for document paths, hidden fields, slots, triggers and Foundry data model notes." data-ru="Прочитайте «Концепции»: пути документов, hidden fields, слоты, триггеры и заметки по Foundry data model."></li>
+      <li data-bilingual data-en="Use Widgets as the UI catalog: each card lists config fields, defaults, variants and style fields." data-ru="Используйте «Виджеты» как UI-каталог: поля настройки, defaults, variants и style-поля."></li>
+      <li data-bilingual data-en="Use Nodes as the technical reference: categories, pins, fields, flags and interaction rules." data-ru="Используйте «Ноды» как технический справочник: категории, пины, поля, флаги и правила взаимодействия."></li>
+      <li data-bilingual data-en="Use Examples as copyable graph recipes for common workflows." data-ru="Используйте «Примеры» как рецепты графов для типовых сценариев."></li>
+    </ol>
 
+    <h2 data-bilingual data-en="Quick links" data-ru="Быстрые ссылки"></h2>
     <div class="cards">
-      <div class="card">
-        <h3 data-bilingual data-en="Sheet builder" data-ru="Конструктор листов"></h3>
-        <p data-bilingual data-en="Tab-row-cell layout. Drag widgets onto the grid, span them across columns, group with vertical sections."
-                          data-ru="Сетка вкладки → ряды → ячейки. Перетаскиваете виджеты, растягиваете их по колонкам, группируете в вертикальные секции."></p>
-      </div>
-      <div class="card">
-        <h3 data-bilingual data-en="Per-widget styling" data-ru="Стиль каждого виджета"></h3>
-        <p data-bilingual data-en="Width, height, colors, borders, paddings — all in one popup. Reset button on every field."
-                          data-ru="Размеры, цвета, рамки, паддинги — всё в одном попапе. У каждого поля есть кнопка сброса."></p>
-      </div>
-      <div class="card">
-        <h3 data-bilingual data-en="Formula graphs" data-ru="Нодовые графы"></h3>
-        <p data-bilingual data-en="Bind a graph to any clickable widget — Use buttons, dice, action buttons, even number-step ±. Graphs run on click and can chain through dialogs, branches, loops."
-                          data-ru="К любому кликабельному виджету привязывается граф — Use-кнопки, броски кубов, action-кнопки, даже шаги ± у числа. Граф исполняется по клику, поддерживает диалоги, ветвления и циклы."></p>
-      </div>
-      <div class="card">
-        <h3 data-bilingual data-en="Pin types" data-ru="Типизация пинов"></h3>
-        <p data-bilingual data-en="Number, String, Bool, Path, UUID, Actor, Item, Token, Array, Any. The editor only allows compatible connections."
-                          data-ru="Number, String, Bool, Path, UUID, Actor, Item, Token, Array, Any. Редактор разрешает только совместимые соединения."></p>
-        <div class="pin-legend" id="pin-legend"></div>
-      </div>
+      <div class="card"><h3 data-i18n="ui.nav.start"></h3><p data-bilingual data-en="Install, create a world, open the builder, build a first sheet and graph." data-ru="Установка, создание мира, открытие конструктора, первый лист и граф."></p><a class="btn" href="getting-started.html" data-bilingual data-en="Open" data-ru="Открыть"></a></div>
+      <div class="card"><h3 data-i18n="ui.nav.concepts"></h3><p data-bilingual data-en="Core architecture: documents, paths, slots, hidden fields, triggers, Action HUD and Foundry APIs." data-ru="Архитектура: documents, paths, slots, hidden fields, triggers, Action HUD и Foundry API."></p><a class="btn" href="concepts.html" data-bilingual data-en="Open" data-ru="Открыть"></a></div>
+      <div class="card"><h3 data-i18n="ui.nav.widgets"></h3><p data-bilingual data-en="All widget types rendered from current code definitions." data-ru="Все типы виджетов из текущих code definitions."></p><a class="btn" href="widgets.html" data-bilingual data-en="Browse" data-ru="Перейти"></a></div>
+      <div class="card"><h3 data-i18n="ui.nav.nodes"></h3><p data-bilingual data-en="Full node catalog, rewritten for the current graph system." data-ru="Полный каталог нод, переписанный под текущую систему графов."></p><a class="btn" href="nodes.html" data-bilingual data-en="Browse" data-ru="Перейти"></a></div>
+      <div class="card"><h3 data-i18n="ui.nav.examples"></h3><p data-bilingual data-en="Recipes for rolls, damage, slots, AoE, events, quests and cards." data-ru="Рецепты для бросков, урона, слотов, AoE, событий, квестов и карт."></p><a class="btn" href="examples.html" data-bilingual data-en="Browse" data-ru="Перейти"></a></div>
     </div>
-
-    <h2 data-bilingual data-en="Node kinds" data-ru="Виды нод"></h2>
-    <p data-bilingual data-en="Every node has a kind that affects its color and how it behaves:"
-                      data-ru="У каждой ноды есть «вид», влияющий на цвет акцента и поведение:"></p>
-    <table class="grid">
-      <thead><tr>
-        <th data-bilingual data-en="Kind" data-ru="Вид"></th>
-        <th data-bilingual data-en="Color" data-ru="Цвет"></th>
-        <th data-bilingual data-en="Description" data-ru="Описание"></th>
-      </tr></thead>
-      <tbody>
-        <tr><td><span class="kind-badge" style="--c:#3aa87a">Pure</span></td>
-            <td><code>#3aa87a</code></td>
-            <td data-bilingual data-en="Computation only — no side effects. Math, comparisons, getters, etc."
-                                data-ru="Только вычисление — без побочных эффектов. Math, сравнения, геттеры и т.п."></td></tr>
-        <tr><td><span class="kind-badge" style="--c:#e08a2a">Imperative</span></td>
-            <td><code>#e08a2a</code></td>
-            <td data-bilingual data-en="Performs an action: damage, heal, apply effect, modify field, dialog…"
-                                data-ru="Выполняет действие: урон, лечение, эффект, изменение поля, диалог…"></td></tr>
-        <tr><td><span class="kind-badge" style="--c:#d04040">Event</span></td>
-            <td><code>#d04040</code></td>
-            <td data-bilingual data-en="Trigger node — fires on a Foundry event (turn start, damage taken, equip…)."
-                                data-ru="Триггер — срабатывает на событие Foundry (ход, получение урона, экипировка…)."></td></tr>
-      </tbody>
-    </table>
-
-    <h2 data-bilingual data-en="Repository" data-ru="Репозиторий"></h2>
-    <p>
-      <a href="https://github.com/phoenix1cold/system-director" target="_blank" rel="noopener">github.com/phoenix1cold/system-director</a>
-    </p>
   </main>
-
-  <footer class="site">
-    <span data-bilingual
-          data-en="Generated from System Director source — node and widget data are extracted from formula-graph.mjs &amp; widget-registry.mjs."
-          data-ru="Сгенерировано из исходников System Director — данные нод и виджетов извлечены из formula-graph.mjs и widget-registry.mjs."></span>
-  </footer>
-
+  <footer class="site">© System Director Wiki</footer>
   <script type="module">
-    import { bootPage } from "./js/main.js";
-    import { pickLocale } from "./js/i18n.js";
+    import { bootPage } from './js/main.js';
+    import { pickLocale } from './js/i18n.js';
     await bootPage();
-
-    // Build the pin-type legend.
-    const r = await fetch("data/i18n.json");
-    const i18n = await r.json();
-    const legend = document.getElementById("pin-legend");
-    if (legend) {
-      for (const [key, info] of Object.entries(i18n.pinTypes)) {
-        const tag = document.createElement("span");
-        tag.className = "pin-tag";
-        tag.style.cssText = `--c:${info.color}`;
-        tag.innerHTML = `<span class="dot"></span><span>${pickLocale(info)}</span>`;
-        legend.appendChild(tag);
-      }
-    }
+    const [nodes, widgets, byCat] = await Promise.all([
+      fetch('data/nodes.json').then(r=>r.json()),
+      fetch('data/widgets.json').then(r=>r.json()),
+      fetch('data/nodes-by-category.json').then(r=>r.json())
+    ]);
+    const stats = document.getElementById('stats');
+    const cards = [
+      [Object.keys(widgets).length, {en:'Widgets',ru:'Виджетов'}],
+      [Object.keys(nodes).length, {en:'Node definitions',ru:'Определений нод'}],
+      [Object.keys(byCat).length, {en:'Node categories',ru:'Категорий нод'}],
+      [Object.values(nodes).filter(n=>n.isEvent||n.isTrigger).length, {en:'Event/trigger nodes',ru:'Event/trigger нод'}]
+    ];
+    function renderStats(){ stats.innerHTML=''; for (const [num,lbl] of cards){ const el=document.createElement('div'); el.className='stat-card'; el.innerHTML=`<div class="num">${num}</div><div class="lbl">${pickLocale(lbl)}</div>`; stats.appendChild(el);} }
+    renderStats(); window.addEventListener('sd:lang-change', renderStats);
   </script>
 </body>
 </html>

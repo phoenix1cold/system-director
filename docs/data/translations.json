@@ -1,127 +1,874 @@
 {
   "_comment": "Russian translations for node titles + descriptions and widget descriptions. Falls back to English (the source-of-truth) when a key is missing.",
-
   "widgets": {
-    "text":      { "label": { "ru": "Текстовое поле" }, "desc": { "ru": "Однострочное текстовое поле, привязанное к пути на документе." } },
-    "number":    { "label": { "ru": "Число ±" },        "desc": { "ru": "Числовое поле с кнопками −/+." } },
-    "counter":   { "label": { "ru": "Счётчик" },        "desc": { "ru": "Локальный счётчик ±, не привязанный к данным актёра." } },
-    "resource":  { "label": { "ru": "Ресурс (полоска)" }, "desc": { "ru": "Текущее/максимум + цветная полоска (HP, мана, выносливость и т.п.)." } },
-    "dice":      { "label": { "ru": "Кнопка броска" }, "desc": { "ru": "Кликабельный бросок кости (1d20, 2d6+3 и т.п.)." } },
-    "toggle":    { "label": { "ru": "Переключатель" }, "desc": { "ru": "Чекбокс / свитч с подписями On/Off." } },
-    "slot":      { "label": { "ru": "Слот предмета" }, "desc": { "ru": "Слот для предметов с фильтрами по типу/категории и лимитом." } },
-    "inventory": { "label": { "ru": "Инвентарь" },     "desc": { "ru": "Таблица предметов с фильтрами, валютой и весом." } },
-    "effects":   { "label": { "ru": "Эффекты" },       "desc": { "ru": "Список Active Effects с тогглом / редактированием / удалением." } },
-    "spellbook": { "label": { "ru": "Книга заклинаний" }, "desc": { "ru": "Список ability-предметов отфильтрованных по типу." } },
-    "attribute": { "label": { "ru": "Атрибут" },       "desc": { "ru": "Атрибут с числом, модификатором и кнопкой броска." } },
-    "skill":     { "label": { "ru": "Навык" },         "desc": { "ru": "Поле навыка/умения с кнопкой ролла." } },
-    "section":   { "label": { "ru": "Секция (заголовок)" }, "desc": { "ru": "Горизонтальный разделитель с заголовком." } },
-    "vsection":  { "label": { "ru": "Вертикальная группа" }, "desc": { "ru": "Контейнер-группа, в которую можно вкладывать другие виджеты." } },
-    "button":    { "label": { "ru": "Кнопка действия" }, "desc": { "ru": "Произвольная кнопка, выполняющая нодовый граф при клике." } },
-    "rollButton":{ "label": { "ru": "Кнопка ролла" },   "desc": { "ru": "Кнопка с готовой формулой ролла." } },
-    "richtext":  { "label": { "ru": "Текстовая заметка" }, "desc": { "ru": "Многострочное текстовое поле с разметкой." } },
-    "progress":  { "label": { "ru": "Прогресс-бар" },  "desc": { "ru": "Простая полоска прогресса (без ввода)." } },
-    "select":    { "label": { "ru": "Выпадающий список" }, "desc": { "ru": "Список вариантов, привязанный к пути." } },
-    "clock":     { "label": { "ru": "Часы" },          "desc": { "ru": "Сегментные часы (как progress clock в PbtA-играх)." } },
-    "tracker":   { "label": { "ru": "Трекер (точки)" }, "desc": { "ru": "Точечный трекер: заполненные / пустые пипсы." } },
-    "tokenPool": { "label": { "ru": "Пул токенов" },   "desc": { "ru": "Пулл токенов: тратятся / накапливаются по клику." } },
-    "diceTray":  { "label": { "ru": "Поднос для костей" }, "desc": { "ru": "Несколько кубиков, бросаются одной кнопкой." } },
-    "tags":      { "label": { "ru": "Теги" },          "desc": { "ru": "Набор тегов / меток." } },
-    "image":     { "label": { "ru": "Изображение" },   "desc": { "ru": "Картинка-портрет (статичная или из пути на акторе)." } },
-    "counter":   { "label": { "ru": "Счётчик" },       "desc": { "ru": "Локальный счётчик." } },
-    "derived":   { "label": { "ru": "Производное значение" }, "desc": { "ru": "Read-only вычисляемое поле (формула / выход графа)." } }
+    "text": {
+      "label": {
+        "ru": "Текстовое поле"
+      },
+      "desc": {
+        "ru": "Однострочное текстовое поле, привязанное к пути на документе."
+      }
+    },
+    "number": {
+      "label": {
+        "ru": "Число ±"
+      },
+      "desc": {
+        "ru": "Числовое поле с кнопками −/+."
+      }
+    },
+    "counter": {
+      "label": {
+        "ru": "Счётчик"
+      },
+      "desc": {
+        "ru": "Локальный счётчик."
+      }
+    },
+    "resource": {
+      "label": {
+        "ru": "Ресурс (полоска)"
+      },
+      "desc": {
+        "ru": "Текущее/максимум + цветная полоска (HP, мана, выносливость и т.п.)."
+      }
+    },
+    "dice": {
+      "label": {
+        "ru": "Кнопка броска"
+      },
+      "desc": {
+        "ru": "Кликабельный бросок кости (1d20, 2d6+3 и т.п.)."
+      }
+    },
+    "toggle": {
+      "label": {
+        "ru": "Переключатель"
+      },
+      "desc": {
+        "ru": "Чекбокс / свитч с подписями On/Off."
+      }
+    },
+    "slot": {
+      "label": {
+        "ru": "Слот предмета"
+      },
+      "desc": {
+        "ru": "Слот для предметов с фильтрами по типу/категории и лимитом."
+      }
+    },
+    "inventory": {
+      "label": {
+        "ru": "Инвентарь"
+      },
+      "desc": {
+        "ru": "Таблица предметов с фильтрами, валютой и весом."
+      }
+    },
+    "effects": {
+      "label": {
+        "ru": "Эффекты"
+      },
+      "desc": {
+        "ru": "Список Active Effects с тогглом / редактированием / удалением."
+      }
+    },
+    "spellbook": {
+      "label": {
+        "ru": "Книга заклинаний"
+      },
+      "desc": {
+        "ru": "Список ability-предметов отфильтрованных по типу."
+      }
+    },
+    "attribute": {
+      "label": {
+        "ru": "Атрибут"
+      },
+      "desc": {
+        "ru": "Атрибут с числом, модификатором и кнопкой броска."
+      }
+    },
+    "skill": {
+      "label": {
+        "ru": "Навык"
+      },
+      "desc": {
+        "ru": "Поле навыка/умения с кнопкой ролла."
+      }
+    },
+    "section": {
+      "label": {
+        "ru": "Секция (заголовок)"
+      },
+      "desc": {
+        "ru": "Горизонтальный разделитель с заголовком."
+      }
+    },
+    "vsection": {
+      "label": {
+        "ru": "Вертикальная группа"
+      },
+      "desc": {
+        "ru": "Контейнер-группа, в которую можно вкладывать другие виджеты."
+      }
+    },
+    "button": {
+      "label": {
+        "ru": "Кнопка действия"
+      },
+      "desc": {
+        "ru": "Произвольная кнопка, выполняющая нодовый граф при клике."
+      }
+    },
+    "rollButton": {
+      "label": {
+        "ru": "Кнопка ролла"
+      },
+      "desc": {
+        "ru": "Кнопка с готовой формулой ролла."
+      }
+    },
+    "richtext": {
+      "label": {
+        "ru": "Текстовая заметка"
+      },
+      "desc": {
+        "ru": "Многострочное текстовое поле с разметкой."
+      }
+    },
+    "progress": {
+      "label": {
+        "ru": "Прогресс-бар"
+      },
+      "desc": {
+        "ru": "Простая полоска прогресса (без ввода)."
+      }
+    },
+    "select": {
+      "label": {
+        "ru": "Выпадающий список"
+      },
+      "desc": {
+        "ru": "Список вариантов, привязанный к пути."
+      }
+    },
+    "clock": {
+      "label": {
+        "ru": "Часы"
+      },
+      "desc": {
+        "ru": "Сегментные часы (как progress clock в PbtA-играх)."
+      }
+    },
+    "tracker": {
+      "label": {
+        "ru": "Трекер (точки)"
+      },
+      "desc": {
+        "ru": "Точечный трекер: заполненные / пустые пипсы."
+      }
+    },
+    "tokenPool": {
+      "label": {
+        "ru": "Пул токенов"
+      },
+      "desc": {
+        "ru": "Пулл токенов: тратятся / накапливаются по клику."
+      }
+    },
+    "diceTray": {
+      "label": {
+        "ru": "Поднос для костей"
+      },
+      "desc": {
+        "ru": "Несколько кубиков, бросаются одной кнопкой."
+      }
+    },
+    "tags": {
+      "label": {
+        "ru": "Теги"
+      },
+      "desc": {
+        "ru": "Набор тегов / меток."
+      }
+    },
+    "image": {
+      "label": {
+        "ru": "Изображение"
+      },
+      "desc": {
+        "ru": "Картинка-портрет (статичная или из пути на акторе)."
+      }
+    },
+    "derived": {
+      "label": {
+        "ru": "Производное значение"
+      },
+      "desc": {
+        "ru": "Read-only вычисляемое поле (формула / выход графа)."
+      }
+    },
+    "attributeGroup": {
+      "label": {
+        "ru": "Группа характеристик"
+      },
+      "desc": {
+        "ru": "Компактная кнопка с popover-списком характеристик."
+      }
+    },
+    "cardHand": {
+      "label": {
+        "ru": "Рука карт"
+      },
+      "desc": {
+        "ru": "Визуализатор Foundry Cards hand/deck с кликами по картам."
+      }
+    },
+    "questMarker": {
+      "label": {
+        "ru": "Маркер квеста"
+      },
+      "desc": {
+        "ru": "Показывает активный квест актора и ссылку на quest log."
+      }
+    },
+    "cardDrawButton": {
+      "label": {
+        "ru": "Кнопка добора карт"
+      },
+      "desc": {
+        "ru": "Тянет карты из deck в hand/pile."
+      }
+    }
   },
-
   "nodeKinds": {
-    "pure":       { "ru": "Чистое вычисление — без побочных эффектов." },
-    "imperative": { "ru": "Императивное — выполняет действие при срабатывании exec-цепочки." },
-    "event":      { "ru": "Событие — срабатывает, когда что-то произошло (обновление поля, ход, эффект и т.д.)." }
+    "pure": {
+      "ru": "Чистое вычисление — без побочных эффектов."
+    },
+    "imperative": {
+      "ru": "Императивное — выполняет действие при срабатывании exec-цепочки."
+    },
+    "event": {
+      "ru": "Событие — срабатывает, когда что-то произошло (обновление поля, ход, эффект и т.д.)."
+    }
   },
-
   "nodes": {
-    "output":              { "title": { "ru": "Выход (формула / exec)" },        "desc": { "ru": "Конечная точка графа: подключите числовое значение ИЛИ exec-цепочку. Используйте Branch для разветвления." } },
-    "attr_score_val":      { "title": { "ru": "Значение характеристики" },        "desc": { "ru": "Текущее значение этой характеристики (только чтение, доступно в graph'ах атрибутов)." } },
-    "attr_output":         { "title": { "ru": "Выход атрибута" },                 "desc": { "ru": "Выход виджета Attribute. modValue → что показывает кнопка модификатора и что бросает; exec → что произойдёт по клику." } },
-    "branch":              { "title": { "ru": "Branch (если/иначе)" },            "desc": { "ru": "Если Condition = TRUE — идёт по True; иначе — по False." } },
-    "on_click":            { "title": { "ru": "On Click (вход)" },                "desc": { "ru": "Точка входа — срабатывает по клику Use на предмете. Подключите exec выход к цепочке действий." } },
-    "sequence":            { "title": { "ru": "Sequence (последовательность)" },  "desc": { "ru": "Запускает N exec-веток строго по очереди (1 → 2 → … → N). Подключённое + 1 — минимально безопасное `count`." } },
-    "literal":             { "title": { "ru": "Число (константа)" },              "desc": { "ru": "Числовая константа." } },
-    "literal_str":         { "title": { "ru": "Строка (константа)" },             "desc": { "ru": "Текстовая константа." } },
-    "get_path":            { "title": { "ru": "Get Path (читать поле)" },         "desc": { "ru": "Чтение любого поля актора/предмета по dot-пути." } },
-    "get_widget":          { "title": { "ru": "Get Widget (читать виджет)" },     "desc": { "ru": "Текущее вычисленное значение другого виджета по его Widget Key." } },
-    "get_widget_path":     { "title": { "ru": "Get Widget Path" },                "desc": { "ru": "Возвращает data-path привязанный к виджету (system.flags.hp и т.п.). Передайте в Set Field / Modify, чтобы менять значение виджета из графа." } },
-    "actor_ref":           { "title": { "ru": "Actor Ref (@-ссылки)" },           "desc": { "ru": "Сокращения из rollData: @attr1=attr1.mod, @level, @prof." } },
-    "slot_count":          { "title": { "ru": "Slot Count (количество в слоте)" }, "desc": { "ru": "Считает предметы в слоте. Слот выбирается dropdown'ом или подаётся через Get Actor Slot ID." } },
-    "slot_field":          { "title": { "ru": "Slot Field (поле в слоте)" },     "desc": { "ru": "Поле предмета по индексу внутри слота (0 = первый)." } },
-    "item_uuid":           { "title": { "ru": "Item UUID Field" },               "desc": { "ru": "Перетащите предмет из боковой панели — получите его UUID и читайте поле." } },
-    "tok_field":           { "title": { "ru": "Token Field (поле токена)" },     "desc": { "ru": "Читает поле акторя у первого таргеченного/выбранного токена." } },
-
-    "dice":                { "title": { "ru": "Бросок кубиков" },                 "desc": { "ru": "Бросает кости и возвращает число. Если включён Roll Dialog — открывается выбор Disadvantage/Normal/Advantage." } },
-    "act_damage":          { "title": { "ru": "Apply Damage (нанести урон)" },    "desc": { "ru": "Применяет урон к HP цели. Читает system.resistances[damageType] и масштабирует (immune=×0, resist=×0.5, vulnerable=×2). halfOnSave × savePassed = половина при успехе. Targets от AoE Save = применить к выбранным." } },
-    "act_heal":            { "title": { "ru": "Apply Healing (лечение)" },        "desc": { "ru": "Лечит HP цели. postToChat:yes → карточка в чат с кнопкой Apply. autoApply:yes → пост в чат и сразу применить. postToChat:no → молча." } },
-    "act_effect":          { "title": { "ru": "Apply Effect (эффект)" },          "desc": { "ru": "Создаёт или переключает Active Effect на акторе/цели. Changes: JSON [{key,value,mode}], где mode 2=Add 5=Override." } },
-    "act_effect_uuid":     { "title": { "ru": "Apply Effect by UUID" },           "desc": { "ru": "Применяет существующий Active Effect к актору/цели по UUID. Выбор из dropdown'а — UUID подставляется автоматически." } },
-
-    "act_create_effect":   { "title": { "ru": "Create Effect (создать эффект)" }, "desc": { "ru": "Создаёт Active Effect на цели с заданными changes/duration." } },
-    "act_apply_status":    { "title": { "ru": "Apply Status (статус)" },          "desc": { "ru": "Накладывает статус-эффект (poisoned, prone и т.п.) по id." } },
-    "act_remove_effect":   { "title": { "ru": "Remove Effect" },                  "desc": { "ru": "Удаляет Active Effect с цели по имени или UUID." } },
-    "act_toggle_effect":   { "title": { "ru": "Toggle Effect" },                  "desc": { "ru": "Включает / выключает существующий эффект." } },
-    "has_effect":          { "title": { "ru": "Has Effect (есть ли эффект)" },    "desc": { "ru": "Возвращает true/false — есть ли указанный эффект на цели." } },
-
-    "act_consume_resource":{ "title": { "ru": "Consume Resource" },               "desc": { "ru": "Тратит ресурс актора (HP, мана, выносливость и т.п.) на заданную величину." } },
-    "act_set_initiative":  { "title": { "ru": "Set Initiative" },                 "desc": { "ru": "Устанавливает инициативу токена в текущем энкаунтере." } },
-    "act_message":         { "title": { "ru": "Chat Message" },                   "desc": { "ru": "Отправляет сообщение в чат." } },
-    "act_notify":          { "title": { "ru": "Notification (тост)" },            "desc": { "ru": "Показывает уведомление (info/warn/error) в правом нижнем углу." } },
-    "act_play_sound":      { "title": { "ru": "Play Sound" },                     "desc": { "ru": "Воспроизводит звук." } },
-    "act_run_macro":       { "title": { "ru": "Run Macro" },                      "desc": { "ru": "Выполняет макрос Foundry." } },
-
-    "for_each_target":     { "title": { "ru": "For Each Target (по каждой цели)" }, "desc": { "ru": "Запускает тело цикла один раз на каждую таргеченную цель." } },
-    "act_for_each_token":  { "title": { "ru": "For Each Token" },                "desc": { "ru": "Цикл по токенам из comma-списка (Saved[]/Failed[]/All[]). На каждой итерации {__currentTarget} = текущий id, {__loopIndex} = i." } },
-    "while_loop":          { "title": { "ru": "While Loop" },                    "desc": { "ru": "Цикл с условием. Тело выполняется, пока Condition = TRUE." } },
-    "switch_node":         { "title": { "ru": "Switch (мульти-ветка)" },         "desc": { "ru": "Выбор одной из 2-8 веток по числу/строке." } },
-    "dialog_switch":       { "title": { "ru": "Dialog Switch (диалог)" },        "desc": { "ru": "Открывает диалог с 2-8 кнопками; каждая ведёт к своему exec-выходу." } },
-    "dialog_select_array": { "title": { "ru": "Dialog Select (массив)" },        "desc": { "ru": "Открывает диалог с кнопкой на каждый элемент массива. Выход Selected — выбранный элемент, Index — его номер." } },
-    "dialog_text_input":   { "title": { "ru": "Dialog: ввод текста" },           "desc": { "ru": "Открывает текстовое поле. Выход Text — введённая строка." } },
-    "dialog_confirm":      { "title": { "ru": "Dialog: подтверждение" },         "desc": { "ru": "Открывает Yes/No диалог. Один exec-выход активируется при выборе." } },
-
-    "get_self":            { "title": { "ru": "Get Self (этот документ)" },     "desc": { "ru": "Текущий документ (актор / предмет, на котором запущен граф)." } },
-    "get_actor":           { "title": { "ru": "Get Actor (актор)" },             "desc": { "ru": "Owning actor — актёр предмета, или сам актор для actor sheet." } },
-    "get_target":          { "title": { "ru": "Get Target (первый таргет)" },    "desc": { "ru": "Первый таргеченный токен (его актор)." } },
-    "get_selected_token":  { "title": { "ru": "Get Selected Token" },           "desc": { "ru": "Первый выбранный токен." } },
-    "get_all_targets":     { "title": { "ru": "Get All Targets (все цели)" },    "desc": { "ru": "Массив всех таргеченных токенов." } },
-    "get_player_actors":   { "title": { "ru": "Get Player Actors" },             "desc": { "ru": "Массив акторов всех игроков. Поля: только онлайн, включать GM." } },
-    "get_user_character":  { "title": { "ru": "Get User Character" },            "desc": { "ru": "Назначенный персонаж текущего пользователя (game.user.character)." } },
-    "cast_to_actor":       { "title": { "ru": "Cast to Actor" },                 "desc": { "ru": "Преобразует UUID/токен в Actor." } },
-    "cast_to_item":        { "title": { "ru": "Cast to Item" },                  "desc": { "ru": "Преобразует UUID в Item." } },
-
-    "add":                 { "title": { "ru": "Add (сложение)" },                "desc": { "ru": "Сумма всех входов A + B + … (динамические пины)." } },
-    "sub":                 { "title": { "ru": "Sub (вычитание)" },               "desc": { "ru": "A − B − C − … (последовательное вычитание)." } },
-    "mul":                 { "title": { "ru": "Mul (умножение)" },               "desc": { "ru": "A × B × C × ..." } },
-    "div":                 { "title": { "ru": "Div (деление)" },                 "desc": { "ru": "A / B (деление с плавающей точкой)." } },
-    "floor":               { "title": { "ru": "Floor (округ. вниз)" },          "desc": { "ru": "Округление вниз до целого." } },
-    "ceil":                { "title": { "ru": "Ceil (округ. вверх)" },          "desc": { "ru": "Округление вверх до целого." } },
-    "round":               { "title": { "ru": "Round (округление)" },           "desc": { "ru": "Стандартное округление." } },
-    "max2":                { "title": { "ru": "Max (максимум)" },               "desc": { "ru": "Возвращает большее из A и B." } },
-    "min2":                { "title": { "ru": "Min (минимум)" },                "desc": { "ru": "Возвращает меньшее из A и B." } },
-    "abs":                 { "title": { "ru": "Abs (модуль)" },                 "desc": { "ru": "Абсолютное значение |x|." } },
-    "clamp":               { "title": { "ru": "Clamp (зажать)" },               "desc": { "ru": "Зажимает x в диапазон [min, max]." } },
-    "mod":                 { "title": { "ru": "Mod (остаток)" },                "desc": { "ru": "Остаток от деления A / B." } },
-    "pow":                 { "title": { "ru": "Pow (степень)" },                "desc": { "ru": "A в степени B." } },
-    "sign":                { "title": { "ru": "Sign (знак)" },                  "desc": { "ru": "Знак числа: −1 / 0 / +1." } },
-
-    "eq":  { "title": { "ru": "Equal (равно)" },     "desc": { "ru": "A == B" } },
-    "neq": { "title": { "ru": "Not Equal" },          "desc": { "ru": "A != B" } },
-    "gt":  { "title": { "ru": "Greater (>)" },        "desc": { "ru": "A > B" } },
-    "lt":  { "title": { "ru": "Less (<)" },           "desc": { "ru": "A < B" } },
-    "gte": { "title": { "ru": "Greater or Equal" },   "desc": { "ru": "A >= B" } },
-    "lte": { "title": { "ru": "Less or Equal" },      "desc": { "ru": "A <= B" } },
-    "and": { "title": { "ru": "AND (и)" },           "desc": { "ru": "Логическое И всех входов." } },
-    "or":  { "title": { "ru": "OR (или)" },          "desc": { "ru": "Логическое ИЛИ всех входов." } },
-    "not": { "title": { "ru": "NOT (не)" },          "desc": { "ru": "Логическое отрицание." } },
-
-    "arr_length":   { "title": { "ru": "Длина массива" },  "desc": { "ru": "Количество элементов в массиве." } },
-    "arr_at":       { "title": { "ru": "At (по индексу)" }, "desc": { "ru": "N-ый элемент массива (0-based)." } },
-    "arr_filter":   { "title": { "ru": "Filter (фильтр)" }, "desc": { "ru": "Оставляет только элементы, удовлетворяющие условию." } },
-    "arr_sort":     { "title": { "ru": "Sort (сортировка)" }, "desc": { "ru": "Сортирует массив по полю." } },
-    "arr_concat":   { "title": { "ru": "Concat (объединение)" }, "desc": { "ru": "Объединяет массивы." } }
+    "output": {
+      "title": {
+        "ru": "Выход (формула / exec)"
+      },
+      "desc": {
+        "ru": "Конечная точка графа: подключите числовое значение ИЛИ exec-цепочку. Используйте Branch для разветвления."
+      }
+    },
+    "attr_score_val": {
+      "title": {
+        "ru": "Значение характеристики"
+      },
+      "desc": {
+        "ru": "Текущее значение этой характеристики (только чтение, доступно в graph'ах атрибутов)."
+      }
+    },
+    "attr_output": {
+      "title": {
+        "ru": "Выход атрибута"
+      },
+      "desc": {
+        "ru": "Выход виджета Attribute. modValue → что показывает кнопка модификатора и что бросает; exec → что произойдёт по клику."
+      }
+    },
+    "branch": {
+      "title": {
+        "ru": "Branch (если/иначе)"
+      },
+      "desc": {
+        "ru": "Если Condition = TRUE — идёт по True; иначе — по False."
+      }
+    },
+    "on_click": {
+      "title": {
+        "ru": "On Click (вход)"
+      },
+      "desc": {
+        "ru": "Точка входа — срабатывает по клику Use на предмете. Подключите exec выход к цепочке действий."
+      }
+    },
+    "sequence": {
+      "title": {
+        "ru": "Sequence (последовательность)"
+      },
+      "desc": {
+        "ru": "Запускает N exec-веток строго по очереди (1 → 2 → … → N). Подключённое + 1 — минимально безопасное `count`."
+      }
+    },
+    "literal": {
+      "title": {
+        "ru": "Число (константа)"
+      },
+      "desc": {
+        "ru": "Числовая константа."
+      }
+    },
+    "literal_str": {
+      "title": {
+        "ru": "Строка (константа)"
+      },
+      "desc": {
+        "ru": "Текстовая константа."
+      }
+    },
+    "get_path": {
+      "title": {
+        "ru": "Get Path (читать поле)"
+      },
+      "desc": {
+        "ru": "Чтение любого поля актора/предмета по dot-пути."
+      }
+    },
+    "get_widget": {
+      "title": {
+        "ru": "Get Widget (читать виджет)"
+      },
+      "desc": {
+        "ru": "Текущее вычисленное значение другого виджета по его Widget Key."
+      }
+    },
+    "get_widget_path": {
+      "title": {
+        "ru": "Get Widget Path"
+      },
+      "desc": {
+        "ru": "Возвращает data-path привязанный к виджету (system.flags.hp и т.п.). Передайте в Set Field / Modify, чтобы менять значение виджета из графа."
+      }
+    },
+    "actor_ref": {
+      "title": {
+        "ru": "Actor Ref (@-ссылки)"
+      },
+      "desc": {
+        "ru": "Сокращения из rollData: @attr1=attr1.mod, @level, @prof."
+      }
+    },
+    "slot_count": {
+      "title": {
+        "ru": "Slot Count (количество в слоте)"
+      },
+      "desc": {
+        "ru": "Считает предметы в слоте. Слот выбирается dropdown'ом или подаётся через Get Actor Slot ID."
+      }
+    },
+    "slot_field": {
+      "title": {
+        "ru": "Slot Field (поле в слоте)"
+      },
+      "desc": {
+        "ru": "Поле предмета по индексу внутри слота (0 = первый)."
+      }
+    },
+    "item_uuid": {
+      "title": {
+        "ru": "Item UUID Field"
+      },
+      "desc": {
+        "ru": "Перетащите предмет из боковой панели — получите его UUID и читайте поле."
+      }
+    },
+    "tok_field": {
+      "title": {
+        "ru": "Token Field (поле токена)"
+      },
+      "desc": {
+        "ru": "Читает поле акторя у первого таргеченного/выбранного токена."
+      }
+    },
+    "dice": {
+      "title": {
+        "ru": "Бросок кубиков"
+      },
+      "desc": {
+        "ru": "Бросает кости и возвращает число. Если включён Roll Dialog — открывается выбор Disadvantage/Normal/Advantage."
+      }
+    },
+    "act_damage": {
+      "title": {
+        "ru": "Apply Damage (нанести урон)"
+      },
+      "desc": {
+        "ru": "Применяет урон к HP цели. Читает system.resistances[damageType] и масштабирует (immune=×0, resist=×0.5, vulnerable=×2). halfOnSave × savePassed = половина при успехе. Targets от AoE Save = применить к выбранным."
+      }
+    },
+    "act_heal": {
+      "title": {
+        "ru": "Apply Healing (лечение)"
+      },
+      "desc": {
+        "ru": "Лечит HP цели. postToChat:yes → карточка в чат с кнопкой Apply. autoApply:yes → пост в чат и сразу применить. postToChat:no → молча."
+      }
+    },
+    "act_effect": {
+      "title": {
+        "ru": "Apply Effect (эффект)"
+      },
+      "desc": {
+        "ru": "Создаёт или переключает Active Effect на акторе/цели. Changes: JSON [{key,value,mode}], где mode 2=Add 5=Override."
+      }
+    },
+    "act_effect_uuid": {
+      "title": {
+        "ru": "Apply Effect by UUID"
+      },
+      "desc": {
+        "ru": "Применяет существующий Active Effect к актору/цели по UUID. Выбор из dropdown'а — UUID подставляется автоматически."
+      }
+    },
+    "act_create_effect": {
+      "title": {
+        "ru": "Create Effect (создать эффект)"
+      },
+      "desc": {
+        "ru": "Создаёт Active Effect на цели с заданными changes/duration."
+      }
+    },
+    "act_apply_status": {
+      "title": {
+        "ru": "Apply Status (статус)"
+      },
+      "desc": {
+        "ru": "Накладывает статус-эффект (poisoned, prone и т.п.) по id."
+      }
+    },
+    "act_remove_effect": {
+      "title": {
+        "ru": "Remove Effect"
+      },
+      "desc": {
+        "ru": "Удаляет Active Effect с цели по имени или UUID."
+      }
+    },
+    "act_toggle_effect": {
+      "title": {
+        "ru": "Toggle Effect"
+      },
+      "desc": {
+        "ru": "Включает / выключает существующий эффект."
+      }
+    },
+    "has_effect": {
+      "title": {
+        "ru": "Has Effect (есть ли эффект)"
+      },
+      "desc": {
+        "ru": "Возвращает true/false — есть ли указанный эффект на цели."
+      }
+    },
+    "act_consume_resource": {
+      "title": {
+        "ru": "Consume Resource"
+      },
+      "desc": {
+        "ru": "Тратит ресурс актора (HP, мана, выносливость и т.п.) на заданную величину."
+      }
+    },
+    "act_set_initiative": {
+      "title": {
+        "ru": "Set Initiative"
+      },
+      "desc": {
+        "ru": "Устанавливает инициативу токена в текущем энкаунтере."
+      }
+    },
+    "act_message": {
+      "title": {
+        "ru": "Chat Message"
+      },
+      "desc": {
+        "ru": "Отправляет сообщение в чат."
+      }
+    },
+    "act_notify": {
+      "title": {
+        "ru": "Notification (тост)"
+      },
+      "desc": {
+        "ru": "Показывает уведомление (info/warn/error) в правом нижнем углу."
+      }
+    },
+    "act_play_sound": {
+      "title": {
+        "ru": "Play Sound"
+      },
+      "desc": {
+        "ru": "Воспроизводит звук."
+      }
+    },
+    "act_run_macro": {
+      "title": {
+        "ru": "Run Macro"
+      },
+      "desc": {
+        "ru": "Выполняет макрос Foundry."
+      }
+    },
+    "for_each_target": {
+      "title": {
+        "ru": "For Each Target (по каждой цели)"
+      },
+      "desc": {
+        "ru": "Запускает тело цикла один раз на каждую таргеченную цель."
+      }
+    },
+    "act_for_each_token": {
+      "title": {
+        "ru": "For Each Token"
+      },
+      "desc": {
+        "ru": "Цикл по токенам из comma-списка (Saved[]/Failed[]/All[]). На каждой итерации {__currentTarget} = текущий id, {__loopIndex} = i."
+      }
+    },
+    "while_loop": {
+      "title": {
+        "ru": "While Loop"
+      },
+      "desc": {
+        "ru": "Цикл с условием. Тело выполняется, пока Condition = TRUE."
+      }
+    },
+    "switch_node": {
+      "title": {
+        "ru": "Switch (мульти-ветка)"
+      },
+      "desc": {
+        "ru": "Выбор одной из 2-8 веток по числу/строке."
+      }
+    },
+    "dialog_switch": {
+      "title": {
+        "ru": "Dialog Switch (диалог)"
+      },
+      "desc": {
+        "ru": "Открывает диалог с 2-8 кнопками; каждая ведёт к своему exec-выходу."
+      }
+    },
+    "dialog_select_array": {
+      "title": {
+        "ru": "Dialog Select (массив)"
+      },
+      "desc": {
+        "ru": "Открывает диалог с кнопкой на каждый элемент массива. Выход Selected — выбранный элемент, Index — его номер."
+      }
+    },
+    "dialog_text_input": {
+      "title": {
+        "ru": "Dialog: ввод текста"
+      },
+      "desc": {
+        "ru": "Открывает текстовое поле. Выход Text — введённая строка."
+      }
+    },
+    "dialog_confirm": {
+      "title": {
+        "ru": "Dialog: подтверждение"
+      },
+      "desc": {
+        "ru": "Открывает Yes/No диалог. Один exec-выход активируется при выборе."
+      }
+    },
+    "get_self": {
+      "title": {
+        "ru": "Get Self (этот документ)"
+      },
+      "desc": {
+        "ru": "Текущий документ (актор / предмет, на котором запущен граф)."
+      }
+    },
+    "get_actor": {
+      "title": {
+        "ru": "Get Actor (актор)"
+      },
+      "desc": {
+        "ru": "Owning actor — актёр предмета, или сам актор для actor sheet."
+      }
+    },
+    "get_target": {
+      "title": {
+        "ru": "Get Target (первый таргет)"
+      },
+      "desc": {
+        "ru": "Первый таргеченный токен (его актор)."
+      }
+    },
+    "get_selected_token": {
+      "title": {
+        "ru": "Get Selected Token"
+      },
+      "desc": {
+        "ru": "Первый выбранный токен."
+      }
+    },
+    "get_all_targets": {
+      "title": {
+        "ru": "Get All Targets (все цели)"
+      },
+      "desc": {
+        "ru": "Массив всех таргеченных токенов."
+      }
+    },
+    "get_player_actors": {
+      "title": {
+        "ru": "Get Player Actors"
+      },
+      "desc": {
+        "ru": "Массив акторов всех игроков. Поля: только онлайн, включать GM."
+      }
+    },
+    "get_user_character": {
+      "title": {
+        "ru": "Get User Character"
+      },
+      "desc": {
+        "ru": "Назначенный персонаж текущего пользователя (game.user.character)."
+      }
+    },
+    "cast_to_actor": {
+      "title": {
+        "ru": "Cast to Actor"
+      },
+      "desc": {
+        "ru": "Преобразует UUID/токен в Actor."
+      }
+    },
+    "cast_to_item": {
+      "title": {
+        "ru": "Cast to Item"
+      },
+      "desc": {
+        "ru": "Преобразует UUID в Item."
+      }
+    },
+    "add": {
+      "title": {
+        "ru": "Add (сложение)"
+      },
+      "desc": {
+        "ru": "Сумма всех входов A + B + … (динамические пины)."
+      }
+    },
+    "sub": {
+      "title": {
+        "ru": "Sub (вычитание)"
+      },
+      "desc": {
+        "ru": "A − B − C − … (последовательное вычитание)."
+      }
+    },
+    "mul": {
+      "title": {
+        "ru": "Mul (умножение)"
+      },
+      "desc": {
+        "ru": "A × B × C × ..."
+      }
+    },
+    "div": {
+      "title": {
+        "ru": "Div (деление)"
+      },
+      "desc": {
+        "ru": "A / B (деление с плавающей точкой)."
+      }
+    },
+    "floor": {
+      "title": {
+        "ru": "Floor (округ. вниз)"
+      },
+      "desc": {
+        "ru": "Округление вниз до целого."
+      }
+    },
+    "ceil": {
+      "title": {
+        "ru": "Ceil (округ. вверх)"
+      },
+      "desc": {
+        "ru": "Округление вверх до целого."
+      }
+    },
+    "round": {
+      "title": {
+        "ru": "Round (округление)"
+      },
+      "desc": {
+        "ru": "Стандартное округление."
+      }
+    },
+    "max2": {
+      "title": {
+        "ru": "Max (максимум)"
+      },
+      "desc": {
+        "ru": "Возвращает большее из A и B."
+      }
+    },
+    "min2": {
+      "title": {
+        "ru": "Min (минимум)"
+      },
+      "desc": {
+        "ru": "Возвращает меньшее из A и B."
+      }
+    },
+    "abs": {
+      "title": {
+        "ru": "Abs (модуль)"
+      },
+      "desc": {
+        "ru": "Абсолютное значение |x|."
+      }
+    },
+    "clamp": {
+      "title": {
+        "ru": "Clamp (зажать)"
+      },
+      "desc": {
+        "ru": "Зажимает x в диапазон [min, max]."
+      }
+    },
+    "mod": {
+      "title": {
+        "ru": "Mod (остаток)"
+      },
+      "desc": {
+        "ru": "Остаток от деления A / B."
+      }
+    },
+    "pow": {
+      "title": {
+        "ru": "Pow (степень)"
+      },
+      "desc": {
+        "ru": "A в степени B."
+      }
+    },
+    "sign": {
+      "title": {
+        "ru": "Sign (знак)"
+      },
+      "desc": {
+        "ru": "Знак числа: −1 / 0 / +1."
+      }
+    },
+    "eq": {
+      "title": {
+        "ru": "Equal (равно)"
+      },
+      "desc": {
+        "ru": "A == B"
+      }
+    },
+    "neq": {
+      "title": {
+        "ru": "Not Equal"
+      },
+      "desc": {
+        "ru": "A != B"
+      }
+    },
+    "gt": {
+      "title": {
+        "ru": "Greater (>)"
+      },
+      "desc": {
+        "ru": "A > B"
+      }
+    },
+    "lt": {
+      "title": {
+        "ru": "Less (<)"
+      },
+      "desc": {
+        "ru": "A < B"
+      }
+    },
+    "gte": {
+      "title": {
+        "ru": "Greater or Equal"
+      },
+      "desc": {
+        "ru": "A >= B"
+      }
+    },
+    "lte": {
+      "title": {
+        "ru": "Less or Equal"
+      },
+      "desc": {
+        "ru": "A <= B"
+      }
+    },
+    "and": {
+      "title": {
+        "ru": "AND (и)"
+      },
+      "desc": {
+        "ru": "Логическое И всех входов."
+      }
+    },
+    "or": {
+      "title": {
+        "ru": "OR (или)"
+      },
+      "desc": {
+        "ru": "Логическое ИЛИ всех входов."
+      }
+    },
+    "not": {
+      "title": {
+        "ru": "NOT (не)"
+      },
+      "desc": {
+        "ru": "Логическое отрицание."
+      }
+    },
+    "arr_length": {
+      "title": {
+        "ru": "Длина массива"
+      },
+      "desc": {
+        "ru": "Количество элементов в массиве."
+      }
+    },
+    "arr_at": {
+      "title": {
+        "ru": "At (по индексу)"
+      },
+      "desc": {
+        "ru": "N-ый элемент массива (0-based)."
+      }
+    },
+    "arr_filter": {
+      "title": {
+        "ru": "Filter (фильтр)"
+      },
+      "desc": {
+        "ru": "Оставляет только элементы, удовлетворяющие условию."
+      }
+    },
+    "arr_sort": {
+      "title": {
+        "ru": "Sort (сортировка)"
+      },
+      "desc": {
+        "ru": "Сортирует массив по полю."
+      }
+    },
+    "arr_concat": {
+      "title": {
+        "ru": "Concat (объединение)"
+      },
+      "desc": {
+        "ru": "Объединяет массивы."
+      }
+    }
   }
 }

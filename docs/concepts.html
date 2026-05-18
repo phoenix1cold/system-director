@@ -1,224 +1,50 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Concepts — System Director Wiki</title>
-  <link rel="stylesheet" href="css/main.css">
-  <link rel="stylesheet" href="css/widgets.css">
-</head>
-<body>
-  <header class="site-header"></header>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Concepts — System Director</title><link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/widgets.css"></head>
+<body><header class="site-header"></header><main class="page">
+<h1 data-i18n="ui.nav.concepts">Concepts</h1>
+<p class="lead" data-bilingual data-en="The mental model behind System Director: Foundry documents store data, widgets display/edit it, and node graphs automate behavior." data-ru="Ментальная модель System Director: Foundry documents хранят данные, виджеты показывают/редактируют их, а node graphs автоматизируют поведение."></p>
 
-  <main class="page">
-    <h1 data-bilingual data-en="Concepts" data-ru="Концепции">Concepts</h1>
-    <p class="lead" data-bilingual
-       data-en="The pieces of System Director that aren't widgets or nodes — but you'll bump into them as soon as you build a real sheet. Hidden fields, equippable items, the per-document trigger graph, declared attributes, sheet structure."
-       data-ru="Части System Director, которые не являются ни виджетами, ни нодами — но всплывают сразу, как только вы делаете реальный лист. Скрытые поля, экипировка, граф-триггер уровня документа, объявленные атрибуты, структура листа.">
-    </p>
+<section><h2 data-bilingual data-en="Document data model" data-ru="Модель данных документов"></h2>
+<p data-bilingual data-en="System Director defines Foundry TypeDataModel classes for Actor and Item subtypes. This gives each document a typed system object, validation, migration hooks and derived-data preparation." data-ru="System Director задаёт Foundry TypeDataModel классы для Actor и Item subtypes. Это даёт каждому документу typed system object, validation, migration hooks и prepareDerivedData."></p>
+<div class="table-wrap"><table class="doc-table"><thead><tr><th>Area</th><th>Purpose</th><th>Typical paths</th></tr></thead><tbody>
+<tr><td>attributes</td><td data-bilingual data-en="Six default score/modifier-style attributes." data-ru="Шесть базовых характеристик формата score/modifier."></td><td><code>system.attributes.attr1.value</code></td></tr>
+<tr><td>resources</td><td data-bilingual data-en="Typed object of value/min/max resources such as hp/mp/stamina." data-ru="Typed object ресурсов value/min/max: hp/mp/stamina."></td><td><code>system.resources.hp.value</code></td></tr>
+<tr><td>skills</td><td data-bilingual data-en="Ten default skill slots with ranks and labels." data-ru="Десять базовых skill slots с ranks и labels."></td><td><code>system.skills.skill1.rank</code></td></tr>
+<tr><td>hiddenFields</td><td data-bilingual data-en="Flexible storage for custom values that should not be regular visible schema fields." data-ru="Гибкое хранилище custom values, которые не должны быть обычными видимыми schema fields."></td><td><code>system.hiddenFields.stress</code></td></tr>
+<tr><td>customTabs</td><td data-bilingual data-en="Sheet layout: tabs, rows, cells and nested widgets." data-ru="Layout листа: вкладки, ряды, ячейки и вложенные виджеты."></td><td><code>system.customTabs</code></td></tr>
+<tr><td>sdTriggerGraph</td><td data-bilingual data-en="Event trigger graph storage for actors/items/world items." data-ru="Хранилище event trigger graphs для actors/items/world items."></td><td><code>system.sdTriggerGraph</code></td></tr>
+<tr><td>slotDefinitions / slotContents</td><td data-bilingual data-en="Named equipment/container slots and their item snapshots." data-ru="Именованные equipment/container slots и snapshots предметов в них."></td><td><code>system.slotContents.weapon</code></td></tr>
+<tr><td>activeQuest</td><td data-bilingual data-en="Actor-side active quest marker used by Quest Marker widget." data-ru="Actor-side active quest marker для виджета Quest Marker."></td><td><code>system.activeQuest</code></td></tr>
+</tbody></table></div></section>
 
-    <nav class="toc">
-      <strong data-bilingual data-en="On this page" data-ru="На этой странице"></strong>
-      <ul>
-        <li><a href="#sheet-structure" data-bilingual data-en="Sheet structure" data-ru="Структура листа"></a></li>
-        <li><a href="#hidden-fields"   data-bilingual data-en="Hidden fields" data-ru="Hidden Fields (скрытые поля)"></a></li>
-        <li><a href="#equippable"      data-bilingual data-en="Equippable items" data-ru="Equippable — экипировка"></a></li>
-        <li><a href="#triggers"        data-bilingual data-en="Triggers — the document-level graph" data-ru="Триггеры — граф уровня документа"></a></li>
-        <li><a href="#declared-attrs"  data-bilingual data-en="Declared attributes" data-ru="Объявленные атрибуты"></a></li>
-        <li><a href="#paths"           data-bilingual data-en="Document paths" data-ru="Пути в документах"></a></li>
-        <li><a href="#widget-states"   data-bilingual data-en="Visibility & disabled states" data-ru="Видимость и заблокированные состояния"></a></li>
-      </ul>
-    </nav>
+<section><h2 data-bilingual data-en="Actor and Item types" data-ru="Типы Actor и Item"></h2>
+<div class="table-wrap"><table class="doc-table"><thead><tr><th>Type</th><th data-bilingual data-en="Main fields" data-ru="Основные поля"></th><th data-bilingual data-en="Usage" data-ru="Использование"></th></tr></thead><tbody>
+<tr><td><code>Actor.character</code></td><td>attributes, resources, defense, movement, advancement, skillPoints, skills, initiative, currency, encumbrance, spellSlots, slots, activeQuest</td><td data-bilingual data-en="Player characters and full-featured sheets." data-ru="Персонажи игроков и полнофункциональные листы."></td></tr>
+<tr><td><code>Actor.npc</code></td><td>attributes, resources, defense, movement, initiative, classification, attacks, traits, slots</td><td data-bilingual data-en="NPC/monsters with CR, role, traits and attacks." data-ru="NPC/монстры с CR, ролью, traits и attacks."></td></tr>
+<tr><td><code>Item.inventory</code></td><td>category, rarity, weight, quantity, price, equipped/equippable, attack, damage, armor, uses, slots, buttons</td><td data-bilingual data-en="Gear, weapons, armor, consumables and nested containers." data-ru="Снаряжение, оружие, броня, consumables и вложенные контейнеры."></td></tr>
+<tr><td><code>Item.ability</code></td><td>category, school, level, activation, range, area, duration, roll, damage, cost, uses, requirements, components, buttons</td><td data-bilingual data-en="Spells, powers, attacks and custom active abilities." data-ru="Заклинания, powers, attacks и кастомные активные способности."></td></tr>
+<tr><td><code>Item.class</code></td><td>levels, items, effects, fieldChanges, choices</td><td data-bilingual data-en="Level progression, choices and granted changes." data-ru="Прогрессия уровней, choices и выдаваемые изменения."></td></tr>
+<tr><td><code>Item.skilltree</code></td><td>grid cols/rows, nodes, connections, node effects/fieldChanges/cost</td><td data-bilingual data-en="Skill-tree style advancement." data-ru="Skill-tree прогрессия."></td></tr>
+<tr><td><code>Item.questlog</code></td><td>chain metadata, quests, subtasks, rewards, questGraph, chainGraph</td><td data-bilingual data-en="Quest chains, visibility, objectives and rewards." data-ru="Цепочки квестов, видимость, задачи и награды."></td></tr>
+</tbody></table></div></section>
 
-    <h2 id="sheet-structure" data-bilingual data-en="Sheet structure" data-ru="Структура листа"></h2>
-    <p data-bilingual
-       data-en="Every actor and item sheet is a tree of <strong>tabs → rows → widgets</strong>. The <em>Edit</em> button toggles build mode; in build mode each row shows a <code>+</code> drop-target. A <strong>Vertical Section</strong> widget is a container — it has its own nested rows of widgets and renders them stacked."
-       data-ru="Каждый лист актора или предмета — это дерево <strong>вкладки → ряды → виджеты</strong>. Кнопка <em>Edit</em> включает режим конструктора; в нём каждый ряд показывает <code>+</code> для перетаскивания. <strong>Vertical Section</strong> — это виджет-контейнер: внутри лежат свои ряды виджетов, рендерятся стопкой."></p>
-    <p data-bilingual
-       data-en="Internally the data lives in <code>system.customTabs</code> on the document. You normally never edit this directly — the builder UI takes care of it. The wiki's <a href='nodes.html'>Get Path / Set Path</a> nodes can read or write into custom-tab fields if you need scripted layouts."
-       data-ru="Технически всё хранится в <code>system.customTabs</code> на документе. Руками править не нужно — конструктор сам всё делает. Если нужно скриптовать раскладку — ноды <a href='nodes.html'>Get Path / Modify Field</a> умеют читать/писать в поля кастомных вкладок."></p>
+<section><h2 data-bilingual data-en="Paths and formulas" data-ru="Пути и формулы"></h2>
+<p data-bilingual data-en="Most widgets and nodes address Foundry data through dot paths. Formulas can reference paths in braces, for example {system.attributes.attr1.value}, and node graph pins can pass values directly instead of compiling string formulas." data-ru="Большинство виджетов и нод обращаются к данным Foundry через dot paths. Формулы могут ссылаться на пути в фигурных скобках, например {system.attributes.attr1.value}, а пины графа могут передавать значения напрямую без строковой формулы."></p>
+<ul><li data-bilingual data-en="Use schema paths for core rules and hiddenFields/flags for custom state." data-ru="Для основных правил используйте schema paths, для custom state — hiddenFields/flags."></li><li data-bilingual data-en="Prefer explicit target pins when writing to another actor/token; otherwise nodes use actor/self defaults." data-ru="При записи в другого actor/token предпочитайте явные target pins; иначе ноды используют actor/self defaults."></li><li data-bilingual data-en="Document UUID pins are for Foundry documents: Actor.x, Item.x, Scene.x.Token.y, Cards.x, JournalEntry.x." data-ru="UUID-пины предназначены для Foundry documents: Actor.x, Item.x, Scene.x.Token.y, Cards.x, JournalEntry.x."></li></ul></section>
 
-    <h2 id="hidden-fields" data-bilingual data-en="Hidden fields" data-ru="Hidden Fields (скрытые поля)"></h2>
-    <p data-bilingual
-       data-en="Hidden fields are arbitrary key-value slots living on every actor and item under <code>system.hiddenFields.&amp;lt;key&amp;gt;</code>. They store things that aren't part of the sheet UI — internal flags, derived markers, persistent state for graphs."
-       data-ru="Hidden Fields — произвольные пары ключ-значение, живущие на каждом акторе и предмете в <code>system.hiddenFields.&amp;lt;ключ&amp;gt;</code>. Это место для внутренних флагов, маркеров, состояний графов — всего, что не отображается напрямую как виджет."></p>
-    <p data-bilingual
-       data-en="<strong>Common uses:</strong>"
-       data-ru="<strong>Типичное применение:</strong>"></p>
-    <ul>
-      <li data-bilingual
-          data-en="<strong>Visibility toggles</strong>: a Toggle widget flips <code>system.hiddenFields.spellbookOpen</code>; another widget below has its <em>Visible if</em> field set to that key, so it only renders when the toggle is on."
-          data-ru="<strong>Переключатели видимости</strong>: Toggle-виджет переключает <code>system.hiddenFields.spellbookOpen</code>; другой виджет ниже имеет в <em>Visible if</em> этот же ключ — рендерится только при включении."></li>
-      <li data-bilingual
-          data-en="<strong>State persistence</strong>: keep a counter, an enum, or an active mode (e.g. <code>system.hiddenFields.stance = 'aggressive' | 'defensive'</code>) that graphs read and write."
-          data-ru="<strong>Сохранение состояния</strong>: счётчик, перечисление, активный режим (например <code>system.hiddenFields.stance = 'aggressive' | 'defensive'</code>), который графы читают/пишут."></li>
-      <li data-bilingual
-          data-en="<strong>Migration markers</strong>: flags like <code>hiddenFields.equippable</code> are auto-set by the system to track derived properties (see Equippable below)."
-          data-ru="<strong>Маркеры миграций</strong>: флаги вроде <code>hiddenFields.equippable</code> ставятся системой автоматически (см. ниже про Equippable)."></li>
-    </ul>
-    <p data-bilingual
-       data-en="<strong>Reading and writing from a graph:</strong>"
-       data-ru="<strong>Чтение и запись из графа:</strong>"></p>
-    <ul>
-      <li data-bilingual
-          data-en="<strong>Read</strong>: <em>Get Path</em> with path <code>system.hiddenFields.&amp;lt;key&amp;gt;</code> → its output value pin is <code>any</code> (cast through <em>To Bool</em> / <em>To Number</em> if needed)."
-          data-ru="<strong>Чтение</strong>: <em>Get Path</em> с путём <code>system.hiddenFields.&amp;lt;ключ&amp;gt;</code> → выход с типом <code>any</code> (приведите к нужному через <em>To Bool</em> / <em>To Number</em> при необходимости)."></li>
-      <li data-bilingual
-          data-en="<strong>Write</strong>: <em>Modify Field</em> (op = <code>set</code>) writes a new value. <em>Toggle Path</em> flips a boolean. <em>Modify Field</em> with op = <code>add</code> increments a number."
-          data-ru="<strong>Запись</strong>: <em>Modify Field</em> (op = <code>set</code>) — записать значение. <em>Toggle Path</em> — переключить булево. <em>Modify Field</em> с op = <code>add</code> — прибавить к числу."></li>
-    </ul>
-    <p data-bilingual
-       data-en="See the <a href='examples.html'>Hidden Field — Conditional Visibility</a> example for a working chain."
-       data-ru="Готовый рабочий пример — <a href='examples.html'>Hidden Field — условная видимость</a>."></p>
+<section><h2 data-bilingual data-en="Node graph execution" data-ru="Исполнение node graph"></h2>
+<div class="two-col"><div class="card"><h3 data-bilingual data-en="Value flow" data-ru="Value flow"></h3><p data-bilingual data-en="Pure nodes compute values when an action needs them. They are side-effect free: math, compare, logic, sources, arrays and many targeting nodes." data-ru="Pure-ноды вычисляют значения, когда они нужны action-ноду. Они без side effects: math, compare, logic, sources, arrays и многие targeting-ноды."></p></div><div class="card"><h3 data-bilingual data-en="Exec flow" data-ru="Exec flow"></h3><p data-bilingual data-en="Imperative nodes have exec pins and run in order. Use Branch/Switch/Gate/Dialog/Loop nodes to decide which action is next." data-ru="Imperative-ноды имеют exec-пины и исполняются по порядку. Branch/Switch/Gate/Dialog/Loop решают, какое действие идёт дальше."></p></div><div class="card"><h3 data-bilingual data-en="Event graphs" data-ru="Event graphs"></h3><p data-bilingual data-en="Event nodes register Foundry Hooks: document create/update/delete, combat turns, effects, damage/rest/equip, card draw and quest hooks." data-ru="Event-ноды регистрируют Foundry Hooks: document create/update/delete, combat turns, effects, damage/rest/equip, card draw и quest hooks."></p></div><div class="card"><h3 data-bilingual data-en="Macro graphs" data-ru="Macro graphs"></h3><p data-bilingual data-en="Macro Input/Output and Macro Call let a complex graph become a reusable subgraph." data-ru="Macro Input/Output и Macro Call превращают сложный граф в переиспользуемый subgraph."></p></div></div></section>
 
-    <h2 id="equippable" data-bilingual data-en="Equippable items" data-ru="Equippable — экипировка"></h2>
-    <p data-bilingual
-       data-en="Inventory items have two related booleans: <code>system.equippable</code> (can it be equipped at all?) and <code>system.equipped</code> (is it currently equipped?). Players see an <strong>Equip</strong> toggle in the item header, but only if <code>equippable === true</code>."
-       data-ru="У инвентарных предметов две связанные булевые: <code>system.equippable</code> (можно ли вообще экипировать?) и <code>system.equipped</code> (экипирован ли сейчас?). Игрок видит переключатель <strong>Equip</strong> в шапке предмета только если <code>equippable === true</code>."></p>
-    <p data-bilingual
-       data-en="<strong>Default behavior by category:</strong>"
-       data-ru="<strong>Поведение по категориям (по умолчанию):</strong>"></p>
-    <ul>
-      <li data-bilingual
-          data-en="<code>weapon</code>, <code>armor</code>, <code>shield</code>, <code>tool</code> → <code>equippable</code> auto-set to <code>true</code> on creation."
-          data-ru="<code>weapon</code>, <code>armor</code>, <code>shield</code>, <code>tool</code> → <code>equippable</code> ставится в <code>true</code> при создании."></li>
-      <li data-bilingual
-          data-en="<code>consumable</code>, <code>ammo</code>, <code>magazine</code>, <code>gear</code>, <code>container</code>, <code>treasure</code>, <code>other</code> → not equippable by default."
-          data-ru="<code>consumable</code>, <code>ammo</code>, <code>magazine</code>, <code>gear</code>, <code>container</code>, <code>treasure</code>, <code>other</code> → не экипируются по умолчанию."></li>
-    </ul>
-    <p data-bilingual
-       data-en="You can override per-item by editing the item sheet → <em>Properties</em> → <em>Equippable</em> checkbox. The override is persisted via <code>hiddenFields.equippable</code>, so it survives category changes."
-       data-ru="Можно переопределить точечно: на листе предмета → <em>Properties</em> → чекбокс <em>Equippable</em>. Переопределение хранится в <code>hiddenFields.equippable</code> — переживёт смену категории."></p>
-    <p data-bilingual
-       data-en="<strong>Reacting to equip / unequip:</strong> use the <em>On Equip</em> and <em>On Unequip</em> event nodes inside the item's Trigger graph (see next section). Examples: <a href='examples.html'>On Equip → Apply Armor Effect</a>, <a href='examples.html'>On Unequip → Remove Effect</a>."
-       data-ru="<strong>Реакция на equip/unequip:</strong> event-ноды <em>On Equip</em> и <em>On Unequip</em> внутри Trigger-графа этого предмета (см. ниже). Примеры — <a href='examples.html'>On Equip → Apply Armor Effect</a> и <a href='examples.html'>On Unequip → Remove Effect</a>."></p>
+<section><h2 data-bilingual data-en="Slots, inventory and equipment" data-ru="Слоты, инвентарь и экипировка"></h2><p data-bilingual data-en="Slots are named containers with allowed item types/categories and max counts. Inventory operations work on actor embedded items; slot operations work on slotContents snapshots. Equipment actions fire sdItemEquipped/sdItemUnequipped hooks, so event graphs can react to gear changes." data-ru="Слоты — именованные контейнеры с allowed item types/categories и max counts. Inventory operations работают с embedded items актора; slot operations — со slotContents snapshots. Equip/unequip вызывают sdItemEquipped/sdItemUnequipped hooks, поэтому event-графы реагируют на смену экипировки."></p></section>
 
-    <h2 id="triggers" data-bilingual data-en="Triggers — the document-level graph" data-ru="Триггеры — граф уровня документа"></h2>
-    <p data-bilingual
-       data-en="Every actor and item has, in addition to per-button graphs, a single <strong>Trigger graph</strong> at <code>system.sdTriggerGraph</code>. Open it from the sheet header — there's a <kbd>Trigger</kbd> button next to <kbd>Edit</kbd>. This graph runs automatically on lifecycle events instead of clicks."
-       data-ru="У каждого актора и предмета, помимо графов на кнопках, есть один <strong>Trigger-граф</strong> в <code>system.sdTriggerGraph</code>. Открывается с шапки листа — кнопка <kbd>Trigger</kbd> рядом с <kbd>Edit</kbd>. Этот граф запускается на событиях документа, а не по клику."></p>
-    <p data-bilingual
-       data-en="Inside it, instead of <em>On Click</em> you place one or more <strong>Event nodes</strong>:"
-       data-ru="Внутри него вместо <em>On Click</em> ставите одну или несколько <strong>event-нод</strong>:"></p>
-    <table class="grid">
-      <thead><tr>
-        <th data-bilingual data-en="Event node" data-ru="Event-нода"></th>
-        <th data-bilingual data-en="Fires on" data-ru="Срабатывает"></th>
-        <th data-bilingual data-en="Pins" data-ru="Пины"></th>
-      </tr></thead>
-      <tbody>
-        <tr><td><code>on_create</code></td>
-            <td data-bilingual data-en="Document created" data-ru="Документ создан"></td>
-            <td>—</td></tr>
-        <tr><td><code>on_update</code></td>
-            <td data-bilingual data-en="Any field changed" data-ru="Любое поле изменено"></td>
-            <td><code>path, oldValue, newValue</code></td></tr>
-        <tr><td><code>on_delete</code></td>
-            <td data-bilingual data-en="Document deleted" data-ru="Документ удалён"></td>
-            <td>—</td></tr>
-        <tr><td><code>on_turn_start</code></td>
-            <td data-bilingual data-en="This actor's turn begins (combat tracker)" data-ru="Начало хода этого актора (combat tracker)"></td>
-            <td><code>round, combatantId</code></td></tr>
-        <tr><td><code>on_turn_end</code></td>
-            <td data-bilingual data-en="This actor's turn ends" data-ru="Конец хода этого актора"></td>
-            <td><code>round, combatantId</code></td></tr>
-        <tr><td><code>on_effect_apply</code></td>
-            <td data-bilingual data-en="ActiveEffect with given name is applied to this actor" data-ru="ActiveEffect с указанным именем накинут на этого актора"></td>
-            <td><code>effectName</code></td></tr>
-        <tr><td><code>on_damage_taken</code></td>
-            <td data-bilingual data-en="HP decreased on this actor" data-ru="HP актора уменьшилось"></td>
-            <td><code>amount, newHp</code></td></tr>
-        <tr><td><code>on_rest</code></td>
-            <td data-bilingual data-en="Rest flag set (short / long rest)" data-ru="Флаг отдыха (short / long rest)"></td>
-            <td><code>type</code></td></tr>
-        <tr><td><code>on_equip</code></td>
-            <td data-bilingual data-en="Item flipped to equipped" data-ru="Предмет переключён в equipped"></td>
-            <td><code>itemId, itemName</code></td></tr>
-        <tr><td><code>on_unequip</code></td>
-            <td data-bilingual data-en="Item flipped to unequipped" data-ru="Предмет переключён в unequipped"></td>
-            <td><code>itemId, itemName</code></td></tr>
-      </tbody>
-    </table>
+<section><h2 data-bilingual data-en="Effects, AoE and Regions" data-ru="Эффекты, AoE и Regions"></h2><p data-bilingual data-en="Effect nodes create or modify ActiveEffect documents. AoE/aura nodes create Foundry Region documents, optionally attach them to tokens, collect tokens inside and then feed target arrays into damage/heal/effect actions." data-ru="Effect-ноды создают или меняют ActiveEffect documents. AoE/aura-ноды создают Foundry Region documents, могут прикреплять их к токенам, собирать токены внутри и передавать массивы целей в damage/heal/effect actions."></p></section>
 
-    <p data-bilingual
-       data-en="Multiple event nodes can co-exist in one Trigger graph. Each event has its own <em>exec</em> chain that runs independently when that event fires."
-       data-ru="В одном Trigger-графе можно держать несколько event-нод. У каждой свой <em>exec</em>-выход, который выполняется независимо при срабатывании события."></p>
+<section><h2 data-bilingual data-en="Quests and cards" data-ru="Квесты и карты"></h2><p data-bilingual data-en="Quest nodes operate on quest log items and emit SD quest hooks. Card nodes wrap Foundry Cards stacks: shuffle/draw/play/discard/reveal/pass/recall/deal/flip and expose stack/card information to widgets and graphs." data-ru="Quest-ноды работают с quest log items и вызывают SD quest hooks. Card-ноды оборачивают Foundry Cards stacks: shuffle/draw/play/discard/reveal/pass/recall/deal/flip и отдают сведения о stack/card виджетам и графам."></p></section>
 
-    <p data-bilingual
-       data-en="<strong>Two scopes:</strong>"
-       data-ru="<strong>Два уровня действия:</strong>"></p>
-    <ul>
-      <li data-bilingual
-          data-en="<strong>Item Trigger graph</strong> — events scoped to that item (<code>on_equip</code>, <code>on_unequip</code> are item-only; the rest fire when the carrier actor's event matches)."
-          data-ru="<strong>Trigger-граф предмета</strong> — события в области этого предмета (<code>on_equip</code>, <code>on_unequip</code> существуют только для предметов; остальные срабатывают, когда событие актора-владельца подходит)."></li>
-      <li data-bilingual
-          data-en="<strong>Actor Trigger graph</strong> — runs for the actor as a whole (turn start/end, damage taken, effect applied, rest)."
-          data-ru="<strong>Trigger-граф актора</strong> — для актора в целом (начало/конец хода, получение урона, наложение эффекта, отдых)."></li>
-    </ul>
-
-    <p class="callout tip"><strong data-bilingual data-en="Tip" data-ru="Подсказка"></strong>:
-      <span data-bilingual
-            data-en="Trigger graphs are <em>event-driven</em> — there is no <em>On Click</em> entry. Don't add Dialog nodes to a Trigger graph that fires often (every turn, every damage tick), or you'll spam dialogs at the players."
-            data-ru="Trigger-графы — <em>событийные</em>, никакого <em>On Click</em> там нет. Не вставляйте диалоговые ноды в часто срабатывающий триггер (каждый ход / каждый урон) — забьёте игроков попапами."></span>
-    </p>
-
-    <h2 id="declared-attrs" data-bilingual data-en="Declared attributes" data-ru="Объявленные атрибуты"></h2>
-    <p data-bilingual
-       data-en="Items can <strong>declare</strong> attribute paths they want to expose so other parts of the system see them as first-class fields. The <em>Attribute</em> widget on an item's sheet, plus the item's <em>declaredAttrs</em> list, register the path; afterwards <code>@attr.&amp;lt;name&amp;gt;</code> works in formulas, autocomplete shows it, and Get Attribute nodes can pull it without spelling out the path."
-       data-ru="Предметы могут <strong>объявлять</strong> атрибуты, которые они выставляют — чтобы остальная часть системы видела их как полноценные поля. <em>Attribute</em>-виджет на листе предмета и список <em>declaredAttrs</em> регистрируют путь; после этого в формулах работает <code>@attr.&amp;lt;имя&amp;gt;</code>, автодополнение его видит, ноды Get Attribute достают значение без указания пути целиком."></p>
-    <p data-bilingual
-       data-en="Stacking rules apply automatically: if multiple equipped items declare the same attribute, the resolver collects all contributions per the item's stacking strategy (additive / max / min / override)."
-       data-ru="Правила стака работают автоматически: если несколько экипированных предметов объявляют один и тот же атрибут, резолвер собирает все вклады согласно стратегии стака предмета (additive / max / min / override)."></p>
-
-    <h2 id="paths" data-bilingual data-en="Document paths" data-ru="Пути в документах"></h2>
-    <p data-bilingual
-       data-en="Paths are dot-strings used by <em>Get Path</em>, <em>Modify Field</em>, <em>Resource Bar</em>, etc. Common roots:"
-       data-ru="Пути — точечные строки, используемые в <em>Get Path</em>, <em>Modify Field</em>, <em>Resource Bar</em> и т.п. Основные корни:"></p>
-    <ul>
-      <li><code>system.attributes.&lt;k&gt;.score</code> / <code>.mod</code> — <span data-bilingual
-          data-en="actor attributes (STR/DEX/...)" data-ru="атрибуты актора (СИЛ/ЛОВ/...)"></span></li>
-      <li><code>system.resources.&lt;k&gt;.value</code> / <code>.max</code> — <span data-bilingual
-          data-en="resources (HP, MP, ...)" data-ru="ресурсы (HP, MP, ...)"></span></li>
-      <li><code>system.skills.&lt;k&gt;.value</code> — <span data-bilingual
-          data-en="skill ranks" data-ru="уровни навыков"></span></li>
-      <li><code>system.hiddenFields.&lt;k&gt;</code> — <span data-bilingual
-          data-en="ad-hoc storage (see above)" data-ru="произвольное хранение (см. выше)"></span></li>
-      <li><code>system.equipped</code> / <code>system.equippable</code> — <span data-bilingual
-          data-en="item equip flags" data-ru="флаги экипировки предмета"></span></li>
-      <li><code>system.uses.value</code> / <code>.max</code> / <code>.per</code> — <span data-bilingual
-          data-en="charges / per-day uses" data-ru="заряды / использования в день"></span></li>
-      <li><code>system.tags[]</code> / <code>system.properties[]</code> — <span data-bilingual
-          data-en="string lists" data-ru="строковые списки"></span></li>
-    </ul>
-    <p data-bilingual
-       data-en="In a <em>Resource Bar</em> or <em>Number</em> widget config, the <code>path</code> field is exactly this kind of string. Autocomplete suggests paths from the document schema."
-       data-ru="В конфиге <em>Resource Bar</em> или <em>Number</em>-виджета поле <code>path</code> — это ровно такая строка. Автодополнение подсказывает пути из схемы документа."></p>
-
-    <h2 id="widget-states" data-bilingual data-en="Visibility & disabled states" data-ru="Видимость и заблокированные состояния"></h2>
-    <p data-bilingual
-       data-en="Most widgets accept two extra config strings: <code>visibleIf</code> and <code>disabledIf</code>. Both are <strong>boolean expressions</strong> evaluated against the document. Examples:"
-       data-ru="Большинство виджетов принимают две дополнительные конфиг-строки: <code>visibleIf</code> и <code>disabledIf</code>. Обе — <strong>булевые выражения</strong>, вычисляемые на документе. Примеры:"></p>
-    <ul>
-      <li><code>system.hiddenFields.spellbookOpen</code> — <span data-bilingual
-          data-en="visible only when that field is truthy" data-ru="виден только когда это поле truthy"></span></li>
-      <li><code>system.equipped</code> — <span data-bilingual
-          data-en="for an item: only when equipped" data-ru="на предмете: только когда экипирован"></span></li>
-      <li><code>@attr.str.score &gt;= 14</code> — <span data-bilingual
-          data-en="formula expression with the same syntax as roll formulas" data-ru="формульное выражение с тем же синтаксисом что и броски"></span></li>
-      <li><code>!system.broken</code> — <span data-bilingual
-          data-en="negation; show only when not broken" data-ru="отрицание; показывать только если не сломан"></span></li>
-    </ul>
-    <p data-bilingual
-       data-en="<code>disabledIf</code> renders the widget but greyed out / non-interactive. <code>visibleIf</code> hides it entirely."
-       data-ru="<code>disabledIf</code> отрисует виджет в неактивном (серый, неинтерактивный) виде. <code>visibleIf</code> скроет полностью."></p>
-
-  </main>
-
-  <footer class="site">© System Director Wiki</footer>
-
-  <script type="module">
-    import { bootPage } from "./js/main.js";
-    bootPage();
-  </script>
-</body>
-</html>
+<section><h2 data-bilingual data-en="Foundry API notes" data-ru="Заметки по Foundry API"></h2><ul id="foundry-notes"></ul></section>
+</main><footer class="site">System Director Wiki</footer>
+<script type="module">
+import { bootPage } from './js/main.js'; import { getLang } from './js/i18n.js'; import { foundryNotes } from './js/wiki-copy.js'; await bootPage();
+const ul=document.getElementById('foundry-notes'); function render(){ul.innerHTML=''; for(const n of foundryNotes[getLang()]??foundryNotes.en){const li=document.createElement('li'); li.textContent=n; ul.appendChild(li)}} render(); window.addEventListener('sd:lang-change', render);
+</script></body></html>

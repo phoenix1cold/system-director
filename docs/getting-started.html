@@ -1,181 +1,51 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Getting started — System Director</title>
-  <link rel="stylesheet" href="css/main.css">
-  <link rel="stylesheet" href="css/widgets.css">
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Getting started — System Director</title><link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/widgets.css"></head>
 <body>
-  <header class="site-header"></header>
+<header class="site-header"></header>
+<main class="page">
+  <h1 data-i18n="ui.nav.start">Getting started</h1>
+  <p class="lead" data-bilingual data-en="Install System Director, create your first sheet and connect a first automation graph." data-ru="Установите System Director, соберите первый лист и подключите первый граф автоматизации."></p>
 
-  <main class="page">
-    <h1 data-i18n="ui.nav.start">Getting started</h1>
-    <p class="lead"
-       data-bilingual
-       data-en="Install the module, build your first sheet, run a node-graph button."
-       data-ru="Установка модуля, первый лист и нодовый граф на кнопке."></p>
+  <div class="toc"><strong data-bilingual data-en="On this page" data-ru="На странице"></strong><ul>
+    <li><a href="#install" data-bilingual data-en="Install" data-ru="Установка"></a></li><li><a href="#first-sheet" data-bilingual data-en="First sheet" data-ru="Первый лист"></a></li><li><a href="#first-graph" data-bilingual data-en="First graph" data-ru="Первый граф"></a></li><li><a href="#publish" data-bilingual data-en="GitHub Pages" data-ru="GitHub Pages"></a></li>
+  </ul></div>
 
-    <h2 data-bilingual data-en="1. Install" data-ru="1. Установка"></h2>
-    <ol>
-      <li data-bilingual
-          data-en='In Foundry: <kbd>Settings</kbd> → <kbd>Game Systems</kbd> → <kbd>Install System</kbd>.'
-          data-ru='В Foundry: <kbd>Настройки</kbd> → <kbd>Game Systems</kbd> → <kbd>Install System</kbd>.'></li>
-      <li data-bilingual
-          data-en='Paste the manifest URL from the <a href="https://github.com/phoenix1cold/system-director">repository</a> or install the latest <code>system.json</code> manually.'
-          data-ru='Вставьте manifest URL из <a href="https://github.com/phoenix1cold/system-director">репозитория</a> или поставьте свежий <code>system.json</code> вручную.'></li>
-      <li data-bilingual
-          data-en='Create a new world using the <strong>System Director</strong> system. The first launch runs migrations and prepares default styles.'
-          data-ru='Создайте мир на системе <strong>System Director</strong>. При первом запуске прогоняются миграции и готовятся стили.'></li>
-    </ol>
+  <h2 id="install" data-bilingual data-en="1. Installation" data-ru="1. Установка"></h2>
+  <ol class="flow-steps">
+    <li data-bilingual data-en="In Foundry Setup, install the System Director system from the manifest URL published by the package/repository." data-ru="В Foundry Setup установите систему System Director по manifest URL из package/repository."></li>
+    <li data-bilingual data-en="Create a world with game system “System Director” and enable the world." data-ru="Создайте мир с game system “System Director” и запустите его."></li>
+    <li data-bilingual data-en="Use Foundry v13 or v14. SD relies on TypeDataModel, ApplicationV2/DialogV2 where available, ActiveEffect, ChatMessage, Regions and Cards APIs." data-ru="Используйте Foundry v13 или v14. SD опирается на TypeDataModel, ApplicationV2/DialogV2 там где доступно, ActiveEffect, ChatMessage, Regions и Cards API."></li>
+  </ol>
 
-    <h2 data-bilingual data-en="2. The Builder UI" data-ru="2. Конструктор листа"></h2>
-    <p data-bilingual
-       data-en="Open any actor or item sheet. The header has the toolbar:"
-       data-ru="Откройте любой лист персонажа или предмета. В шапке — тулбар:"></p>
-    <ul>
-      <li data-bilingual
-          data-en="<kbd>Edit</kbd> — toggle build mode. While on, every cell shows a + slot you can drop widgets into."
-          data-ru="<kbd>Edit</kbd> — режим редактирования. Пока активен, в каждой ячейке появляется + и в неё можно бросать виджеты."></li>
-      <li data-bilingual
-          data-en="<kbd>Add Tab</kbd> / <kbd>Add Row</kbd> — extend the layout."
-          data-ru="<kbd>Add Tab</kbd> / <kbd>Add Row</kbd> — добавить вкладку или ряд."></li>
-      <li data-bilingual
-          data-en="<kbd>Style</kbd> on a widget — open the per-widget style popup with width/height/colors/etc."
-          data-ru="<kbd>Style</kbd> у виджета — открыть попап стилей: размеры, цвета, рамки, паддинги."></li>
-      <li data-bilingual
-          data-en="<kbd>⚙</kbd> on a widget — config fields (label, data path, options)."
-          data-ru="<kbd>⚙</kbd> у виджета — поля настройки (label, data path, опции)."></li>
-      <li data-bilingual
-          data-en="<kbd>fx</kbd> / <kbd>Graph</kbd> — open the node graph for that widget."
-          data-ru="<kbd>fx</kbd> / <kbd>Graph</kbd> — открыть нодовый граф этого виджета."></li>
-    </ul>
+  <h2 id="first-sheet" data-bilingual data-en="2. Build the first actor sheet" data-ru="2. Соберите первый лист актора"></h2>
+  <ol class="flow-steps">
+    <li data-bilingual data-en="Create an Actor, usually type character or npc. The default schema already includes attributes, resources, defense, movement, advancement, skills, currency, encumbrance, slots, hiddenFields and activeQuest." data-ru="Создайте Actor, обычно type character или npc. В схеме уже есть attributes, resources, defense, movement, advancement, skills, currency, encumbrance, slots, hiddenFields и activeQuest."></li>
+    <li data-bilingual data-en="Open the sheet builder and create tabs/rows/cells. Layout is stored in system.customTabs, so it travels with the document." data-ru="Откройте sheet builder и создайте вкладки/ряды/ячейки. Layout хранится в system.customTabs и переносится вместе с документом."></li>
+    <li data-bilingual data-en="Drag widgets: Resource Bar for HP, Attribute for attributes, Skill for ranks, Inventory/Slot for items, Effects for Active Effects and Button/Roll Button for actions." data-ru="Перетащите виджеты: Resource Bar для HP, Attribute для характеристик, Skill для ranks, Inventory/Slot для предметов, Effects для Active Effects и Button/Roll Button для действий."></li>
+    <li data-bilingual data-en="Use stable document paths. Example: system.resources.hp.value, system.attributes.attr1.value, system.skills.skill1.rank, system.hiddenFields.stress." data-ru="Используйте стабильные document paths. Примеры: system.resources.hp.value, system.attributes.attr1.value, system.skills.skill1.rank, system.hiddenFields.stress."></li>
+  </ol>
 
-    <div class="callout tip">
-      <strong data-bilingual data-en="Tip" data-ru="Подсказка"></strong>:
-      <span data-bilingual
-            data-en='You can group widgets into a <em>Vertical Section</em>. Drag a widget onto a v-section header to nest it.'
-            data-ru='Виджеты можно группировать в <em>vertical section</em>. Перетащите виджет на заголовок v-секции, чтобы вложить.'></span>
-    </div>
+  <div class="callout tip" data-bilingual data-en="Rule of thumb: visible fields belong in system.resources/system.attributes/system.skills when they are part of the game rules; temporary/custom counters usually belong in system.flags or system.hiddenFields." data-ru="Правило: видимые поля правил лучше держать в system.resources/system.attributes/system.skills; временные/custom счётчики — в system.flags или system.hiddenFields."></div>
 
-    <h2 data-bilingual data-en="3. Build your first sheet" data-ru="3. Соберите первый лист"></h2>
-    <ol>
-      <li data-bilingual
-          data-en='Drag a <strong>Resource Bar</strong> widget into the grid. Set <code>label=HP</code>, <code>pathValue=system.resources.hp.value</code>, <code>pathMax=system.resources.hp.max</code>, <code>color=#e05a5a</code>.'
-          data-ru='Бросьте в сетку виджет <strong>Resource Bar</strong>. Заполните <code>label=HP</code>, <code>pathValue=system.resources.hp.value</code>, <code>pathMax=system.resources.hp.max</code>, <code>color=#e05a5a</code>.'></li>
-      <li data-bilingual
-          data-en='Drop an <strong>Attribute</strong> widget. <code>label=STR</code>, <code>path=system.attributes.str.score</code>.'
-          data-ru='Бросьте виджет <strong>Attribute</strong>. <code>label=STR</code>, <code>path=system.attributes.str.score</code>.'></li>
-      <li data-bilingual
-          data-en='Click <kbd>Save</kbd> in the popup. The sheet now shows the new widget — try editing values to confirm they save back to the actor.'
-          data-ru='Нажмите <kbd>Save</kbd> в попапе. Виджет появится на листе — попробуйте поправить значение, оно должно сохраниться на акторе.'></li>
-    </ol>
+  <h2 id="first-graph" data-bilingual data-en="3. Connect the first node graph" data-ru="3. Подключите первый node graph"></h2>
+  <div class="two-col">
+    <div class="card"><h3 data-bilingual data-en="Simple roll button" data-ru="Простая кнопка броска"></h3><ol><li data-bilingual data-en="Add a Button or Roll Button widget." data-ru="Добавьте виджет Button или Roll Button."></li><li data-bilingual data-en="Open its action graph." data-ru="Откройте его action graph."></li><li data-bilingual data-en="Wire On Click → Roll Value → Message/Output." data-ru="Соедините On Click → Roll Value → Message/Output."></li><li data-bilingual data-en="Use Sources/Get Path or Attribute/Attr Mod for bonuses." data-ru="Для бонусов используйте Sources/Get Path или Attribute/Attr Mod."></li></ol></div>
+    <div class="card"><h3 data-bilingual data-en="Attack + damage" data-ru="Атака + урон"></h3><ol><li data-bilingual data-en="On Click starts the exec chain." data-ru="On Click запускает exec-цепочку."></li><li data-bilingual data-en="Attack Check rolls against AC/DC and exposes hit/crit/fumble." data-ru="Attack Check бросает против AC/DC и отдаёт hit/crit/fumble."></li><li data-bilingual data-en="Branch/attack outputs split hit and miss paths." data-ru="Branch/attack outputs разделяют hit и miss paths."></li><li data-bilingual data-en="Damage receives amount, crit amount, damage type and target(s)." data-ru="Damage получает amount, crit amount, damage type и target(s)."></li></ol></div>
+  </div>
 
-    <h2 data-bilingual data-en="4. Wire up a node graph" data-ru="4. Подключите нодовый граф"></h2>
-    <ol>
-      <li data-bilingual
-          data-en='Drop a <strong>Dice Button</strong>. Set <code>formula=1d20+@attr.str.mod</code>.'
-          data-ru='Бросьте <strong>Dice Button</strong>. <code>formula=1d20+@attr.str.mod</code>.'></li>
-      <li data-bilingual
-          data-en='Click <kbd>fx</kbd>. The graph editor opens.'
-          data-ru='Нажмите <kbd>fx</kbd>. Откроется редактор графа.'></li>
-      <li data-bilingual
-          data-en='Right-click → <kbd>Add Node</kbd> → <em>Dice</em> for a quick advantage/disadvantage prompt, or just connect <em>On Click → Apply Damage</em> for a one-shot attack.'
-          data-ru='ПКМ → <kbd>Add Node</kbd> → <em>Dice</em> для prompt с advantage/disadvantage, или сразу <em>On Click → Apply Damage</em> — выстрел в одно действие.'></li>
-      <li data-bilingual
-          data-en='Drag from the small dot (a pin) of one node to a pin of another to make a connection. Pins of compatible types light up.'
-          data-ru='Тяните мышью от точки (пина) одной ноды к пину другой — совместимые подсвечиваются.'></li>
-      <li data-bilingual
-          data-en='Click <kbd>Save</kbd> in the graph editor. Close it, then click the dice button on the sheet — the graph runs.'
-          data-ru='Нажмите <kbd>Save</kbd> в графе. Закройте, кликните по кнопке кубика на листе — граф запустится.'></li>
-    </ol>
+  <h2 data-bilingual data-en="4. Core workflow checklist" data-ru="4. Чеклист базового workflow"></h2>
+  <ul>
+    <li data-bilingual data-en="Use value pins for data and exec pins for action order; pure value nodes do not run by themselves." data-ru="Value-пины передают данные, exec-пины — порядок действий; чистые value-ноды сами не исполняются."></li>
+    <li data-bilingual data-en="When a node writes data, confirm the path and the target actor/item/token source." data-ru="Если нода пишет данные, проверьте path и источник target actor/item/token."></li>
+    <li data-bilingual data-en="For player-triggered GM-only actions (quests, some document changes), SD can route through its socket helpers." data-ru="Для GM-only действий, запущенных игроком (квесты, часть document changes), SD может использовать socket helpers."></li>
+    <li data-bilingual data-en="Use chat cards for user-visible rolls/damage/healing; use silent writes for background state changes." data-ru="Для видимых бросков/урона/лечения используйте chat cards; для фоновых изменений — silent writes."></li>
+  </ul>
 
-    <h2 data-bilingual data-en="5. Common workflows" data-ru="5. Частые сценарии"></h2>
-    <table class="grid">
-      <thead><tr>
-        <th data-bilingual data-en="Goal" data-ru="Что сделать"></th>
-        <th data-bilingual data-en="Recipe" data-ru="Рецепт"></th>
-      </tr></thead>
-      <tbody>
-        <tr>
-          <td data-bilingual data-en="Roll an attack and apply damage on hit"
-                              data-ru="Бросить атаку и нанести урон при попадании"></td>
-          <td><code>On Click → Attack Check → Branch (hit?) → Apply Damage</code></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Heal everyone the player targets"
-                              data-ru="Лечить всех таргеченных"></td>
-          <td><code>On Click → Get All Targets → Apply Healing.targets</code></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Pick a player from a popup, then bless them"
-                              data-ru="Выбрать игрока из попапа и благословить"></td>
-          <td><code>On Click → Get Player Actors → Dialog Select (Array) → Apply Effect.target</code></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Confirm a spell before casting"
-                              data-ru="Подтверждать применение заклинания"></td>
-          <td><code>On Click → Dialog Confirm → (Yes) → spell chain</code></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="AoE save: half on success"
-                              data-ru="AoE save: половина при успехе"></td>
-          <td><code>On Click → Place AoE Save Branch → Apply Damage(targets=Failed[]) + Apply Damage(targets=Saved[], halfOnSave=yes)</code></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h2 data-bilingual data-en="6. Keyboard shortcuts (in the graph editor)" data-ru="6. Горячие клавиши (в редакторе графа)"></h2>
-    <table class="grid">
-      <thead><tr>
-        <th data-bilingual data-en="Shortcut" data-ru="Клавиши"></th>
-        <th data-bilingual data-en="Action" data-ru="Действие"></th>
-      </tr></thead>
-      <tbody>
-        <tr><td><kbd>Right-click</kbd></td>
-            <td data-bilingual data-en="Open node palette / context menu"
-                                data-ru="Открыть палитру нод / контекстное меню"></td></tr>
-        <tr><td><kbd>Drag</kbd> on canvas</td>
-            <td data-bilingual data-en="Pan view"
-                                data-ru="Прокрутить полотно"></td></tr>
-        <tr><td><kbd>Drag</kbd> on node header</td>
-            <td data-bilingual data-en="Move node"
-                                data-ru="Передвинуть ноду"></td></tr>
-        <tr><td><kbd>Drag</kbd> on pin</td>
-            <td data-bilingual data-en="Create wire"
-                                data-ru="Создать связь"></td></tr>
-        <tr><td><kbd>Click</kbd> on wire</td>
-            <td data-bilingual data-en="Select / delete"
-                                data-ru="Выбрать / удалить"></td></tr>
-        <tr><td><kbd>Ctrl+Z</kbd></td>
-            <td data-bilingual data-en="Undo"
-                                data-ru="Отмена"></td></tr>
-        <tr><td><kbd>Ctrl+S</kbd></td>
-            <td data-bilingual data-en="Save graph"
-                                data-ru="Сохранить граф"></td></tr>
-      </tbody>
-    </table>
-
-    <div class="callout warn">
-      <strong data-bilingual data-en="Important" data-ru="Важно"></strong>:
-      <span data-bilingual
-            data-en="If a graph button does nothing on click, open the developer console (F12). Errors from the graph runner are logged with the <code>[SD]</code> prefix and a node id."
-            data-ru="Если кнопка с графом ничего не делает по клику, откройте консоль (F12). Ошибки рантайма пишутся с префиксом <code>[SD]</code> и id ноды."></span>
-    </div>
-
-    <h2 data-bilingual data-en="7. Where to go next" data-ru="7. Что дальше"></h2>
-    <ul>
-      <li><a href="widgets.html" data-bilingual data-en="Browse all widgets" data-ru="Все виджеты"></a></li>
-      <li><a href="nodes.html"   data-bilingual data-en="Browse all nodes"   data-ru="Все ноды"></a></li>
-      <li><a href="examples.html" data-bilingual data-en="See concrete examples" data-ru="Посмотреть примеры"></a></li>
-    </ul>
-  </main>
-
-  <footer class="site">© System Director Wiki</footer>
-  <script type="module">
-    import { bootPage } from "./js/main.js";
-    await bootPage();
-  </script>
+  <h2 id="publish" data-bilingual data-en="5. GitHub Pages documentation" data-ru="5. Документация GitHub Pages"></h2>
+  <p data-bilingual data-en="The wiki is a static site in docs/. GitHub Pages can serve it directly without a build step. Data-driven pages fetch JSON from docs/data/*.json; if node/widget source changes, regenerate these JSON files before publishing." data-ru="Wiki — статический сайт в docs/. GitHub Pages может отдавать его напрямую без build step. Data-driven страницы читают JSON из docs/data/*.json; если исходники нод/виджетов менялись, обновите эти JSON перед публикацией."></p>
+</main>
+<footer class="site">System Director Wiki</footer>
+<script type="module">import { bootPage } from './js/main.js'; await bootPage();</script>
 </body>
 </html>
