@@ -45,71 +45,10 @@
                           data-ru="От простой 1d20-кнопки до AoE save с резистами по стихиям."></p>
         <a class="btn" href="examples.html" data-bilingual data-en="Browse" data-ru="Перейти">Browse</a>
       </div>
-      <div class="card">
-        <h3 data-bilingual data-en="Concepts" data-ru="Концепции"></h3>
-        <p data-bilingual data-en="Hidden fields, triggers, equippable items, paths, variables, Active Effects, AoE system."
-                          data-ru="Скрытые поля, триггеры, экипировка, пути, переменные, Active Effects, AoE система."></p>
-        <a class="btn" href="concepts.html" data-bilingual data-en="Open" data-ru="Открыть">Open</a>
-      </div>
     </div>
 
-    <!-- Architecture overview -->
-    <h2 data-bilingual data-en="Architecture overview" data-ru="Обзор архитектуры"></h2>
-    <p data-bilingual
-       data-en="System Director consists of three main layers that work together:"
-       data-ru="System Director состоит из трёх основных слоёв, работающих вместе:"></p>
-    <div class="cards">
-      <div class="card">
-        <h3 data-bilingual data-en="1. Sheet Builder" data-ru="1. Конструктор листов"></h3>
-        <p data-bilingual
-           data-en="Drag-and-drop visual editor for actor and item sheets. Layout follows a &lt;strong&gt;tabs → rows → widgets&lt;/strong&gt; hierarchy. Every widget binds to a data path on the document (e.g. &lt;code&gt;system.resources.hp.value&lt;/code&gt;) and supports individual styling (colors, borders, paddings, sizes). A &lt;em&gt;Vertical Section&lt;/em&gt; widget can nest other widgets inside for complex layouts."
-           data-ru="Визуальный drag-and-drop редактор листов акторов и предметов. Раскладка строится по иерархии &lt;strong&gt;вкладки → ряды → виджеты&lt;/strong&gt;. Каждый виджет привязан к пути данных на документе (например &lt;code&gt;system.resources.hp.value&lt;/code&gt;) и поддерживает индивидуальную стилизацию (цвета, рамки, отступы, размеры). Виджет &lt;em&gt;Vertical Section&lt;/em&gt; может вкладывать в себя другие виджеты для сложных раскладок."></p>
-      </div>
-      <div class="card">
-        <h3 data-bilingual data-en="2. Node Graph (Formula Graph)" data-ru="2. Нодовый граф (Formula Graph)"></h3>
-        <p data-bilingual
-           data-en="A visual programming system for game logic. Every clickable widget (buttons, dice, attributes) can have a bound graph that executes on click. Graphs are built from &lt;strong&gt;167 nodes&lt;/strong&gt; in 17 categories: flow control, dice, math, comparisons, actions (damage/heal/effects), targeting, AoE, and more. Nodes connect via typed pins — the editor only allows compatible connections."
-           data-ru="Визуальная система программирования игровой логики. К каждому кликабельному виджету (кнопки, кубики, атрибуты) привязывается граф, выполняемый по клику. Графы строятся из &lt;strong&gt;167 нод&lt;/strong&gt; в 17 категориях: управление потоком, кубики, математика, сравнения, действия (урон/лечение/эффекты), таргетинг, AoE и т.д. Ноды соединяются типизированными пинами — редактор разрешает только совместимые соединения."></p>
-      </div>
-      <div class="card">
-        <h3 data-bilingual data-en="3. Trigger System" data-ru="3. Система триггеров"></h3>
-        <p data-bilingual
-           data-en="Every actor and item has a &lt;strong&gt;Trigger Graph&lt;/strong&gt; (&lt;code&gt;system.sdTriggerGraph&lt;/code&gt;) that runs automatically on lifecycle events: turn start/end, damage taken, equip/unequip, effect applied, rest, document create/update/delete. This enables passive abilities, auras, equipment bonuses, and reactive mechanics without any manual clicks."
-           data-ru="Каждый актор и предмет имеет &lt;strong&gt;Trigger-граф&lt;/strong&gt; (&lt;code&gt;system.sdTriggerGraph&lt;/code&gt;), который запускается автоматически на событиях жизненного цикла: начало/конец хода, получение урона, экипировка/снятие, наложение эффекта, отдых, создание/обновление/удаление документа. Это позволяет реализовать пассивные способности, ауры, бонусы экипировки и реактивную механику без ручных кликов."></p>
-      </div>
-    </div>
-
-    <!-- Document types -->
-    <h2 data-bilingual data-en="Document types" data-ru="Типы документов"></h2>
-    <p data-bilingual
-       data-en="System Director defines the following document types, each with its own sheet template:"
-       data-ru="System Director определяет следующие типы документов, каждый со своим шаблоном листа:"></p>
-    <table class="grid">
-      <thead><tr>
-        <th data-bilingual data-en="Document" data-ru="Документ"></th>
-        <th data-bilingual data-en="Types" data-ru="Типы"></th>
-        <th data-bilingual data-en="Description" data-ru="Описание"></th>
-      </tr></thead>
-      <tbody>
-        <tr>
-          <td><strong>Actor</strong></td>
-          <td><code>character</code>, <code>npc</code></td>
-          <td data-bilingual
-              data-en="Player characters and non-player characters. Both support the full Sheet Builder, node graphs, trigger graphs, attributes, resources, skills, inventory, effects."
-              data-ru="Персонажи игроков и NPC. Оба поддерживают полный Sheet Builder, нодовые графы, триггер-графы, атрибуты, ресурсы, навыки, инвентарь, эффекты."></td>
-        </tr>
-        <tr>
-          <td><strong>Item</strong></td>
-          <td><code>inventory</code>, <code>ability</code>, <code>feature</code>, <code>class</code>, <code>skilltree</code>, <code>questlog</code></td>
-          <td data-bilingual
-              data-en="Items that actors can own. inventory — physical objects (weapons, armor, consumables). ability — spells, techniques, powers. feature — passive traits and feats. class — character class definition. skilltree — progression tree. questlog — journal/quest entries. All item types support equip/unequip triggers and their own sheet layouts."
-              data-ru="Предметы, которыми владеют акторы. inventory — физические объекты (оружие, броня, расходники). ability — заклинания, техники, силы. feature — пассивные черты и фиты. class — определение класса персонажа. skilltree — дерево развития. questlog — журнал/квестовые записи. Все типы предметов поддерживают триггеры экипировки и собственные раскладки листов."></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- What's in the box -->
     <h2 data-bilingual data-en="What's in the box" data-ru="Что внутри"></h2>
+
     <div class="cards">
       <div class="card">
         <h3 data-bilingual data-en="Sheet builder" data-ru="Конструктор листов"></h3>
@@ -134,113 +73,6 @@
       </div>
     </div>
 
-    <!-- 26 Widget types -->
-    <h2 data-bilingual data-en="26 Widget types at a glance" data-ru="26 типов виджетов кратко"></h2>
-    <p data-bilingual
-       data-en="Every widget binds to a data path on the document and is fully configurable. See the &lt;a href='widgets.html'&gt;full widget catalog&lt;/a&gt; for details."
-       data-ru="Каждый виджет привязан к пути данных на документе и полностью настраиваем. Подробности — в &lt;a href='widgets.html'&gt;полном каталоге виджетов&lt;/a&gt;."></p>
-    <table class="grid">
-      <thead><tr>
-        <th data-bilingual data-en="Category" data-ru="Категория"></th>
-        <th data-bilingual data-en="Widgets" data-ru="Виджеты"></th>
-        <th data-bilingual data-en="Purpose" data-ru="Назначение"></th>
-      </tr></thead>
-      <tbody>
-        <tr>
-          <td data-bilingual data-en="Data input" data-ru="Ввод данных"></td>
-          <td><code>text</code>, <code>number</code>, <code>select</code>, <code>toggle</code></td>
-          <td data-bilingual data-en="Basic fields: single-line text, number with ± buttons, dropdown, checkbox/switch."
-              data-ru="Базовые поля: текстовая строка, число с кнопками ±, выпадающий список, чекбокс/переключатель."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Resources" data-ru="Ресурсы"></td>
-          <td><code>resource</code>, <code>progress</code>, <code>counter</code></td>
-          <td data-bilingual data-en="Resource bar (value/max), read-only progress bar (XP, reputation), big ± stepper for metacurrencies."
-              data-ru="Полоска ресурса (значение/макс), read-only прогресс-бар (опыт, репутация), большой ± счётчик для метавалют."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Actions" data-ru="Действия"></td>
-          <td><code>dice</code>, <code>rollButton</code>, <code>button</code></td>
-          <td data-bilingual data-en="Clickable dice roll, one-click roll button (no graph needed), action button with graph binding."
-              data-ru="Кликабельный бросок кубиков, кнопка простого броска (без графа), action-кнопка с привязкой к графу."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Character" data-ru="Персонаж"></td>
-          <td><code>attribute</code>, <code>skill</code>, <code>derived</code></td>
-          <td data-bilingual data-en="Attribute (score + modifier + click), skill (rank + bonus + roll), derived value (computed formula, read-only)."
-              data-ru="Атрибут (значение + модификатор + клик), навык (ранг + бонус + бросок), вычисляемое значение (формула, только чтение)."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Containers" data-ru="Контейнеры"></td>
-          <td><code>inventory</code>, <code>slot</code>, <code>effects</code>, <code>spellbook</code></td>
-          <td data-bilingual data-en="Item table with filters, item slot (limited capacity), Active Effects list, filtered ability list."
-              data-ru="Таблица предметов с фильтрами, слот предметов (ограниченная ёмкость), список Active Effects, фильтруемый список способностей."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Trackers" data-ru="Трекеры"></td>
-          <td><code>clock</code>, <code>tracker</code>, <code>tokenPool</code>, <code>diceTray</code></td>
-          <td data-bilingual data-en="Pie-chart clock (Blades in the Dark), pip row tracker, visual token pool (Fate/Momentum), last roll display."
-              data-ru="Круговой клок (Blades in the Dark), пиповый трекер, визуальный пул токенов (Fate/Momentum), дисплей последнего броска."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Content" data-ru="Контент"></td>
-          <td><code>richtext</code>, <code>tags</code>, <code>image</code></td>
-          <td data-bilingual data-en="HTML notes editor, editable tag pills (traits, languages), static image display."
-              data-ru="HTML редактор заметок, редактируемые теги-пилюли (черты, языки), отображение изображения."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Layout" data-ru="Раскладка"></td>
-          <td><code>section</code>, <code>vsection</code></td>
-          <td data-bilingual data-en="Section header / divider (collapsible), vertical section container (nested widget stack)."
-              data-ru="Заголовок секции / разделитель (сворачиваемый), вертикальная секция-контейнер (стопка вложенных виджетов)."></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- 167 Graph nodes by category -->
-    <h2 data-bilingual data-en="167 Graph nodes by category" data-ru="167 нод графа по категориям"></h2>
-    <p data-bilingual
-       data-en="Full details in the &lt;a href='nodes.html'&gt;node catalog&lt;/a&gt;. Summary by category:"
-       data-ru="Полные описания — в &lt;a href='nodes.html'&gt;каталоге нод&lt;/a&gt;. Краткий обзор по категориям:"></p>
-    <table class="grid">
-      <thead><tr>
-        <th data-bilingual data-en="Category" data-ru="Категория"></th>
-        <th data-bilingual data-en="Key nodes" data-ru="Ключевые ноды"></th>
-        <th data-bilingual data-en="Purpose" data-ru="Назначение"></th>
-      </tr></thead>
-      <tbody>
-        <tr><td><strong>Flow</strong></td><td><code>Branch</code>, <code>Sequence</code>, <code>Switch</code>, <code>While Loop</code>, <code>Gate</code></td>
-            <td data-bilingual data-en="Conditional branching, sequential execution, multi-way switch, loops, guard gates." data-ru="Условное ветвление, последовательное выполнение, мультивариантный switch, циклы, охранные гейты."></td></tr>
-        <tr><td><strong>Sources</strong></td><td><code>Literal</code>, <code>Get Path</code>, <code>Get Self</code>, <code>Ternary</code>, <code>Random</code></td>
-            <td data-bilingual data-en="Constants, document data access, actor/token references, conditional values, random numbers." data-ru="Константы, доступ к данным документов, ссылки на акторов/токенов, условные значения, случайные числа."></td></tr>
-        <tr><td><strong>Dice</strong></td><td><code>Dice Roll</code>, <code>Dice Pool</code></td>
-            <td data-bilingual data-en="Standard dice rolls with Foundry syntax (1d20, 2d6kh1, 4d6dl1), dice pool mechanics (WoD, Shadowrun)." data-ru="Стандартные броски кубиков с синтаксисом Foundry (1d20, 2d6kh1, 4d6dl1), механика пула кубиков (WoD, Shadowrun)."></td></tr>
-        <tr><td><strong>Math</strong></td><td><code>Add</code>, <code>Sub</code>, <code>Mul</code>, <code>Div</code>, <code>Floor</code>, <code>Ceil</code>, <code>Clamp</code></td>
-            <td data-bilingual data-en="Arithmetic operations, rounding, value clamping, modulo, exponent." data-ru="Арифметические операции, округление, ограничение значений, остаток от деления, возведение в степень."></td></tr>
-        <tr><td><strong>Compare</strong></td><td><code>Eq</code>, <code>Neq</code>, <code>Gt</code>, <code>Lt</code>, <code>Gte</code>, <code>Lte</code></td>
-            <td data-bilingual data-en="Value comparisons returning boolean results for branching decisions." data-ru="Сравнение значений, возвращающие булевый результат для ветвлений."></td></tr>
-        <tr><td><strong>Logic</strong></td><td><code>And</code>, <code>Or</code>, <code>Not</code></td>
-            <td data-bilingual data-en="Boolean logic combinators." data-ru="Булевые логические комбинаторы."></td></tr>
-        <tr><td><strong>Actions</strong></td><td><code>Damage</code>, <code>Heal</code>, <code>Modify Field</code>, <code>Apply Effect</code>, <code>Chat Message</code>, <code>Roll Table</code></td>
-            <td data-bilingual data-en="Game actions: deal/heal HP, modify document fields, manage Active Effects, send chat messages, consume resources, make checks, roll on tables." data-ru="Игровые действия: нанесение/лечение HP, изменение полей документа, управление Active Effects, отправка в чат, расход ресурсов, проверки, броски по таблицам."></td></tr>
-        <tr><td><strong>Effects</strong></td><td><code>Create/Apply/Remove/Toggle Effect</code>, <code>Apply Status</code>, <code>Has Effect?</code>, <code>Place Aura</code></td>
-            <td data-bilingual data-en="Full Active Effect lifecycle: create with modes (0-5), apply/remove/toggle, check presence, status conditions, auras." data-ru="Полный жизненный цикл Active Effects: создание с режимами (0-5), наложение/снятие/переключение, проверка наличия, статусные состояния, ауры."></td></tr>
-        <tr><td><strong>AoE</strong></td><td><code>Chat AoE — Damage/Heal/Effect/Save</code></td>
-            <td data-bilingual data-en="Chat card with Place Template button. Tokens inside receive damage, heal, effect, or save. Shapes: circle, cone, ray, rect." data-ru="Карточка в чат с кнопкой Place Template. Токены внутри получают урон, лечение, эффект или спасбросок. Формы: circle, cone, ray, rect."></td></tr>
-        <tr><td><strong>Events</strong></td><td><code>on_click</code>, <code>on_turn_start/end</code>, <code>on_damage_taken</code>, <code>on_equip</code>, <code>on_rest</code></td>
-            <td data-bilingual data-en="Entry points for graphs. on_click for button graphs; the rest are for Trigger graphs (document-level automation)." data-ru="Точки входа для графов. on_click — для графов кнопок; остальные — для Trigger-графов (автоматизация на уровне документа)."></td></tr>
-        <tr><td><strong>Targeting</strong></td><td><code>For Each Target</code>, <code>For Each Token</code>, <code>Get All Targets</code></td>
-            <td data-bilingual data-en="Iterate over targeted tokens, all scene tokens, or collect targets as an array." data-ru="Итерация по таргеченным токенам, всем токенам на сцене, или сбор таргетов в массив."></td></tr>
-        <tr><td><strong>Variables</strong></td><td><code>Get Variable</code>, <code>Set Variable</code></td>
-            <td data-bilingual data-en="Persist values between graph executions in actor.flags.sd.vars." data-ru="Сохранение значений между выполнениями графов в actor.flags.sd.vars."></td></tr>
-        <tr><td><strong>Dialogs</strong></td><td><code>Dialog Switch</code>, <code>Dialog Confirm</code>, <code>Dialog Select</code>, <code>Dialog Text Input</code></td>
-            <td data-bilingual data-en="Interactive popups: multi-button choice, yes/no, select from array, free text input." data-ru="Интерактивные попапы: выбор из кнопок, да/нет, выбор из массива, ввод текста."></td></tr>
-        <tr><td><strong>Array</strong></td><td><code>Length</code>, <code>At</code>, <code>Filter</code>, <code>Sort</code>, <code>Concat</code></td>
-            <td data-bilingual data-en="Array manipulation: get length, index access, filter/sort/concatenate." data-ru="Работа с массивами: длина, доступ по индексу, фильтрация/сортировка/конкатенация."></td></tr>
-      </tbody>
-    </table>
-
-    <!-- Node kinds -->
     <h2 data-bilingual data-en="Node kinds" data-ru="Виды нод"></h2>
     <p data-bilingual data-en="Every node has a kind that affects its color and how it behaves:"
                       data-ru="У каждой ноды есть «вид», влияющий на цвет акцента и поведение:"></p>
@@ -253,124 +85,23 @@
       <tbody>
         <tr><td><span class="kind-badge" style="--c:#3aa87a">Pure</span></td>
             <td><code>#3aa87a</code></td>
-            <td data-bilingual data-en="Computation only — no side effects. Math, comparisons, getters, boolean logic. No exec pins — evaluated when a downstream node reads their output."
-                                data-ru="Только вычисление — без побочных эффектов. Math, сравнения, геттеры, булева логика. Нет exec пинов — вычисляются, когда нижестоящая нода читает их выход."></td></tr>
+            <td data-bilingual data-en="Computation only — no side effects. Math, comparisons, getters, etc."
+                                data-ru="Только вычисление — без побочных эффектов. Math, сравнения, геттеры и т.п."></td></tr>
         <tr><td><span class="kind-badge" style="--c:#e08a2a">Imperative</span></td>
             <td><code>#e08a2a</code></td>
-            <td data-bilingual data-en="Performs an action with side effects: damage, heal, apply effect, modify field, dialog, send chat, play sound. Connected via exec pins that define execution order."
-                                data-ru="Выполняет действие с побочным эффектом: урон, лечение, эффект, изменение поля, диалог, отправка в чат, звук. Связываются через exec пины, определяющие порядок выполнения."></td></tr>
+            <td data-bilingual data-en="Performs an action: damage, heal, apply effect, modify field, dialog…"
+                                data-ru="Выполняет действие: урон, лечение, эффект, изменение поля, диалог…"></td></tr>
         <tr><td><span class="kind-badge" style="--c:#d04040">Event</span></td>
             <td><code>#d04040</code></td>
-            <td data-bilingual data-en="Trigger entry point — fires on a Foundry lifecycle event (turn start, damage taken, equip, rest, etc.). Outputs exec pin and event-specific data pins."
-                                data-ru="Точка входа триггера — срабатывает на событие жизненного цикла Foundry (ход, урон, экипировка, отдых и т.д.). Выдаёт exec пин и пины данных события."></td></tr>
+            <td data-bilingual data-en="Trigger node — fires on a Foundry event (turn start, damage taken, equip…)."
+                                data-ru="Триггер — срабатывает на событие Foundry (ход, получение урона, экипировка…)."></td></tr>
       </tbody>
     </table>
 
-    <!-- Pin types -->
-    <h2 data-bilingual data-en="Pin types" data-ru="Типы пинов"></h2>
-    <p data-bilingual
-       data-en="Pins are the connection points on nodes. Each pin has a type that determines what data it can carry. The graph editor only allows connections between compatible types. The &lt;code&gt;any&lt;/code&gt; type connects to everything."
-       data-ru="Пины — точки соединения на нодах. У каждого пина есть тип, определяющий какие данные он передаёт. Редактор графа разрешает соединения только между совместимыми типами. Тип &lt;code&gt;any&lt;/code&gt; соединяется с чем угодно."></p>
-    <table class="grid">
-      <thead><tr>
-        <th data-bilingual data-en="Type" data-ru="Тип"></th>
-        <th data-bilingual data-en="Color" data-ru="Цвет"></th>
-        <th data-bilingual data-en="Description" data-ru="Описание"></th>
-      </tr></thead>
-      <tbody>
-        <tr><td><code>exec</code></td><td style="color:#ffca6b">&#x25cf; #ffca6b</td>
-            <td data-bilingual data-en="Execution flow — defines the order imperative nodes run in. Not a data type."
-                data-ru="Поток выполнения — определяет порядок запуска императивных нод. Не тип данных."></td></tr>
-        <tr><td><code>value.number</code></td><td style="color:#74c0ff">&#x25cf; #74c0ff</td>
-            <td data-bilingual data-en="Numeric value (integer or float)."
-                data-ru="Числовое значение (целое или дробное)."></td></tr>
-        <tr><td><code>value.string</code></td><td style="color:#e06bff">&#x25cf; #e06bff</td>
-            <td data-bilingual data-en="Text string — formulas, effect names, chat text."
-                data-ru="Текстовая строка — формулы, имена эффектов, текст чата."></td></tr>
-        <tr><td><code>value.bool</code></td><td style="color:#ff7b7b">&#x25cf; #ff7b7b</td>
-            <td data-bilingual data-en="Boolean (true/false) — used for conditions in Branch, Gate, etc."
-                data-ru="Булево (true/false) — используется в условиях Branch, Gate и т.д."></td></tr>
-        <tr><td><code>value.path</code></td><td style="color:#c8a268">&#x25cf; #c8a268</td>
-            <td data-bilingual data-en="A dot-path string pointing to a document field (e.g. system.resources.hp.value)."
-                data-ru="Точечный путь к полю документа (например system.resources.hp.value)."></td></tr>
-        <tr><td><code>value.uuid</code></td><td style="color:#a76bff">&#x25cf; #a76bff</td>
-            <td data-bilingual data-en="Foundry document UUID (e.g. Actor.xxxxx, Item.xxxxx)."
-                data-ru="UUID документа Foundry (например Actor.xxxxx, Item.xxxxx)."></td></tr>
-        <tr><td><code>value.actor</code></td><td style="color:#5dd6a8">&#x25cf; #5dd6a8</td>
-            <td data-bilingual data-en="Reference to an Actor document."
-                data-ru="Ссылка на документ Actor."></td></tr>
-        <tr><td><code>value.item</code></td><td style="color:#ffd94a">&#x25cf; #ffd94a</td>
-            <td data-bilingual data-en="Reference to an Item document."
-                data-ru="Ссылка на документ Item."></td></tr>
-        <tr><td><code>value.token</code></td><td style="color:#3ec8e0">&#x25cf; #3ec8e0</td>
-            <td data-bilingual data-en="Reference to a Token on the canvas."
-                data-ru="Ссылка на Token на канвасе."></td></tr>
-        <tr><td><code>value.array</code></td><td style="color:#d0d0d0">&#x25cf; #d0d0d0</td>
-            <td data-bilingual data-en="Array of values — targets, items, etc. Used with For Each and array manipulation nodes."
-                data-ru="Массив значений — цели, предметы и т.д. Используется с For Each и нодами обработки массивов."></td></tr>
-        <tr><td><code>value.any</code></td><td style="color:#9aa1b2">&#x25cf; #9aa1b2</td>
-            <td data-bilingual data-en="Universal type — connects to any other value type. Used for generic operations."
-                data-ru="Универсальный тип — соединяется с любым другим типом значений. Используется для общих операций."></td></tr>
-      </tbody>
-    </table>
-
-    <!-- Key concepts -->
-    <h2 data-bilingual data-en="Key concepts" data-ru="Ключевые концепции"></h2>
-    <p data-bilingual
-       data-en="These are covered in depth on the &lt;a href='concepts.html'&gt;Concepts&lt;/a&gt; page:"
-       data-ru="Подробно описаны на странице &lt;a href='concepts.html'&gt;Концепции&lt;/a&gt;:"></p>
-    <table class="grid">
-      <thead><tr>
-        <th data-bilingual data-en="Concept" data-ru="Концепция"></th>
-        <th data-bilingual data-en="Summary" data-ru="Краткое описание"></th>
-      </tr></thead>
-      <tbody>
-        <tr>
-          <td data-bilingual data-en="Hidden Fields" data-ru="Скрытые поля"></td>
-          <td data-bilingual data-en="Arbitrary key-value slots on documents (system.hiddenFields.&lt;key&gt;). Used for visibility toggles, state persistence, internal flags."
-              data-ru="Произвольные пары ключ-значение на документах (system.hiddenFields.&lt;ключ&gt;). Используются для переключателей видимости, сохранения состояния, внутренних флагов."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Equippable items" data-ru="Экипировка"></td>
-          <td data-bilingual data-en="Items with system.equippable and system.equipped flags. Categories weapon/armor/shield/tool are equippable by default."
-              data-ru="Предметы с флагами system.equippable и system.equipped. Категории weapon/armor/shield/tool экипируются по умолчанию."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Active Effects" data-ru="Active Effects"></td>
-          <td data-bilingual data-en="Foundry's built-in effect system. SD provides full lifecycle: Create, Apply, Remove, Toggle, Has Effect?. Supports 6 modes (Custom, Multiply, Add, Downgrade, Upgrade, Override)."
-              data-ru="Встроенная система эффектов Foundry. SD обеспечивает полный жизненный цикл: Create, Apply, Remove, Toggle, Has Effect?. Поддерживает 6 режимов (Custom, Multiply, Add, Downgrade, Upgrade, Override)."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Variables" data-ru="Переменные"></td>
-          <td data-bilingual data-en="Persistent storage in actor.flags.sd.vars. Get Variable / Set Variable nodes allow passing data between graph executions."
-              data-ru="Постоянное хранилище в actor.flags.sd.vars. Ноды Get Variable / Set Variable позволяют передавать данные между выполнениями графов."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Auras &amp; Regions" data-ru="Ауры и регионы"></td>
-          <td data-bilingual data-en="Place Aura nodes create Scene Regions attached to tokens. Tokens entering/inside receive effects, damage, or healing. Configurable shape, size, lifetime."
-              data-ru="Ноды Place Aura создают Scene Regions, привязанные к токенам. Токены, попадающие внутрь, получают эффекты, урон или лечение. Настраиваемые форма, размер, время жизни."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Formula syntax" data-ru="Синтаксис формул"></td>
-          <td data-bilingual data-en="Foundry dice syntax (1d20, 2d6kh1, 4d6dl1) plus SD references: @attr.str.mod for attributes, {system.path} for document fields, {__currentTarget}, {__loopIndex} for context."
-              data-ru="Синтаксис кубиков Foundry (1d20, 2d6kh1, 4d6dl1) плюс SD-ссылки: @attr.str.mod для атрибутов, {system.path} для полей документа, {__currentTarget}, {__loopIndex} для контекста."></td>
-        </tr>
-        <tr>
-          <td data-bilingual data-en="Declared attributes" data-ru="Объявленные атрибуты"></td>
-          <td data-bilingual data-en="Items can declare attribute paths so they appear in formulas as @attr.&lt;name&gt;. Stacking rules (additive/max/min/override) work automatically."
-              data-ru="Предметы могут объявлять пути атрибутов, которые появляются в формулах как @attr.&lt;имя&gt;. Правила стака (additive/max/min/override) работают автоматически."></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- Repository -->
     <h2 data-bilingual data-en="Repository" data-ru="Репозиторий"></h2>
     <p>
       <a href="https://github.com/phoenix1cold/system-director" target="_blank" rel="noopener">github.com/phoenix1cold/system-director</a>
     </p>
-    <p data-bilingual
-       data-en="Version: &lt;strong&gt;0.7.6&lt;/strong&gt; (beta). Foundry compatibility: v13 minimum, verified up to v14."
-       data-ru="Версия: &lt;strong&gt;0.7.6&lt;/strong&gt; (бета). Совместимость с Foundry: минимум v13, проверено до v14."></p>
   </main>
 
   <footer class="site">

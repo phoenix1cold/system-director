@@ -1,0 +1,110 @@
+{
+  "ui": {
+    "siteTitle": { "en": "System Director — Wiki", "ru": "System Director — Вики" },
+    "tagline":   { "en": "Visual sheet builder & node-graph automation for Foundry VTT",
+                   "ru": "Визуальный конструктор листов и нодовая автоматизация для Foundry VTT" },
+    "nav": {
+      "home":     { "en": "Overview",        "ru": "Обзор" },
+      "start":    { "en": "Getting started", "ru": "С чего начать" },
+      "concepts": { "en": "Concepts",        "ru": "Концепции" },
+      "widgets":  { "en": "Widgets",         "ru": "Виджеты" },
+      "nodes":    { "en": "Nodes",           "ru": "Ноды" },
+      "examples": { "en": "Examples",        "ru": "Примеры" }
+    },
+    "lang":  { "toggle": { "en": "RU", "ru": "EN" } },
+    "search":      { "en": "Search…",  "ru": "Поиск…" },
+    "filterAll":   { "en": "All",      "ru": "Все" },
+
+    "section": {
+      "inputs":   { "en": "Inputs",       "ru": "Входы" },
+      "outputs":  { "en": "Outputs",      "ru": "Выходы" },
+      "fields":   { "en": "Fields",       "ru": "Поля" },
+      "flags":    { "en": "Flags",        "ru": "Флаги" },
+      "examples": { "en": "Examples",     "ru": "Примеры" },
+      "styles":   { "en": "Style fields", "ru": "Стилевые поля" },
+      "config":   { "en": "Config fields","ru": "Поля настройки" },
+      "defaults": { "en": "Defaults",     "ru": "По умолчанию" },
+      "usage":    { "en": "Usage",        "ru": "Использование" },
+      "see":      { "en": "See also",     "ru": "См. также" }
+    },
+
+    "label": {
+      "category": { "en": "Category", "ru": "Категория" },
+      "id":       { "en": "ID",       "ru": "ID" },
+      "type":     { "en": "Type",     "ru": "Тип" },
+      "default":  { "en": "Default",  "ru": "По умолчанию" },
+      "options":  { "en": "Options",  "ru": "Варианты" },
+      "label":    { "en": "Label",    "ru": "Подпись" },
+      "required": { "en": "Required", "ru": "Обязательно" },
+      "optional": { "en": "Optional", "ru": "Опц." }
+    },
+
+    "kind": {
+      "pure":       { "en": "Pure (computation)",  "ru": "Чистая (вычисление)" },
+      "imperative": { "en": "Imperative (action)", "ru": "Императивная (действие)" },
+      "event":      { "en": "Event",                "ru": "Событие" }
+    }
+  },
+
+  "categories": {
+    "Flow":      { "en": "Flow / Control",          "ru": "Поток / управление" },
+    "Sources":   { "en": "Sources",                 "ru": "Источники" },
+    "Math":      { "en": "Math",                    "ru": "Математика" },
+    "Compare":   { "en": "Compare",                 "ru": "Сравнение" },
+    "Logic":     { "en": "Logic",                   "ru": "Логика" },
+    "Array":     { "en": "Array",                   "ru": "Массивы" },
+    "Actions":   { "en": "Actions",                 "ru": "Действия" },
+    "Effects":   { "en": "Effects",                 "ru": "Эффекты" },
+    "AoE":       { "en": "AoE",                     "ru": "AoE" },
+    "Events":    { "en": "Events",                  "ru": "События" },
+    "Targeting": { "en": "Targeting",               "ru": "Цели" },
+    "Variables": { "en": "Variables",               "ru": "Переменные" },
+    "Macros":    { "en": "Macros / Subgraphs",      "ru": "Макросы / подграфы" },
+    "Attribute": { "en": "Attribute",               "ru": "Атрибут" },
+    "Dice":      { "en": "Dice",                    "ru": "Кости" },
+    "_system":   { "en": "Internal",                "ru": "Внутренние" },
+    "_attr":     { "en": "Attribute (internal)",    "ru": "Атрибут (внутр.)" }
+  },
+
+  "pinTypes": {
+    "exec":         { "en": "Execution",   "ru": "Исполнение",   "color": "#ffca6b",
+                      "desc": { "en": "White-yellow execution wire — controls flow order.",
+                                "ru": "Жёлтый exec-провод — управляет порядком выполнения." } },
+    "value.any":    { "en": "Any",         "ru": "Любой",        "color": "#9aa1b2",
+                      "desc": { "en": "Wildcard value pin — connects to any value pin.",
+                                "ru": "Универсальное значение — подключается к любому value-пину." } },
+    "value.number": { "en": "Number",      "ru": "Число",        "color": "#74c0ff",
+                      "desc": { "en": "A numeric value (integer or float).",
+                                "ru": "Числовое значение (целое или дробное)." } },
+    "value.string": { "en": "String",      "ru": "Строка",       "color": "#e06bff",
+                      "desc": { "en": "Text string.",
+                                "ru": "Строка / текст." } },
+    "value.bool":   { "en": "Boolean",     "ru": "Булево",       "color": "#ff7b7b",
+                      "desc": { "en": "true / false. Compatible with numbers (1/0).",
+                                "ru": "true / false. Совместим с числами (1/0)." } },
+    "value.path":   { "en": "Path",        "ru": "Путь",         "color": "#c8a268",
+                      "desc": { "en": "Document property path, e.g. system.resources.hp.value.",
+                                "ru": "Путь к полю документа, напр. system.resources.hp.value." } },
+    "value.uuid":   { "en": "UUID",        "ru": "UUID",         "color": "#a76bff",
+                      "desc": { "en": "Foundry UUID like Actor.abc / Token.xyz.",
+                                "ru": "Foundry UUID типа Actor.abc / Token.xyz." } },
+    "value.actor":  { "en": "Actor",       "ru": "Актёр",        "color": "#5dd6a8",
+                      "desc": { "en": "Reference to an actor (or token's actor).",
+                                "ru": "Ссылка на актёра (или актёра токена)." } },
+    "value.item":   { "en": "Item",        "ru": "Предмет",      "color": "#ffd94a",
+                      "desc": { "en": "Reference to an item document.",
+                                "ru": "Ссылка на предмет." } },
+    "value.token":  { "en": "Token",       "ru": "Токен",        "color": "#3ec8e0",
+                      "desc": { "en": "Reference to a canvas token.",
+                                "ru": "Ссылка на токен на сцене." } },
+    "value.array":  { "en": "Array",       "ru": "Массив",       "color": "#d0d0d0",
+                      "desc": { "en": "List of items (actors, tokens, values).",
+                                "ru": "Список значений (акторы, токены, числа)." } }
+  },
+
+  "kinds": {
+    "pure":        { "color": "#3aa87a", "label": { "en": "Pure",       "ru": "Чистая"       } },
+    "imperative":  { "color": "#e08a2a", "label": { "en": "Imperative", "ru": "Императивная" } },
+    "event":       { "color": "#d04040", "label": { "en": "Event",      "ru": "Событие"      } }
+  }
+}
