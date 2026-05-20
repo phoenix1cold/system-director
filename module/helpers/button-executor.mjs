@@ -1353,30 +1353,76 @@ export class ButtonExecutor {
         _miUuid = _miStripQuotes(_miUuid);
         if (!_miUuid) { ui.notifications.warn("modifyItemField: item UUID is empty."); break; }
 
-        let _miItem = null;
-        try { _miItem = await fromUuid(_miUuid); } catch { _miItem = null; }
-        if (_miItem && !(_miItem instanceof Item)) {
-          if (_miItem?.actor instanceof Actor) {
-            _miItem = _miItem.actor.items?.find?.(i => i.uuid === _miUuid) ?? null;
-          } else {
-            _miItem = null;
+        // Resolve optional Actor pin override. When wired, the lookup is
+        // scoped to those actors' owned items first (so the same wired
+        // UUID resolves correctly per-actor, e.g. when looping with
+        // Get All Targets). When the override resolves to multiple actors,
+        // the update runs once per actor.
+        let _miSourceActors = null;
+        if (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '""' && action.actorOverride !== "0") {
+          const ovr = typeof action.actorOverride === "string"
+            ? _injectRuntime(action.actorOverride)
+            : action.actorOverride;
+          const list = _sdResolveActorsList(ovr, actor);
+          if (list.length) _miSourceActors = list;
+        }
+
+        // Helper: locate the target item on a given actor by UUID / id / name.
+        const _miFindOnActor = (a, baseName) => {
+          if (!a?.items) return null;
+          let it = a.items.find?.(i => i.uuid === _miUuid) ?? null;
+          if (!it) it = a.items.get?.(_miUuid) ?? null;
+          if (!it && baseName) it = a.items.find?.(i => i.name === baseName) ?? null;
+          return it;
+        };
+
+        const _miItems = [];
+        if (_miSourceActors) {
+          // Try to derive a fallback name from the wired UUID (so a single
+          // world-UUID can fan out to per-actor copies by name).
+          let _miBase = null;
+          try { _miBase = await fromUuid(_miUuid); } catch {}
+          const _miBaseName = (_miBase instanceof Item) ? _miBase.name : null;
+          for (const _a of _miSourceActors) {
+            const it = _miFindOnActor(_a, _miBaseName);
+            if (it) _miItems.push(it);
+          }
+          if (!_miItems.length) {
+            ui.notifications.warn(`modifyItemField: item "${_miUuid}" not found on wired actor(s).`);
+            break;
+          }
+        } else {
+          let _miItem = null;
+          try { _miItem = await fromUuid(_miUuid); } catch { _miItem = null; }
+          if (_miItem && !(_miItem instanceof Item)) {
+            if (_miItem?.actor instanceof Actor) {
+              _miItem = _miItem.actor.items?.find?.(i => i.uuid === _miUuid) ?? null;
+            } else {
+              _miItem = null;
+            }
+          }
+          if (!_miItem && actor) {
+            _miItem = actor.items?.find?.(i => i.uuid === _miUuid)
+                   ?? actor.items?.get?.(_miUuid)
+                   ?? null;
+          }
+          if (!_miItem) { ui.notifications.warn(`modifyItemField: item "${_miUuid}" not found.`); break; }
+          _miItems.push(_miItem);
+        }
+
+        const _miAmt = Number(action.amount ?? 0);
+        for (const _miItem of _miItems) {
+          const _miCur = Number(foundry.utils.getProperty(_miItem, _miPath) ?? 0);
+          let   _miRes;
+          if      (action.op === "subtract") _miRes = _miCur - _miAmt;
+          else if (action.op === "set")      _miRes = _miAmt;
+          else                               _miRes = _miCur + _miAmt;
+          try { await _miItem.update({ [_miPath]: _miRes }); }
+          catch (e) {
+            console.warn("SD modifyItemField failed for", _miItem?.name, e);
+            ui.notifications.warn(`modifyItemField: update failed (${e?.message ?? e}).`);
           }
         }
-        if (!_miItem && actor) {
-          _miItem = actor.items?.find?.(i => i.uuid === _miUuid)
-                 ?? actor.items?.get?.(_miUuid)
-                 ?? null;
-        }
-        if (!_miItem) { ui.notifications.warn(`modifyItemField: item "${_miUuid}" not found.`); break; }
-
-        const _miCur = Number(foundry.utils.getProperty(_miItem, _miPath) ?? 0);
-        const _miAmt = Number(action.amount ?? 0);
-        let   _miRes;
-        if      (action.op === "subtract") _miRes = _miCur - _miAmt;
-        else if (action.op === "set")      _miRes = _miAmt;
-        else                               _miRes = _miCur + _miAmt;
-        try { await _miItem.update({ [_miPath]: _miRes }); }
-        catch (e) { console.warn("SD modifyItemField failed for", _miItem?.name, e); ui.notifications.warn(`modifyItemField: update failed (${e?.message ?? e}).`); break; }
         break;
       }
 

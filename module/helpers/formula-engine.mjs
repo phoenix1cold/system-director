@@ -466,6 +466,39 @@ export class FormulaEngine {
     }
   }
 
+  // Strip one layer of surrounding double / single quotes that may have been
+  // added by `_safeLiteral` when a nested token (e.g. `{slotUuidFind:…}`) is
+  // substituted as an argument of an outer array-token. Without this, array
+  // helpers that receive their list from another token end up with quote
+  // characters baked into each element.
+  static _unwrapTokenString(raw) {
+    if (raw === undefined || raw === null) return "";
+    let s = String(raw).trim();
+    if (s.length >= 2 && ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'")))) {
+      try { s = JSON.parse(s); }
+      catch { s = s.slice(1, -1); }
+    }
+    return String(s ?? "");
+  }
+
+  // Canonical "list" parser used by every array-token handler. Accepts a
+  // single `parts[i]` segment (a comma-joined string, possibly wrapped in
+  // quotes by nested-token substitution) and returns a clean string array.
+  static _parseArrayList(raw) {
+    const s = this._unwrapTokenString(raw);
+    if (!s) return [];
+    return s.split(",").map(x => x.trim()).filter(Boolean);
+  }
+
+  // Canonical numeric parser for array-token numeric arguments. Handles
+  // values that arrive quoted (`"3"`) because of nested-token substitution.
+  static _parseArrayNum(raw, fallback = 0) {
+    if (raw === undefined || raw === null || raw === "") return fallback;
+    const s = this._unwrapTokenString(raw);
+    const n = Number(s);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
   static _evalSideForCompare(expr, doc) {
     if (expr === undefined || expr === null) return "";
     const s = String(expr).trim();
@@ -1080,14 +1113,14 @@ export class FormulaEngine {
     if (token.startsWith("arrayLength:")) {
       const rest = token.slice("arrayLength:".length);
       if (!rest) return 0;
-      return rest.split(",").map(s => s.trim()).filter(Boolean).length;
+      return this._parseArrayList(rest).length;
     }
 
     if (token.startsWith("arrayAt:")) {
       const rest = token.slice("arrayAt:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return "";
-      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(rest.slice(0, sep));
       const idx  = Math.floor(Number(rest.slice(sep + 1)) || 0);
       return list[idx] ?? "";
     }
@@ -1096,7 +1129,7 @@ export class FormulaEngine {
       const rest = token.slice("arrayMapField:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return "";
-      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(rest.slice(0, sep));
       const path = rest.slice(sep + 1);
       if (!path) return "";
       const out = [];
@@ -1113,7 +1146,7 @@ export class FormulaEngine {
     if (token.startsWith("arrayAgg:")) {
       const parts = token.slice("arrayAgg:".length).split("|");
       if (parts.length < 3) return 0;
-      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(parts[0]);
       const path = parts[1];
       const op   = parts[2];
       const nums = [];
@@ -1136,7 +1169,7 @@ export class FormulaEngine {
     if (token.startsWith("arrayFindExtreme:")) {
       const parts = token.slice("arrayFindExtreme:".length).split("|");
       if (parts.length < 3) return "";
-      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(parts[0]);
       const path = parts[1];
       const op   = parts[2];
       let bestId  = "";
@@ -1158,7 +1191,7 @@ export class FormulaEngine {
     if (token.startsWith("arraySort:")) {
       const parts = token.slice("arraySort:".length).split("|");
       if (parts.length < 3) return "";
-      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(parts[0]);
       const path = parts[1];
       const op   = parts[2];
       const annotated = list.map(tid => {
@@ -1179,7 +1212,7 @@ export class FormulaEngine {
     if (token.startsWith("arraySlice:")) {
       const parts = token.slice("arraySlice:".length).split("|");
       if (parts.length < 3) return "";
-      const list  = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const list  = this._parseArrayList(parts[0]);
       const start = Math.max(0, Math.floor(Number(parts[1]) || 0));
       const cnt   = Math.floor(Number(parts[2]));
       const end   = (cnt < 0) ? list.length : Math.min(list.length, start + cnt);
@@ -1189,16 +1222,16 @@ export class FormulaEngine {
     if (token.startsWith("arrayConcat:")) {
       const parts = token.slice("arrayConcat:".length).split("|");
       if (parts.length < 2) return "";
-      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
-      const b = parts[1].split(",").map(s => s.trim()).filter(Boolean);
+      const a = this._parseArrayList(parts[0]);
+      const b = this._parseArrayList(parts[1]);
       return [...a, ...b].join(",");
     }
 
     if (token.startsWith("arrayUnion:")) {
       const parts = token.slice("arrayUnion:".length).split("|");
       if (parts.length < 2) return "";
-      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
-      const b = parts[1].split(",").map(s => s.trim()).filter(Boolean);
+      const a = this._parseArrayList(parts[0]);
+      const b = this._parseArrayList(parts[1]);
       const seen = new Set();
       const out  = [];
       for (const id of [...a, ...b]) {
@@ -1212,8 +1245,8 @@ export class FormulaEngine {
     if (token.startsWith("arrayIntersect:")) {
       const parts = token.slice("arrayIntersect:".length).split("|");
       if (parts.length < 2) return "";
-      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
-      const b = new Set(parts[1].split(",").map(s => s.trim()).filter(Boolean));
+      const a = this._parseArrayList(parts[0]);
+      const b = new Set(this._parseArrayList(parts[1]));
       const seen = new Set();
       const out  = [];
       for (const id of a) {
@@ -1227,8 +1260,8 @@ export class FormulaEngine {
     if (token.startsWith("arrayDifference:")) {
       const parts = token.slice("arrayDifference:".length).split("|");
       if (parts.length < 2) return "";
-      const a = parts[0].split(",").map(s => s.trim()).filter(Boolean);
-      const b = new Set(parts[1].split(",").map(s => s.trim()).filter(Boolean));
+      const a = this._parseArrayList(parts[0]);
+      const b = new Set(this._parseArrayList(parts[1]));
       const seen = new Set();
       const out  = [];
       for (const id of a) {
@@ -1242,14 +1275,14 @@ export class FormulaEngine {
     if (token.startsWith("arrayContains:")) {
       const parts = token.slice("arrayContains:".length).split("|");
       if (parts.length < 2) return 0;
-      const list = new Set(parts[0].split(",").map(s => s.trim()).filter(Boolean));
+      const list = new Set(this._parseArrayList(parts[0]));
       const id   = String(parts.slice(1).join("|")).trim();
       return list.has(id) ? 1 : 0;
     }
 
     if (token.startsWith("arrayDistinct:")) {
       const rest = token.slice("arrayDistinct:".length);
-      const list = rest.split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(rest);
       const seen = new Set();
       const out  = [];
       for (const id of list) {
@@ -1263,7 +1296,7 @@ export class FormulaEngine {
     if (token.startsWith("arrayFilter:")) {
       const parts = token.slice("arrayFilter:".length).split("|");
       if (parts.length < 4) return "";
-      const list   = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const list   = this._parseArrayList(parts[0]);
       const path   = parts[1];
       const op     = parts[2];
       const cmpRaw = parts.slice(3).join("|");
@@ -1309,7 +1342,7 @@ export class FormulaEngine {
       const rest = token.slice("arrayPush:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return rest;
-      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(rest.slice(0, sep));
       const elem = _b64dec(rest.slice(sep + 1));
       if (String(elem).trim() !== "") list.push(String(elem));
       return list.join(",");
@@ -1330,14 +1363,14 @@ export class FormulaEngine {
       const rest = token.slice("arrayJoin:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return rest;
-      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(rest.slice(0, sep));
       const sp   = _b64dec(rest.slice(sep + 1));
       return list.join(sp);
     }
 
     if (token.startsWith("arrayGet:")) {
       const parts = token.slice("arrayGet:".length).split("|");
-      const list  = (parts[0] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+      const list  = this._parseArrayList(parts[0]);
       const idxN  = Math.floor(Number(parts[1]) || 0);
       const def   = _b64dec(parts.slice(2).join("|"));
       const real  = idxN < 0 ? (list.length + idxN) : idxN;
@@ -1347,14 +1380,14 @@ export class FormulaEngine {
 
     if (token.startsWith("arrayHasIndex:")) {
       const parts = token.slice("arrayHasIndex:".length).split("|");
-      const list  = (parts[0] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+      const list  = this._parseArrayList(parts[0]);
       const idxN  = Math.floor(Number(parts[1]) || 0);
       const real  = idxN < 0 ? (list.length + idxN) : idxN;
       return (real >= 0 && real < list.length) ? 1 : 0;
     }
 
     if (token.startsWith("arrayReverse:")) {
-      const list = token.slice("arrayReverse:".length).split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(token.slice("arrayReverse:".length));
       return list.reverse().join(",");
     }
 
@@ -1362,7 +1395,7 @@ export class FormulaEngine {
       const rest = token.slice("arrayNum:".length);
       const sep  = rest.lastIndexOf("|");
       if (sep < 0) return 0;
-      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(rest.slice(0, sep));
       const op   = rest.slice(sep + 1);
       const nums = list.map(Number).filter(n => !isNaN(n));
       if (op === "count") return nums.length;
@@ -1376,8 +1409,8 @@ export class FormulaEngine {
 
     if (token.startsWith("arrayRandomPick:")) {
       const parts = token.slice("arrayRandomPick:".length).split("|");
-      const list  = (parts[0] ?? "").split(",").map(s => s.trim()).filter(Boolean);
-      const cnt   = Math.max(0, Math.floor(Number(parts[1]) || 0));
+      const list  = this._parseArrayList(parts[0]);
+      const cnt   = Math.max(0, Math.floor(this._parseArrayNum(parts[1], 0)));
       if (!list.length || cnt <= 0) return "";
 
       const arr = list.slice();
@@ -1390,9 +1423,32 @@ export class FormulaEngine {
       return picked.join(",");
     }
 
+    if (token.startsWith("arrayRandomFrom:")) {
+      // Format: `arrayRandomFrom:cnt|list0|list1|…|listN`
+      // Concatenates every wired array source, then picks `cnt` random
+      // elements without repetition. Output is ALWAYS a comma-joined array
+      // (even when cnt === 1), so it chains cleanly into any Array node.
+      const parts = token.slice("arrayRandomFrom:".length).split("|");
+      const cnt   = Math.max(0, Math.floor(this._parseArrayNum(parts[0], 0)));
+      const pool  = [];
+      for (let k = 1; k < parts.length; k++) {
+        const seg = this._parseArrayList(parts[k]);
+        for (const el of seg) pool.push(el);
+      }
+      if (!pool.length || cnt <= 0) return "";
+
+      const arr  = pool.slice();
+      const pick = Math.min(cnt, arr.length);
+      for (let i = arr.length - 1; i > arr.length - 1 - pick && i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr.slice(arr.length - pick).join(",");
+    }
+
     if (token.startsWith("arrayFilterGeneric:")) {
       const parts = token.slice("arrayFilterGeneric:".length).split("|");
-      const list  = (parts[0] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+      const list  = this._parseArrayList(parts[0]);
       const op    = parts[1] ?? "==";
       const cmp   = _b64dec(parts.slice(2).join("|"));
       const cmpN  = Number(cmp);
@@ -1423,7 +1479,7 @@ export class FormulaEngine {
       const rest = token.slice("arrayMapFormula:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return "";
-      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(rest.slice(0, sep));
       const formula = _b64dec(rest.slice(sep + 1));
       const out = [];
       for (let i = 0; i < list.length; i++) {
@@ -1627,7 +1683,7 @@ export class FormulaEngine {
       const rest = token.slice("itemMapField:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return "";
-      const list = rest.slice(0, sep).split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(rest.slice(0, sep));
       const path = rest.slice(sep + 1);
       if (!path) return "";
       const out = [];
@@ -1641,7 +1697,7 @@ export class FormulaEngine {
     }
 
     if (token.startsWith("itemNames:")) {
-      const list = token.slice("itemNames:".length).split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(token.slice("itemNames:".length));
       const out = [];
       for (const ref of list) {
         const it = this._resolveItemRef(ref, doc);
@@ -1653,7 +1709,7 @@ export class FormulaEngine {
     if (token.startsWith("itemAgg:")) {
       const parts = token.slice("itemAgg:".length).split("|");
       if (parts.length < 3) return 0;
-      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(parts[0]);
       const path = parts[1];
       const op   = parts[2];
       const nums = [];
@@ -1675,7 +1731,7 @@ export class FormulaEngine {
     if (token.startsWith("itemFilter:")) {
       const parts  = token.slice("itemFilter:".length).split("|");
       if (parts.length < 4) return "";
-      const list   = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const list   = this._parseArrayList(parts[0]);
       const path   = parts[1];
       const op     = parts[2];
       const cmpRaw = parts.slice(3).join("|");
@@ -1710,7 +1766,7 @@ export class FormulaEngine {
     if (token.startsWith("itemSort:")) {
       const parts = token.slice("itemSort:".length).split("|");
       if (parts.length < 3) return "";
-      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(parts[0]);
       const path = parts[1];
       const op   = parts[2];
       const annotated = list.map(ref => {
@@ -1730,7 +1786,7 @@ export class FormulaEngine {
     if (token.startsWith("itemFindExtreme:")) {
       const parts = token.slice("itemFindExtreme:".length).split("|");
       if (parts.length < 3) return "";
-      const list = parts[0].split(",").map(s => s.trim()).filter(Boolean);
+      const list = this._parseArrayList(parts[0]);
       const path = parts[1];
       const op   = parts[2];
       let best  = "";

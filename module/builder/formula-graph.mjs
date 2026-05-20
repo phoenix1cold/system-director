@@ -1492,6 +1492,42 @@ export const NODE_DEFS = {
     }
   },
 
+  arr_random_from: {
+    title:"Random from Array", color:"#2a7a3a", cat:"Array",
+    desc:"Pick `Count` random elements (no repetition) from one or more wired arrays — every wired source is concatenated first. Output is ALWAYS a comma-joined array (even when Count is 1), so it chains cleanly into any other Array node and works with every array type (tokens, items, UUIDs, names, strings, numbers, …). Extra Array pins appear automatically as you connect them.",
+    inputs:[
+      {id:"n", label:"Count", type:"value.number"}
+    ],
+    outputs:[
+      {id:"arr", label:"Array",  type:"value.array"},
+      {id:"len", label:"Length", type:"value.number"}
+    ],
+    fields:[{key:"n", label:"Count", type:"number", default:1}],
+    dynamicPins:[
+      { base:"a", label:"Array", max:8, type:"value.array" }
+    ],
+    compile:(n,i)=>{
+      const cnt = (i.n != null && i.n !== "") ? i.n : (n.data.n ?? 1);
+      const lists = [];
+      for (let k = 0; k < 8; k++) {
+        const v = i[`a${k}`];
+        if (v != null && v !== "") lists.push(v);
+      }
+      return `{arrayRandomFrom:${cnt}|${lists.join("|")}}`;
+    },
+    compilePin:(n,i,pin)=>{
+      const cnt = (i.n != null && i.n !== "") ? i.n : (n.data.n ?? 1);
+      const lists = [];
+      for (let k = 0; k < 8; k++) {
+        const v = i[`a${k}`];
+        if (v != null && v !== "") lists.push(v);
+      }
+      const arr = `{arrayRandomFrom:${cnt}|${lists.join("|")}}`;
+      if (pin === "len") return `{arrayLength:${arr}}`;
+      return arr;
+    }
+  },
+
   arr_filter_generic: {
     title:"Array Filter (by element)", color:"#2a7a3a", cat:"Array",
     desc:"Generic filter that compares each element of the array directly to a value (no actor.path). Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`, `contains`, `startsWith`, `endsWith`. Numeric ops cast elements to numbers; string ops use case-sensitive substring matching.",
@@ -2024,10 +2060,11 @@ export const NODE_DEFS = {
 
   act_modify_item_field: {
     title:"Modify Item Field", color:"#4a2a6a", cat:"Field Ops",
-    desc:"Add / subtract / set a field on a specific item resolved by its UUID. Same operation as Modify Field, but the target is an Item document, not an actor field. Feed UUID as a pin (e.g. from Slot Item UUID / Item by UUID / Get Owned Items) or paste a fixed UUID into the field. Path / Op / Amount can all be driven by pins (UE-style).",
+    desc:"Add / subtract / set a field on a specific item resolved by its UUID. Same operation as Modify Field, but the target is an Item document, not an actor field. Feed UUID as a pin (e.g. from Slot Item UUID / Item by UUID / Get Owned Items) or paste a fixed UUID into the field. Path / Op / Amount can all be driven by pins (UE-style). Wire the Actor pin to scope the lookup to one or more specific actors (UUID / Get Actor / Get All Targets); the item is matched on each actor by UUID, by id, or by name resolved from the wired UUID. An array of actors loops the update over every actor.",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
       {id:"uuid",   label:"Item UUID", type:"value.string"},
+      {id:"actor",  label:"Actor",  type:"value.actor"},
       {id:"amount", label:"Amount", type:"value.number"},
       {id:"path",   label:"Path",   type:"value.path"},
       {id:"op",     label:"Op",     type:"value.string"}
@@ -2042,13 +2079,19 @@ export const NODE_DEFS = {
       {key:"op",   label:"Operation", type:"select", default:"add", options:["add","subtract","set"]}
     ],
     isAction:true, wideNode:true,
-    toAction:(n,inp)=>({
-      type:   "modifyItemField",
-      uuid:   (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : (n.data.uuid ?? ""),
-      path:   (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path ?? ""),
-      op:     (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op   ?? "add"),
-      amount: inp.amount ?? 0
-    })
+    toAction:(n,inp)=>{
+      const out = {
+        type:   "modifyItemField",
+        uuid:   (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : (n.data.uuid ?? ""),
+        path:   (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path ?? ""),
+        op:     (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op   ?? "add"),
+        amount: inp.amount ?? 0
+      };
+      if (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) {
+        out.actorOverride = inp.actor;
+      }
+      return out;
+    }
   },
 
   act_modify_inv_item_field: {
