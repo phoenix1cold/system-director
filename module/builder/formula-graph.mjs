@@ -318,32 +318,38 @@ export const NODE_DEFS = {
   },
   slot_count: {
     title:"Slot Count", color:"#1a4060", cat:"Sources",
-    desc:"Count items in a slot. Slot is auto-indexed — pick from dropdown or connect a Get Actor Slot ID node.",
-    inputs:[{id:"itemSlot",label:"Item Slot",type:"value.any"}],
+    desc:"Count items in a slot across the source (this item / actor / wired Actor pin) and every nested item slot. Slot ID is plain text — type it or connect a string pin.",
+    inputs:[
+      {id:"slotId", label:"Slot ID", type:"value.string"},
+      {id:"actor",  label:"Actor",   type:"value.actor"}
+    ],
     outputs:[{id:"v",label:"Count",type:"value.number"}],
-    fields:[{key:"slotId",label:"Slot ID",type:"slot-picker",default:"slot1"}],
+    fields:[{key:"slotId",label:"Slot ID",type:"text",default:"slot1",placeholder:"slot1"}],
     compile:(n,i)=>{
-      if (i.itemSlot != null) return `{slotCount:${i.itemSlot}}`;
-      const path = n.data.slotPath;
-      if (path) {
-        const parts = path.split("/");
-        if (parts.length === 2) return `{invItemSlotCount:${parts[0]}.${parts[1]}}`;
-        return `{nestedSlotCount:${path}}`;
-      }
-
-      return `{slotCount:${n.data.slotId??"slot1"}}`;
+      const sid  = (i.slotId != null && i.slotId !== "") ? String(i.slotId) : (n.data.slotId ?? "slot1");
+      const base = (i.actor  != null && i.actor  !== "") ? String(i.actor)  : `"self"`;
+      return `{slotCountOn:${base}|${sid}}`;
     }
   },
   slot_field: {
     title:"Slot Item Field", color:"#1a4060", cat:"Sources",
-    desc:"Field on item at index inside a slot (0=first)",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
+    desc:"Read a field from the first item found in any slot named Slot ID. Search walks the source actor (self / wired Actor pin) and every nested item slot at any depth until the field is found.",
+    inputs:[
+      {id:"slotId", label:"Slot ID", type:"value.string"},
+      {id:"actor",  label:"Actor",   type:"value.actor"},
+      {id:"path",   label:"Field",   type:"value.path"}
+    ],
+    outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[
-      {key:"slotId",label:"Slot ID",type:"text",default:"slot1"},
-      {key:"index", label:"Index",  type:"number",default:0},
+      {key:"slotId",label:"Slot ID",type:"text",default:"slot1",placeholder:"slot1"},
       {key:"path",  label:"Field",  type:"path",default:"system.hiddenFields.field"}
     ],
-    compile:(n)=>`{slot:${n.data.slotId??"slot1"}.${n.data.index??0}.${n.data.path??""}}`
+    compile:(n,i)=>{
+      const sid  = (i.slotId != null && i.slotId !== "") ? String(i.slotId) : (n.data.slotId ?? "slot1");
+      const base = (i.actor  != null && i.actor  !== "") ? String(i.actor)  : `"self"`;
+      const path = (i.path   != null && i.path   !== "") ? String(i.path)   : (n.data.path   ?? "");
+      return `{slotFind:${base}|${sid}|${path}}`;
+    }
   },
   item_uuid: {
     title:"Item by UUID", color:"#1a3050", cat:"Sources",
@@ -1734,28 +1740,51 @@ export const NODE_DEFS = {
 
   act_add_slot: {
     title:"Add to Slot", color:"#2a4a2a", cat:"Items",
-    desc:"Add an actor-owned item to a slot on this item or actor. Item and Slot are auto-indexed from the document.",
-    inputs:[{id:"exec",label:"",type:"exec"}],
+    desc:"Add an item to a slot on the source (this item / actor / wired Actor pin). Item is referenced by name or UUID (text or pin); Slot ID is plain text or pin.",
+    inputs:[
+      {id:"exec",     label:"",        type:"exec"},
+      {id:"slotId",   label:"Slot ID", type:"value.string"},
+      {id:"itemName", label:"Item",    type:"value.string"},
+      {id:"itemUuid", label:"UUID",    type:"value.string"},
+      {id:"actor",    label:"Actor",   type:"value.actor"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
-      {key:"itemName", label:"Item",   type:"item-picker", default:""},
-      {key:"slotId",   label:"Slot",   type:"slot-picker", default:"slot1"}
+      {key:"itemName", label:"Item name", type:"text", default:"", placeholder:"item name (optional)"},
+      {key:"uuid",     label:"…or UUID", type:"text", default:"", placeholder:"Item.xxxxx"},
+      {key:"slotId",   label:"Slot ID",  type:"text", default:"slot1", placeholder:"slot1"}
     ],
     isAction:true, wideNode:true,
-    toAction:(n)=>({type:"addToSlot", itemName:n.data.itemName??"", slotId:n.data.slotId??"slot1", slotPath:n.data.slotPath??null})
+    toAction:(n,inp)=>({
+      type:     "addToSlot",
+      itemName: (inp.itemName != null && inp.itemName !== "") ? String(inp.itemName) : (n.data.itemName ?? ""),
+      uuid:     (inp.itemUuid != null && inp.itemUuid !== "") ? String(inp.itemUuid) : (n.data.uuid ?? ""),
+      slotId:   (inp.slotId   != null && inp.slotId   !== "") ? String(inp.slotId)   : (n.data.slotId ?? "slot1"),
+      slotPath: n.data.slotPath ?? null,
+      actorOverride: (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) ? inp.actor : null
+    })
   },
 
   act_remove_slot: {
     title:"Remove from Slot", color:"#6a2a2a", cat:"Items",
-    desc:"Remove an item from a slot by slot ID. Slot is auto-indexed.",
-    inputs:[{id:"exec",label:"",type:"exec"}],
+    desc:"Remove the first item from a slot by Slot ID. Source is this item / actor / wired Actor pin. Slot ID is plain text or pin.",
+    inputs:[
+      {id:"exec",   label:"",        type:"exec"},
+      {id:"slotId", label:"Slot ID", type:"value.string"},
+      {id:"actor",  label:"Actor",   type:"value.actor"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
-      {key:"slotId", label:"Slot",  type:"slot-picker", default:"slot1"},
-      {key:"index",  label:"Index (0=first)", type:"number", default:0}
+      {key:"slotId", label:"Slot ID", type:"text", default:"slot1", placeholder:"slot1"}
     ],
     isAction:true, wideNode:true,
-    toAction:(n)=>({type:"removeFromSlot", slotId:n.data.slotId??"slot1", index:n.data.index??0, slotPath:n.data.slotPath??null})
+    toAction:(n,inp)=>({
+      type:     "removeFromSlot",
+      slotId:   (inp.slotId != null && inp.slotId !== "") ? String(inp.slotId) : (n.data.slotId ?? "slot1"),
+      index:    0,
+      slotPath: n.data.slotPath ?? null,
+      actorOverride: (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) ? inp.actor : null
+    })
   },
 
   act_remove_item: {
@@ -1899,15 +1928,23 @@ export const NODE_DEFS = {
 
   act_use_slot_item: {
     title:"Use Slot Item", color:"#2a5a3a", cat:"Items",
-    desc:"Calls item.use() on the item sitting at [index] in a slot. Slot is auto-indexed.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"index",label:"Index",type:"value.number"}],
+    desc:"Calls item.use() on the first item found in a slot by Slot ID. Search walks the source (this item / actor / wired Actor pin) and every nested item slot.",
+    inputs:[
+      {id:"exec",   label:"",        type:"exec"},
+      {id:"slotId", label:"Slot ID", type:"value.string"},
+      {id:"actor",  label:"Actor",   type:"value.actor"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
-      {key:"slotId", label:"Slot",         type:"slot-picker", default:"slot1"},
-      {key:"index",  label:"Index (0=first)", type:"number",   default:0}
+      {key:"slotId", label:"Slot ID", type:"text", default:"slot1", placeholder:"slot1"}
     ],
     isAction:true, wideNode:true,
-    toAction:(n,inp)=>({type:"useSlotItem", slotId:n.data.slotId??"slot1", index:inp.index??n.data.index??0})
+    toAction:(n,inp)=>({
+      type:   "useSlotItem",
+      slotId: (inp.slotId != null && inp.slotId !== "") ? String(inp.slotId) : (n.data.slotId ?? "slot1"),
+      index:  0,
+      actorOverride: (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) ? inp.actor : null
+    })
   },
 
   act_use_item: {
@@ -1958,29 +1995,59 @@ export const NODE_DEFS = {
 
   act_modify_slot_item_field: {
     title:"Modify Slot Item Field", color:"#4a2a6a", cat:"Field Ops",
-    desc:"Add / subtract / set a field on the item sitting at [index] in a slot. Slot is auto-indexed. Path / Op can be fed via pins (UE-style).",
+    desc:"Add / subtract / set a field on the first item found in a slot. Searches the source (this item / actor / wired Actor pin) and every nested item slot at any depth until an item carrying the field path is found. Path / Op / Slot ID can be fed via pins (UE-style).",
     inputs:[
-      {id:"exec",  label:"",       type:"exec"},
-      {id:"amount",label:"Amount", type:"value.number"},
-      {id:"index", label:"Index",  type:"value.number"},
-      {id:"path",  label:"Path",   type:"value.path"},
-      {id:"op",    label:"Op",     type:"value.string"}
+      {id:"exec",   label:"",        type:"exec"},
+      {id:"amount", label:"Amount",  type:"value.number"},
+      {id:"slotId", label:"Slot ID", type:"value.string"},
+      {id:"path",   label:"Path",    type:"value.path"},
+      {id:"op",     label:"Op",      type:"value.string"},
+      {id:"actor",  label:"Actor",   type:"value.actor"}
     ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
-      {key:"slotId", label:"Slot",          type:"slot-picker", default:"slot1"},
-      {key:"index",  label:"Index (0=first)",  type:"number", default:0},
-      {key:"path",   label:"Field Path",       type:"path",   default:"system.hiddenFields.field"},
-      {key:"op",     label:"Operation",        type:"select", default:"add", options:["add","subtract","set"]}
+      {key:"slotId", label:"Slot ID",   type:"text",   default:"slot1", placeholder:"slot1"},
+      {key:"path",   label:"Field Path", type:"path",   default:"system.hiddenFields.field"},
+      {key:"op",     label:"Operation",  type:"select", default:"add", options:["add","subtract","set"]}
     ],
     isAction:true, wideNode:true,
     toAction:(n,inp)=>({
-      type:"modifySlotItemField",
-      slotId: n.data.slotId??"slot1",
-      index:  inp.index??n.data.index??0,
-      path:   (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path??""),
-      op:     (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op??"add"),
-      amount: inp.amount??0
+      type:   "modifySlotItemField",
+      slotId: (inp.slotId != null && inp.slotId !== "") ? String(inp.slotId) : (n.data.slotId ?? "slot1"),
+      index:  0,
+      path:   (inp.path   != null && inp.path   !== "") ? String(inp.path)   : (n.data.path ?? ""),
+      op:     (inp.op     != null && inp.op     !== "") ? String(inp.op)     : (n.data.op   ?? "add"),
+      amount: inp.amount ?? 0,
+      actorOverride: (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) ? inp.actor : null
+    })
+  },
+
+  act_modify_item_field: {
+    title:"Modify Item Field", color:"#4a2a6a", cat:"Field Ops",
+    desc:"Add / subtract / set a field on a specific item resolved by its UUID. Same operation as Modify Field, but the target is an Item document, not an actor field. Feed UUID as a pin (e.g. from Slot Item UUID / Item by UUID / Get Owned Items) or paste a fixed UUID into the field. Path / Op / Amount can all be driven by pins (UE-style).",
+    inputs:[
+      {id:"exec",   label:"",       type:"exec"},
+      {id:"uuid",   label:"Item UUID", type:"value.string"},
+      {id:"amount", label:"Amount", type:"value.number"},
+      {id:"path",   label:"Path",   type:"value.path"},
+      {id:"op",     label:"Op",     type:"value.string"}
+    ],
+    outputs:[
+      {id:"exec",    label:"",         type:"exec"},
+      {id:"newValue",label:"New Value",type:"value.any"}
+    ],
+    fields:[
+      {key:"uuid", label:"Item UUID", type:"text",   default:"", placeholder:"Item.xxxxx or drag item here"},
+      {key:"path", label:"Field Path",type:"path",   default:"system.hiddenFields.field"},
+      {key:"op",   label:"Operation", type:"select", default:"add", options:["add","subtract","set"]}
+    ],
+    isAction:true, wideNode:true,
+    toAction:(n,inp)=>({
+      type:   "modifyItemField",
+      uuid:   (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : (n.data.uuid ?? ""),
+      path:   (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path ?? ""),
+      op:     (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op   ?? "add"),
+      amount: inp.amount ?? 0
     })
   },
 
@@ -2043,77 +2110,116 @@ export const NODE_DEFS = {
 
   slot_item_uuid: {
     title:"Slot Item UUID", color:"#1a4060", cat:"Sources",
-    desc:"Outputs the UUID of the item at [index] in a slot. Slot is auto-indexed.",
-    inputs:[], outputs:[{id:"v",label:"UUID (str)",type:"value.uuid"}],
-    fields:[
-      {key:"slotId", label:"Slot",          type:"slot-picker", default:"slot1"},
-      {key:"index",  label:"Index (0=first)", type:"number",    default:0}
+    desc:"UUID of the first item found in any slot named Slot ID. Search walks the source (this item / actor / wired Actor pin) and every nested item slot.",
+    inputs:[
+      {id:"slotId", label:"Slot ID", type:"value.string"},
+      {id:"actor",  label:"Actor",   type:"value.actor"}
     ],
-    compile:(n)=>`{slotUuid:${n.data.slotId??"slot1"}.${n.data.index??0}}`
+    outputs:[{id:"v",label:"UUID (str)",type:"value.uuid"}],
+    fields:[
+      {key:"slotId", label:"Slot ID", type:"text", default:"slot1", placeholder:"slot1"}
+    ],
+    compile:(n,i)=>{
+      const sid  = (i.slotId != null && i.slotId !== "") ? String(i.slotId) : (n.data.slotId ?? "slot1");
+      const base = (i.actor  != null && i.actor  !== "") ? String(i.actor)  : `"self"`;
+      return `{slotUuidFind:${base}|${sid}}`;
+    }
   },
 
   get_actor_slot_id: {
     title:"Get Actor Slot ID", color:"#1a4060", cat:"Sources",
-    desc:"Reference a slot by ID — connect to the Item Slot pin on Slot Count, Add/Remove from Inv Item Slot nodes to dynamically select which slot to operate on.",
-    inputs:[], outputs:[{id:"v",label:"Item Slot",type:"value.any"}],
-    fields:[{key:"slotId",label:"Slot ID",type:"slot-picker",default:"slot1"}],
-    compile:(n)=>(n.data.slotId??"slot1")
+    desc:"Emit a slot ID as a string. Type the id in the field or connect a text pin to override.",
+    inputs:[
+      {id:"slotId", label:"Slot ID", type:"value.string"}
+    ],
+    outputs:[{id:"v",label:"Slot ID",type:"value.string"}],
+    fields:[{key:"slotId",label:"Slot ID",type:"text",default:"slot1",placeholder:"slot1"}],
+    compile:(n,i)=>{
+      const sid = (i.slotId != null && i.slotId !== "") ? String(i.slotId) : (n.data.slotId ?? "slot1");
+      const raw = sid.replace(/^"(.*)"$/, "$1");
+      return JSON.stringify(raw);
+    }
   },
 
   inv_item_slot_count: {
     title:"Inv Item Slot Count", color:"#1a4060", cat:"Sources",
-    desc:"Count of items in a slot on an actor-owned inventory item. Item and slot are auto-indexed. Connect Get Actor Slot ID to override slot.",
-    inputs:[{id:"itemSlot",label:"Item Slot",type:"value.any"}],
+    desc:"Count of items in a slot. If Item is empty, totals every nested item slot named Slot ID on the source (this item / actor / wired Actor pin). Otherwise scoped to the referenced container.",
+    inputs:[
+      {id:"slotId", label:"Slot ID",  type:"value.string"},
+      {id:"item",   label:"Item ref", type:"value.string"},
+      {id:"actor",  label:"Actor",    type:"value.actor"}
+    ],
     outputs:[{id:"v",label:"Count",type:"value.number"}],
     fields:[
-      {key:"itemName", label:"Item",                    type:"item-picker", default:""},
-      {key:"uuid",     label:"…or UUID",                type:"text",        default:"", placeholder:"drag item here"},
-      {key:"slotId",   label:"Slot on that item",       type:"slot-picker", default:"slot1"}
+      {key:"itemName", label:"Item name",          type:"text", default:"", placeholder:"container name (optional)"},
+      {key:"uuid",     label:"…or UUID",           type:"text", default:"", placeholder:"Item.xxxxx"},
+      {key:"slotId",   label:"Slot on that item",  type:"text", default:"slot1", placeholder:"slot1"}
     ],
-    compile:(n,i)=>`{invItemSlotCount:${n.data.uuid||n.data.itemName||"?"}.${i.itemSlot??n.data.slotId??"slot1"}}`
+    compile:(n,i)=>{
+      const sid  = (i.slotId != null && i.slotId !== "") ? String(i.slotId) : (n.data.slotId ?? "slot1");
+      const ref  = (i.item   != null && i.item   !== "") ? String(i.item)   : (n.data.uuid || n.data.itemName || "");
+      const base = (i.actor  != null && i.actor  !== "") ? String(i.actor)  : `"self"`;
+      return `{invItemSlotCountOn:${base}|${ref}|${sid}}`;
+    }
   },
 
   act_remove_from_inv_item_slot: {
     title:"Remove from Inv Item Slot", color:"#6a2a2a", cat:"Items",
-    desc:"Find an item in actor's inventory, then remove one item from its slot. Both item and slot are auto-indexed — just pick from dropdowns. Connect Get Actor Slot ID to Item Slot pin to override.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"index",label:"Index",type:"value.number"},{id:"itemSlot",label:"Item Slot",type:"value.any"}],
+    desc:"Find a container item by name / UUID (or any container holding Slot ID when both are blank) and remove the first item from its slot. Source is this item / actor / wired Actor pin.",
+    inputs:[
+      {id:"exec",   label:"",        type:"exec"},
+      {id:"slotId", label:"Slot ID", type:"value.string"},
+      {id:"item",   label:"Item ref",type:"value.string"},
+      {id:"actor",  label:"Actor",   type:"value.actor"}
+    ],
     outputs:[
       {id:"exec",  label:"Done →", type:"exec"},
       {id:"empty", label:"Empty →",type:"exec"}
     ],
     fields:[
-      {key:"_compound", label:"Container → Slot", type:"inv-item-slot", itemKey:"itemName", slotKey:"slotId"},
-      {key:"index",     label:"Index (0=first)",  type:"number", default:0}
+      {key:"itemName", label:"Container name", type:"text", default:"", placeholder:"container name (optional)"},
+      {key:"uuid",     label:"…or UUID",       type:"text", default:"", placeholder:"Item.xxxxx"},
+      {key:"slotId",   label:"Slot ID",        type:"text", default:"slot1", placeholder:"slot1"}
     ],
     isAction:true, wideNode:true,
     isRemoveFromInvSlot: true,
     toAction:(n,inp)=>({
       type:     "removeFromInvItemSlot",
-      itemName: n.data.itemName ?? "",
-      uuid:     n.data.uuid     ?? "",
-      slotId:   inp.itemSlot    ?? n.data.slotId ?? "slot1",
-      index:    inp.index       ?? n.data.index ?? 0
+      itemName: (inp.item != null && inp.item !== "") ? String(inp.item) : (n.data.itemName ?? ""),
+      uuid:     n.data.uuid ?? "",
+      slotId:   (inp.slotId != null && inp.slotId !== "") ? String(inp.slotId) : (n.data.slotId ?? "slot1"),
+      index:    0,
+      actorOverride: (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) ? inp.actor : null
     })
   },
 
   act_add_to_inv_item_slot: {
     title:"Add to Inv Item Slot", color:"#2a4a2a", cat:"Items",
-    desc:"Find a container item and add another inventory item into its slot. Pick container from dropdown, drag item to add from sidebar.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"itemSlot",label:"Item Slot",type:"value.any"}],
+    desc:"Find a container item by name / UUID (or any container holding Slot ID when both are blank) and add an inventory item into its slot. Source is this item / actor / wired Actor pin.",
+    inputs:[
+      {id:"exec",      label:"",        type:"exec"},
+      {id:"slotId",    label:"Slot ID", type:"value.string"},
+      {id:"parent",    label:"Container", type:"value.string"},
+      {id:"itemUuid",  label:"Item UUID", type:"value.string"},
+      {id:"actor",     label:"Actor",   type:"value.actor"}
+    ],
     outputs:[{id:"exec",label:"Done →",type:"exec"},{id:"full",label:"Full →",type:"exec"}],
     fields:[
-      {key:"_compound",  label:"Container → Slot", type:"inv-item-slot", itemKey:"parentName", slotKey:"slotId"},
-      {key:"itemUuid",   label:"Item to add",       type:"item-uuid-drag", default:""}
+      {key:"parentName", label:"Container name", type:"text", default:"", placeholder:"container name (optional)"},
+      {key:"parentUuid", label:"…or UUID",       type:"text", default:"", placeholder:"Item.xxxxx"},
+      {key:"slotId",     label:"Slot ID",        type:"text", default:"slot1", placeholder:"slot1"},
+      {key:"itemUuid",   label:"Item to add UUID", type:"text", default:"", placeholder:"Item.xxxxx"}
     ],
     isAction:true, wideNode:true,
     isAddToInvSlot: true,
     toAction:(n,inp)=>({
       type:       "addToInvItemSlot",
-      parentName: n.data.parentName ?? "",
+      parentName: (inp.parent != null && inp.parent !== "") ? String(inp.parent) : (n.data.parentName ?? ""),
       parentUuid: n.data.parentUuid ?? "",
-      slotId:     inp.itemSlot      ?? n.data.slotId     ?? "slot1",
-      itemName:   n.data.itemName   ?? "",
-      itemUuid:   n.data.itemUuid   ?? ""
+      slotId:     (inp.slotId != null && inp.slotId !== "") ? String(inp.slotId) : (n.data.slotId ?? "slot1"),
+      itemName:   n.data.itemName ?? "",
+      itemUuid:   (inp.itemUuid != null && inp.itemUuid !== "") ? String(inp.itemUuid) : (n.data.itemUuid ?? ""),
+      actorOverride: (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) ? inp.actor : null
     })
   },
   act_attack_check: {
@@ -2728,105 +2834,6 @@ export const NODE_DEFS = {
     })
   },
 
-  dialog_switch: {
-    title:"Dialog Switch (legacy)", color:"#c05a20", cat:"Flow",
-    desc:"Show a dialog with 2-8 named options. The player picks one and that exec branch fires. Outputs are named via fields.",
-    wideNode:true,
-    inputs:[{id:"exec", label:"", type:"exec"}],
-    outputs:[
-      {id:"out0",label:"Option 1",type:"exec"},
-      {id:"out1",label:"Option 2",type:"exec"},
-      {id:"out2",label:"Option 3",type:"exec"},
-      {id:"out3",label:"Option 4",type:"exec"},
-      {id:"out4",label:"Option 5",type:"exec"},
-      {id:"out5",label:"Option 6",type:"exec"},
-      {id:"out6",label:"Option 7",type:"exec"},
-      {id:"out7",label:"Option 8",type:"exec"}
-    ],
-    fields:[
-      {key:"count",  label:"Number of options (2-8)", type:"number", default:2},
-      {key:"title",  label:"Dialog title",            type:"text",   default:"Choose"},
-      {key:"desc",   label:"Description (optional)",  type:"text",   default:""},
-      {key:"label0", label:"Option 1 label",          type:"text",   default:"Option 1"},
-      {key:"label1", label:"Option 2 label",          type:"text",   default:"Option 2"},
-      {key:"label2", label:"Option 3 label",          type:"text",   default:"Option 3"},
-      {key:"label3", label:"Option 4 label",          type:"text",   default:"Option 4"},
-      {key:"label4", label:"Option 5 label",          type:"text",   default:"Option 5"},
-      {key:"label5", label:"Option 6 label",          type:"text",   default:"Option 6"},
-      {key:"label6", label:"Option 7 label",          type:"text",   default:"Option 7"},
-      {key:"label7", label:"Option 8 label",          type:"text",   default:"Option 8"}
-    ],
-    isDialogSwitch: true,
-    activeOutputCount: (n) => Math.max(2, Math.min(8, parseInt(n.data?.count) || 2)),
-    toAction:(n, inp, compiler) => {
-      const count = Math.max(2, Math.min(8, parseInt(n.data?.count) || 2));
-      const outputs = [];
-      for (let i = 0; i < count; i++) {
-        outputs.push({
-          label:   n.data[`label${i}`] ?? `Option ${i+1}`,
-          actions: compiler ? compiler.compileExecPin(n, `out${i}`) : []
-        });
-      }
-      return {
-        type:        "dialogSwitch",
-        title:       n.data.title ?? "Choose",
-        description: n.data.desc  ?? "",
-        outputs
-      };
-    }
-  },
-
-  dialog_select_array: {
-    title:"Dialog Select Array (legacy)", color:"#c05a20", cat:"Flow",
-    desc:"Show a dialog with one button per element of the input array. The chosen element is emitted on `Selected` (value), the index on `Index`, and Selected→ exec fires after pick. Cancel → Cancel exec.",
-    inputs:[
-      {id:"exec",  label:"",      type:"exec"},
-      {id:"items", label:"Items", type:"value.array"}
-    ],
-    outputs:[
-      {id:"sel",      label:"Selected →", type:"exec"},
-      {id:"cancel",   label:"Cancel",     type:"exec"},
-      {id:"selected", label:"Selected",   type:"value.any"},
-      {id:"index",    label:"Index",      type:"value.number"}
-    ],
-    fields:[
-      {key:"title",     label:"Dialog title",                 type:"text", default:"Choose"},
-      {key:"desc",      label:"Description (optional)",       type:"text", default:""},
-      {key:"labelPath", label:"Label path (e.g. name)",       type:"text", default:"name"}
-    ],
-    isGenericBranch: true,
-    toAction:(n, inp) => ({
-      type:        "dialogSelectArray",
-      title:       n.data.title ?? "Choose",
-      description: n.data.desc  ?? "",
-      labelPath:   n.data.labelPath ?? "name",
-      items:       inp.items ?? ""
-    })
-  },
-
-  dialog_text_input: {
-    title:"Dialog Text Input (legacy)", color:"#c05a20", cat:"Flow",
-    desc:"Show a single-line text input dialog. The entered text is emitted on `Text` and OK exec fires.",
-    inputs:[{id:"exec", label:"", type:"exec"}],
-    outputs:[
-      {id:"ok",     label:"OK →",   type:"exec"},
-      {id:"cancel", label:"Cancel", type:"exec"},
-      {id:"text",   label:"Text",   type:"value.string"}
-    ],
-    fields:[
-      {key:"title",   label:"Dialog title", type:"text", default:"Enter text"},
-      {key:"desc",    label:"Description",  type:"text", default:""},
-      {key:"default", label:"Default value", type:"text", default:""}
-    ],
-    isGenericBranch: true,
-    toAction:(n) => ({
-      type:        "dialogTextInput",
-      title:       n.data.title   ?? "Enter text",
-      description: n.data.desc    ?? "",
-      default:     n.data.default ?? ""
-    })
-  },
-
   act_dialog_builder: (() => {
     const MAX_EL = 8;
     const TYPE_OPTS = ["label","section","text","number","checkbox","select","button"];
@@ -2947,30 +2954,6 @@ export const NODE_DEFS = {
       }
     };
   })(),
-
-  dialog_confirm: {
-    title:"Dialog Confirm (legacy)", color:"#c05a20", cat:"Flow",
-    desc:"Show a Yes/No confirmation dialog. The matching exec branch fires.",
-    inputs:[{id:"exec", label:"", type:"exec"}],
-    outputs:[
-      {id:"yes", label:"Yes →", type:"exec"},
-      {id:"no",  label:"No →",  type:"exec"}
-    ],
-    fields:[
-      {key:"title",   label:"Dialog title", type:"text", default:"Confirm"},
-      {key:"message", label:"Message",      type:"text", default:"Are you sure?"},
-      {key:"yesLabel",label:"Yes label",    type:"text", default:"Yes"},
-      {key:"noLabel", label:"No label",     type:"text", default:"No"}
-    ],
-    isGenericBranch: true,
-    toAction:(n) => ({
-      type:        "dialogConfirm",
-      title:       n.data.title    ?? "Confirm",
-      message:     n.data.message  ?? "",
-      yesLabel:    n.data.yesLabel ?? "Yes",
-      noLabel:     n.data.noLabel  ?? "No"
-    })
-  },
 
   while_loop: {
     title:"While Loop", color:"#1a5a7a", cat:"Flow",
@@ -3899,33 +3882,6 @@ export const NODE_DEFS = {
       type:  "notify",
       text:  inp.text ?? n.data.text ?? "Done!",
       level: (inp.level != null && inp.level !== "") ? String(inp.level) : (n.data.level ?? "info")
-    })
-  },
-
-  act_consume_resource: {
-    title:"Consume Resource", color:"#6a2a6a", cat:"Resources",
-    desc:"Decrement a resource value by Amount (default 1). If current value would go below 0 takes the Empty branch instead. Path can be fed dynamically (UE-style — when wired, the field hides). Use instead of Modify Field + Branch for uses/charges/mana.",
-    inputs:[
-      {id:"exec",   label:"",       type:"exec"},
-      {id:"amount", label:"Amount", type:"value.number"},
-      {id:"target", label:"Target", type:"value.actor"},
-      {id:"path",   label:"Path",   type:"value.path"}
-    ],
-    outputs:[
-      {id:"ok",    label:"OK →",    type:"exec"},
-      {id:"empty", label:"Empty →", type:"exec"}
-    ],
-    fields:[
-      {key:"path",   label:"Resource value path", type:"path",   default:"system.resources.mp.value"},
-      {key:"amount", label:"Default amount",       type:"number", default:1},
-      {key:"target", label:"On",                   type:"select", default:"self", options:["self","actor","token_target"]}
-    ],
-    isConsumeResource: true,
-    toAction:(n,inp)=>({
-      type:   "consumeResource",
-      path:   (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path ?? "system.resources.mp.value"),
-      amount: inp.amount    ?? n.data.amount ?? 1,
-      target: (inp.target!=null && inp.target!=="" && inp.target!=="0") ? inp.target : (n.data.target ?? "self")
     })
   },
 
@@ -5612,13 +5568,6 @@ const BRANCH_PIN_TOKENS = {
     diff:   "{__cmpDiff}",
     winner: "{__cmpWinner}"
   },
-  dialog_select_array: {
-    selected: "{__sdSelectedItem}",
-    index:    "{__sdSelectedIndex}"
-  },
-  dialog_text_input: {
-    text: "{__sdInputText}"
-  },
   act_card_draw: {
     card:  "{__lastDrawnCard}",
     cards: "{__lastDrawnCards}"
@@ -7055,28 +7004,6 @@ export class FormulaGraph {
         return;
       }
 
-      if (def.isDialogSwitch) {
-        const count = Math.max(2, Math.min(8, parseInt(node.data?.count) || 2));
-        const act = {
-          type:        "dialogSwitch",
-          title:       node.data?.title ?? "Choose",
-          description: node.data?.desc  ?? "",
-          outputs:     []
-        };
-        for (let i = 0; i < count; i++) {
-          const edge   = this.edges.find(e=>e.fromNode===node.id&&e.fromPin===`out${i}`);
-          const before = [...actions];
-          if (edge) _walk(edge.toNode, new Set(vis));
-          const branchActions = actions.splice(before.length);
-          act.outputs.push({
-            label:   node.data?.[`label${i}`] ?? `Option ${i+1}`,
-            actions: branchActions
-          });
-        }
-        actions.push(act);
-        return;
-      }
-
       if (def.isLoop) {
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
@@ -7215,14 +7142,17 @@ export class FormulaGraph {
       }
 
       if (def.isRemoveFromInvSlot) {
-        const indexEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="index");
-        const indexNode = indexEdge ? this.nodes.find(n=>n.id===indexEdge.fromNode) : null;
-        const indexVal  = indexNode ? this._compileValue(indexNode, new Set(), indexEdge.fromPin) : null;
+        const ins = {};
+        for (const pin of (def.inputs ?? [])) {
+          if (pin.type === "exec") continue;
+          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
+        }
 
         const doneEdge  = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="exec");
         const emptyEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="empty");
 
-        const act = def.toAction?.(node, indexVal !== null ? {index: indexVal} : {}) ?? {};
+        const act = def.toAction?.(node, ins) ?? {};
 
         const before = [...actions];
         if (doneEdge)  _walk(doneEdge.toNode,  new Set(vis));
@@ -7236,10 +7166,17 @@ export class FormulaGraph {
       }
 
       if (def.isAddToInvSlot) {
+        const ins = {};
+        for (const pin of (def.inputs ?? [])) {
+          if (pin.type === "exec") continue;
+          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
+        }
+
         const doneEdge  = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="exec");
         const fullEdge  = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="full");
 
-        const act = def.toAction?.(node, {}) ?? {};
+        const act = def.toAction?.(node, ins) ?? {};
 
         const before = [...actions];
         if (doneEdge) _walk(doneEdge.toNode, new Set(vis));
@@ -8451,13 +8388,7 @@ export class FormulaGraph {
     }
 
     let activeExecOuts = outputPins.filter(p=>p.type==="exec");
-    if (def.isDialogSwitch) {
-      const count = Math.max(2, Math.min(8, parseInt(node.data?.count) || 2));
-      activeExecOuts = activeExecOuts.slice(0, count).map((p, i) => ({
-        ...p,
-        label: node.data?.[`label${i}`] || p.label
-      }));
-    } else if (def.isSequence) {
+    if (def.isSequence) {
       const count = Math.max(2, Math.min(12, parseInt(node.data?.count) || 2));
       activeExecOuts = activeExecOuts.slice(0, count);
     }
@@ -8913,7 +8844,7 @@ export class FormulaGraph {
     inp.addEventListener("focus",()=>inp.style.borderColor="var(--sd-accent)");
     inp.addEventListener("blur", ()=>inp.style.borderColor="#1a1a28");
     inp.addEventListener("mousedown",ev=>ev.stopPropagation());
-    const _IS_TEXTUAL = (field.type === "text" || field.type === "textarea" || field.type === "path" || field.type === "formula");
+    const _IS_TEXTUAL = (field.type === "text" || field.type === "textarea" || field.type === "path" || field.type === "formula" || field.type === "number");
     const _fullRerenderIfDynamic = () => {
       const _defV = NODE_DEFS[node.type];
       const _hasVis = _defV?.fields?.some(f => typeof f.visibleIf === "function");
@@ -8926,7 +8857,17 @@ export class FormulaGraph {
       return false;
     };
     if (_IS_TEXTUAL) {
-      inp.addEventListener("change", () => { _fullRerenderIfDynamic(); });
+      inp.addEventListener("change", () => {
+        const _def3 = NODE_DEFS[node.type];
+        if (_def3?.isSequence && field.key === "count") {
+          const c = Math.max(2, Math.min(12, Number(inp.value) || 2));
+          node.data.count = c;
+          this._renderNode(node);
+          this._scheduleEdges?.();
+          return;
+        }
+        _fullRerenderIfDynamic();
+      });
     }
     inp.addEventListener("input",ev=>{
       node.data[field.key]=inp.type==="number"?Number(ev.target.value):ev.target.value;
@@ -8937,23 +8878,11 @@ export class FormulaGraph {
         if (_fullRerenderIfDynamic()) return;
       }
       const _def2 = NODE_DEFS[node.type];
-      if (_def2?.isSequence && field.key === "count") {
+      if (!_IS_TEXTUAL && _def2?.isSequence && field.key === "count") {
         const c = Math.max(2, Math.min(12, Number(ev.target.value) || 2));
         node.data.count = c;
         this._renderNode(node);
         this._scheduleEdges?.();
-      } else if (_def2?.isDialogSwitch) {
-        if (field.key === "count") {
-          this._renderNode(node);
-        } else if (field.key.startsWith("label")) {
-          const pinIdx = parseInt(field.key.replace("label", ""), 10);
-          const _nodeEl2 = this.nodesEl?.querySelector(`[data-nid="${node.id}"]`);
-          const dot = _nodeEl2?.querySelector(`[data-pid="out${pinIdx}"][data-side="output"]`);
-          if (dot) {
-            const span = [...dot.parentElement.children].find(c => c !== dot && c.tagName === "SPAN");
-            if (span) span.textContent = ev.target.value || `Option ${pinIdx + 1}`;
-          }
-        }
       }
       const _nodeEl = this.nodesEl?.querySelector(`[data-nid="${node.id}"]`);
       if (_nodeEl) {

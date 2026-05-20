@@ -4104,7 +4104,7 @@
 #sd-action-hud.sd-action-hud-locked .sd-action-hud-bar { cursor: default; }
 #sd-action-hud.sd-action-hud-locked .sd-action-hud-bar:active { cursor: default; }
 
-#sd-action-hud .sd-action-hud-widget {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-action-hud-widget {
 
   background: transparent;
   display: block;
@@ -4435,22 +4435,22 @@
   background: rgba(20, 22, 28, var(--sd-hud-bar-bg-alpha, 0));
 }
 
-#sd-action-hud .sd-action-hud-widget[data-transparent="true"] .widget,
-#sd-action-hud .sd-action-hud-widget[data-transparent="true"] .widget *,
-#sd-action-hud.sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget,
-#sd-action-hud.sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget * {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-action-hud-widget[data-transparent="true"] .widget,
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-action-hud-widget[data-transparent="true"] .widget *,
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget,
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget * {
   background: transparent !important;
   background-color: transparent !important;
   box-shadow: none !important;
 }
-#sd-action-hud .sd-action-hud-widget[data-transparent="true"] .widget input,
-#sd-action-hud .sd-action-hud-widget[data-transparent="true"] .widget textarea,
-#sd-action-hud .sd-action-hud-widget[data-transparent="true"] .widget select,
-#sd-action-hud .sd-action-hud-widget[data-transparent="true"] .widget button,
-#sd-action-hud.sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget input,
-#sd-action-hud.sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget textarea,
-#sd-action-hud.sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget select,
-#sd-action-hud.sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget button {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-action-hud-widget[data-transparent="true"] .widget input,
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-action-hud-widget[data-transparent="true"] .widget textarea,
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-action-hud-widget[data-transparent="true"] .widget select,
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-action-hud-widget[data-transparent="true"] .widget button,
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget input,
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget textarea,
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget select,
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-default-transparent .sd-action-hud-widget:not([data-transparent="false"]) .widget button {
 
   background: rgba(255,255,255,0.04) !important;
   border-color: rgba(255,255,255,0.18) !important;
@@ -4463,7 +4463,7 @@
   border-color: var(--sd-accent);
 }
 
-#sd-action-hud .sd-action-hud-widget[data-hide-label="true"] .widget-label {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-action-hud-widget[data-hide-label="true"] .widget-label {
   display: none !important;
 }
 
@@ -4543,20 +4543,20 @@
   border: none;
 }
 
-#sd-action-hud.sd-hud-no-frames .sd-action-hud-widget,
-#sd-action-hud.sd-hud-no-frames .sd-action-hud-widget * {
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-no-frames .sd-action-hud-widget,
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-no-frames .sd-action-hud-widget * {
   border-color: transparent !important;
   outline: none !important;
 }
 
-#sd-action-hud.sd-hud-builder.sd-hud-no-frames .sd-action-hud-widget {
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-builder.sd-hud-no-frames .sd-action-hud-widget {
   outline: 1px solid var(--sd-accent) !important;
 }
 #sd-action-hud.sd-hud-builder.sd-hud-no-frames .sd-action-hud-canvas {
   outline: 1px dashed var(--sd-accent-dim) !important;
 }
 
-#sd-action-hud.sd-hud-shadow .sd-action-hud-widget {
+:is(#sd-action-hud, #sd-action-hud-floating).sd-hud-shadow .sd-action-hud-widget {
   filter:
     drop-shadow(0 0 1px rgba(0,0,0,0.95))
     drop-shadow(0 1px 2px rgba(0,0,0,0.75))
@@ -4570,13 +4570,13 @@
 
 #sd-action-hud .sd-action-hud-widget { position: absolute; }
 
-#sd-action-hud .sd-hud-popover {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-popover {
   position: relative;
 }
-#sd-action-hud .sd-hud-popover[open] {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-popover[open] {
   z-index: 5;
 }
-#sd-action-hud .sd-hud-pop-btn {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-btn {
   list-style: none;
   cursor: pointer;
   display: inline-flex;
@@ -4594,14 +4594,15 @@
   transition: background .12s, border-color .12s;
   white-space: nowrap;
 }
-#sd-action-hud .sd-hud-popover[open] > .sd-hud-pop-btn {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-popover[open] > .sd-hud-pop-btn {
   background: rgba(50, 50, 70, 0.95);
   border-color: var(--sd-accent);
 }
-#sd-action-hud .sd-hud-pop-btn::-webkit-details-marker { display: none; }
-#sd-action-hud .sd-hud-pop-btn i.fas { font-size: 13px; opacity: .9; }
-#sd-action-hud .sd-hud-pop-btn:hover { background: rgba(50, 50, 70, 0.95); }
-#sd-action-hud .sd-hud-pop-count {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-btn::-webkit-details-marker { display: none; }
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-btn::marker { content: "" !important; font-size: 0 !important; }
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-btn i.fas { font-size: 13px; opacity: .9; }
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-btn:hover { background: rgba(50, 50, 70, 0.95); }
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-count {
   background: rgba(123, 104, 238, 0.3);
   color: var(--sd-accent);
   font-size: 10px;
@@ -4612,7 +4613,7 @@
   text-align: center;
 }
 
-#sd-action-hud .sd-hud-pop-body {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-body {
   position: absolute;
   top: 100%;
   left: 0;
@@ -4630,18 +4631,18 @@
   z-index: 10;
 }
 
-#sd-action-hud .sd-hud-pop-empty {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-empty {
   padding: 10px;
   text-align: center;
   color:var(--sd-text-2);
   font-size: 11px;
   font-style: italic;
 }
-#sd-action-hud .sd-hud-pop-empty i { display: block; font-size: 18px; margin-bottom: 4px; opacity: .5; }
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-empty i { display: block; font-size: 18px; margin-bottom: 4px; opacity: .5; }
 
-#sd-action-hud .sd-hud-pop-list { padding: 0; margin: 0; }
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-list { padding: 0; margin: 0; }
 
-#sd-action-hud .sd-hud-pop-row {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4651,22 +4652,22 @@
   list-style: none;
   cursor: default;
 }
-#sd-action-hud .sd-hud-pop-row:hover { background: rgba(123, 104, 238, 0.12); }
-#sd-action-hud .sd-hud-pop-row img {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row:hover { background: rgba(123, 104, 238, 0.12); }
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row img {
   width: 22px; height: 22px; object-fit: cover; border-radius: 3px; flex-shrink: 0;
 }
-#sd-action-hud .sd-hud-pop-row .sd-hud-pop-name {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row .sd-hud-pop-name {
   flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--sd-text);
 }
-#sd-action-hud .sd-hud-pop-row .sd-hud-pop-qty {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row .sd-hud-pop-qty {
   font-size: 10px; color: var(--sd-accent);
   background: rgba(123, 104, 238, 0.2);
   padding: 0 5px; border-radius: 8px;
   min-width: 16px; text-align: center;
 }
-#sd-action-hud .sd-hud-pop-row button {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row button {
   width: 24px; height: 22px;
   display: inline-flex; align-items: center; justify-content: center;
   background: rgba(40,42,52,0.85); border: 1px solid var(--sd-border-2);
@@ -4674,16 +4675,16 @@
   color: #d6d6d6; cursor: pointer; font-size: 11px;
   flex-shrink: 0;
 }
-#sd-action-hud .sd-hud-pop-row button:hover {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row button:hover {
   background: rgba(123, 104, 238, 0.25); border-color: var(--sd-accent);
 }
-#sd-action-hud .sd-hud-pop-row button.sd-hud-pop-btn-equip.is-on {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row button.sd-hud-pop-btn-equip.is-on {
   background: rgba(90, 224, 122, 0.2); border-color: var(--sd-stamina); color: var(--sd-stamina);
 }
-#sd-action-hud .sd-hud-pop-row--off { opacity: .55; }
-#sd-action-hud .sd-hud-pop-row--off .sd-hud-pop-name { text-decoration: line-through; }
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row--off { opacity: .55; }
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-row--off .sd-hud-pop-name { text-decoration: line-through; }
 
-#sd-action-hud .widget-slot-row {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -4694,7 +4695,7 @@
   box-shadow: 0 1px 2px rgba(0,0,0,0.5);
   min-width: 64px;
 }
-#sd-action-hud .widget-slot-row .slot-hud-label {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-label {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -4705,8 +4706,8 @@
   letter-spacing: .3px;
   white-space: nowrap;
 }
-#sd-action-hud .widget-slot-row .slot-hud-label i.fas { font-size: 11px; opacity: .8; }
-#sd-action-hud .widget-slot-row .slot-hud-count {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-label i.fas { font-size: 11px; opacity: .8; }
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-count {
   background: rgba(123, 104, 238, 0.3);
   color: var(--sd-accent);
   font-size: 9px;
@@ -4714,12 +4715,12 @@
   border-radius: 8px;
   margin-left: auto;
 }
-#sd-action-hud .widget-slot-row .slot-hud-icons {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-icons {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-#sd-action-hud .widget-slot-row .slot-hud-icon {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-icon {
   position: relative;
   width: 36px;
   height: 36px;
@@ -4735,22 +4736,22 @@
   transition: border-color .12s, transform .12s, box-shadow .12s;
   flex-shrink: 0;
 }
-#sd-action-hud .widget-slot-row .slot-hud-icon:hover {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-icon:hover {
   border-color: var(--sd-accent);
   transform: scale(1.06);
   box-shadow: 0 0 6px rgba(123, 104, 238, 0.6);
 }
-#sd-action-hud .widget-slot-row .slot-hud-icon:active {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-icon:active {
   transform: scale(0.98);
 }
-#sd-action-hud .widget-slot-row .slot-hud-icon img {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-icon img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   border-radius: 50%;
   pointer-events: none;
 }
-#sd-action-hud .widget-slot-row .slot-hud-icon-remove {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-icon-remove {
   position: absolute;
   top: -4px;
   right: -4px;
@@ -4768,21 +4769,21 @@
   opacity: 0;
   transition: opacity .12s;
 }
-#sd-action-hud .widget-slot-row .slot-hud-icon:hover .slot-hud-icon-remove { opacity: 1; }
-#sd-action-hud .widget-slot-row .slot-hud-icon-empty {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-icon:hover .slot-hud-icon-remove { opacity: 1; }
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-icon-empty {
   border-style: dashed;
   border-color:var(--sd-text-3);
   cursor: default;
   color:var(--sd-text-3);
   font-size: 14px;
 }
-#sd-action-hud .widget-slot-row .slot-hud-icon-empty:hover {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-row .slot-hud-icon-empty:hover {
   border-color:var(--sd-text-3);
   transform: none;
   box-shadow: none;
 }
 
-#sd-action-hud .widget-slot-compact .sd-hud-pop-row img {
+:is(#sd-action-hud, #sd-action-hud-floating) .widget-slot-compact .sd-hud-pop-row img {
   border-radius: 50%;
 }
 
@@ -4801,14 +4802,14 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
-#sd-action-hud .sd-hud-pop-body {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-pop-body {
   max-height: 60vh !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-#sd-action-hud .sd-hud-popover[data-flip-up="true"] > .sd-hud-pop-body {
+:is(#sd-action-hud, #sd-action-hud-floating) .sd-hud-popover[data-flip-up="true"] > .sd-hud-pop-body {
   top: auto !important;
   bottom: 100% !important;
   margin-top: 0 !important;
@@ -4816,12 +4817,158 @@
 }
 
 #sd-action-hud .sd-action-hud-bar {
-  opacity: 0.12;
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 0.2s ease;
 }
 #sd-action-hud:hover .sd-action-hud-bar,
-#sd-action-hud.sd-hud-builder .sd-action-hud-bar {
+#sd-action-hud.sd-hud-builder .sd-action-hud-bar,
+#sd-action-hud .sd-action-hud-bar:hover,
+#sd-action-hud .sd-action-hud-bar:focus-within {
   opacity: 1;
+  pointer-events: auto;
+}
+
+/*
+ * Separate widgets mode: when toggled in client settings, each HUD widget
+ * lives as its own fixed-position element instead of being parented inside
+ * the shared canvas. The toolbar itself stays minimal and draggable.
+ */
+.sd-action-hud-widget.sd-hud-floating {
+  position: fixed;
+  /* Above the HUD root (z-index 70) so widgets always sit on top when their
+     positions overlap the toolbar. */
+  z-index: 71;
+  transform: scale(var(--sd-hud-cell-scale, 1));
+  transform-origin: top left;
+}
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-cell-overlay {
+  z-index: 1;
+}
+#sd-action-hud.sd-hud-separate .sd-action-hud-canvas,
+#sd-action-hud.sd-hud-separate .sd-action-hud-canvas-inner {
+  display: none !important;
+}
+#sd-action-hud.sd-hud-separate .sd-action-hud-add { display: none; }
+#sd-action-hud.sd-hud-separate.sd-hud-builder .sd-action-hud-add {
+  position: static;
+  display: inline-flex;
+  margin-left: 6px;
+}
+
+/*
+ * Per-widget mini-bar for separate-widgets mode. Each floating cell carries
+ * its own header that appears just above the widget on hover, so the user
+ * never has to hunt for the (now hidden) standalone HUD bar. Mirrors the
+ * styling of `.sd-action-hud-bar` but at a smaller scale.
+ */
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Slightly overlap the widget's top edge (2px) so the cursor can glide from
+     the widget onto the bar without ever crossing an un-hovered gap. Without
+     this overlap, subpixel rendering can briefly drop :hover and flash the
+     bar away — which is exactly what the user reported. Visual separation
+     still works thanks to the bar's own border + box-shadow.
+     In builder mode this gets lifted above the cell-bar (see rule below). */
+  bottom: calc(100% - 2px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  background: rgba(20, 22, 28, calc(0.9 * var(--sd-hud-bar-bg-alpha, 1)));
+  border: 1px solid var(--sd-border, rgba(255,255,255,0.12));
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--sd-text, #e0e0e0);
+  /* Invisible by default + non-interactive so the empty area above the widget
+     doesn't trap clicks; both flip on hover/focus below. */
+  pointer-events: none;
+  opacity: 0;
+  /* Tiny delay on the FADE-OUT only, so brief gaps in pointer coverage (e.g.
+     moving across the bar/widget boundary diagonally) don't make the bar
+     blink out. The fade-in is still instant on hover. */
+  transition: opacity 0.15s ease 0.08s;
+  z-index: 2;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+}
+/* Show the per-widget bar on widget hover so users can always reach the
+   drag handle and global controls without entering edit mode. Also keep it
+   visible while focused (e.g. when interacting with a button). */
+.sd-action-hud-widget.sd-hud-floating:hover > .sd-hud-float-bar,
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar:hover,
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+  /* No delay on the fade-IN — appear instantly when the user hovers in. */
+  transition-delay: 0s;
+}
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar .sd-hud-float-grab {
+  cursor: grab;
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--sd-text-dim, #bdbdbd);
+}
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar .sd-hud-float-grab:active {
+  cursor: grabbing;
+}
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar .sd-hud-float-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: var(--sd-text-dim, #bdbdbd);
+}
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar button {
+  background: transparent;
+  border: 0;
+  padding: 2px 4px;
+  margin: 0;
+  color: var(--sd-text-dim, #bdbdbd);
+  cursor: pointer;
+  border-radius: 3px;
+  line-height: 1;
+}
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar button:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--sd-text, #e0e0e0);
+}
+.sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar button.is-on {
+  color: var(--sd-accent, #ffb86b);
+}
+/* When the global lock is on, hide the grab cursor affordance to make it
+   visually clear that the per-widget drag is disabled. The lock-button icon
+   already reflects this state on its own. */
+#sd-action-hud-floating.sd-action-hud-locked .sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar .sd-hud-float-grab {
+  cursor: not-allowed;
+}
+
+/*
+ * Builder-mode overlays for floating widgets — mirror the styling the
+ * canvas-parented cells get when #sd-action-hud has the .sd-hud-builder class.
+ */
+#sd-action-hud-floating.sd-hud-builder .sd-action-hud-widget {
+  outline: 1px solid var(--sd-accent);
+  outline-offset: 0;
+}
+#sd-action-hud-floating.sd-hud-builder .sd-action-hud-widget .sd-hud-cell-overlay {
+  pointer-events: auto;
+  display: block;
+}
+#sd-action-hud-floating .sd-action-hud-widget {
+  pointer-events: auto;
+}
+/* In builder mode the widget already shows a `.sd-hud-cell-bar` (22px tall)
+   right above it with per-widget controls (scale / transparent / edit /
+   delete / resize). Lift the global per-widget float-bar above that strip so
+   the two stack vertically instead of overlapping. The 20px keeps a 2px
+   overlap with the cell-bar for hover continuity. */
+#sd-action-hud-floating.sd-hud-builder .sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar {
+  bottom: calc(100% + 20px);
 }
 
 .sd-hud-pop-portal {

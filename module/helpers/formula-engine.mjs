@@ -527,6 +527,124 @@ export class FormulaEngine {
     return sa === sb;
   }
 
+  static _sdStripQuotes(s) {
+    if (s === undefined || s === null) return "";
+    let out = String(s).trim();
+    if (out.length >= 2 && ((out.startsWith('"') && out.endsWith('"')) || (out.startsWith("'") && out.endsWith("'")))) {
+      out = out.slice(1, -1);
+    }
+    return out;
+  }
+
+  static _resolveActorFromBase(base, doc) {
+    const raw = this._sdStripQuotes(base);
+    if (!raw || raw === "0") {
+      return (doc instanceof Actor) ? doc : (doc?.actor ?? null);
+    }
+    if (raw === "self") {
+      if (doc instanceof Actor) return doc;
+      return doc?.actor ?? doc ?? null;
+    }
+    if (raw === "actor") {
+      return (doc instanceof Actor) ? doc : (doc?.actor ?? null);
+    }
+    if (raw === "token_target" || raw === "target") {
+      try {
+        return game.user?.targets?.first()?.actor
+            ?? canvas?.tokens?.controlled?.[0]?.actor
+            ?? null;
+      } catch { return null; }
+    }
+    if (raw === "selected_token" || raw === "selected") {
+      try {
+        return canvas?.tokens?.controlled?.[0]?.actor
+            ?? game.user?.targets?.first()?.actor
+            ?? null;
+      } catch { return null; }
+    }
+    if (raw === "user_character") {
+      try { return game.user?.character ?? null; } catch { return null; }
+    }
+    if (raw === "all_targets") {
+      try {
+        return [...(game.user?.targets ?? [])][0]?.actor
+            ?? canvas?.tokens?.controlled?.[0]?.actor
+            ?? null;
+      } catch { return null; }
+    }
+    if (raw.includes(".") && /^[A-Za-z][A-Za-z0-9]*\./.test(raw)) {
+      try {
+        const d = (typeof fromUuidSync === "function") ? fromUuidSync(raw) : null;
+        if (d instanceof Actor) return d;
+        if (d?.actor instanceof Actor) return d.actor;
+      } catch {}
+    }
+    if (/^[A-Za-z0-9]{16}$/.test(raw)) {
+      try {
+        const tok = canvas?.tokens?.get?.(raw);
+        if (tok?.actor) return tok.actor;
+        const a = game.actors?.get?.(raw);
+        if (a) return a;
+      } catch {}
+    }
+    return null;
+  }
+
+  static _sdEachSlotItem(host, slotId, visit, _seen) {
+    if (!host) return;
+    const seen = _seen ?? new Set();
+    if (seen.has(host)) return;
+    seen.add(host);
+    const contents = host?.system?.slotContents?.[slotId]?.contents ?? [];
+    for (const entry of contents) {
+      if (!entry) continue;
+      const stop = visit(entry, host);
+      if (stop === true) return true;
+      if (this._sdEachSlotItem(entry, slotId, visit, seen) === true) return true;
+    }
+    return false;
+  }
+
+  static _sdEachSlotItemAcrossActor(actor, slotId, visit) {
+    if (!actor) return;
+    if (this._sdEachSlotItem(actor, slotId, visit) === true) return true;
+    for (const item of (actor.items ?? [])) {
+      if (this._sdEachSlotItem(item, slotId, visit) === true) return true;
+    }
+    return false;
+  }
+
+  static _sdCountSlotItemsAcrossActor(actor, slotId) {
+    if (!actor) return 0;
+    let total = 0;
+    const seen = new Set();
+    const walk = (host) => {
+      if (!host || seen.has(host)) return;
+      seen.add(host);
+      const contents = host?.system?.slotContents?.[slotId]?.contents ?? [];
+      total += contents.length;
+      for (const c of contents) walk(c);
+    };
+    walk(actor);
+    for (const item of (actor.items ?? [])) walk(item);
+    return total;
+  }
+
+  static _sdReadPathFromAny(entry, path, actor) {
+    if (!entry || !path) return undefined;
+    let v;
+    try { v = foundry.utils.getProperty(entry, path); } catch { v = undefined; }
+    if (v !== undefined && v !== null && typeof v !== "object") return v;
+    if (entry._id && actor) {
+      const live = actor.items?.get?.(entry._id);
+      if (live) {
+        try { v = foundry.utils.getProperty(live, path); } catch { v = undefined; }
+        if (v !== undefined && v !== null && typeof v !== "object") return v;
+      }
+    }
+    return undefined;
+  }
+
   static _resolveToken(token, doc) {
     if (token.startsWith("__sdEq:") || token.startsWith("__sdNeq:")) {
       const isNeq = token.startsWith("__sdNeq:");
@@ -751,6 +869,89 @@ export class FormulaEngine {
         }
       }
       return 0;
+    }
+
+    if (token.startsWith("slotCountOn:")) {
+      const rest = token.slice("slotCountOn:".length);
+      const sep1 = rest.indexOf("|");
+      if (sep1 < 0) return 0;
+      const base   = rest.slice(0, sep1);
+      const slotId = this._sdStripQuotes(rest.slice(sep1 + 1));
+      const actor  = this._resolveActorFromBase(base, doc);
+      if (!actor) {
+        const fallback = (doc instanceof Actor) ? doc : (doc?.actor ?? null);
+        if (!fallback) return 0;
+        return this._sdCountSlotItemsAcrossActor(fallback, slotId);
+      }
+      return this._sdCountSlotItemsAcrossActor(actor, slotId);
+    }
+
+    if (token.startsWith("slotFind:")) {
+      const rest = token.slice("slotFind:".length);
+      const sep1 = rest.indexOf("|");
+      if (sep1 < 0) return 0;
+      const base  = rest.slice(0, sep1);
+      const tail  = rest.slice(sep1 + 1);
+      const sep2  = tail.indexOf("|");
+      if (sep2 < 0) return 0;
+      const slotId = this._sdStripQuotes(tail.slice(0, sep2));
+      const path   = tail.slice(sep2 + 1);
+      const actor  = this._resolveActorFromBase(base, doc)
+                  ?? (doc instanceof Actor ? doc : (doc?.actor ?? null));
+      if (!actor || !slotId || !path) return 0;
+      let found;
+      this._sdEachSlotItemAcrossActor(actor, slotId, (entry) => {
+        const v = this._sdReadPathFromAny(entry, path, actor);
+        if (v !== undefined) { found = v; return true; }
+        return false;
+      });
+      return found ?? 0;
+    }
+
+    if (token.startsWith("slotUuidFind:")) {
+      const rest = token.slice("slotUuidFind:".length);
+      const sep1 = rest.indexOf("|");
+      if (sep1 < 0) return "";
+      const base   = rest.slice(0, sep1);
+      const slotId = this._sdStripQuotes(rest.slice(sep1 + 1));
+      const actor  = this._resolveActorFromBase(base, doc)
+                  ?? (doc instanceof Actor ? doc : (doc?.actor ?? null));
+      if (!actor || !slotId) return "";
+      let found = "";
+      this._sdEachSlotItemAcrossActor(actor, slotId, (entry, host) => {
+        const u = entry.uuid ?? entry._sourceUuid ?? null;
+        if (u) { found = u; return true; }
+        if (entry._id && actor.items?.get) {
+          const live = actor.items.get(entry._id);
+          if (live?.uuid) { found = live.uuid; return true; }
+        }
+        if (entry._id) { found = `${host?.uuid ?? actor.uuid}.Item.${entry._id}`; return true; }
+        return false;
+      });
+      return found;
+    }
+
+    if (token.startsWith("invItemSlotCountOn:")) {
+      const rest = token.slice("invItemSlotCountOn:".length);
+      const sep1 = rest.indexOf("|");
+      if (sep1 < 0) return 0;
+      const base  = rest.slice(0, sep1);
+      const tail  = rest.slice(sep1 + 1);
+      const sep2  = tail.indexOf("|");
+      if (sep2 < 0) return 0;
+      const ref    = this._sdStripQuotes(tail.slice(0, sep2));
+      const slotId = this._sdStripQuotes(tail.slice(sep2 + 1));
+      if (!slotId) return 0;
+      const actor  = this._resolveActorFromBase(base, doc)
+                  ?? (doc instanceof Actor ? doc : (doc?.actor ?? null));
+      if (!actor) return 0;
+      if (!ref) return this._sdCountSlotItemsAcrossActor(actor, slotId);
+      const parentItem = actor.items?.get?.(ref)
+                      ?? actor.items?.find?.(i => i.name === ref)
+                      ?? actor.items?.find?.(i => i.uuid === ref)
+                      ?? null;
+      if (!parentItem) return 0;
+      return this._sdCountSlotItemsAcrossActor({ items: [parentItem] }, slotId);
     }
 
     if (token.startsWith("spellSlots:")) {

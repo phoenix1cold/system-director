@@ -318,6 +318,12 @@
         "WidgetShadowHint": "Add a subtle dark drop-shadow and radial backdrop behind each HUD widget so they remain readable on bright maps.",
         "ToggleKey": "Toggle Action HUD",
         "ToggleKeyHint": "Show or hide the floating Action HUD (default Ctrl+H).",
+        "ResetKey": "Reset Action HUD position",
+        "ResetKeyHint": "Unlock the HUD, recentre it, and (in separate-widgets mode) collapse all floating widgets back to the centre. Default Ctrl+Shift+H.",
+        "SeparateWidgets": "Separate widget mode",
+        "SeparateWidgetsHint": "Place each HUD widget anywhere on the screen as an independent floating panel, instead of grouping them inside the single HUD frame.",
+        "ResponsivePos": "Scale HUD position with screen size",
+        "ResponsivePosHint": "When the Foundry window changes resolution (e.g. moving from a 2K monitor to 1080p), proportionally scale the HUD bar position and floating-widget positions to stay in the same relative spot.",
         "ConfigMenu": "Action HUD Layout",
         "ConfigMenuLabel": "Configure Action HUD",
         "ConfigMenuHint": "Configure which actor widgets appear in the floating HUD, and where (GM only)."
@@ -325,6 +331,9 @@
       "Config": {
         "Title": "Configure Action HUD",
         "Saved": "Action HUD layout saved."
+      },
+      "Notify": {
+        "PositionReset": "Action HUD position has been reset."
       },
       "Cell": {
         "Scale": "Widget Scale",
@@ -708,12 +717,10 @@
   "SD.Graph.Chat_AoE_Save_Arrow_Effect": "Chat AoE — Save → Effect",
   "SD.Graph.Chat_AoE_With_Effect": "Chat AoE — With Effect",
   "SD.Graph.Clamp": "Clamp",
-  "SD.Graph.Consume_Resource": "Consume Resource",
   "SD.Graph.Consume_Slot": "Consume Slot",
   "SD.Graph.Create_Effect": "Create Effect",
   "SD.Graph.Damage": "Damage",
   "SD.Graph.Delay": "Delay",
-  "SD.Graph.Dialog_Switch": "Dialog Switch",
   "SD.Graph.Dice": "Dice",
   "SD.Graph.Dice_Pool": "Dice Pool",
   "SD.Graph.Div": "Div",

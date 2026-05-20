@@ -1,6 +1,6 @@
 import { GridManager }    from "./grid-manager.mjs";
 import { WidgetRenderer } from "./widget-renderer.mjs";
-import { WIDGET_TYPES, KNOWN_PATHS, getKnownPaths } from "./widget-registry.mjs";
+import { WIDGET_TYPES } from "./widget-registry.mjs";
 import { FormulaGraph }   from "./formula-graph.mjs";
 
 export function BuilderMixin(Base) {
@@ -812,34 +812,7 @@ export function BuilderMixin(Base) {
         .replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    _wirePathAutocomplete(input, popup) {
-      let list = popup.querySelector(".path-suggestions");
-      if (!list) {
-        list = document.createElement("ul");
-        list.className = "path-suggestions";
-        input.parentElement.insertAdjacentElement("afterend", list);
-      }
-
-      const refresh = () => {
-        const q = input.value.toLowerCase();
-        const matches = Object.entries(getKnownPaths()).filter(([p, l]) =>
-          p.includes(q) || l.toLowerCase().includes(q)
-        ).slice(0, 8);
-        list.innerHTML = matches.map(([p, l]) =>
-          `<li class="path-suggestion" data-path="${p}">${l} <span style="opacity:.5;font-size:9px">${p}</span></li>`
-        ).join("");
-        list.style.display = matches.length ? "block" : "none";
-        list.querySelectorAll(".path-suggestion").forEach(li => {
-          li.addEventListener("click", () => {
-            input.value = li.dataset.path;
-            list.style.display = "none";
-          });
-        });
-      };
-
-      input.addEventListener("input", refresh);
-      input.addEventListener("focus", refresh);
-    }
+    _wirePathAutocomplete(_input, _popup) {}
 
     _wirePathDrop(input, popup) {
       input.addEventListener("dragover", ev => {

@@ -2,6 +2,7 @@ import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpers/effect-editor.mjs";
+import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -2039,6 +2040,25 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
   }
 
   _wirePerElementInteractions(con) {
+    if (con && con.dataset?.sdAaDelegated !== "1") {
+      con.dataset.sdAaDelegated = "1";
+      con.addEventListener("click", (ev) => {
+        const widgetEl = ev.target.closest(".widget[data-aa-tag]");
+        if (!widgetEl || !con.contains(widgetEl)) return;
+        const actionEl = ev.target.closest(
+          "[data-action], [data-roll], [data-step], [data-toggle], [data-attr-roll], [data-attr-onclick]"
+        );
+        if (!actionEl || !widgetEl.contains(actionEl)) return;
+        const da = actionEl.dataset?.action ?? "";
+        if (da === "wcfg" || da === "wdup" || da === "wspan" || da === "wdel") return;
+        const tag = widgetEl.dataset.aaTag;
+        if (!tag) return;
+        try { AutoanimationsIntegration.playForTag(tag, this.document); } catch (e) {
+          console.warn("SD | AutoAnimations widget tag trigger failed:", e);
+        }
+      }, true);
+    }
+
     con.querySelectorAll(".widget-copy-path").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -2565,7 +2585,19 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       case "addDeclaredAttr":  { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); attrs.push({id:foundry.utils.randomID(8),name:`attr${attrs.length+1}`,path:""}); await this.document.update({"system.declaredAttrs":attrs}); break; }
       case "removeDeclaredAttr":{ const attrs=(this.document.system.declaredAttrs??[]).filter(a=>a.id!==btn.dataset.attrId); await this.document.update({"system.declaredAttrs":attrs}); break; }
       case "addSlot":          { const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d.push({id:`slot${d.length+1}`,label:`Slot ${d.length+1}`,allowedTypes:[],allowedCategories:[],attrFilters:[],maxCount:1,displayMode:"compact",removable:true,consumeOnRemove:false}); await this.document.update({"system.slotDefinitions":d}); break; }
-      case "removeSlot":       { const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d.splice(parseInt(btn.dataset.slotIdx),1); await this.document.update({"system.slotDefinitions":d}); break; }
+      case "removeSlot":       {
+        const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]);
+        const _ri = parseInt(btn.dataset.slotIdx);
+        const _removed = d[_ri];
+        d.splice(_ri,1);
+        const _upd = { "system.slotDefinitions": d };
+        if (_removed?.id) {
+          const _purge = SlotManager.buildSlotPurgeUpdates(this.document, _removed.id);
+          if (_purge) Object.assign(_upd, _purge);
+        }
+        await this.document.update(_upd);
+        break;
+      }
       case "addAttrFilter":    { const si=parseInt(btn.dataset.slotIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d[si].attrFilters??=[]; d[si].attrFilters.push({id:foundry.utils.randomID(8),fieldPath:"",fieldLabel:"",operator:"==",expectedValue:""}); await this.document.update({"system.slotDefinitions":d}); break; }
       case "removeAttrFilter": { const si=parseInt(btn.dataset.slotIdx),fi=parseInt(btn.dataset.filterIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d[si].attrFilters.splice(fi,1); await this.document.update({"system.slotDefinitions":d}); break; }
       case "removeFromSlot":   { await SlotManager.removeFromSlot(this.document,btn.dataset.slotId,parseInt(btn.dataset.slotIdx)); break; }

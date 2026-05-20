@@ -450,62 +450,6 @@ function _resolvePlayerActors(spec) {
   return actors;
 }
 
-async function _sdResolveItems(spec, actor) {
-  if (Array.isArray(spec)) return spec;
-  if (spec == null || spec === "" || spec === '""') return [];
-  let s = String(spec).trim();
-
-  if (s.length >= 2 && (
-    (s.startsWith('"') && s.endsWith('"')) ||
-    (s.startsWith("'") && s.endsWith("'"))
-  )) {
-    s = s.slice(1, -1);
-  }
-  if (!s) return [];
-  if (s === "all_targets") return _resolveAllTargets("all_targets", actor);
-  if (s === "selected_token" || s === "token_target") {
-    const single = _resolveTarget(s, actor);
-    return single ? [single] : [];
-  }
-  if (s === "user_character") {
-    return game.user.character ? [game.user.character] : [];
-  }
-  if (s.startsWith("player_actors")) return _resolvePlayerActors(s);
-
-  if (s.startsWith("[")) {
-    try { const arr = JSON.parse(s); if (Array.isArray(arr)) return arr; } catch {  }
-  }
-
-  if (s.includes(",")) {
-    const parts = s.split(",").map(x => x.trim()).filter(Boolean);
-    const out = [];
-    for (const p of parts) {
-      try {
-        const doc = await fromUuid(p).catch(() => null) ?? fromUuidSync?.(p);
-        out.push(doc ?? p);
-      } catch { out.push(p); }
-    }
-    return out;
-  }
-
-  if (/^[A-Za-z]+\.[A-Za-z0-9]+/.test(s)) {
-    try {
-      const doc = await fromUuid(s).catch(() => null) ?? fromUuidSync?.(s);
-      return doc ? [doc] : [s];
-    } catch { return [s]; }
-  }
-  return [s];
-}
-
-function _sdItemLabel(item, labelPath, fallbackIndex) {
-  if (item == null) return `Item ${fallbackIndex + 1}`;
-  if (typeof item === "string") return item;
-  if (labelPath) {
-    const v = foundry.utils.getProperty(item, labelPath);
-    if (v !== undefined && v !== null && v !== "") return String(v);
-  }
-  return item.name ?? item.label ?? String(item.id ?? `Item ${fallbackIndex + 1}`);
-}
 
 function _resistanceFactor(tActor, damageType) {
   if (!tActor || !damageType) return { factor: 1, label: "" };
@@ -1214,29 +1158,58 @@ export class ButtonExecutor {
         const _useIdx    = Number(action.index ?? 0);
         const { SlotManager } = await import("../data/item-slots.mjs");
 
-        const _useParents = [item, actor].filter(Boolean);
-        let _usedItem = null;
-        let _entryData = null;
-        for (const parent of _useParents) {
-          const contents = SlotManager.getContents(parent, _useSlotId);
-          if (!contents.length) continue;
-          const entry = contents[_useIdx];
-          if (!entry) continue;
-          _entryData = entry;
-          let live = actor?.items?.get(entry._id) ?? null;
-
-          if (!live) live = actor?.items?.find(i => i.name === entry.name) ?? null;
-          if (!live && entry.uuid) { try { live = await fromUuid(entry.uuid); } catch {} }
-          if (live) { _usedItem = live; break; }
+        const _useActorOvr = (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '"0"' && action.actorOverride !== "0")
+          ? (typeof action.actorOverride === "string" ? _sdResolveActor(action.actorOverride, actor) : _sdResolveActor(action.actorOverride, actor))
+          : null;
+        const _useActor = _useActorOvr ?? actor ?? null;
+        const _useHosts = [];
+        if (action.actorOverride == null || action.actorOverride === "" || action.actorOverride === "0") {
+          if (item) _useHosts.push(item);
         }
-        if (!_usedItem && _entryData) {
-          try {
-            const ItemCls = foundry.utils.getDocumentClass("Item");
-            _usedItem = new ItemCls(_entryData, { parent: actor ?? undefined });
-          } catch(e) { console.warn("SD | useSlotItem: could not build temp item:", e); }
+        if (_useActor) {
+          _useHosts.push(_useActor);
+          for (const it of (_useActor.items ?? [])) _useHosts.push(it);
+        }
+
+        const walk = (host, seen) => {
+          if (!host || seen.has(host)) return null;
+          seen.add(host);
+          const contents = SlotManager.getContents(host, _useSlotId);
+          for (let i = 0; i < contents.length; i++) {
+            const entry = contents[i];
+            if (!entry) continue;
+            if (host === item && i !== _useIdx && _useIdx > 0 && contents.length > _useIdx) continue;
+            return { entry, host };
+          }
+          for (const e of contents) {
+            const r = walk(e, seen);
+            if (r) return r;
+          }
+          return null;
+        };
+        let _found = null;
+        const seen = new Set();
+        for (const h of _useHosts) {
+          _found = walk(h, seen);
+          if (_found) break;
+        }
+
+        let _usedItem = null;
+        let _entryData = _found?.entry ?? null;
+        if (_entryData) {
+          let live = _useActor?.items?.get?.(_entryData._id) ?? null;
+          if (!live) live = _useActor?.items?.find?.(i => i.name === _entryData.name) ?? null;
+          if (!live && _entryData.uuid) { try { live = await fromUuid(_entryData.uuid); } catch {} }
+          _usedItem = live ?? null;
+          if (!_usedItem) {
+            try {
+              const ItemCls = foundry.utils.getDocumentClass("Item");
+              _usedItem = new ItemCls(_entryData, { parent: _useActor ?? undefined });
+            } catch(e) { console.warn("SD | useSlotItem: could not build temp item:", e); }
+          }
         }
         if (_usedItem) await _usedItem.use({});
-        else ui.notifications.warn(`useSlotItem: no item at index ${_useIdx} in slot "${_useSlotId}".`);
+        else ui.notifications.warn(`useSlotItem: no item in slot "${_useSlotId}".`);
         break;
       }
 
@@ -1298,21 +1271,62 @@ export class ButtonExecutor {
 
       case "modifySlotItemField": {
         const _mSlotId = String(action.slotId ?? "");
-        const _mIdx    = Number(action.index ?? 0);
+        const _mPath   = action.path ?? "";
+        if (!_mSlotId || !_mPath) { ui.notifications.warn("modifySlotItemField: slotId or path is empty."); break; }
         const { SlotManager: SM2 } = await import("../data/item-slots.mjs");
 
-        const _mParents = [item, actor].filter(Boolean);
+        const _mActorOvr = (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '"0"' && action.actorOverride !== "0")
+          ? _sdResolveActor(action.actorOverride, actor)
+          : null;
+        const _mActor = _mActorOvr ?? actor ?? null;
+        const _mHosts = [];
+        if (!_mActorOvr && item) _mHosts.push(item);
+        if (_mActor) {
+          _mHosts.push(_mActor);
+          for (const it of (_mActor.items ?? [])) _mHosts.push(it);
+        }
+
+        const seenM = new Set();
+        const findFirst = (host) => {
+          if (!host || seenM.has(host)) return null;
+          seenM.add(host);
+          const contents = SM2.getContents(host, _mSlotId);
+          for (const entry of contents) {
+            const live = _mActor?.items?.get?.(entry._id)
+                     ?? _mActor?.items?.find?.(i => i.name === entry.name)
+                     ?? null;
+            const target = live ?? entry;
+            const v = foundry.utils.getProperty(target, _mPath);
+            if (v !== undefined && v !== null && typeof v !== "object") return live;
+          }
+          for (const entry of contents) {
+            const r = findFirst(entry);
+            if (r) return r;
+          }
+          return null;
+        };
+
         let _mLiveItem = null;
-        for (const parent of _mParents) {
-          const contents = SM2.getContents(parent, _mSlotId);
-          const entry    = contents[_mIdx];
-          if (!entry) continue;
-          _mLiveItem = actor?.items?.get(entry._id) ?? actor?.items?.find(i => i.name === entry.name) ?? null;
+        for (const h of _mHosts) {
+          _mLiveItem = findFirst(h);
           if (_mLiveItem) break;
         }
-        if (!_mLiveItem) { ui.notifications.warn(`modifySlotItemField: no live item at slot "${_mSlotId}" index ${_mIdx}.`); break; }
 
-        const _mPath   = action.path ?? "";
+        if (!_mLiveItem) {
+          for (const h of _mHosts) {
+            const contents = SM2.getContents(h, _mSlotId);
+            if (contents.length) {
+              const entry = contents[0];
+              _mLiveItem = _mActor?.items?.get?.(entry._id)
+                       ?? _mActor?.items?.find?.(i => i.name === entry.name)
+                       ?? null;
+              if (_mLiveItem) break;
+            }
+          }
+        }
+
+        if (!_mLiveItem) { ui.notifications.warn(`modifySlotItemField: no live item carrying "${_mPath}" in slot "${_mSlotId}".`); break; }
+
         const _mCur    = Number(foundry.utils.getProperty(_mLiveItem, _mPath) ?? 0);
         const _mAmt    = Number(action.amount ?? 0);
         let   _mResult;
@@ -1320,6 +1334,49 @@ export class ButtonExecutor {
         else if (action.op === "set")      _mResult = _mAmt;
         else                               _mResult = _mCur + _mAmt;
         await _mLiveItem.update({ [_mPath]: _mResult });
+        break;
+      }
+
+      case "modifyItemField": {
+        const _miPath = action.path ?? "";
+        if (!_miPath) { ui.notifications.warn("modifyItemField: path is empty."); break; }
+        let _miUuid = action.uuid ?? "";
+        if (typeof _miUuid === "string") _miUuid = _injectRuntime(_miUuid);
+        _miUuid = String(_miUuid ?? "").trim();
+        const _miStripQuotes = (s) => {
+          if (typeof s !== "string") return s;
+          if (s.length >= 2 && ((s[0] === '"' && s[s.length-1] === '"') || (s[0] === "'" && s[s.length-1] === "'"))) {
+            return s.slice(1, -1);
+          }
+          return s;
+        };
+        _miUuid = _miStripQuotes(_miUuid);
+        if (!_miUuid) { ui.notifications.warn("modifyItemField: item UUID is empty."); break; }
+
+        let _miItem = null;
+        try { _miItem = await fromUuid(_miUuid); } catch { _miItem = null; }
+        if (_miItem && !(_miItem instanceof Item)) {
+          if (_miItem?.actor instanceof Actor) {
+            _miItem = _miItem.actor.items?.find?.(i => i.uuid === _miUuid) ?? null;
+          } else {
+            _miItem = null;
+          }
+        }
+        if (!_miItem && actor) {
+          _miItem = actor.items?.find?.(i => i.uuid === _miUuid)
+                 ?? actor.items?.get?.(_miUuid)
+                 ?? null;
+        }
+        if (!_miItem) { ui.notifications.warn(`modifyItemField: item "${_miUuid}" not found.`); break; }
+
+        const _miCur = Number(foundry.utils.getProperty(_miItem, _miPath) ?? 0);
+        const _miAmt = Number(action.amount ?? 0);
+        let   _miRes;
+        if      (action.op === "subtract") _miRes = _miCur - _miAmt;
+        else if (action.op === "set")      _miRes = _miAmt;
+        else                               _miRes = _miCur + _miAmt;
+        try { await _miItem.update({ [_miPath]: _miRes }); }
+        catch (e) { console.warn("SD modifyItemField failed for", _miItem?.name, e); ui.notifications.warn(`modifyItemField: update failed (${e?.message ?? e}).`); break; }
         break;
       }
 
@@ -1370,32 +1427,44 @@ export class ButtonExecutor {
       }
 
       case "removeFromInvItemSlot": {
-        const _invCtx = actor ?? item ?? null;
-        if (!_invCtx) break;
         const { SlotManager: SM } = await import("../data/item-slots.mjs");
+        const _rfActorOvr = (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '"0"' && action.actorOverride !== "0")
+          ? _sdResolveActor(action.actorOverride, actor)
+          : null;
+        const _rfActor = _rfActorOvr ?? actor ?? null;
+        if (!_rfActor && !item) break;
+
+        const _slotId   = String(action.slotId ?? "slot1");
 
         let _parentItem = null;
         if (action.uuid) {
           try {
             const src = await fromUuid(action.uuid);
-            if (src) _parentItem = (actor?.items.get(src.id) ?? actor?.items.find(i => i.name === src.name))
+            if (src) _parentItem = (_rfActor?.items?.get?.(src.id) ?? _rfActor?.items?.find?.(i => i.name === src.name))
                                 ?? (src.id === item?.id || src.name === item?.name ? item : null)
                                 ?? null;
           } catch {}
         }
         if (!_parentItem && action.itemName) {
-          _parentItem = actor?.items.find(i => i.name === action.itemName)
+          _parentItem = _rfActor?.items?.find?.(i => i.name === action.itemName)
+                     ?? _rfActor?.items?.find?.(i => i.uuid === action.itemName)
                      ?? (item?.name === action.itemName ? item : null)
                      ?? null;
         }
-        if (!_parentItem && !actor) _parentItem = item ?? null;
         if (!_parentItem) {
-          ui.notifications.warn(`removeFromInvItemSlot: parent item "${action.itemName || action.uuid}" not found.`);
+          const candidates = [];
+          if (!_rfActorOvr && item) candidates.push(item);
+          if (_rfActor) for (const it of (_rfActor.items ?? [])) candidates.push(it);
+          _parentItem = candidates.find(c => SM.getDefinition(c, _slotId)) ?? null;
+          if (!_parentItem) _parentItem = candidates.find(c => SM.getContents(c, _slotId).length) ?? null;
+        }
+
+        if (!_parentItem) {
+          ui.notifications.warn(`removeFromInvItemSlot: container with slot "${_slotId}" not found.`);
           for (const sub of (action.emptyActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
           break;
         }
 
-        const _slotId   = String(action.slotId ?? "slot1");
         const _contents = SM.getContents(_parentItem, _slotId);
         const _idx      = Number(action.index ?? 0);
 
@@ -1410,27 +1479,39 @@ export class ButtonExecutor {
       }
 
       case "addToInvItemSlot": {
-        const _addCtx = actor ?? item ?? null;
-        if (!_addCtx) break;
         const { SlotManager: SM2 } = await import("../data/item-slots.mjs");
+        const _aiActorOvr = (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '"0"' && action.actorOverride !== "0")
+          ? _sdResolveActor(action.actorOverride, actor)
+          : null;
+        const _aiActor = _aiActorOvr ?? actor ?? null;
+        if (!_aiActor && !item) break;
+
+        const _slotId2 = String(action.slotId ?? "slot1");
 
         let _container = null;
         if (action.parentUuid) {
           try {
             const src = await fromUuid(action.parentUuid);
-            if (src) _container = (actor?.items.get(src.id) ?? actor?.items.find(i => i.name === src.name))
+            if (src) _container = (_aiActor?.items?.get?.(src.id) ?? _aiActor?.items?.find?.(i => i.name === src.name))
                                 ?? (src.id === item?.id || src.name === item?.name ? item : null)
                                 ?? null;
           } catch {}
         }
         if (!_container && action.parentName) {
-          _container = actor?.items.find(i => i.name === action.parentName)
+          _container = _aiActor?.items?.find?.(i => i.name === action.parentName)
+                    ?? _aiActor?.items?.find?.(i => i.uuid === action.parentName)
                     ?? (item?.name === action.parentName ? item : null)
                     ?? null;
         }
-        if (!_container && !actor) _container = item ?? null;
         if (!_container) {
-          ui.notifications.warn(`addToInvItemSlot: container "${action.parentName || action.parentUuid}" not found.`);
+          const candidates = [];
+          if (!_aiActorOvr && item) candidates.push(item);
+          if (_aiActor) for (const it of (_aiActor.items ?? [])) candidates.push(it);
+          _container = candidates.find(c => SM2.getDefinition(c, _slotId2)) ?? null;
+        }
+
+        if (!_container) {
+          ui.notifications.warn(`addToInvItemSlot: container with slot "${_slotId2}" not found.`);
           for (const sub of (action.fullActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
           break;
         }
@@ -1439,11 +1520,11 @@ export class ButtonExecutor {
         if (action.itemUuid) {
           try {
             const src = await fromUuid(action.itemUuid);
-            if (src) _toPlace = (actor?.items.get(src.id) ?? actor?.items.find(i => i.name === src.name)) ?? src;
+            if (src) _toPlace = (_aiActor?.items?.get?.(src.id) ?? _aiActor?.items?.find?.(i => i.name === src.name)) ?? src;
           } catch {}
         }
         if (!_toPlace && action.itemName) {
-          _toPlace = (actor?.items ?? item?.items ?? []).find(i => i.name === action.itemName) ?? null;
+          _toPlace = (_aiActor?.items ?? item?.items ?? []).find?.(i => i.name === action.itemName) ?? null;
         }
         if (!_toPlace) {
           ui.notifications.warn(`addToInvItemSlot: item "${action.itemName || action.itemUuid}" not found.`);
@@ -1451,12 +1532,10 @@ export class ButtonExecutor {
           break;
         }
 
-        const _slotId2 = String(action.slotId ?? "slot1");
         const _def     = SM2.getDefinition(_container, _slotId2);
         const _cur     = SM2.getContents(_container, _slotId2);
 
         if (_def && _cur.length >= _def.maxCount) {
-
           for (const sub of (action.fullActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
           break;
         }
@@ -1467,23 +1546,28 @@ export class ButtonExecutor {
       }
 
       case "addToSlot": {
-        const _slotCtx = actor ?? item ?? null;
+        const _addSlotActorOvr = (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '"0"' && action.actorOverride !== "0")
+          ? _sdResolveActor(action.actorOverride, actor)
+          : null;
+        const _addSlotActor = _addSlotActorOvr ?? actor ?? null;
+        const _slotCtx = _addSlotActor ?? item ?? null;
         if (!_slotCtx) break;
 
         const _sid = String(action.slotId ?? "");
 
         let _resolved = null;
         if (action.slotPath) {
-          _resolved = _resolveNestedSlotParent(actor, item, action.slotPath);
+          _resolved = _resolveNestedSlotParent(_addSlotActor, item, action.slotPath);
         }
         let slotParent = _resolved?.parent ?? null;
         if (!slotParent) {
-          const itemHasSlot = !!item?.system?.slotDefinitions?.find?.(d => String(d.id) === _sid);
+          const _itemAvail = !_addSlotActorOvr && item;
+          const itemHasSlot = _itemAvail && !!item?.system?.slotDefinitions?.find?.(d => String(d.id) === _sid);
           if (itemHasSlot) {
             slotParent = item;
             _resolved = { parent: item, slotId: _sid, liveAncestor: item, snapshotChain: [] };
           } else {
-            const found = (actor?.items ?? []).find(it =>
+            const found = (_addSlotActor?.items ?? []).find(it =>
               it.system?.slotDefinitions?.find(d => String(d.id) === _sid)
             ) ?? _slotCtx;
             slotParent = found;
@@ -1514,16 +1598,16 @@ export class ButtonExecutor {
         let srcItem = null;
         if (action.uuid) {
           try { srcItem = await fromUuid(action.uuid); } catch {}
-          if (srcItem && actor && srcItem.parent !== actor) {
-            srcItem = actor.items.find(i => i.name === srcItem.name) ?? srcItem;
+          if (srcItem && _addSlotActor && srcItem.parent !== _addSlotActor) {
+            srcItem = _addSlotActor.items.find(i => i.name === srcItem.name) ?? srcItem;
           }
         }
         if (!srcItem && action.itemName) {
-          srcItem = (actor?.items ?? item?.items ?? []).find(i => i.name === action.itemName) ?? null;
+          srcItem = (_addSlotActor?.items ?? item?.items ?? []).find(i => i.name === action.itemName) ?? null;
         }
         if (!srcItem) {
           if (!action.uuid && !action.itemName) {
-            ui.notifications.warn("SD | Add to Slot: drag an item from the sidebar into the UUID field.");
+            ui.notifications.warn("SD | Add to Slot: provide an Item name or UUID.");
           } else {
             ui.notifications.warn(`Item "${action.itemName || action.uuid}" not found.`);
           }
@@ -1536,22 +1620,29 @@ export class ButtonExecutor {
 
       case "removeFromSlot": {
         const _sid2 = String(action.slotId ?? "");
-        const _slotCtx2 = actor ?? item ?? null;
+        const _rmSlotActorOvr = (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '"0"' && action.actorOverride !== "0")
+          ? _sdResolveActor(action.actorOverride, actor)
+          : null;
+        const _rmSlotActor = _rmSlotActorOvr ?? actor ?? null;
+        const _slotCtx2 = _rmSlotActor ?? item ?? null;
         if (!_slotCtx2) break;
         let _resolved2 = null;
         if (action.slotPath) {
-          _resolved2 = _resolveNestedSlotParent(actor, item, action.slotPath);
+          _resolved2 = _resolveNestedSlotParent(_rmSlotActor, item, action.slotPath);
         }
         let slotParent2 = _resolved2?.parent ?? null;
         if (!slotParent2) {
-          const itemHasSlot2 = !!item?.system?.slotDefinitions?.find?.(d => String(d.id) === _sid2);
+          const _itemAvail2 = !_rmSlotActorOvr && item;
+          const itemHasSlot2 = _itemAvail2 && !!item?.system?.slotDefinitions?.find?.(d => String(d.id) === _sid2);
           if (itemHasSlot2) {
             slotParent2 = item;
             _resolved2 = { parent: item, slotId: _sid2, liveAncestor: item, snapshotChain: [] };
           } else {
-            const found2 = (actor?.items ?? []).find(it =>
+            const { SlotManager: _SMrm } = await import("../data/item-slots.mjs");
+            const _byContents = (_rmSlotActor?.items ?? []).find(it => _SMrm.getContents(it, _sid2).length > 0);
+            const found2 = (_rmSlotActor?.items ?? []).find(it =>
               it.system?.slotDefinitions?.find(d => String(d.id) === _sid2)
-            ) ?? _slotCtx2;
+            ) ?? _byContents ?? _slotCtx2;
             slotParent2 = found2;
             _resolved2 = { parent: found2, slotId: _sid2, liveAncestor: found2, snapshotChain: [] };
           }
@@ -2677,37 +2768,6 @@ export class ButtonExecutor {
         break;
       }
 
-      case "consumeResource": {
-        const { FormulaEngine } = await import("./formula-engine.mjs");
-        const _crSpec = action.target != null ? _injectRuntime(String(action.target)) : action.target;
-        let a = _sdResolveActor(_crSpec, actor);
-        if (!a) {
-          a = _crSpec === "token_target"
-            ? _resolveTarget("token_target", actor)
-            : (_crSpec === "actor" ? actor : (item?.actor ?? actor));
-        }
-        if (!a) break;
-        const path = action.path ?? "system.resources.mp.value";
-        const cur  = Number(foundry.utils.getProperty(a, path)) || 0;
-        let cost   = action.amount ?? 1;
-        try {
-          let s = _injectRuntime(String(cost));
-          s = FormulaEngine.resolveForRoll(s, a);
-          cost = Number(FormulaEngine.evaluate(s, a)) || 1;
-        } catch { cost = 1; }
-        if (cur < cost) {
-          for (const sub of (action.emptyActions ?? [])) {
-            await this._runAction(sub, item, actor, buttonDef, runtime);
-          }
-        } else {
-          await a.update({ [path]: cur - cost });
-          for (const sub of (action.okActions ?? [])) {
-            await this._runAction(sub, item, actor, buttonDef, runtime);
-          }
-        }
-        break;
-      }
-
       case "openSheet": {
         let uuid = _injectRuntime(String(action.uuid ?? ""));
         try {
@@ -2982,130 +3042,6 @@ export class ButtonExecutor {
           for (const sub of (action[key] ?? [])) {
             await this._runAction(sub, item, actor, buttonDef, runtime);
           }
-        }
-        break;
-      }
-
-      case "dialogSwitch": {
-        const outputs = (action.outputs ?? []).filter(o => o?.label);
-        if (!outputs.length) break;
-
-        const title       = action.title ?? "Choose";
-        const description = action.description ?? "";
-        const { DialogV2 } = foundry.applications.api;
-
-        const dlgButtons = outputs.map((out, i) => ({
-          action:  String(i),
-          label:   out.label ?? `Option ${i + 1}`,
-          icon:    "fas fa-play",
-          default: i === 0
-        }));
-
-        const chosen = await DialogV2.wait({
-          window:       { title },
-          content:      description
-            ? `<p style="padding:6px 2px 10px;color:#c0c0d8;font-size:12px;line-height:1.5">${description}</p>`
-            : `<div style="height:6px"></div>`,
-          buttons:      dlgButtons,
-          rejectClose:  false
-        }).catch(() => null);
-
-        if (chosen === null || chosen === undefined) break;
-        const idx    = parseInt(chosen);
-        const branch = outputs[idx]?.actions ?? [];
-        for (const sub of branch) {
-          await this._runAction(sub, item, actor, buttonDef, runtime);
-        }
-        break;
-      }
-
-      case "dialogSelectArray": {
-        const items = await _sdResolveItems(action.items, actor);
-        if (!items.length) {
-          ui.notifications?.warn?.("SD | Dialog Select: items array is empty.");
-          for (const sub of (action.cancelActions ?? [])) {
-            await this._runAction(sub, item, actor, buttonDef, runtime);
-          }
-          break;
-        }
-
-        const title       = action.title       ?? "Choose";
-        const description = action.description ?? "";
-        const labelPath   = action.labelPath   ?? "name";
-        const { DialogV2 } = foundry.applications.api;
-
-        const dlgButtons = items.map((it, i) => ({
-          action:  String(i),
-          label:   _sdItemLabel(it, labelPath, i),
-          icon:    "fas fa-play",
-          default: i === 0
-        }));
-
-        const chosen = await DialogV2.wait({
-          window:      { title },
-          content:     description
-            ? `<p style="padding:6px 2px 10px;color:#c0c0d8;font-size:12px;line-height:1.5">${description}</p>`
-            : `<div style="height:6px"></div>`,
-          buttons:     dlgButtons,
-          rejectClose: false
-        }).catch(() => null);
-
-        if (chosen === null || chosen === undefined) {
-          for (const sub of (action.cancelActions ?? [])) {
-            await this._runAction(sub, item, actor, buttonDef, runtime);
-          }
-          break;
-        }
-
-        const idx = parseInt(chosen);
-        const sel = items[idx];
-
-        const selToken = (sel && typeof sel === "object")
-          ? (sel.uuid ?? sel.id ?? sel.name ?? "")
-          : (sel ?? "");
-        const childRuntime = {
-          ...runtime,
-          __sdSelectedItem:  selToken,
-          __sdSelectedIndex: idx
-        };
-        for (const sub of (action.selActions ?? [])) {
-          await this._runAction(sub, item, actor, buttonDef, childRuntime);
-        }
-        break;
-      }
-
-      case "dialogTextInput": {
-        const title       = action.title       ?? "Enter text";
-        const description = action.description ?? "";
-        const dflt        = action.default     ?? "";
-        const { DialogV2 } = foundry.applications.api;
-
-        const content = `
-          ${description ? `<p style="padding:6px 2px 8px;color:#c0c0d8;font-size:12px;line-height:1.5">${description}</p>` : ""}
-          <input type="text" name="sd-dlg-text" value="${String(dflt).replace(/"/g,"&quot;")}"
-                 style="width:100%;box-sizing:border-box;padding:6px 8px;background:#1d1d27;color:#e8e8f0;border:1px solid #3a3a4a;border-radius:4px;margin-bottom:6px"/>
-        `;
-
-        const result = await DialogV2.wait({
-          window:      { title },
-          content,
-          buttons: [
-            { action:"ok",     label:"OK",     icon:"fas fa-check", default:true,
-              callback: (_e, _btn, dlg) => dlg.element.querySelector('input[name="sd-dlg-text"]')?.value ?? "" },
-            { action:"cancel", label:"Cancel", icon:"fas fa-times" }
-          ],
-          rejectClose: false
-        }).catch(() => null);
-
-        if (result === null || result === undefined || result === "cancel") {
-          for (const sub of (action.cancelActions ?? [])) {
-            await this._runAction(sub, item, actor, buttonDef, runtime);
-          }
-          break;
-        }
-        const childRuntime = { ...runtime, __sdInputText: String(result ?? "") };
-        for (const sub of (action.okActions ?? [])) {
-          await this._runAction(sub, item, actor, buttonDef, childRuntime);
         }
         break;
       }
@@ -3405,34 +3341,6 @@ export class ButtonExecutor {
           for (const sub of branch) await this._runAction(sub, item, actor, buttonDef, runtime);
         }
         for (const sub of (action.submitActions ?? [])) {
-          await this._runAction(sub, item, actor, buttonDef, runtime);
-        }
-        break;
-      }
-
-      case "dialogConfirm": {
-        const title    = action.title    ?? "Confirm";
-        const message  = action.message  ?? "";
-        const yesLabel = action.yesLabel ?? "Yes";
-        const noLabel  = action.noLabel  ?? "No";
-        const { DialogV2 } = foundry.applications.api;
-
-        const choice = await DialogV2.wait({
-          window:      { title },
-          content:     message
-            ? `<p style="padding:6px 2px 10px;color:#c0c0d8;font-size:12px;line-height:1.5">${message}</p>`
-            : `<div style="height:6px"></div>`,
-          buttons: [
-            { action:"yes", label:yesLabel, icon:"fas fa-check", default:true },
-            { action:"no",  label:noLabel,  icon:"fas fa-times" }
-          ],
-          rejectClose: false
-        }).catch(() => null);
-
-        const branch = (choice === "yes")
-          ? (action.yesActions ?? [])
-          : (action.noActions  ?? []);
-        for (const sub of branch) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
         }
         break;

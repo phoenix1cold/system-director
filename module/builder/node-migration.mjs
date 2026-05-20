@@ -110,6 +110,37 @@ export const NODE_FIELD_MIGRATIONS = {
     dropDataKeys: ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
     dropPinsIn:   ["critOn", "critFormula", "fumbleOn", "fumbleFormula"],
     dropPinsOut:  ["critFormula", "fumbleFormula"]
+  },
+
+  slot_count: {
+    pinRenameIn:  { itemSlot: "slotId" }
+  },
+  slot_field: {
+    dropDataKeys: ["index"]
+  },
+  slot_item_uuid: {
+    dropDataKeys: ["index"]
+  },
+  inv_item_slot_count: {
+    pinRenameIn:  { itemSlot: "slotId" }
+  },
+  act_remove_slot: {
+    dropDataKeys: ["index"]
+  },
+  act_use_slot_item: {
+    dropDataKeys: ["index"],
+    dropPinsIn:   ["index"]
+  },
+  act_modify_slot_item_field: {
+    dropDataKeys: ["index"],
+    dropPinsIn:   ["index"]
+  },
+  act_remove_from_inv_item_slot: {
+    dropDataKeys: ["index"],
+    dropPinsIn:   ["index", "itemSlot"]
+  },
+  act_add_to_inv_item_slot: {
+    dropPinsIn:   ["itemSlot"]
   }
 };
 

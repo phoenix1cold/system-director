@@ -137,4 +137,89 @@ export class SlotManager {
       return { def, contents, count: contents.length, isFull: contents.length >= def.maxCount, isEmpty: contents.length === 0 };
     });
   }
+
+  static _SLOT_NODE_TYPES = new Set([
+    "slot_count",
+    "act_add_to_slot",
+    "act_remove_from_slot",
+    "act_use_slot_item",
+    "act_modify_slot_item_field",
+    "get_slot_item",
+    "get_slot_uuid",
+    "get_actor_slot_id",
+    "inv_item_slot_count",
+    "inv_use_slot_item",
+    "inv_add_to_slot"
+  ]);
+
+  static _purgeSlotFromGraph(graph, slotId) {
+    if (!graph || typeof graph !== "object") return false;
+    const nodes = graph.nodes;
+    const edges = graph.edges;
+    if (!Array.isArray(nodes) || !nodes.length) return false;
+    const sid = String(slotId);
+    const removedIds = new Set();
+    const kept = [];
+    for (const n of nodes) {
+      if (this._SLOT_NODE_TYPES.has(n?.type) && String(n?.data?.slotId ?? "") === sid) {
+        removedIds.add(n.id);
+        continue;
+      }
+      kept.push(n);
+    }
+    if (!removedIds.size) return false;
+    graph.nodes = kept;
+    if (Array.isArray(edges)) {
+      graph.edges = edges.filter(e => !removedIds.has(e.fromNode) && !removedIds.has(e.toNode));
+    }
+    return true;
+  }
+
+  static _purgeSlotFromWidgets(widgets, slotId) {
+    if (!Array.isArray(widgets)) return false;
+    let changed = false;
+    for (const w of widgets) {
+      if (!w || typeof w !== "object") continue;
+      if (this._purgeSlotFromGraph(w.graphData, slotId)) changed = true;
+      if (this._purgeSlotFromGraph(w.configGraph, slotId)) changed = true;
+      if (this._purgeSlotFromGraph(w.onClickGraph, slotId)) changed = true;
+      if (w.attrGraphs && typeof w.attrGraphs === "object") {
+        for (const k of Object.keys(w.attrGraphs)) {
+          const ag = w.attrGraphs[k];
+          if (this._purgeSlotFromGraph(ag?.graphData, slotId)) changed = true;
+        }
+      }
+      if (Array.isArray(w.widgets)) {
+        if (this._purgeSlotFromWidgets(w.widgets, slotId)) changed = true;
+      }
+    }
+    return changed;
+  }
+
+  static buildSlotPurgeUpdates(doc, slotId) {
+    const sid = String(slotId ?? "");
+    if (!sid) return null;
+    const updates = {};
+    const tabs = foundry.utils.deepClone(doc?.system?.customTabs ?? []);
+    let tabsChanged = false;
+    for (const t of tabs) {
+      for (const r of (t.rows ?? [])) {
+        if (this._purgeSlotFromWidgets(r.widgets, sid)) tabsChanged = true;
+      }
+    }
+    if (tabsChanged) updates["system.customTabs"] = tabs;
+
+    const ocg = foundry.utils.deepClone(doc?.system?.onClickGraph ?? null);
+    if (ocg && this._purgeSlotFromGraph(ocg, sid)) {
+      updates["system.onClickGraph"] = ocg;
+      updates["system.onClickFormula"] = "0";
+    }
+
+    const stg = foundry.utils.deepClone(doc?.system?.sdTriggerGraph ?? null);
+    if (stg && stg._graphData && this._purgeSlotFromGraph(stg._graphData, sid)) {
+      updates["system.sdTriggerGraph"] = stg;
+    }
+
+    return Object.keys(updates).length ? updates : null;
+  }
 }

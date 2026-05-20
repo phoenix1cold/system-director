@@ -698,6 +698,38 @@ for (const [type, def] of Object.entries(WIDGET_TYPES)) {
   def.configFields = [...(def.configFields || []), field];
 }
 
+export const CLICKABLE_WIDGET_TYPES = new Set([
+  "dice",
+  "rollButton",
+  "button",
+  "attribute",
+  "attributeGroup",
+  "skill",
+  "toggle",
+  "counter",
+  "number",
+  "tracker",
+  "tokenPool",
+  "clock",
+  "cardHand",
+  "cardDrawButton"
+]);
+
+for (const type of CLICKABLE_WIDGET_TYPES) {
+  const def = WIDGET_TYPES[type];
+  if (!def) continue;
+  def.defaults = { ...(def.defaults || {}), animationTag: "" };
+  def.configFields = [
+    ...(def.configFields || []),
+    {
+      key: "animationTag",
+      type: "text",
+      label: "Animation Tag (Automated Animations)",
+      placeholder: "name matched by AA Auto Recognition"
+    }
+  ];
+}
+
 export const WIDGET_PALETTE_ORDER = [
   "text", "number", "counter", "resource", "derived", "dice", "button",
   "toggle", "attribute", "attributeGroup", "skill", "progress", "tracker", "tokenPool", "clock",
@@ -719,69 +751,4 @@ export function createWidget(type, overrides = {}) {
   };
 }
 
-export const KNOWN_PATHS = {
 
-  "system.attributes.attr1.value": "Attribute 1 — Score",
-  "system.attributes.attr1.mod":   "Attribute 1 — Modifier",
-  "system.attributes.attr2.value": "Attribute 2 — Score",
-  "system.attributes.attr2.mod":   "Attribute 2 — Modifier",
-  "system.attributes.attr3.value": "Attribute 3 — Score",
-  "system.attributes.attr3.mod":   "Attribute 3 — Modifier",
-  "system.attributes.attr4.value": "Attribute 4 — Score",
-  "system.attributes.attr4.mod":   "Attribute 4 — Modifier",
-  "system.attributes.attr5.value": "Attribute 5 — Score",
-  "system.attributes.attr5.mod":   "Attribute 5 — Modifier",
-  "system.attributes.attr6.value": "Attribute 6 — Score",
-  "system.attributes.attr6.mod":   "Attribute 6 — Modifier",
-
-  "system.resources.hp.value":     "HP — Current",
-  "system.resources.hp.max":       "HP — Max",
-  "system.resources.mp.value":     "MP — Current",
-  "system.resources.mp.max":       "MP — Max",
-  "system.resources.stamina.value":"Stamina — Current",
-  "system.resources.stamina.max":  "Stamina — Max",
-
-  "system.defense.armor":          "Defense — Armor",
-  "system.defense.total":          "Defense — Total",
-  "system.initiative.bonus":       "Initiative — Bonus",
-  "system.initiative.total":       "Initiative — Total",
-  "system.movement.walk":          "Movement — Walk",
-  "system.movement.fly":           "Movement — Fly",
-
-  "system.advancement.level":      "Level",
-  "system.advancement.xp.value":   "XP — Current",
-  "system.advancement.xp.max":     "XP — Max",
-  "system.advancement.proficiencyBonus": "Proficiency Bonus"
-};
-
-export function getKnownPaths() {
-  const out = { ...KNOWN_PATHS };
-  try {
-    const cfg = (typeof CONFIG !== "undefined") ? CONFIG?.SD : null;
-    for (const c of (Array.isArray(cfg?.currencies) ? cfg.currencies : [])) {
-      if (!c?.key) continue;
-      const label = c.label && String(c.label).trim() ? c.label : c.key;
-      out[`system.currency.${c.key}`] = `Currency — ${label}`;
-    }
-    if (typeof game !== "undefined") {
-      let stored = null;
-      try { stored = game.settings?.get?.("sd", "systemSettings") ?? null; } catch {}
-      const attrs = stored?.attributes ?? {};
-      const attrsEnabled = stored?.attributesEnabled ?? {};
-      for (const [key, label] of Object.entries(attrs)) {
-        if (attrsEnabled[key] === false) continue;
-        const lbl = label && String(label).trim() ? label : key;
-        out[`system.attributes.${key}.value`] = `${lbl} — Score`;
-        out[`system.attributes.${key}.mod`]   = `${lbl} — Modifier`;
-      }
-      const ress = stored?.resources ?? {};
-      for (const [key, res] of Object.entries(ress)) {
-        if (res?.enabled === false) continue;
-        const lbl = res?.label && String(res.label).trim() ? res.label : key;
-        out[`system.resources.${key}.value`] = `${lbl} — Current`;
-        out[`system.resources.${key}.max`]   = `${lbl} — Max`;
-      }
-    }
-  } catch {}
-  return out;
-}

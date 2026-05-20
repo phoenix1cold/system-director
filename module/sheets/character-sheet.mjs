@@ -3,6 +3,7 @@ import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { GridManager }    from "../builder/grid-manager.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
+import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -122,8 +123,31 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this._showEditModeBadge();
     this._wireInventoryDropZones();
     this._wireTrackerDelegation();
+    this._wireAnimationTagDelegation();
     ItemPreviewPopup.attach(this.element, this.document);
     TabManager.activate(this);
+  }
+
+  _wireAnimationTagDelegation() {
+    const root = this.element;
+    if (!root || root.dataset.sdAaDelegated === "1") return;
+    root.dataset.sdAaDelegated = "1";
+    root.addEventListener("click", (ev) => {
+      if (this._editMode) return;
+      const widgetEl = ev.target.closest(".widget[data-aa-tag]");
+      if (!widgetEl || !root.contains(widgetEl)) return;
+      const actionEl = ev.target.closest(
+        "[data-action], [data-roll], [data-step], [data-toggle], [data-attr-roll], [data-attr-onclick]"
+      );
+      if (!actionEl || !widgetEl.contains(actionEl)) return;
+      const da = actionEl.dataset?.action ?? "";
+      if (da === "wcfg" || da === "wdup" || da === "wspan" || da === "wdel") return;
+      const tag = widgetEl.dataset.aaTag;
+      if (!tag) return;
+      try { AutoanimationsIntegration.playForTag(tag, this.document); } catch (e) {
+        console.warn("SD | AutoAnimations widget tag trigger failed:", e);
+      }
+    }, true);
   }
 
   // submitOnChange auto-submits the form on any input/change event from a
@@ -2227,7 +2251,24 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const r    = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
     if (!r) return;
     const removed = this._removeWidgetDeep(r.widgets, w.id);
-    if (removed) await this.document.update({ "system.customTabs": tabs });
+    if (!removed) return;
+    const _upd = { "system.customTabs": tabs };
+    if (removed?.type === "slot" && removed?.slotId) {
+      const sid = String(removed.slotId);
+      const stillUsed = (tabs ?? []).some(t => (t.rows ?? []).some(rw => (function _has(ws){
+        return (ws ?? []).some(ww => (ww?.type === "slot" && String(ww?.slotId ?? "") === sid) || (Array.isArray(ww?.widgets) && _has(ww.widgets)));
+      })(rw.widgets)));
+      if (!stillUsed) {
+        const { SlotManager } = await import("../data/item-slots.mjs");
+        const _purge = SlotManager.buildSlotPurgeUpdates(this.document, sid);
+        if (_purge) Object.assign(_upd, _purge);
+        const defs = (this.document.system.slotDefinitions ?? []).filter(d => String(d.id) !== sid);
+        if (defs.length !== (this.document.system.slotDefinitions ?? []).length) {
+          _upd["system.slotDefinitions"] = defs;
+        }
+      }
+    }
+    await this.document.update(_upd);
   }
 
   _refreshWidgetIdsDeep(widget) {

@@ -52,6 +52,11 @@ export class WidgetRenderer {
         html = html.replace(/^(<[^>]+class=")/, `$1${this._esc(widgetDef.cssClass)} `);
       }
 
+      const aaTagRaw = typeof widgetDef.animationTag === "string" ? widgetDef.animationTag.trim() : "";
+      if (aaTagRaw && !/^<[^>]+\bdata-aa-tag="/.test(html)) {
+        html = html.replace(/^(<[A-Za-z][A-Za-z0-9-]*)/, `$1 data-aa-tag="${this._esc(aaTagRaw)}"`);
+      }
+
       const styleStr = this._buildStyle(widgetDef);
       if (styleStr) {
         if (/^<[^>]+style="/.test(html)) {

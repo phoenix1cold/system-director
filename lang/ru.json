@@ -318,6 +318,12 @@
         "WidgetShadowHint": "Лёгкая тёмная тень + радиальный фон под каждым виджетом HUD, чтобы они читались на светлых картах.",
         "ToggleKey": "Переключить Action HUD",
         "ToggleKeyHint": "Показать или скрыть плавающий Action HUD (по умолчанию Ctrl+H).",
+        "ResetKey": "Сбросить позицию Action HUD",
+        "ResetKeyHint": "Снять закрепление HUD, вернуть его в центр и (в режиме раздельных виджетов) собрать все виджеты обратно к центру. По умолчанию Ctrl+Shift+H.",
+        "SeparateWidgets": "Режим раздельных виджетов",
+        "SeparateWidgetsHint": "Размещать каждый виджет HUD как отдельную плавающую панель в любом месте экрана, а не одной общей шапкой.",
+        "ResponsivePos": "Масштабировать позицию HUD по размеру экрана",
+        "ResponsivePosHint": "При смене разрешения окна Foundry (например, переход с 2K на FullHD) пропорционально пересчитывать позиции шапки HUD и плавающих виджетов, чтобы они оставались в том же относительном месте.",
         "ConfigMenu": "Раскладка Action HUD",
         "ConfigMenuLabel": "Настроить Action HUD",
         "ConfigMenuHint": "Настройка набора виджетов и их позиций для плавающего HUD (только GM)."
@@ -325,6 +331,9 @@
       "Config": {
         "Title": "Настройка Action HUD",
         "Saved": "Раскладка Action HUD сохранена."
+      },
+      "Notify": {
+        "PositionReset": "Позиция Action HUD сброшена."
       },
       "Cell": {
         "Scale": "Масштаб виджета",
@@ -699,12 +708,10 @@
   "SD.Graph.Chat_AoE_Save_Arrow_Effect": "Чат-AoE — спас → эффект",
   "SD.Graph.Chat_AoE_With_Effect": "Чат-AoE — с эффектом",
   "SD.Graph.Clamp": "Ограничить",
-  "SD.Graph.Consume_Resource": "Потратить ресурс",
   "SD.Graph.Consume_Slot": "Потратить слот",
   "SD.Graph.Create_Effect": "Создать эффект",
   "SD.Graph.Damage": "Урон",
   "SD.Graph.Delay": "Задержка",
-  "SD.Graph.Dialog_Switch": "Диалог-выбор",
   "SD.Graph.Dice": "Кости",
   "SD.Graph.Dice_Pool": "Пул кубиков",
   "SD.Graph.Div": "Делить",

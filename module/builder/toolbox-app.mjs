@@ -1,4 +1,3 @@
-import { KNOWN_PATHS } from "./widget-registry.mjs";
 import { BLUEPRINT_NODES, BLUEPRINT_CATS } from "../helpers/formula-engine.mjs";
 import { loadSettings } from "../helpers/system-config.mjs";
 

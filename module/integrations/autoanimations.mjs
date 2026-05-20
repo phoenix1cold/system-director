@@ -80,6 +80,27 @@ export class AutoanimationsIntegration {
     }
   }
 
+  static _resolveActorFromDoc(doc) {
+    if (!doc) return null;
+    if (doc instanceof Actor) return doc;
+    if (doc.actor instanceof Actor) return doc.actor;
+    const parent = doc.parent;
+    if (parent instanceof Actor) return parent;
+    return null;
+  }
+
+  static async playForTag(tag, doc, options = {}) {
+    if (typeof tag !== "string") return false;
+    const name = tag.trim();
+    if (!name) return false;
+    if (!this.isAvailable()) return false;
+    const actor = options.actor ?? this._resolveActorFromDoc(doc);
+    const fakeItem = { name, type: "sdAnimationTag", system: {}, flags: {} };
+    const passOptions = { ...options };
+    delete passOptions.actor;
+    return this.playForItem(fakeItem, actor, passOptions);
+  }
+
   static enrichChatMessageData(chatData, item, actor, options = {}) {
     if (!chatData || typeof chatData !== "object") return chatData;
     if (!this._hasItemShape(item)) return chatData;

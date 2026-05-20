@@ -376,10 +376,19 @@ export class SDTrade {
                    : (data.from === st.initiatorUserId) ? "init"
                    : (data.from === st.partnerUserId)   ? "part" : null;
         if (!side) return;
-        st.offers[side] = data.offer ?? { items: [], currency: {} };
+        const prevOffer = st.offers[side] ?? { items: [], currency: {} };
+        const nextOffer = data.offer ?? { items: [], currency: {} };
+        const offerChanged = !_offersEqual(prevOffer, nextOffer);
+        st.offers[side] = nextOffer;
 
-        st.ready.init = false;
-        st.ready.part = false;
+        // Only reset both sides' ready when the offer actually changed.
+        // Otherwise spurious updates (e.g. a no-op flush emitted on the other
+        // side's Ready click) would knock the local user out of ready and
+        // force them to click again.
+        if (offerChanged) {
+          st.ready.init = false;
+          st.ready.part = false;
+        }
         const win = SDTradeWindow._open.get(data.requestId);
         win?.refresh();
         return;
@@ -611,6 +620,36 @@ export class SDTrade {
   }
 }
 
+
+/**
+ * Compare two trade offers for content equality.
+ * Items match by id with normalized qty (default 1).
+ * Currency matches by key with normalized amount (default 0).
+ * Used by the trade.update receiver to avoid resetting both sides' ready when
+ * an incoming offer is identical to the one already on file (e.g. spurious
+ * flush-on-mousedown emits).
+ */
+function _offersEqual(a, b) {
+  const ai = Array.isArray(a?.items) ? a.items : [];
+  const bi = Array.isArray(b?.items) ? b.items : [];
+  if (ai.length !== bi.length) return false;
+  const bMap = new Map();
+  for (const it of bi) bMap.set(String(it?.id ?? ""), Math.max(1, Number(it?.qty ?? 1)));
+  for (const it of ai) {
+    const id = String(it?.id ?? "");
+    const aq = Math.max(1, Number(it?.qty ?? 1));
+    if (bMap.get(id) !== aq) return false;
+  }
+  const ac = a?.currency ?? {};
+  const bc = b?.currency ?? {};
+  const keys = new Set([...Object.keys(ac), ...Object.keys(bc)]);
+  for (const k of keys) {
+    const av = Math.max(0, Number(ac[k] ?? 0));
+    const bv = Math.max(0, Number(bc[k] ?? 0));
+    if (av !== bv) return false;
+  }
+  return true;
+}
 
 function _validateOffer(actor, offer) {
   for (const it of (offer.items ?? [])) {
@@ -949,7 +988,12 @@ export class SDTradeWindow extends ApplicationV2 {
       if (!offer) return;
       const key = inp.dataset.key;
       const v = Math.max(0, Number(inp.value || 0));
-      if (offer.currency[key] !== v) { offer.currency[key] = v; changed = true; }
+      // Normalize against undefined: an unset currency entry equals 0 for the
+      // purpose of "did anything change?" — otherwise every Ready click would
+      // emit a spurious trade.update for every currency input and reset the
+      // other side's ready flag.
+      const cur = Number(offer.currency?.[key] ?? 0);
+      if (cur !== v) { offer.currency[key] = v; changed = true; }
     });
 
     root.querySelectorAll(".sd-tw-qty").forEach(inp => {
@@ -961,7 +1005,8 @@ export class SDTradeWindow extends ApplicationV2 {
       const it = offer.items.find(i => i.id === id);
       if (!it) return;
       const v = Math.max(1, Number(inp.value || 1));
-      if (it.qty !== v) { it.qty = v; changed = true; }
+      const cur = Number(it.qty ?? 1);
+      if (cur !== v) { it.qty = v; changed = true; }
     });
 
     if (changed && !st.sameUser) {
@@ -1051,7 +1096,10 @@ export class SDTradeWindow extends ApplicationV2 {
     const it = offer.items.find(i => i.id === itemId);
     if (!it) return;
     const v = Math.max(1, Number(qty || 1));
-    if (it.qty === v) return;
+    // Normalize against undefined so the default qty=1 doesn't read as "changed"
+    // and trigger a spurious broadcast that would reset both sides' ready.
+    const cur = Number(it.qty ?? 1);
+    if (cur === v) return;
     it.qty = v;
     this._broadcastSide(sideKey, { silent });
   }
@@ -1061,7 +1109,10 @@ export class SDTradeWindow extends ApplicationV2 {
     const offer = this._offer(sideKey);
     if (!offer) return;
     const v = Math.max(0, Number(amt || 0));
-    if (offer.currency[key] === v) return;
+    // Normalize against undefined so an empty / default-0 currency input doesn't
+    // read as a real change and trigger a broadcast that resets both sides' ready.
+    const cur = Number(offer.currency?.[key] ?? 0);
+    if (cur === v) return;
     offer.currency[key] = v;
     this._broadcastSide(sideKey, { silent });
   }

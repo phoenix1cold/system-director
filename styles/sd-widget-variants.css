@@ -366,15 +366,10 @@
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
-  /*
-   * Override any explicit width coming from Width (PX) box style — the orb is
-   * always centered and we let the container auto-grow to fit the orb size +
-   * the 41/100 number row above it. Otherwise a small Width (e.g. 50px)
-   * would clip the res-row inputs and the orb's drop-shadows.
-   */
-  width: max-content !important;
-  min-width: var(--sd-orb-size, 200px) !important;
-  /* Don't let the cell clip the outer drop-shadow halo. */
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
   overflow: visible !important;
 }
 .sd-w-resource.sd-v-orb .widget-label {
@@ -414,18 +409,12 @@
 
 .sd-w-resource.sd-v-orb .res-orb {
   position: relative;
-  /*
-   * --sd-orb-size is set on the outer .widget-resource by the renderer based
-   * on Width (PX) / Bar height (PX). Defaults to 200px when neither is set.
-   */
-  width: var(--sd-orb-size, 200px);
-  height: var(--sd-orb-size, 200px);
-  /* Scale the drop-shadow halo with the orb so small orbs aren't dwarfed by
-   * giant blur radii. */
-  filter:
-    drop-shadow(0 0 calc(var(--sd-orb-size, 200px) * 0.09) var(--sd-orb-glow, #aa2222))
-    drop-shadow(0 0 calc(var(--sd-orb-size, 200px) * 0.2)  var(--sd-orb-glow2, #660000));
+  width: min(100%, var(--sd-orb-size, 200px));
+  aspect-ratio: 1 / 1;
+  height: auto;
+  filter: none;
   margin-top: 4px;
+  align-self: center;
 }
 .sd-w-resource.sd-v-orb .res-orb-svg {
   width: 100%;
@@ -486,11 +475,8 @@
   white-space: nowrap;
 }
 
-/* Empty state — drop most of the glow */
 .sd-w-resource.sd-v-orb .res-orb[data-orb-empty="1"] {
-  filter:
-    drop-shadow(0 0 8px var(--sd-orb-glow2, #220000))
-    drop-shadow(0 0 16px rgba(0,0,0,0.6));
+  filter: none;
 }
 .sd-w-resource.sd-v-orb .res-orb[data-orb-empty="1"] .res-orb-wave-path,
 .sd-w-resource.sd-v-orb .res-orb[data-orb-empty="1"] .res-orb-core,

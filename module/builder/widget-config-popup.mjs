@@ -1,6 +1,6 @@
 import { FormulaEngine }   from "../helpers/formula-engine.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
-import { WIDGET_VARIANTS, WIDGET_TYPES } from "./widget-registry.mjs";
+import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES } from "./widget-registry.mjs";
 
 const FIELD_DEFS = {
   text:      [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Read Only","readOnly","boolean"]],
@@ -91,6 +91,12 @@ for (const [type, variants] of Object.entries(WIDGET_VARIANTS)) {
   FIELD_DEFS[type].push(["Variant", "variant", "variant", variants]);
 }
 
+for (const type of (CLICKABLE_WIDGET_TYPES ?? [])) {
+  if (!Array.isArray(FIELD_DEFS[type])) FIELD_DEFS[type] = [];
+  if (FIELD_DEFS[type].some(row => Array.isArray(row) && row[1] === "animationTag")) continue;
+  FIELD_DEFS[type].push(["Animation Tag (Automated Animations)", "animationTag", "text"]);
+}
+
 const STYLE_DEFS = {
   text:      [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
   number:    [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"],["± Buttons color","btnColor","style-color"]],
@@ -163,7 +169,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   const _commonFields = [
   ];
   const fields = [..._typeFields, ..._commonFields];
-  const allPaths = _buildPathList(doc);
   const esc      = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 
   const IS = "width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
@@ -309,13 +314,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         }
       }
     }
-
-    try {
-      for (const p of (_buildPathList(doc) ?? [])) {
-        if (!p?.path) continue;
-        list.push({ value: p.path, label: p.label || p.path });
-      }
-    } catch {  }
 
     const seen = new Set();
     const out  = [];
@@ -556,11 +554,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           ${type === "formula" ? `<button type="button" data-open-graph="${esc(key)}" style="flex-shrink:0;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:4px 8px;white-space:nowrap;line-height:1;transition:background .15s" title="Open Blueprint Graph">🔷 Graph</button>` : ""}
           ${isPF ? `<button type="button" data-clear-field="${esc(key)}" class="wcfg-clear-btn" title="Clear">✕</button>` : ""}
         </div>
-        ${isPF ? `<div class="wcfg-sug" data-for="${esc(key)}" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:9999;background:var(--sd-bg);border:1px solid var(--sd-accent-2);border-top:none;border-radius:0 0 5px 5px;max-height:130px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.6)"></div>` : ""}
       </div>`;
   }).join("");
-
-  const pathPickerOpts = allPaths.map(p => `<option value="${esc(p.path)}">${esc(p.label)}</option>`).join("");
 
   const popup = document.createElement("div");
   popup.className = "sd-wcfg-popup";
@@ -607,18 +602,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       ${fieldRows}
       ${styleRow}
       ${showIfRow}
-
-      <!-- Known paths picker -->
-      <div style="border-top:1px solid var(--sd-bg-3);padding-top:10px;margin-top:8px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sd-text-2);margin-bottom:6px"><i class="fas fa-database"></i> Known Paths</div>
-        <div style="display:flex;gap:5px">
-          <select id="wcfg-ps" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:'Courier New',monospace;padding:3px 5px;height:28px">
-            <option value="">— select a path —</option>
-            ${pathPickerOpts}
-          </select>
-          <button type="button" id="wcfg-pi" style="background:var(--sd-accent-2);border:1px solid var(--sd-accent);border-radius:4px;color:#fff;cursor:pointer;font-size:11px;padding:5px 10px;flex-shrink:0">Insert</button>
-        </div>
-      </div>
     </div>
 
     <!-- Footer -->
@@ -731,8 +714,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   });
 
   popup.querySelectorAll("input[data-ftype='path'], input[data-ftype='formula']").forEach(inp => {
-    inp.addEventListener("focus",  () => { _lastFocused = inp; _refreshSug(inp); });
-    inp.addEventListener("input",  () => _refreshSug(inp));
+    inp.addEventListener("focus",  () => { _lastFocused = inp; });
   });
 
   const _showIfInp = popup.querySelector("input[data-field='showIf']");
@@ -762,35 +744,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     _showIfInp.addEventListener("blur",  _validateShowIf);
     _validateShowIf();
   }
-
-  function _refreshSug(inp) {
-    const list = popup.querySelector(`.wcfg-sug[data-for="${inp.dataset.field}"]`);
-    if (!list) return;
-    const q = inp.value.toLowerCase();
-    if (!q) { list.style.display = "none"; return; }
-    const matches = allPaths.filter(p => p.path.toLowerCase().includes(q) || p.label.toLowerCase().includes(q)).slice(0,8);
-    if (!matches.length) { list.style.display = "none"; return; }
-    list.style.display = "block";
-    list.innerHTML = matches.map(p => `
-      <div data-path="${esc(p.path)}" class="wcfg-sug-item" style="padding:4px 9px;cursor:pointer;font-size:11px;font-family:'Courier New',monospace;border-bottom:1px solid var(--sd-bg-3);display:flex;gap:8px;align-items:center">
-        <span style="color:var(--sd-text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.path)}</span>
-        <span style="color:var(--sd-text-3);font-size:10px;font-family:inherit;flex-shrink:0">${esc(p.label)}</span>
-      </div>`).join("");
-    list.querySelectorAll(".wcfg-sug-item").forEach(item => {
-      item.addEventListener("mouseenter", () => item.style.background = "var(--sd-bg-3)");
-      item.addEventListener("mouseleave", () => item.style.background = "");
-      item.addEventListener("mousedown", ev => {
-        ev.preventDefault();
-        _insertAt(inp, item.dataset.path);
-        list.style.display = "none";
-      });
-    });
-  }
-
-  document.addEventListener("click", ev => {
-    if (!popup.contains(ev.target)) return;
-    popup.querySelectorAll(".wcfg-sug").forEach(l => { if (!l.contains(ev.target)) l.style.display = "none"; });
-  }, true);
 
   popup.querySelectorAll(".wcfg-clear-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -892,26 +845,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc, attrKey });
       graph.open();
     });
-  });
-
-  function _insertAt(inp, text) {
-    if (!inp) return;
-    const pos    = inp.selectionStart ?? inp.value.length;
-    const before = inp.value.substring(0, pos);
-    const after  = inp.value.substring(inp.selectionEnd ?? pos);
-    inp.value = before + text + after;
-    const newPos = pos + text.length;
-    inp.setSelectionRange(newPos, newPos);
-    inp.focus();
-    inp.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-
-  popup.querySelector("#wcfg-pi").addEventListener("click", () => {
-    const val = popup.querySelector("#wcfg-ps").value;
-    if (!val || !_lastFocused) return;
-    const wrap = _lastFocused.dataset.ftype === "formula" ? `{${val}}` : val;
-    _insertAt(_lastFocused, wrap);
-    popup.querySelector("#wcfg-ps").value = "";
   });
 
   const doSave = async () => {
@@ -1054,60 +987,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   popup.querySelector("input[data-field]")?.focus();
 
   return popup;
-}
-
-function _buildPathList(doc) {
-  const paths = [];
-
-  try {
-    const customFields = game.settings.get("sd", "customFields") ?? [];
-    for (const cf of customFields) {
-      paths.push({ path: `system.flags.${cf.name}`, label: `Custom: ${cf.name}` });
-    }
-  } catch {}
-
-  const ownHF = Object.entries(doc.system?.hiddenFields ?? {});
-  for (const [k] of ownHF) {
-    paths.push({ path: `system.hiddenFields.${k}`, label: `Hidden: ${k}` });
-  }
-
-  for (const a of (doc.system?.declaredAttrs ?? [])) {
-    if (a.path) paths.push({ path: a.path, label: `Attr: ${a.name || a.id}` });
-  }
-
-  for (const def of (doc.system?.slotDefinitions ?? [])) {
-    paths.push({ path: `system.slotContents.${def.id}.count`, label: `Slot count: ${def.label}` });
-  }
-
-  if (doc instanceof Actor) {
-    for (const item of (doc.items ?? [])) {
-      for (const [k] of Object.entries(item.system?.hiddenFields ?? {})) {
-        paths.push({ path: `system.hiddenFields.${k}`, label: `${item.name}: ${k}` });
-      }
-      for (const a of (item.system?.declaredAttrs ?? [])) {
-        if (a.path) paths.push({ path: a.path, label: `${item.name}: ${a.name || a.id}` });
-      }
-      for (const def of (item.system?.slotDefinitions ?? [])) {
-        paths.push({ path: `system.slotContents.${def.id}.count`, label: `${item.name}: slot '${def.label}'` });
-      }
-    }
-
-    for (const def of (doc.system?.slotDefinitions ?? [])) {
-      paths.push({ path: `system.slotContents.${def.id}.count`, label: `Actor slot: ${def.label}` });
-    }
-  } else {
-    const actor = doc.actor;
-    if (actor) {
-      for (const item of (actor.items ?? [])) {
-        if (item.id === doc.id) continue;
-        for (const [k] of Object.entries(item.system?.hiddenFields ?? {})) {
-          paths.push({ path: `system.hiddenFields.${k}`, label: `${item.name}: ${k}` });
-        }
-      }
-    }
-  }
-
-  return paths;
 }
 
 // Returns true when `path` either resolves to an existing property on `doc` or
