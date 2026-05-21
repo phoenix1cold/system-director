@@ -2778,7 +2778,7 @@
 .wcfg-path-chip { font-family: 'Courier New', monospace !important; }
 
 .sd-wcfg-popup::-webkit-scrollbar { width: 5px; }
-.sd-wcfg-popup::-webkit-scrollbar-track { background: #13131d; }
+.sd-wcfg-popup::-webkit-scrollbar-track { background: var(--sd-bg-2); }
 .sd-wcfg-popup::-webkit-scrollbar-thumb { background: var(--sd-border); border-radius: 3px; }
 
 .sd .sys-section {
@@ -4030,7 +4030,7 @@
   border-radius: 10px;
   padding: 6px 8px 10px;
   box-shadow: none;
-  color: #e6e6e6;
+  color: var(--sd-text);
   font-family: var(--font-primary, sans-serif);
   pointer-events: auto;
   min-width: 240px;
@@ -4083,7 +4083,7 @@
 #sd-action-hud > .sd-action-hud-add {
   background: transparent;
   border: 1px solid var(--sd-border-2);
-  color: #d6d6d6;
+  color: var(--sd-text-2);
   border-radius: 4px;
   width: 22px;
   height: 22px;
@@ -4121,21 +4121,27 @@
 .sd-action-hud-config-form .hud-type-tabs {
   display: flex;
   gap: 4px;
-  border-bottom: 1px solid #555;
+  border-bottom: 1px solid var(--sd-border);
   padding-bottom: 4px;
 }
 
 .sd-action-hud-config-form .hud-type-tab {
   padding: 4px 10px;
-  border: 1px solid #555;
-  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--sd-border);
+  background: var(--sd-bg-3);
+  color: var(--sd-text-2);
   cursor: pointer;
   border-radius: 4px 4px 0 0;
   font-size: 12px;
 }
+.sd-action-hud-config-form .hud-type-tab:hover {
+  background: var(--sd-bg-4);
+  color: var(--sd-text);
+}
 .sd-action-hud-config-form .hud-type-tab.active {
-  background: rgba(123, 104, 238, 0.18);
+  background: var(--sd-accent-glow);
   border-color: var(--sd-accent);
+  color: var(--sd-text);
 }
 
 .sd-action-hud-config-form .hud-help-text {
@@ -4145,7 +4151,8 @@
 }
 .sd-action-hud-config-form .hud-help-warn {
   background: rgba(255,180,80,0.08);
-  border: 1px solid #b58800;
+  border: 1px solid var(--sd-warn, #b58800);
+  color: var(--sd-text);
   border-radius: 4px;
   padding: 6px 8px;
   font-size: 11px;
@@ -4153,7 +4160,9 @@
 
 .sd-action-hud-config-form .hud-keys-hint {
   font-size: 11px;
-  border: 1px solid #444;
+  border: 1px solid var(--sd-border);
+  background: var(--sd-bg-2);
+  color: var(--sd-text);
   border-radius: 4px;
   padding: 4px 6px;
 }
@@ -4164,8 +4173,9 @@
   gap: 4px;
 }
 .sd-action-hud-config-form .hud-key-pill {
-  background: rgba(123, 104, 238, 0.12);
-  border: 1px solid var(--sd-accent-glow);
+  background: var(--sd-accent-glow);
+  border: 1px solid var(--sd-accent-dim);
+  color: var(--sd-text);
   padding: 1px 6px;
   border-radius: 3px;
   font-size: 11px;
@@ -4184,10 +4194,11 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid #444;
+  border: 1px solid var(--sd-border);
   border-radius: 4px;
   padding: 4px;
-  background: rgba(255,255,255,0.02);
+  background: var(--sd-bg-2);
+  color: var(--sd-text);
 }
 
 .sd-action-hud-config-form .hud-entry-grid {
@@ -4201,7 +4212,7 @@
   display: flex;
   flex-direction: column;
   font-size: 10px;
-  opacity: 0.8;
+  color: var(--sd-text-2);
   gap: 2px;
 }
 
@@ -4209,10 +4220,10 @@
   font-size: 11px;
   padding: 2px 4px;
   height: 22px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid #444;
+  background: var(--sd-bg-3);
+  border: 1px solid var(--sd-border);
   border-radius: 3px;
-  color: inherit;
+  color: var(--sd-text);
 }
 
 .sd-action-hud-config-form .hud-entry-actions {
@@ -4225,16 +4236,21 @@
   width: 24px;
   height: 18px;
   font-size: 10px;
-  background: transparent;
-  border: 1px solid #555;
+  background: var(--sd-bg-3);
+  border: 1px solid var(--sd-border);
   border-radius: 3px;
   cursor: pointer;
+  color: var(--sd-text);
+}
+.sd-action-hud-config-form .hud-entry-actions button:hover {
+  background: var(--sd-bg-4);
+  border-color: var(--sd-border-2);
 }
 
 .sd-action-hud-config-form .hud-entry-inline-tag {
   font-size: 10px;
   font-style: italic;
-  opacity: 0.7;
+  color: var(--sd-text-3);
   margin-left: 4px;
 }
 
@@ -4243,22 +4259,31 @@
   justify-content: space-between;
   gap: 4px;
   padding-top: 6px;
-  border-top: 1px solid #444;
+  border-top: 1px solid var(--sd-border);
 }
 
 .sd-action-hud-config-form .hud-config-toolbar button {
   padding: 4px 12px;
   font-size: 12px;
-  border: 1px solid #555;
+  border: 1px solid var(--sd-border);
   border-radius: 4px;
-  background: rgba(255,255,255,0.04);
+  background: var(--sd-bg-3);
   cursor: pointer;
-  color: inherit;
+  color: var(--sd-text);
+}
+.sd-action-hud-config-form .hud-config-toolbar button:hover {
+  background: var(--sd-bg-4);
+  border-color: var(--sd-border-2);
 }
 
 .sd-action-hud-config-form .hud-config-toolbar .btn-primary {
-  background: rgba(123, 104, 238, 0.25);
+  background: var(--sd-accent);
+  color: var(--sd-accent-text);
   border-color: var(--sd-accent);
+}
+.sd-action-hud-config-form .hud-config-toolbar .btn-primary:hover {
+  background: var(--sd-accent-2);
+  border-color: var(--sd-accent-2);
 }
 
 #sd-action-hud .sd-action-hud-add {
@@ -4380,12 +4405,18 @@
 }
 
 .sd-hud-inline-editor fieldset.inline-fields {
-  border: 1px solid #555;
+  border: 1px solid var(--sd-border);
   border-radius: 4px;
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  color: var(--sd-text);
+  background: var(--sd-bg-2);
+}
+.sd-hud-inline-editor fieldset.inline-fields > legend {
+  color: var(--sd-text-2);
+  padding: 0 6px;
 }
 
 .sd-hud-inline-editor .inline-row label {
@@ -4399,9 +4430,9 @@
 .sd-hud-inline-editor input[type="number"],
 .sd-hud-inline-editor select,
 .sd-hud-inline-editor textarea {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid #444;
-  color: inherit;
+  background: var(--sd-bg-3);
+  border: 1px solid var(--sd-border);
+  color: var(--sd-text);
   border-radius: 3px;
   font-size: 11px;
   padding: 3px 5px;
@@ -4411,23 +4442,32 @@
   display: flex;
   justify-content: flex-end;
   gap: 6px;
-  border-top: 1px solid #444;
+  border-top: 1px solid var(--sd-border);
   padding-top: 8px;
 }
 
 .sd-hud-inline-editor .inline-toolbar button {
   padding: 4px 12px;
   font-size: 11px;
-  border: 1px solid #555;
+  border: 1px solid var(--sd-border);
   border-radius: 3px;
-  background: rgba(255,255,255,0.04);
+  background: var(--sd-bg-3);
   cursor: pointer;
-  color: inherit;
+  color: var(--sd-text);
+}
+.sd-hud-inline-editor .inline-toolbar button:hover {
+  background: var(--sd-bg-4);
+  border-color: var(--sd-border-2);
 }
 
 .sd-hud-inline-editor .inline-toolbar .btn-primary {
-  background: rgba(123, 104, 238, 0.25);
+  background: var(--sd-accent);
+  color: var(--sd-accent-text);
   border-color: var(--sd-accent);
+}
+.sd-hud-inline-editor .inline-toolbar .btn-primary:hover {
+  background: var(--sd-accent-2);
+  border-color: var(--sd-accent-2);
 }
 
 #sd-action-hud {
@@ -4483,25 +4523,26 @@
   min-width: 120px;
   font-size: 10px;
   padding: 0 4px;
-  border-left: 1px solid #444;
+  border-left: 1px solid var(--sd-border);
   align-self: stretch;
   justify-content: center;
+  color: var(--sd-text-2);
 }
 .sd-action-hud-config-form .hud-entry-scale {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  opacity: 0.8;
+  color: var(--sd-text-2);
 }
 .sd-action-hud-config-form .hud-entry-scale input {
   width: 70px;
   font-size: 11px;
   padding: 2px 4px;
   height: 22px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid #444;
+  background: var(--sd-bg-3);
+  border: 1px solid var(--sd-border);
   border-radius: 3px;
-  color: inherit;
+  color: var(--sd-text);
 }
 .sd-action-hud-config-form .hud-entry-hide-label {
   display: inline-flex;
@@ -4521,16 +4562,16 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  opacity: 0.9;
+  color: var(--sd-text-2);
 }
 .sd-action-hud-config-form .hud-entry-variant select {
   font-size: 11px;
   height: 22px;
   padding: 1px 4px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid #444;
+  background: var(--sd-bg-3);
+  border: 1px solid var(--sd-border);
   border-radius: 3px;
-  color: inherit;
+  color: var(--sd-text);
   max-width: 170px;
 }
 .sd-action-hud-config-form .hud-entry-variant-na {

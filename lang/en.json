@@ -128,7 +128,25 @@
       "Sepia": "Sepia Parchment (light)",
       "Solar": "Solar (balanced)",
       "Nord": "Nord Frost",
-      "HighContrast": "High Contrast (A11y)"
+      "HighContrast": "High Contrast (A11y)",
+      "Mono": "Mono (strict B/W)",
+      "SciFi": "Sci-Fi (Neon)"
+    },
+    "ThemeFx": {
+      "Label": "Color Scheme v2 (animations & textures)",
+      "Hint": "Optional themed textures and click animations layered on top of the base color scheme — ice cracking for Nord Frost, scanline glitch for Sci-Fi, ink press for Mono, etc. Select Off to disable all effects.",
+      "Off": "Off (no effects)",
+      "Default": "Indigo Night — sparkle",
+      "Midnight": "Midnight Ocean — ripple",
+      "Forest": "Deep Forest — leaves",
+      "Crimson": "Crimson Gothic — pulse",
+      "Arcane": "Arcane — runes",
+      "Sepia": "Sepia — parchment",
+      "Solar": "Solar — sun-flare",
+      "Nord": "Nord Frost — ice crack",
+      "HighContrast": "High Contrast — neon flicker",
+      "Mono": "Mono — ink press",
+      "SciFi": "Sci-Fi — scanlines / glitch"
     },
     "WidgetVariants": {
       "_label": "Variant",

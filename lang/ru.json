@@ -128,7 +128,25 @@
       "Sepia": "Sepia (светлая)",
       "Solar": "Solar (сбалансированная)",
       "Nord": "Nord Frost",
-      "HighContrast": "Высокая контрастность"
+      "HighContrast": "Высокая контрастность",
+      "Mono": "Mono (строгая ч/б)",
+      "SciFi": "Sci-Fi (Neon)"
+    },
+    "ThemeFx": {
+      "Label": "Цветовая схема v2 (анимации и текстуры)",
+      "Hint": "Опциональные тематические текстуры и анимации клика поверх базовой цветовой схемы — лёд трескается у Nord Frost, scanline-глитч у Sci-Fi, чернильный пресс у Mono и т.д. «Off» — выключить все эффекты.",
+      "Off": "Off (без эффектов)",
+      "Default": "Indigo Night — искры",
+      "Midnight": "Midnight Ocean — рябь",
+      "Forest": "Deep Forest — листья",
+      "Crimson": "Crimson Gothic — пульс",
+      "Arcane": "Arcane — руны",
+      "Sepia": "Sepia — пергамент",
+      "Solar": "Solar — солнечная вспышка",
+      "Nord": "Nord Frost — раскол льда",
+      "HighContrast": "High Contrast — неоновый мерцающий",
+      "Mono": "Mono — чернильный пресс",
+      "SciFi": "Sci-Fi — сканлайн / глитч"
     },
     "WidgetVariants": {
       "_label": "Вариант",

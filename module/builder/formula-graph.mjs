@@ -5805,7 +5805,7 @@ const WIDGET_CONFIG_NODES = {
     outputs:[], fields:[
       {key:"label",   label:"Label",type:"text",default:"Last Roll"},
       {key:"flagPath",label:"Flag Path (read-only)",type:"path",default:"flags.sd.lastRoll"},
-      {key:"color",   label:"Accent colour",type:"text",default:"#7ef0c3"},
+      {key:"color",   label:"Accent colour",type:"text",default:"var(--sd-success)"},
       {key:"compact", label:"Compact (single line)",type:"toggle",default:false}
     ]
   },
@@ -6207,7 +6207,7 @@ export class FormulaGraph {
     menu.style.cssText = `position:fixed;left:${Math.round(r.left)}px;top:${Math.round(r.bottom+6)}px;min-width:260px;max-width:380px;max-height:60vh;overflow:auto;background:#121220;border:1px solid #2a2a3e;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.8);z-index:25000;font-family:'Signika',sans-serif;color:var(--sd-text);padding:6px 0`;
 
     const header = document.createElement("div");
-    header.style.cssText = "padding:4px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#74a7ff;border-bottom:1px solid #1a1a28;margin-bottom:4px";
+    header.style.cssText = "padding:4px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sd-accent);border-bottom:1px solid #1a1a28;margin-bottom:4px";
     header.textContent = `Node Templates (${entries.length})`;
     menu.appendChild(header);
 
@@ -6245,7 +6245,7 @@ export class FormulaGraph {
       const exp = document.createElement("button");
       exp.type = "button";
       exp.title = "Export this template as JSON";
-      exp.style.cssText = "background:transparent;border:1px solid var(--sd-border);border-radius:4px;color:#98a6c6;cursor:pointer;font-size:10px;padding:2px 7px";
+      exp.style.cssText = "background:transparent;border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:2px 7px";
       exp.innerHTML = '<i class="fas fa-file-export"></i>';
       exp.addEventListener("click", ev => {
         ev.stopPropagation();
@@ -6292,19 +6292,19 @@ export class FormulaGraph {
                        : r.severity === "warn"  ? "#ffb74a"
                        : "#74c0ff";
           const jumpAttr = r.nodeId ? `data-jump="${esc(r.nodeId)}"` : "";
-          return `<div class="sd-lint-row" ${jumpAttr} style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.06);${r.nodeId?"cursor:pointer;":""};">
+          return `<div class="sd-lint-row" ${jumpAttr} style="padding:6px 10px;border-bottom:1px solid var(--sd-border);${r.nodeId?"cursor:pointer;":""};">
             <span style="color:${colour};font-weight:700;text-transform:uppercase;font-size:10px;margin-right:6px">[${r.severity}] ${r.code}</span>
-            <span style="color:#eef3ff">${esc(r.message)}</span>
+            <span style="color:var(--sd-text)">${esc(r.message)}</span>
             ${r.nodeId ? `<span style="color:#6a7a9a;font-family:monospace;font-size:10px;margin-left:6px">${esc(r.nodeId)}</span>` : ""}
           </div>`;
         }).join("")
-      : `<div style="padding:14px;color:#7ef0c3">No issues detected ✓</div>`;
+      : `<div style="padding:14px;color:var(--sd-success)">No issues detected ✓</div>`;
 
     foundry.applications.api.DialogV2.wait({
       window: { title: `Graph Lint — ${header}` },
       position: { width: 640 },
       modal: true,
-      content: `<div style="max-height:60vh;overflow-y:auto;font-size:12px;background:#0d1117;color:#eef3ff;border-radius:6px">${rows}</div>`,
+      content: `<div style="max-height:60vh;overflow-y:auto;font-size:12px;background:var(--sd-bg);color:var(--sd-text);border-radius:6px">${rows}</div>`,
       buttons: [{
         action: "ok",
         label: "Close",
@@ -7476,7 +7476,7 @@ export class FormulaGraph {
 
     const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     const sectionHeader = (label, count) => `
-      <div style="padding:6px 10px;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#74a7ff;border-bottom:1px solid rgba(116,167,255,.15);background:rgba(116,167,255,.04);display:flex;align-items:center;gap:6px">
+      <div style="padding:6px 10px;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sd-accent);border-bottom:1px solid rgba(116,167,255,.15);background:rgba(116,167,255,.04);display:flex;align-items:center;gap:6px">
         <span style="flex:1">${label}</span>
         <span style="opacity:.55;font-weight:400">${count}</span>
       </div>`;
@@ -7486,7 +7486,7 @@ export class FormulaGraph {
       if (rec.hasSet) badges.push(`<span title="Set here" style="font-size:8px;background:#e0a02033;color:#e0a020;border-radius:3px;padding:0 4px;font-weight:700">SET</span>`);
       if (rec.hasGet) badges.push(`<span title="Read here" style="font-size:8px;background:#5ae07a33;color:#5ae07a;border-radius:3px;padding:0 4px;font-weight:700">GET</span>`);
       if (!rec.hasSet) badges.push(`<span title="No setter" style="font-size:8px;background:#e0505033;color:#e05050;border-radius:3px;padding:0 4px;font-weight:700">!</span>`);
-      return `<div class="gvar-row" data-nid="${esc(rec.nodes[0])}" style="padding:5px 10px;font-family:monospace;font-size:10px;display:flex;align-items:center;gap:5px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.03);transition:background .1s" onmouseover="this.style.background='rgba(116,167,255,.08)'" onmouseout="this.style.background='transparent'">
+      return `<div class="gvar-row" data-nid="${esc(rec.nodes[0])}" style="padding:5px 10px;font-family:monospace;font-size:10px;display:flex;align-items:center;gap:5px;cursor:pointer;border-bottom:1px solid var(--sd-border);transition:background .1s" onmouseover="this.style.background='rgba(116,167,255,.08)'" onmouseout="this.style.background='transparent'">
         <span style="flex:1;color:#e0e0f0">${esc(name)}</span>
         ${badges.join("")}
       </div>`;
@@ -7495,9 +7495,9 @@ export class FormulaGraph {
     const macroRows = [...macros.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([id, rec]) => {
       const badges = [];
       if (rec.hasInput) badges.push(`<span title="Defined here" style="font-size:8px;background:#1a8a4a33;color:#5ae09a;border-radius:3px;padding:0 4px;font-weight:700">DEF</span>`);
-      if (rec.hasCall)  badges.push(`<span title="Called here" style="font-size:8px;background:#5a9ae033;color:#74a7ff;border-radius:3px;padding:0 4px;font-weight:700">CALL</span>`);
+      if (rec.hasCall)  badges.push(`<span title="Called here" style="font-size:8px;background:#5a9ae033;color:var(--sd-accent);border-radius:3px;padding:0 4px;font-weight:700">CALL</span>`);
       if (rec.hasCall && !rec.hasInput) badges.push(`<span title="Missing definition" style="font-size:8px;background:#e0505033;color:#e05050;border-radius:3px;padding:0 4px;font-weight:700">!</span>`);
-      return `<div class="gvar-row" data-nid="${esc(rec.nodes[0])}" style="padding:5px 10px;font-family:monospace;font-size:10px;display:flex;align-items:center;gap:5px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.03);transition:background .1s" onmouseover="this.style.background='rgba(26,138,74,.12)'" onmouseout="this.style.background='transparent'">
+      return `<div class="gvar-row" data-nid="${esc(rec.nodes[0])}" style="padding:5px 10px;font-family:monospace;font-size:10px;display:flex;align-items:center;gap:5px;cursor:pointer;border-bottom:1px solid var(--sd-border);transition:background .1s" onmouseover="this.style.background='rgba(26,138,74,.12)'" onmouseout="this.style.background='transparent'">
         <span style="flex:1;color:#e0e0f0">${esc(id)}</span>
         ${badges.join("")}
       </div>`;
@@ -7505,9 +7505,9 @@ export class FormulaGraph {
 
     panel.innerHTML = `
       ${sectionHeader("Variables", vars.size)}
-      ${varRows || `<div style="padding:10px;font-size:10px;color:rgba(255,255,255,.25);font-style:italic">No variables. Use <b>var_set</b> / <b>var_get</b> nodes.</div>`}
+      ${varRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No variables. Use <b>var_set</b> / <b>var_get</b> nodes.</div>`}
       ${sectionHeader("Macros", macros.size)}
-      ${macroRows || `<div style="padding:10px;font-size:10px;color:rgba(255,255,255,.25);font-style:italic">No macros. Use <b>macro_input</b> (define) / <b>macro_call</b> (invoke).</div>`}
+      ${macroRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No macros. Use <b>macro_input</b> (define) / <b>macro_call</b> (invoke).</div>`}
     `;
 
     panel.querySelectorAll(".gvar-row").forEach(row => {
@@ -7525,7 +7525,7 @@ export class FormulaGraph {
           this._applyTransform();
           this._scheduleEdges?.();
         }
-        el.style.boxShadow = "0 0 0 2px #74a7ff, 0 0 24px #74a7ff88";
+        el.style.boxShadow = "0 0 0 2px var(--sd-accent), 0 0 24px var(--sd-accent-dim)";
         setTimeout(() => { el.style.boxShadow = ""; }, 1200);
       });
     });
@@ -7534,37 +7534,49 @@ export class FormulaGraph {
   _buildWin() {
     this.win?.remove();
     const win = document.createElement("div");
-    win.style.cssText=`position:fixed;top:30px;left:50%;transform:translateX(-50%);width:min(1180px,97vw);height:min(720px,93vh);background:#0d1117;border:1px solid rgba(255,255,255,.08);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.95);z-index:20000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:#eef3ff;overflow:hidden;`;
+    win.id = "sd-formula-graph-win";
+    win.classList.add("sd", "sd-formula-graph", "sd-formula-graph-host");
+    try {
+      const themeAttr = document.documentElement?.getAttribute?.("data-sd-theme")
+        || document.body?.getAttribute?.("data-sd-theme")
+        || "default";
+      win.setAttribute("data-sd-theme", themeAttr);
+      const fxAttr = document.documentElement?.getAttribute?.("data-sd-theme-fx")
+        || document.body?.getAttribute?.("data-sd-theme-fx")
+        || "";
+      if (fxAttr) win.setAttribute("data-sd-theme-fx", fxAttr);
+    } catch {  }
+    win.style.cssText=`position:fixed;top:30px;left:50%;transform:translateX(-50%);width:min(1180px,97vw);height:min(720px,93vh);background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.95);z-index:20000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;`;
     win.innerHTML=`
-      <div id="gbar" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:#151a24;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;cursor:move;user-select:none">
-        <i class="fas fa-diagram-project" style="color:#74a7ff;font-size:13px"></i>
-        <b style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#74a7ff;flex:none">Graph Editor</b>
-        <div id="gpreview" style="flex:1;font-size:10px;color:rgba(255,255,255,.18);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
-        <button id="gtpl" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#98a6c6;cursor:pointer;font-size:11px;padding:6px 10px" title="Insert a saved node template"><i class="fas fa-puzzle-piece" style="margin-right:4px"></i>Templates</button>
-        <button id="gtplsave" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#98a6c6;cursor:pointer;font-size:11px;padding:6px 10px" title="Save the selected nodes (Shift-click to select) as a reusable template"><i class="fas fa-bookmark" style="margin-right:4px"></i>Save as Tpl</button>
-        <button id="gimport" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#98a6c6;cursor:pointer;font-size:11px;padding:6px 10px" title="Import template(s) from a JSON file"><i class="fas fa-file-import" style="margin-right:4px"></i>Import</button>
-        <button id="gexport" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#98a6c6;cursor:pointer;font-size:11px;padding:6px 10px" title="Export current selection (or whole graph) as JSON template"><i class="fas fa-file-export" style="margin-right:4px"></i>Export</button>
-        <button id="glint" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#98a6c6;cursor:pointer;font-size:11px;padding:6px 10px" title="Validate this graph (unknown nodes, type mismatches, orphans, missing entry points)"><i class="fas fa-check-double" style="margin-right:4px"></i>Lint</button>
-        <button id="gsave" style="background:#74a7ff;border:none;border-radius:8px;color:#0d1117;cursor:pointer;font-size:11px;font-weight:800;padding:6px 16px;transition:.15s"><i class="fas fa-check" style="margin-right:5px"></i>Save & Apply</button>
-        <button id="grefresh" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#98a6c6;cursor:pointer;font-size:11px;padding:6px 10px" title="Re-scan document"><i class="fas fa-rotate" style="margin-right:4px"></i>↺ Index</button>
-        <button id="gclose" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#98a6c6;cursor:pointer;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s" title="Close">✕</button>
+      <div id="gbar" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move;user-select:none">
+        <i class="fas fa-diagram-project" style="color:var(--sd-accent);font-size:13px"></i>
+        <b style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-accent);flex:none">Graph Editor</b>
+        <div id="gpreview" style="flex:1;font-size:10px;color:var(--sd-text-3);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+        <button id="gtpl" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Insert a saved node template"><i class="fas fa-puzzle-piece" style="margin-right:4px"></i>Templates</button>
+        <button id="gtplsave" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Save the selected nodes (Shift-click to select) as a reusable template"><i class="fas fa-bookmark" style="margin-right:4px"></i>Save as Tpl</button>
+        <button id="gimport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Import template(s) from a JSON file"><i class="fas fa-file-import" style="margin-right:4px"></i>Import</button>
+        <button id="gexport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Export current selection (or whole graph) as JSON template"><i class="fas fa-file-export" style="margin-right:4px"></i>Export</button>
+        <button id="glint" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Validate this graph (unknown nodes, type mismatches, orphans, missing entry points)"><i class="fas fa-check-double" style="margin-right:4px"></i>Lint</button>
+        <button id="gsave" style="background:var(--sd-accent);border:none;border-radius:8px;color:var(--sd-accent-text);cursor:pointer;font-size:11px;font-weight:800;padding:6px 16px;transition:.15s"><i class="fas fa-check" style="margin-right:5px"></i>Save & Apply</button>
+        <button id="grefresh" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Re-scan document"><i class="fas fa-rotate" style="margin-right:4px"></i>↺ Index</button>
+        <button id="gclose" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s" title="Close">✕</button>
       </div>
       <div style="display:flex;flex:1;overflow:hidden;min-height:0">
-        <div id="gpal" style="width:190px;flex-shrink:0;background:#0e121a;border-right:1px solid rgba(255,255,255,.06);overflow-y:auto;padding:4px 0">${this._buildPal()}</div>
-        <div id="gvarpanel" style="width:180px;flex-shrink:0;background:#0b0f16;border-right:1px solid rgba(255,255,255,.06);overflow-y:auto;padding:4px 0;font-size:10px;color:#98a6c6"></div>
+        <div id="gpal" style="width:190px;flex-shrink:0;background:var(--sd-bg-2);border-right:1px solid var(--sd-border);overflow-y:auto;padding:4px 0">${this._buildPal()}</div>
+        <div id="gvarpanel" style="width:180px;flex-shrink:0;background:var(--sd-bg-3);border-right:1px solid var(--sd-border);overflow-y:auto;padding:4px 0;font-size:10px;color:var(--sd-text-2)"></div>
         <div id="gwrap" style="flex:1;position:relative;overflow:hidden;cursor:default;user-select:none;touch-action:none;
           background:
             linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px) 0 0/32px 32px,
             linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px) 0 0/32px 32px,
             linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px) 0 0/8px 8px,
             linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px) 0 0/8px 8px,
-            #0d1117">
+            var(--sd-bg)">
           <!-- EDGE SVG — screen-space coords, no transform -->
           <svg id="gedges" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none">
             <defs>
               <linearGradient id="sd-link-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#74a7ff"/>
-                <stop offset="100%" stop-color="#7ef0c3"/>
+                <stop offset="0%" style="stop-color:var(--sd-accent)"/>
+                <stop offset="100%" style="stop-color:var(--sd-success)"/>
               </linearGradient>
             </defs>
           </svg>
@@ -7578,10 +7590,10 @@ export class FormulaGraph {
             <button class="gz" data-d="-0.15" title="Zoom out">−</button>
             <button id="gfit" title="Fit view">⊡ Fit</button>
           </div>
-          <div style="position:absolute;bottom:12px;left:12px;font-size:9px;color:rgba(255,255,255,.18);pointer-events:none">
+          <div style="position:absolute;bottom:12px;left:12px;font-size:9px;color:var(--sd-text-3);pointer-events:none">
             RMB/Space+drag: pan · Scroll: zoom · Drag header: move node · Shift+Click: multi-select · Shift+Drag: marquee · Ctrl+Drag: comment box · Backspace: delete selection · Output→Input: connect · Dbl-click edge: delete
           </div>
-          <div id="gmode-badge" style="position:absolute;top:10px;left:10px;font-size:10px;padding:4px 10px;border-radius:8px;pointer-events:none;border:1px solid rgba(255,255,255,.08);background:#151a24;display:none;color:#98a6c6"></div>
+          <div id="gmode-badge" style="position:absolute;top:10px;left:10px;font-size:10px;padding:4px 10px;border-radius:8px;pointer-events:none;border:1px solid var(--sd-border);background:var(--sd-bg-2);display:none;color:var(--sd-text-2)"></div>
         </div>
       </div>`;
     document.body.appendChild(win);
@@ -7590,7 +7602,7 @@ export class FormulaGraph {
     this.nodesEl = win.querySelector("#gnodes");
     this.commentsEl = win.querySelector("#gcomments");
 
-    const btnBase = "background:rgba(21,26,36,.9);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#98a6c6;cursor:pointer;font-size:12px;height:30px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:.15s;box-shadow:0 4px 12px rgba(0,0,0,.4)";
+    const btnBase = "background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:12px;height:30px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:.15s;box-shadow:0 4px 12px rgba(0,0,0,.4)";
     win.querySelectorAll(".gz").forEach(b=>{b.style.cssText=btnBase+";width:30px";});
     win.querySelector("#gfit").style.cssText=btnBase+";padding:0 10px;font-size:11px;font-weight:600;gap:4px";
 
@@ -7639,11 +7651,11 @@ export class FormulaGraph {
         return d.cat === cat.id;
       });
       if (!nodes.length) return "";
-      return `<div style="padding:5px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${cat.color};border-top:1px solid rgba(255,255,255,.05);margin-top:4px">${esc(_NL(cat.id))}</div>
+      return `<div style="padding:5px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:4px">${esc(_NL(cat.id))}</div>
         ${nodes.map(([type,d])=>`<div class="gpal" data-type="${type}" draggable="true" title="${esc(_NL(d.desc??d.title))}"
           style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:grab;border-radius:8px;margin:1px 4px;transition:.15s">
           <div style="width:9px;height:9px;border-radius:${d.isAction?'2px':'50%'};flex-shrink:0;background:${d.color};opacity:.9"></div>
-          <span style="font-size:11px;color:#98a6c6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(_NL(d.title))}</span>
+          <span style="font-size:11px;color:var(--sd-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(_NL(d.title))}</span>
         </div>`).join("")}`;
     }).join("");
     return rows;
@@ -8305,7 +8317,7 @@ export class FormulaGraph {
 
     el.dataset.kind = _kind;
     el.style.cssText=`position:absolute;left:${node.x}px;top:${node.y}px;min-width:${W_MIN}px;width:${W}px;max-width:640px;
-      background:linear-gradient(180deg,#151a24,#101521);
+      background:linear-gradient(180deg,var(--sd-bg-2),#101521);
       border:1px solid ${_accent}55;
       border-left:3px solid ${_accent};
       border-radius:16px;
@@ -8567,7 +8579,7 @@ export class FormulaGraph {
     const dot=this._dotEl(node,pin,side);
     const lbl=document.createElement("span");
     lbl.textContent=_NL(pin.label||"");
-    lbl.style.cssText=`font-size:12px;color:${isExec?"#ffca6b":"#98a6c6"};
+    lbl.style.cssText=`font-size:12px;color:${isExec?"#ffca6b":"var(--sd-text-2)"};
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;line-height:1`;
     if(side==="input"){row.appendChild(dot);row.appendChild(lbl);}
     else{row.appendChild(lbl);row.appendChild(dot);}
@@ -8581,7 +8593,7 @@ export class FormulaGraph {
     const lbl=document.createElement("span");
     lbl.textContent=_NL(pin.label||"");
 
-    lbl.style.cssText="font-size:12px;color:#98a6c6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;line-height:1";
+    lbl.style.cssText="font-size:12px;color:var(--sd-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;line-height:1";
     if(side==="input"){wrap.appendChild(dot);wrap.appendChild(lbl);}
     else{wrap.appendChild(lbl);wrap.appendChild(dot);}
     return wrap;
@@ -8650,7 +8662,7 @@ export class FormulaGraph {
       wrap.appendChild(l);
     }
 
-    const IS="background:#1a1e2e;border:1px solid rgba(120,100,220,.35);border-radius:6px;color:#eef3ff;font-size:12px;padding:5px 10px;font-family:monospace;outline:none;min-width:80px;max-width:420px;width:auto;box-sizing:border-box;height:28px;field-sizing:content";
+    const IS="background:#1a1e2e;border:1px solid rgba(120,100,220,.35);border-radius:6px;color:var(--sd-text);font-size:12px;padding:5px 10px;font-family:monospace;outline:none;min-width:80px;max-width:420px;width:auto;box-sizing:border-box;height:28px;field-sizing:content";
     const SI=IS+";cursor:pointer";
     const idx=this._smartIndex??{slots:[],ownedItems:[],effects:[],widgets:[],invItemSlots:[]};
 
@@ -8969,8 +8981,8 @@ export class FormulaGraph {
     if (!defs) {
       const d = document.createElementNS("http://www.w3.org/2000/svg","defs");
       d.innerHTML = `<linearGradient id="sd-link-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stop-color="#74a7ff"/>
-        <stop offset="100%" stop-color="#7ef0c3"/>
+        <stop offset="0%" style="stop-color:var(--sd-accent)"/>
+        <stop offset="100%" style="stop-color:var(--sd-success)"/>
       </linearGradient>`;
       svg.insertBefore(d, svg.firstChild);
     }
@@ -9109,7 +9121,7 @@ export class FormulaGraph {
 
     const head = document.createElement("div");
     head.textContent = `${_NL("Insert node compatible with")} ${pinSubtype(fromType) || "exec"}`;
-    head.style.cssText = "padding:6px 12px;font-size:11px;color:#98a6c6;border-bottom:1px solid #2a2a3e";
+    head.style.cssText = "padding:6px 12px;font-size:11px;color:var(--sd-text-2);border-bottom:1px solid #2a2a3e";
     menu.appendChild(head);
 
     if (!candidates.length) {
@@ -9124,7 +9136,7 @@ export class FormulaGraph {
           lastCat = c.def.cat;
           const sec = document.createElement("div");
           sec.textContent = _NL(lastCat ?? "Other");
-          sec.style.cssText = "padding:4px 12px 2px;font-size:10px;color:#74a7ff;text-transform:uppercase;letter-spacing:.5px";
+          sec.style.cssText = "padding:4px 12px 2px;font-size:10px;color:var(--sd-accent);text-transform:uppercase;letter-spacing:.5px";
           menu.appendChild(sec);
         }
         const item = document.createElement("div");

@@ -400,13 +400,16 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  /** Procedural sine wave path (24..176 x, baseline y=0, depth to y=200). */
+  /** Procedural sine wave path (24..176 x, baseline y=0, depth to y=200).
+   *  Slight overshoot on x range (-12..212) keeps the surface fully covered
+   *  even while CSS slides the path ±20px horizontally — otherwise the
+   *  liquid edge would expose the empty background during peak motion. */
   static _buildOrbWavePath(phase) {
-    const steps = 32, x0 = 24, x1 = 176, amp = 3.2;
+    const steps = 40, x0 = -12, x1 = 212, amp = 4.8;
     let d = `M ${x0} 0`;
     for (let i = 0; i <= steps; i++) {
       const x = x0 + (x1 - x0) * (i / steps);
-      const a = (i / steps) * Math.PI * 4 + phase;
+      const a = (i / steps) * Math.PI * 5 + phase;
       const y = (Math.sin(a) * amp).toFixed(2);
       d += ` L ${x.toFixed(2)} ${y}`;
     }

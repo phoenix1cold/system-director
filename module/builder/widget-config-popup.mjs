@@ -558,9 +558,19 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   }).join("");
 
   const popup = document.createElement("div");
-  popup.className = "sd-wcfg-popup";
+  popup.className = "sd sd-wcfg-popup";
   if (w?.id)        popup.dataset.wcfgWidgetId = w.id;
   if (w?.widgetKey) popup.dataset.wcfgWidgetKey = w.widgetKey;
+  try {
+    const themeAttr = document.documentElement?.getAttribute?.("data-sd-theme")
+      || document.body?.getAttribute?.("data-sd-theme")
+      || "default";
+    popup.setAttribute("data-sd-theme", themeAttr);
+    const fxAttr = document.documentElement?.getAttribute?.("data-sd-theme-fx")
+      || document.body?.getAttribute?.("data-sd-theme-fx")
+      || "";
+    if (fxAttr) popup.setAttribute("data-sd-theme-fx", fxAttr);
+  } catch {  }
 
   const sheetRect = document.querySelector(".app.sd.sheet.item, .app.sd.sheet.actor, [id^='sd-']")?.getBoundingClientRect()
     ?? { right: 400, top: 80, width: 0 };

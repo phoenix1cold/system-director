@@ -4,6 +4,7 @@ import {
   COLOR_SCHEMES,
   THEME_IDS,
   applyColorScheme,
+  applyColorSchemeV2,
   localiseSchemeLabel
 } from "./color-schemes.mjs";
 
@@ -361,6 +362,8 @@ export function applySettings(cfg) {
     : "default";
   applyColorScheme(scheme);
 
+  applyColorSchemeV2("off");
+
   for (const app of Object.values(ui.windows ?? foundry.applications?.instances ?? {})) {
     if (app?.document) app.render();
   }
@@ -516,7 +519,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         accent:   s.preview?.accent ?? "#7b68ee",
         text:     s.preview?.text   ?? "#e0e0ee",
         selected: (cfg.colorScheme ?? "default") === s.id
-      }))
+      })),
     };
   }
 

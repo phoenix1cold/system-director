@@ -1270,8 +1270,18 @@ export class ButtonExecutor {
       }
 
       case "modifySlotItemField": {
-        const _mSlotId = String(action.slotId ?? "");
-        const _mPath   = action.path ?? "";
+        const _mStripQ = (s) => {
+          if (s == null) return "";
+          let out = String(s).trim();
+          if (out.length >= 2 && ((out.startsWith('"') && out.endsWith('"')) || (out.startsWith("'") && out.endsWith("'")))) {
+            try { out = JSON.parse(out); } catch { out = out.slice(1, -1); }
+          }
+          return String(out ?? "");
+        };
+        const _mSlotId = _mStripQ(_injectRuntime(String(action.slotId ?? "")));
+        const _mPath   = _mStripQ(_injectRuntime(String(action.path ?? "")));
+        const _mOpRaw  = _mStripQ(_injectRuntime(String(action.op ?? "")));
+        const _mOp     = _mOpRaw || "add";
         if (!_mSlotId || !_mPath) { ui.notifications.warn("modifySlotItemField: slotId or path is empty."); break; }
         const { SlotManager: SM2 } = await import("../data/item-slots.mjs");
 
@@ -1282,74 +1292,122 @@ export class ButtonExecutor {
         const _mHosts = [];
         if (!_mActorOvr && item) _mHosts.push(item);
         if (_mActor) {
-          _mHosts.push(_mActor);
-          for (const it of (_mActor.items ?? [])) _mHosts.push(it);
+          if (!_mHosts.includes(_mActor)) _mHosts.push(_mActor);
+          for (const it of (_mActor.items ?? [])) {
+            if (!_mHosts.includes(it)) _mHosts.push(it);
+          }
         }
 
+        // Walk hosts + nested slot snapshots, tracking { host, index, entry, live }.
+        // "live" (an actor-owned Item) is best for `.update(...)`, but if the slot
+        // content is just a snapshot we update via SlotManager.updateSlottedField.
         const seenM = new Set();
-        const findFirst = (host) => {
+        const findMatch = (host) => {
           if (!host || seenM.has(host)) return null;
           seenM.add(host);
           const contents = SM2.getContents(host, _mSlotId);
-          for (const entry of contents) {
+          for (let i = 0; i < contents.length; i++) {
+            const entry = contents[i];
+            if (!entry) continue;
             const live = _mActor?.items?.get?.(entry._id)
-                     ?? _mActor?.items?.find?.(i => i.name === entry.name)
+                     ?? _mActor?.items?.find?.(it => it.name === entry.name)
                      ?? null;
-            const target = live ?? entry;
-            const v = foundry.utils.getProperty(target, _mPath);
-            if (v !== undefined && v !== null && typeof v !== "object") return live;
+            const probeDoc = live ?? entry;
+            const v = foundry.utils.getProperty(probeDoc, _mPath);
+            if (v !== undefined && typeof v !== "object") {
+              return { host, index: i, entry, live };
+            }
           }
           for (const entry of contents) {
-            const r = findFirst(entry);
+            const r = findMatch(entry);
             if (r) return r;
           }
           return null;
         };
 
-        let _mLiveItem = null;
+        let _mMatch = null;
         for (const h of _mHosts) {
-          _mLiveItem = findFirst(h);
-          if (_mLiveItem) break;
+          _mMatch = findMatch(h);
+          if (_mMatch) break;
         }
 
-        if (!_mLiveItem) {
-          for (const h of _mHosts) {
-            const contents = SM2.getContents(h, _mSlotId);
+        // Fallback: first non-empty slot, first entry — works even when the
+        // path doesn't currently exist on the entry (will be created).
+        if (!_mMatch) {
+          const seenF = new Set();
+          const walkFallback = (host) => {
+            if (!host || seenF.has(host)) return null;
+            seenF.add(host);
+            const contents = SM2.getContents(host, _mSlotId);
             if (contents.length) {
               const entry = contents[0];
-              _mLiveItem = _mActor?.items?.get?.(entry._id)
-                       ?? _mActor?.items?.find?.(i => i.name === entry.name)
-                       ?? null;
-              if (_mLiveItem) break;
+              const live = _mActor?.items?.get?.(entry?._id)
+                        ?? _mActor?.items?.find?.(it => it.name === entry?.name)
+                        ?? null;
+              return { host, index: 0, entry, live };
             }
+            for (const entry of contents) {
+              const r = walkFallback(entry);
+              if (r) return r;
+            }
+            return null;
+          };
+          for (const h of _mHosts) {
+            _mMatch = walkFallback(h);
+            if (_mMatch) break;
           }
         }
 
-        if (!_mLiveItem) { ui.notifications.warn(`modifySlotItemField: no live item carrying "${_mPath}" in slot "${_mSlotId}".`); break; }
+        if (!_mMatch) { ui.notifications.warn(`modifySlotItemField: no item in slot "${_mSlotId}" (path "${_mPath}").`); break; }
 
-        const _mCur    = Number(foundry.utils.getProperty(_mLiveItem, _mPath) ?? 0);
-        const _mAmt    = Number(action.amount ?? 0);
-        let   _mResult;
-        if      (action.op === "subtract") _mResult = _mCur - _mAmt;
-        else if (action.op === "set")      _mResult = _mAmt;
-        else                               _mResult = _mCur + _mAmt;
-        await _mLiveItem.update({ [_mPath]: _mResult });
+        const _mAmt = Number(action.amount ?? 0);
+        const _mProbe = _mMatch.live ?? _mMatch.entry;
+        const _mCur = Number(foundry.utils.getProperty(_mProbe, _mPath) ?? 0);
+        let _mResult;
+        if      (_mOp === "subtract") _mResult = _mCur - _mAmt;
+        else if (_mOp === "set")      _mResult = _mAmt;
+        else                          _mResult = _mCur + _mAmt;
+        try {
+          if (_mMatch.live) {
+            await _mMatch.live.update({ [_mPath]: _mResult });
+          } else {
+            await SM2.updateSlottedField(_mMatch.host, _mSlotId, _mMatch.index, _mPath, _mResult);
+          }
+        } catch (e) {
+          console.warn("SD modifySlotItemField update failed", e);
+          ui.notifications.warn(`modifySlotItemField: update failed (${e?.message ?? e}).`);
+        }
         break;
       }
 
       case "modifyItemField": {
-        const _miPath = action.path ?? "";
+        const _miStripQuotes = (s) => {
+          if (typeof s !== "string") return s;
+          let out = s.trim();
+          if (out.length >= 2 && ((out.startsWith('"') && out.endsWith('"')) || (out.startsWith("'") && out.endsWith("'")))) {
+            try { out = JSON.parse(out); } catch { out = out.slice(1, -1); }
+          }
+          return String(out ?? "");
+        };
+        const _miPath = _miStripQuotes(_injectRuntime(String(action.path ?? "")));
+        const _miOpRaw = _miStripQuotes(_injectRuntime(String(action.op ?? "")));
+        const _miOp = _miOpRaw || "add";
         if (!_miPath) { ui.notifications.warn("modifyItemField: path is empty."); break; }
         let _miUuid = action.uuid ?? "";
         if (typeof _miUuid === "string") _miUuid = _injectRuntime(_miUuid);
         _miUuid = String(_miUuid ?? "").trim();
-        const _miStripQuotes = (s) => {
-          if (typeof s !== "string") return s;
-          if (s.length >= 2 && ((s[0] === '"' && s[s.length-1] === '"') || (s[0] === "'" && s[s.length-1] === "'"))) {
-            return s.slice(1, -1);
+        // Resolve formula-engine tokens like {slotUuidFind:...}, {itemBy:...}, {ref:...}
+        // that arrive baked into the UUID input when wired from a source node.
+        if (_miUuid.includes("{") && _miUuid.includes("}")) {
+          try {
+            const { FormulaEngine: _miFE } = await import("./formula-engine.mjs");
+            const _miCtx = item ?? actor ?? null;
+            const resolved = _miFE._resolveRefs(_miUuid, _miCtx);
+            if (typeof resolved === "string" && resolved.trim()) _miUuid = resolved;
+          } catch (e) {
+            console.warn("SD modifyItemField: token resolve failed", e);
           }
-          return s;
-        };
+        }
         _miUuid = _miStripQuotes(_miUuid);
         if (!_miUuid) { ui.notifications.warn("modifyItemField: item UUID is empty."); break; }
 
@@ -1414,9 +1472,9 @@ export class ButtonExecutor {
         for (const _miItem of _miItems) {
           const _miCur = Number(foundry.utils.getProperty(_miItem, _miPath) ?? 0);
           let   _miRes;
-          if      (action.op === "subtract") _miRes = _miCur - _miAmt;
-          else if (action.op === "set")      _miRes = _miAmt;
-          else                               _miRes = _miCur + _miAmt;
+          if      (_miOp === "subtract") _miRes = _miCur - _miAmt;
+          else if (_miOp === "set")      _miRes = _miAmt;
+          else                           _miRes = _miCur + _miAmt;
           try { await _miItem.update({ [_miPath]: _miRes }); }
           catch (e) {
             console.warn("SD modifyItemField failed for", _miItem?.name, e);

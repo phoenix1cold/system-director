@@ -30,7 +30,8 @@ const FIELDS = {
     ["Widget Key",             "widgetKey",  "text"],
     ["FA Icon (e.g. fa-bolt)", "icon",       "text"],
     ["Roll Formula (optional)","formula",    "text"],
-    ["Chat Flavor / Message",  "flavor",     "text"]
+    ["Chat Flavor / Message",  "flavor",     "text"],
+    ["Animation Tag (Automated Animations)", "animationTag", "text"]
   ],
   richtext: [
     ["Label",      "label",     "text"],

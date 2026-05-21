@@ -2,7 +2,7 @@
   "id": "sd",
   "title": "System Director",
   "description": "SD beta",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "compatibility": {
     "minimum": "13",
     "verified": "14"
@@ -19,6 +19,7 @@
   "styles": [
     "styles/system.css",
     "styles/sd-themes.css",
+    "styles/sd-theme-fx.css",
     "styles/sd-widget-variants.css",
     "styles/sd-native-ui.css"
   ],
