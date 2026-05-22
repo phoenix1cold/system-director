@@ -351,6 +351,17 @@ Hooks.once("ready", async () => {
   EVENT_BUS.init();
   globalThis._SD_EVENT_BUS = EVENT_BUS;
 
+  try {
+    const Vision = await import("./module/helpers/vision.mjs");
+    const Move   = await import("./module/helpers/move-token.mjs");
+    const TTS    = await import("./module/helpers/tts.mjs");
+    globalThis._SD_VISION = Vision;
+    globalThis._SD_MOVE   = Move;
+    globalThis._SD_TTS    = TTS;
+  } catch (e) {
+    console.warn("SD | vision/move/tts module load failed:", e);
+  }
+
   game.socket.on("system.sd", async (data) => {
 
     if (data.type === "saveRequest" && data.targetUser === game.user.id) {
@@ -370,6 +381,11 @@ Hooks.once("ready", async () => {
         callbackId: data.callbackId,
         total
       });
+    }
+
+    if (data.type === "tts") {
+      try { globalThis._SD_TTS?.sdHandleTTSSocket?.(data); }
+      catch (e) { console.warn("SD | TTS socket handle failed:", e); }
     }
   });
 });

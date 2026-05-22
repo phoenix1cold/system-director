@@ -472,7 +472,9 @@
   100% { opacity: 0.08; transform: translateX(-12px) scaleX(0.92); }
 }
 
-
+/* HP / MaxHP overlay, bottom-centered (Cinzel-style if available).
+ * Positioning + font scale with --sd-orb-size so it stays nicely inside the
+ * orb regardless of the user-chosen size. */
 .sd-w-resource.sd-v-orb .res-orb-text {
   position: absolute;
   bottom: calc(var(--sd-orb-size, 200px) * 0.16);
@@ -1424,7 +1426,8 @@
   font-size: 22px;
 }
 
-
+/* Thin gold divider between the portrait and the title block —
+ * mimics the divider in the reference. */
 .sd-item-card-title-wrap {
   display: flex;
   flex-direction: column;
@@ -1506,7 +1509,8 @@
 }
 .sd-item-card-section { display: flex; flex-direction: column; gap: 4px; }
 
-
+/* Collapsible tabs inside a card — tabs reset to left-aligned
+ * because they contain mixed structured content. */
 .sd-item-card-tab {
   border: 1px solid var(--sd-border, rgba(255,255,255,.08));
   border-radius: 4px;
@@ -1542,7 +1546,10 @@
   border-top: 1px solid var(--sd-border, rgba(255,255,255,.06));
 }
 
-
+/* ------------------------------------------------------------
+ * Meta pills (qty / weight / category / cost / duration)
+ * Centered KV row.
+ * ------------------------------------------------------------ */
 .sd-item-card-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1562,7 +1569,11 @@
   white-space: nowrap;
 }
 
-
+/* ------------------------------------------------------------
+ * Action row — pinned at the bottom of the card.
+ * Primary "use / cast" button stretches; secondary icon
+ * buttons sit on the right at a fixed square size.
+ * ------------------------------------------------------------ */
 .sd-item-card-actions {
   display: flex;
   align-items: stretch;
@@ -1600,7 +1611,8 @@
 .sd-card-btn i { font-size: 11px; }
 .sd-card-btn > span { letter-spacing: .06em; }
 
-
+/* Primary action: flexes to fill leftover space so the row
+ * reads as one cohesive "Activate" button + small icons. */
 .sd-card-btn-use {
   flex: 1 1 auto;
   background:
@@ -1630,7 +1642,14 @@
   color: color-mix(in srgb, var(--sd-danger, #e05a5a) 80%, #fff);
 }
 
+/* When the card has NO description body and NO extra cols
+ * the actions row will inherit margin-top:auto and naturally
+ * stick to the bottom. No extra rules needed. */
 
+/* ------------------------------------------------------------
+ * Extra columns under each card (inventory `columns`)
+ * Two-column KV grid, centered.
+ * ------------------------------------------------------------ */
 .sd-item-card-extra-cols {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
@@ -1665,7 +1684,11 @@
   white-space: nowrap;
 }
 
-
+/* ------------------------------------------------------------
+ * Drop zone shown under the cards container so users can drag items /
+ * abilities / effects in (the cards themselves don't have a hover preview
+ * — they ARE the preview — so a dedicated drop zone is needed).
+ * ------------------------------------------------------------ */
 .widget-cards-wrap .sd-cards-drop-zone {
   margin-top: 8px;
   padding: 8px 12px;

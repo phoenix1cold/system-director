@@ -17,7 +17,9 @@ const HOOK_MAP = {
   sdQuestCompleted:   ["sdQuestCompleted"],
   sdQuestFailed:      ["sdQuestFailed"],
   sdSubtaskDone:      ["sdSubtaskDone"],
-  sdQuestRevealed:    ["sdQuestRevealed"]
+  sdQuestRevealed:    ["sdQuestRevealed"],
+
+  sdVisionDetect:     ["sdVisionDetect"]
 };
 
 function _installCombatHookBridge() {
@@ -83,6 +85,28 @@ function _installCombatHookBridge() {
 
 const QUEST_HOOKS = new Set(["sdQuestActivated","sdQuestCompleted","sdQuestFailed","sdSubtaskDone","sdQuestRevealed"]);
 
+function _installVisionDetectBridge(eventBus) {
+  if (globalThis.__sdVisionDetectBridgeInstalled) return;
+  globalThis.__sdVisionDetectBridgeInstalled = true;
+
+  const _rescan = (sceneId) => {
+    try { eventBus._rescanVisionDetect(sceneId); } catch (e) {
+      console.warn("SD | vision detect rescan failed:", e);
+    }
+  };
+
+  Hooks.on("updateToken", (tokenDoc, changes) => {
+    const moved = changes && ["x","y","rotation","hidden","elevation","width","height"].some(k => k in changes);
+    if (!moved) return;
+    _rescan(tokenDoc?.parent?.id ?? null);
+  });
+  Hooks.on("createToken", (tokenDoc) => _rescan(tokenDoc?.parent?.id ?? null));
+  Hooks.on("deleteToken", (tokenDoc) => _rescan(tokenDoc?.parent?.id ?? null));
+
+  Hooks.on("canvasReady", () => _rescan(canvas?.scene?.id ?? null));
+  Hooks.on("combatTurnStart", () => _rescan(canvas?.scene?.id ?? null));
+}
+
 class EventBus {
   constructor() {
     this._reg = new Map();
@@ -92,6 +116,8 @@ class EventBus {
 
   init() {
     _installCombatHookBridge();
+    _installVisionDetectBridge(this);
+    this._visionState = this._visionState ?? new Map();
     for (const actor of game.actors ?? []) this._registerActor(actor);
     for (const item of game.items ?? []) this._registerWorldItem(item);
 
@@ -350,6 +376,12 @@ class EventBus {
         }
         return true;
       }
+      case "sdVisionDetect": {
+        const payload = firstDoc;
+        if (isWorldItemEntry) return false;
+        if (!payload || payload.actorId !== entry.actorId) return false;
+        return true;
+      }
       default: return false;
     }
   }
@@ -401,6 +433,111 @@ class EventBus {
       }
     } catch (e) {
       console.error(`SD | event-bus ${hookName}/${entry.eventKey} failed`, e);
+    }
+  }
+
+  _rescanVisionDetect(sceneId) {
+    const map = this._reg.get("sdVisionDetect");
+    if (!map || !map.size) return;
+    const Vision = globalThis._SD_VISION;
+    const computeFn = Vision?.sdComputeVisible ?? null;
+    const computeIds = Vision?.sdComputeVisibleTokens ?? null;
+    if (!computeFn && !computeIds) return;
+
+    if (!this._visionState) this._visionState = new Map();
+
+    const fired = new Set();
+    for (const entry of map.values()) {
+      if (!entry?.actorId) continue;
+
+      const stateKey = `${entry.actorId}::${entry.docUuid}::${entry.widgetId}::${entry.eventKey}`;
+      if (fired.has(stateKey)) continue;
+      fired.add(stateKey);
+
+      const actor = game.actors?.get?.(entry.actorId);
+      if (!actor) continue;
+
+      const tk = actor.getActiveTokens?.()?.[0];
+      if (!tk) continue;
+      const tokenScene = tk.scene ?? tk.document?.parent;
+      if (sceneId && tokenScene?.id && tokenScene.id !== sceneId) continue;
+
+      const data = entry.data ?? {};
+
+      let distFt = 0;
+      const distPath = String(data.distPath ?? "").trim();
+      if (distPath) {
+        const v = foundry.utils.getProperty(actor, distPath);
+        if (v !== undefined && v !== null && v !== "") distFt = Number(v) || 0;
+      }
+      if (!distFt) distFt = Number(data.distance ?? 30) || 30;
+
+      let angDeg = 0;
+      const anglePath = String(data.anglePath ?? "").trim();
+      if (anglePath) {
+        const v = foundry.utils.getProperty(actor, anglePath);
+        if (v !== undefined && v !== null && v !== "") angDeg = Number(v) || 0;
+      }
+      if (!angDeg) angDeg = Number(data.angle ?? 360) || 360;
+
+      const requireLOS = data.requireLOS !== "no" && data.requireLOS !== false;
+
+      let result;
+      try {
+        result = computeFn
+          ? computeFn({ source: tk, distanceFt: distFt, angleDeg: angDeg, requireLOS, includeHidden: false })
+          : {
+              tokenIds: computeIds({ source: tk, distanceFt: distFt, angleDeg: angDeg, requireLOS, includeHidden: false }) ?? [],
+              actorUuids: []
+            };
+      } catch (e) {
+        console.warn("SD | sdVisionDetect compute failed:", e);
+        continue;
+      }
+
+      const tokenIds   = result?.tokenIds   ?? [];
+      const actorUuids = result?.actorUuids ?? [];
+
+      const prev = this._visionState.get(stateKey) ?? new Set();
+      const current = new Set(tokenIds);
+
+      const newTokenIds = tokenIds.filter(id => !prev.has(id));
+
+      const tokenIdToUuid = new Map();
+      for (let i = 0; i < tokenIds.length; i++) tokenIdToUuid.set(tokenIds[i], actorUuids[i] ?? "");
+      const newActorUuids = newTokenIds.map(id => tokenIdToUuid.get(id) ?? "").filter(Boolean);
+
+      this._visionState.set(stateKey, current);
+
+      if (newTokenIds.length === 0) continue;
+
+      if (data.show === "yes" || data.show === true) {
+        try {
+          Vision?.sdShowVisionRay?.({
+            source:     tk,
+            distanceFt: distFt,
+            angleDeg:   angDeg,
+            color:      String(data.showColor ?? "#74a7ff"),
+            durationMs: Math.max(100, Number(data.showSeconds ?? 1.5) * 1000)
+          });
+        } catch (e) {
+          console.warn("SD | sdVisionDetect ray draw failed:", e);
+        }
+      }
+
+      try {
+        Hooks.callAll("sdVisionDetect", {
+          actorId:        actor.id,
+          actorUuid:      actor.uuid,
+          firstActorUuid: newActorUuids[0] ?? "",
+          newTokenIds,
+          newActorUuids,
+          allTokenIds:    tokenIds,
+          allActorUuids:  actorUuids
+        });
+      } catch (e) {
+        console.warn("SD | sdVisionDetect callAll failed:", e);
+      }
     }
   }
 
@@ -475,6 +612,14 @@ class EventBus {
           subtaskId:    rt.__subtaskId,
           actorId:      rt.__questActorId
         };
+        break;
+      }
+      case "sdVisionDetect": {
+        const payload = args[0] ?? {};
+        rt.__visionDetectorUuid  = payload.actorUuid     ?? "";
+        rt.__visionFirstActorUuid= payload.firstActorUuid ?? "";
+        rt.__visionDetectedActors= Array.isArray(payload.newActorUuids) ? payload.newActorUuids.join(",") : (payload.newActorUuids ?? "");
+        rt.__visionDetectedTokens= Array.isArray(payload.newTokenIds)   ? payload.newTokenIds.join(",")   : (payload.newTokenIds   ?? "");
         break;
       }
       case "cardDrawn": {

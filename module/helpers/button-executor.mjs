@@ -1298,9 +1298,6 @@ export class ButtonExecutor {
           }
         }
 
-        // Walk hosts + nested slot snapshots, tracking { host, index, entry, live }.
-        // "live" (an actor-owned Item) is best for `.update(...)`, but if the slot
-        // content is just a snapshot we update via SlotManager.updateSlottedField.
         const seenM = new Set();
         const findMatch = (host) => {
           if (!host || seenM.has(host)) return null;
@@ -1309,13 +1306,9 @@ export class ButtonExecutor {
           for (let i = 0; i < contents.length; i++) {
             const entry = contents[i];
             if (!entry) continue;
-            const live = _mActor?.items?.get?.(entry._id)
-                     ?? _mActor?.items?.find?.(it => it.name === entry.name)
-                     ?? null;
-            const probeDoc = live ?? entry;
-            const v = foundry.utils.getProperty(probeDoc, _mPath);
+            const v = foundry.utils.getProperty(entry, _mPath);
             if (v !== undefined && typeof v !== "object") {
-              return { host, index: i, entry, live };
+              return { host, index: i, entry };
             }
           }
           for (const entry of contents) {
@@ -1331,21 +1324,13 @@ export class ButtonExecutor {
           if (_mMatch) break;
         }
 
-        // Fallback: first non-empty slot, first entry — works even when the
-        // path doesn't currently exist on the entry (will be created).
         if (!_mMatch) {
           const seenF = new Set();
           const walkFallback = (host) => {
             if (!host || seenF.has(host)) return null;
             seenF.add(host);
             const contents = SM2.getContents(host, _mSlotId);
-            if (contents.length) {
-              const entry = contents[0];
-              const live = _mActor?.items?.get?.(entry?._id)
-                        ?? _mActor?.items?.find?.(it => it.name === entry?.name)
-                        ?? null;
-              return { host, index: 0, entry, live };
-            }
+            if (contents.length) return { host, index: 0, entry: contents[0] };
             for (const entry of contents) {
               const r = walkFallback(entry);
               if (r) return r;
@@ -1361,18 +1346,13 @@ export class ButtonExecutor {
         if (!_mMatch) { ui.notifications.warn(`modifySlotItemField: no item in slot "${_mSlotId}" (path "${_mPath}").`); break; }
 
         const _mAmt = Number(action.amount ?? 0);
-        const _mProbe = _mMatch.live ?? _mMatch.entry;
-        const _mCur = Number(foundry.utils.getProperty(_mProbe, _mPath) ?? 0);
+        const _mCur = Number(foundry.utils.getProperty(_mMatch.entry, _mPath) ?? 0);
         let _mResult;
         if      (_mOp === "subtract") _mResult = _mCur - _mAmt;
         else if (_mOp === "set")      _mResult = _mAmt;
         else                          _mResult = _mCur + _mAmt;
         try {
-          if (_mMatch.live) {
-            await _mMatch.live.update({ [_mPath]: _mResult });
-          } else {
-            await SM2.updateSlottedField(_mMatch.host, _mSlotId, _mMatch.index, _mPath, _mResult);
-          }
+          await SM2.updateSlottedField(_mMatch.host, _mSlotId, _mMatch.index, _mPath, _mResult);
         } catch (e) {
           console.warn("SD modifySlotItemField update failed", e);
           ui.notifications.warn(`modifySlotItemField: update failed (${e?.message ?? e}).`);
@@ -1392,12 +1372,11 @@ export class ButtonExecutor {
         const _miPath = _miStripQuotes(_injectRuntime(String(action.path ?? "")));
         const _miOpRaw = _miStripQuotes(_injectRuntime(String(action.op ?? "")));
         const _miOp = _miOpRaw || "add";
+        const _miSearchIn = String(action.searchIn ?? "inventory");
         if (!_miPath) { ui.notifications.warn("modifyItemField: path is empty."); break; }
         let _miUuid = action.uuid ?? "";
         if (typeof _miUuid === "string") _miUuid = _injectRuntime(_miUuid);
         _miUuid = String(_miUuid ?? "").trim();
-        // Resolve formula-engine tokens like {slotUuidFind:...}, {itemBy:...}, {ref:...}
-        // that arrive baked into the UUID input when wired from a source node.
         if (_miUuid.includes("{") && _miUuid.includes("}")) {
           try {
             const { FormulaEngine: _miFE } = await import("./formula-engine.mjs");
@@ -1411,11 +1390,6 @@ export class ButtonExecutor {
         _miUuid = _miStripQuotes(_miUuid);
         if (!_miUuid) { ui.notifications.warn("modifyItemField: item UUID is empty."); break; }
 
-        // Resolve optional Actor pin override. When wired, the lookup is
-        // scoped to those actors' owned items first (so the same wired
-        // UUID resolves correctly per-actor, e.g. when looping with
-        // Get All Targets). When the override resolves to multiple actors,
-        // the update runs once per actor.
         let _miSourceActors = null;
         if (action.actorOverride != null && action.actorOverride !== "" && action.actorOverride !== '""' && action.actorOverride !== "0") {
           const ovr = typeof action.actorOverride === "string"
@@ -1425,61 +1399,106 @@ export class ButtonExecutor {
           if (list.length) _miSourceActors = list;
         }
 
-        // Helper: locate the target item on a given actor by UUID / id / name.
-        const _miFindOnActor = (a, baseName) => {
+        let _miBaseDoc = null;
+        try { _miBaseDoc = await fromUuid(_miUuid); } catch {}
+        const _miBaseName = (_miBaseDoc instanceof Item) ? _miBaseDoc.name : null;
+        const _miUuidShortId = (() => {
+          const s = String(_miUuid);
+          const parts = s.split(".");
+          return parts[parts.length - 1] || s;
+        })();
+
+        const _miFindLive = (a) => {
           if (!a?.items) return null;
           let it = a.items.find?.(i => i.uuid === _miUuid) ?? null;
           if (!it) it = a.items.get?.(_miUuid) ?? null;
-          if (!it && baseName) it = a.items.find?.(i => i.name === baseName) ?? null;
+          if (!it && _miBaseName) it = a.items.find?.(i => i.name === _miBaseName) ?? null;
           return it;
         };
 
-        const _miItems = [];
-        if (_miSourceActors) {
-          // Try to derive a fallback name from the wired UUID (so a single
-          // world-UUID can fan out to per-actor copies by name).
-          let _miBase = null;
-          try { _miBase = await fromUuid(_miUuid); } catch {}
-          const _miBaseName = (_miBase instanceof Item) ? _miBase.name : null;
-          for (const _a of _miSourceActors) {
-            const it = _miFindOnActor(_a, _miBaseName);
-            if (it) _miItems.push(it);
-          }
-          if (!_miItems.length) {
-            ui.notifications.warn(`modifyItemField: item "${_miUuid}" not found on wired actor(s).`);
-            break;
-          }
-        } else {
-          let _miItem = null;
-          try { _miItem = await fromUuid(_miUuid); } catch { _miItem = null; }
-          if (_miItem && !(_miItem instanceof Item)) {
-            if (_miItem?.actor instanceof Actor) {
-              _miItem = _miItem.actor.items?.find?.(i => i.uuid === _miUuid) ?? null;
-            } else {
-              _miItem = null;
+        const _miFindSlot = (a) => {
+          if (!a?.items) return [];
+          const hits = [];
+          const visit = (host) => {
+            const defs = host?.system?.slotDefinitions ?? [];
+            for (const def of defs) {
+              const sid = String(def?.id ?? "");
+              if (!sid) continue;
+              const contents = host?.system?.slotContents?.[sid]?.contents ?? [];
+              for (let i = 0; i < contents.length; i++) {
+                const e = contents[i];
+                if (!e) continue;
+                const match =
+                     e._sourceUuid === _miUuid
+                  || e.uuid        === _miUuid
+                  || e._id         === _miUuidShortId
+                  || (_miBaseName && e.name === _miBaseName);
+                if (match) hits.push({ host, slotId: sid, index: i, entry: e });
+                visit(e);
+              }
             }
-          }
-          if (!_miItem && actor) {
-            _miItem = actor.items?.find?.(i => i.uuid === _miUuid)
-                   ?? actor.items?.get?.(_miUuid)
-                   ?? null;
-          }
-          if (!_miItem) { ui.notifications.warn(`modifyItemField: item "${_miUuid}" not found.`); break; }
-          _miItems.push(_miItem);
-        }
+          };
+          for (const it of a.items) visit(it);
+          return hits;
+        };
 
+        const _miActors = _miSourceActors ?? (actor ? [actor] : []);
         const _miAmt = Number(action.amount ?? 0);
-        for (const _miItem of _miItems) {
-          const _miCur = Number(foundry.utils.getProperty(_miItem, _miPath) ?? 0);
-          let   _miRes;
-          if      (_miOp === "subtract") _miRes = _miCur - _miAmt;
-          else if (_miOp === "set")      _miRes = _miAmt;
-          else                           _miRes = _miCur + _miAmt;
-          try { await _miItem.update({ [_miPath]: _miRes }); }
+        const { SlotManager: _miSM } = await import("../data/item-slots.mjs");
+
+        const _miApply = async (probeDoc, applyFn) => {
+          const cur = Number(foundry.utils.getProperty(probeDoc, _miPath) ?? 0);
+          let res;
+          if      (_miOp === "subtract") res = cur - _miAmt;
+          else if (_miOp === "set")      res = _miAmt;
+          else                           res = cur + _miAmt;
+          try { await applyFn(res); }
           catch (e) {
-            console.warn("SD modifyItemField failed for", _miItem?.name, e);
+            console.warn("SD modifyItemField update failed", e);
             ui.notifications.warn(`modifyItemField: update failed (${e?.message ?? e}).`);
           }
+        };
+
+        const _miTrySlot = async (a) => {
+          if (!a) return false;
+          const hits = _miFindSlot(a);
+          if (!hits.length) return false;
+          for (const h of hits) {
+            await _miApply(h.entry, (val) =>
+              _miSM.updateSlottedField(h.host, h.slotId, h.index, _miPath, val));
+          }
+          return true;
+        };
+        const _miTryInv = async (a) => {
+          let it = a ? _miFindLive(a) : null;
+          if (!it && !a && _miBaseDoc instanceof Item) it = _miBaseDoc;
+          if (!it) return false;
+          await _miApply(it, (val) => it.update({ [_miPath]: val }));
+          return true;
+        };
+
+        let _miAny = false;
+        const _miLoop = _miActors.length ? _miActors : [null];
+        for (const a of _miLoop) {
+          let ok = false;
+          if (_miSearchIn === "slot") {
+            ok = await _miTrySlot(a);
+          } else if (_miSearchIn === "inventory") {
+            ok = await _miTryInv(a);
+          } else if (_miSearchIn === "slot_then_inventory") {
+            ok = await _miTrySlot(a);
+            if (!ok) ok = await _miTryInv(a);
+          } else if (_miSearchIn === "inventory_then_slot") {
+            ok = await _miTryInv(a);
+            if (!ok) ok = await _miTrySlot(a);
+          } else {
+            ok = await _miTryInv(a);
+          }
+          if (ok) _miAny = true;
+        }
+
+        if (!_miAny) {
+          ui.notifications.warn(`modifyItemField: item "${_miUuid}" not found (searchIn=${_miSearchIn}).`);
         }
         break;
       }
@@ -1894,7 +1913,19 @@ export class ButtonExecutor {
       }
 
       case "forEachToken": {
-        const raw = _injectRuntime(String(action.tokens ?? ""));
+        let raw = _injectRuntime(String(action.tokens ?? ""));
+        if (typeof raw === "string" && raw.includes("{")) {
+          try {
+            const { FormulaEngine } = await import("./formula-engine.mjs");
+            raw = FormulaEngine._resolveRefs(raw, item ?? actor ?? {});
+          } catch {}
+        }
+        if (typeof raw === "string") {
+          const t = raw.trim();
+          if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+            try { raw = JSON.parse(t); } catch { raw = t.slice(1, -1); }
+          }
+        }
         const ids = String(raw).split(",").map(s => s.trim()).filter(Boolean);
         const _prevCT = runtime.currentTarget;
         const _prevLI = runtime.__loopIndex;
@@ -1933,6 +1964,184 @@ export class ButtonExecutor {
         if (_prevLT !== undefined) runtime.__loopItem  = _prevLT; else delete runtime.__loopItem;
         for (const sub of (action.doneActions ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
+        }
+        break;
+      }
+
+      case "visionScan": {
+        try {
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+
+          let srcActor = null;
+          let srcToken = null;
+          if (action.actorOverride) {
+            const raw = _injectRuntime(String(action.actorOverride));
+            const resolved = _sdStripQuotes(raw);
+            if (resolved) {
+
+              if (/^(Actor|Scene|Item|Token|Compendium)\.[A-Za-z0-9._-]+/.test(resolved)) {
+                try {
+                  const d = (typeof fromUuidSync === "function") ? fromUuidSync(resolved) : null;
+                  if (d?.documentName === "Token") srcToken = d.object ?? canvas?.tokens?.get?.(d.id) ?? null;
+                  else if (d?.documentName === "Actor") srcActor = d;
+                  else if (d?.actor) srcActor = d.actor;
+                } catch {}
+              }
+
+              if (!srcToken && !srcActor) srcToken = canvas?.tokens?.get?.(resolved) ?? null;
+
+              if (!srcToken && !srcActor) srcActor = _sdResolveActor(resolved, actor);
+            }
+          }
+          if (!srcToken && !srcActor) srcActor = actor;
+
+          let distFt = 0;
+          if (action.distPath) {
+            const onDoc = srcActor ?? actor ?? item;
+            const v = onDoc ? foundry.utils.getProperty(onDoc, String(action.distPath).trim()) : null;
+            if (v !== undefined && v !== null && v !== "") distFt = Number(v) || 0;
+          }
+          if (!distFt) {
+            const dRaw = _injectRuntime(String(action.distance ?? 0));
+            const dStr = FormulaEngine.resolveForRoll(dRaw, srcActor ?? actor ?? item ?? {});
+            distFt = Number(FormulaEngine.evaluate(dStr, srcActor ?? actor)) || Number(dStr) || 0;
+          }
+
+          let angDeg = 0;
+          if (action.anglePath) {
+            const onDoc = srcActor ?? actor ?? item;
+            const v = onDoc ? foundry.utils.getProperty(onDoc, String(action.anglePath).trim()) : null;
+            if (v !== undefined && v !== null && v !== "") angDeg = Number(v) || 0;
+          }
+          if (!angDeg) {
+            const aRaw = _injectRuntime(String(action.angle ?? 360));
+            const aStr = FormulaEngine.resolveForRoll(aRaw, srcActor ?? actor ?? item ?? {});
+            angDeg = Number(FormulaEngine.evaluate(aStr, srcActor ?? actor)) || Number(aStr) || 360;
+          }
+          if (!angDeg) angDeg = 360;
+
+          const Vision = globalThis._SD_VISION;
+          const result = Vision?.sdComputeVisible?.({
+            source:     srcToken ?? srcActor ?? actor,
+            distanceFt: distFt,
+            angleDeg:   angDeg,
+            requireLOS: action.requireLOS !== false,
+            includeHidden: false
+          }) ?? null;
+          const ids        = result?.tokenIds   ?? (Vision?.sdComputeVisibleTokens?.({
+            source:     srcToken ?? srcActor ?? actor,
+            distanceFt: distFt,
+            angleDeg:   angDeg,
+            requireLOS: action.requireLOS !== false,
+            includeHidden: false
+          }) ?? []);
+          const actorUuids = result?.actorUuids ?? [];
+
+          const joined       = ids.join(",");
+          const joinedActors = actorUuids.join(",");
+          const rt = (globalThis._SD_RUNTIME = globalThis._SD_RUNTIME ?? {});
+          rt.__visionLast        = joined;
+          rt.__visionLastActors  = joinedActors;
+          runtime.__visionLast        = joined;
+          runtime.__visionLastActors  = joinedActors;
+          if (buttonDef) {
+            buttonDef.__visionLast       = joined;
+            buttonDef.__visionLastActors = joinedActors;
+          }
+
+          if (action.show) {
+            try {
+              Vision?.sdShowVisionRay?.({
+                source:     srcToken ?? srcActor ?? actor,
+                distanceFt: distFt,
+                angleDeg:   angDeg,
+                color:      String(action.showColor ?? "#74a7ff"),
+                durationMs: Math.max(100, Number(action.showSeconds ?? 2) * 1000)
+              });
+            } catch (e) {
+              console.warn("SD | visionScan ray draw failed:", e);
+            }
+          }
+        } catch (e) {
+          console.warn("SD | visionScan error:", e);
+          ui.notifications?.warn?.(`Vision Scan failed: ${e?.message ?? e}`);
+        }
+        break;
+      }
+
+      case "moveToken": {
+        try {
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+
+          let srcActor = null;
+          let srcToken = null;
+          if (action.actorRef) {
+            const raw = _injectRuntime(String(action.actorRef));
+            const resolved = _sdStripQuotes(raw);
+            if (resolved) {
+              srcToken = canvas?.tokens?.get?.(resolved) ?? null;
+              if (!srcToken) srcActor = _sdResolveActor(resolved, actor);
+            }
+          }
+          if (!srcToken && !srcActor) srcActor = actor;
+
+          const dRaw = _injectRuntime(String(action.distance ?? 0));
+          const dStr = FormulaEngine.resolveForRoll(dRaw, srcActor ?? actor ?? item ?? {});
+          const distFt = Number(FormulaEngine.evaluate(dStr, srcActor ?? actor)) || Number(dStr) || 0;
+
+          const dirRaw = _injectRuntime(String(action.direction ?? 0));
+          const dirStr = FormulaEngine.resolveForRoll(dirRaw, srcActor ?? actor ?? item ?? {});
+          const direction = Number(FormulaEngine.evaluate(dirStr, srcActor ?? actor)) || Number(dirStr) || 0;
+
+          const Move = globalThis._SD_MOVE;
+          const res = await (Move?.sdMoveToken?.({
+            source:     srcToken ?? srcActor ?? actor,
+            distanceFt: distFt,
+            mode:       String(action.mode ?? "degrees"),
+            direction:  direction,
+            passWalls:  !!action.passWalls,
+            animate:    action.animate !== false
+          }) ?? Promise.resolve({ ok: false }));
+
+          if (!res?.ok && res?.reason && res.reason !== "wall-blocked") {
+            console.warn("SD | moveToken returned non-ok:", res);
+          }
+        } catch (e) {
+          console.warn("SD | moveToken error:", e);
+          ui.notifications?.warn?.(`Move Token failed: ${e?.message ?? e}`);
+        }
+        break;
+      }
+
+      case "speakTTS": {
+        try {
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+          const rawTxt = _injectRuntime(String(action.text ?? ""));
+          let text = rawTxt;
+          if (typeof text === "string" && text.includes("{")) {
+            try { text = FormulaEngine._resolveRefs(text, item ?? actor ?? {}); } catch {}
+          }
+          if (typeof text === "string") {
+            const t = text.trim();
+            if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+              try { text = JSON.parse(t); } catch { text = t.slice(1, -1); }
+            }
+          }
+          if (!text) break;
+
+          const TTS = globalThis._SD_TTS;
+          TTS?.sdSpeakBroadcast?.({
+            text:   String(text),
+            voice:  String(action.voice  ?? ""),
+            lang:   String(action.lang   ?? ""),
+            rate:   Number(action.rate   ?? 1) || 1,
+            pitch:  Number(action.pitch  ?? 1) || 1,
+            volume: Number(action.volume ?? 1) || 1,
+            target: String(action.target ?? "all")
+          });
+        } catch (e) {
+          console.warn("SD | speakTTS error:", e);
+          ui.notifications?.warn?.(`TTS failed: ${e?.message ?? e}`);
         }
         break;
       }

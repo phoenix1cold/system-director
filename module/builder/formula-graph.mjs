@@ -2060,7 +2060,7 @@ export const NODE_DEFS = {
 
   act_modify_item_field: {
     title:"Modify Item Field", color:"#4a2a6a", cat:"Field Ops",
-    desc:"Add / subtract / set a field on a specific item resolved by its UUID. Same operation as Modify Field, but the target is an Item document, not an actor field. Feed UUID as a pin (e.g. from Slot Item UUID / Item by UUID / Get Owned Items) or paste a fixed UUID into the field. Path / Op / Amount can all be driven by pins (UE-style). Wire the Actor pin to scope the lookup to one or more specific actors (UUID / Get Actor / Get All Targets); the item is matched on each actor by UUID, by id, or by name resolved from the wired UUID. An array of actors loops the update over every actor.",
+    desc:"Add / subtract / set a field on a specific item resolved by its UUID. Same operation as Modify Field, but the target is an Item document or a slot snapshot, not an actor field. Feed UUID as a pin (e.g. from Slot Item UUID / Item by UUID / Get Owned Items) or paste a fixed UUID into the field. Path / Op / Amount can all be driven by pins (UE-style). Wire the Actor pin to scope the lookup to one or more specific actors (UUID / Get Actor / Get All Targets); the item is matched on each actor by UUID, by id, or by name resolved from the wired UUID. An array of actors loops the update over every actor. Search in: inventory = live actor items only (default); slot = slot snapshots only; slot_then_inventory = try slots first, fall back to inventory; inventory_then_slot = inventory first, fall back to slots.",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
       {id:"uuid",   label:"Item UUID", type:"value.string"},
@@ -2074,18 +2074,21 @@ export const NODE_DEFS = {
       {id:"newValue",label:"New Value",type:"value.any"}
     ],
     fields:[
-      {key:"uuid", label:"Item UUID", type:"text",   default:"", placeholder:"Item.xxxxx or drag item here"},
-      {key:"path", label:"Field Path",type:"path",   default:"system.hiddenFields.field"},
-      {key:"op",   label:"Operation", type:"select", default:"add", options:["add","subtract","set"]}
+      {key:"uuid",     label:"Item UUID",  type:"text",   default:"", placeholder:"Item.xxxxx or drag item here"},
+      {key:"path",     label:"Field Path", type:"path",   default:"system.hiddenFields.field"},
+      {key:"op",       label:"Operation",  type:"select", default:"add", options:["add","subtract","set"]},
+      {key:"searchIn", label:"Search in",  type:"select", default:"inventory",
+       options:["inventory","slot","slot_then_inventory","inventory_then_slot"]}
     ],
     isAction:true, wideNode:true,
     toAction:(n,inp)=>{
       const out = {
-        type:   "modifyItemField",
-        uuid:   (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : (n.data.uuid ?? ""),
-        path:   (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path ?? ""),
-        op:     (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op   ?? "add"),
-        amount: inp.amount ?? 0
+        type:     "modifyItemField",
+        uuid:     (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : (n.data.uuid ?? ""),
+        path:     (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path ?? ""),
+        op:       (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op   ?? "add"),
+        amount:   inp.amount ?? 0,
+        searchIn: String(n.data?.searchIn ?? "inventory")
       };
       if (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) {
         out.actorOverride = inp.actor;
@@ -5515,6 +5518,187 @@ export const NODE_DEFS = {
     }
   },
 
+  vision_visible_tokens: {
+    title:"Vision — Visible Tokens", color:"#2a6a7a", cat:"Vision", wideNode:true,
+    desc:"Pure source. Returns either a comma-joined array of token ids (pin `v`) or actor UUIDs (pin `actors`) visible from the source within Distance feet and within a vision cone of Angle degrees (360 = full circle). Token-id output feeds into For Each Token / tokenField / Array nodes; actor-uuid output is portable across scenes and feeds straight into actor-accepting nodes (Modify Field, Apply Effect, Cast To Actor, …). The Actor input accepts a Get Actor / Get Self / explicit Actor UUID (Actor.xxx) — UUIDs are resolved to the actor's first active token on the current scene. Optional Show draws a semi-transparent vision ray on the canvas every time the array is resolved (use sparingly).",
+    inputs:[
+      {id:"actor",    label:"Actor",        type:"value.actor"},
+      {id:"distance", label:"Distance (ft)",type:"value.number"},
+      {id:"angle",    label:"Angle (deg)",  type:"value.number"}
+    ],
+    outputs:[
+      {id:"v",      label:"Visible Tokens",     type:"value.array"},
+      {id:"actors", label:"Visible Actor UUIDs",type:"value.array"}
+    ],
+    fields:[
+      {key:"distance",   label:"Distance (ft)",          type:"number", default:30},
+      {key:"angle",      label:"Vision angle (deg)",     type:"number", default:360, placeholder:"360 = full circle"},
+      {key:"show",       label:"Draw vision ray",        type:"select", default:"no", options:["no","yes"]},
+      {key:"requireLOS", label:"Require Line of Sight",  type:"select", default:"yes", options:["yes","no"]}
+    ],
+    compilePin:(n, i, fromPin)=>{
+      const base = (i.actor != null && i.actor !== "" && i.actor !== "0") ? String(i.actor) : `"self"`;
+      const dist = (i.distance != null && i.distance !== "") ? String(i.distance) : String(n.data?.distance ?? 30);
+      const ang  = (i.angle    != null && i.angle    !== "") ? String(i.angle)    : String(n.data?.angle    ?? 360);
+      const show = (n.data?.show === "yes") ? 1 : 0;
+      const los  = (n.data?.requireLOS === "no") ? 0 : 1;
+      const head = (fromPin === "actors") ? "visibleActors" : "visibleTokens";
+      return `{${head}:${base}|${dist}|${ang}|${show}|${los}}`;
+    },
+    compile:(n,i)=>{
+      const base = (i.actor != null && i.actor !== "" && i.actor !== "0") ? String(i.actor) : `"self"`;
+      const dist = (i.distance != null && i.distance !== "") ? String(i.distance) : String(n.data?.distance ?? 30);
+      const ang  = (i.angle    != null && i.angle    !== "") ? String(i.angle)    : String(n.data?.angle    ?? 360);
+      const show = (n.data?.show === "yes") ? 1 : 0;
+      const los  = (n.data?.requireLOS === "no") ? 0 : 1;
+      return `{visibleTokens:${base}|${dist}|${ang}|${show}|${los}}`;
+    }
+  },
+
+  act_vision_scan: {
+    title:"Vision Scan (Action)", color:"#2a6a7a", cat:"Vision", wideNode:true,
+    desc:"Action node — runs a one-shot vision scan when its exec input fires. Use the new `On Vision Detect` event node for hook-driven triggers; this node stays for on-demand scans (e.g. from an On Click button, or chained after another action). The Actor input accepts a Get Actor / Get Self / explicit Actor UUID (Actor.xxx) — UUIDs are resolved to the actor's first active token on the current scene. Outputs both the token-id array (`v`, also as {__visionLast}) and the actor-UUID array (`actors`, also as {__visionLastActors}). Optionally draws a semi-transparent vision ray on the canvas (configurable colour & duration).",
+    wideNode:true,
+    inputs:[
+      {id:"exec",     label:"",             type:"exec"},
+      {id:"actor",    label:"Actor",        type:"value.actor"},
+      {id:"distance", label:"Distance (ft)",type:"value.number"},
+      {id:"angle",    label:"Angle (deg)",  type:"value.number"}
+    ],
+    outputs:[
+      {id:"exec",   label:"",                  type:"exec"},
+      {id:"v",      label:"Visible Tokens",    type:"value.array"},
+      {id:"actors", label:"Visible Actor UUIDs", type:"value.array"}
+    ],
+    fields:[
+      {key:"distance",    label:"Distance (ft)",                                  type:"number", default:30},
+      {key:"angle",       label:"Vision angle (deg)",                             type:"number", default:360, placeholder:"360 = full circle"},
+      {key:"distPath",    label:"Distance from hidden field (overrides number)",  type:"path",   default:"",  placeholder:"system.hiddenFields.vision"},
+      {key:"anglePath",   label:"Angle from hidden field (overrides number)",     type:"path",   default:"",  placeholder:"system.hiddenFields.visionAngle"},
+      {key:"show",        label:"Draw vision ray",                                type:"select", default:"yes", options:["yes","no"]},
+      {key:"showColor",   label:"Ray colour",                                     type:"text",   default:"#74a7ff", placeholder:"#74a7ff"},
+      {key:"showSeconds", label:"Ray duration (sec)",                             type:"number", default:2},
+      {key:"requireLOS",  label:"Require Line of Sight",                          type:"select", default:"yes", options:["yes","no"]}
+    ],
+    isAction:true,
+    compilePin:(_n, _ins, fromPin)=>{
+      if (fromPin === "v")      return `{__visionLast}`;
+      if (fromPin === "actors") return `{__visionLastActors}`;
+      return "0";
+    },
+    toAction:(n,inp)=>{
+      const _wired = (v) => v !== undefined && v !== null && v !== "" && v !== "0" && v !== `"0"`;
+      return {
+        type:        "visionScan",
+        actorOverride: _wired(inp.actor) ? String(inp.actor) : null,
+        distance:    _wired(inp.distance) ? String(inp.distance) : String(n.data?.distance ?? 30),
+        angle:       _wired(inp.angle)    ? String(inp.angle)    : String(n.data?.angle    ?? 360),
+        distPath:    String(n.data?.distPath ?? ""),
+        anglePath:   String(n.data?.anglePath ?? ""),
+        show:        n.data?.show !== "no",
+        showColor:   String(n.data?.showColor ?? "#74a7ff"),
+        showSeconds: Number(n.data?.showSeconds ?? 2) || 2,
+        requireLOS:  n.data?.requireLOS !== "no"
+      };
+    }
+  },
+
+  on_vision_detect: {
+    title:"On Vision Detect", color:"#2a6a7a", cat:"Vision", wideNode:true,
+    desc:"Event trigger — fires when this actor (the document the graph runs on) detects one or more new tokens in its vision cone. Re-evaluated whenever tokens move/spawn/disappear on the same scene as the actor; only NEW tokens (relative to the previous scan) trigger the event. Configure the scan with Distance (number or hidden field), Angle (deg), and Require LOS just like the Vision Scan node. Outputs expose: the detector actor's UUID, the comma-joined array of NEW detected actor UUIDs and token ids, and the first newly-detected actor's UUID for the common single-target case. Optional Show draws a brief vision ray on every detection (useful for debugging).",
+    inputs:[],
+    outputs:[
+      {id:"exec",        label:"→ On Detect",       type:"exec"},
+      {id:"actorUuid",   label:"Detector Actor UUID", type:"value.string"},
+      {id:"firstActor",  label:"First Detected Actor UUID", type:"value.string"},
+      {id:"actors",      label:"Detected Actor UUIDs",     type:"value.array"},
+      {id:"tokens",      label:"Detected Token Ids",        type:"value.array"}
+    ],
+    fields:[
+      {key:"distance",   label:"Distance (ft)",                                  type:"number", default:30},
+      {key:"angle",      label:"Vision angle (deg)",                             type:"number", default:360, placeholder:"360 = full circle"},
+      {key:"distPath",   label:"Distance from hidden field (overrides number)",  type:"path",   default:"",    placeholder:"system.hiddenFields.vision"},
+      {key:"anglePath",  label:"Angle from hidden field (overrides number)",     type:"path",   default:"",    placeholder:"system.hiddenFields.visionAngle"},
+      {key:"requireLOS", label:"Require Line of Sight",                          type:"select", default:"yes", options:["yes","no"]},
+      {key:"show",       label:"Draw vision ray on each fire",                   type:"select", default:"no",  options:["no","yes"]},
+      {key:"showColor",  label:"Ray colour",                                     type:"text",   default:"#74a7ff", placeholder:"#74a7ff"},
+      {key:"showSeconds",label:"Ray duration (sec)",                             type:"number", default:1.5}
+    ],
+    isEvent:true, eventHook:"sdVisionDetect"
+  },
+
+  act_move_token: {
+    title:"Move Token", color:"#2a4a8a", cat:"Movement", wideNode:true,
+    desc:"Move a token by Distance feet in the given Direction.  Direction modes:  • Degrees — Direction is a 0-360° heading (0 = up / north, 90 = right / east, 180 = down, 270 = left).  • Square — Direction is an index 0-7 starting at North then clockwise: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW (full 8-way including diagonals).  • Hex — Direction is an index 0-5 along the scene's hex grid directions (auto-detects columnar / row-wise).  Wall passthrough: when off, the move is cancelled if walls block the path.",
+    inputs:[
+      {id:"exec",      label:"",             type:"exec"},
+      {id:"actor",     label:"Actor",        type:"value.actor"},
+      {id:"distance",  label:"Distance (ft)",type:"value.number"},
+      {id:"direction", label:"Direction",    type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"distance",  label:"Distance (ft)",     type:"number", default:5},
+      {key:"mode",      label:"Direction mode",    type:"select", default:"degrees", options:["degrees","square","hex"]},
+      {key:"direction", label:"Direction value",   type:"number", default:0, placeholder:"0-360 / 0-7 / 0-5"},
+      {key:"passWalls", label:"Pass through walls",type:"select", default:"no",  options:["no","yes"]},
+      {key:"animate",   label:"Animate movement",  type:"select", default:"yes", options:["yes","no"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>{
+      const _wired = (v) => v !== undefined && v !== null && v !== "" && v !== "0" && v !== `"0"`;
+      return {
+        type:      "moveToken",
+        actorRef:  _wired(inp.actor)     ? String(inp.actor)     : null,
+        distance:  _wired(inp.distance)  ? String(inp.distance)  : String(n.data?.distance  ?? 5),
+        direction: _wired(inp.direction) ? String(inp.direction) : String(n.data?.direction ?? 0),
+        mode:      String(n.data?.mode ?? "degrees"),
+        passWalls: n.data?.passWalls === "yes",
+        animate:   n.data?.animate !== "no"
+      };
+    }
+  },
+
+  act_tts: {
+    title:"TTS — Speak", color:"#7a4a8a", cat:"Audio", wideNode:true,
+    desc:"Speak the input text out loud through every connected client using the browser's built-in Web Speech API (no external service, no API key, voices come from the operating system). Text input is also passed through to the Text output pin so you can chain it (e.g. also post to chat). Voice & language pickers are free-form — leave blank to use the browser default. Rate 0.1-10, Pitch 0-2, Volume 0-1. Target controls who speaks: all = everyone (default), gm = GM only, players = all non-GM clients, self = only the user who triggered it.",
+    inputs:[
+      {id:"exec",  label:"",     type:"exec"},
+      {id:"text",  label:"Text", type:"value.string"}
+    ],
+    outputs:[
+      {id:"exec",  label:"",     type:"exec"},
+      {id:"text",  label:"Text", type:"value.string"}
+    ],
+    fields:[
+      {key:"text",   label:"Text (used if Text pin is empty)", type:"text",   default:""},
+      {key:"voice",  label:"Voice name (blank = default)",     type:"text",   default:"",  placeholder:"Microsoft David — English (US)"},
+      {key:"lang",   label:"Language tag (BCP-47)",            type:"text",   default:"",  placeholder:"en-US / ru-RU / de-DE"},
+      {key:"rate",   label:"Rate (0.1 - 10)",                  type:"number", default:1},
+      {key:"pitch",  label:"Pitch (0 - 2)",                    type:"number", default:1},
+      {key:"volume", label:"Volume (0 - 1)",                   type:"number", default:1},
+      {key:"target", label:"Speak on",                         type:"select", default:"all", options:["all","gm","players","self"]}
+    ],
+    isAction:true,
+    compilePin:(_n, ins, fromPin)=>{
+      if (fromPin === "text") return ins.text ?? `""`;
+      return "0";
+    },
+    toAction:(n,inp)=>{
+      const _wired = (v) => v !== undefined && v !== null && v !== "";
+      return {
+        type:   "speakTTS",
+        text:   _wired(inp.text) ? String(inp.text) : String(n.data?.text ?? ""),
+        voice:  String(n.data?.voice  ?? ""),
+        lang:   String(n.data?.lang   ?? ""),
+        rate:   Number(n.data?.rate   ?? 1) || 1,
+        pitch:  Number(n.data?.pitch  ?? 1) || 1,
+        volume: Number(n.data?.volume ?? 1) || 1,
+        target: String(n.data?.target ?? "all")
+      };
+    }
+  },
+
 };
 
 (() => {
@@ -5534,6 +5718,12 @@ export const NODE_DEFS = {
 })();
 
 const EVENT_PIN_TOKENS = {
+  on_vision_detect: {
+    actorUuid:  "{__visionDetectorUuid}",
+    firstActor: "{__visionFirstActorUuid}",
+    actors:     "{__visionDetectedActors}",
+    tokens:     "{__visionDetectedTokens}"
+  },
   on_update:       { path: "{__eventPath}", oldValue: "{__eventOldValue}", newValue: "{__eventNewValue}" },
   on_turn_start:   { round: "{__eventRound}", combatantId: "{__eventCombatantId}" },
   on_turn_end:     { round: "{__eventRound}", combatantId: "{__eventCombatantId}" },
@@ -5643,6 +5833,9 @@ const CATS = [
   {id:"System",     color:"#4a2a7a"},
   {id:"AoE",        color:"#7a3a8a"},
   {id:"Targeting",  color:"#8a3a6a"},
+  {id:"Vision",     color:"#2a6a7a"},
+  {id:"Movement",   color:"#2a4a8a"},
+  {id:"Audio",      color:"#7a4a8a"},
   {id:"Journal",    color:"#3a5a8a"},
   {id:"Cards",      color:"#5a2a7a"}
 ];

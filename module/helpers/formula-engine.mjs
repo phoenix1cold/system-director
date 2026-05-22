@@ -1143,6 +1143,97 @@ export class FormulaEngine {
       return out.join(",");
     }
 
+    if (token.startsWith("visibleTokens:") || token.startsWith("visibleActors:")) {
+      const wantActors = token.startsWith("visibleActors:");
+      const head  = wantActors ? "visibleActors:" : "visibleTokens:";
+      const parts = token.slice(head.length).split("|");
+      let baseRaw = (parts[0] ?? "self").trim();
+      if (baseRaw.length >= 2 && baseRaw.startsWith('"') && baseRaw.endsWith('"')) baseRaw = baseRaw.slice(1, -1);
+      const distFt  = Number(parts[1] ?? 30) || 0;
+      const angDeg  = Number(parts[2] ?? 360) || 360;
+      const show    = Number(parts[3] ?? 0) ? true : false;
+      const requireLOS = (parts[4] === undefined ? true : (Number(parts[4]) !== 0));
+
+      let sourceActor = null;
+      let sourceToken = null;
+      try {
+        if (baseRaw === "self" || baseRaw === "actor") {
+          sourceActor = (doc?.documentName === "Actor") ? doc : (doc?.actor ?? null);
+        } else if (baseRaw === "token_target") {
+          sourceActor = [...(game.user?.targets ?? [])][0]?.actor ?? null;
+        } else if (baseRaw === "selected_token") {
+          sourceActor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+        } else if (baseRaw === "user_character") {
+          sourceActor = game.user?.character ?? null;
+        } else if (baseRaw) {
+          if (/^(Actor|Scene|Item|Token|Compendium)\.[A-Za-z0-9._-]+/.test(baseRaw)) {
+            try {
+              const d = (typeof fromUuidSync === "function") ? fromUuidSync(baseRaw) : null;
+              if (d?.documentName === "Token") sourceToken = d.object ?? canvas?.tokens?.get?.(d.id) ?? null;
+              else if (d?.documentName === "Actor") sourceActor = d;
+              else if (d?.actor) sourceActor = d.actor;
+            } catch {}
+          }
+          if (!sourceToken && !sourceActor) {
+            const tk = canvas?.tokens?.get?.(baseRaw);
+            if (tk) sourceToken = tk;
+            else {
+              const a = game?.actors?.get?.(baseRaw);
+              if (a) sourceActor = a;
+            }
+          }
+        }
+      } catch {}
+
+      try {
+        const helper = globalThis._SD_VISION;
+        const fn = helper?.sdComputeVisible ?? null;
+        const fallback = helper?.sdComputeVisibleTokens;
+        if (typeof fn !== "function" && typeof fallback !== "function") return "";
+        const result = (typeof fn === "function")
+          ? fn({
+              source: sourceToken ?? sourceActor,
+              distanceFt: distFt,
+              angleDeg:   angDeg,
+              requireLOS,
+              includeHidden: false
+            })
+          : { tokenIds: fallback({
+              source: sourceToken ?? sourceActor,
+              distanceFt: distFt,
+              angleDeg:   angDeg,
+              requireLOS,
+              includeHidden: false
+            }) ?? [], actorUuids: [] };
+        if (show) {
+          try { helper.sdShowVisionRay?.({
+            source: sourceToken ?? sourceActor,
+            distanceFt: distFt,
+            angleDeg:   angDeg,
+            durationMs: 1500
+          }); } catch {}
+        }
+        const list = wantActors ? (result.actorUuids ?? []) : (result.tokenIds ?? []);
+        return list.join(",");
+      } catch (e) {
+        console.warn(`SD | ${head} resolve failed:`, e);
+        return "";
+      }
+    }
+
+    if (token === "__visionLast") {
+      try {
+        return String(globalThis._SD_RUNTIME?.__visionLast ?? "");
+      } catch { return ""; }
+    }
+
+    if (token === "__visionLastActors") {
+      try {
+        return String(globalThis._SD_RUNTIME?.__visionLastActors ?? "");
+      } catch { return ""; }
+    }
+
+
     if (token.startsWith("arrayAgg:")) {
       const parts = token.slice("arrayAgg:".length).split("|");
       if (parts.length < 3) return 0;

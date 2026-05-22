@@ -1,5 +1,18 @@
 /* ============================================================================
-
+ * SD — Theme FX (Color Scheme v2)
+ *
+ * Idle (always-on) textures + click pop animations for SD widgets,
+ * gated by data-sd-theme-fx="<themeId>" on <html>.
+ *
+ * Click animations are NOT driven by :active (which only persists while LMB
+ * is held — ~50-150 ms on a normal click). Instead, color-schemes.mjs adds
+ * data-sd-fx-clicked="1" on the actionable element for FX_CLICK_DURATION_MS,
+ * letting the animation play out fully regardless of how long the user
+ * actually held the button.
+ *
+ * v1 themes (data-sd-theme="...") are NEVER affected unless the matching
+ * data-sd-theme-fx is also set — user requested v1 stays free of effects.
+ * ========================================================================== */
 
 /* ---------- Generic idle motion ---------- */
 @keyframes sd-fx-spin-slow      { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -49,6 +62,11 @@
 @keyframes sd-fx-pop-parchment  { 0% { opacity: 0; transform: scale(.4) skewX(-8deg); } 25% { opacity: .85; transform: scale(1) skewX(0); } 100% { opacity: 0; transform: scale(1.3); } }
 @keyframes sd-fx-pop-flicker    { 0%, 100% { opacity: 0; } 8% { opacity: .9; } 18% { opacity: .25; } 28% { opacity: .9; } 55% { opacity: .25; } 80% { opacity: .7; } 95% { opacity: .25; } }
 
+/* ============================================================================
+ * Foundation: every widget under an active v2 theme becomes a positioned
+ * container so the ::before/::after pseudo-elements can paint over it. We
+ * also force child elements above the overlay so click handling stays intact.
+ * ========================================================================== */
 
 [data-sd-theme-fx]:not([data-sd-theme-fx="off"]) .sd .widget,
 [data-sd-theme-fx]:not([data-sd-theme-fx="off"]) #sd-action-hud .widget,
@@ -94,7 +112,11 @@
   z-index: 9;
 }
 
-
+/* ============================================================================
+ * THEME: default — Indigo Night
+ * Idle: twinkling stars (3 layered radial-gradients each animated independently)
+ * Click: rotating sparks
+ * ========================================================================== */
 
 [data-sd-theme-fx="default"] .sd .widget::before,
 [data-sd-theme-fx="default"] #sd-action-hud .widget::before,
@@ -120,7 +142,11 @@
   animation: sd-fx-pop-spark .6s ease-out 1;
 }
 
-
+/* ============================================================================
+ * THEME: midnight — Ocean ripple
+ * Idle: actually translating concentric ripples + bobbing pulse
+ * Click: large ripple radiating outward
+ * ========================================================================== */
 
 [data-sd-theme-fx="midnight"] .sd .widget::before,
 [data-sd-theme-fx="midnight"] #sd-action-hud .widget::before,
@@ -144,7 +170,11 @@
   animation: sd-fx-pop-ripple .65s ease-out 1;
 }
 
-
+/* ============================================================================
+ * THEME: forest — Leaves drifting
+ * Idle: leaf-shape ::after constantly falling across the widget
+ * Click: scattered leaves bursting outward
+ * ========================================================================== */
 
 [data-sd-theme-fx="forest"] .sd .widget::before,
 [data-sd-theme-fx="forest"] #sd-action-hud .widget::before,
@@ -168,7 +198,11 @@
   animation: sd-fx-pop-leaf .65s ease-out 1;
 }
 
-
+/* ============================================================================
+ * THEME: crimson — Gothic throb
+ * Idle: red vignette pulsing in / out + scale
+ * Click: blood drop splatter from top
+ * ========================================================================== */
 
 [data-sd-theme-fx="crimson"] .sd .widget::before,
 [data-sd-theme-fx="crimson"] #sd-action-hud .widget::before,
@@ -192,7 +226,11 @@
   animation: sd-fx-pop-blood .7s ease-out 1;
 }
 
-
+/* ============================================================================
+ * THEME: arcane — Runes orbiting
+ * Idle: conic gradient continuously rotating (visible motion)
+ * Click: rune blast — conic flash + center bloom
+ * ========================================================================== */
 
 [data-sd-theme-fx="arcane"] .sd .widget::before,
 [data-sd-theme-fx="arcane"] #sd-action-hud .widget::before,
@@ -221,7 +259,11 @@
   animation: sd-fx-pop-rune .65s ease-out 1;
 }
 
-
+/* ============================================================================
+ * THEME: sepia — Parchment
+ * Idle: subtle sepia grain that breathes in opacity
+ * Click: ink press
+ * ========================================================================== */
 
 [data-sd-theme-fx="sepia"] .sd .widget::before,
 [data-sd-theme-fx="sepia"] #sd-action-hud .widget::before,
@@ -244,7 +286,11 @@
   animation: sd-fx-pop-parchment .6s ease-out 1;
 }
 
-
+/* ============================================================================
+ * THEME: solar — Sun-flare sweep
+ * Idle: bright shimmer continuously moving across the widget
+ * Click: starburst pop
+ * ========================================================================== */
 
 [data-sd-theme-fx="solar"] .sd .widget::before,
 [data-sd-theme-fx="solar"] #sd-action-hud .widget::before,
@@ -276,7 +322,11 @@
   animation: sd-fx-pop-sunflare .65s ease-out 1;
 }
 
-
+/* ============================================================================
+ * THEME: nord — Frosted glass + ICE CRACK on click
+ * Idle: frost crystal speckles slowly drifting + diagonal frost gradient
+ * Click: ice cracking — 6 radial lines + center flash + frost glow
+ * ========================================================================== */
 
 [data-sd-theme-fx="nord"] .sd .widget::before,
 [data-sd-theme-fx="nord"] #sd-action-hud .widget::before,
@@ -310,7 +360,11 @@
   filter: drop-shadow(0 0 6px rgba(136,192,208,.65));
 }
 
-
+/* ============================================================================
+ * THEME: highContrast — Neon flicker
+ * Idle: yellow neon edge flickering
+ * Click: bright yellow flash
+ * ========================================================================== */
 
 [data-sd-theme-fx="highContrast"] .sd .widget::before,
 [data-sd-theme-fx="highContrast"] #sd-action-hud .widget::before,
@@ -335,7 +389,11 @@
   animation: sd-fx-pop-flicker .6s steps(8, end) 1;
 }
 
-
+/* ============================================================================
+ * THEME: mono — Strict B/W ink press
+ * Idle: shifting cross-hatch grain
+ * Click: ink stain spreading
+ * ========================================================================== */
 
 [data-sd-theme-fx="mono"] .sd .widget::before,
 [data-sd-theme-fx="mono"] #sd-action-hud .widget::before,
@@ -364,7 +422,11 @@
   animation: sd-fx-pop-ink .65s ease-out 1;
 }
 
-
+/* ============================================================================
+ * THEME: sciFi — Scanlines + neon glow + glitch on click
+ * Idle: scanlines actually scrolling + neon edge glow + occasional glitch jitter
+ * Click: glitch slice (pink/cyan bands)
+ * ========================================================================== */
 
 [data-sd-theme-fx="sciFi"] .sd .widget::before,
 [data-sd-theme-fx="sciFi"] #sd-action-hud .widget::before,
@@ -414,7 +476,9 @@
   animation: sd-fx-pop-glitch .5s steps(8, end) 1;
 }
 
-
+/* ============================================================================
+ * Reduced motion: kill all v2 fx animations, keep textures static / dim
+ * ========================================================================== */
 
 @media (prefers-reduced-motion: reduce) {
   [data-sd-theme-fx]:not([data-sd-theme-fx="off"]) .sd .widget::before,
