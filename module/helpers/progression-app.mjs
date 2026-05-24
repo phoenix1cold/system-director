@@ -1272,7 +1272,6 @@ export class ProgressionApp extends ApplicationV2 {
       });
     });
 
-    // Re-wire preview pane events (unpin + tabs) on initial render
     const previewRoot = el.querySelector(".sd-prog-preview");
     if (previewRoot) this._wirePreviewPaneEvents(previewRoot);
   }
@@ -1947,10 +1946,6 @@ export class ProgressionApp extends ApplicationV2 {
     this.render();
   }
 
-  /**
-   * Show a grid-based picker for the level's choice groups.
-   * Returns a Map of groupIndex -> Array<optionIndex>, or null if cancelled.
-   */
   static async _promptChoices(lv, choiceGroups) {
     const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 

@@ -131,29 +131,8 @@
   text-shadow: 0 0 6px var(--sd-accent-glow) !important;
 }
 
-/* ============================================================
- * Resource bar — pulse (ECG / heartbeat trace) variant
- *
- *   .res-pulse              outer frame (grid background, glow)
- *     .res-pulse-tremor     vertical jitter wrapper (low-HP shake)
- *       svg.res-pulse-svg   line drawing surface, colour=currentColor
- *         g.res-pulse-scroll horizontal scrolling group
- *           path.res-pulse-line repeated 3× to loop seamlessly
- *
- * Inline CSS variables set by the renderer per actor value:
- *   --sd-pulse-color    target colour (green→yellow→red gradient)
- *   --sd-pulse-dur      beat duration (ms) — shorter = faster heart rate
- *   --sd-pulse-tremor   vertical jitter amplitude (px)
- *
- * data-pulse-dead="1"     → flat-line, no animation, dim red glow
- * data-pulse-critical="1" → fast beat + outline flash
- * ============================================================ */
-
 .sd-w-resource.sd-v-pulse { position: relative; }
 .sd-w-resource.sd-v-pulse .res-bar { display: none !important; }
-
-/* current value (left) + max (right) overlaid on the bottom half of the pulse,
-   at ~50% of pulse-area height, in LCD style matching the ECG line */
 .sd-w-resource.sd-v-pulse .res-row {
   position: absolute;
   left: 6px;
@@ -205,7 +184,6 @@
   color: color-mix(in srgb, var(--sd-pulse-color, #36ff7a) 75%, white 25%) !important;
   text-shadow: 0 0 5px color-mix(in srgb, var(--sd-pulse-color, #36ff7a) 35%, transparent);
 }
-/* hide native spin-buttons inside the ECG display */
 .sd-w-resource.sd-v-pulse .res-row input::-webkit-outer-spin-button,
 .sd-w-resource.sd-v-pulse .res-row input::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -232,8 +210,6 @@
   min-height: 40px;
   margin-top: 2px;
 }
-
-/* moving "scan" highlight - tiny gloss sliding across the screen */
 .sd-w-resource.sd-v-pulse .res-pulse::after {
   content: "";
   position: absolute;
@@ -281,8 +257,6 @@
   animation: sd-pulse-scroll var(--sd-pulse-dur, 1200ms) linear infinite;
   will-change: transform;
 }
-
-/* one beat is 60 user-units wide → translate by -60 per cycle */
 @keyframes sd-pulse-scroll {
   from { transform: translateX(0); }
   to   { transform: translateX(-60px); }
@@ -300,8 +274,6 @@
   from { transform: translateX(0); }
   to   { transform: translateX(400%); }
 }
-
-/* Critical state — emergency flash around the frame, much shorter cycle */
 .sd-w-resource.sd-v-pulse .res-pulse[data-pulse-critical="1"] {
   animation: sd-pulse-flash 1.2s ease-in-out infinite;
 }
@@ -318,8 +290,6 @@
       0 0 18px color-mix(in srgb, var(--sd-pulse-color, #ff4444) 45%, transparent);
   }
 }
-
-/* Dead state — flat-line, no motion */
 .sd-w-resource.sd-v-pulse .res-pulse[data-pulse-dead="1"] .res-pulse-tremor { animation: none; }
 .sd-w-resource.sd-v-pulse .res-pulse[data-pulse-dead="1"] .res-pulse-scroll { animation: none; transform: none; }
 .sd-w-resource.sd-v-pulse .res-pulse[data-pulse-dead="1"] .res-pulse-line {
@@ -330,8 +300,6 @@
 .sd-w-resource.sd-v-pulse .res-pulse[data-pulse-dead="1"] .res-pulse-svg {
   filter: drop-shadow(0 0 4px color-mix(in srgb, currentColor 35%, transparent));
 }
-
-/* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .sd-w-resource.sd-v-pulse .res-pulse-scroll,
   .sd-w-resource.sd-v-pulse .res-pulse-tremor,
@@ -340,23 +308,6 @@
     animation: none !important;
   }
 }
-
-/* ============================================================
- * Resource bar — orb (Diablo-style globe) variant
- *
- *   .res-orb              outer frame (centers svg, sets aspect)
- *     svg.res-orb-svg     metal ring + clipped liquid fill + shine
- *       g.res-orb-wave    animated wave overlay (translated to surface)
- *     .res-orb-text       HP / MaxHP overlay
- *
- * Inline CSS variables set by the renderer on the OUTER .widget-resource:
- *   --sd-orb-fill       primary fill colour
- *   --sd-orb-fill2      wave overlay colour
- *   --sd-orb-base       deep base behind fill
- *   --sd-orb-glow       outer glow (strong)
- *   --sd-orb-glow2      outer glow (soft halo)
- *   --sd-orb-shimmer    inner shine / shimmer colour
- * ============================================================ */
 .sd-w-resource.sd-v-orb {
   display: flex !important;
   flex-direction: column !important;
@@ -422,12 +373,6 @@
   display: block;
   overflow: visible;
 }
-
-/* Animated wave & shimmer — visible "liquid sloshing" motion.
- * Both wave paths get horizontal AND vertical translation so the surface
- * actually bobs (instead of barely-perceptible horizontal drift). The two
- * paths run at different periods + opposite-phase keyframes to read as two
- * counter-flowing currents instead of one solid shift. */
 .sd-w-resource.sd-v-orb .res-orb-wave-path {
   animation: sd-orb-wave 2.4s ease-in-out infinite;
   will-change: transform;
@@ -471,10 +416,6 @@
   50%  { opacity: 0.22; transform: translateX(12px)  scaleX(1.08); }
   100% { opacity: 0.08; transform: translateX(-12px) scaleX(0.92); }
 }
-
-/* HP / MaxHP overlay, bottom-centered (Cinzel-style if available).
- * Positioning + font scale with --sd-orb-size so it stays nicely inside the
- * orb regardless of the user-chosen size. */
 .sd-w-resource.sd-v-orb .res-orb-text {
   position: absolute;
   bottom: calc(var(--sd-orb-size, 200px) * 0.16);
@@ -755,7 +696,6 @@
   color: var(--sd-text-2) !important;
   font-size: 11px !important; padding: 2px 10px !important;
   cursor: pointer !important; transition: background .12s, border-color .12s, color .12s;
-  /* Auto-size to label, don't collapse, don't ellipsize. */
   width: auto !important;
   height: auto !important;
   min-width: 0 !important;
@@ -1166,8 +1106,6 @@
   background: transparent !important;
 }
 
-
-
 .sd-w-derived.sd-v-stat-card {
   display: flex !important; flex-direction: column !important; align-items: center !important;
   padding: 6px 10px !important;
@@ -1214,43 +1152,18 @@
   font-weight: 700 !important;
 }
 
-
-/* ============================================================
- * Card-slider and card-grid variants
- * (inventory / spellbook / effects: 3 cards per row,
- *  with horizontal scroll + nav buttons or vertical infinite scroll)
- *
- * Layout inside each card (top → bottom):
- *   1. Image plate (large square portrait, with floating qty/badge)
- *   2. Title (centered, uppercase, bold)
- *   3. Subtitle (centered, small, accent-coloured)
- *   4. Description body (centered, multi-line)
- *   5. Meta pills row (centered KV stats / tags)
- *   6. Action row pinned at bottom:
- *        primary "use / cast" button (flex 1)
- *        + small icon buttons (equip / edit / delete)
- *
- * Decorative gold-style corner accents are drawn with pure CSS
- * (corner-image gradients), so they pick up `--sd-accent` from
- * whichever theme is active.
- * ============================================================ */
-
 .sd-cards-container {
   position: relative;
   display: block;
   width: 100%;
   min-width: 0;
 }
-
-/* Track */
 .sd-cards-track {
   display: grid;
   gap: 10px;
   min-width: 0;
   scroll-behavior: smooth;
 }
-
-/* Slider: horizontal scroll, 3 visible cards, snap on cards */
 .sd-cards-container[data-card-mode="card-slider"] {
   padding: 0 28px;
 }
@@ -1265,8 +1178,6 @@
 .sd-cards-container[data-card-mode="card-slider"] .sd-item-card {
   scroll-snap-align: start;
 }
-
-/* Slider nav buttons */
 .sd-cards-nav {
   position: absolute;
   top: 0;
@@ -1291,8 +1202,6 @@
 }
 .sd-cards-nav-prev { left: 0; }
 .sd-cards-nav-next { right: 0; }
-
-/* Grid: vertical scroll, 3 columns, infinite-style */
 .sd-cards-container[data-card-mode="card-grid"] .sd-cards-track {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   max-height: 640px;
@@ -1301,8 +1210,6 @@
   align-content: start;
   padding-right: 4px;
 }
-
-/* Custom scrollbar to look nice in both modes */
 .sd-cards-track::-webkit-scrollbar { height: 8px; width: 8px; }
 .sd-cards-track::-webkit-scrollbar-thumb {
   background: var(--sd-border, rgba(255,255,255,.15));
@@ -1311,10 +1218,6 @@
 .sd-cards-track::-webkit-scrollbar-thumb:hover {
   background: var(--sd-accent-dim, rgba(123,104,238,.4));
 }
-
-/* ------------------------------------------------------------
- * The card frame
- * ------------------------------------------------------------ */
 .sd-item-card {
   background:
     radial-gradient(120% 70% at 50% 0%,
@@ -1352,8 +1255,6 @@
     0 8px 22px -8px rgba(0,0,0,.65);
 }
 .sd-item-card.is-disabled { opacity: .55; }
-
-/* Gold-style corner accents (pure CSS, theme-aware) */
 .sd-item-card::before,
 .sd-item-card::after {
   content: "";
@@ -1383,10 +1284,6 @@
 .sd-item-card:hover::after { opacity: .9; }
 .sd-item-card.is-equipped::before,
 .sd-item-card.is-equipped::after { opacity: 1; }
-
-/* ------------------------------------------------------------
- * Header: portrait on top, title + subtitle centered below
- * ------------------------------------------------------------ */
 .sd-item-card-hdr {
   display: flex;
   flex-direction: column;
@@ -1425,9 +1322,6 @@
   color: var(--sd-text-3, rgba(255,255,255,.45));
   font-size: 22px;
 }
-
-/* Thin gold divider between the portrait and the title block —
- * mimics the divider in the reference. */
 .sd-item-card-title-wrap {
   display: flex;
   flex-direction: column;
@@ -1478,10 +1372,6 @@
   white-space: nowrap;
   max-width: 100%;
 }
-
-/* ------------------------------------------------------------
- * Body: description / tabs
- * ------------------------------------------------------------ */
 .sd-item-card-body {
   display: flex;
   flex-direction: column;
@@ -1508,9 +1398,6 @@
   text-align: center;
 }
 .sd-item-card-section { display: flex; flex-direction: column; gap: 4px; }
-
-/* Collapsible tabs inside a card — tabs reset to left-aligned
- * because they contain mixed structured content. */
 .sd-item-card-tab {
   border: 1px solid var(--sd-border, rgba(255,255,255,.08));
   border-radius: 4px;
@@ -1545,11 +1432,6 @@
   padding: 4px 6px 6px 6px;
   border-top: 1px solid var(--sd-border, rgba(255,255,255,.06));
 }
-
-/* ------------------------------------------------------------
- * Meta pills (qty / weight / category / cost / duration)
- * Centered KV row.
- * ------------------------------------------------------------ */
 .sd-item-card-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1568,12 +1450,6 @@
   letter-spacing: .02em;
   white-space: nowrap;
 }
-
-/* ------------------------------------------------------------
- * Action row — pinned at the bottom of the card.
- * Primary "use / cast" button stretches; secondary icon
- * buttons sit on the right at a fixed square size.
- * ------------------------------------------------------------ */
 .sd-item-card-actions {
   display: flex;
   align-items: stretch;
@@ -1610,9 +1486,6 @@
 }
 .sd-card-btn i { font-size: 11px; }
 .sd-card-btn > span { letter-spacing: .06em; }
-
-/* Primary action: flexes to fill leftover space so the row
- * reads as one cohesive "Activate" button + small icons. */
 .sd-card-btn-use {
   flex: 1 1 auto;
   background:
@@ -1641,15 +1514,6 @@
   border-color: color-mix(in srgb, var(--sd-danger, #e05a5a) 55%, transparent);
   color: color-mix(in srgb, var(--sd-danger, #e05a5a) 80%, #fff);
 }
-
-/* When the card has NO description body and NO extra cols
- * the actions row will inherit margin-top:auto and naturally
- * stick to the bottom. No extra rules needed. */
-
-/* ------------------------------------------------------------
- * Extra columns under each card (inventory `columns`)
- * Two-column KV grid, centered.
- * ------------------------------------------------------------ */
 .sd-item-card-extra-cols {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
@@ -1683,12 +1547,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* ------------------------------------------------------------
- * Drop zone shown under the cards container so users can drag items /
- * abilities / effects in (the cards themselves don't have a hover preview
- * — they ARE the preview — so a dedicated drop zone is needed).
- * ------------------------------------------------------------ */
 .widget-cards-wrap .sd-cards-drop-zone {
   margin-top: 8px;
   padding: 8px 12px;
@@ -1713,9 +1571,6 @@
   color: var(--sd-accent, #7b68ee);
   border-color: var(--sd-accent, #7b68ee);
 }
-
-/* On narrow widgets, drop to 2 / 1 columns and tighten paddings
- * so the layout never breaks. */
 @container (max-width: 420px) {
   .sd-cards-container[data-card-mode="card-grid"] .sd-cards-track {
     grid-template-columns: repeat(2, minmax(0, 1fr));

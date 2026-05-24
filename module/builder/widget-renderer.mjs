@@ -3,7 +3,13 @@ import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 
 export class WidgetRenderer {
 
-  static render(widgetDef, doc, editMode = false) {
+  static render(widgetDef, doc, editMode = false, options = {}) {
+
+    if (editMode && typeof editMode === "object" && !Array.isArray(editMode)) {
+      options = editMode;
+      editMode = !!options.editMode;
+    }
+    const readOnly = !!options.readOnly;
     try {
 
       if (editMode) {
@@ -37,7 +43,7 @@ export class WidgetRenderer {
         if (!visible) return "";
       }
 
-      let html = this[`_render_${widgetDef.type}`]?.(widgetDef, doc) ?? this._renderUnknown(widgetDef);
+      let html = this[`_render_${widgetDef.type}`]?.(widgetDef, doc, { readOnly }) ?? this._renderUnknown(widgetDef);
 
       const stableType = String(widgetDef.type || "").replace(/[^A-Za-z0-9-]/g, "").toLowerCase();
       if (stableType) {
@@ -272,18 +278,13 @@ export class WidgetRenderer {
         ? this._renderResourceOrbBody(val, max, pctReal, color)
         : `<div class="res-bar"${barStyle ? ` style="${barStyle}"` : ""}><div class="res-bar-fill" style="width:${pct}%;background:${e(color)}"></div></div>`;
 
-    // CSS-custom-property bundle for pulse variant — set on the OUTER
-    // .widget-resource so that the value/max overlay inputs can compute size
-    // and inherit the same colour.
     const pulseH    = barH || "56px";
     let outerStyle = "";
     if (isPulse) {
       outerStyle = ` style="--sd-pulse-color:${this._pulseColor(pctReal)};--sd-pulse-dur:${this._pulseDuration(pctReal)}ms;--sd-pulse-tremor:${this._pulseTremor(pctReal)}px;--sd-pulse-h:${pulseH}"`;
     } else if (isOrb) {
       const theme = this._orbTheme(color);
-      // Resolve actual orb size from the widget's box/bar settings.
-      // Priority: barH (semantically "bar height" → the orb size) → boxW → default 200.
-      // The orb is always rendered as a circle, so width/height are tied together.
+
       const numOrNull = (v) => {
         const n = Number(v);
         return Number.isFinite(n) && n > 0 ? n : null;
@@ -292,13 +293,12 @@ export class WidgetRenderer {
       const sizeFromBox = numOrNull(w.boxW);
       let orbSize;
       if (sizeFromBar !== null && sizeFromBox !== null) {
-        // If both are set, take the smaller so the orb never overflows the
-        // user-defined widget box.
+
         orbSize = Math.min(sizeFromBar, sizeFromBox);
       } else {
         orbSize = sizeFromBar ?? sizeFromBox ?? 200;
       }
-      // Clamp to a sane range — animations / ornament dots collapse below ~40px.
+
       orbSize = Math.max(40, Math.min(800, Math.round(orbSize)));
       outerStyle = ` style="--sd-orb-fill:${theme.fill};--sd-orb-fill2:${theme.fill2};--sd-orb-base:${theme.base};--sd-orb-glow:${theme.glow};--sd-orb-glow2:${theme.glow2};--sd-orb-shimmer:${theme.shimmer};--sd-orb-size:${orbSize}px"`;
     }
@@ -314,12 +314,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  /**
-   * Resource bar — orb (Diablo-style globe) variant.
-   * Renders a circular liquid-filled SVG with animated wave, glow, and
-   * ornament dots. Self-contained: pure CSS animations (no JS hooks needed).
-   * Wave height tracks pct, fill colour comes from CSS vars on the outer.
-   */
   static _renderResourceOrbBody(val, max, pctReal, color) {
     const e        = this._esc;
     const safeColor = e(color);
@@ -338,11 +332,8 @@ export class WidgetRenderer {
     const shimY    = (surfaceY - 12).toFixed(1);
     const shimOp   = (0.08 + 0.12 * ratio).toFixed(3);
 
-    // Deterministic unique id per render — avoids svg <defs> collisions when
-    // several orbs are rendered on the same sheet/HUD.
     const uid = `o${Math.floor(Math.random() * 1e9).toString(36)}`;
 
-    // Build ornament dots around the metal ring (12 around).
     let orn = "";
     for (let i = 0; i < 12; i++) {
       const a  = (i / 12) * Math.PI * 2 - Math.PI / 2;
@@ -400,10 +391,6 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  /** Procedural sine wave path (24..176 x, baseline y=0, depth to y=200).
-   *  Slight overshoot on x range (-12..212) keeps the surface fully covered
-   *  even while CSS slides the path ±20px horizontally — otherwise the
-   *  liquid edge would expose the empty background during peak motion. */
   static _buildOrbWavePath(phase) {
     const steps = 40, x0 = -12, x1 = 212, amp = 4.8;
     let d = `M ${x0} 0`;
@@ -417,11 +404,6 @@ export class WidgetRenderer {
     return d;
   }
 
-  /**
-   * Derive a Diablo-style theme (fill + glow palette) from the widget color.
-   * Recognises six common named themes and falls back to deriving from any
-   * hex / rgb colour string.
-   */
   static _orbTheme(color) {
     const c = String(color ?? "").toLowerCase().trim();
     const PRESETS = {
@@ -441,7 +423,6 @@ export class WidgetRenderer {
     const hex2 = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
     const mk   = (rr, gg, bb) => `#${hex2(rr)}${hex2(gg)}${hex2(bb)}`;
 
-    // Auto theme: lighter "fill2" + shimmer, darker glow/base.
     return {
       fill:    mk(r,            g,            b),
       fill2:   mk(r * 0.55 + 100, g * 0.55 + 100, b * 0.55 + 100),
@@ -452,7 +433,6 @@ export class WidgetRenderer {
     };
   }
 
-  /** Parse #rgb, #rrggbb, or rgb(...) into [r,g,b], else null. */
   static _parseColor(c) {
     const s = String(c ?? "").trim().toLowerCase();
     if (!s) return null;
@@ -465,17 +445,6 @@ export class WidgetRenderer {
     return null;
   }
 
-  /**
-   * Resource bar — pulse (ECG-style) variant.
-   * Renders a scrolling SVG heartbeat. Colour, beat rate, tremor AND
-   * the actual waveform path are derived from the value/max ratio:
-   *   - pctReal > 100  → bright green, slow steady single beat
-   *   - 100 → 50       → green→yellow gradient (per-percent)
-   *   - 50 → 30        → yellow→red gradient, 2 beats per cycle, more noise
-   *   - ≤ 30           → red, 3 beats per cycle, jagged, taller spikes
-   *   - 0              → flat line, no animation
-   * Self-contained: pure CSS animations (no JS hooks needed).
-   */
   static _renderResourcePulseBody(pctReal, barH) {
     const dead     = pctReal <= 0          ? 1 : 0;
     const critical = pctReal > 0 && pctReal <= 30 ? 1 : 0;
@@ -495,29 +464,19 @@ export class WidgetRenderer {
     </div>`;
   }
 
-  /**
-   * Procedural ECG path for the pulse variant.
-   *  - low HP → more beats per tile, higher peaks, more baseline noise,
-   *    occasional premature beats (PVC), uneven spacing.
-   *  - Always starts and ends at (0, BASE) and (60, BASE) so 3 tiles
-   *    chain seamlessly during the scroll animation.
-   *  - Deterministic per pct value (seeded PRNG) so re-renders match
-   *    across the 3 SVG <path> tiles in the same frame.
-   */
   static _buildPulsePath(pct) {
     const W = 60, BASE = 30;
     const clamped = Math.max(0, Math.min(120, pct));
     if (clamped <= 0) return `M0,${BASE} L${W},${BASE}`;
 
-    // Deterministic Park–Miller PRNG seeded by pct so all 3 tiles match.
     let seed = (Math.floor(clamped * 137.59) || 1) >>> 0;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 
-    const low      = Math.max(0, Math.min(1, (100 - clamped) / 100));      // 0..1
-    const beats    = clamped >= 70 ? 1 : clamped >= 30 ? 2 : 3;            // more frequent at low HP
-    const noiseAmp = 0.3 + low * 3.2;                                       // baseline jitter
-    const peakAmp  = 14 + low * 13;                                         // tall R spike
-    const sNoise   = 0.4 + low * 1.3;                                       // S amplitude variance
+    const low      = Math.max(0, Math.min(1, (100 - clamped) / 100));      
+    const beats    = clamped >= 70 ? 1 : clamped >= 30 ? 2 : 3;            
+    const noiseAmp = 0.3 + low * 3.2;                                       
+    const peakAmp  = 14 + low * 13;                                         
+    const sNoise   = 0.4 + low * 1.3;                                       
 
     const segW = W / beats;
     const out  = [`M0,${BASE.toFixed(2)}`];
@@ -528,13 +487,12 @@ export class WidgetRenderer {
 
     for (let b = 0; b < beats; b++) {
       const beatEnd  = (b + 1) * segW;
-      // jitter the spike position slightly inside the beat slot
+
       const spikeAt  = b * segW + segW * (0.40 + rnd() * 0.20);
       const ampVar   = peakAmp * (0.75 + rnd() * 0.55);
-      // chance of a premature (smaller, earlier) beat at low HP
+
       const stutter  = low > 0.55 && rnd() < 0.4;
 
-      // Pre-spike baseline with noise
       while (x < spikeAt - 6) {
         const step = 1.2 + rnd() * 1.6;
         const nx   = Math.min(spikeAt - 6, x + step);
@@ -545,12 +503,10 @@ export class WidgetRenderer {
       pushLine(spikeAt - 5, BASE);
       x = spikeAt - 5;
 
-      // P wave (small upward bell)
       const px = x + 1.6;
       pushQ(x + 0.8, BASE - 1.6 - rnd() * 1.2, px, BASE);
       x = px;
 
-      // optional premature beat (small spike before the main one)
       if (stutter) {
         x += 0.6; pushLine(x, BASE + 0.4);
         x += 0.5; pushLine(x, BASE - ampVar * 0.45);
@@ -558,18 +514,15 @@ export class WidgetRenderer {
         x += 0.8; pushLine(x, BASE);
       }
 
-      // QRS complex
-      x += 0.7; pushLine(x, BASE + 0.6 + rnd() * 0.8);            // Q dip
-      x += 0.5; pushLine(x, BASE - ampVar);                       // R up (tall spike)
-      x += 0.6; pushLine(x, BASE + ampVar * (0.45 + sNoise * 0.15)); // S down
-      x += 1.0; pushLine(x, BASE);                                // back to baseline
+      x += 0.7; pushLine(x, BASE + 0.6 + rnd() * 0.8);            
+      x += 0.5; pushLine(x, BASE - ampVar);                       
+      x += 0.6; pushLine(x, BASE + ampVar * (0.45 + sNoise * 0.15)); 
+      x += 1.0; pushLine(x, BASE);                                
 
-      // T wave (rounded bump)
       const tx = x + 2.2;
       pushQ(x + 1.1, BASE - 1.8 - rnd() * 1.8, tx, BASE);
       x = tx;
 
-      // Post-spike baseline with noise up to the end of this beat slot
       while (x < beatEnd - 1) {
         const step = 1.1 + rnd() * 1.5;
         const nx   = Math.min(beatEnd - 1, x + step);
@@ -577,17 +530,15 @@ export class WidgetRenderer {
         pushLine(nx, ny);
         x = nx;
       }
-      // ensure tile ends cleanly at the beat boundary
+
       pushLine(beatEnd, BASE);
       x = beatEnd;
     }
 
-    // Guarantee we land exactly at (W, BASE) so tiles chain seamlessly.
     if (x < W) pushLine(W, BASE);
     return out.join(" ");
   }
 
-  /** Smooth color gradient: >100 green, 50 yellow, 30 red, <30 deep red. */
   static _pulseColor(pct) {
     const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * Math.max(0, Math.min(1, t))));
     const rgb = (arr) => `rgb(${arr[0]},${arr[1]},${arr[2]})`;
@@ -602,7 +553,6 @@ export class WidgetRenderer {
     return rgb(DEAD);
   }
 
-  /** Beat duration in ms — slows at high pct, accelerates as it drops. */
   static _pulseDuration(pct) {
     if (pct <= 0)   return 4000;
     if (pct >= 100) return 1200;
@@ -611,7 +561,6 @@ export class WidgetRenderer {
     return Math.max(280, Math.round(620 - (30 - pct) * 8));
   }
 
-  /** Vertical tremor (px) — appears as line goes critical. */
   static _pulseTremor(pct) {
     if (pct >= 60) return 0;
     if (pct >= 30) return +((60 - pct) / 30 * 1.4).toFixed(2);
@@ -1106,7 +1055,7 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  static _render_vsection(w, doc) {
+  static _render_vsection(w, doc, options = {}) {
     const e = this._esc;
     const titleCol = w.titleColor || "var(--sd-accent)";
     const bdCol    = w.boxBorder  || "var(--sd-accent-glow)";
@@ -1117,38 +1066,113 @@ export class WidgetRenderer {
       ? `<div class="vsection-title" style="font-size:10px;font-weight:700;color:${e(titleCol)};text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px">${e(w.label)}</div>`
       : "";
     const children = (w.widgets ?? []).map(cw => {
-      try { return this.render(cw, doc) ?? ""; }
+      try { return this.render(cw, doc, false, options) ?? ""; }
       catch { return ""; }
     }).join("");
     return `<div class="widget widget-vsection" style="display:flex;flex-direction:column;gap:6px;padding:6px;border:1px ${bdStyle} ${e(bdCol)};border-radius:${radius};background:${e(bg)}">${header}${children}</div>`;
   }
 
-  static _render_richtext(w, doc) {
-    const val = w.path ? this._get(doc, w.path, "") : (w.staticHtml ?? "");
-    const e   = this._esc;
+  static _render_richtext(w, doc, options = {}) {
+    const e        = this._esc;
+    const readOnly = !!options.readOnly;
+    const rawVal   = w.path ? this._get(doc, w.path, "") : (w.staticHtml ?? "");
+    const isHidden = this._isHiddenFieldPath(w.path);
+    const display  = this._richtextToDisplayHTML(rawVal, isHidden);
 
-    if (!w.path && w.staticHtml) {
-      return `<div class="widget widget-richtext widget-richtext--static">
-  ${w.label ? `<div class="widget-label">${e(w.label)}</div>` : ""}
-  <div class="richtext-display" style="padding:6px 8px;font-size:12px;line-height:1.6;word-break:break-word">${val}</div>
+    const isStatic = !w.path;
+    if (isStatic || readOnly) {
+      const empty = !display
+        ? `<span style="opacity:.35;font-style:italic">${e(w.label || "")}</span>`
+        : "";
+      const label = w.label ? `<div class="widget-label">${e(w.label)}</div>` : "";
+      return `<div class="widget widget-richtext widget-richtext--readonly${isStatic ? " widget-richtext--static" : ""}">
+  ${label}
+  <div class="richtext-display richtext-display--readonly" style="padding:6px 8px;font-size:12px;line-height:1.6;word-break:break-word;cursor:default">${display || empty}</div>
 </div>`;
     }
-    return `<div class="widget widget-richtext">
+
+    const path = e(w.path);
+    const wid  = e(w.id ?? "");
+
+    if (isHidden) {
+      const safeVal = e(String(rawVal ?? ""));
+      return `<div class="widget widget-richtext widget-richtext--hidden" data-richtext-widget="1" data-richtext-mode="raw">
   <div class="widget-label">${e(w.label)}</div>
-  <div class="richtext-display" data-path="${e(w.path)}" data-widget-id="${e(w.id ?? "")}"
+  <div class="richtext-display" data-path="${path}" data-widget-id="${wid}" data-mode="raw"
        style="min-height:60px;cursor:text;padding:6px 8px;background:var(--sd-w-bg,var(--sd-bg));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;font-size:12px;color:var(--sd-w-fg,var(--sd-text-2));line-height:1.6;word-break:break-word">
-    ${val || "<span style='opacity:.35;font-style:italic'>Click to edit…</span>"}
+    ${display || "<span style='opacity:.35;font-style:italic'>Click to edit…</span>"}
   </div>
-  <div class="richtext-edit-wrap" style="display:none;position:relative">
-    <textarea class="richtext-editor" data-path="${e(w.path)}" data-widget-id="${e(w.id ?? "")}"
-      style="width:100%;min-height:80px;resize:vertical;background:var(--sd-w-bg,var(--sd-bg));border:1px solid var(--sd-accent);border-radius:4px 4px 0 0;color:var(--sd-w-fg,var(--sd-text));font-size:12px;padding:6px 8px;box-sizing:border-box;font-family:inherit;line-height:1.6;display:block"
-      placeholder="Enter text…">${e(val)}</textarea>
-    <div style="display:flex;gap:6px;padding:4px 0 2px">
-      <button type="button" class="richtext-save" style="flex:1;background:rgba(76,175,80,.18);border:1px solid var(--sd-success);border-radius:4px;color:var(--sd-success);cursor:pointer;font-size:11px;padding:4px 8px">✓ Save</button>
-      <button type="button" class="richtext-cancel" style="background:var(--sd-danger-dim);border:1px solid var(--sd-danger);border-radius:4px;color:var(--sd-danger);cursor:pointer;font-size:11px;padding:4px 10px">✕</button>
-    </div>
+  <div class="richtext-edit-wrap" data-path="${path}" data-widget-id="${wid}" data-mode="raw" data-raw-value="${safeVal}" style="display:none;position:relative;min-height:160px"></div>
+</div>`;
+    }
+
+    return `<div class="widget widget-richtext" data-richtext-widget="1" data-richtext-mode="html">
+  <div class="widget-label">${e(w.label)}</div>
+  <div class="editor flexcol sd-richtext-editor prosemirror" data-engine="prosemirror" data-path="${path}" data-widget-id="${wid}">
+    <div class="editor-content">${display || ""}</div>
+    <a class="sd-richtext-edit-btn" title="Edit"><i class="fa-solid fa-edit"></i></a>
   </div>
 </div>`;
+  }
+
+  static _isHiddenFieldPath(path) {
+    if (!path || typeof path !== "string") return false;
+    return path.startsWith("system.hiddenFields.")
+        || path.startsWith("hiddenFields.");
+  }
+
+  static _richtextToDisplayHTML(val, isHidden = false) {
+    const s = String(val ?? "");
+    if (!s) return "";
+    if (!isHidden && /<[a-z][\s\S]*>/i.test(s)) {
+      return this._stripStoredEditorChrome(s);
+    }
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\r\n?|\n/g, "<br>");
+  }
+
+  static _stripStoredEditorChrome(html) {
+    try {
+      if (typeof DOMParser === "undefined") return html;
+      const doc = new DOMParser().parseFromString(
+        `<!doctype html><body>${html}</body>`, "text/html");
+      const body = doc?.body;
+      if (!body) return html;
+
+      const kill = [
+        "menu.prosemirror-menu",
+        ".prosemirror-menu",
+        ".prosemirror-dropdown",
+        ".editor-menu",
+        ".sd-richtext-chrome",
+        ".sd-richtext-edit-btn",
+        ".sd-richtext-cancel-btn",
+        ".editor-edit",
+        ".ProseMirror-menubar",
+        ".ProseMirror-menuitem",
+        ".ProseMirror-icon",
+        ".ProseMirror-gapcursor",
+        ".ProseMirror-widget"
+      ].join(",");
+      body.querySelectorAll(kill).forEach(n => n.remove());
+
+      for (const sel of [".editor", ".ProseMirror", ".editor-content"]) {
+        body.querySelectorAll(sel).forEach(node => {
+          while (node.firstChild) node.parentNode.insertBefore(node.firstChild, node);
+          node.remove();
+        });
+      }
+
+      body.querySelectorAll("[contenteditable], [data-pm-slice]").forEach(n => {
+        n.removeAttribute("contenteditable");
+        n.removeAttribute("data-pm-slice");
+      });
+
+      return body.innerHTML;
+    } catch { return html; }
   }
 
   static _render_effects(w, doc) {

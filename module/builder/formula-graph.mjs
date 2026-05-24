@@ -5078,7 +5078,6 @@ export const NODE_DEFS = {
     isEvent:true, eventHook:"cardDrawn"
   },
 
-
   on_quest_activated: {
     title:"On Quest Activated", color:"#c04040", cat:"Quest", wideNode:true,
     desc:"Fires when a quest in this QuestLog becomes active on any actor. Outputs the actor and quest involved.",
@@ -5153,7 +5152,6 @@ export const NODE_DEFS = {
     fields:[],
     isEvent:true, eventHook:"sdQuestRevealed"
   },
-
 
   quest_activate: {
     title:"Activate Quest", color:"#3a8a60", cat:"Quest", wideNode:true,
@@ -5324,7 +5322,6 @@ export const NODE_DEFS = {
     }
   },
 
-
   reward_reveal: {
     title:"Reveal Reward", color:"#d8a83a", cat:"Quest", wideNode:true,
     desc:"Toggle GM-reveal on a reward — overrides hidden/onCompletion/conditional visibility so players can see it.",
@@ -5409,7 +5406,6 @@ export const NODE_DEFS = {
       rewardId: String(inp.rewardId ?? n.data.rewardId ?? "")
     })
   },
-
 
   quest_status: {
     title:"Quest Status", color:"#5a4ec0", cat:"Quest", wideNode:true,
@@ -5627,6 +5623,139 @@ export const NODE_DEFS = {
     isEvent:true, eventHook:"sdVisionDetect"
   },
 
+  tok_elevation: {
+    title:"Get Token Elevation", color:"#1a4060", cat:"Sources", wideNode:true,
+    desc:"Returns the elevation (vertical position) of a token. Source can be: \"self\" (this actor's first active token), \"selected_token\", \"token_target\", a token id, an Actor.xxxx UUID, or a wired Token / Actor pin. Optional rounding: floor, ceil, round (or none = raw value).",
+    inputs:[{id:"token", label:"Token", type:"value.any"}],
+    outputs:[{id:"v", label:"Elevation", type:"value.number"}],
+    fields:[
+      {key:"token", label:"Token / Actor (optional)", type:"text", default:"self", placeholder:"self / selected_token / token id / Actor.xxxx"},
+      {key:"round", label:"Rounding", type:"select", default:"none", options:["none","floor","ceil","round"]}
+    ],
+    compile:(n, i) => {
+      const _q = s => `"${String(s).replace(/"/g,'\\"')}"`;
+      const t = (i?.token != null && i.token !== "") ? String(i.token) : _q(n.data?.token ?? "self");
+      const r = String(n.data?.round ?? "none");
+      return `{tokenElevation:${t}|${r}}`;
+    }
+  },
+
+  tok_walls_between: {
+    title:"Walls Between Tokens", color:"#1a4060", cat:"Sources", wideNode:true,
+    desc:"Check walls on the straight line between two tokens. Source/Target accept: \"self\", \"selected_token\", \"token_target\", a token id, an Actor.xxxx UUID, or a wired Token / Actor pin. \"Wall blocks\" picks which wall property must restrict to count: move / sight / sound / any (any wall counts).",
+    inputs:[
+      {id:"source", label:"Source", type:"value.any"},
+      {id:"target", label:"Target", type:"value.any"}
+    ],
+    outputs:[
+      {id:"hasWall", label:"Has Wall", type:"value.bool"},
+      {id:"count",   label:"Count",    type:"value.number"}
+    ],
+    fields:[
+      {key:"source", label:"Source (optional)", type:"text", default:"self",         placeholder:"self / token id / Actor.xxxx"},
+      {key:"target", label:"Target (optional)", type:"text", default:"token_target", placeholder:"token_target / selected_token / token id"},
+      {key:"type",   label:"Wall blocks",       type:"select", default:"move", options:["move","sight","sound","any"]}
+    ],
+    compile:(n, i) => {
+      const _q = s => `"${String(s).replace(/"/g,'\\"')}"`;
+      const s = (i?.source != null && i.source !== "") ? String(i.source) : _q(n.data?.source ?? "self");
+      const t = (i?.target != null && i.target !== "") ? String(i.target) : _q(n.data?.target ?? "token_target");
+      const ty = String(n.data?.type ?? "move");
+      return `{wallsBetween:${s}|${t}|${ty}}`;
+    },
+    compilePin:(n, ins, fromPin) => {
+      const _q = s => `"${String(s).replace(/"/g,'\\"')}"`;
+      const s = (ins?.source != null && ins.source !== "") ? String(ins.source) : _q(n.data?.source ?? "self");
+      const t = (ins?.target != null && ins.target !== "") ? String(ins.target) : _q(n.data?.target ?? "token_target");
+      const ty = String(n.data?.type ?? "move");
+      const expr = `{wallsBetween:${s}|${t}|${ty}}`;
+      if (fromPin === "hasWall") return `(${expr} > 0)`;
+      return expr;
+    }
+  },
+
+  tok_tiles_between: {
+    title:"Tiles Between Tokens", color:"#1a4060", cat:"Sources", wideNode:true,
+    desc:"Count tiles whose bounding rectangle is crossed by the straight line between two tokens. Source/Target accept: \"self\", \"selected_token\", \"token_target\", a token id, an Actor.xxxx UUID, or a wired Token / Actor pin. Filter: any / overhead / ground; hidden tiles are skipped unless explicitly included.",
+    inputs:[
+      {id:"source", label:"Source", type:"value.any"},
+      {id:"target", label:"Target", type:"value.any"}
+    ],
+    outputs:[
+      {id:"hasTile", label:"Has Tile", type:"value.bool"},
+      {id:"count",   label:"Count",    type:"value.number"}
+    ],
+    fields:[
+      {key:"source",        label:"Source (optional)", type:"text", default:"self",         placeholder:"self / token id / Actor.xxxx"},
+      {key:"target",        label:"Target (optional)", type:"text", default:"token_target", placeholder:"token_target / selected_token / token id"},
+      {key:"filter",        label:"Filter",            type:"select", default:"any",      options:["any","overhead","ground"]},
+      {key:"includeHidden", label:"Include hidden tiles", type:"select", default:"no", options:["no","yes"]}
+    ],
+    compile:(n, i) => {
+      const _q = s => `"${String(s).replace(/"/g,'\\"')}"`;
+      const s = (i?.source != null && i.source !== "") ? String(i.source) : _q(n.data?.source ?? "self");
+      const t = (i?.target != null && i.target !== "") ? String(i.target) : _q(n.data?.target ?? "token_target");
+      const f = String(n.data?.filter ?? "any");
+      const ih = (n.data?.includeHidden === "yes") ? "1" : "0";
+      return `{tilesBetween:${s}|${t}|${f}|${ih}}`;
+    },
+    compilePin:(n, ins, fromPin) => {
+      const _q = s => `"${String(s).replace(/"/g,'\\"')}"`;
+      const s = (ins?.source != null && ins.source !== "") ? String(ins.source) : _q(n.data?.source ?? "self");
+      const t = (ins?.target != null && ins.target !== "") ? String(ins.target) : _q(n.data?.target ?? "token_target");
+      const f = String(n.data?.filter ?? "any");
+      const ih = (n.data?.includeHidden === "yes") ? "1" : "0";
+      const expr = `{tilesBetween:${s}|${t}|${f}|${ih}}`;
+      if (fromPin === "hasTile") return `(${expr} > 0)`;
+      return expr;
+    }
+  },
+
+  act_set_elevation: {
+    title:"Set Token Elevation", color:"#2a4a8a", cat:"Movement", wideNode:true,
+    desc:"Change a token's elevation. Mode: set replaces the elevation with Value; add increments by Value (negative = descend). Token accepts the same options as Get Token Elevation. Value can be wired (Get Field Value / Literal) or typed inline.",
+    inputs:[
+      {id:"exec",  label:"",      type:"exec"},
+      {id:"token", label:"Token", type:"value.any"},
+      {id:"value", label:"Value", type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"token", label:"Token (optional)", type:"text",   default:"self", placeholder:"self / selected_token / token id"},
+      {key:"value", label:"Value",            type:"number", default:0},
+      {key:"mode",  label:"Mode",             type:"select", default:"set", options:["set","add"]},
+      {key:"animate", label:"Animate",        type:"select", default:"yes", options:["yes","no"]}
+    ],
+    isAction:true,
+    toAction:(n, inp) => {
+      const _wired = v => v !== undefined && v !== null && v !== "" && v !== "0" && v !== `"0"`;
+      return {
+        type:     "setTokenElevation",
+        tokenRef: _wired(inp.token) ? String(inp.token) : String(n.data?.token ?? "self"),
+        value:    _wired(inp.value) ? String(inp.value) : String(n.data?.value ?? 0),
+        mode:     String(n.data?.mode ?? "set"),
+        animate:  n.data?.animate !== "no"
+      };
+    }
+  },
+
+  on_macro_use: {
+    title:"On Macro Use", color:"#c04040", cat:"Events", wideNode:true,
+    desc:"Fires whenever a Macro is executed (chat command, hotbar click or any code-driven .execute()). Optionally filter by macro id, UUID or exact name; leave blank to react to ANY macro. Outputs expose the executed macro and the speaker actor / token at the moment of the call.",
+    inputs:[],
+    outputs:[
+      {id:"exec",      label:"→ On Macro Use", type:"exec"},
+      {id:"macroId",   label:"Macro Id",        type:"value.string"},
+      {id:"macroName", label:"Macro Name",      type:"value.string"},
+      {id:"actorId",   label:"Actor Id",        type:"value.string"},
+      {id:"tokenId",   label:"Token Id",        type:"value.string"}
+    ],
+    fields:[
+      {key:"macroFilter", label:"Only macro (id / uuid / name; optional)", type:"text", default:"", placeholder:"Macro.xxxx / My Macro Name"}
+    ],
+    isEvent:true, eventHook:"sdMacroUse"
+  },
+
   act_move_token: {
     title:"Move Token", color:"#2a4a8a", cat:"Movement", wideNode:true,
     desc:"Move a token by Distance feet in the given Direction.  Direction modes:  • Degrees — Direction is a 0-360° heading (0 = up / north, 90 = right / east, 180 = down, 270 = left).  • Square — Direction is an index 0-7 starting at North then clockwise: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW (full 8-way including diagonals).  • Hex — Direction is an index 0-5 along the scene's hex grid directions (auto-detects columnar / row-wise).  Wall passthrough: when off, the move is cancelled if walls block the path.",
@@ -5717,6 +5846,85 @@ export const NODE_DEFS = {
   }
 })();
 
+(() => {
+
+  const _FIELD_PIN_TYPES = {
+    text:   "value.any",
+    number: "value.any",
+    path:   "value.any"
+  };
+  const PIN_RESERVED = new Set(["exec"]);
+
+  for (const def of Object.values(NODE_DEFS)) {
+    if (!Array.isArray(def?.fields)) continue;
+
+    if (def.isEvent === true) continue;
+    const existingInIds  = new Set((def.inputs  ?? []).map(p => p.id));
+    const existingOutIds = new Set((def.outputs ?? []).map(p => p.id));
+    const newPins = [];
+    for (const f of def.fields) {
+      if (!f?.key) continue;
+      if (f.noPin === true) continue;
+      const t = _FIELD_PIN_TYPES[f.type];
+      if (!t) continue;
+      if (PIN_RESERVED.has(f.key)) continue;
+      if (existingInIds.has(f.key) || existingOutIds.has(f.key)) continue;
+      newPins.push({
+        id:    f.key,
+        label: f.label,
+        type:  t,
+        __autoFromField: true
+      });
+    }
+    if (newPins.length) def.inputs = [...(def.inputs ?? []), ...newPins];
+  }
+
+  const _unwrapWired = (v) => {
+    if (typeof v !== "string") return String(v);
+    const t = v.trim();
+    if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+      try { return JSON.parse(t); } catch { return t.slice(1, -1); }
+    }
+    return v;
+  };
+
+  const _overlayData = (def, n, inp) => {
+    if (!Array.isArray(def?.fields)) return n;
+    if (!inp) return n;
+    const data = { ...(n?.data ?? {}) };
+    let touched = false;
+    for (const f of def.fields) {
+      const k = f?.key; if (!k) continue;
+      const v = inp[k];
+      if (v === undefined || v === null || v === "") continue;
+      data[k] = _unwrapWired(v);
+      touched = true;
+    }
+    return touched ? { ...n, data } : n;
+  };
+
+  for (const def of Object.values(NODE_DEFS)) {
+    if (typeof def?.toAction === "function") {
+      const orig = def.toAction;
+      def.toAction = function (n, inp) {
+        return orig.call(this, _overlayData(def, n, inp), inp);
+      };
+    }
+    if (typeof def?.compile === "function") {
+      const orig = def.compile;
+      def.compile = function (n, inp) {
+        return orig.call(this, _overlayData(def, n, inp ?? {}), inp ?? {});
+      };
+    }
+    if (typeof def?.compilePin === "function") {
+      const orig = def.compilePin;
+      def.compilePin = function (n, ins, fromPin) {
+        return orig.call(this, _overlayData(def, n, ins ?? {}), ins ?? {}, fromPin);
+      };
+    }
+  }
+})();
+
 const EVENT_PIN_TOKENS = {
   on_vision_detect: {
     actorUuid:  "{__visionDetectorUuid}",
@@ -5744,7 +5952,13 @@ const EVENT_PIN_TOKENS = {
   on_quest_completed: { questId: "{__questId}", questLogUuid: "{__questLogUuid}" },
   on_quest_failed:    { questId: "{__questId}", questLogUuid: "{__questLogUuid}" },
   on_subtask_done:    { questId: "{__questId}", subtaskId: "{__subtaskId}" },
-  on_quest_revealed:  { questId: "{__questId}", revealed: "{__questRevealed}" }
+  on_quest_revealed:  { questId: "{__questId}", revealed: "{__questRevealed}" },
+  on_macro_use:       {
+    macroId:   "{__macroId}",
+    macroName: "{__macroName}",
+    actorId:   "{__macroActorId}",
+    tokenId:   "{__macroTokenId}"
+  }
 };
 
 const _ROLL_META_BASIC = {
@@ -8587,7 +8801,14 @@ export class FormulaGraph {
     for(const p of inputPins.filter(p=>p.type==="exec"))
       body.appendChild(this._pinRow(node,p,"input"));
 
-    const valIns  = inputPins.filter(p=>p.type!=="exec");
+    const valInsRaw = inputPins.filter(p=>p.type!=="exec");
+
+    const valIns = valInsRaw.filter(p => {
+      if (!p.__autoFromField) return true;
+      const f = fields.find(x => x?.key === p.id);
+      if (!f?.visibleIf) return true;
+      try { return !!f.visibleIf(node.data ?? {}); } catch { return true; }
+    });
     const valOuts = outputPins.filter(p=>p.type!=="exec");
 
     const _pinConnected = (pinId) =>

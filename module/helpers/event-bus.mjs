@@ -19,7 +19,9 @@ const HOOK_MAP = {
   sdSubtaskDone:      ["sdSubtaskDone"],
   sdQuestRevealed:    ["sdQuestRevealed"],
 
-  sdVisionDetect:     ["sdVisionDetect"]
+  sdVisionDetect:     ["sdVisionDetect"],
+
+  sdMacroUse:         ["sdMacroUse"]
 };
 
 function _installCombatHookBridge() {
@@ -85,6 +87,52 @@ function _installCombatHookBridge() {
 
 const QUEST_HOOKS = new Set(["sdQuestActivated","sdQuestCompleted","sdQuestFailed","sdSubtaskDone","sdQuestRevealed"]);
 
+function _installMacroHookBridge() {
+  if (globalThis.__sdMacroBridgeInstalled) return;
+  globalThis.__sdMacroBridgeInstalled = true;
+
+  const MacroCls = globalThis.Macro
+    ?? globalThis.CONFIG?.Macro?.documentClass
+    ?? null;
+  const proto = MacroCls?.prototype;
+  if (!proto || typeof proto.execute !== "function") {
+    console.warn("SD | sdMacroUse bridge: Macro.prototype.execute unavailable");
+    return;
+  }
+
+  const origExecute = proto.execute;
+  proto.execute = async function(scope, ...rest) {
+    let result, err = null;
+    try {
+      result = await origExecute.call(this, scope, ...rest);
+    } catch (e) {
+      err = e;
+    }
+    try {
+      let speakerActor = scope?.actor ?? null;
+      let speakerToken = scope?.token ?? null;
+      if (!speakerActor && !speakerToken && typeof ChatMessage?.getSpeaker === "function") {
+        const sp = ChatMessage.getSpeaker();
+        if (sp?.token)  speakerToken = canvas?.tokens?.get?.(sp.token)?.document ?? canvas?.tokens?.get?.(sp.token) ?? null;
+        if (sp?.actor)  speakerActor = game.actors?.get?.(sp.actor) ?? null;
+      }
+      Hooks.callAll("sdMacroUse", {
+        macro:     this,
+        macroId:   this?.id   ?? "",
+        macroUuid: this?.uuid ?? "",
+        macroName: this?.name ?? "",
+        actorId:   speakerActor?.id   ?? "",
+        tokenId:   speakerToken?.id   ?? speakerToken?.document?.id ?? "",
+        scope:     scope ?? null
+      });
+    } catch (e) {
+      console.warn("SD | sdMacroUse hook failed:", e);
+    }
+    if (err) throw err;
+    return result;
+  };
+}
+
 function _installVisionDetectBridge(eventBus) {
   if (globalThis.__sdVisionDetectBridgeInstalled) return;
   globalThis.__sdVisionDetectBridgeInstalled = true;
@@ -117,6 +165,7 @@ class EventBus {
   init() {
     _installCombatHookBridge();
     _installVisionDetectBridge(this);
+    _installMacroHookBridge();
     this._visionState = this._visionState ?? new Map();
     for (const actor of game.actors ?? []) this._registerActor(actor);
     for (const item of game.items ?? []) this._registerWorldItem(item);
@@ -237,6 +286,7 @@ class EventBus {
       const validForWorld = (h) => h === "updateItem" || h === "createItem" || h === "deleteItem"
         || h === "createCard" || h === "combatTurnStart" || h === "combatTurnEnd"
         || h === "combatEncounterStart" || h === "combatEncounterEnd"
+        || h === "sdMacroUse"
         || QUEST_HOOKS.has(h);
 
       for (const hookName of foundryHooks) {
@@ -380,6 +430,21 @@ class EventBus {
         const payload = firstDoc;
         if (isWorldItemEntry) return false;
         if (!payload || payload.actorId !== entry.actorId) return false;
+        return true;
+      }
+      case "sdMacroUse": {
+        const payload = firstDoc ?? {};
+        const filter = String(entry.data?.macroFilter ?? "").trim();
+        if (filter) {
+          const id   = String(payload.macroId   ?? "");
+          const uuid = String(payload.macroUuid ?? "");
+          const name = String(payload.macroName ?? "");
+          if (filter !== id && filter !== uuid && filter !== name) return false;
+        }
+        if (isWorldItemEntry) return entry.outOfSheet === true;
+
+        const aid = String(payload.actorId ?? "");
+        if (aid && aid !== entry.actorId) return false;
         return true;
       }
       default: return false;
@@ -592,6 +657,15 @@ class EventBus {
         const [item] = args;
         rt.__eventItemId   = item?.id   ?? "";
         rt.__eventItemName = item?.name ?? "";
+        break;
+      }
+      case "sdMacroUse": {
+        const payload = args[0] ?? {};
+        rt.__macroId       = String(payload.macroId     ?? "");
+        rt.__macroUuid     = String(payload.macroUuid   ?? "");
+        rt.__macroName     = String(payload.macroName   ?? "");
+        rt.__macroActorId  = String(payload.actorId     ?? "");
+        rt.__macroTokenId  = String(payload.tokenId     ?? "");
         break;
       }
       case "sdQuestActivated":

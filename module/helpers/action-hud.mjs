@@ -5,11 +5,6 @@ import { ButtonExecutor }  from "./button-executor.mjs";
 import { openInlineWidgetEditor } from "./action-hud-inline-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 
-/**
- * Sanitize a variant key for use on a HUD entry. Returns "" for empty / "default"
- * (which means "inherit the actor sheet's variant"), or the lowercase id of a
- * variant known to that widget type. Unknown variants are dropped.
- */
 function _sanitizeHudVariant(raw, widgetType) {
   const v = String(raw ?? "").trim().toLowerCase();
   if (!v || v === "default" || v === "__inherit__") return "";
@@ -188,9 +183,6 @@ export function mountActionHudHooks() {
     });
   }
 
-  // Re-render the HUD on viewport size changes so responsive-position scaling
-  // and clamping kick in when the user moves the Foundry window between
-  // monitors with different resolutions (e.g. 2K to 1080p).
   let _sdResizeT = null;
   window.addEventListener("resize", () => {
     clearTimeout(_sdResizeT);
@@ -231,12 +223,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     return foundry.utils.getProperty(actor, path);
   };
 
-  // Animation Tag (Automated Animations) delegation. Mirrors the wiring on
-  // character / item sheets so widgets in the Action HUD also fire AA when
-  // the user clicks an actionable child of a `.widget[data-aa-tag]` element.
-  // Excluded data-action values: builder / config controls (wcfg / wdup /
-  // wspan / wdel) and "edit / delete" item-management controls, where firing
-  // an animation would be unexpected.
   if (cell.dataset.sdAaDelegated !== "1") {
     cell.dataset.sdAaDelegated = "1";
     const _aaSkipActions = new Set([
@@ -559,10 +545,6 @@ function wireHudWidget(cell, widgetDef, actor) {
         return;
       }
 
-      // Match popovers in BOTH the canvas-mode root (`#sd-action-hud`) and the
-      // separate-widgets floating layer (`#sd-action-hud-floating`) so opening
-      // a popover in one floating widget closes any other popover that may be
-      // open in another floating widget or the standalone bar.
       document.querySelectorAll(
         "#sd-action-hud details.sd-hud-popover[open], #sd-action-hud-floating details.sd-hud-popover[open]"
       ).forEach(other => {
@@ -638,15 +620,6 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  // Returns one of:
-  //   { kind: "actions", actions, macros }  → action graph to run as onClick chain
-  //   { kind: "formula", formula }          → plain dice formula to roll
-  //   { kind: "noop" }                      → nothing to do
-  // Handles all three on-disk shapes produced by the formula-graph compiler:
-  //   * "[ ... ]"                          → pure onClick chain (legacy)
-  //   * '{"_trigger":"onClick","actions":[...]}'
-  //   * '{"_trigger":"multi","_events":{onClick:[...], "on_event::...":..., ...}}'
-  // Plus normal dice/formula strings.
   const _parseHudPayload = (raw) => {
     if (typeof raw !== "string" || !raw.trim()) return { kind: "noop" };
     const trimmed = raw.trim();
@@ -664,8 +637,7 @@ function wireHudWidget(cell, widgetDef, actor) {
           return { kind: "actions", actions: Array.isArray(a) ? a : [], macros };
         }
         if (parsed._trigger === "multi") {
-          // The onClick chain may live as either an array directly,
-          // or as { hook, data, actions } when produced via on_event nodes.
+
           const slot = parsed._events?.onClick ?? parsed.onClick ?? [];
           let a = [];
           if (Array.isArray(slot)) a = slot;
@@ -674,7 +646,7 @@ function wireHudWidget(cell, widgetDef, actor) {
         }
       }
     } catch(e) {
-      // Fall through — treat as a formula and let Roll surface the error.
+
     }
     return { kind: "formula", formula: trimmed };
   };
@@ -712,9 +684,7 @@ function wireHudWidget(cell, widgetDef, actor) {
       const parsed = _parseHudPayload(raw);
       if (parsed.kind === "actions") {
         if (parsed.actions.length === 0 && flavor) {
-          // Multi-trigger payload with only non-onClick events (e.g. only On Event)
-          // → mirror sheet behaviour: send the flavour as a chat message so the
-          //   user gets feedback when they tap the button on the HUD.
+
           ChatMessage.create({ content: flavor, speaker: ChatMessage.getSpeaker({ actor }) });
           return;
         }
@@ -783,8 +753,7 @@ export class SDActionHUD {
         btn.classList.toggle("active", locked);
       }
     }
-    // Mirror lock state on every per-widget mini-bar in separate mode so the
-    // floating bars' lock icon stays in sync with the global setting.
+
     const layer = document.getElementById("sd-action-hud-floating");
     if (layer) {
       layer.classList.toggle("sd-action-hud-locked", locked);
@@ -851,9 +820,7 @@ export class SDActionHUD {
         y: r.top,
         refW: W,
         refH: H,
-        // Bottom-left anchored fractions for responsive scaling. Storing them at
-        // drag-time keeps the HUD bar at the same proportional distance from
-        // the bottom-left corner when the viewport resolution changes.
+
         leftFrac:   W > 0 ? (r.left / W) : null,
         bottomFrac: H > 0 ? ((H - r.top) / H) : null
       };
@@ -978,12 +945,6 @@ export class SDActionHUD {
     this._render();
   }
 
-  /**
-   * Hide both the main HUD container AND the dedicated floating layer used in
-   * separate-widgets mode. Without this helper, deselecting a token or pressing
-   * Ctrl+H would only hide the standalone bar while leaving the floating
-   * widgets visible on screen, which is the bug reported by the user.
-   */
   static _hideAll() {
     const root = document.getElementById("sd-action-hud");
     if (root) root.style.display = "none";
@@ -999,14 +960,7 @@ export class SDActionHUD {
     if (!layer) {
       layer = document.createElement("div");
       layer.id = "sd-action-hud-floating";
-      // Mirror the `sd` system class onto the floating layer so all
-      // `.sd ...`-scoped widget styles (base widget layout, label/typography,
-      // inventory popover chrome, etc.) apply to widgets rendered into this
-      // layer in separate-widgets mode. Without `.sd` the floating widgets
-      // fell back to UA defaults and looked visibly broken vs. canvas mode.
-      // Intentionally NOT adding `.sheet` here: `.sd.sheet` paints a full-bleed
-      // background which would cover the entire viewport (the layer spans
-      // `inset:0`).
+
       layer.classList.add("sd-action-hud-floating-layer", "sd");
       layer.style.position = "fixed";
       layer.style.inset = "0";
@@ -1017,16 +971,6 @@ export class SDActionHUD {
     return layer;
   }
 
-  /**
-   * Compute the on-screen position for the main HUD bar, optionally remapped
-   * for the current viewport size when "responsive position" is enabled.
-   *
-   * Strategy: prefer stored bottom-left fractions (`leftFrac`, `bottomFrac`) so
-   * the bar stays at the same proportional distance from the bottom-left
-   * corner across resolutions. Fall back to legacy pixel coordinates (`x`,
-   * `y`) if fractions aren't stored yet, also remapping them proportionally
-   * when responsive mode is on.
-   */
   static _scaledRootPos(pos) {
     let x = Number.isFinite(pos?.x) ? pos.x : null;
     let y = Number.isFinite(pos?.y) ? pos.y : null;
@@ -1051,12 +995,6 @@ export class SDActionHUD {
     return { x, y };
   }
 
-  /**
-   * Compute the on-screen position for a single floating widget in separate
-   * mode. Mirrors `_scaledRootPos` but for per-entry storage keys
-   * (`screenLeftFrac`, `screenBottomFrac` preferred; `screenX`, `screenY`,
-   * `screenRefW`, `screenRefH` as legacy fallback).
-   */
   static _scaledScreenEntry(entry) {
     let x = Number.isFinite(entry?.screenX) ? entry.screenX : null;
     let y = Number.isFinite(entry?.screenY) ? entry.screenY : null;
@@ -1081,10 +1019,6 @@ export class SDActionHUD {
     return { x, y };
   }
 
-  /**
-   * Reset the HUD position, unlock it, and (in separate mode) collapse all
-   * floating widgets back to the centre. Triggered by Ctrl+Shift+H.
-   */
   static async resetPosition() {
     try {
       if (game.settings.get("sd", "actionHudLocked")) {
@@ -1096,9 +1030,6 @@ export class SDActionHUD {
       });
       SDActionHUD._inFlightPos = null;
 
-      // Drop saved per-widget screen positions so separate-mode widgets fall
-      // back to the default centre. Only mutate when there is anything to
-      // mutate, to avoid spurious world-setting writes.
       const layout = foundry.utils.deepClone(game.settings.get("sd", "actionHud") ?? {});
       let changed = false;
       const SCREEN_KEYS = ["screenX", "screenY", "screenRefW", "screenRefH",
@@ -1117,9 +1048,6 @@ export class SDActionHUD {
         try { await game.settings.set("sd", "actionHud", layout); } catch(e) {}
       }
 
-      // Reset implies the user wants to see the HUD again, so clear the
-      // user-hidden flag in case the HUD was previously dismissed via Ctrl+H
-      // or the close button.
       SDActionHUD._userHidden = false;
       try { ui.notifications.info(game.i18n.localize("SD.ActionHud.Notify.PositionReset")); } catch(_) {}
       SDActionHUD.refresh();
@@ -1136,9 +1064,7 @@ export class SDActionHUD {
     document.querySelectorAll("body > .sd-hud-pop-portal").forEach(el => el.remove());
 
     const root = this._ensureRoot();
-    // In separate-widgets mode the standalone bar is unfindable once the
-    // user drags it somewhere (per the user's bug report), so hide the entire
-    // container — all controls move into per-widget mini-bars instead.
+
     const separateModeForRoot = !!game.settings.get("sd", "actionHudSeparateWidgets");
     root.style.display = separateModeForRoot ? "none" : "flex";
 
@@ -1192,7 +1118,6 @@ export class SDActionHUD {
     innerEl.className = "sd-action-hud-canvas-inner";
     canvasEl.appendChild(innerEl);
 
-    // Always wipe the dedicated floating layer; populate it only in separate mode.
     const floatLayer = SDActionHUD._ensureFloatLayer();
     floatLayer.innerHTML = "";
     floatLayer.classList.toggle("sd-hud-builder", !!(this._builderMode && game.user.isGM));
@@ -1206,10 +1131,6 @@ export class SDActionHUD {
     const typeKey = actor.type === "npc" ? "npc" : "character";
     const entries = Array.isArray(layout?.[typeKey]?.entries) ? layout[typeKey].entries : [];
 
-    // Default screen-position fallback for newly-converted floating widgets.
-    // When the standalone bar is hidden (separate mode) its bounding rect is
-    // all-zero, so prefer the scaled saved bar position; otherwise fall back
-    // to a sensible centre-bottom anchor.
     const rootRect = root.getBoundingClientRect();
     let baseScreenX = Number.isFinite(pos.x) ? pos.x : null;
     let baseScreenY = Number.isFinite(pos.y) ? pos.y : null;
@@ -1246,10 +1167,7 @@ export class SDActionHUD {
           cell.style.left = `${x}px`;
           cell.style.top  = `${y}px`;
         }
-        // Use min-* instead of fixed width/height so the cell always auto-grows
-        // when the widget content is larger than the saved entry size (e.g. an
-        // orb widget whose user-defined size exceeds the persisted entry.w/h).
-        // This is what the user expects from "auto-stretch".
+
         if (Number.isFinite(entry.w) && entry.w > 0) cell.style.minWidth  = `${entry.w}px`;
         if (Number.isFinite(entry.h) && entry.h > 0) cell.style.minHeight = `${entry.h}px`;
 
@@ -1262,8 +1180,6 @@ export class SDActionHUD {
         const supportsHideLabel = !DROPDOWN_TYPES.includes(widgetDef.type);
         if (entry.hideLabel === true && supportsHideLabel) cell.dataset.hideLabel = "true";
 
-        // Combine per-entry scale with the global HUD scale when floating, so
-        // separate-mode widgets honour both knobs without the canvas wrapper.
         let cellScalePct = 100;
         if (Number.isFinite(entry.scale) && entry.scale > 0) {
           cellScalePct = Math.min(Math.max(entry.scale, 25), 400);
@@ -1289,8 +1205,6 @@ export class SDActionHUD {
           }
         }
 
-        // Per-entry variant override — independent of the sheet's selected variant.
-        // entry.variant === "" / undefined / "__inherit__" means "use sheet variant".
         const hudVariant = _sanitizeHudVariant(entry.variant, widgetDef.type);
         if (hudVariant) {
           renderDef = { ...renderDef, variant: hudVariant };
@@ -1303,10 +1217,7 @@ export class SDActionHUD {
         if (separateMode) {
           cell.style.pointerEvents = "auto";
           floatLayer.appendChild(cell);
-          // Attach a per-widget hover header so each floating cell has its
-          // own findable drag handle plus the global HUD controls. The bar is
-          // wired here (not in builder-mode-only) so users can re-arrange
-          // widgets without entering edit mode first.
+
           SDActionHUD._renderFloatingBar(cell, actor, i);
         } else {
           innerEl.appendChild(cell);
@@ -1339,15 +1250,8 @@ export class SDActionHUD {
     }
   }
 
-  /**
-   * Build the per-widget hover header for separate-widgets mode. Each
-   * floating cell gets its own draggable header pinned just above the cell
-   * with global controls (lock / edit-mode / layout list / close) plus a
-   * drag handle. The header is wired here — not via `_wireBuilderMode` — so
-   * the user can re-arrange widgets without entering edit mode first.
-   */
   static _renderFloatingBar(cell, actor, idx) {
-    // Defensive: never double-attach.
+
     cell.querySelector(":scope > .sd-hud-float-bar")?.remove();
 
     const bar = document.createElement("div");
@@ -1364,8 +1268,6 @@ export class SDActionHUD {
     `;
     cell.appendChild(bar);
 
-    // Reflect the current lock state on the per-widget lock button so the
-    // icon matches the global setting at all times.
     try {
       const locked = !!game.settings.get("sd", "actionHudLocked");
       const lbtn = bar.querySelector("button[data-act='lockToggle']");
@@ -1376,9 +1278,6 @@ export class SDActionHUD {
       }
     } catch(_) {}
 
-    // Drag the parent cell via this bar's grab handle. Always available in
-    // separate mode — not gated on builder mode — because users need to be
-    // able to position widgets freely. Honours the global lock setting.
     const grab = bar.querySelector(".sd-hud-float-grab");
     let drag = null;
     const startDrag = (ev) => {
@@ -1414,9 +1313,7 @@ export class SDActionHUD {
           arr[idx].screenY = Math.max(0, y);
           arr[idx].screenRefW = W;
           arr[idx].screenRefH = H;
-          // Bottom-left anchored fractions — used when "responsive position"
-          // is enabled so widgets stay at the same proportional distance from
-          // the bottom-left corner across different resolutions.
+
           arr[idx].screenLeftFrac   = W > 0 ? (x / W) : null;
           arr[idx].screenBottomFrac = H > 0 ? ((H - y) / H) : null;
         });
@@ -1427,9 +1324,6 @@ export class SDActionHUD {
     grab.addEventListener("pointerup",   endDrag);
     grab.addEventListener("pointercancel", endDrag);
 
-    // Wire global controls (lock, edit-mode, layout list, close) so the
-    // floating bar gives the user the same affordances as the standalone bar
-    // that is hidden in separate mode.
     bar.querySelector("button[data-act='lockToggle']")?.addEventListener("click", async (ev) => {
       ev.preventDefault(); ev.stopPropagation();
       let locked = false;
@@ -1518,10 +1412,7 @@ export class SDActionHUD {
 
       const grab = overlay.querySelector(".sd-hud-cell-grab");
       let drag = null;
-      // When separate mode is on, floating cells use position:fixed and the
-      // global --sd-hud-scale is already baked into each cell via the per-cell
-      // transform. So we treat the effective scale here as 1 to keep cursor
-      // tracking 1:1 with screen pixels.
+
       const _readScale = () => {
         if (separateMode) return 1;
         const hudRoot = document.getElementById("sd-action-hud") ?? canvasEl;
@@ -1570,7 +1461,7 @@ export class SDActionHUD {
                 arr[idx].screenY = Math.max(0, y);
                 arr[idx].screenRefW = refW;
                 arr[idx].screenRefH = refH;
-                // Bottom-left anchored fractions for responsive scaling.
+
                 arr[idx].screenLeftFrac   = refW > 0 ? (Math.max(0, x) / refW) : null;
                 arr[idx].screenBottomFrac = refH > 0 ? ((refH - Math.max(0, y)) / refH) : null;
               }
@@ -1610,9 +1501,7 @@ export class SDActionHUD {
         const s = rsz.scale || 1;
         const w = SDActionHUD._snap(rsz.startW + (ev.clientX - rsz.startX) / s, ev.shiftKey);
         const h = SDActionHUD._snap(rsz.startH + (ev.clientY - rsz.startY) / s, ev.shiftKey);
-        // Use min-width/min-height while resizing so the cell never clips its
-        // widget content. The cell will visually be at least the resize size,
-        // but content (e.g. a large orb) can push it bigger.
+
         cell.style.minWidth  = `${Math.max(40, w)}px`;
         cell.style.minHeight = `${Math.max(24, h)}px`;
       });
@@ -1920,7 +1809,6 @@ export class SDActionHUDConfig extends HandlebarsApplicationMixin(ApplicationV2)
       return "";
     };
 
-    // Per-entry variant options — "inherit" plus all variants known for that widget type.
     const _variantOptions = (type, currentRaw) => {
       const list = Array.isArray(WIDGET_VARIANTS?.[type]) ? WIDGET_VARIANTS[type] : [];
       const current = String(currentRaw ?? "").trim().toLowerCase();

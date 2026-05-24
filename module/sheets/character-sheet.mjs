@@ -3,6 +3,7 @@ import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { GridManager }    from "../builder/grid-manager.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
+import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
@@ -150,15 +151,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }, true);
   }
 
-  // submitOnChange auto-submits the form on any input/change event from a
-  // descendant. Our inline editors (richtext textarea, wcfg popup inputs)
-  // must NOT trigger a sheet submit — submitting tears down their DOM mid-edit
-  // and silently discards user input. The popup lives in document.body so it
-  // isn't a descendant of the sheet form, but its synthetic change events can
-  // still surface here when the user is editing widget styles. Guard both.
   _onChangeForm(formConfig, event) {
     const t = event?.target;
-    if (t?.closest?.(".richtext-editor, .richtext-edit-wrap, .sd-wcfg-popup")) return;
+
+    if (t?.closest?.(".richtext-editor, .richtext-edit-wrap, .sd-wcfg-popup, prose-mirror, .sd-richtext-pm-target, .sd-richtext-editor, .editor.prosemirror, .ProseMirror, .prosemirror-menu")) return;
+    if (t?.tagName?.toLowerCase?.() === "prose-mirror") return;
     return super._onChangeForm(formConfig, event);
   }
 
@@ -1966,76 +1963,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
-    cell.querySelectorAll(".richtext-display").forEach(display => {
-      const widget   = display.closest(".widget-richtext");
-      const editWrap = widget?.querySelector(".richtext-edit-wrap");
-      const textarea = widget?.querySelector(".richtext-editor");
-      const btnSave  = widget?.querySelector(".richtext-save");
-      const btnCancel= widget?.querySelector(".richtext-cancel");
-      if (!textarea || !editWrap) return;
-
-      // Sheet has `submitOnChange: true`, so any `change` event bubbling out
-      // of the textarea triggers a full form submit → doc.update → re-render
-      // → editor DOM is destroyed before the Save button's click can fire,
-      // losing whatever the user typed. The textarea is intentionally not
-      // a form field (no `name` attribute), so its content never needs to go
-      // through the form submission path — block the bubbling and we keep
-      // the editor alive until Save / Cancel actually run.
-      const _stopBubble = ev => ev.stopPropagation();
-      textarea.addEventListener("input",  _stopBubble);
-      textarea.addEventListener("change", _stopBubble);
-
-      const openEdit = () => {
-        display.style.display  = "none";
-        editWrap.style.display = "block";
-        textarea.focus();
-        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-      };
-
-      const closeEdit = (newVal) => {
-        const html = newVal
-          ? newVal.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")
-          : "<span style='opacity:.35;font-style:italic'>Click to edit…</span>";
-        display.innerHTML       = html;
-        editWrap.style.display  = "none";
-        display.style.display   = "block";
-      };
-
-      let _savedOnMouseDown = false;
-      const saveRichtext = async () => {
-        if (_savedOnMouseDown) { _savedOnMouseDown = false; return; }
-        const val  = textarea.value;
-        const path = textarea.dataset.path;
-        if (path) await doc.update({ [path]: val });
-        closeEdit(val);
-      };
-
-      const cancelRichtext = () => {
-        const oldVal = String(foundry.utils.getProperty(doc, textarea.dataset.path) ?? "");
-        textarea.value = oldVal;
-        closeEdit(oldVal);
-      };
-
-      display.addEventListener("click", openEdit);
-      // Capture the value on `mousedown` (fires before the textarea's blur),
-      // so even if a stray form submit slips through and re-renders the DOM
-      // before our `click` handler can run, the data is already persisted.
-      btnSave?.addEventListener("mousedown", () => {
-        const val  = textarea.value;
-        const path = textarea.dataset.path;
-        if (path) {
-          _savedOnMouseDown = true;
-          doc.update({ [path]: val }).catch(err => console.error("SD | richtext save failed:", err));
-        }
-      });
-      btnSave?.addEventListener("click", saveRichtext);
-      btnCancel?.addEventListener("click", cancelRichtext);
-
-      textarea.addEventListener("keydown", ev => {
-        if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); saveRichtext(); }
-        if (ev.key === "Escape") { ev.preventDefault(); cancelRichtext(); }
-      });
-    });
+    RichTextEditor.wire(cell, doc);
   }
 
   _makeDropZone(tab, row, label = "Drop here", parentVS = null) {

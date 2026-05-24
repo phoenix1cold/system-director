@@ -1,29 +1,6 @@
-/**
- * Two-actor trading + autotrade shop for System Director.
- *
- * Manual flow:
- *   initiator clicks Trade button on their sheet
- *     → pickPartner dialog (tokens-on-scene + trader-flag actors)
- *     → if partner is Trader+AutoTrade → SDAutoTradeShop opens directly
- *     → otherwise sends `trade.request` socket → partner's user gets accept popup
- *     → both sides open SDTradeWindow, build offers, mark Ready
- *     → when both Ready → GM client validates and atomically commits the swap
- *
- * Trader hidden flags (on actor.system.hiddenFields):
- *   trader            → bool, this actor appears in partner picker even off-scene
- *   autoTrade         → bool, partner trades directly via shop without GM/owner approval
- *   priceDistortion   → number (percent), what trader pays = listPrice * distortion / 100
- *   tradeCategories   → CSV string of inventory categories the trader buys
- *
- * Sale hidden flags (on inventory-item.system.hiddenFields):
- *   saleable          → bool, item is on the trader's shelf
- *   salePrice         → number, base price
- *   salePricePath     → path string (override; reads from owner.system.<path> instead of salePrice)
- *   saleCurrency      → key from CONFIG.SD.currencies (default "primary")
- *
- * All actual document mutations happen on a single GM client (via socket) so that
- * the trade is atomic — neither side can lose items if the network drops mid-swap.
- */
+
+
+import { ItemPreviewPopup } from "./item-preview-popup.mjs";
 
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -85,7 +62,6 @@ function _readSaleConfig(item) {
     if (Number.isFinite(Number(v))) price = Number(v);
   }
 
-
   let currency = String(hf.saleCurrency || item?.system?.currency || "primary");
   const known = _getCurrencies().map(c => c.key);
   if (!known.includes(currency)) currency = known[0] ?? "primary";
@@ -145,7 +121,6 @@ function _itemSummaryFromActor(actor, itemId, qty) {
   };
 }
 
-
 export class SDTrade {
 
   static _state = new Map();
@@ -156,7 +131,6 @@ export class SDTrade {
       game.socket.on(SOCKET_NS, (data) => SDTrade._onSocket(data).catch(err => console.error("SD | trade socket error", err)));
     });
   }
-
 
   static async openFor(actor) {
     if (!actor) return;
@@ -176,7 +150,6 @@ export class SDTrade {
 
     return SDTrade.requestManualTrade(actor, partner);
   }
-
 
   static async pickPartner(actor) {
 
@@ -258,7 +231,6 @@ export class SDTrade {
     });
   }
 
-
   static async requestManualTrade(initiator, partner) {
     if (!_isGMActive()) {
       ui.notifications?.warn?.(_i18n("SD.Trade.GMOffline", "Trading requires an active GM."));
@@ -271,7 +243,6 @@ export class SDTrade {
       ui.notifications?.warn?.(_i18n("SD.Trade.NoPartnerUser", "No active user owns the partner actor."));
       return;
     }
-
 
     const sameUser = (partnerUser.id === game.user.id);
 
@@ -308,7 +279,6 @@ export class SDTrade {
 
     ui.notifications?.info?.(_i18n("SD.Trade.Sent", "Trade request sent. Waiting for response…"));
   }
-
 
   static async _onSocket(data) {
     if (!data || typeof data !== "object") return;
@@ -381,10 +351,6 @@ export class SDTrade {
         const offerChanged = !_offersEqual(prevOffer, nextOffer);
         st.offers[side] = nextOffer;
 
-        // Only reset both sides' ready when the offer actually changed.
-        // Otherwise spurious updates (e.g. a no-op flush emitted on the other
-        // side's Ready click) would knock the local user out of ready and
-        // force them to click again.
         if (offerChanged) {
           st.ready.init = false;
           st.ready.part = false;
@@ -451,7 +417,6 @@ export class SDTrade {
     }
   }
 
-
   static async _showAcceptDialog(data) {
     const initActor = await fromUuid(data.initiatorActorUuid).catch(() => null);
     const partActor = await fromUuid(data.partnerActorUuid).catch(() => null);
@@ -487,14 +452,12 @@ export class SDTrade {
     });
   }
 
-
   static _openWindow(requestId) {
     const st = SDTrade._state.get(requestId);
     if (!st) return;
     if (SDTradeWindow._open.has(requestId)) return;
     new SDTradeWindow({ requestId }).render(true);
   }
-
 
   static async _gmCommit(state) {
     const reqId = state.requestId;
@@ -513,7 +476,6 @@ export class SDTrade {
       await _moveItems(partActor, initActor, partOffer.items);
       await _moveCurrency(initActor, partActor, initOffer.currency);
       await _moveCurrency(partActor, initActor, partOffer.currency);
-
 
       [state.initiatorUserId, state.partnerUserId].forEach(uid => {
         game.socket.emit(SOCKET_NS, { type: "trade.commit-result", requestId: reqId, to: uid, ok: true });
@@ -534,7 +496,6 @@ export class SDTrade {
       }
     }
   }
-
 
   static async _gmAutoBuy(data) {
 
@@ -575,7 +536,6 @@ export class SDTrade {
       game.socket.emit(SOCKET_NS, { type: "trade.autoResult", to: data.from, ok: false, msg: String(err?.message || err) });
     }
   }
-
 
   static async _gmAutoSell(data) {
 
@@ -620,15 +580,6 @@ export class SDTrade {
   }
 }
 
-
-/**
- * Compare two trade offers for content equality.
- * Items match by id with normalized qty (default 1).
- * Currency matches by key with normalized amount (default 0).
- * Used by the trade.update receiver to avoid resetting both sides' ready when
- * an incoming offer is identical to the one already on file (e.g. spurious
- * flush-on-mousedown emits).
- */
 function _offersEqual(a, b) {
   const ai = Array.isArray(a?.items) ? a.items : [];
   const bi = Array.isArray(b?.items) ? b.items : [];
@@ -703,7 +654,6 @@ async function _moveCurrency(from, to, currency) {
   await to.update(toUpd);
 }
 
-
 export class SDTradeWindow extends ApplicationV2 {
 
   static _open = new Map();
@@ -753,13 +703,15 @@ export class SDTradeWindow extends ApplicationV2 {
     const cur = _getCurrencies();
 
     const _renderOfferCol = (actor, offer, sideKey, label, readonly) => {
+      const ownerUuid = _esc(actor?.uuid ?? "");
       const items = (offer.items ?? []).map(it => {
         const summary = _itemSummaryFromActor(actor, it.id, it.qty) ?? { name: "?", img: "icons/svg/item-bag.svg", qty: it.qty, have: 0 };
         const removeBtn = readonly ? "" : `<button type="button" class="sd-tw-remove" data-side="${sideKey}" data-id="${_esc(it.id)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:13px">✕</button>`;
         const qtyInput  = readonly
           ? `<span style="min-width:34px;text-align:right">×${summary.qty}</span>`
           : `<input type="number" min="1" max="${summary.have}" value="${summary.qty}" data-side="${sideKey}" data-id="${_esc(it.id)}" class="sd-tw-qty" style="width:50px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;color:var(--sd-text);text-align:center;padding:2px 4px">`;
-        return `<div class="sd-tw-item-row" style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--sd-bg-2);border-radius:5px;margin-bottom:4px">
+
+        return `<div class="sd-tw-item-row" data-sd-preview-ref="item:${_esc(it.id)}" data-sd-actor-uuid="${ownerUuid}" data-item-id="${_esc(it.id)}" style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--sd-bg-2);border-radius:5px;margin-bottom:4px">
           <img src="${_esc(summary.img)}" style="width:28px;height:28px;border-radius:3px;object-fit:cover">
           <div style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(summary.name)}</div>
           ${qtyInput}
@@ -868,6 +820,8 @@ export class SDTradeWindow extends ApplicationV2 {
     const partActor = fromUuidSync?.(st.partnerActorUuid)   ?? null;
     const actorBySide = (s) => s === "init" ? initActor : partActor;
 
+    ItemPreviewPopup.attach(root, initActor ?? partActor ?? null);
+
     root.querySelectorAll('.sd-tw-items[data-drop-zone="init"], .sd-tw-items[data-drop-zone="part"]').forEach(dropZone => {
       const sideKey = dropZone.dataset.dropZone;
       const targetActor = actorBySide(sideKey);
@@ -966,14 +920,6 @@ export class SDTradeWindow extends ApplicationV2 {
     root.querySelector(".sd-tw-cancel")?.addEventListener("click", () => this._cancel());
   }
 
-  /**
-   * Read every currency/qty input currently in the DOM and push the latest
-   * value into the offer state. This is a defensive flush so that even if the
-   * `change` event hasn't fired yet (e.g. user clicked Ready while still
-   * focused inside a number input) the trade is committed with the values the
-   * user actually typed. Pure state update — no refresh, no broadcast — so it
-   * is safe to call from a mousedown handler without breaking the click.
-   */
   _flushOfferInputs() {
     const root = this.element;
     if (!root) return;
@@ -988,10 +934,7 @@ export class SDTradeWindow extends ApplicationV2 {
       if (!offer) return;
       const key = inp.dataset.key;
       const v = Math.max(0, Number(inp.value || 0));
-      // Normalize against undefined: an unset currency entry equals 0 for the
-      // purpose of "did anything change?" — otherwise every Ready click would
-      // emit a spurious trade.update for every currency input and reset the
-      // other side's ready flag.
+
       const cur = Number(offer.currency?.[key] ?? 0);
       if (cur !== v) { offer.currency[key] = v; changed = true; }
     });
@@ -1062,12 +1005,7 @@ export class SDTradeWindow extends ApplicationV2 {
       });
     }
     if (silent) return;
-    // Defer the refresh to the next tick so in-flight DOM events (notably the
-    // click on the Ready button after an input lost focus) can complete on the
-    // existing DOM nodes before innerHTML is replaced. Without this, a user
-    // who types a currency amount and clicks Ready ends up with mousedown on
-    // the old button and mouseup on a freshly-rendered button — the click
-    // never fires and money-only trades silently fail.
+
     setTimeout(() => this.refresh(), 0);
   }
 
@@ -1096,8 +1034,7 @@ export class SDTradeWindow extends ApplicationV2 {
     const it = offer.items.find(i => i.id === itemId);
     if (!it) return;
     const v = Math.max(1, Number(qty || 1));
-    // Normalize against undefined so the default qty=1 doesn't read as "changed"
-    // and trigger a spurious broadcast that would reset both sides' ready.
+
     const cur = Number(it.qty ?? 1);
     if (cur === v) return;
     it.qty = v;
@@ -1109,8 +1046,7 @@ export class SDTradeWindow extends ApplicationV2 {
     const offer = this._offer(sideKey);
     if (!offer) return;
     const v = Math.max(0, Number(amt || 0));
-    // Normalize against undefined so an empty / default-0 currency input doesn't
-    // read as a real change and trigger a broadcast that resets both sides' ready.
+
     const cur = Number(offer.currency?.[key] ?? 0);
     if (cur === v) return;
     offer.currency[key] = v;
@@ -1172,7 +1108,6 @@ export class SDTradeWindow extends ApplicationV2 {
   }
 }
 
-
 export class SDAutoTradeShop extends ApplicationV2 {
 
   static _open = new Map();
@@ -1226,10 +1161,14 @@ export class SDAutoTradeShop extends ApplicationV2 {
       return tcfg.tradeCategories.includes(String(it.system?.category ?? ""));
     });
 
+    const traderUuid = _esc(this.trader?.uuid ?? "");
+    const buyerUuid  = _esc(this.buyer?.uuid  ?? "");
+
     const _renderBuyRow = (item) => {
       const sale = _readSaleConfig(item);
       const curLbl = (cur.find(c => c.key === sale.currency)?.label ?? sale.currency);
-      return `<div class="sd-shop-row" style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--sd-bg-2);border-radius:6px;margin-bottom:4px">
+
+      return `<div class="sd-shop-row" data-sd-preview-ref="item:${_esc(item.id)}" data-sd-actor-uuid="${traderUuid}" data-item-id="${_esc(item.id)}" style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--sd-bg-2);border-radius:6px;margin-bottom:4px">
         <img src="${_esc(item.img)}" style="width:32px;height:32px;border-radius:4px;object-fit:cover">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(item.name)}</div>
@@ -1248,7 +1187,8 @@ export class SDAutoTradeShop extends ApplicationV2 {
       const list = sale.price;
       const offered = Math.floor(list * (tcfg.priceDistortion / 100));
       const curLbl = (cur.find(c => c.key === sale.currency)?.label ?? sale.currency);
-      return `<div class="sd-shop-row" style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--sd-bg-2);border-radius:6px;margin-bottom:4px">
+
+      return `<div class="sd-shop-row" data-sd-preview-ref="item:${_esc(item.id)}" data-sd-actor-uuid="${buyerUuid}" data-item-id="${_esc(item.id)}" style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--sd-bg-2);border-radius:6px;margin-bottom:4px">
         <img src="${_esc(item.img)}" style="width:32px;height:32px;border-radius:4px;object-fit:cover">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(item.name)}</div>
@@ -1296,6 +1236,8 @@ export class SDAutoTradeShop extends ApplicationV2 {
   _wire() {
     const root = this.element;
     if (!root) return;
+
+    ItemPreviewPopup.attach(root, this.buyer ?? this.trader ?? null);
     root.querySelectorAll(".sd-shop-tab").forEach(btn => {
       btn.addEventListener("click", () => { this._tab = btn.dataset.tab; this.refresh(); });
     });
@@ -1366,7 +1308,6 @@ export class SDAutoTradeShop extends ApplicationV2 {
     return super._onClose?.(options);
   }
 }
-
 
 Hooks.once("ready", () => {
 

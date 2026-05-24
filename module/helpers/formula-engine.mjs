@@ -466,11 +466,6 @@ export class FormulaEngine {
     }
   }
 
-  // Strip one layer of surrounding double / single quotes that may have been
-  // added by `_safeLiteral` when a nested token (e.g. `{slotUuidFind:…}`) is
-  // substituted as an argument of an outer array-token. Without this, array
-  // helpers that receive their list from another token end up with quote
-  // characters baked into each element.
   static _unwrapTokenString(raw) {
     if (raw === undefined || raw === null) return "";
     let s = String(raw).trim();
@@ -481,17 +476,12 @@ export class FormulaEngine {
     return String(s ?? "");
   }
 
-  // Canonical "list" parser used by every array-token handler. Accepts a
-  // single `parts[i]` segment (a comma-joined string, possibly wrapped in
-  // quotes by nested-token substitution) and returns a clean string array.
   static _parseArrayList(raw) {
     const s = this._unwrapTokenString(raw);
     if (!s) return [];
     return s.split(",").map(x => x.trim()).filter(Boolean);
   }
 
-  // Canonical numeric parser for array-token numeric arguments. Handles
-  // values that arrive quoted (`"3"`) because of nested-token substitution.
   static _parseArrayNum(raw, fallback = 0) {
     if (raw === undefined || raw === null || raw === "") return fallback;
     const s = this._unwrapTokenString(raw);
@@ -1221,6 +1211,89 @@ export class FormulaEngine {
       }
     }
 
+    if (token.startsWith("tokenElevation:")) {
+      const rest  = token.slice("tokenElevation:".length);
+      const sep   = rest.lastIndexOf("|");
+      const baseRaw = sep >= 0 ? rest.slice(0, sep) : rest;
+      const round = sep >= 0 ? rest.slice(sep + 1) : "none";
+      const ref = this._unquoteSimple(baseRaw);
+      const tk  = this._resolveTokenObject(ref, doc);
+      if (!tk) return 0;
+      let v = Number(tk?.document?.elevation ?? tk?.elevation ?? 0);
+      if (!Number.isFinite(v)) v = 0;
+      switch (String(round)) {
+        case "floor": return Math.floor(v);
+        case "ceil":  return Math.ceil(v);
+        case "round": return Math.round(v);
+        default:      return v;
+      }
+    }
+
+    if (token.startsWith("wallsBetween:")) {
+      const parts = token.slice("wallsBetween:".length).split("|");
+      if (parts.length < 2) return 0;
+      const srcRef = this._unquoteSimple(parts[0]);
+      const tgtRef = this._unquoteSimple(parts[1]);
+      const type   = String(parts[2] ?? "move").toLowerCase();
+      const ta = this._resolveTokenObject(srcRef, doc);
+      const tb = this._resolveTokenObject(tgtRef, doc);
+      if (!ta || !tb || !canvas?.walls) return 0;
+      const a = { x: ta.center?.x ?? ta.x ?? 0, y: ta.center?.y ?? ta.y ?? 0 };
+      const b = { x: tb.center?.x ?? tb.x ?? 0, y: tb.center?.y ?? tb.y ?? 0 };
+      try {
+        const walls = (canvas.walls?.placeables ?? canvas.walls?.objects?.children ?? [])
+          .map(w => w?.document ?? w)
+          .filter(Boolean);
+        let n = 0;
+        for (const w of walls) {
+          if (!this._wallMatchesType(w, type)) continue;
+          const c = w.c ?? (Array.isArray(w?.coords) ? w.coords : null);
+          if (!c || c.length < 4) continue;
+          if (this._segmentsIntersect(a.x, a.y, b.x, b.y, c[0], c[1], c[2], c[3])) n++;
+        }
+        return n;
+      } catch (e) {
+        console.warn("SD | wallsBetween failed:", e);
+        return 0;
+      }
+    }
+
+    if (token.startsWith("tilesBetween:")) {
+      const parts = token.slice("tilesBetween:".length).split("|");
+      if (parts.length < 2) return 0;
+      const srcRef = this._unquoteSimple(parts[0]);
+      const tgtRef = this._unquoteSimple(parts[1]);
+      const filter = String(parts[2] ?? "any").toLowerCase();
+      const includeHidden = String(parts[3] ?? "0") === "1";
+      const ta = this._resolveTokenObject(srcRef, doc);
+      const tb = this._resolveTokenObject(tgtRef, doc);
+      if (!ta || !tb || !canvas?.tiles) return 0;
+      const a = { x: ta.center?.x ?? ta.x ?? 0, y: ta.center?.y ?? ta.y ?? 0 };
+      const b = { x: tb.center?.x ?? tb.x ?? 0, y: tb.center?.y ?? tb.y ?? 0 };
+      try {
+        const tiles = (canvas.tiles?.placeables ?? canvas.tiles?.objects?.children ?? [])
+          .map(t => t?.document ? t : (t?.object ?? t))
+          .filter(Boolean);
+        let n = 0;
+        for (const tile of tiles) {
+          const td = tile.document ?? tile;
+          if (!includeHidden && td?.hidden) continue;
+          const overhead = (td?.overhead === true) || (Number(td?.elevation ?? 0) > 0);
+          if (filter === "overhead" && !overhead) continue;
+          if (filter === "ground"   &&  overhead) continue;
+          const x = Number(td?.x ?? 0);
+          const y = Number(td?.y ?? 0);
+          const w = Number(td?.width  ?? 0);
+          const h = Number(td?.height ?? 0);
+          if (this._segmentIntersectsRect(a.x, a.y, b.x, b.y, x, y, x + w, y + h)) n++;
+        }
+        return n;
+      } catch (e) {
+        console.warn("SD | tilesBetween failed:", e);
+        return 0;
+      }
+    }
+
     if (token === "__visionLast") {
       try {
         return String(globalThis._SD_RUNTIME?.__visionLast ?? "");
@@ -1232,7 +1305,6 @@ export class FormulaEngine {
         return String(globalThis._SD_RUNTIME?.__visionLastActors ?? "");
       } catch { return ""; }
     }
-
 
     if (token.startsWith("arrayAgg:")) {
       const parts = token.slice("arrayAgg:".length).split("|");
@@ -1515,10 +1587,7 @@ export class FormulaEngine {
     }
 
     if (token.startsWith("arrayRandomFrom:")) {
-      // Format: `arrayRandomFrom:cnt|list0|list1|…|listN`
-      // Concatenates every wired array source, then picks `cnt` random
-      // elements without repetition. Output is ALWAYS a comma-joined array
-      // (even when cnt === 1), so it chains cleanly into any Array node.
+
       const parts = token.slice("arrayRandomFrom:".length).split("|");
       const cnt   = Math.max(0, Math.floor(this._parseArrayNum(parts[0], 0)));
       const pool  = [];
@@ -1961,6 +2030,89 @@ export class FormulaEngine {
     } catch {
       return e;
     }
+  }
+
+  static _unquoteSimple(s) {
+    if (typeof s !== "string") return s;
+    const t = s.trim();
+    if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+      try { return JSON.parse(t); } catch { return t.slice(1, -1); }
+    }
+    return t;
+  }
+
+  static _resolveTokenObject(ref, doc) {
+    if (!ref) ref = "self";
+    const r = String(ref).trim();
+    try {
+      if (r === "self" || r === "actor") {
+        const actor = (doc?.documentName === "Actor") ? doc : (doc?.actor ?? null);
+        if (!actor) return null;
+        return actor.getActiveTokens?.()?.[0] ?? null;
+      }
+      if (r === "selected_token") {
+        return canvas?.tokens?.controlled?.[0] ?? null;
+      }
+      if (r === "token_target") {
+        return [...(game.user?.targets ?? [])][0] ?? null;
+      }
+      if (r === "user_character") {
+        const ac = game.user?.character;
+        return ac?.getActiveTokens?.()?.[0] ?? null;
+      }
+      if (/^(Actor|Scene|Item|Token|Compendium)\.[A-Za-z0-9._-]+/.test(r)) {
+        try {
+          const d = (typeof fromUuidSync === "function") ? fromUuidSync(r) : null;
+          if (d?.documentName === "Token") return d.object ?? canvas?.tokens?.get?.(d.id) ?? null;
+          if (d?.documentName === "Actor") return d.getActiveTokens?.()?.[0] ?? null;
+          if (d?.actor) return d.actor.getActiveTokens?.()?.[0] ?? null;
+        } catch {}
+      }
+      const tk = canvas?.tokens?.get?.(r);
+      if (tk) return tk;
+      const a = game?.actors?.get?.(r);
+      if (a) return a.getActiveTokens?.()?.[0] ?? null;
+    } catch (e) {
+      console.warn("SD | _resolveTokenObject failed:", e);
+    }
+    return null;
+  }
+
+  static _wallMatchesType(wallDoc, type) {
+    if (!wallDoc) return false;
+    const move  = Number(wallDoc.move  ?? wallDoc.movement ?? 0);
+    const sight = Number(wallDoc.sight ?? 0);
+    const sound = Number(wallDoc.sound ?? 0);
+    const door  = Number(wallDoc.door  ?? 0);
+    const ds    = Number(wallDoc.ds    ?? 0);
+    if (door > 0 && ds === 1) return false;
+    switch (String(type)) {
+      case "any":   return move !== 0 || sight !== 0 || sound !== 0;
+      case "sight": return sight !== 0;
+      case "sound": return sound !== 0;
+      case "move":
+      default:      return move !== 0;
+    }
+  }
+
+  static _segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+    const d1x = bx - ax, d1y = by - ay;
+    const d2x = dx - cx, d2y = dy - cy;
+    const denom = d1x * d2y - d1y * d2x;
+    if (Math.abs(denom) < 1e-9) return false;
+    const t = ((cx - ax) * d2y - (cy - ay) * d2x) / denom;
+    const u = ((cx - ax) * d1y - (cy - ay) * d1x) / denom;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+  }
+
+  static _segmentIntersectsRect(ax, ay, bx, by, x1, y1, x2, y2) {
+    const inside = (px, py) => px >= x1 && px <= x2 && py >= y1 && py <= y2;
+    if (inside(ax, ay) || inside(bx, by)) return true;
+    if (this._segmentsIntersect(ax, ay, bx, by, x1, y1, x2, y1)) return true;
+    if (this._segmentsIntersect(ax, ay, bx, by, x2, y1, x2, y2)) return true;
+    if (this._segmentsIntersect(ax, ay, bx, by, x2, y2, x1, y2)) return true;
+    if (this._segmentsIntersect(ax, ay, bx, by, x1, y2, x1, y1)) return true;
+    return false;
   }
 }
 

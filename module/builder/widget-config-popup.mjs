@@ -762,13 +762,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     });
   });
 
-  // showIf key/value live entirely in the popup until save. Previously these
-  // were written directly back onto `w` on every keystroke, which mutated the
-  // live widget reference inside doc.system.customTabs without going through
-  // doc.update — causing inconsistent state between renders and, when the
-  // doSave overwrote unrelated fields, silently reverting unsaved edits.
-  // The values are now collected in doSave by reading the popup directly.
-
   const slotRowsContainer = popup.querySelector("#wcfg-slotrows");
   const slotAddBtn        = popup.querySelector("#wcfg-slot-add");
 
@@ -893,11 +886,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       changes[el.dataset.field] = el.value;
     });
 
-    // Path validation: detect path-type fields whose values don't resolve in
-    // the document schema (and aren't under a known writable prefix like
-    // hiddenFields / flags / slotContents). Foundry silently drops unknown
-    // keys on doc.update, so without this dialog a renamed path looks like
-    // "Save button doesn't work" to the user.
     const _unknownPaths = [];
     popup.querySelectorAll("input[data-field][data-ftype='path']").forEach(el => {
       const raw = String(el.value ?? "").trim();
@@ -999,9 +987,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   return popup;
 }
 
-// Returns true when `path` either resolves to an existing property on `doc` or
-// targets a writable bag the schema declares as an ObjectField / flags-style
-// container. Anything else would be silently dropped by Foundry on update.
 function _isPathWritable(doc, path) {
   if (!doc || typeof path !== "string") return true;
   if (!path) return true;
@@ -1020,12 +1005,6 @@ function _isPathWritable(doc, path) {
   return false;
 }
 
-// Convert a user-typed path or bare identifier into a safe hidden-field key.
-// Examples:
-//   "my_notes"                       → "my_notes"
-//   "system.biography.notes_a"       → "notes_a"
-//   "system.hiddenFields.foo.bar"    → "foo_bar"
-//   "Some Label!"                    → "Some_Label_"
 function _hiddenFieldKeyFor(raw) {
   let s = String(raw ?? "").trim();
   if (s.startsWith("system.hiddenFields.")) s = s.slice("system.hiddenFields.".length);

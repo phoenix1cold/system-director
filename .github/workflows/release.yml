@@ -74,6 +74,8 @@ jobs:
           zip -r system.zip . \
             -x ".git/*" \
             -x ".github/*" \
+            -x ".gitignore" \
+            -x "docs/*" \
             -x "*.zip" \
             -x "**/.DS_Store"
           ls -lh system.zip

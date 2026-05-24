@@ -450,7 +450,6 @@ function _resolvePlayerActors(spec) {
   return actors;
 }
 
-
 function _resistanceFactor(tActor, damageType) {
   if (!tActor || !damageType) return { factor: 1, label: "" };
   const key = String(damageType).toLowerCase().trim();
@@ -2069,6 +2068,36 @@ export class ButtonExecutor {
         break;
       }
 
+      case "setTokenElevation": {
+        try {
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+          const tokenRefRaw = _injectRuntime(String(action.tokenRef ?? "self"));
+          const tokenRef    = _sdStripQuotes(tokenRefRaw);
+
+          const srcDoc = (actor && actor.documentName === "Actor") ? actor : (actor?.actor ?? null);
+          const tk = FormulaEngine._resolveTokenObject(tokenRef, srcDoc ?? item ?? actor);
+          if (!tk?.document) {
+            console.warn("SD | setTokenElevation: token not found for ref", tokenRef);
+            break;
+          }
+
+          const valRaw = _injectRuntime(String(action.value ?? 0));
+          const valStr = FormulaEngine.resolveForRoll(valRaw, srcDoc ?? actor ?? item ?? {});
+          const value  = Number(FormulaEngine.evaluate(valStr, srcDoc ?? actor)) || Number(valStr) || 0;
+
+          const mode    = String(action.mode ?? "set");
+          const animate = action.animate !== false;
+          const current = Number(tk.document.elevation ?? 0) || 0;
+          const next    = (mode === "add") ? (current + value) : value;
+
+          await tk.document.update({ elevation: next }, { animate });
+        } catch (e) {
+          console.warn("SD | setTokenElevation error:", e);
+          ui.notifications?.warn?.(`Set Token Elevation failed: ${e?.message ?? e}`);
+        }
+        break;
+      }
+
       case "moveToken": {
         try {
           const { FormulaEngine } = await import("./formula-engine.mjs");
@@ -3508,8 +3537,7 @@ export class ButtonExecutor {
             callback: () => `${pinId}|${el.id ?? ""}|${el.emit === false ? "no" : "yes"}`
           });
         }
-        // Always add an explicit Submit button so the `Submit →` exec output
-        // can be fired without having to define an element-button.
+
         dlgButtons.push({
           action:  "__sd_submit",
           label:   okLabel,
@@ -3519,9 +3547,6 @@ export class ButtonExecutor {
         });
         dlgButtons.push({ action:"cancel", label: cancelLabel, icon:"fas fa-times" });
 
-        // Shared root reference so we can resync `state` from DOM right
-        // before resolving on a button click (defensive: even if our `change`
-        // listeners failed to bind for any reason, the values still get read).
         let _dlgRoot = null;
 
         const _syncStateFromDom = () => {
@@ -3578,10 +3603,6 @@ export class ButtonExecutor {
           _bindInputs(root);
         };
 
-        // V13/V14 DialogV2 normalizes options.buttons into a Record keyed by
-        // action, so we wrap callbacks before passing them in. Each wrapped
-        // callback resyncs state from DOM before deciding the result, so
-        // unsaved input values are always captured.
         const result = await new Promise((resolve) => {
           let resolved = false;
           const _finish = (val) => {
@@ -3602,12 +3623,8 @@ export class ButtonExecutor {
             };
           });
 
-          // Wrap body in marker so the render hook can find ours among multiple dialogs.
           const bodyHtml = `<div data-sd-dlg-form>${_renderBody(state)}</div>`;
 
-          // Use both: a Hooks.on("renderDialogV2") listener (most reliable in V13+)
-          // and the constructor `render` option. The hook is scoped to dialogs that
-          // contain our `[data-sd-dlg-form]` marker, so it won't fire for unrelated dialogs.
           const _hookId = Hooks.on("renderDialogV2", (app, htmlOrEl) => {
             const root = htmlOrEl?.[0] ?? htmlOrEl ?? app?.element ?? null;
             if (!root?.querySelector?.("[data-sd-dlg-form]")) return;
@@ -3630,12 +3647,8 @@ export class ButtonExecutor {
           });
           dlg.render(true);
 
-          // Safety-net: remove the hook once dialog promise resolves, in case
-          // `close` did not fire for some reason.
           Promise.resolve().then(() => {
-            // Hook is unhooked in close anyway; this is a defensive cleanup
-            // scheduled when the outer promise settles. We can't easily wait
-            // here, so we leave it for `close`.
+
           });
         });
 
@@ -4352,7 +4365,7 @@ export class ButtonExecutor {
         try {
           const v = foundry.utils.getProperty(_dcDoc, String(_dcRaw ?? ""));
           if (v != null) _dcResolved = Number(v);
-        } catch { /* ignore */ }
+        } catch {  }
       }
       const resolvedDC = Number.isFinite(_dcResolved) ? _dcResolved : 15;
       const modifierPath = action.modifierPath ?? "system.attributes.attr1.mod";

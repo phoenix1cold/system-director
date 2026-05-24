@@ -2562,8 +2562,6 @@
 }
 
 .sd .widget-attribute .attr-mod:hover { background: var(--sd-accent-glow); }
-
-/* Attribute widget — "Roll Button" variant */
 .sd .widget-attribute.widget-attribute--roll .attr-roll-btn,
 .sd .sd-w-attribute.sd-v-roll-button .attr-roll-btn {
   display: inline-flex;
@@ -3093,6 +3091,156 @@
   font-family: var(--sd-font);
   line-height: 1.6;
   box-shadow: 0 0 0 2px var(--sd-accent-glow);
+}
+.sd .widget-richtext--hidden .richtext-edit-wrap {
+  border: 1px solid var(--sd-accent);
+  border-radius: var(--sd-r);
+  background: var(--sd-w-bg, var(--sd-bg-2));
+  box-shadow: 0 0 0 2px var(--sd-accent-glow);
+  padding: 4px;
+  flex-direction: column;
+}
+.sd .widget-richtext--hidden .richtext-edit-wrap[style*="display: block"],
+.sd .widget-richtext--hidden .richtext-edit-wrap[style*="display:block"] {
+  display: flex !important;
+}
+.sd .widget-richtext--hidden .richtext-edit-wrap textarea.richtext-editor {
+  flex: 1 1 auto;
+  min-height: 80px;
+}
+.sd .widget-richtext--readonly .richtext-display--readonly {
+  cursor: default;
+}
+.sd .widget-richtext--readonly .richtext-display--readonly:hover {
+  border-color: var(--sd-w-bd, var(--sd-border));
+}
+.sd .widget-richtext .sd-richtext-editor {
+  width: 100%;
+  min-height: 60px;
+  background: var(--sd-w-bg, var(--sd-bg));
+  border: 1px solid var(--sd-w-bd, var(--sd-border));
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+.sd .widget-richtext > .sd-richtext-editor,
+.sd .widget-richtext > .richtext-display:not(.richtext-display--readonly),
+.sd .widget-richtext > .richtext-edit-wrap {
+  flex: 1 1 auto;
+}
+.sd .widget-richtext .richtext-display:not(.richtext-display--readonly) {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+.sd .widget-richtext .sd-richtext-editor:not(.editor-active) .editor-content {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+.sd .widget-richtext .sd-richtext-editor .editor-content {
+  min-height: 60px;
+  padding: 6px 8px;
+  font-size: var(--sd-fs-m2);
+  color: var(--sd-w-fg, var(--sd-text-2));
+  line-height: 1.6;
+  word-break: break-word;
+}
+.sd .widget-richtext .sd-richtext-editor.editor-active {
+  border-color: var(--sd-accent);
+  box-shadow: 0 0 0 2px var(--sd-accent-glow);
+  min-height: 320px;
+}
+.sd .widget-richtext .sd-richtext-editor.editor-active .editor-content {
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.sd .widget-richtext .sd-richtext-editor.editor-active .editor-content .ProseMirror {
+  flex: 1;
+  min-height: 220px;
+  padding: 8px 10px;
+  outline: none;
+  overflow: auto;
+  background: var(--sd-bg, #1b1b1f);
+  color: var(--sd-text, #eee);
+  line-height: 1.6;
+  font-size: var(--sd-fs-m2);
+}
+.sd .widget-richtext .sd-richtext-editor.editor-active .editor-content .ProseMirror:focus {
+  outline: none;
+}
+.sd .widget-richtext .sd-richtext-editor.editor-active .editor-content .prosemirror-menu,
+.sd .widget-richtext .sd-richtext-editor.editor-active .editor-content menu.prosemirror-menu {
+  flex: 0 0 auto;
+}
+.sd .widget-richtext .sd-richtext-editor .sd-richtext-edit-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--sd-text-2, #ccc);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  z-index: 3;
+}
+.sd .widget-richtext .sd-richtext-editor .sd-richtext-edit-btn:hover {
+  background: var(--sd-accent);
+  color: var(--sd-accent-text, #fff);
+}
+.sd .widget-richtext .sd-richtext-editor.editor-active .sd-richtext-edit-btn {
+  display: none;
+}
+.sd .widget-richtext .sd-richtext-editor .sd-richtext-chrome {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  padding: 6px;
+  background: var(--sd-bg-2, #16161a);
+  border-top: 1px solid var(--sd-w-bd, var(--sd-border));
+  flex: 0 0 auto;
+}
+.sd .widget-richtext .sd-richtext-editor .sd-richtext-chrome .save {
+  flex: 1;
+  cursor: pointer;
+  background: var(--sd-accent, #b88550);
+  color: var(--sd-accent-text, #fff);
+  border: 1px solid var(--sd-accent, #b88550);
+  border-radius: 4px;
+  font-size: 12px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1;
+}
+.sd .widget-richtext .sd-richtext-editor .sd-richtext-chrome .save:hover {
+  filter: brightness(1.1);
+}
+.sd .widget-richtext .sd-richtext-editor .sd-richtext-chrome .sd-richtext-cancel-btn {
+  cursor: pointer;
+  background: transparent;
+  color: var(--sd-danger, #d66);
+  border: 1px solid var(--sd-danger, #d66);
+  border-radius: 4px;
+  font-size: 12px;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+.sd .widget-richtext .sd-richtext-editor .sd-richtext-chrome .sd-richtext-cancel-btn:hover {
+  background: var(--sd-danger-dim, rgba(220, 100, 100, 0.18));
 }
 
 .sd .widget-formula-badge {
@@ -4070,15 +4218,6 @@
 }
 
 #sd-action-hud .sd-action-hud-spacer { flex: 1; }
-
-/*
- * Top-bar / add-button styling for the HUD shell.
- *
- * NOTE: keep this selector restricted to direct toolbar buttons. A broader
- * `#sd-action-hud button` selector squashes every button inside HUD widgets
- * (Select pills, Roll buttons, ± counters, etc.) into a 22x22 box and makes
- * their labels overflow — see the "pills compressed" bug.
- */
 #sd-action-hud > .sd-action-hud-bar > button,
 #sd-action-hud > .sd-action-hud-add {
   background: transparent;
@@ -4869,16 +5008,8 @@
   opacity: 1;
   pointer-events: auto;
 }
-
-/*
- * Separate widgets mode: when toggled in client settings, each HUD widget
- * lives as its own fixed-position element instead of being parented inside
- * the shared canvas. The toolbar itself stays minimal and draggable.
- */
 .sd-action-hud-widget.sd-hud-floating {
   position: fixed;
-  /* Above the HUD root (z-index 70) so widgets always sit on top when their
-     positions overlap the toolbar. */
   z-index: 71;
   transform: scale(var(--sd-hud-cell-scale, 1));
   transform-origin: top left;
@@ -4896,23 +5027,10 @@
   display: inline-flex;
   margin-left: 6px;
 }
-
-/*
- * Per-widget mini-bar for separate-widgets mode. Each floating cell carries
- * its own header that appears just above the widget on hover, so the user
- * never has to hunt for the (now hidden) standalone HUD bar. Mirrors the
- * styling of `.sd-action-hud-bar` but at a smaller scale.
- */
 .sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar {
   position: absolute;
   left: 0;
   right: 0;
-  /* Slightly overlap the widget's top edge (2px) so the cursor can glide from
-     the widget onto the bar without ever crossing an un-hovered gap. Without
-     this overlap, subpixel rendering can briefly drop :hover and flash the
-     bar away — which is exactly what the user reported. Visual separation
-     still works thanks to the bar's own border + box-shadow.
-     In builder mode this gets lifted above the cell-bar (see rule below). */
   bottom: calc(100% - 2px);
   display: flex;
   align-items: center;
@@ -4924,27 +5042,18 @@
   font-size: 11px;
   line-height: 1;
   color: var(--sd-text, #e0e0e0);
-  /* Invisible by default + non-interactive so the empty area above the widget
-     doesn't trap clicks; both flip on hover/focus below. */
   pointer-events: none;
   opacity: 0;
-  /* Tiny delay on the FADE-OUT only, so brief gaps in pointer coverage (e.g.
-     moving across the bar/widget boundary diagonally) don't make the bar
-     blink out. The fade-in is still instant on hover. */
   transition: opacity 0.15s ease 0.08s;
   z-index: 2;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0,0,0,0.45);
 }
-/* Show the per-widget bar on widget hover so users can always reach the
-   drag handle and global controls without entering edit mode. Also keep it
-   visible while focused (e.g. when interacting with a button). */
 .sd-action-hud-widget.sd-hud-floating:hover > .sd-hud-float-bar,
 .sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar:hover,
 .sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar:focus-within {
   opacity: 1;
   pointer-events: auto;
-  /* No delay on the fade-IN — appear instantly when the user hovers in. */
   transition-delay: 0s;
 }
 .sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar .sd-hud-float-grab {
@@ -4981,17 +5090,9 @@
 .sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar button.is-on {
   color: var(--sd-accent, #ffb86b);
 }
-/* When the global lock is on, hide the grab cursor affordance to make it
-   visually clear that the per-widget drag is disabled. The lock-button icon
-   already reflects this state on its own. */
 #sd-action-hud-floating.sd-action-hud-locked .sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar .sd-hud-float-grab {
   cursor: not-allowed;
 }
-
-/*
- * Builder-mode overlays for floating widgets — mirror the styling the
- * canvas-parented cells get when #sd-action-hud has the .sd-hud-builder class.
- */
 #sd-action-hud-floating.sd-hud-builder .sd-action-hud-widget {
   outline: 1px solid var(--sd-accent);
   outline-offset: 0;
@@ -5003,11 +5104,6 @@
 #sd-action-hud-floating .sd-action-hud-widget {
   pointer-events: auto;
 }
-/* In builder mode the widget already shows a `.sd-hud-cell-bar` (22px tall)
-   right above it with per-widget controls (scale / transparent / edit /
-   delete / resize). Lift the global per-widget float-bar above that strip so
-   the two stack vertically instead of overlapping. The 20px keeps a 2px
-   overlap with the cell-bar for hover continuity. */
 #sd-action-hud-floating.sd-hud-builder .sd-action-hud-widget.sd-hud-floating > .sd-hud-float-bar {
   bottom: calc(100% + 20px);
 }
@@ -5082,10 +5178,6 @@
   color: #a8aab3 !important;
   font-style: italic !important;
 }
-
-/* ============================================================
-   Progression: Choices (branching rewards)
-   ============================================================ */
 .sd-prog-le-choices {
   border-top: 1px dashed var(--prog-border);
   padding: 8px 12px 12px;
@@ -5173,8 +5265,6 @@
 .sd-prog-choice-zone {
   min-height: 32px;
 }
-
-/* Choice picker dialog */
 .sd-prog-pick-dialog {
   display: flex; flex-direction: column; gap: 12px;
   max-height: 70vh;
@@ -5281,10 +5371,6 @@
 .sd-prog-pick-card-sub code {
   font-size: 9px;
 }
-
-/* ============================================================
-   Progression: split layout (left = content, right = preview)
-   ============================================================ */
 .sd-progression-app .window-content {
   padding: 0;
 }
@@ -5314,8 +5400,6 @@
   flex-direction: column;
   gap: 8px;
 }
-
-/* Preview pane */
 .sd-prog-preview-empty {
   display: flex;
   flex-direction: column;
@@ -5681,10 +5765,6 @@
   text-align: center;
   padding: 4px;
 }
-
-/* ============================================================
-   Progression: inline choice groups inside level columns
-   ============================================================ */
 .sd-prog-choice-inline {
   margin-top: 6px;
   border: 1px dashed var(--prog-accent, #7b68ee);
@@ -5788,27 +5868,17 @@
   justify-content: center;
   padding: 4px 6px;
 }
-
-/* Variant display highlight */
 .variant-display {
   outline: 1px solid var(--prog-accent, #7b68ee);
   outline-offset: -1px;
   border-radius: 4px;
 }
-
-/* Hover highlight for previewable elements */
 [data-preview-ref] {
   cursor: pointer;
 }
 [data-preview-ref]:hover {
   filter: brightness(1.1);
 }
-
-/* ============================================================
-   Floating item preview popup
-   Used by inventory / spellbook / effects widgets on character sheet.
-   Reuses .sd-prog-preview-* skin from the progression preview.
-   ============================================================ */
 #sd-item-preview-popup.sd-item-preview-popup {
   position: fixed;
   z-index: 10000;
@@ -5846,8 +5916,6 @@
 [data-sd-preview-ref] {
   cursor: default;
 }
-
-/* Apply-choices dialog: disabled state */
 .sd-progression-pick button[data-action='ok'].is-disabled,
 .sd-progression-pick button[data-action='ok']:disabled {
   opacity: .45;

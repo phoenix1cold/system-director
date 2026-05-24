@@ -25,13 +25,14 @@ export class ItemPreviewPopup {
   static _docs        = new WeakMap();
 
   static attach(root, doc) {
-    if (!root || !doc) return;
+    if (!root) return;
     if (root.dataset.sdPreviewAttached === "1") {
-      this._docs.set(root, doc);
+
+      if (doc) this._docs.set(root, doc);
       return;
     }
     root.dataset.sdPreviewAttached = "1";
-    this._docs.set(root, doc);
+    if (doc) this._docs.set(root, doc);
     this._bindGlobal();
 
     root.addEventListener("mouseover", ev => this._onOver(ev, root));
@@ -69,7 +70,7 @@ export class ItemPreviewPopup {
   static _onOver(ev, root) {
     const node = ev.target?.closest?.("[data-sd-preview-ref]");
     if (!node || !root.contains(node)) return;
-    // Only fire when crossing the row boundary (not for inner descendants).
+
     const from = ev.relatedTarget;
     if (from && node.contains(from)) return;
     if (this._pinned) return;
@@ -90,10 +91,10 @@ export class ItemPreviewPopup {
   static _onOut(ev, root) {
     const node = ev.target?.closest?.("[data-sd-preview-ref]");
     if (!node || !root.contains(node)) return;
-    // Don't fire when moving inside the same row.
+
     const to = ev.relatedTarget;
     if (to && node.contains(to)) return;
-    // Don't hide if moving into the popup itself.
+
     if (to && this._popup && this._popup.contains(to)) return;
     if (this._pinned) return;
     if (this._hideTimer) clearTimeout(this._hideTimer);
@@ -141,7 +142,16 @@ export class ItemPreviewPopup {
 
   static _resolveNode(doc, node) {
     const ref = node.dataset.sdPreviewRef;
-    if (!doc || !ref) return null;
+    if (!ref) return null;
+
+    const overrideUuid = node.dataset.sdActorUuid;
+    if (overrideUuid) {
+      try {
+        const resolved = (globalThis.fromUuidSync ?? foundry.utils?.fromUuidSync)?.(overrideUuid);
+        if (resolved) doc = resolved;
+      } catch {}
+    }
+    if (!doc) return null;
 
     if (ref === "slot") {
       return this._resolveSlot(doc, node);
@@ -175,7 +185,7 @@ export class ItemPreviewPopup {
     if (!slotId || !Number.isFinite(idx) || idx < 0) return null;
     const snapshot = doc?.system?.slotContents?.[slotId]?.contents?.[idx];
     if (!snapshot) return null;
-    // Try to resolve a live item first (more up-to-date), fall back to snapshot.
+
     let live = null;
     const itemId = snapshot._id ?? node.dataset.itemId ?? null;
     if (itemId) {
@@ -420,7 +430,8 @@ export class ItemPreviewPopup {
     const rowCols = Math.max(1, Math.min(9, Number(row.cols) || 3));
     const span = insideVS ? 1 : Math.max(1, Math.min(rowCols, Number(w.span) || 1));
     let inner = "";
-    try { inner = WidgetRenderer.render(w, item, false) ?? ""; }
+
+    try { inner = WidgetRenderer.render(w, item, false, { readOnly: true }) ?? ""; }
     catch (err) { inner = `<div class="sd-prog-preview-widget-err">${_esc(String(err?.message ?? err))}</div>`; }
     if (!inner?.trim()) return "";
     return `<div class="sd-prog-preview-cell" style="grid-column:span ${span};min-width:0;">${inner}</div>`;
@@ -505,14 +516,6 @@ export class ItemPreviewPopup {
     return this._header(name, _loc("SD.Progression.Effects", "Effect"), img, isPinned) + body;
   }
 
-  /**
-   * Render a self-contained "card" for an item without any popup chrome.
-   * Used by inventory/spellbook card-slider / card-grid widget variants so each
-   * card looks like the hover preview without the pin button.
-   *
-   * Tabs (if any) are rendered as collapsible <details> sections so each card
-   * stays interactive without requiring shared state.
-   */
   static renderItemCardHTML(item) {
     if (!item) return "";
     const name = item.name || "Item";
@@ -547,10 +550,6 @@ export class ItemPreviewPopup {
     return header + body;
   }
 
-  /**
-   * Render a self-contained "card" for an ActiveEffect for the
-   * effects card-slider / card-grid widget variants.
-   */
   static renderEffectCardHTML(ef) {
     if (!ef) return "";
     const name = ef.name || "Effect";

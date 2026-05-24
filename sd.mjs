@@ -286,9 +286,6 @@ Hooks.once("init", () => {
   console.log("SD | Initialisation complete.");
 });
 
-// Hide deprecated "feature" item type from the create dialog (existing
-// feature items remain valid via the schema and are auto-converted to ability
-// on world load by convertLegacyFeatureItems()).
 const _sdRemoveFeatureOption = (root) => {
   if (!root) return;
   root.querySelectorAll?.('select[name="type"] option[value="feature"]').forEach(o => o.remove());
@@ -673,7 +670,6 @@ Hooks.on("updateCards", _sdRerenderForCardsStack);
 Hooks.on("createCard", (card) => _sdRerenderForCardsStack(card?.parent));
 Hooks.on("updateCard", (card) => _sdRerenderForCardsStack(card?.parent));
 Hooks.on("deleteCard", (card) => _sdRerenderForCardsStack(card?.parent));
-
 
 function _sdRerenderActorSheetsLinkedToQuestLog(item) {
   try {
@@ -1403,10 +1399,6 @@ html.addEventListener("click", async (e) => {
     }
   }
 
-  // Execute the Pass / Fail branches that were compiled from the Save / Check
-  // Button node (passActions / failActions in the chat message's sd flag).
-  // Without this, downstream nodes wired to the Save / Check Button's pass /
-  // fail exec outputs — most importantly Apply Effect — never run.
   try {
     const passActions = chatMsg?.getFlag("sd", "passActions") ?? [];
     const failActions = chatMsg?.getFlag("sd", "failActions") ?? [];

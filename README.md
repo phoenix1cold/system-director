@@ -11,30 +11,33 @@
 </p>
 
 <p align="center">
-  <img alt="Status" src="https://img.shields.io/badge/status-beta-orange?style=flat-square">
+  <img alt="Status" src="https://img.shields.io/badge/status-pre--release-blueviolet?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.9.0-informational?style=flat-square">
   <img alt="Foundry VTT" src="https://img.shields.io/badge/Foundry%20VTT-v13%20%E2%80%93%20v14-fe6a1f?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-source--available%20%2F%20non--commercial-blue?style=flat-square">
 </p>
 
 ---
 
-## ⚠️ Beta Notice
+## 📦 Pre-Release Notice
 
-**System Director is currently in public beta.**
+**System Director is now in the `0.9.x` pre-release line on the way to `1.0`.**
 
-Things you should know before installing it on a real campaign:
+What that means in practice:
 
-- The system is **feature-complete enough to play**, but APIs, data shapes
-  and node names may still change between releases.
-- There is **no automatic data migration** between every minor version.
+- The system is **feature-complete for normal play** — sheet builder,
+  node graph, hidden fields, slots, spellbooks, inventory / trade,
+  Rich Text, action HUD, etc. all work.
+- Pre-release is the **API-freeze window**: existing node names, data
+  paths and widget keys are not expected to change before `1.0`. New
+  nodes / widgets may still be added, but anything you build against
+  today should keep working.
+- There is **no automatic data migration** between every patch.
   Always back up your world before updating.
-- Edge-case bugs are expected. If you hit one, please open an issue or
+- Runs on **Foundry VTT v13** and is verified up to **v14**. Older
+  Foundry versions are not supported.
+- Bug reports are still very welcome — please open a GitHub issue or
   drop into the Discord (link above).
-- It runs on **Foundry VTT v13** and is verified up to **v14**.
-  Older Foundry versions are not supported.
-
-If you want a quiet, no-surprises experience right now, wait for the 1.0
-release. If you want to help shape the system, jump in.
 
 ---
 
@@ -93,7 +96,7 @@ and react to it from a node graph.** No system-specific assumptions.
 
 ## Support / Community
 
-- **Discord:** https://discord.gg/wSfn962R — bug reports, feature
+- **Discord:** https://discord.gg/Qfx5y8cPCw — bug reports, feature
   requests, sharing actor / item templates, asking how to wire something.
 - **Issues:** https://github.com/phoenix1cold/system-director/issues —
   reproducible bugs and concrete feature requests.

@@ -7,9 +7,6 @@ function _sdMsgMode() {
   return "publicroll";
 }
 
-// Foundry v14 ActiveEffects V2 use a string `change.type` (e.g. "add",
-// "override"). Pre-V14 effects used a numeric `change.mode`. We accept both so
-// old worlds keep working after the upgrade.
 const SD_LEGACY_MODE_TO_TYPE = Object.freeze({
   0: "custom",
   1: "multiply",
@@ -53,13 +50,6 @@ function _sdValuesEqual(a, b) {
   return false;
 }
 
-/**
- * Sequentially apply an array of ActiveEffect `change` objects on top of
- * `start`, mirroring Foundry's standard numeric apply semantics
- * (add / multiply / override / upgrade / downgrade). Supports both the v14
- * `change.type` (string) and the legacy `change.mode` (number) for backwards
- * compatibility.
- */
 function _sdApplyChangesToValue(start, changes) {
   const sorted = changes.map((c, i) => {
     const type = _sdResolveChangeType(c);
@@ -106,8 +96,7 @@ function _sdApplyChangesToValue(start, changes) {
         break;
       case "custom":
       default:
-        // Custom handlers run inside Foundry's standard pipeline; we do not
-        // attempt to re-invoke them here.
+
         break;
     }
   }
@@ -128,8 +117,7 @@ function _sdChangePhase(change) {
 export class SDActor extends Actor {
 
   prepareData() {
-    // Fresh tracking on every prepare cycle so stale state from a previous
-    // (possibly interrupted) prepare cannot leak into the next pass.
+
     this._sdAeContext = null;
     super.prepareData();
     this._sdReapplyOverwrittenEffects();
@@ -237,32 +225,6 @@ export class SDActor extends Actor {
     });
   }
 
-  /**
-   * Hook into Foundry's effect-application phases.
-   *
-   * Foundry v14 splits ActiveEffect application into two phases ("initial" and
-   * "final") and calls this method once per phase: "initial" before
-   * `prepareDerivedData()`, "final" after it. We delegate to the standard
-   * implementation so all changes are applied through the canonical pipeline,
-   * but we additionally:
-   *
-   *   1. Pre-create paths under `system.hiddenFields.*` / `system.flags.*`
-   *      that do not yet exist on the document, so that the standard pipeline
-   *      can write numeric changes against a defined starting value.
-   *      ObjectField sub-paths are not guaranteed to exist on the live
-   *      document until something references them.
-   *
-   *   2. After the "initial" phase has run, snapshot every targeted system
-   *      path. `prepareData()` compares these snapshots against the post-
-   *      pipeline values and, for any path whose value was clobbered during
-   *      `prepareDerivedData()` (e.g. `system.defense.total` gets recomputed
-   *      from `armor + bonus`), re-applies the initial-phase changes on top
-   *      so the effect is visible.
-   *
-   * IMPORTANT: we do NOT run any custom apply logic alongside the standard
-   * pipeline here — doing so would double-apply effects in v14 (since this
-   * method is called once per phase).
-   */
   applyActiveEffects(phase) {
     const isInitial = (phase === "initial" || phase === undefined || phase === null);
 
@@ -282,10 +244,7 @@ export class SDActor extends Actor {
     }
 
     if (isInitial) {
-      // ObjectField sub-paths (system.hiddenFields.*, system.flags.*) might
-      // not exist on `this` if the actor's stored source data has never had
-      // this key. Seed them with 0 so the standard pipeline can apply numeric
-      // changes against a defined value.
+
       for (const key of this._sdAeContext.changesByKey.keys()) {
         if (!_sdIsHiddenLikePath(key)) continue;
         const cur = foundry.utils.getProperty(this, key);
@@ -306,18 +265,6 @@ export class SDActor extends Actor {
     }
   }
 
-  /**
-   * Detect paths that were modified by an ActiveEffect in the "initial" phase
-   * but later overwritten during `prepareDerivedData()` (e.g. by
-   * `_prepareDefense()` setting `system.defense.total = armor + bonus`, or by
-   * `applyCalculationsToActor()` overwriting configured calculation outputs).
-   * For each such path, re-apply the initial-phase change(s) on top of the new
-   * derived value so the effect is preserved.
-   *
-   * We deliberately do NOT re-apply "final"-phase changes here — Foundry has
-   * already applied those after `prepareDerivedData()` and they are correctly
-   * stacked on top of derived data.
-   */
   _sdReapplyOverwrittenEffects() {
     const ctx = this._sdAeContext;
     this._sdAeContext = null;
