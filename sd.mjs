@@ -245,6 +245,14 @@ Hooks.once("init", () => {
     default: {}
   });
 
+  game.settings.register("sd", "functionLibrary", {
+    name:    "Node Graph Function Library",
+    scope:   "world",
+    config:  false,
+    type:    Object,
+    default: { functions: {} }
+  });
+
   game.settings.register("sd", "nodeGraphLanguage", {
     name:    "SD.Settings.NodeGraphLanguage",
     hint:    "SD.Settings.NodeGraphLanguageHint",

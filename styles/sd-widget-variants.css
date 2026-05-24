@@ -50,6 +50,12 @@
   border: 1px solid var(--sd-border) !important;
   border-radius: var(--sd-r) !important;
 }
+.sd-w-richtext.sd-v-scroll:has(.sd-richtext-editor.editor-active),
+.sd-w-richtext.sd-v-scroll:has(.richtext-edit-wrap[style*="display: block"]),
+.sd-w-richtext.sd-v-scroll:has(.richtext-edit-wrap[style*="display:block"]) {
+  max-height: none !important;
+  overflow: visible !important;
+}
 
 .sd-w-number.sd-v-chip {
   display: inline-flex !important;

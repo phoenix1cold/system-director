@@ -584,7 +584,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   popup.style.cssText = `
     position:fixed;left:${popLeft}px;top:${popTop}px;
-    width:430px;max-height:92vh;overflow:hidden;
+    width:430px;height:min(620px,90vh);max-height:96vh;
+    min-width:380px;min-height:280px;
+    overflow:hidden;resize:both;
     background:var(--sd-bg);border:1px solid var(--sd-accent-2);border-radius:8px;
     box-shadow:0 8px 40px rgba(0,0,0,.85);z-index:${_wcfgZ};
     font-family:'Signika','Palatino Linotype',serif;color:var(--sd-text);

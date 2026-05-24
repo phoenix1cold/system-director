@@ -5828,6 +5828,92 @@ export const NODE_DEFS = {
     }
   },
 
+  func_inputs: {
+    title: "Inputs",
+    cat:   "Functions",
+    color: "#3a7a8a",
+    hidden: true,
+    noDelete: true,
+    noClone: true,
+    isFunctionAnchor: true,
+    isFunctionInputs: true,
+    inputs: [],
+    outputs: [],
+    fields: [],
+    computeDynamicOutputs(node) {
+      const sig = node?.__sig;
+      if (!sig) return [{id:"_exec",label:"→",type:"exec"}];
+      const out = [{id:"_exec",label:"→",type:"exec"}];
+      for (const p of (sig.inputs ?? [])) {
+        out.push({id:p.id,label:p.label||p.id,type:p.type||"value.any"});
+      }
+      return out;
+    },
+    compile(n) { return "0"; },
+    compilePin(n,ins,fromPin) {
+      const v = n?.__overlay?.[fromPin];
+      return v !== undefined && v !== null ? String(v) : "0";
+    }
+  },
+
+  func_outputs: {
+    title: "Outputs",
+    cat:   "Functions",
+    color: "#3a7a8a",
+    hidden: true,
+    noDelete: true,
+    noClone: true,
+    isFunctionAnchor: true,
+    isFunctionOutputs: true,
+    isAction: true,
+    inputs: [],
+    outputs: [],
+    fields: [],
+    computeDynamicInputs(node) {
+      const sig = node?.__sig;
+      if (!sig) return [{id:"_exec",label:"→",type:"exec"}];
+      const out = [{id:"_exec",label:"→",type:"exec"}];
+      for (const p of (sig.outputs ?? [])) {
+        out.push({id:p.id,label:p.label||p.id,type:p.type||"value.any"});
+      }
+      return out;
+    }
+  },
+
+  function_call: {
+    title: "Function",
+    cat:   "Functions",
+    color: "#5a3a8a",
+    hidden: true,
+    isFunctionCall: true,
+    isAction: true,
+    inputs: [],
+    outputs: [],
+    fields: [],
+    computeDynamicInputs(node) {
+      const sig = node?.__sig;
+      const out = [{id:"_exec",label:"→",type:"exec"}];
+      if (sig) {
+        for (const p of (sig.inputs ?? [])) {
+          out.push({id:p.id,label:p.label||p.id,type:p.type||"value.any"});
+        }
+      }
+      return out;
+    },
+    computeDynamicOutputs(node) {
+      const sig = node?.__sig;
+      const out = [{id:"_exec",label:"→",type:"exec"}];
+      if (sig) {
+        for (const p of (sig.outputs ?? [])) {
+          out.push({id:p.id,label:p.label||p.id,type:p.type||"value.any"});
+        }
+      }
+      return out;
+    },
+    compile(n) { return "0"; },
+    compilePin(n,ins,fromPin) { return "0"; },
+    toAction(n,ins) { return { type:"noop" }; }
+  }
 };
 
 (() => {
@@ -6023,6 +6109,7 @@ const BRANCH_PIN_TOKENS = {
 
 const CATS = [
   {id:"Flow",       color:"#8a3a8a"},
+  {id:"Functions",  color:"#7a4abc"},
   {id:"Events",     color:"#c04040"},
   {id:"Quest",      color:"#a04060"},
   {id:"Attribute",  color:"#7a4a1a"},
@@ -6335,6 +6422,7 @@ export class FormulaGraph {
       if (!src) continue;
       const def = NODE_DEFS[src.type];
       if (!def) continue;
+      if (def.noClone) continue;
       const newId = `n${this._id++}`;
       idMap.set(oldId, newId);
       const clone = foundry.utils.deepClone(src);
@@ -7353,6 +7441,14 @@ export class FormulaGraph {
     const v2 = new Set(vis); v2.add(node.id);
     const def = NODE_DEFS[node.type];
 
+    if (def?.isFunctionInputs) {
+      const v = this._funcInputsOverlay?.[fromPin];
+      return v !== undefined && v !== null && v !== "" ? String(v) : "0";
+    }
+    if (def?.isFunctionCall) {
+      return this._compileFunctionValue(node, fromPin);
+    }
+
     if (def?.isEvent) return EVENT_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
     if (def?.isMacroInput) return `{__macroArg:${fromPin ?? "a"}}`;
     if (def?.isAttackBranch || def?.isBranch || def?.isSaveBranch || def?.isTieredBranch || def?.isGenericBranch || def?.isProgressionBranch || def?.isAoeSave || def?.isAiBranch) {
@@ -7413,6 +7509,16 @@ export class FormulaGraph {
       if (!node) return;
       const def  = NODE_DEFS[node.type];
       if (!def) return;
+
+      if (def.isFunctionOutputs) return;
+
+      if (def.isFunctionCall) {
+        const innerActions = this._inlineFunctionExec(node);
+        if (Array.isArray(innerActions) && innerActions.length) actions.push(...innerActions);
+        const outEdge = this.edges.find(e => e.fromNode === node.id && e.fromPin === "_exec");
+        if (outEdge) _walk(outEdge.toNode, vis);
+        return;
+      }
 
       if (def.isBranch) {
         const condEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="cond");
@@ -7953,11 +8059,21 @@ export class FormulaGraph {
         || "";
       if (fxAttr) win.setAttribute("data-sd-theme-fx", fxAttr);
     } catch {  }
-    win.style.cssText=`position:fixed;top:30px;left:50%;transform:translateX(-50%);width:min(1180px,97vw);height:min(720px,93vh);background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.95);z-index:20000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;`;
+    {
+      const _w = Math.min(1180, Math.floor(window.innerWidth * 0.97));
+      const _h = Math.min(720, Math.floor(window.innerHeight * 0.93));
+      const _l = Math.max(20, Math.floor((window.innerWidth - _w) / 2));
+      win.style.cssText=`position:fixed;top:30px;left:${_l}px;width:${_w}px;height:${_h}px;min-width:800px;min-height:520px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.95);z-index:20000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;resize:both`;
+    }
     win.innerHTML=`
       <div id="gbar" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move;user-select:none">
         <i class="fas fa-diagram-project" style="color:var(--sd-accent);font-size:13px"></i>
         <b style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-accent);flex:none">Graph Editor</b>
+        <div id="gfnbar" style="display:none;align-items:center;gap:6px;flex:none;background:#2a1a3a;border:1px solid #4a3a6a;border-radius:8px;padding:3px 8px;color:#dccff8;font-size:11px">
+          <button id="gfnback" style="background:rgba(255,255,255,.08);border:1px solid #4a3a6a;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:3px 8px" title="Return to outer graph"><i class="fas fa-arrow-left" style="margin-right:3px"></i>Back</button>
+          <span id="gfncrumb" style="font-family:monospace;font-weight:600">\u0192 function</span>
+          <button id="gfnsave" style="background:#3a5a3a;border:1px solid #4a7a4a;border-radius:6px;color:#dfe8d0;cursor:pointer;font-size:11px;padding:3px 8px" title="Save function changes"><i class="fas fa-floppy-disk" style="margin-right:3px"></i>Save Fn</button>
+        </div>
         <div id="gpreview" style="flex:1;font-size:10px;color:var(--sd-text-3);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
         <button id="gtpl" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Insert a saved node template"><i class="fas fa-puzzle-piece" style="margin-right:4px"></i>Templates</button>
         <button id="gtplsave" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Save the selected nodes (Shift-click to select) as a reusable template"><i class="fas fa-bookmark" style="margin-right:4px"></i>Save as Tpl</button>
@@ -8039,8 +8155,15 @@ export class FormulaGraph {
     const hidesOnClick     = isSheetTrigger || isQuestModeAny || (isWidgetGraph && !isAttrGraph
       && IMPLICIT_CLICK_WIDGETS.has(this.widget?.type));
 
+    const isFuncEditMode = !!this._activeFunctionId;
+    const isGM = !!(game?.user?.isGM);
+
     const rows = CATS.map(cat=>{
       if (isQuestModeAny && !ALLOWED_QUEST_CATS.has(cat.id)) return "";
+
+      if (cat.id === "Functions") {
+        return this._buildPalFunctions(cat);
+      }
 
       const nodes = Object.entries(NODE_DEFS).filter(([type,d]) => {
         if (d.isWidgetConfig) return false;
@@ -8050,6 +8173,11 @@ export class FormulaGraph {
         if (hidesOnClick && type === "on_click") return false;
         if (isSheetTrigger && type === "output") return false;
         if (this.actionGraph && type === "output") return false;
+        if (isFuncEditMode) {
+          if (d.isEvent) return false;
+          if (type === "output") return false;
+          if (type === "on_click") return false;
+        }
         if (isQuestModeAny) {
           if (type === "output") return false;
           if (d.cat === "Sources" && !ALLOWED_QUEST_SOURCES.has(type)) return false;
@@ -8068,14 +8196,51 @@ export class FormulaGraph {
     return rows;
   }
 
+  _buildPalFunctions(cat) {
+    const isGM = !!(game?.user?.isGM);
+    const lib = this._getFunctionLib?.() ?? { functions: {} };
+    const fns = Object.values(lib.functions ?? {});
+    fns.sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+
+    const head = `<div style="padding:5px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:4px">${esc(_NL(cat.id))}</div>`;
+    const btns = isGM ? `<div style="display:flex;gap:4px;padding:3px 6px 4px">
+      <button id="gpalFnCreate" style="flex:1;background:#2a4a6a;border:1px solid #3a5a7a;border-radius:6px;color:#cfe8ff;cursor:pointer;font-size:10px;padding:4px 6px" title="Create a new function"><i class="fas fa-plus" style="margin-right:3px"></i>New</button>
+      <button id="gpalFnManage" style="flex:1;background:#3a2a5a;border:1px solid #4a3a6a;border-radius:6px;color:#dccff8;cursor:pointer;font-size:10px;padding:4px 6px" title="Manage function library"><i class="fas fa-list" style="margin-right:3px"></i>Manage</button>
+    </div>` : `<div style="padding:3px 10px 4px;font-size:9px;color:var(--sd-text-3);font-style:italic">GM-only editing</div>`;
+
+    const items = fns.map(fn => {
+      const color = fn.color || "#5a3a8a";
+      const nIn   = (fn.inputs ?? []).length;
+      const nOut  = (fn.outputs ?? []).length;
+      return `<div class="gpal gpal-fn" data-type="function_call" data-function-id="${esc(String(fn.id))}" draggable="true" title="${esc(String(fn.description||fn.name||""))}"
+        style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:grab;border-radius:8px;margin:1px 4px;transition:.15s">
+        <div style="width:9px;height:9px;border-radius:2px;flex-shrink:0;background:${color};opacity:.9"></div>
+        <span style="font-size:11px;color:var(--sd-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">\u0192 ${esc(String(fn.name||"(unnamed)"))}</span>
+        <span style="font-size:9px;color:var(--sd-text-3);font-family:monospace">${nIn}\u2192${nOut}</span>
+      </div>`;
+    }).join("");
+
+    const empty = !items ? `<div style="padding:5px 12px 6px;font-size:10px;color:var(--sd-text-3);font-style:italic">No functions yet${isGM?". Click \u201cNew\u201d.":""}.</div>` : "";
+
+    return head + btns + items + empty;
+  }
+
   _wireWin() {
     const win  = this.win;
     const wrap = win.querySelector("#gwrap");
 
     win.querySelector("#gclose").addEventListener("click", async () => {
+      if (this._activeFunctionId) {
+        await this._saveActiveFunction();
+        while (this._funcStack?.length) this._leaveFunction();
+      }
       await this._saveGraph(); this.close();
     });
     win.querySelector("#gsave").addEventListener("click", async () => {
+      if (this._activeFunctionId) {
+        await this._saveActiveFunction();
+        return;
+      }
       if (this.targetInput && this.widget?.type !== "attribute" && this.widget?.type !== "skill") {
         const f = this.compile();
         this.targetInput.value = f;
@@ -8085,6 +8250,14 @@ export class FormulaGraph {
       await this._saveGraph();
       ui.notifications?.info?.("Graph saved.");
       this.close();
+    });
+    win.querySelector("#gfnback")?.addEventListener("click", async () => {
+      if (!this._activeFunctionId) return;
+      await this._saveActiveFunction();
+      this._leaveFunction();
+    });
+    win.querySelector("#gfnsave")?.addEventListener("click", async () => {
+      await this._saveActiveFunction();
     });
     win.querySelector("#grefresh")?.addEventListener("click",()=>{
       this._smartIndex = this._buildSmartIndex();
@@ -8305,10 +8478,19 @@ export class FormulaGraph {
     });
 
     win.querySelectorAll(".gpal").forEach(el => {
-      el.addEventListener("dragstart", ev => ev.dataTransfer.setData("text/plain", JSON.stringify({ _sg: el.dataset.type })));
+      el.addEventListener("dragstart", ev => {
+        const payload = { _sg: el.dataset.type };
+        const fid = el.dataset.functionId;
+        if (fid) payload._fnId = fid;
+        ev.dataTransfer.setData("text/plain", JSON.stringify(payload));
+      });
       el.addEventListener("mouseenter", () => el.style.background = "rgba(116,167,255,.1)");
       el.addEventListener("mouseleave", () => el.style.background = "");
     });
+
+    win.querySelector("#gpalFnCreate")?.addEventListener("click", () => this._fnCreatePrompt?.());
+    win.querySelector("#gpalFnManage")?.addEventListener("click", () => this._openManageFunctions?.());
+
     wrap.addEventListener("dragover", ev => ev.preventDefault());
     wrap.addEventListener("drop", ev => {
       ev.preventDefault();
@@ -8316,7 +8498,10 @@ export class FormulaGraph {
         const d = JSON.parse(ev.dataTransfer.getData("text/plain"));
         if (d._sg) {
           const r = wrap.getBoundingClientRect();
-          this._addNode(d._sg, (ev.clientX - r.left - this._pan.x) / this._zoom, (ev.clientY - r.top - this._pan.y) / this._zoom);
+          const gx = (ev.clientX - r.left - this._pan.x) / this._zoom;
+          const gy = (ev.clientY - r.top  - this._pan.y) / this._zoom;
+          const extra = d._fnId ? { functionId: d._fnId } : null;
+          this._addNode(d._sg, gx, gy, extra);
         }
         if (d.type === "Item" || d.uuid?.includes("Item")) {
           const focused = document.activeElement;
@@ -8489,10 +8674,11 @@ export class FormulaGraph {
     this.nodes.push({id:"trigger",type:"on_click",x:80,y:220,data:{}});
   }
 
-  _addNode(type,x,y) {
+  _addNode(type,x,y,extraData=null) {
     const def=NODE_DEFS[type]; if(!def) return null;
-    const node={id:`n${this._id++}`,type,x:Math.round(x),y:Math.round(y),
-      data:Object.fromEntries((def.fields??[]).map(f=>[f.key,f.default??""]))};
+    const data = Object.fromEntries((def.fields??[]).map(f=>[f.key,f.default??""]));
+    if (extraData && typeof extraData === "object") Object.assign(data, extraData);
+    const node={id:`n${this._id++}`,type,x:Math.round(x),y:Math.round(y),data};
     this.nodes.push(node);
     this._renderNode(node);
     this._updatePreview();
@@ -8503,6 +8689,8 @@ export class FormulaGraph {
   _delNode(id) {
     if(id==="output") return;
     if(id==="init_on_roll" || id==="init_output") return;
+    const target = this.nodes.find(n => n.id === id);
+    if (target && NODE_DEFS[target.type]?.noDelete) return;
     this.nodes=this.nodes.filter(n=>n.id!==id);
     this.edges=this.edges.filter(e=>e.fromNode!==id&&e.toNode!==id);
     this.nodesEl.querySelector(`[data-nid="${id}"]`)?.remove();
@@ -8705,15 +8893,26 @@ export class FormulaGraph {
     this.nodesEl.querySelector(`[data-nid="${node.id}"]`)?.remove();
     const def=NODE_DEFS[node.type]; if(!def) return;
     const isOut = node.type==="output" || node.type==="attr_output" || node.type==="attr_score_val" || node.type==="skill_output" || node.type==="skill_rank_val" || node.type==="on_click";
+    const noDelete = !!def.noDelete;
+
+    node.__sig = this._resolveNodeSig ? this._resolveNodeSig(node) : null;
+    let _funcBroken = false;
+    if (def.isFunctionCall) {
+      const lib = this._getFunctionLib ? this._getFunctionLib() : null;
+      const fn  = lib?.functions?.[node.data?.functionId];
+      if (!fn) _funcBroken = true;
+    }
 
     const el=document.createElement("div");
     el.dataset.nid=node.id;
 
     const W_BASE = def.wideNode ? 480 : def.isAttackBranch ? 380 : def.isBranch ? 320 : def.isAction ? 360 : (def.isOutput||def.isAttrOutput||def.isSkillOutput) ? 260 : 300;
 
+    const _resolvedIns  = def.computeDynamicInputs  ? def.computeDynamicInputs(node)  : (def.inputs  ?? []);
+    const _resolvedOuts = def.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def.outputs ?? []);
     const _allPinLabels = [
-      ...(def.inputs ?? []).map(p => p.label ?? ""),
-      ...(def.outputs ?? []).map(p => p.label ?? "")
+      ..._resolvedIns.map(p => p.label ?? ""),
+      ..._resolvedOuts.map(p => p.label ?? "")
     ];
     const _longestPinLabel = _allPinLabels.reduce((m, s) => Math.max(m, String(s).length), 0);
     const W_PIN = _longestPinLabel > 0 ? 80 + Math.ceil(_longestPinLabel * 7.2) : 0;
@@ -8730,14 +8929,29 @@ export class FormulaGraph {
     const _accent = SD_NODE_KIND_COLOURS[_kind] ?? "rgba(255,255,255,.08)";
 
     el.dataset.kind = _kind;
+    const _brokenBorder = _funcBroken ? "#e04040" : null;
+    const _border = _brokenBorder ?? `${_accent}55`;
+    const _borderLeft = _brokenBorder ?? _accent;
     el.style.cssText=`position:absolute;left:${node.x}px;top:${node.y}px;min-width:${W_MIN}px;width:${W}px;max-width:640px;
       background:linear-gradient(180deg,var(--sd-bg-2),#101521);
-      border:1px solid ${_accent}55;
-      border-left:3px solid ${_accent};
+      border:1px solid ${_border};
+      border-left:3px solid ${_borderLeft};
       border-radius:16px;
-      box-shadow:0 18px 45px rgba(0,0,0,.5), 0 0 0 1px ${_accent}22 inset;
+      box-shadow:0 18px 45px rgba(0,0,0,.5), 0 0 0 1px ${_accent}22 inset${_funcBroken?", 0 0 0 2px rgba(224,64,64,.4) inset":""};
       overflow:hidden;
       transform:translateZ(0);`;
+
+    let _hdrTitle = def.title;
+    if (def.isFunctionCall) {
+      const lib = this._getFunctionLib ? this._getFunctionLib() : null;
+      const fn  = lib?.functions?.[node.data?.functionId];
+      if (fn?.name) _hdrTitle = `\u0192 ${fn.name}`;
+      else _hdrTitle = `\u0192 ${node.data?.functionId ? "(broken: "+node.data.functionId+")" : "(no function)"}`;
+    } else if (def.isFunctionAnchor) {
+      const lib = this._getFunctionLib ? this._getFunctionLib() : null;
+      const fn  = lib?.functions?.[this._activeFunctionId];
+      _hdrTitle = `${def.title}${fn?.name?` \u2014 ${fn.name}`:""}`;
+    }
 
     const _hc = def.color ?? "#555";
     el.innerHTML=`
@@ -8745,8 +8959,12 @@ export class FormulaGraph {
         height:42px;display:flex;align-items:center;gap:10px;padding:0 12px;
         background:linear-gradient(90deg,${_hc}dd,${_hc}99);
         cursor:grab;user-select:none;">
-        <span style="font-size:12px;font-weight:800;color:#fff;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;letter-spacing:.2px" title="${esc(_NL(def.title))}">${esc(_NL(def.title))}</span>
-        ${(!isOut && !def.isWidgetConfig)?`<button class="ndel" data-nid="${node.id}"
+        <span style="font-size:12px;font-weight:800;color:#fff;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;letter-spacing:.2px" title="${esc(_NL(_hdrTitle))}">${esc(_NL(_hdrTitle))}</span>
+        ${def.isFunctionCall && !_funcBroken ? `<button class="nfedit" data-nid="${node.id}" title="Edit function (double-click)"
+          style="width:26px;height:26px;display:grid;place-items:center;border:none;border-radius:8px;
+                 background:rgba(255,255,255,.1);color:#fff;cursor:pointer;font-size:12px;line-height:1;
+                 transition:.15s;flex-shrink:0"><i class="fas fa-pen"></i></button>`:""}
+        ${(!isOut && !def.isWidgetConfig && !noDelete)?`<button class="ndel" data-nid="${node.id}"
           style="width:26px;height:26px;display:grid;place-items:center;border:none;border-radius:8px;
                  background:rgba(255,255,255,.1);color:#fff;cursor:pointer;font-size:16px;line-height:1;
                  transition:.15s;flex-shrink:0">✕</button>`:""}
@@ -8755,7 +8973,7 @@ export class FormulaGraph {
 
     const body=el.querySelector(".gnbody");
 
-    let inputPins  = def.inputs??[];
+    let inputPins  = def.computeDynamicInputs  ? def.computeDynamicInputs(node)  : (def.inputs  ?? []);
     let outputPins = def.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def.outputs ?? []);
     const fields     = def.fields??[];
 
@@ -8873,8 +9091,21 @@ export class FormulaGraph {
       body.appendChild(this._pinRow(node,p,"output"));
 
     el.querySelector(".ndel")?.addEventListener("click",ev=>{ev.stopPropagation();this._delNode(node.id);});
+    el.querySelector(".nfedit")?.addEventListener("click",ev=>{
+      ev.stopPropagation();
+      const fid = node.data?.functionId;
+      if (fid) this._enterFunction?.(fid);
+    });
+    if (def.isFunctionCall) {
+      el.querySelector(".gnhdr").addEventListener("dblclick", ev => {
+        ev.stopPropagation();
+        const fid = node.data?.functionId;
+        if (fid) this._enterFunction?.(fid);
+      });
+    }
     el.querySelector(".gnhdr").addEventListener("mousedown",ev=>{
       if(ev.target.classList.contains("ndel")) return;
+      if(ev.target.closest(".nfedit")) return;
       ev.stopPropagation();
 
       if (ev.shiftKey) {
@@ -9522,7 +9753,10 @@ export class FormulaGraph {
     if (pin.dataset.side !== "input" || pin.dataset.nid === conn.fromNode) return;
     const targetNode = this.nodes.find(n=>n.id===pin.dataset.nid);
     const targetDef  = NODE_DEFS[targetNode?.type??""];
-    const targetPinDef = (targetDef?.inputs??[]).find(p=>p.id===pin.dataset.pid);
+    const targetIns  = targetDef?.computeDynamicInputs
+      ? (targetDef.computeDynamicInputs(targetNode) ?? [])
+      : (targetDef?.inputs ?? []);
+    const targetPinDef = targetIns.find(p=>p.id===pin.dataset.pid);
     const targetType   = targetPinDef?.type;
     if (!arePinsCompatible(conn.fromType, targetType)) {
       ui.notifications?.warn?.(`Incompatible pin types: ${pinSubtype(conn.fromType)} → ${pinSubtype(targetType)}`);
@@ -9712,6 +9946,669 @@ export class FormulaGraph {
   _hydrateFormula(f) {
     const m=f.match(/^\{([^}]+)\}$/);
     if(m){const n=this._addNode("get_path",350,230);if(n)n.data.path=m[1];}
+  }
+
+  _getFunctionLib() {
+    try {
+      const raw = game?.settings?.get?.("sd", "functionLibrary");
+      if (raw && typeof raw === "object") return raw;
+    } catch {}
+    return { functions: {} };
+  }
+
+  _compileFunctionValue(callNode, fromPin) {
+    const fid = callNode?.data?.functionId;
+    if (!fid) return "0";
+    const lib = this._getFunctionLib();
+    const fn  = lib?.functions?.[fid];
+    if (!fn) return "0";
+
+    if (!this._funcStackCompile) this._funcStackCompile = [];
+    if (this._funcStackCompile.includes(fid)) {
+      console.warn(`[sd] Recursive function call (value) detected: ${fid}`);
+      return "0";
+    }
+
+    const outerWires = {};
+    for (const p of (fn.inputs ?? [])) {
+      const e = this.edges.find(e => e.toNode === callNode.id && e.toPin === p.id);
+      if (e) {
+        const src = this.nodes.find(n => n.id === e.fromNode);
+        if (src) outerWires[p.id] = this._compileValue(src, new Set(), e.fromPin);
+      } else if (callNode.data && callNode.data[p.id] != null && callNode.data[p.id] !== "") {
+        outerWires[p.id] = String(callNode.data[p.id]);
+      }
+    }
+
+    const savedNodes   = this.nodes;
+    const savedEdges   = this.edges;
+    const savedOverlay = this._funcInputsOverlay;
+    this.nodes = fn.nodes ?? [];
+    this.edges = fn.edges ?? [];
+    this._funcInputsOverlay = outerWires;
+    this._funcStackCompile.push(fid);
+
+    let result = "0";
+    try {
+      const outNode = this.nodes.find(n => n.type === "func_outputs");
+      if (outNode) {
+        const e = this.edges.find(e => e.toNode === outNode.id && e.toPin === fromPin);
+        if (e) {
+          const src = this.nodes.find(n => n.id === e.fromNode);
+          if (src) result = this._compileValue(src, new Set(), e.fromPin);
+        }
+      }
+    } catch (err) {
+      console.warn("[sd] _compileFunctionValue failed", err);
+    } finally {
+      this.nodes = savedNodes;
+      this.edges = savedEdges;
+      this._funcInputsOverlay = savedOverlay;
+      this._funcStackCompile.pop();
+    }
+    return result;
+  }
+
+  _inlineFunctionExec(callNode) {
+    const fid = callNode?.data?.functionId;
+    if (!fid) return [];
+    const lib = this._getFunctionLib();
+    const fn  = lib?.functions?.[fid];
+    if (!fn) return [];
+
+    if (!this._funcStackCompile) this._funcStackCompile = [];
+    if (this._funcStackCompile.includes(fid)) {
+      console.warn(`[sd] Recursive function call (exec) detected: ${fid}`);
+      return [];
+    }
+
+    const outerWires = {};
+    for (const p of (fn.inputs ?? [])) {
+      if (p.type === "exec") continue;
+      const e = this.edges.find(e => e.toNode === callNode.id && e.toPin === p.id);
+      if (e) {
+        const src = this.nodes.find(n => n.id === e.fromNode);
+        if (src) outerWires[p.id] = this._compileValue(src, new Set(), e.fromPin);
+      } else if (callNode.data && callNode.data[p.id] != null && callNode.data[p.id] !== "") {
+        outerWires[p.id] = String(callNode.data[p.id]);
+      }
+    }
+
+    const savedNodes   = this.nodes;
+    const savedEdges   = this.edges;
+    const savedOverlay = this._funcInputsOverlay;
+    this.nodes = fn.nodes ?? [];
+    this.edges = fn.edges ?? [];
+    this._funcInputsOverlay = outerWires;
+    this._funcStackCompile.push(fid);
+
+    let innerActions = [];
+    try {
+      const inNode = this.nodes.find(n => n.type === "func_inputs");
+      if (inNode) {
+        const startEdge = this.edges.find(e => e.fromNode === inNode.id && e.fromPin === "_exec");
+        if (startEdge) {
+          const json = this._compileExecChain(startEdge.toNode);
+          try { innerActions = JSON.parse(json); } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn("[sd] _inlineFunctionExec failed", err);
+    } finally {
+      this.nodes = savedNodes;
+      this.edges = savedEdges;
+      this._funcInputsOverlay = savedOverlay;
+      this._funcStackCompile.pop();
+    }
+    return innerActions;
+  }
+
+  _detectFunctionCycles(libDraft = null) {
+    const lib = libDraft ?? this._getFunctionLib();
+    const fns = lib?.functions ?? {};
+    const adj = new Map();
+    for (const [fid, fn] of Object.entries(fns)) {
+      const deps = new Set();
+      for (const n of (fn?.nodes ?? [])) {
+        if (n?.type === "function_call") {
+          const dep = n?.data?.functionId;
+          if (dep) deps.add(dep);
+        }
+      }
+      adj.set(fid, [...deps]);
+    }
+    const WHITE = 0, GRAY = 1, BLACK = 2;
+    const color = new Map();
+    const cycles = [];
+    const dfs = (fid, path) => {
+      color.set(fid, GRAY);
+      path.push(fid);
+      for (const dep of (adj.get(fid) ?? [])) {
+        const c = color.get(dep) ?? WHITE;
+        if (c === GRAY) {
+          const i = path.indexOf(dep);
+          cycles.push(path.slice(i).concat(dep));
+        } else if (c === WHITE && adj.has(dep)) {
+          dfs(dep, path);
+        }
+      }
+      path.pop();
+      color.set(fid, BLACK);
+    };
+    for (const fid of adj.keys()) {
+      if ((color.get(fid) ?? WHITE) === WHITE) dfs(fid, []);
+    }
+    return cycles;
+  }
+
+  async _saveFunctionLib(lib) {
+    if (!game?.user?.isGM) {
+      ui.notifications?.warn?.("Only the GM can edit the function library.");
+      return false;
+    }
+    try {
+      await game.settings.set("sd", "functionLibrary", lib);
+      return true;
+    } catch (e) {
+      console.error("[sd] _saveFunctionLib failed", e);
+      ui.notifications?.error?.("Failed to save function library.");
+      return false;
+    }
+  }
+
+  _resolveNodeSig(node) {
+    const def = NODE_DEFS[node.type];
+    if (!def) return null;
+    if (def.isFunctionCall) {
+      const fid = node.data?.functionId;
+      const lib = this._getFunctionLib();
+      const fn  = lib?.functions?.[fid];
+      if (!fn) return null;
+      return { inputs: fn.inputs ?? [], outputs: fn.outputs ?? [] };
+    }
+    if (def.isFunctionAnchor) {
+      const fid = this._activeFunctionId;
+      const lib = this._getFunctionLib();
+      const fn  = lib?.functions?.[fid];
+      if (!fn) return null;
+      return { inputs: fn.inputs ?? [], outputs: fn.outputs ?? [] };
+    }
+    return null;
+  }
+
+  _refreshPalette() {
+    const palEl = this.win?.querySelector("#gpal");
+    if (!palEl) return;
+    palEl.innerHTML = this._buildPal();
+    this._wirePalette?.();
+  }
+
+  _wirePalette() {
+    const win = this.win;
+    if (!win) return;
+    win.querySelectorAll(".gpal").forEach(el => {
+      el.addEventListener("dragstart", ev => {
+        const payload = { _sg: el.dataset.type };
+        const fid = el.dataset.functionId;
+        if (fid) payload._fnId = fid;
+        ev.dataTransfer.setData("text/plain", JSON.stringify(payload));
+      });
+      el.addEventListener("mouseenter", () => el.style.background = "rgba(116,167,255,.1)");
+      el.addEventListener("mouseleave", () => el.style.background = "");
+    });
+    win.querySelector("#gpalFnCreate")?.addEventListener("click", () => this._fnCreatePrompt?.());
+    win.querySelector("#gpalFnManage")?.addEventListener("click", () => this._openManageFunctions?.());
+  }
+
+  _fnNewId() {
+    return `fn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,6)}`;
+  }
+
+  _fnDefaultPalette() {
+    return ["#5a3a8a","#3a6a5a","#7a5a3a","#5a3a3a","#3a5a7a","#7a3a5a","#8a7a3a"];
+  }
+
+  async _fnCreatePrompt() {
+    if (!game?.user?.isGM) { ui.notifications?.warn?.("GM only."); return; }
+    const name = (await this._promptText("Function name", "MyFunction", "Create function"))?.trim();
+    if (!name) return;
+    const lib = foundry.utils.deepClone(this._getFunctionLib());
+    const id  = this._fnNewId();
+    const palette = this._fnDefaultPalette();
+    const used = new Set(Object.values(lib.functions ?? {}).map(f => f.color));
+    const color = palette.find(c => !used.has(c)) ?? palette[0];
+    lib.functions[id] = {
+      id, name, description: "",
+      color,
+      inputs:  [],
+      outputs: [],
+      nodes: [
+        { id: "func_inputs",  type: "func_inputs",  x: 80,  y: 240, data: {} },
+        { id: "func_outputs", type: "func_outputs", x: 640, y: 240, data: {} }
+      ],
+      edges: [],
+      comments: []
+    };
+    const ok = await this._saveFunctionLib(lib);
+    if (ok) {
+      this._refreshPalette();
+      ui.notifications?.info?.(`Function "${name}" created.`);
+    }
+  }
+
+  _promptText(label, defaultValue, title="Input") {
+    return new Promise(resolve => {
+      const v = window.prompt(`${title}\n${label}`, defaultValue ?? "");
+      resolve(v === null ? null : String(v));
+    });
+  }
+
+  async _fnDelete(id) {
+    if (!game?.user?.isGM) return;
+    const lib = foundry.utils.deepClone(this._getFunctionLib());
+    const fn  = lib.functions?.[id];
+    if (!fn) return;
+    const confirmed = window.confirm(`Delete function "${fn.name}"?\nAll references in graphs will be marked as broken.`);
+    if (!confirmed) return;
+    delete lib.functions[id];
+    const ok = await this._saveFunctionLib(lib);
+    if (ok) {
+      this._refreshPalette();
+      this._renderAll?.();
+    }
+  }
+
+  async _fnRename(id) {
+    if (!game?.user?.isGM) return;
+    const lib = foundry.utils.deepClone(this._getFunctionLib());
+    const fn = lib.functions?.[id];
+    if (!fn) return;
+    const next = await this._promptText("New name", fn.name, "Rename function");
+    if (next === null) return;
+    const trimmed = String(next).trim();
+    if (!trimmed) return;
+    fn.name = trimmed;
+    const ok = await this._saveFunctionLib(lib);
+    if (ok) { this._refreshPalette(); this._renderAll?.(); }
+  }
+
+  _enterFunction(functionId) {
+    if (!functionId) return;
+    const lib = this._getFunctionLib();
+    const fn  = lib?.functions?.[functionId];
+    if (!fn) { ui.notifications?.warn?.("Function is missing."); return; }
+
+    if (!this._funcStack) this._funcStack = [];
+    this._funcStack.push({
+      activeFunctionId: this._activeFunctionId,
+      nodes:    foundry.utils.deepClone(this.nodes ?? []),
+      edges:    foundry.utils.deepClone(this.edges ?? []),
+      comments: foundry.utils.deepClone(this.comments ?? []),
+      id:       this._id,
+      pan:      { ...(this._pan ?? {x:60,y:60}) },
+      zoom:     this._zoom ?? 1
+    });
+
+    this._activeFunctionId = functionId;
+    this.nodes    = foundry.utils.deepClone(fn.nodes ?? []);
+    this.edges    = foundry.utils.deepClone(fn.edges ?? []);
+    this.comments = foundry.utils.deepClone(fn.comments ?? []);
+    this._ensureFunctionAnchors();
+    const numIds = this.nodes.map(n => { const v = parseInt(String(n.id ?? "").replace(/\D/g,"")) || 0; return v; });
+    this._id = (Math.max(0, ...numIds) + 2) || 2;
+    this._selected?.clear?.();
+    this._selectedComments?.clear?.();
+    this._history = [];
+    this._historyIdx = -1;
+    this._pushHistory?.();
+
+    this._refreshFunctionBar();
+    this._refreshPalette();
+    this._renderAll();
+    setTimeout(() => this._fitView?.(), 80);
+  }
+
+  _ensureFunctionAnchors() {
+    const hasIn  = this.nodes.some(n => n.type === "func_inputs");
+    const hasOut = this.nodes.some(n => n.type === "func_outputs");
+    if (!hasIn)  this.nodes.unshift({ id: "func_inputs",  type: "func_inputs",  x: 80,  y: 240, data: {} });
+    if (!hasOut) this.nodes.push   ({ id: "func_outputs", type: "func_outputs", x: 640, y: 240, data: {} });
+  }
+
+  _leaveFunction() {
+    if (!this._funcStack?.length) return;
+    const prev = this._funcStack.pop();
+    this._activeFunctionId = prev.activeFunctionId ?? null;
+    this.nodes    = prev.nodes    ?? [];
+    this.edges    = prev.edges    ?? [];
+    this.comments = prev.comments ?? [];
+    this._id      = prev.id       ?? 1;
+    this._pan     = prev.pan      ?? { x: 60, y: 60 };
+    this._zoom    = prev.zoom     ?? 1;
+    this._selected?.clear?.();
+    this._selectedComments?.clear?.();
+    this._history = [];
+    this._historyIdx = -1;
+    this._pushHistory?.();
+    this._refreshFunctionBar();
+    this._refreshPalette();
+    this._renderAll();
+  }
+
+  _refreshFunctionBar() {
+    const bar = this.win?.querySelector("#gfnbar");
+    if (!bar) return;
+    if (!this._activeFunctionId) {
+      bar.style.display = "none";
+      return;
+    }
+    const fn = this._getFunctionLib()?.functions?.[this._activeFunctionId];
+    bar.style.display = "inline-flex";
+    const crumb = this.win.querySelector("#gfncrumb");
+    if (crumb) {
+      const depth = (this._funcStack?.length ?? 0);
+      const chain = this._funcStack?.map(s => {
+        const fid = s.activeFunctionId;
+        const f = fid ? this._getFunctionLib()?.functions?.[fid] : null;
+        return f?.name || "graph";
+      }).join(" \u203a ") || "graph";
+      crumb.textContent = `\u0192 ${fn?.name || "(unknown)"} \u2190 ${chain}`;
+    }
+  }
+
+  async _saveActiveFunction() {
+    const fid = this._activeFunctionId;
+    if (!fid) return;
+    const lib = foundry.utils.deepClone(this._getFunctionLib());
+    if (!lib.functions[fid]) { ui.notifications?.warn?.("Function no longer exists."); return; }
+    lib.functions[fid].nodes    = foundry.utils.deepClone(this.nodes ?? []);
+    lib.functions[fid].edges    = foundry.utils.deepClone(this.edges ?? []);
+    lib.functions[fid].comments = foundry.utils.deepClone(this.comments ?? []);
+
+    const cycles = this._detectFunctionCycles(lib);
+    if (cycles.length) {
+      const names = cycles.map(c => c.map(id => lib.functions?.[id]?.name ?? id).join(" \u2192 ")).join(", ");
+      ui.notifications?.warn?.(`Recursive function call detected: ${names}. Calls will resolve to no-op at runtime.`);
+    }
+
+    const ok = await this._saveFunctionLib(lib);
+    if (ok) ui.notifications?.info?.(`Function "${lib.functions[fid].name}" saved.`);
+  }
+
+  _openManageFunctions() {
+    if (!game?.user?.isGM) { ui.notifications?.warn?.("GM only."); return; }
+    document.getElementById("sd-fn-mgr")?.remove();
+    const wrap = document.createElement("div");
+    wrap.id = "sd-fn-mgr";
+    wrap.className = "sd";
+    {
+      const _w = Math.min(1000, Math.floor(window.innerWidth * 0.94));
+      const _h = Math.min(640, Math.floor(window.innerHeight * 0.90));
+      const _l = Math.max(20, Math.floor((window.innerWidth - _w) / 2));
+      wrap.style.cssText = `position:fixed;top:60px;left:${_l}px;width:${_w}px;height:${_h}px;min-width:620px;min-height:420px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.95);z-index:21000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;resize:both`;
+    }
+
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border)">
+        <i class="fas fa-list" style="color:var(--sd-accent)"></i>
+        <b style="font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-accent);flex:1">Manage Functions</b>
+        <button id="fmNew"     style="background:#2a4a6a;border:1px solid #3a5a7a;border-radius:6px;color:#cfe8ff;cursor:pointer;font-size:11px;padding:5px 10px"><i class="fas fa-plus" style="margin-right:4px"></i>New</button>
+        <button id="fmImport"  style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:5px 10px"><i class="fas fa-file-import" style="margin-right:4px"></i>Import</button>
+        <button id="fmClose"   style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text-2);cursor:pointer;font-size:14px;width:30px;height:30px;display:grid;place-items:center" title="Close">\u2715</button>
+      </div>
+      <div style="display:flex;flex:1;min-height:0">
+        <div id="fmList"   style="width:240px;border-right:1px solid var(--sd-border);overflow-y:auto;flex-shrink:0;background:var(--sd-bg-2)"></div>
+        <div id="fmDetail" style="flex:1;padding:14px;overflow-y:auto"></div>
+      </div>`;
+    document.body.appendChild(wrap);
+
+    const selected = { id: null };
+    const render = () => {
+      const lib  = this._getFunctionLib();
+      const list = wrap.querySelector("#fmList");
+      const arr  = Object.values(lib.functions ?? {}).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+      list.innerHTML = arr.map(fn => {
+        const sel = fn.id === selected.id;
+        return `<div class="fmRow" data-fid="${esc(fn.id)}" style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--sd-border);${sel?"background:rgba(116,167,255,.12)":""}">
+          <div style="width:9px;height:9px;border-radius:2px;background:${fn.color||"#5a3a8a"};flex-shrink:0"></div>
+          <div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <div style="font-size:12px;font-weight:600">${esc(String(fn.name||"(unnamed)"))}</div>
+            <div style="font-size:9px;color:var(--sd-text-3);font-family:monospace">${(fn.inputs??[]).length}\u2192${(fn.outputs??[]).length} \u00b7 ${esc(fn.id)}</div>
+          </div>
+        </div>`;
+      }).join("") || `<div style="padding:14px;color:var(--sd-text-3);font-size:11px;font-style:italic">No functions yet</div>`;
+
+      list.querySelectorAll(".fmRow").forEach(row => {
+        row.addEventListener("click", () => {
+          selected.id = row.dataset.fid;
+          render();
+        });
+      });
+
+      const detail = wrap.querySelector("#fmDetail");
+      const fn = selected.id ? lib.functions?.[selected.id] : null;
+      if (!fn) {
+        detail.innerHTML = `<div style="color:var(--sd-text-3);font-size:11px;font-style:italic">Select a function on the left, or click "New" to create one.</div>`;
+        return;
+      }
+      detail.innerHTML = this._fnRenderDetail(fn);
+      this._fnWireDetail(detail, fn, render);
+    };
+
+    wrap.querySelector("#fmClose").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#fmNew").addEventListener("click", async () => {
+      await this._fnCreatePrompt();
+      render();
+    });
+    wrap.querySelector("#fmImport").addEventListener("click", () => this._fnImportPrompt(render));
+    render();
+  }
+
+  _fnRenderDetail(fn) {
+    const TYPES = [
+      {id:"exec",        label:"Exec"},
+      {id:"value.any",   label:"Any"},
+      {id:"value.number",label:"Number"},
+      {id:"value.string",label:"String"},
+      {id:"value.bool",  label:"Bool"},
+      {id:"value.token", label:"Token"},
+      {id:"value.actor", label:"Actor"},
+      {id:"value.item",  label:"Item"},
+      {id:"value.array", label:"Array"},
+      {id:"value.path",  label:"Path"},
+      {id:"value.uuid",  label:"UUID"}
+    ];
+    const renderPinList = (pins, side) => `
+      <div style="border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg-2);padding:8px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b style="font-size:11px;color:var(--sd-accent);text-transform:uppercase;letter-spacing:.1em">${side==="inputs"?"Inputs":"Outputs"}</b>
+          <button data-fn-add-pin="${side}" style="background:#2a4a6a;border:1px solid #3a5a7a;border-radius:6px;color:#cfe8ff;cursor:pointer;font-size:10px;padding:3px 8px"><i class="fas fa-plus" style="margin-right:3px"></i>Add</button>
+        </div>
+        ${(pins ?? []).map((p,i) => `
+          <div class="fmPinRow" data-side="${side}" data-idx="${i}" style="display:grid;grid-template-columns:26px minmax(70px,1fr) minmax(90px,1.2fr) 96px 26px 26px;gap:4px;align-items:center">
+            <div style="font-family:monospace;color:var(--sd-text-3);font-size:10px;text-align:right">${i+1}.</div>
+            <input data-fnPinId    type="text" value="${esc(String(p.id ?? ""))}"    placeholder="id" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px;font-family:monospace">
+            <input data-fnPinLabel type="text" value="${esc(String(p.label ?? ""))}" placeholder="label" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px">
+            <select data-fnPinType style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px">
+              ${TYPES.map(t => `<option value="${t.id}" ${t.id===(p.type||"value.any")?"selected":""}>${t.label}</option>`).join("")}
+            </select>
+            <button data-fnPinUp   title="Move up"   style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:10px;width:24px;height:24px"><i class="fas fa-arrow-up"></i></button>
+            <button data-fnPinDel  title="Delete"   style="background:rgba(255,124,124,.12);border:1px solid #6a2a2a;border-radius:4px;color:#ff7c7c;cursor:pointer;font-size:10px;width:24px;height:24px"><i class="fas fa-trash"></i></button>
+          </div>`).join("")}
+        ${!(pins??[]).length ? `<div style="color:var(--sd-text-3);font-size:10px;font-style:italic">No ${side==="inputs"?"inputs":"outputs"}</div>` : ""}
+      </div>`;
+    return `
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+        <input id="fmName" type="text" value="${esc(String(fn.name||""))}" placeholder="Name" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);font-size:13px;font-weight:600;padding:6px 10px">
+        <input id="fmColor" type="color" value="${esc(String(fn.color||"#5a3a8a"))}" style="width:38px;height:32px;border:1px solid var(--sd-border);border-radius:6px;background:transparent;padding:2px">
+        <button id="fmEdit"   style="background:#3a2a5a;border:1px solid #4a3a6a;border-radius:6px;color:#dccff8;cursor:pointer;font-size:11px;padding:6px 12px"><i class="fas fa-pen" style="margin-right:4px"></i>Edit Graph</button>
+        <button id="fmExport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 12px"><i class="fas fa-file-export" style="margin-right:4px"></i>Export</button>
+        <button id="fmDel"    style="background:rgba(255,124,124,.12);border:1px solid #6a2a2a;border-radius:6px;color:#ff7c7c;cursor:pointer;font-size:11px;padding:6px 12px"><i class="fas fa-trash" style="margin-right:4px"></i>Delete</button>
+      </div>
+      <textarea id="fmDesc" placeholder="Description (optional)" style="width:100%;height:50px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);font-size:11px;padding:6px 10px;margin-bottom:12px;resize:vertical;font-family:inherit">${esc(String(fn.description||""))}</textarea>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${renderPinList(fn.inputs, "inputs")}
+        ${renderPinList(fn.outputs, "outputs")}
+      </div>
+      <div style="margin-top:10px;padding:8px 10px;border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg-2);font-size:10px;color:var(--sd-text-3)">
+        <i class="fas fa-info-circle" style="margin-right:5px"></i>
+        Editing the signature updates the function. Existing references in graphs may show as broken if pins were removed or renamed.
+      </div>`;
+  }
+
+  _fnWireDetail(detail, fn, rerender) {
+    const fid = fn.id;
+    const upd = async (mut) => {
+      const lib = foundry.utils.deepClone(this._getFunctionLib());
+      const f = lib.functions?.[fid];
+      if (!f) return;
+      mut(f);
+      const ok = await this._saveFunctionLib(lib);
+      if (ok) { rerender(); this._refreshPalette(); this._renderAll?.(); }
+    };
+
+    const nameEl  = detail.querySelector("#fmName");
+    const colorEl = detail.querySelector("#fmColor");
+    const descEl  = detail.querySelector("#fmDesc");
+
+    let timer = null;
+    const debouncedSave = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        await upd(f => {
+          f.name        = String(nameEl.value || "").trim();
+          f.color       = String(colorEl.value || "#5a3a8a");
+          f.description = String(descEl.value || "");
+        });
+      }, 300);
+    };
+    nameEl.addEventListener("input", debouncedSave);
+    colorEl.addEventListener("input", debouncedSave);
+    descEl.addEventListener("input", debouncedSave);
+
+    detail.querySelector("#fmDel")?.addEventListener("click", () => this._fnDelete(fid).then(rerender));
+    detail.querySelector("#fmEdit")?.addEventListener("click", () => {
+      document.getElementById("sd-fn-mgr")?.remove();
+      this._enterFunction(fid);
+    });
+    detail.querySelector("#fmExport")?.addEventListener("click", () => this._fnExport(fid));
+
+    detail.querySelectorAll("[data-fn-add-pin]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const side = btn.dataset.fnAddPin;
+        await upd(f => {
+          const arr = side === "inputs" ? (f.inputs ??= []) : (f.outputs ??= []);
+          const baseN = arr.length + 1;
+          let n = baseN;
+          let id;
+          do { id = `${side === "inputs" ? "in" : "out"}${n++}`; } while (arr.some(p => p.id === id));
+          arr.push({ id, label: `${side === "inputs" ? "Input" : "Output"} ${baseN}`, type: "value.any" });
+        });
+      });
+    });
+
+    detail.querySelectorAll(".fmPinRow").forEach(row => {
+      const side = row.dataset.side;
+      const idx  = parseInt(row.dataset.idx);
+      const idEl    = row.querySelector("[data-fnPinId]");
+      const lblEl   = row.querySelector("[data-fnPinLabel]");
+      const typeEl  = row.querySelector("[data-fnPinType]");
+      const debounced = () => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(async () => {
+          await upd(f => {
+            const arr = side === "inputs" ? f.inputs : f.outputs;
+            if (!arr?.[idx]) return;
+            arr[idx].id    = String(idEl.value || "").trim() || arr[idx].id;
+            arr[idx].label = String(lblEl.value || "");
+            arr[idx].type  = String(typeEl.value || "value.any");
+          });
+        }, 300);
+      };
+      idEl?.addEventListener("input", debounced);
+      lblEl?.addEventListener("input", debounced);
+      typeEl?.addEventListener("change", debounced);
+      row.querySelector("[data-fnPinUp]")?.addEventListener("click", async () => {
+        if (idx <= 0) return;
+        await upd(f => {
+          const arr = side === "inputs" ? f.inputs : f.outputs;
+          if (!arr || idx <= 0 || idx >= arr.length) return;
+          [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
+        });
+      });
+      row.querySelector("[data-fnPinDel]")?.addEventListener("click", async () => {
+        if (!window.confirm("Delete this pin?")) return;
+        await upd(f => {
+          const arr = side === "inputs" ? f.inputs : f.outputs;
+          if (!arr?.[idx]) return;
+          arr.splice(idx, 1);
+        });
+      });
+    });
+  }
+
+  async _fnExport(fid) {
+    const lib = this._getFunctionLib();
+    const fn  = lib?.functions?.[fid];
+    if (!fn) return;
+    const payload = {
+      _sdFunction: true,
+      name: fn.name, description: fn.description, color: fn.color,
+      inputs: fn.inputs, outputs: fn.outputs,
+      nodes: fn.nodes, edges: fn.edges, comments: fn.comments
+    };
+    const json = JSON.stringify(payload, null, 2);
+    try {
+      const blob = new Blob([json], { type: "application/json" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `${(fn.name || "function").replace(/[^a-z0-9_-]/gi,"_")}.sdfn.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.warn("[sd] fnExport download failed; falling back to clipboard", e);
+      await navigator.clipboard?.writeText?.(json);
+      ui.notifications?.info?.("Exported to clipboard.");
+    }
+  }
+
+  _fnImportPrompt(rerender) {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = ".json,application/json";
+    inp.addEventListener("change", async () => {
+      const file = inp.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        await this._fnImportFromJSON(text);
+        rerender?.();
+      } catch (e) {
+        ui.notifications?.error?.("Failed to import: " + (e?.message ?? e));
+      }
+    });
+    inp.click();
+  }
+
+  async _fnImportFromJSON(text) {
+    const data = JSON.parse(text);
+    if (!data || !data._sdFunction) throw new Error("Not a valid SD function export.");
+    const lib = foundry.utils.deepClone(this._getFunctionLib());
+    const id  = this._fnNewId();
+    lib.functions[id] = {
+      id,
+      name:        String(data.name || "Imported"),
+      description: String(data.description || ""),
+      color:       String(data.color || "#5a3a8a"),
+      inputs:      Array.isArray(data.inputs)  ? data.inputs  : [],
+      outputs:     Array.isArray(data.outputs) ? data.outputs : [],
+      nodes:       Array.isArray(data.nodes)   ? data.nodes   : [],
+      edges:       Array.isArray(data.edges)   ? data.edges   : [],
+      comments:    Array.isArray(data.comments)? data.comments: []
+    };
+    const ok = await this._saveFunctionLib(lib);
+    if (ok) { this._refreshPalette(); this._renderAll?.(); ui.notifications?.info?.("Function imported."); }
   }
 }
 

@@ -3131,12 +3131,12 @@
   flex: 1 1 auto;
 }
 .sd .widget-richtext .richtext-display:not(.richtext-display--readonly) {
-  flex: 1 1 auto;
-  overflow: auto;
+  flex: 1 0 auto;
+  overflow: visible;
 }
 .sd .widget-richtext .sd-richtext-editor:not(.editor-active) .editor-content {
-  flex: 1 1 auto;
-  overflow: auto;
+  flex: 1 0 auto;
+  overflow: visible;
 }
 .sd .widget-richtext .sd-richtext-editor .editor-content {
   min-height: 60px;
@@ -3153,21 +3153,25 @@
 }
 .sd .widget-richtext .sd-richtext-editor.editor-active .editor-content {
   padding: 0;
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 .sd .widget-richtext .sd-richtext-editor.editor-active .editor-content .ProseMirror {
-  flex: 1;
+  flex: 1 0 auto;
   min-height: 220px;
   padding: 8px 10px;
   outline: none;
-  overflow: auto;
+  overflow: visible;
   background: var(--sd-bg, #1b1b1f);
   color: var(--sd-text, #eee);
   line-height: 1.6;
   font-size: var(--sd-fs-m2);
+  height: auto;
+  max-height: none;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 .sd .widget-richtext .sd-richtext-editor.editor-active .editor-content .ProseMirror:focus {
   outline: none;
