@@ -8512,10 +8512,15 @@ export class FormulaGraph {
 
   _addEdge(fn,fp,tn,tp) {
     if(fn===tn) return;
+    const displaced = this.edges.filter(e=>e.toNode===tn&&e.toPin===tp);
     this.edges=this.edges.filter(e=>!(e.toNode===tn&&e.toPin===tp));
     this.edges.push({id:`e${uid()}`,fromNode:fn,fromPin:fp,toNode:tn,toPin:tp});
-    const toNode = this.nodes.find(n => n.id === tn);
-    if (toNode) this._renderNode(toNode);
+    const touched = new Set([fn, tn]);
+    for (const d of displaced) touched.add(d.fromNode);
+    for (const id of touched) {
+      const n = this.nodes.find(x => x.id === id);
+      if (n) this._renderNode(n);
+    }
     this._scheduleEdges?.();
     this._pushHistory();
   }
@@ -8524,8 +8529,10 @@ export class FormulaGraph {
     const edge = this.edges.find(e => e.id === edgeId);
     if (!edge) return;
     this.edges = this.edges.filter(e => e.id !== edgeId);
-    const toNode = this.nodes.find(n => n.id === edge.toNode);
-    if (toNode) this._renderNode(toNode);
+    for (const id of [edge.fromNode, edge.toNode]) {
+      const n = this.nodes.find(x => x.id === id);
+      if (n) this._renderNode(n);
+    }
     this._scheduleEdges?.();
     this._pushHistory();
   }
@@ -8702,7 +8709,7 @@ export class FormulaGraph {
     const el=document.createElement("div");
     el.dataset.nid=node.id;
 
-    const W_BASE = def.wideNode ? 440 : def.isAttackBranch ? 340 : def.isBranch ? 280 : def.isAction ? 320 : (def.isOutput||def.isAttrOutput||def.isSkillOutput) ? 220 : 250;
+    const W_BASE = def.wideNode ? 480 : def.isAttackBranch ? 380 : def.isBranch ? 320 : def.isAction ? 360 : (def.isOutput||def.isAttrOutput||def.isSkillOutput) ? 260 : 300;
 
     const _allPinLabels = [
       ...(def.inputs ?? []).map(p => p.label ?? ""),
@@ -8830,31 +8837,32 @@ export class FormulaGraph {
 
     const rowCount = Math.max(rows.length, valOuts.length);
 
-    for(let i=0;i<rowCount;i++) {
-      const row = document.createElement("div");
-      row.style.cssText="display:flex;align-items:center;justify-content:space-between;min-height:32px;padding:0 4px;gap:8px";
+    const grid = document.createElement("div");
+    grid.style.cssText = "display:grid;grid-template-columns:max-content minmax(90px,1fr) max-content;column-gap:8px;align-items:center;padding:0 4px";
 
-      const r   = rows[i] ?? { inp:null, fld:null };
-      const inp = r.inp;
-      const fld = r.fld;
+    for (let i = 0; i < rowCount; i++) {
+      const r    = rows[i]    ?? { inp:null, fld:null };
+      const inp  = r.inp;
+      const fld  = r.fld;
       const outp = valOuts[i] ?? null;
 
-      const left = document.createElement("div");
-      left.style.cssText = outp ? "flex:1;display:flex;align-items:center;min-width:0;gap:6px" : "flex:1 1 100%;display:flex;align-items:center;min-width:0;gap:6px";
+      const leftCell = document.createElement("div");
+      leftCell.style.cssText = "display:flex;align-items:center;justify-content:flex-start;min-height:30px;min-width:0";
+      if (inp) leftCell.appendChild(this._pinEl(node, inp, "input"));
+      grid.appendChild(leftCell);
 
-      if (inp) left.appendChild(this._pinEl(node, inp, "input"));
-      if (fld) left.appendChild(this._fldEl(node, fld));
+      const midCell = document.createElement("div");
+      midCell.style.cssText = "display:flex;align-items:center;min-height:30px;min-width:0";
+      if (fld) midCell.appendChild(this._fldEl(node, fld, { hideLabel: !!inp }));
+      grid.appendChild(midCell);
 
-      row.appendChild(left);
-
-      if (outp) {
-        const right = document.createElement("div");
-        right.style.cssText = "flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;min-width:0";
-        right.appendChild(this._pinEl(node, outp, "output"));
-        row.appendChild(right);
-      }
-      body.appendChild(row);
+      const rightCell = document.createElement("div");
+      rightCell.style.cssText = "display:flex;align-items:center;justify-content:flex-end;min-height:30px;min-width:0";
+      if (outp) rightCell.appendChild(this._pinEl(node, outp, "output"));
+      grid.appendChild(rightCell);
     }
+
+    if (rowCount > 0) body.appendChild(grid);
 
     let activeExecOuts = outputPins.filter(p=>p.type==="exec");
     if (def.isSequence) {
@@ -8988,15 +8996,24 @@ export class FormulaGraph {
   _pinRow(node,pin,side) {
     const row=document.createElement("div");
     const isExec=pin.type==="exec"||!pin.type;
-    row.style.cssText=`display:flex;align-items:center;gap:7px;min-height:28px;
-      ${side==="output"?"justify-content:flex-end;padding-right:10px":"padding-left:10px"}`;
+    row.style.cssText=`display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;column-gap:8px;align-items:center;min-height:30px;padding:0 14px`;
     const dot=this._dotEl(node,pin,side);
     const lbl=document.createElement("span");
     lbl.textContent=_NL(pin.label||"");
     lbl.style.cssText=`font-size:12px;color:${isExec?"#ffca6b":"var(--sd-text-2)"};
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;line-height:1`;
-    if(side==="input"){row.appendChild(dot);row.appendChild(lbl);}
-    else{row.appendChild(lbl);row.appendChild(dot);}
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1`;
+    const spacer=document.createElement("div");
+    if(side==="input"){
+      const left=document.createElement("div");
+      left.style.cssText="display:flex;align-items:center;gap:7px;justify-content:flex-start";
+      left.appendChild(dot); left.appendChild(lbl);
+      row.appendChild(left); row.appendChild(spacer); row.appendChild(document.createElement("div"));
+    } else {
+      const right=document.createElement("div");
+      right.style.cssText="display:flex;align-items:center;gap:7px;justify-content:flex-end";
+      right.appendChild(lbl); right.appendChild(dot);
+      row.appendChild(document.createElement("div")); row.appendChild(spacer); row.appendChild(right);
+    }
     return row;
   }
 
@@ -9018,13 +9035,18 @@ export class FormulaGraph {
     const dot=document.createElement("div");
     dot.className="gpin";
     dot.dataset.nid=node.id; dot.dataset.pid=pin.id; dot.dataset.side=side;
-    const _pinBg  = isExec ? "#ffca6b" : (side==="output" ? "#22d48a" : "#497efb");
-    const _pinBdr = isExec ? "#c09020" : (side==="output" ? "#16a864" : "#2a5ab0");
+    const _typeColor = subtypeColor(pin.type) ?? (isExec ? "#ffca6b" : (side==="output" ? "#22d48a" : "#497efb"));
+    const _connected = (side === "output")
+      ? this.edges.some(e => e.fromNode === node.id && e.fromPin === pin.id)
+      : this.edges.some(e => e.toNode  === node.id && e.toPin   === pin.id);
+    dot.dataset.connected = _connected ? "1" : "0";
+    const _fill = _connected ? _typeColor : "transparent";
+    const _restingShadow = _connected ? "0 0 0 1px rgba(0,0,0,.35) inset" : "none";
     dot.style.cssText=`width:13px;height:13px;border-radius:${isExec?"3px":"50%"};
-      background:${_pinBg};border:2px solid rgba(255,255,255,.7);
-      box-shadow:0 0 0 1px rgba(0,0,0,.2) inset;
+      background:${_fill};border:2px solid ${_typeColor};
+      box-shadow:${_restingShadow};
       cursor:crosshair;flex-shrink:0;
-      transition:transform .12s ease,box-shadow .12s ease;`;
+      transition:transform .12s ease,box-shadow .12s ease,background .12s ease;`;
     dot.addEventListener("mousedown",ev=>{
       ev.stopPropagation();
       if(side==="output") this._startConn(node.id,pin.id,isExec,ev,pin.type);
@@ -9033,18 +9055,20 @@ export class FormulaGraph {
       ev.preventDefault();
       ev.stopPropagation();
       const before = this.edges.length;
-      const touchedTargets = new Set();
+      const touched = new Set([node.id]);
       if(side==="output") {
         for (const e of this.edges) {
-          if (e.fromNode===node.id && e.fromPin===pin.id) touchedTargets.add(e.toNode);
+          if (e.fromNode===node.id && e.fromPin===pin.id) touched.add(e.toNode);
         }
         this.edges = this.edges.filter(e=>!(e.fromNode===node.id&&e.fromPin===pin.id));
       } else {
-        touchedTargets.add(node.id);
+        for (const e of this.edges) {
+          if (e.toNode===node.id && e.toPin===pin.id) touched.add(e.fromNode);
+        }
         this.edges = this.edges.filter(e=>!(e.toNode===node.id&&e.toPin===pin.id));
       }
       if(this.edges.length !== before) {
-        for (const tid of touchedTargets) {
+        for (const tid of touched) {
           const tn = this.nodes.find(n => n.id === tid);
           if (tn) this._renderNode(tn);
         }
@@ -9060,14 +9084,18 @@ export class FormulaGraph {
         : this.edges.some(e=>e.toNode===node.id&&e.toPin===pin.id);
       dot.title = hasEdge ? "RMB: disconnect" : "";
     });
-    dot.addEventListener("mouseleave",()=>{dot.style.transform="";dot.style.boxShadow="0 0 0 1px rgba(0,0,0,.2) inset";});
+    dot.addEventListener("mouseleave",()=>{
+      dot.style.transform="";
+      dot.style.boxShadow = (dot.dataset.connected === "1") ? "0 0 0 1px rgba(0,0,0,.35) inset" : "none";
+    });
     return dot;
   }
 
-  _fldEl(node,field) {
+  _fldEl(node,field,opts){
+    opts = opts || {};
     const wrap=document.createElement("div");
-    wrap.style.cssText="display:flex;align-items:center;gap:6px;padding:2px 8px;flex:1;min-width:0";
-    if(field.label){
+    wrap.style.cssText="display:flex;align-items:center;gap:6px;padding:2px 4px;flex:1 1 auto;min-width:0;width:100%";
+    if(field.label && !opts.hideLabel){
       const l=document.createElement("label");
       const lbl=_NL(field.label);
       l.textContent=lbl;
