@@ -40,9 +40,11 @@ import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 import { SDActionHUD, SDActionHUDConfig, registerActionHudSettings, mountActionHudHooks } from "./module/helpers/action-hud.mjs";
 import { SDTrade }             from "./module/helpers/trade.mjs";
 import { SDQuest }             from "./module/helpers/quest.mjs";
+import { installSdPause }      from "./module/helpers/sd-pause.mjs";
 
 SDTrade.init();
 SDQuest.init();
+installSdPause();
 
 globalThis.SD = {};
 
