@@ -19,7 +19,16 @@ export function SlotDefinitionField() {
     maxCount:        new NumberField({ required: true, integer: true, initial: 1, min: 1, nullable: false }),
     displayMode:     new StringField({ initial: "compact", choices: ["compact","full","icon"] }),
     removable:       new BooleanField({ initial: true }),
-    consumeOnRemove: new BooleanField({ initial: false })
+    consumeOnRemove: new BooleanField({ initial: false }),
+    placeholderIcon: new StringField({ initial: "", blank: true }),
+    accentColor:     new StringField({ initial: "", blank: true }),
+    changes: new ArrayField(new SchemaField({
+      id:             new StringField({ required: true, blank: false, initial: () => foundry.utils.randomID(8) }),
+      itemFieldPath:  new StringField({ initial: "", blank: true }),
+      actorFieldPath: new StringField({ initial: "", blank: true }),
+      mode:           new NumberField({ required: true, integer: true, initial: 2, min: 0, max: 5, nullable: false }),
+      priority:       new NumberField({ required: true, integer: true, initial: 20, nullable: false })
+    }))
   });
 }
 
@@ -80,12 +89,16 @@ export class SlotManager {
     const sid = String(slotId ?? "");
     const def = this.getDefinition(parentItem, sid);
     CONFIG.debug?.sd && console.log("[SD] SlotManager.removeFromSlot | parent:", parentItem?.name??parentItem?.id, "sid:", sid, "index:", index, "def:", def ? {id:def.id,removable:def.removable} : "NOT FOUND");
-    if (!def?.removable) {
-      console.warn("[SD] SlotManager.removeFromSlot: BLOCKED — def not found or not removable. def=", def);
+    if (def && def.removable === false) {
+      console.warn("[SD] SlotManager.removeFromSlot: BLOCKED — slot is not removable. sid=", sid);
       return null;
     }
 
     const contents = [...this.getContents(parentItem, sid)];
+    if (!def && contents.length === 0) {
+      console.warn("[SD] SlotManager.removeFromSlot: nothing to remove (no def and empty contents). sid=", sid);
+      return null;
+    }
     CONFIG.debug?.sd && console.log("[SD] SlotManager.removeFromSlot | contents before:", contents.length, contents.map(c=>c.name??c._id));
     contents.splice(index, 1);
     CONFIG.debug?.sd && console.log("[SD] SlotManager.removeFromSlot | contents after:", contents.length);

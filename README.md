@@ -16,7 +16,7 @@
 
 <p align="center">
   <img alt="Status" src="https://img.shields.io/badge/status-pre--release-blueviolet?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.9.10-informational?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.9.14-informational?style=flat-square">
   <img alt="Foundry VTT" src="https://img.shields.io/badge/Foundry%20VTT-v13%20%E2%80%93%20v14-fe6a1f?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-source--available%20%2F%20non--commercial-blue?style=flat-square">
 </p>

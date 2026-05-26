@@ -277,7 +277,8 @@
         "default": "Default",
         "framed": "Framed",
         "round": "Round",
-        "ghost": "Ghost"
+        "ghost": "Ghost",
+        "tile": "Equipment Tile"
       },
       "cardHand": {
         "default": "Default",

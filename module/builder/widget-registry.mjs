@@ -105,11 +105,13 @@ export const WIDGET_TYPES = {
     desc:  "Slot contents list",
     defaultSpan: 2,
     defaults: {
-      label:           "Slot",
-      slotId:          "",
-      allowedTypes:    [],
+      label:             "Slot",
+      slotId:            "",
+      allowedTypes:      [],
       allowedCategories: [],
-      maxCount:        1
+      maxCount:          1,
+      placeholderIcon:   "",
+      accentColor:       ""
     },
     configFields: [
       { key: "label",             type: "text",   label: "Label" },
@@ -664,7 +666,7 @@ export const WIDGET_VARIANTS = {
   image:          ["default", "framed", "circle", "polaroid", "token"],
   section:        ["default", "underline", "divider", "tab", "pill"],
   inventory:      ["default", "list", "grid", "iconbar", "cards", "card-slider", "card-grid"],
-  slot:           ["default", "framed", "round", "ghost"],
+  slot:           ["default", "framed", "round", "ghost", "tile"],
   cardHand:       ["default", "fan", "stack", "grid"],
   cardDrawButton: ["default", "deck", "pile"],
   questMarker:    ["default", "compact", "framed", "ghost"],

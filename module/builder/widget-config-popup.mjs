@@ -2,6 +2,23 @@ import { FormulaEngine }   from "../helpers/formula-engine.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
 import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES } from "./widget-registry.mjs";
 
+const SD_SLOT_TILE_ICON_PRESETS = [
+  { name: "helmet",   label: "Helmet" },
+  { name: "armor",    label: "Armor" },
+  { name: "cape",     label: "Cape" },
+  { name: "necklace", label: "Necklace" },
+  { name: "belt",     label: "Belt" },
+  { name: "glove",    label: "Glove" },
+  { name: "pants",    label: "Pants" },
+  { name: "boots",    label: "Boots" },
+  { name: "ring",     label: "Ring" },
+  { name: "bow",      label: "Bow" },
+  { name: "shield",   label: "Shield" },
+  { name: "quiver",   label: "Quiver" }
+];
+const SD_SLOT_TILE_ICON_PATH = name => `systems/sd/assets/slot-icons/${name}.svg`;
+const SD_HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
 const FIELD_DEFS = {
   text:      [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Read Only","readOnly","boolean"]],
   number:    [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Min","min","number"],["Max","max","number"],["Step","step","number"]],
@@ -363,6 +380,62 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       <div class="wcfg-style-hint">All fields are optional. Blank = default.</div>
     </div>` : "";
 
+  const slotTileRow = (w.type === "slot") ? (() => {
+    const curIcon    = String(w.placeholderIcon ?? "");
+    const curAccent  = String(w.accentColor ?? "");
+    const variantNow = String(w.variant ?? "default");
+    const visible    = variantNow === "tile";
+    const accentValid = SD_HEX_COLOR_RE.test(curAccent.trim());
+    const presets = SD_SLOT_TILE_ICON_PRESETS.map(p => {
+      const path = SD_SLOT_TILE_ICON_PATH(p.name);
+      const sel  = curIcon === path;
+      return `<button type="button" class="wcfg-slot-preset" data-slot-tile-icon="${esc(path)}"
+        title="${esc(p.label)}"
+        style="aspect-ratio:1/1;background:${sel?'color-mix(in srgb,var(--sd-accent) 22%,var(--sd-bg-2))':'var(--sd-bg-2)'};border:1px solid ${sel?'var(--sd-accent)':'var(--sd-border)'};border-radius:4px;cursor:pointer;padding:5px;display:flex;align-items:center;justify-content:center;transition:border-color .12s,background .12s">
+        <img src="${esc(path)}" alt="${esc(p.label)}" style="max-width:100%;max-height:100%;opacity:.85;pointer-events:none" draggable="false">
+      </button>`;
+    }).join("");
+
+    return `
+    <div class="wcfg-f wcfg-slot-tile-block" data-show-variant="tile" style="margin-bottom:10px;${visible?'':'display:none;'}border:1px solid var(--sd-bg-3);border-radius:6px;padding:8px 10px;background:var(--sd-bg)">
+      <label class="wcfg-lbl" style="display:flex;align-items:center;gap:6px"><i class="fas fa-image"></i> Equipment Tile (per-widget override)</label>
+      <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:6px;line-height:1.4">
+        Icon &amp; accent shown by the <strong>Equipment Tile</strong> variant. Leave fields empty to inherit from the slot definition.
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div class="wcfg-slot-preview" style="position:relative;width:36px;height:36px;flex-shrink:0;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg-2);display:flex;align-items:center;justify-content:center;overflow:hidden">
+          ${curIcon ? `<img src="${esc(curIcon)}" alt="" style="max-width:100%;max-height:100%;opacity:.85" draggable="false">` : `<i class="fas fa-image" style="opacity:.3;font-size:14px"></i>`}
+        </div>
+        <button type="button" class="wcfg-slot-custom-pick"
+          style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:3px 9px"><i class="fas fa-folder-open"></i> Custom…</button>
+        <button type="button" class="wcfg-slot-icon-clear"
+          style="background:none;border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:3px 9px" title="Use slot definition fallback">✕ Use default</button>
+      </div>
+
+      <div class="wcfg-slot-preset-grid"
+        style="display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:4px;margin-bottom:8px">
+        ${presets}
+      </div>
+
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:10px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Accent</span>
+        <input type="color" class="wcfg-slot-accent-color"
+          value="${esc(accentValid ? curAccent.trim() : "#d4b15a")}"
+          ${accentValid ? "" : 'data-empty="1"'}
+          style="width:34px;height:26px;background:transparent;border:1px solid var(--sd-border);border-radius:3px;cursor:pointer;padding:0">
+        <input type="text" class="wcfg-slot-accent-text"
+          value="${esc(curAccent)}" placeholder="#d4b15a (empty = inherit)"
+          style="flex:1;min-width:0;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 6px">
+        <button type="button" class="wcfg-slot-accent-clear"
+          style="background:none;border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:3px 8px" title="Use slot definition fallback">✕</button>
+      </div>
+
+      <input type="hidden" data-field="placeholderIcon" data-ftype="text" value="${esc(curIcon)}">
+      <input type="hidden" data-field="accentColor"     data-ftype="text" value="${esc(curAccent)}">
+    </div>`;
+  })() : "";
+
   const showIfRow = `
     <div class="wcfg-f" style="margin-top:10px;border-top:1px solid var(--sd-bg-3);padding-top:10px">
       <label class="wcfg-lbl" style="margin-bottom:4px;display:block">Show if…</label>
@@ -612,6 +685,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       ${attrGraphRow}
       ${attrGroupGraphsRow}
       ${fieldRows}
+      ${slotTileRow}
       ${styleRow}
       ${showIfRow}
     </div>
@@ -645,6 +719,82 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   popup.querySelectorAll("input.wcfg-style-color").forEach(inp => {
     inp.addEventListener("input", () => { delete inp.dataset.empty; });
   });
+
+  (function _wireSlotTileBlock(){
+    const block = popup.querySelector(".wcfg-slot-tile-block");
+    if (!block) return;
+
+    const iconInp   = block.querySelector('input[data-field="placeholderIcon"]');
+    const accentInp = block.querySelector('input[data-field="accentColor"]');
+    const preview   = block.querySelector(".wcfg-slot-preview");
+    const accentTxt = block.querySelector(".wcfg-slot-accent-text");
+    const accentClr = block.querySelector(".wcfg-slot-accent-color");
+
+    const _renderPreview = (p) => {
+      if (!preview) return;
+      preview.innerHTML = p
+        ? `<img src="${esc(p)}" alt="" style="max-width:100%;max-height:100%;opacity:.85" draggable="false">`
+        : `<i class="fas fa-image" style="opacity:.3;font-size:14px"></i>`;
+    };
+    const _setIcon = (path) => {
+      const p = String(path ?? "");
+      if (iconInp) iconInp.value = p;
+      _renderPreview(p);
+      block.querySelectorAll(".wcfg-slot-preset").forEach(btn => {
+        const sel = btn.dataset.slotTileIcon === p;
+        btn.style.background  = sel ? "color-mix(in srgb,var(--sd-accent) 22%,var(--sd-bg-2))" : "var(--sd-bg-2)";
+        btn.style.borderColor = sel ? "var(--sd-accent)" : "var(--sd-border)";
+      });
+    };
+
+    block.querySelectorAll(".wcfg-slot-preset").forEach(btn => {
+      btn.addEventListener("click", ev => {
+        ev.preventDefault();
+        _setIcon(btn.dataset.slotTileIcon);
+      });
+    });
+
+    block.querySelector(".wcfg-slot-icon-clear")?.addEventListener("click", ev => {
+      ev.preventDefault();
+      _setIcon("");
+    });
+
+    block.querySelector(".wcfg-slot-custom-pick")?.addEventListener("click", ev => {
+      ev.preventDefault();
+      const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+      if (!FP) { ui.notifications?.error?.("FilePicker not available"); return; }
+      new FP({
+        type: "image",
+        current: iconInp?.value || "",
+        callback: src => _setIcon(src || "")
+      }).render(true);
+    });
+
+    const _setAccent = (val) => {
+      const v = String(val ?? "").trim();
+      if (accentInp) accentInp.value = v;
+      if (accentTxt && document.activeElement !== accentTxt) accentTxt.value = v;
+      const valid = SD_HEX_COLOR_RE.test(v);
+      if (accentClr) {
+        if (valid) { accentClr.value = v; delete accentClr.dataset.empty; }
+        else { accentClr.value = "#d4b15a"; accentClr.dataset.empty = "1"; }
+      }
+    };
+
+    accentTxt?.addEventListener("input", () => _setAccent(accentTxt.value));
+    accentClr?.addEventListener("input", () => _setAccent(accentClr.value));
+    block.querySelector(".wcfg-slot-accent-clear")?.addEventListener("click", ev => {
+      ev.preventDefault();
+      _setAccent("");
+    });
+
+    const variantSel = popup.querySelector('select[data-field="variant"]');
+    if (variantSel) {
+      variantSel.addEventListener("change", () => {
+        block.style.display = variantSel.value === "tile" ? "" : "none";
+      });
+    }
+  })();
 
   popup.querySelectorAll("button.wcfg-fp-btn[data-fp-target]").forEach(btn => {
     btn.addEventListener("click", ev => {
@@ -941,16 +1091,31 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     if (widget) {
       Object.assign(widget, changes);
 
-      if (widget.type === "slot" && widget.slotId != null) {
-        const sid   = String(widget.slotId);
-        const defs  = foundry.utils.deepClone(doc.system.slotDefinitions ?? []);
+      if (widget.type === "slot" && widget.slotId != null && String(widget.slotId).trim() !== "") {
+        const sid    = String(widget.slotId).trim();
+        const defs   = foundry.utils.deepClone(doc.system.slotDefinitions ?? []);
         const defIdx = defs.findIndex(d => String(d.id) === sid);
         if (defIdx !== -1) {
           if (changes.maxCount !== undefined) defs[defIdx].maxCount = Math.max(1, parseInt(changes.maxCount) || 1);
           if (changes.label    !== undefined) defs[defIdx].label    = changes.label || defs[defIdx].label;
           await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates });
         } else {
-          await doc.update({ "system.customTabs": tabs, ..._hfUpdates });
+          defs.push({
+            id:                sid,
+            label:             widget.label || sid,
+            allowedTypes:      [],
+            allowedCategories: [],
+            attrFilters:       [],
+            maxCount:          Math.max(1, parseInt(widget.maxCount) || 1),
+            displayMode:       "compact",
+            removable:         true,
+            consumeOnRemove:   false,
+            placeholderIcon:   "",
+            accentColor:       "",
+            changes:           []
+          });
+          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates });
+          ui.notifications?.info?.(`Slot definition "${sid}" created for this widget.`);
         }
       } else {
         await doc.update({ "system.customTabs": tabs, ..._hfUpdates });

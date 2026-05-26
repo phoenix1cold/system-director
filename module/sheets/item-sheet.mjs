@@ -8,6 +8,22 @@ import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
+const SD_SLOT_ICON_PRESETS = [
+  { name: "helmet",   label: "Helmet" },
+  { name: "armor",    label: "Armor" },
+  { name: "cape",     label: "Cape" },
+  { name: "necklace", label: "Necklace" },
+  { name: "belt",     label: "Belt" },
+  { name: "glove",    label: "Glove" },
+  { name: "pants",    label: "Pants" },
+  { name: "boots",    label: "Boots" },
+  { name: "ring",     label: "Ring" },
+  { name: "bow",      label: "Bow" },
+  { name: "shield",   label: "Shield" },
+  { name: "quiver",   label: "Quiver" }
+];
+const SD_SLOT_ICON_PATH = name => `systems/sd/assets/slot-icons/${name}.svg`;
+
 Hooks.once("ready", () => {
   globalThis._SD_SLOTS = { SlotManager };
 });
@@ -1554,6 +1570,28 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           <div><div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Allowed Categories</div>
           <input type="text" data-sys-slot="allowedCategories" data-slot-idx="${idx}" value="${e((def.allowedCategories??[]).join(', '))}" placeholder="ammo, magazine (empty=any)" style="width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 7px;box-sizing:border-box" ${!ed?"disabled":""}></div>
         </div>
+        <div class="sd-slot-tile-config" style="margin-bottom:8px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:4px;padding:5px 8px" title="Used by the 'Equipment Tile' slot widget variant: placeholder icon shown when slot is empty + corner-bracket accent color.">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0"><i class="fas fa-image"></i> Tile</span>
+            <div style="position:relative;width:32px;height:32px;flex-shrink:0;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg-2);display:flex;align-items:center;justify-content:center;overflow:hidden">
+              ${def.placeholderIcon ? `<img src="${e(def.placeholderIcon)}" alt="" style="max-width:100%;max-height:100%;opacity:.85" draggable="false">` : `<i class="fas fa-image" style="opacity:.3;font-size:14px"></i>`}
+            </div>
+            ${ed?`<button type="button" data-sys-action="toggleSlotPresets" data-slot-idx="${idx}" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:2px 7px" title="Choose from built-in equipment icons"><i class="fas fa-th"></i> Presets</button>`:""}
+            ${ed?`<button type="button" data-sys-action="pickSlotIcon" data-slot-idx="${idx}" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:2px 7px" title="Pick custom image"><i class="fas fa-folder-open"></i> Custom</button>`:""}
+            ${ed&&def.placeholderIcon?`<button type="button" data-sys-action="clearSlotIcon" data-slot-idx="${idx}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px" title="Clear placeholder">✕</button>`:""}
+            <span style="font-size:10px;color:var(--sd-text-3);margin-left:6px">Accent</span>
+            <input type="color" data-sys-slot="accentColor" data-slot-idx="${idx}" value="${e(def.accentColor || '#d4b15a')}" style="width:30px;height:24px;background:transparent;border:1px solid var(--sd-border);border-radius:3px;cursor:pointer;padding:0" title="Accent color (corner brackets)" ${!ed?"disabled":""}>
+            <input type="text" data-sys-slot="accentColor" data-slot-idx="${idx}" value="${e(def.accentColor || '')}" placeholder="#d4b15a (empty=theme)" style="flex:1;min-width:0;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:2px 5px" ${!ed?"disabled":""}>
+          </div>
+          <div class="sd-slot-preset-grid" data-slot-idx="${idx}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--sd-bg-3);grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:4px">
+            ${SD_SLOT_ICON_PRESETS.map(p=>{
+              const sel = def.placeholderIcon === SD_SLOT_ICON_PATH(p.name);
+              return `<button type="button" data-sys-action="setSlotPreset" data-slot-idx="${idx}" data-icon-name="${e(p.name)}" title="${e(p.label)}" style="aspect-ratio:1/1;background:${sel?'color-mix(in srgb, var(--sd-accent) 22%, var(--sd-bg-2))':'var(--sd-bg-2)'};border:1px solid ${sel?'var(--sd-accent)':'var(--sd-border)'};border-radius:4px;cursor:pointer;padding:5px;display:flex;align-items:center;justify-content:center;transition:border-color .12s,background .12s" onmouseover="this.style.borderColor='var(--sd-accent)'" onmouseout="this.style.borderColor='${sel?'var(--sd-accent)':'var(--sd-border)'}'">
+                <img src="${e(SD_SLOT_ICON_PATH(p.name))}" alt="${e(p.label)}" style="max-width:100%;max-height:100%;opacity:.85;pointer-events:none" draggable="false">
+              </button>`;
+            }).join("")}
+          </div>
+        </div>
         <div style="margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
             <span style="font-size:10px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.05em"><i class="fas fa-filter"></i> Attr Filters</span>
@@ -1567,6 +1605,23 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
             </select>
             <input type="text" data-sys-af="expectedValue" data-slot-idx="${idx}" data-filter-idx="${fIdx}" value="${e(f.expectedValue??'')}" style="width:65px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;padding:2px 5px" ${!ed?"disabled":""}>
             ${ed?`<button data-sys-action="removeAttrFilter" data-slot-idx="${idx}" data-filter-idx="${fIdx}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 3px">✕</button>`:""}
+          </div>`).join("")}
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:10px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.05em" title="When an item is dropped into this slot, ActiveEffect(s) are created on the parent actor. Each row reads a value from the slotted item's field and writes it to an actor field via Foundry ActiveEffect.modes."><i class="fas fa-bolt"></i> Changes if Equipped</span>
+            ${ed?`<button data-sys-action="addSlotChange" data-slot-idx="${idx}" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:1px 7px">+ Add</button>`:""}
+          </div>
+          ${(def.changes??[]).length===0?`<div style="font-size:10px;color:var(--sd-text-3);opacity:.6;padding:2px 4px;font-style:italic">No changes yet. Add pairs of "item field → actor field" to synthesize ActiveEffects while equipped.</div>`:""}
+          ${(def.changes??[]).map((ch,cIdx)=>`<div style="display:grid;grid-template-columns:1fr 8px 1fr 86px 52px auto;gap:4px;align-items:center;margin-bottom:3px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:4px;padding:3px 6px">
+            <input type="text" data-sys-slot-change="itemFieldPath" data-slot-idx="${idx}" data-change-idx="${cIdx}" value="${e(ch.itemFieldPath??'')}" placeholder="system.hiddenFields.bonus" title="Item field path (what to read)" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-family:monospace;padding:2px 5px;min-width:0" ${!ed?"disabled":""}>
+            <span style="color:var(--sd-text-3);font-size:10px;text-align:center">→</span>
+            <input type="text" data-sys-slot-change="actorFieldPath" data-slot-idx="${idx}" data-change-idx="${cIdx}" value="${e(ch.actorFieldPath??'')}" placeholder="system.attack.bonus" title="Actor field path (what to modify)" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-family:monospace;padding:2px 5px;min-width:0" ${!ed?"disabled":""}>
+            <select data-sys-slot-change="mode" data-slot-idx="${idx}" data-change-idx="${cIdx}" title="Effect mode" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);padding:2px" ${!ed?"disabled":""}>
+              ${[[2,"Add"],[1,"Multiply"],[5,"Override"],[4,"Upgrade"],[3,"Downgrade"],[0,"Custom"]].map(([v,l])=>`<option value="${v}" ${Number(ch.mode)===v?"selected":""}>${l}</option>`).join("")}
+            </select>
+            <input type="number" data-sys-slot-change="priority" data-slot-idx="${idx}" data-change-idx="${cIdx}" value="${ch.priority??20}" title="Priority" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-family:monospace;padding:2px 4px;text-align:center" ${!ed?"disabled":""}>
+            ${ed?`<button data-sys-action="removeSlotChange" data-slot-idx="${idx}" data-change-idx="${cIdx}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 3px" title="Remove">✕</button>`:""}
           </div>`).join("")}
         </div>
         <div class="slot-contents-area" data-drop-slot="${e(def.id)}" style="border:1px dashed ${contents.length?'#4b3e9e':'var(--sd-bg-3)'};border-radius:5px;padding:6px;min-height:32px">
@@ -2507,7 +2562,54 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       }
       case "addDeclaredAttr":  { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); attrs.push({id:foundry.utils.randomID(8),name:`attr${attrs.length+1}`,path:""}); await this.document.update({"system.declaredAttrs":attrs}); break; }
       case "removeDeclaredAttr":{ const attrs=(this.document.system.declaredAttrs??[]).filter(a=>a.id!==btn.dataset.attrId); await this.document.update({"system.declaredAttrs":attrs}); break; }
-      case "addSlot":          { const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d.push({id:`slot${d.length+1}`,label:`Slot ${d.length+1}`,allowedTypes:[],allowedCategories:[],attrFilters:[],maxCount:1,displayMode:"compact",removable:true,consumeOnRemove:false}); await this.document.update({"system.slotDefinitions":d}); break; }
+      case "addSlot":          { const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d.push({id:`slot${d.length+1}`,label:`Slot ${d.length+1}`,allowedTypes:[],allowedCategories:[],attrFilters:[],maxCount:1,displayMode:"compact",removable:true,consumeOnRemove:false,placeholderIcon:"",accentColor:"",changes:[]}); await this.document.update({"system.slotDefinitions":d}); break; }
+      case "pickSlotIcon": {
+        const si = parseInt(btn.dataset.slotIdx);
+        const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+        if (!FP || Number.isNaN(si)) break;
+        const d = foundry.utils.deepClone(this.document.system.slotDefinitions ?? []);
+        if (!d[si]) break;
+        const cur = d[si].placeholderIcon || "";
+        new FP({
+          type: "image",
+          current: cur,
+          callback: async (p) => {
+            const d2 = foundry.utils.deepClone(this.document.system.slotDefinitions ?? []);
+            if (!d2[si]) return;
+            d2[si].placeholderIcon = p || "";
+            await this.document.update({ "system.slotDefinitions": d2 });
+          }
+        }).render(true);
+        break;
+      }
+      case "clearSlotIcon": {
+        const si = parseInt(btn.dataset.slotIdx);
+        if (Number.isNaN(si)) break;
+        const d = foundry.utils.deepClone(this.document.system.slotDefinitions ?? []);
+        if (!d[si]) break;
+        d[si].placeholderIcon = "";
+        await this.document.update({ "system.slotDefinitions": d });
+        break;
+      }
+      case "toggleSlotPresets": {
+        const si = btn.dataset.slotIdx;
+        if (si === undefined) break;
+        const grid = this.element?.querySelector(`.sd-slot-preset-grid[data-slot-idx="${si}"]`);
+        if (!grid) break;
+        const isOpen = grid.style.display !== "none";
+        grid.style.display = isOpen ? "none" : "grid";
+        break;
+      }
+      case "setSlotPreset": {
+        const si = parseInt(btn.dataset.slotIdx);
+        const name = String(btn.dataset.iconName ?? "");
+        if (Number.isNaN(si) || !name) break;
+        const d = foundry.utils.deepClone(this.document.system.slotDefinitions ?? []);
+        if (!d[si]) break;
+        d[si].placeholderIcon = `systems/sd/assets/slot-icons/${name}.svg`;
+        await this.document.update({ "system.slotDefinitions": d });
+        break;
+      }
       case "removeSlot":       {
         const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]);
         const _ri = parseInt(btn.dataset.slotIdx);
@@ -2523,6 +2625,8 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       }
       case "addAttrFilter":    { const si=parseInt(btn.dataset.slotIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d[si].attrFilters??=[]; d[si].attrFilters.push({id:foundry.utils.randomID(8),fieldPath:"",fieldLabel:"",operator:"==",expectedValue:""}); await this.document.update({"system.slotDefinitions":d}); break; }
       case "removeAttrFilter": { const si=parseInt(btn.dataset.slotIdx),fi=parseInt(btn.dataset.filterIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d[si].attrFilters.splice(fi,1); await this.document.update({"system.slotDefinitions":d}); break; }
+      case "addSlotChange":    { const si=parseInt(btn.dataset.slotIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); if(!d[si]) break; d[si].changes??=[]; d[si].changes.push({id:foundry.utils.randomID(8),itemFieldPath:"",actorFieldPath:"",mode:2,priority:20}); await this.document.update({"system.slotDefinitions":d}); break; }
+      case "removeSlotChange": { const si=parseInt(btn.dataset.slotIdx),ci=parseInt(btn.dataset.changeIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); if(!d[si]?.changes?.[ci]) break; d[si].changes.splice(ci,1); await this.document.update({"system.slotDefinitions":d}); break; }
       case "removeFromSlot":   { await SlotManager.removeFromSlot(this.document,btn.dataset.slotId,parseInt(btn.dataset.slotIdx)); break; }
       case "addButton":        { const b=foundry.utils.deepClone(this.document.system.buttons??[]); b.push({id:foundry.utils.randomID(8),label:"New Button",icon:"fa-bolt",color:"var(--sd-accent)",showIn:"inline",conditions:[],actions:[]}); await this.document.update({"system.buttons":b}); break; }
       case "removeButton":     { const b=foundry.utils.deepClone(this.document.system.buttons??[]); b.splice(parseInt(btn.dataset.btnIdx),1); await this.document.update({"system.buttons":b}); break; }
@@ -2575,6 +2679,19 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       const si=parseInt(el.dataset.slotIdx),fi=parseInt(el.dataset.filterIdx),field=el.dataset.sysAf;
       const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); if(!d[si]?.attrFilters?.[fi]) return;
       d[si].attrFilters[fi][field]=el.value; await this.document.update({"system.slotDefinitions":d}); return;
+    }
+    if (el.dataset.sysSlotChange!==undefined) {
+      const si=parseInt(el.dataset.slotIdx),ci=parseInt(el.dataset.changeIdx),field=el.dataset.sysSlotChange;
+      const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]);
+      if (!d[si]) return;
+      d[si].changes ??= [];
+      if (!d[si].changes[ci]) return;
+      let val;
+      if (field==="mode" || field==="priority") val = (el.value === "" ? (field==="mode"?2:20) : Number(el.value));
+      else val = el.value;
+      d[si].changes[ci][field] = val;
+      await this.document.update({"system.slotDefinitions":d});
+      return;
     }
     if (el.dataset.sysBtn!==undefined) {
       const idx=parseInt(el.dataset.btnIdx),field=el.dataset.sysBtn;

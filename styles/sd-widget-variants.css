@@ -1007,6 +1007,157 @@
 }
 .sd-w-slot.sd-v-ghost .slot-drop-mini { border-style: dashed !important; opacity: .7 !important; }
 
+/* === Slot widget — Equipment Tile variant === */
+.sd-w-slot.sd-v-tile .widget-label { padding: 0 0 4px 0 !important; }
+.sd-w-slot.sd-v-tile .sd-slot-tile-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: .06em !important;
+  color: var(--sd-text-3) !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-title { flex: 1 !important; font-weight: 600 !important; color: var(--sd-text-2) !important; }
+.sd-w-slot.sd-v-tile .sd-slot-tile-count {
+  font-size: 10px !important;
+  color: var(--sd-text-3) !important;
+  opacity: .7 !important;
+  font-family: monospace !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)) !important;
+  gap: 6px !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-wrap {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile {
+  position: relative !important;
+  aspect-ratio: 1 / 1 !important;
+  width: 100% !important;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,.02), rgba(0,0,0,.18) 75%),
+    var(--sd-bg-2) !important;
+  border: 1px solid color-mix(in srgb, var(--sd-tile-accent, var(--sd-accent)) 35%, var(--sd-border)) !important;
+  border-radius: 6px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: border-color .15s, transform .12s, box-shadow .15s !important;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.25) !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile:hover {
+  border-color: var(--sd-tile-accent, var(--sd-accent)) !important;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.25),
+              0 0 0 1px color-mix(in srgb, var(--sd-tile-accent, var(--sd-accent)) 45%, transparent) !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-filled {
+  background: var(--sd-bg-2) !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-empty {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,.015), rgba(0,0,0,.22) 80%),
+    var(--sd-bg-2) !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-corner {
+  position: absolute !important;
+  width: 10px !important;
+  height: 10px !important;
+  pointer-events: none !important;
+  border: 0 solid var(--sd-tile-accent, var(--sd-accent)) !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-corner-tl { top: 3px;    left: 3px;    border-top-width: 2px;    border-left-width: 2px;    border-top-left-radius: 2px; }
+.sd-w-slot.sd-v-tile .sd-slot-tile-corner-tr { top: 3px;    right: 3px;   border-top-width: 2px;    border-right-width: 2px;   border-top-right-radius: 2px; }
+.sd-w-slot.sd-v-tile .sd-slot-tile-corner-bl { bottom: 3px; left: 3px;    border-bottom-width: 2px; border-left-width: 2px;    border-bottom-left-radius: 2px; }
+.sd-w-slot.sd-v-tile .sd-slot-tile-corner-br { bottom: 3px; right: 3px;   border-bottom-width: 2px; border-right-width: 2px;   border-bottom-right-radius: 2px; }
+
+.sd-w-slot.sd-v-tile .sd-slot-tile-img {
+  display: block !important;
+  user-select: none !important;
+  pointer-events: none !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-img-filled {
+  max-width: 78% !important;
+  max-height: 78% !important;
+  object-fit: contain !important;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)) !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-img-ph {
+  max-width: 55% !important;
+  max-height: 55% !important;
+  object-fit: contain !important;
+  opacity: .35 !important;
+  filter:
+    grayscale(80%)
+    drop-shadow(0 0 4px color-mix(in srgb, var(--sd-tile-accent, var(--sd-accent)) 40%, transparent)) !important;
+  transition: opacity .15s, filter .15s !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-empty:hover .sd-slot-tile-img-ph {
+  opacity: .55 !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-img-ph-fallback { opacity: .18 !important; }
+
+.sd-w-slot.sd-v-tile .sd-slot-tile-drop-hint {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding-bottom: 6px !important;
+  font-size: 10px !important;
+  color: color-mix(in srgb, var(--sd-tile-accent, var(--sd-accent)) 70%, var(--sd-text-3)) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity .15s !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-empty:hover .sd-slot-tile-drop-hint { opacity: .9 !important; }
+
+.sd-w-slot.sd-v-tile .sd-slot-tile-btns {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  min-height: 18px !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-btn {
+  background: var(--sd-bg-3) !important;
+  border: 1px solid var(--sd-border) !important;
+  border-radius: 3px !important;
+  color: var(--sd-text-2) !important;
+  cursor: pointer !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  padding: 3px 6px !important;
+  transition: background .12s, color .12s, border-color .12s !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-btn:hover {
+  background: color-mix(in srgb, var(--sd-tile-accent, var(--sd-accent)) 25%, var(--sd-bg-3)) !important;
+  border-color: var(--sd-tile-accent, var(--sd-accent)) !important;
+  color: var(--sd-text) !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-btn-danger:hover {
+  background: color-mix(in srgb, var(--sd-danger, #b04040) 30%, var(--sd-bg-3)) !important;
+  border-color: var(--sd-danger, #b04040) !important;
+}
+.sd-w-slot.sd-v-tile .sd-slot-tile-empty-label {
+  font-size: 9px !important;
+  text-transform: uppercase !important;
+  letter-spacing: .06em !important;
+  color: var(--sd-text-3) !important;
+  opacity: .55 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
 .sd-w-cardhand.sd-v-fan .card-hand-cards,
 .sd-w-cardhand.sd-v-fan .cards-row {
   display: flex !important; justify-content: center !important; padding-bottom: 12px !important;

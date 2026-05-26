@@ -41,10 +41,12 @@ import { SDActionHUD, SDActionHUDConfig, registerActionHudSettings, mountActionH
 import { SDTrade }             from "./module/helpers/trade.mjs";
 import { SDQuest }             from "./module/helpers/quest.mjs";
 import { installSdPause }      from "./module/helpers/sd-pause.mjs";
+import { SlotEffectSync }      from "./module/helpers/slot-effects.mjs";
 
 SDTrade.init();
 SDQuest.init();
 installSdPause();
+SlotEffectSync.install();
 
 globalThis.SD = {};
 

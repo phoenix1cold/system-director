@@ -663,6 +663,11 @@ export class WidgetRenderer {
       return this._render_slot_compact(w, doc, contents, max);
     }
 
+    const variantId = this._sanitizeVariant(w.variant);
+    if (variantId === "tile") {
+      return this._render_slot_tile(w, doc, contents, max, def);
+    }
+
     const e = this._esc;
     const items = contents.map((c, i) => `
       <li class="slot-mini-item" draggable="true" data-slot-item-drag data-sd-preview-ref="slot" data-slot-id="${e(w.slotId)}" data-slot-index="${i}" data-item-id="${e(c._id ?? "")}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? "")}">
@@ -735,6 +740,66 @@ export class WidgetRenderer {
     return `<div class="widget widget-slot widget-compact widget-slot-row" data-sd-slot-drop="${slotId}">
   <div class="widget-label slot-hud-label"><i class="fas fa-layer-group"></i> ${lbl} <span class="slot-hud-count">${countTxt}</span></div>
   <div class="slot-hud-icons">${icons}</div>
+</div>`;
+  }
+
+  static _render_slot_tile(w, doc, contents, max, def) {
+    const e          = this._esc;
+    const slotId     = e(w.slotId);
+    const lbl        = e(w.label || def?.label || "Slot");
+    const wAccentRaw = String(w.accentColor ?? "").trim();
+    const accentRaw  = wAccentRaw || String(def?.accentColor ?? "").trim();
+    const accent     = accentRaw || "";
+    const accentVar  = accent ? e(accent) : "var(--sd-accent)";
+    const wPhRaw     = String(w.placeholderIcon ?? "").trim();
+    const phRaw      = wPhRaw || String(def?.placeholderIcon ?? "").trim();
+    const placeholder= e(phRaw || "icons/svg/item-bag.svg");
+    const hasPh      = !!phRaw;
+    const countTxt   = `${contents.length}/${max}`;
+
+    let tiles = "";
+    for (let i = 0; i < max; i++) {
+      const c       = contents[i];
+      const filled  = !!c;
+      const img     = filled ? e(c.img ?? "icons/svg/item-bag.svg") : placeholder;
+      const nm      = filled ? e(c.name ?? "") : "Empty";
+      const itemId  = filled ? e(c._id ?? "") : "";
+      const itemUid = filled ? e(c._sourceUuid ?? c.uuid ?? "") : "";
+
+      const previewAttrs = filled
+        ? `draggable="true" data-slot-item-drag data-sd-preview-ref="slot" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUid}"`
+        : "";
+      const tileStyle = `style="--sd-tile-accent:${accentVar}"`;
+      const innerImgCls = filled ? "sd-slot-tile-img sd-slot-tile-img-filled" : `sd-slot-tile-img sd-slot-tile-img-ph${hasPh ? "" : " sd-slot-tile-img-ph-fallback"}`;
+
+      const dropAttr = filled ? "" : `data-sd-slot-drop="${slotId}"`;
+      tiles += `<div class="sd-slot-tile-wrap" data-slot-idx="${i}">
+        <div class="sd-slot-tile${filled ? ' sd-slot-tile-filled' : ' sd-slot-tile-empty'}" ${dropAttr} ${previewAttrs} ${tileStyle} title="${nm}">
+          <span class="sd-slot-tile-corner sd-slot-tile-corner-tl"></span>
+          <span class="sd-slot-tile-corner sd-slot-tile-corner-tr"></span>
+          <span class="sd-slot-tile-corner sd-slot-tile-corner-bl"></span>
+          <span class="sd-slot-tile-corner sd-slot-tile-corner-br"></span>
+          <img class="${innerImgCls}" src="${img}" alt="${nm}" draggable="false">
+          ${filled ? "" : `<span class="sd-slot-tile-drop-hint"><i class="fas fa-arrow-down-to-line"></i></span>`}
+        </div>
+        <div class="sd-slot-tile-btns">
+          ${filled
+            ? `<button type="button" class="sd-slot-tile-btn" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="Use"><i class="fas fa-play"></i></button>
+               <button type="button" class="sd-slot-tile-btn" data-action="slotItemEdit" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUid}" title="Edit"><i class="fas fa-pen"></i></button>
+               <button type="button" class="sd-slot-tile-btn sd-slot-tile-btn-danger" data-sd-slot-remove="${slotId}" data-sd-slot-idx="${i}" title="Remove"><i class="fas fa-times"></i></button>`
+            : `<span class="sd-slot-tile-empty-label">${lbl}</span>`}
+        </div>
+      </div>`;
+    }
+
+    const slotContentsPath = `system.slotContents.${w.slotId}.contents`;
+    return `<div class="widget widget-slot widget-slot-tile">
+  <div class="widget-label sd-slot-tile-header">
+    <span class="sd-slot-tile-title">${lbl}</span>
+    <span class="sd-slot-tile-count">${countTxt}</span>
+    ${this._copyBtn(slotContentsPath, "contents array")}
+  </div>
+  <div class="sd-slot-tile-grid">${tiles}</div>
 </div>`;
   }
 
