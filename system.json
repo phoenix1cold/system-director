@@ -2,7 +2,7 @@
   "id": "sd",
   "title": "System Director",
   "description": "System Director — pre-release",
-  "version": "0.9.3",
+  "version": "0.9.31",
   "compatibility": {
     "minimum": "13",
     "verified": "14"
@@ -108,6 +108,11 @@
   },
   "media": [
     {
+      "type": "setup",
+      "url": "systems/sd/assets/system-cover.webp",
+      "thumbnail": "systems/sd/assets/system-cover-thumb.webp"
+    },
+    {
       "type": "cover",
       "url": "systems/sd/assets/system-cover.webp",
       "thumbnail": "systems/sd/assets/system-cover-thumb.webp"
@@ -133,7 +138,7 @@
   "secondaryTokenAttribute": "resources.mp",
   "url": "https://github.com/phoenix1cold/system-director",
   "manifest": "https://github.com/phoenix1cold/system-director/releases/latest/download/system.json",
-  "download": "https://github.com/phoenix1cold/system-director/releases/download/v0.9.9/system.zip",
+  "download": "https://github.com/phoenix1cold/system-director/releases/download/v0.9.10/system.zip",
   "readme": "https://github.com/phoenix1cold/system-director/blob/main/README.md",
   "bugs": "https://github.com/phoenix1cold/system-director/issues",
   "changelog": "https://github.com/phoenix1cold/system-director/releases"
