@@ -1344,7 +1344,23 @@ export class ButtonExecutor {
 
         if (!_mMatch) { ui.notifications.warn(`modifySlotItemField: no item in slot "${_mSlotId}" (path "${_mPath}").`); break; }
 
-        const _mAmt = Number(action.amount ?? 0);
+        const _mResolveNum = async (raw) => {
+          if (typeof raw === "number") return Number.isFinite(raw) ? raw : 0;
+          if (raw == null || raw === "") return 0;
+          let s = _mStripQ(_injectRuntime(String(raw)));
+          if (s === "") return 0;
+          if (/\{|[+\-*/]/.test(s)) {
+            try {
+              const { FormulaEngine: _FE } = await import("./formula-engine.mjs");
+              const v = _FE.evaluate(s, item ?? _mActor ?? actor);
+              const n = Number(v);
+              if (Number.isFinite(n)) return n;
+            } catch {}
+          }
+          const n = parseFloat(s);
+          return Number.isFinite(n) ? n : 0;
+        };
+        const _mAmt = await _mResolveNum(action.amount);
         const _mCur = Number(foundry.utils.getProperty(_mMatch.entry, _mPath) ?? 0);
         let _mResult;
         if      (_mOp === "subtract") _mResult = _mCur - _mAmt;
@@ -1442,7 +1458,23 @@ export class ButtonExecutor {
         };
 
         const _miActors = _miSourceActors ?? (actor ? [actor] : []);
-        const _miAmt = Number(action.amount ?? 0);
+        const _miResolveNum = async (raw) => {
+          if (typeof raw === "number") return Number.isFinite(raw) ? raw : 0;
+          if (raw == null || raw === "") return 0;
+          let s = _miStripQuotes(_injectRuntime(String(raw)));
+          if (s === "") return 0;
+          if (/\{|[+\-*/]/.test(s)) {
+            try {
+              const { FormulaEngine: _FE } = await import("./formula-engine.mjs");
+              const v = _FE.evaluate(s, item ?? actor);
+              const n = Number(v);
+              if (Number.isFinite(n)) return n;
+            } catch {}
+          }
+          const n = parseFloat(s);
+          return Number.isFinite(n) ? n : 0;
+        };
+        const _miAmt = await _miResolveNum(action.amount);
         const { SlotManager: _miSM } = await import("../data/item-slots.mjs");
 
         const _miApply = async (probeDoc, applyFn) => {

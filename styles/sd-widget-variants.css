@@ -1027,19 +1027,28 @@
 }
 .sd-w-slot.sd-v-tile .sd-slot-tile-grid {
   display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)) !important;
+  grid-template-columns: repeat(auto-fill, var(--sd-tile-size, minmax(min(96px, 100%), 1fr))) !important;
   gap: 6px !important;
+  justify-content: start !important;
+  min-width: 0 !important;
 }
 .sd-w-slot.sd-v-tile .sd-slot-tile-wrap {
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
   gap: 4px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
 }
 .sd-w-slot.sd-v-tile .sd-slot-tile {
   position: relative !important;
   aspect-ratio: 1 / 1 !important;
   width: 100% !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  flex: 0 0 auto !important;
   background:
     radial-gradient(circle at 50% 50%, rgba(255,255,255,.02), rgba(0,0,0,.18) 75%),
     var(--sd-bg-2) !important;

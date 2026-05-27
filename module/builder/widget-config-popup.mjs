@@ -128,7 +128,7 @@ const STYLE_DEFS = {
   richtext:  [["Min height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
   attribute: [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Number color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
   skill:     [["Width (px)","boxW","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
-  slot:      [["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
+  slot:      [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Tile size (px, Equipment Tile only)","tileSize","style-px"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
   inventory: [["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Header color","headerColor","style-color"],["Border","boxBorder","style-color"]],
   effects:   [["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"]],
   spellbook: [["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"]],

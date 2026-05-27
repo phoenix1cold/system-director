@@ -143,6 +143,7 @@ export class WidgetRenderer {
     cvar("--sd-w-header",    colour(w.headerColor));
     cvar("--sd-w-tag-fg",    colour(w.tagFg));
     cvar("--sd-w-bw",        px(w.borderWidth));
+    cvar("--sd-tile-size",   px(w.tileSize));
 
     return parts.join(";");
   }

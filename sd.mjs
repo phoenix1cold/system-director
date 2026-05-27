@@ -612,6 +612,11 @@ Hooks.once("ready", async () => {
 
   try { mountActionHudHooks(); } catch(e) { console.warn("SD | mountActionHudHooks failed:", e); }
 
+  try {
+    const { registerInteractables } = await import("./module/helpers/interactables.mjs");
+    registerInteractables();
+  } catch(e) { console.warn("SD | registerInteractables failed:", e); }
+
   void _sdResolveInitiativeFormulaForActor;
 });
 

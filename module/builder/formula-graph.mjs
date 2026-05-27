@@ -6975,6 +6975,8 @@ export class FormulaGraph {
         this._id = (Math.max(0,...numIds) + 2) || 2;
       } else if (this.initiativeMode) {
         this._addInitiativeDefaultGraph();
+      } else if (this.actionGraph) {
+        this._addTriggerOutputNodes();
       } else if (!this.chainTrigger && !this.questTrigger) {
         this._addOutputNode();
       }
