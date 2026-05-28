@@ -626,6 +626,16 @@ export function openInteractablesEditor(doc) {
   const popup = document.createElement("div");
   popup.id = "sd-iep-popup";
   popup.className = "sd sd-iep-popup";
+  try {
+    const themeAttr = document.documentElement?.getAttribute?.("data-sd-theme")
+      || document.body?.getAttribute?.("data-sd-theme")
+      || "default";
+    popup.setAttribute("data-sd-theme", themeAttr);
+    const fxAttr = document.documentElement?.getAttribute?.("data-sd-theme-fx")
+      || document.body?.getAttribute?.("data-sd-theme-fx")
+      || "";
+    if (fxAttr) popup.setAttribute("data-sd-theme-fx", fxAttr);
+  } catch {  }
   popup.innerHTML = _renderEditorHTML(state);
   document.body.appendChild(popup);
 
@@ -769,6 +779,7 @@ export function openInteractablesEditor(doc) {
         const { FormulaGraph } = await import("../builder/formula-graph.mjs");
         const graph = new FormulaGraph(null, doc, null, null, null, {
           mode: "actionGraph",
+          actionGraphContext: "interactable",
           customLoad: () => sel.graphData ?? null,
           customSave: async (data, compiled) => {
             sel.graphData       = data;
@@ -810,22 +821,41 @@ export function openInteractablesEditor(doc) {
 function _makeDraggable(popup) {
   const head = popup.querySelector(".sd-iep-head");
   if (!head) return;
+  head.style.touchAction = "none";
   let ds = null;
-  head.addEventListener("mousedown", (e) => {
-    if (e.target.closest("button,input,select,textarea,label")) return;
+  const onMove = (e) => {
+    if (!ds) return;
+    const nx = Math.max(0, Math.min(window.innerWidth  - 40, e.clientX - ds.dx));
+    const ny = Math.max(0, Math.min(window.innerHeight - 20, e.clientY - ds.dy));
+    popup.style.left = `${nx}px`;
+    popup.style.top  = `${ny}px`;
+  };
+  const onUp = (e) => {
+    if (!ds) return;
+    try { head.releasePointerCapture?.(ds.pid); } catch {}
+    ds = null;
+    head.style.cursor = "grab";
+  };
+  head.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest("button,input,select,textarea,a")) return;
+    if (e.target.closest(".sd-iep-tog")) return;
     const rect = popup.getBoundingClientRect();
-    ds = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
     popup.style.left = `${rect.left}px`;
     popup.style.top  = `${rect.top}px`;
     popup.style.transform = "none";
+    popup.style.margin = "0";
+    ds = { dx: e.clientX - rect.left, dy: e.clientY - rect.top, pid: e.pointerId };
+    head.style.cursor = "grabbing";
+    try { head.setPointerCapture?.(e.pointerId); } catch {}
     e.preventDefault();
+    e.stopPropagation();
   });
-  document.addEventListener("mousemove", (e) => {
-    if (!ds) return;
-    popup.style.left = `${e.clientX - ds.dx}px`;
-    popup.style.top  = `${e.clientY - ds.dy}px`;
-  });
-  document.addEventListener("mouseup", () => ds = null);
+  head.addEventListener("pointermove",   onMove);
+  head.addEventListener("pointerup",     onUp);
+  head.addEventListener("pointercancel", onUp);
+  document.addEventListener("pointermove", onMove);
+  document.addEventListener("pointerup",   onUp);
 }
 
 function _addConfigHook(hookName, app, html, doc) {
@@ -838,18 +868,17 @@ function _addConfigHook(hookName, app, html, doc) {
   const count = data.buttons.filter(b => b.enabled).length;
 
   const wrap = document.createElement("div");
-  wrap.className = "form-group sd-iep-host";
-  wrap.style.cssText = "margin:8px 0;padding:8px;border:1px solid var(--color-border-light-2, #999);border-radius:4px;background:rgba(123,104,238,0.08)";
+  wrap.className = "sd-iep-host";
   wrap.innerHTML = `
-    <label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:default">
-      <i class="fas fa-bolt" style="color:#7b68ee"></i>
-      <span>SD Interactables</span>
-      <span class="sd-iep-host-count" style="margin-left:auto;font-size:11px;opacity:.7">${count} active button${count===1?"":"s"}</span>
-    </label>
-    <button type="button" class="sd-iep-open-btn" style="margin-top:6px;padding:6px 12px;background:#7b68ee;color:#fff;border:1px solid #5d4ad1;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;width:100%;justify-content:center">
-      <i class="fas fa-edit"></i> Edit SD Interactables…
+    <div class="sd-iep-host-head">
+      <i class="fas fa-bolt sd-iep-host-icon"></i>
+      <span class="sd-iep-host-title">SD Interactables</span>
+      <span class="sd-iep-host-count">${count} active button${count===1?"":"s"}</span>
+    </div>
+    <button type="button" class="sd-iep-open-btn">
+      <i class="fas fa-edit"></i><span>Edit SD Interactables…</span>
     </button>
-    <div style="font-size:10px;opacity:.65;margin-top:4px;line-height:1.4">
+    <div class="sd-iep-host-hint">
       Attach interactive buttons that appear near this ${doc.documentName.toLowerCase()} when a player's token is within range. Each button has its own action graph.
     </div>`;
 

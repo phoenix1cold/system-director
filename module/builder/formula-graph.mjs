@@ -5913,6 +5913,448 @@ export const NODE_DEFS = {
     compile(n) { return "0"; },
     compilePin(n,ins,fromPin) { return "0"; },
     toAction(n,ins) { return { type:"noop" }; }
+  },
+
+  get_self_uuid: {
+    title:"Get Object Self UUID", color:"#1a4060", cat:"Sources",
+    isInteractableOnly:true,
+    desc:"Returns the UUID of the scene placeable (Tile / Wall / Light / Token / Note) this Interactable Button is attached to. Only available in Interactable button graphs.",
+    inputs:[],
+    outputs:[{id:"v", label:"UUID", type:"value.string"}],
+    fields:[],
+    compile:(n)=>`{__sdSelfUuid}`
+  },
+
+  act_set_tile_image: {
+    title:"Set Tile Image", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Set the texture.src on a Tile by UUID. Wire UUID (e.g. Get Object Self UUID) or paste a fixed Tile UUID into the field.",
+    inputs:[
+      {id:"exec", label:"",          type:"exec"},
+      {id:"uuid", label:"Tile UUID", type:"value.string"},
+      {id:"src",  label:"Image",     type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid", label:"Tile UUID", type:"text", default:"", placeholder:"Scene.X.Tile.Y or drag tile here"},
+      {key:"src",  label:"Image",     type:"text", default:"", placeholder:"icons/svg/circle.svg"}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setTileImage",
+      uuid: (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : String(n.data?.uuid ?? ""),
+      src:  (inp.src  != null && inp.src  !== "") ? String(inp.src)  : String(n.data?.src  ?? "")
+    })
+  },
+
+  act_set_tile_size: {
+    title:"Set Tile Size", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Set width and height (in pixels) on a Tile by UUID.",
+    inputs:[
+      {id:"exec",   label:"",          type:"exec"},
+      {id:"uuid",   label:"Tile UUID", type:"value.string"},
+      {id:"width",  label:"Width",     type:"value.number"},
+      {id:"height", label:"Height",    type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",   label:"Tile UUID",   type:"text",   default:""},
+      {key:"width",  label:"Width (px)",  type:"number", default:100},
+      {key:"height", label:"Height (px)", type:"number", default:100}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setTileSize",
+      uuid:   (inp.uuid   != null && inp.uuid   !== "") ? String(inp.uuid)   : String(n.data?.uuid   ?? ""),
+      width:  (inp.width  != null && inp.width  !== "") ? String(inp.width)  : String(n.data?.width  ?? 100),
+      height: (inp.height != null && inp.height !== "") ? String(inp.height) : String(n.data?.height ?? 100)
+    })
+  },
+
+  act_set_tile_position: {
+    title:"Set Tile Position", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Set x/y world coordinates on a Tile by UUID.",
+    inputs:[
+      {id:"exec", label:"",          type:"exec"},
+      {id:"uuid", label:"Tile UUID", type:"value.string"},
+      {id:"x",    label:"X",         type:"value.number"},
+      {id:"y",    label:"Y",         type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid", label:"Tile UUID", type:"text",   default:""},
+      {key:"x",    label:"X (px)",    type:"number", default:0},
+      {key:"y",    label:"Y (px)",    type:"number", default:0}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setTilePosition",
+      uuid: (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : String(n.data?.uuid ?? ""),
+      x:    (inp.x    != null && inp.x    !== "") ? String(inp.x)    : String(n.data?.x    ?? 0),
+      y:    (inp.y    != null && inp.y    !== "") ? String(inp.y)    : String(n.data?.y    ?? 0)
+    })
+  },
+
+  act_set_tile_rotation: {
+    title:"Set Tile Rotation", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Set rotation (degrees, 0-360) on a Tile by UUID.",
+    inputs:[
+      {id:"exec",     label:"",          type:"exec"},
+      {id:"uuid",     label:"Tile UUID", type:"value.string"},
+      {id:"rotation", label:"Rotation",  type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",     label:"Tile UUID",     type:"text",   default:""},
+      {key:"rotation", label:"Rotation (deg)", type:"number", default:0}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setTileRotation",
+      uuid:     (inp.uuid     != null && inp.uuid     !== "") ? String(inp.uuid)     : String(n.data?.uuid     ?? ""),
+      rotation: (inp.rotation != null && inp.rotation !== "") ? String(inp.rotation) : String(n.data?.rotation ?? 0)
+    })
+  },
+
+  act_set_tile_tint: {
+    title:"Set Tile Tint", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Set texture.tint on a Tile by UUID. Empty/null clears the tint. Hex format (#rrggbb).",
+    inputs:[
+      {id:"exec", label:"",          type:"exec"},
+      {id:"uuid", label:"Tile UUID", type:"value.string"},
+      {id:"tint", label:"Tint",      type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid", label:"Tile UUID",      type:"text", default:""},
+      {key:"tint", label:"Tint (#rrggbb)", type:"text", default:"", placeholder:"#ffffff or empty"}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setTileTint",
+      uuid: (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : String(n.data?.uuid ?? ""),
+      tint: (inp.tint != null && inp.tint !== "") ? String(inp.tint) : String(n.data?.tint ?? "")
+    })
+  },
+
+  act_set_tile_alpha: {
+    title:"Set Tile Alpha", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Set alpha (opacity 0..1) on a Tile by UUID.",
+    inputs:[
+      {id:"exec",  label:"",          type:"exec"},
+      {id:"uuid",  label:"Tile UUID", type:"value.string"},
+      {id:"alpha", label:"Alpha",     type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",  label:"Tile UUID", type:"text",   default:""},
+      {key:"alpha", label:"Alpha (0-1)", type:"number", default:1}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setTileAlpha",
+      uuid:  (inp.uuid  != null && inp.uuid  !== "") ? String(inp.uuid)  : String(n.data?.uuid  ?? ""),
+      alpha: (inp.alpha != null && inp.alpha !== "") ? String(inp.alpha) : String(n.data?.alpha ?? 1)
+    })
+  },
+
+  act_set_tile_hidden: {
+    title:"Set Tile Hidden", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Show / hide / toggle a Tile by UUID.",
+    inputs:[
+      {id:"exec", label:"",          type:"exec"},
+      {id:"uuid", label:"Tile UUID", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid", label:"Tile UUID", type:"text",   default:""},
+      {key:"mode", label:"Mode",      type:"select", default:"toggle", options:["toggle","show","hide"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setTileHidden",
+      uuid: (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : String(n.data?.uuid ?? ""),
+      mode: String(n.data?.mode ?? "toggle")
+    })
+  },
+
+  act_set_wall_door_state: {
+    title:"Set Wall Door State", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Open / close / lock / toggle a wall door by Wall UUID. Walls that are not doors are ignored.",
+    inputs:[
+      {id:"exec", label:"",          type:"exec"},
+      {id:"uuid", label:"Wall UUID", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",  label:"Wall UUID", type:"text",   default:""},
+      {key:"state", label:"State",     type:"select", default:"toggle", options:["toggle","open","close","lock"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setWallDoorState",
+      uuid:  (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : String(n.data?.uuid ?? ""),
+      state: String(n.data?.state ?? "toggle")
+    })
+  },
+
+  act_set_wall_door_type: {
+    title:"Set Wall Door Type", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Convert a wall to / from a door, or a secret door, by Wall UUID.",
+    inputs:[
+      {id:"exec", label:"",          type:"exec"},
+      {id:"uuid", label:"Wall UUID", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid", label:"Wall UUID", type:"text",   default:""},
+      {key:"type", label:"Type",      type:"select", default:"door", options:["none","door","secret"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setWallDoorType",
+      uuid:    (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : String(n.data?.uuid ?? ""),
+      doorType: String(n.data?.type ?? "door")
+    })
+  },
+
+  act_set_wall_restriction: {
+    title:"Set Wall Restriction", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Change movement / sight / sound / light restriction on a wall by Wall UUID.",
+    inputs:[
+      {id:"exec", label:"",          type:"exec"},
+      {id:"uuid", label:"Wall UUID", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",  label:"Wall UUID",   type:"text",   default:""},
+      {key:"kind",  label:"Restriction", type:"select", default:"move", options:["move","sight","sound","light"]},
+      {key:"value", label:"Value",       type:"select", default:"none", options:["none","normal","limited"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setWallRestriction",
+      uuid:  (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : String(n.data?.uuid ?? ""),
+      kind:  String(n.data?.kind  ?? "move"),
+      value: String(n.data?.value ?? "none")
+    })
+  },
+
+  act_set_light_enabled: {
+    title:"Set Light Enabled", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Show / hide / toggle an AmbientLight by UUID.",
+    inputs:[
+      {id:"exec", label:"",           type:"exec"},
+      {id:"uuid", label:"Light UUID", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid", label:"Light UUID", type:"text",   default:""},
+      {key:"mode", label:"Mode",       type:"select", default:"toggle", options:["toggle","enable","disable"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setLightEnabled",
+      uuid: (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : String(n.data?.uuid ?? ""),
+      mode: String(n.data?.mode ?? "toggle")
+    })
+  },
+
+  act_set_light_radius: {
+    title:"Set Light Radius", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Set bright / dim radius (in scene grid units, e.g. feet) on an AmbientLight by UUID. Either field can be left empty to keep its current value.",
+    inputs:[
+      {id:"exec",   label:"",           type:"exec"},
+      {id:"uuid",   label:"Light UUID", type:"value.string"},
+      {id:"bright", label:"Bright",     type:"value.number"},
+      {id:"dim",    label:"Dim",        type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",   label:"Light UUID", type:"text",   default:""},
+      {key:"bright", label:"Bright",     type:"number", default:0},
+      {key:"dim",    label:"Dim",        type:"number", default:0}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setLightRadius",
+      uuid:   (inp.uuid   != null && inp.uuid   !== "") ? String(inp.uuid)   : String(n.data?.uuid   ?? ""),
+      bright: (inp.bright != null && inp.bright !== "") ? String(inp.bright) : String(n.data?.bright ?? ""),
+      dim:    (inp.dim    != null && inp.dim    !== "") ? String(inp.dim)    : String(n.data?.dim    ?? "")
+    })
+  },
+
+  act_set_light_color: {
+    title:"Set Light Color", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Set the color of an AmbientLight by UUID. Hex format (#rrggbb). Empty value clears the color.",
+    inputs:[
+      {id:"exec",  label:"",           type:"exec"},
+      {id:"uuid",  label:"Light UUID", type:"value.string"},
+      {id:"color", label:"Color",      type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",  label:"Light UUID",    type:"text", default:""},
+      {key:"color", label:"Color (#rrggbb)", type:"text", default:"#ffffff"}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setLightColor",
+      uuid:  (inp.uuid  != null && inp.uuid  !== "") ? String(inp.uuid)  : String(n.data?.uuid  ?? ""),
+      color: (inp.color != null && inp.color !== "") ? String(inp.color) : String(n.data?.color ?? "")
+    })
+  },
+
+  act_set_light_alpha: {
+    title:"Set Light Alpha", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Set alpha (0..1) on an AmbientLight by UUID.",
+    inputs:[
+      {id:"exec",  label:"",           type:"exec"},
+      {id:"uuid",  label:"Light UUID", type:"value.string"},
+      {id:"alpha", label:"Alpha",      type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",  label:"Light UUID",  type:"text",   default:""},
+      {key:"alpha", label:"Alpha (0-1)", type:"number", default:0.5}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setLightAlpha",
+      uuid:  (inp.uuid  != null && inp.uuid  !== "") ? String(inp.uuid)  : String(n.data?.uuid  ?? ""),
+      alpha: (inp.alpha != null && inp.alpha !== "") ? String(inp.alpha) : String(n.data?.alpha ?? 0.5)
+    })
+  },
+
+  act_set_light_animation: {
+    title:"Set Light Animation", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Change the animation type, speed, intensity, reverse on an AmbientLight by UUID. Leave speed / intensity at 0 to keep current values.",
+    inputs:[
+      {id:"exec",      label:"",           type:"exec"},
+      {id:"uuid",      label:"Light UUID", type:"value.string"},
+      {id:"speed",     label:"Speed",      type:"value.number"},
+      {id:"intensity", label:"Intensity",  type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",      label:"Light UUID",      type:"text",     default:""},
+      {key:"animType",  label:"Animation",       type:"select",   default:"torch",
+        options:["none","torch","pulse","chroma","wave","fog","sunburst","dome","emanation","hexa","ghost","energy","roiling","hole","vortex","witchwave","rainbowswirl","radialrainbow","fairy","grid","starlight","smokepatch","revolving"]},
+      {key:"speed",     label:"Speed (1-10)",     type:"number",   default:5},
+      {key:"intensity", label:"Intensity (1-10)", type:"number",   default:5},
+      {key:"reverse",   label:"Reverse",          type:"checkbox", default:false}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setLightAnimation",
+      uuid:      (inp.uuid      != null && inp.uuid      !== "") ? String(inp.uuid)      : String(n.data?.uuid     ?? ""),
+      animType:  String(n.data?.animType ?? "torch"),
+      speed:     (inp.speed     != null && inp.speed     !== "") ? String(inp.speed)     : String(n.data?.speed    ?? 5),
+      intensity: (inp.intensity != null && inp.intensity !== "") ? String(inp.intensity) : String(n.data?.intensity ?? 5),
+      reverse:   !!n.data?.reverse
+    })
+  },
+
+  act_set_doc_field: {
+    title:"Set Document Field by UUID", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Generic update: set a single field at a dot-path on any document (Tile / Wall / Light / Token / Note / Scene / Item / Actor) by UUID. Value can be wired or typed. Use this when there is no dedicated node for the field you need.",
+    inputs:[
+      {id:"exec",  label:"",         type:"exec"},
+      {id:"uuid",  label:"UUID",     type:"value.string"},
+      {id:"path",  label:"Path",     type:"value.path"},
+      {id:"value", label:"Value",    type:"value.any"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"uuid",  label:"Document UUID", type:"text", default:""},
+      {key:"path",  label:"Field Path",     type:"path", default:"hidden"},
+      {key:"value", label:"Value",          type:"text", default:""}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"setDocField",
+      uuid:  (inp.uuid  != null && inp.uuid  !== "") ? String(inp.uuid)  : String(n.data?.uuid  ?? ""),
+      path:  (inp.path  != null && inp.path  !== "") ? String(inp.path)  : String(n.data?.path  ?? ""),
+      value: (inp.value != null && inp.value !== "") ? String(inp.value) : String(n.data?.value ?? "")
+    })
+  },
+
+  act_add_to_combat: {
+    title:"Add Actors to Combat", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Add one or more actors to the active combat encounter (or create a new encounter if there is none). Actors input accepts: a Targets[] / Saved[] / Failed[] / All[] array, a comma-joined list of token / actor IDs / UUIDs, or one of the keywords actor / selected_token / token_target / all_targets / player_actors. Optionally rolls initiative.",
+    inputs:[
+      {id:"exec",   label:"",       type:"exec"},
+      {id:"actors", label:"Actors", type:"value.array"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"actors",         label:"Actors",          type:"text",   default:"all_targets", placeholder:"all_targets / selected_token / actor / token id / Actor.xxxx, ..."},
+      {key:"createIfMissing", label:"Create encounter if none", type:"checkbox", default:true},
+      {key:"activate",       label:"Activate encounter",        type:"checkbox", default:true},
+      {key:"rollInit",       label:"Roll initiative",           type:"select", default:"none", options:["none","per-actor","group"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"addActorsToCombat",
+      actors: (inp.actors != null && inp.actors !== "") ? String(inp.actors) : String(n.data?.actors ?? "all_targets"),
+      createIfMissing: n.data?.createIfMissing !== false,
+      activate:        n.data?.activate !== false,
+      rollInit:        String(n.data?.rollInit ?? "none")
+    })
+  },
+
+  act_switch_scene: {
+    title:"Switch Scene", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Activate (View+Activate) a scene by UUID / id / name. Activate makes it the live scene for all users; View only navigates the GM/current user to it. Optionally pulls all players to the scene.",
+    inputs:[
+      {id:"exec",  label:"",      type:"exec"},
+      {id:"scene", label:"Scene", type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"scene", label:"Scene (UUID / id / name)", type:"text",   default:"", placeholder:"Scene.xxxx or scene name"},
+      {key:"mode",  label:"Mode",                     type:"select", default:"activate", options:["activate","view"]},
+      {key:"pullPlayers", label:"Pull all players",   type:"checkbox", default:false}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"switchScene",
+      scene:       (inp.scene != null && inp.scene !== "") ? String(inp.scene) : String(n.data?.scene ?? ""),
+      mode:        String(n.data?.mode ?? "activate"),
+      pullPlayers: !!n.data?.pullPlayers
+    })
+  },
+
+  act_spawn_token: {
+    title:"Spawn Token from Actor UUID", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    desc:"Create a token of an actor on the current (or specified) scene at the given x/y world coordinates. Uses the actor's prototype token. Name and hidden flag optional. Requires GM permission.",
+    inputs:[
+      {id:"exec",      label:"",            type:"exec"},
+      {id:"actorUuid", label:"Actor UUID",  type:"value.string"},
+      {id:"x",         label:"X",           type:"value.number"},
+      {id:"y",         label:"Y",           type:"value.number"},
+      {id:"sceneUuid", label:"Scene UUID",  type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"actorUuid",    label:"Actor UUID",        type:"text",     default:"", placeholder:"Actor.xxxx (or drag actor)"},
+      {key:"x",            label:"X (px)",            type:"number",   default:0},
+      {key:"y",            label:"Y (px)",            type:"number",   default:0},
+      {key:"sceneUuid",    label:"Scene (optional)",   type:"text",     default:"", placeholder:"Scene.xxxx or empty = current"},
+      {key:"nameOverride", label:"Name override",     type:"text",     default:"", placeholder:"Leave empty to use actor name"},
+      {key:"hidden",       label:"Spawn hidden",       type:"checkbox", default:false},
+      {key:"snapToGrid",   label:"Snap to grid",       type:"checkbox", default:true}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"spawnTokenFromActor",
+      actorUuid:    (inp.actorUuid != null && inp.actorUuid !== "") ? String(inp.actorUuid) : String(n.data?.actorUuid ?? ""),
+      x:            (inp.x         != null && inp.x         !== "") ? String(inp.x)         : String(n.data?.x ?? 0),
+      y:            (inp.y         != null && inp.y         !== "") ? String(inp.y)         : String(n.data?.y ?? 0),
+      sceneUuid:    (inp.sceneUuid != null && inp.sceneUuid !== "") ? String(inp.sceneUuid) : String(n.data?.sceneUuid    ?? ""),
+      nameOverride: String(n.data?.nameOverride ?? ""),
+      hidden:       !!n.data?.hidden,
+      snapToGrid:   n.data?.snapToGrid !== false
+    })
   }
 };
 
@@ -6138,7 +6580,8 @@ const CATS = [
   {id:"Movement",   color:"#2a4a8a"},
   {id:"Audio",      color:"#7a4a8a"},
   {id:"Journal",    color:"#3a5a8a"},
-  {id:"Cards",      color:"#5a2a7a"}
+  {id:"Cards",      color:"#5a2a7a"},
+  {id:"Scene",      color:"#3a6a8a"}
 ];
 
 export const SD_NODE_KIND_COLOURS = {
@@ -6333,6 +6776,7 @@ export class FormulaGraph {
     this.configMode   = opts.mode === "config";
     this.sheetTrigger = opts.mode === "sheetTrigger";
     this.actionGraph  = opts.mode === "actionGraph";
+    this.actionGraphContext = opts.actionGraphContext ?? "";
     this.chainTrigger = opts.mode === "chainTrigger";
     this.questTrigger = opts.mode === "questTrigger";
     this.initiativeMode = opts.mode === "initiative";
@@ -8175,6 +8619,7 @@ export class FormulaGraph {
         if (hidesOnClick && type === "on_click") return false;
         if (isSheetTrigger && type === "output") return false;
         if (this.actionGraph && type === "output") return false;
+        if (d.isInteractableOnly && this.actionGraphContext !== "interactable") return false;
         if (isFuncEditMode) {
           if (d.isEvent) return false;
           if (type === "output") return false;

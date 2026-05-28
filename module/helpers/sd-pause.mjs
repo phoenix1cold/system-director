@@ -79,48 +79,76 @@ const SD_PAUSE_SVG = `
 </svg>
 `.trim();
 
-function _sdPauseDecorate(root) {
-  if (!root) return;
-  const el = (root instanceof HTMLElement) ? root : (root?.[0] ?? root);
-  if (!el || !el.classList) return;
+const SD_PAUSE_OVERLAY_ID = "sd-pause-overlay";
+const SD_PAUSE_EXIT_MS = 420;
 
-  el.classList.add("sd-pause-host");
+function _sdBuildPauseOverlay() {
+  const existing = document.getElementById(SD_PAUSE_OVERLAY_ID);
+  if (existing) return existing;
 
-  el.querySelectorAll(":scope > img, :scope > figure > img, :scope > figure > .logo").forEach(n => n.remove());
+  const host = document.createElement("div");
+  host.id = SD_PAUSE_OVERLAY_ID;
+  host.className = "sd-pause-host";
+  host.setAttribute("aria-hidden", "true");
 
-  if (el.querySelector(":scope > .sd-pause-cube-wrap")) return;
+  const inner = document.createElement("div");
+  inner.className = "sd-pause-inner";
+
+  const leftTxt = document.createElement("span");
+  leftTxt.className = "sd-pause-side sd-pause-side--left";
+  leftTxt.textContent = "GAME";
 
   const wrap = document.createElement("div");
   wrap.className = "sd-pause-cube-wrap";
   wrap.innerHTML = SD_PAUSE_SVG;
 
-  el.insertBefore(wrap, el.firstChild);
+  const rightTxt = document.createElement("span");
+  rightTxt.className = "sd-pause-side sd-pause-side--right";
+  rightTxt.textContent = "PAUSED";
+
+  inner.appendChild(leftTxt);
+  inner.appendChild(wrap);
+  inner.appendChild(rightTxt);
+  host.appendChild(inner);
+
+  document.body.appendChild(host);
+  return host;
+}
+
+let _sdHideTimer = null;
+
+function _sdShowPauseOverlay() {
+  const el = _sdBuildPauseOverlay();
+  if (_sdHideTimer) { clearTimeout(_sdHideTimer); _sdHideTimer = null; }
+  el.classList.remove("sd-pause-hide");
+  el.classList.remove("sd-pause-show");
+  // Force a reflow so the entrance animation re-runs from the start.
+  void el.offsetWidth;
+  el.classList.add("sd-pause-show");
+}
+
+function _sdHidePauseOverlay() {
+  const el = document.getElementById(SD_PAUSE_OVERLAY_ID);
+  if (!el) return;
+  if (!el.classList.contains("sd-pause-show") && !el.classList.contains("sd-pause-hide")) return;
+  el.classList.remove("sd-pause-show");
+  void el.offsetWidth;
+  el.classList.add("sd-pause-hide");
+  if (_sdHideTimer) clearTimeout(_sdHideTimer);
+  _sdHideTimer = setTimeout(() => {
+    el.classList.remove("sd-pause-hide");
+    _sdHideTimer = null;
+  }, SD_PAUSE_EXIT_MS + 20);
 }
 
 export function installSdPause() {
-  Hooks.on("renderPause",      (_app, html) => _sdPauseDecorate(html));
-  Hooks.on("renderGamePause",  (_app, html) => _sdPauseDecorate(html));
-
   Hooks.once("ready", () => {
-    const node = document.getElementById("pause");
-    if (node) _sdPauseDecorate(node);
+    _sdBuildPauseOverlay();
+    try { if (game?.paused) _sdShowPauseOverlay(); } catch {}
   });
 
-  if (typeof MutationObserver !== "undefined") {
-    Hooks.once("ready", () => {
-      try {
-        const mo = new MutationObserver(muts => {
-          for (const m of muts) {
-            for (const n of m.addedNodes ?? []) {
-              if (n?.nodeType !== 1) continue;
-              if (n.id === "pause") { _sdPauseDecorate(n); continue; }
-              const inner = n.querySelector?.("#pause");
-              if (inner) _sdPauseDecorate(inner);
-            }
-          }
-        });
-        mo.observe(document.body, { childList: true, subtree: true });
-      } catch {}
-    });
-  }
+  Hooks.on("pauseGame", (paused) => {
+    if (paused) _sdShowPauseOverlay();
+    else        _sdHidePauseOverlay();
+  });
 }

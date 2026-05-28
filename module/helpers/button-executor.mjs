@@ -530,6 +530,9 @@ export class ButtonExecutor {
 
     const _injectRuntime = (formula) => {
       if (typeof formula !== "string") return formula;
+      if (buttonDef?.__placeableUuid !== undefined) {
+        formula = formula.replace(/\{__sdSelfUuid\}/g, String(buttonDef.__placeableUuid));
+      }
       if (buttonDef?.__lastRoll !== undefined) {
         formula = formula.replace(/\{__lastRoll\}/g, String(buttonDef.__lastRoll));
       }
@@ -2170,6 +2173,407 @@ export class ButtonExecutor {
         } catch (e) {
           console.warn("SD | moveToken error:", e);
           ui.notifications?.warn?.(`Move Token failed: ${e?.message ?? e}`);
+        }
+        break;
+      }
+
+      case "setTileImage":
+      case "setTileSize":
+      case "setTilePosition":
+      case "setTileRotation":
+      case "setTileTint":
+      case "setTileAlpha":
+      case "setTileHidden":
+      case "setWallDoorState":
+      case "setWallDoorType":
+      case "setWallRestriction":
+      case "setLightEnabled":
+      case "setLightRadius":
+      case "setLightColor":
+      case "setLightAlpha":
+      case "setLightAnimation":
+      case "setDocField": {
+        try {
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+          const _sdStripQ = (s) => {
+            if (s == null) return "";
+            let out = String(s).trim();
+            if (out.length >= 2 && ((out.startsWith('"') && out.endsWith('"')) || (out.startsWith("'") && out.endsWith("'")))) {
+              try { out = JSON.parse(out); } catch { out = out.slice(1, -1); }
+            }
+            return String(out ?? "");
+          };
+          const _sdResolveStr = (raw) => {
+            if (raw == null) return "";
+            let s = _injectRuntime(String(raw));
+            if (typeof s === "string" && s.includes("{")) {
+              try { s = FormulaEngine._resolveRefs(s, item ?? actor ?? {}); } catch {}
+            }
+            return _sdStripQ(s);
+          };
+          const _sdResolveNum = async (raw, fallback = 0) => {
+            if (raw == null || raw === "") return fallback;
+            let s = _injectRuntime(String(raw));
+            if (typeof s === "string" && s.includes("{")) {
+              try { s = FormulaEngine.resolveForRoll(s, actor ?? item ?? {}); } catch {}
+            }
+            const ev = FormulaEngine.evaluate(s, actor ?? item ?? {});
+            const n = Number(ev);
+            if (Number.isFinite(n)) return n;
+            const n2 = Number(s);
+            return Number.isFinite(n2) ? n2 : fallback;
+          };
+
+          const uuid = _sdResolveStr(action.uuid ?? "");
+          if (!uuid) { ui.notifications?.warn?.(`${action.type}: empty UUID.`); break; }
+
+          let doc = null;
+          try { doc = await fromUuid(uuid); } catch (e) { doc = null; }
+          if (!doc) { ui.notifications?.warn?.(`${action.type}: document not found for UUID ${uuid}`); break; }
+
+          const dn = doc.documentName;
+          const _need = (...types) => {
+            if (!types.includes(dn)) {
+              ui.notifications?.warn?.(`${action.type}: target is ${dn}, expected ${types.join(" / ")}.`);
+              return false;
+            }
+            return true;
+          };
+
+          const update = {};
+          switch (action.type) {
+            case "setTileImage": {
+              if (!_need("Tile")) break;
+              const src = _sdResolveStr(action.src ?? "");
+              update["texture.src"] = src;
+              break;
+            }
+            case "setTileSize": {
+              if (!_need("Tile")) break;
+              if (action.width  !== "" && action.width  != null) update.width  = await _sdResolveNum(action.width,  doc.width);
+              if (action.height !== "" && action.height != null) update.height = await _sdResolveNum(action.height, doc.height);
+              break;
+            }
+            case "setTilePosition": {
+              if (!_need("Tile")) break;
+              if (action.x !== "" && action.x != null) update.x = await _sdResolveNum(action.x, doc.x);
+              if (action.y !== "" && action.y != null) update.y = await _sdResolveNum(action.y, doc.y);
+              break;
+            }
+            case "setTileRotation": {
+              if (!_need("Tile")) break;
+              const r = await _sdResolveNum(action.rotation, doc.rotation ?? 0);
+              update.rotation = ((r % 360) + 360) % 360;
+              break;
+            }
+            case "setTileTint": {
+              if (!_need("Tile")) break;
+              const tint = _sdResolveStr(action.tint ?? "");
+              update["texture.tint"] = tint || null;
+              break;
+            }
+            case "setTileAlpha": {
+              if (!_need("Tile")) break;
+              const a = await _sdResolveNum(action.alpha, 1);
+              update.alpha = Math.max(0, Math.min(1, a));
+              break;
+            }
+            case "setTileHidden": {
+              if (!_need("Tile")) break;
+              const mode = String(action.mode ?? "toggle");
+              if (mode === "show") update.hidden = false;
+              else if (mode === "hide") update.hidden = true;
+              else update.hidden = !doc.hidden;
+              break;
+            }
+            case "setWallDoorState": {
+              if (!_need("Wall")) break;
+              const isDoor = Number(doc.door) > 0;
+              if (!isDoor) { ui.notifications?.warn?.(`setWallDoorState: wall ${uuid} is not a door.`); break; }
+              const st = String(action.state ?? "toggle");
+              const CLOSED = 0, OPEN = 1, LOCKED = 2;
+              const cur = Number(doc.ds ?? 0);
+              let next = cur;
+              if (st === "open")  next = OPEN;
+              else if (st === "close") next = CLOSED;
+              else if (st === "lock")  next = LOCKED;
+              else next = (cur === OPEN) ? CLOSED : OPEN;
+              update.ds = next;
+              break;
+            }
+            case "setWallDoorType": {
+              if (!_need("Wall")) break;
+              const t = String(action.doorType ?? "door");
+              const NONE = 0, DOOR = 1, SECRET = 2;
+              update.door = (t === "secret") ? SECRET : (t === "none") ? NONE : DOOR;
+              break;
+            }
+            case "setWallRestriction": {
+              if (!_need("Wall")) break;
+              const kind  = String(action.kind  ?? "move");
+              const value = String(action.value ?? "none");
+              const NONE = 0, NORMAL = 20, LIMITED = 10;
+              const v = (value === "normal") ? NORMAL : (value === "limited") ? LIMITED : NONE;
+              if (["move","sight","sound","light"].includes(kind)) update[kind] = v;
+              break;
+            }
+            case "setLightEnabled": {
+              if (!_need("AmbientLight")) break;
+              const mode = String(action.mode ?? "toggle");
+              if (mode === "enable")  update.hidden = false;
+              else if (mode === "disable") update.hidden = true;
+              else update.hidden = !doc.hidden;
+              break;
+            }
+            case "setLightRadius": {
+              if (!_need("AmbientLight")) break;
+              if (action.bright !== "" && action.bright != null) update["config.bright"] = await _sdResolveNum(action.bright, doc.config?.bright ?? 0);
+              if (action.dim    !== "" && action.dim    != null) update["config.dim"]    = await _sdResolveNum(action.dim,    doc.config?.dim    ?? 0);
+              break;
+            }
+            case "setLightColor": {
+              if (!_need("AmbientLight")) break;
+              const c = _sdResolveStr(action.color ?? "");
+              update["config.color"] = c || null;
+              break;
+            }
+            case "setLightAlpha": {
+              if (!_need("AmbientLight")) break;
+              const a = await _sdResolveNum(action.alpha, 0.5);
+              update["config.alpha"] = Math.max(0, Math.min(1, a));
+              break;
+            }
+            case "setLightAnimation": {
+              if (!_need("AmbientLight")) break;
+              const animType  = _sdResolveStr(action.animType ?? "");
+              const speed     = await _sdResolveNum(action.speed,     doc.config?.animation?.speed     ?? 5);
+              const intensity = await _sdResolveNum(action.intensity, doc.config?.animation?.intensity ?? 5);
+              const reverse   = !!action.reverse;
+              const animPayload = {
+                type:      animType || null,
+                speed:     Math.max(0, Math.min(10, Math.round(speed))),
+                intensity: Math.max(0, Math.min(10, Math.round(intensity))),
+                reverse
+              };
+              if (!animType || animType === "none") animPayload.type = null;
+              update["config.animation"] = animPayload;
+              break;
+            }
+            case "setDocField": {
+              const path = _sdResolveStr(action.path ?? "");
+              if (!path) { ui.notifications?.warn?.("setDocField: path is empty."); break; }
+              let val = _sdResolveStr(action.value ?? "");
+              if (val === "true") val = true;
+              else if (val === "false") val = false;
+              else if (val === "null") val = null;
+              else if (val !== "" && /^-?\d+(\.\d+)?$/.test(val)) val = Number(val);
+              update[path] = val;
+              break;
+            }
+          }
+
+          if (Object.keys(update).length > 0) {
+            await doc.update(update);
+          }
+        } catch (e) {
+          console.warn(`SD | ${action.type} error:`, e);
+          ui.notifications?.warn?.(`${action.type} failed: ${e?.message ?? e}`);
+        }
+        break;
+      }
+
+      case "addActorsToCombat": {
+        try {
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+          let spec = _injectRuntime(String(action.actors ?? ""));
+          if (typeof spec === "string" && spec.includes("{")) {
+            try { spec = FormulaEngine._resolveRefs(spec, item ?? actor ?? {}); } catch {}
+          }
+          spec = String(spec ?? "").trim();
+          if (spec.length >= 2 && ((spec.startsWith('"') && spec.endsWith('"')) || (spec.startsWith("'") && spec.endsWith("'")))) {
+            try { spec = JSON.parse(spec); } catch { spec = spec.slice(1, -1); }
+          }
+          const targets = _resolveAllTargets(spec || "all_targets", actor);
+          if (!targets.length) { ui.notifications?.warn?.("Add Actors to Combat: no actors resolved."); break; }
+
+          let combat = game.combat;
+          if (!combat) {
+            if (action.createIfMissing === false) { ui.notifications?.warn?.("Add Actors to Combat: no active combat."); break; }
+            if (!game.user.isGM) { ui.notifications?.warn?.("Add Actors to Combat: only GM can create a combat encounter."); break; }
+            combat = await Combat.create({ scene: canvas?.scene?.id ?? null, active: action.activate !== false });
+          } else if (action.activate !== false && combat.active !== true) {
+            try { await combat.activate(); } catch {}
+          }
+          if (!combat) break;
+
+          const newCombatantIds = [];
+          for (const tActor of targets) {
+            if (!tActor) continue;
+            const existing = combat.combatants.find(c => c.actorId === tActor.id);
+            if (existing) continue;
+            const tokenDoc = tActor.getActiveTokens?.()?.[0]?.document
+                          ?? canvas?.tokens?.placeables?.find?.(t => t.actor?.id === tActor.id)?.document;
+            try {
+              const created = await combat.createEmbeddedDocuments("Combatant", [{
+                actorId: tActor.id,
+                tokenId: tokenDoc?.id ?? null,
+                sceneId: tokenDoc?.parent?.id ?? canvas?.scene?.id ?? null,
+                hidden:  false
+              }]);
+              const c = created?.[0];
+              if (c) newCombatantIds.push(c.id);
+            } catch (err) {
+              console.warn("SD | addActorsToCombat: failed for", tActor?.name, err);
+            }
+          }
+
+          const mode = String(action.rollInit ?? "none");
+          if (newCombatantIds.length) {
+            if (mode === "per-actor") {
+              for (const id of newCombatantIds) {
+                try { await combat.rollInitiative([id]); } catch {}
+              }
+            } else if (mode === "group") {
+              try { await combat.rollInitiative(newCombatantIds); } catch {}
+            }
+          }
+        } catch (e) {
+          console.warn("SD | addActorsToCombat error:", e);
+          ui.notifications?.warn?.(`Add Actors to Combat failed: ${e?.message ?? e}`);
+        }
+        break;
+      }
+
+      case "switchScene": {
+        try {
+          if (!game.user.isGM && action.mode !== "view") {
+            ui.notifications?.warn?.("Switch Scene: only the GM can activate a scene.");
+            break;
+          }
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+          let raw = _injectRuntime(String(action.scene ?? ""));
+          if (typeof raw === "string" && raw.includes("{")) {
+            try { raw = FormulaEngine._resolveRefs(raw, item ?? actor ?? {}); } catch {}
+          }
+          let ref = String(raw ?? "").trim();
+          if (ref.length >= 2 && ((ref.startsWith('"') && ref.endsWith('"')) || (ref.startsWith("'") && ref.endsWith("'")))) {
+            try { ref = JSON.parse(ref); } catch { ref = ref.slice(1, -1); }
+          }
+          if (!ref) { ui.notifications?.warn?.("Switch Scene: empty scene reference."); break; }
+
+          let scene = null;
+          if (ref.includes(".") && /^[A-Za-z][A-Za-z0-9]*\./.test(ref)) {
+            try { scene = await fromUuid(ref); } catch {}
+          }
+          if (!scene) scene = game.scenes?.get?.(ref) ?? null;
+          if (!scene) scene = game.scenes?.getName?.(ref) ?? null;
+          if (!scene || scene.documentName !== "Scene") {
+            ui.notifications?.warn?.(`Switch Scene: scene not found for "${ref}".`);
+            break;
+          }
+
+          const mode = String(action.mode ?? "activate");
+          if (mode === "view") {
+            await scene.view();
+          } else {
+            await scene.activate();
+          }
+          if (action.pullPlayers && game.user.isGM) {
+            try { game.socket?.emit?.("pullToScene", scene.id); } catch {}
+            try { game.users?.players?.forEach?.(u => game.socket?.emit?.("pullToScene", scene.id, u.id)); } catch {}
+            try { Hooks.callAll("pullToScene", scene, game.users.players); } catch {}
+            try {
+              for (const u of (game.users?.filter?.(u => !u.isGM && u.active) ?? [])) {
+                game.socket?.emit?.("pullToScene", scene.id, u.id);
+              }
+            } catch {}
+          }
+        } catch (e) {
+          console.warn("SD | switchScene error:", e);
+          ui.notifications?.warn?.(`Switch Scene failed: ${e?.message ?? e}`);
+        }
+        break;
+      }
+
+      case "spawnTokenFromActor": {
+        try {
+          if (!game.user.isGM) {
+            ui.notifications?.warn?.("Spawn Token: only the GM can spawn tokens.");
+            break;
+          }
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+          const _stStripQ = (s) => {
+            if (s == null) return "";
+            let out = String(s).trim();
+            if (out.length >= 2 && ((out.startsWith('"') && out.endsWith('"')) || (out.startsWith("'") && out.endsWith("'")))) {
+              try { out = JSON.parse(out); } catch { out = out.slice(1, -1); }
+            }
+            return String(out ?? "");
+          };
+          const _stResolveStr = (raw) => {
+            if (raw == null) return "";
+            let s = _injectRuntime(String(raw));
+            if (typeof s === "string" && s.includes("{")) {
+              try { s = FormulaEngine._resolveRefs(s, item ?? actor ?? {}); } catch {}
+            }
+            return _stStripQ(s);
+          };
+          const _stResolveNum = (raw, fallback = 0) => {
+            if (raw == null || raw === "") return fallback;
+            let s = _injectRuntime(String(raw));
+            if (typeof s === "string" && s.includes("{")) {
+              try { s = FormulaEngine.resolveForRoll(s, actor ?? item ?? {}); } catch {}
+            }
+            const ev = FormulaEngine.evaluate(s, actor ?? item ?? {});
+            const n = Number(ev);
+            if (Number.isFinite(n)) return n;
+            const n2 = Number(s);
+            return Number.isFinite(n2) ? n2 : fallback;
+          };
+
+          const actorUuid = _stResolveStr(action.actorUuid ?? "");
+          if (!actorUuid) { ui.notifications?.warn?.("Spawn Token: empty Actor UUID."); break; }
+          let spawnActor = null;
+          try { spawnActor = await fromUuid(actorUuid); } catch {}
+          if (!spawnActor || spawnActor.documentName !== "Actor") {
+            ui.notifications?.warn?.(`Spawn Token: actor not found for UUID "${actorUuid}".`);
+            break;
+          }
+
+          let scene = canvas?.scene ?? null;
+          const sceneUuid = _stResolveStr(action.sceneUuid ?? "");
+          if (sceneUuid) {
+            try { scene = await fromUuid(sceneUuid); } catch {}
+            if (!scene) scene = game.scenes?.get?.(sceneUuid) ?? game.scenes?.getName?.(sceneUuid) ?? null;
+          }
+          if (!scene || scene.documentName !== "Scene") {
+            ui.notifications?.warn?.("Spawn Token: no scene resolved.");
+            break;
+          }
+
+          const tokenData = (await spawnActor.getTokenDocument?.({})) ?? null;
+          const tdSrc = tokenData ? tokenData.toObject() : (spawnActor.prototypeToken?.toObject?.() ?? {});
+
+          let x = _stResolveNum(action.x, 0);
+          let y = _stResolveNum(action.y, 0);
+          if (action.snapToGrid !== false) {
+            const gs = Number(scene.grid?.size ?? scene.grid ?? 100) || 100;
+            x = Math.round(x / gs) * gs;
+            y = Math.round(y / gs) * gs;
+          }
+          tdSrc.x = x;
+          tdSrc.y = y;
+          const nm = _stStripQ(String(action.nameOverride ?? ""));
+          if (nm) tdSrc.name = nm;
+          tdSrc.hidden = !!action.hidden;
+          delete tdSrc._id;
+          delete tdSrc.actorId;
+          tdSrc.actorId = spawnActor.id;
+
+          await scene.createEmbeddedDocuments("Token", [tdSrc]);
+        } catch (e) {
+          console.warn("SD | spawnTokenFromActor error:", e);
+          ui.notifications?.warn?.(`Spawn Token failed: ${e?.message ?? e}`);
         }
         break;
       }
