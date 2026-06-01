@@ -477,12 +477,50 @@ class EventBus {
     return true;
   }
 
+  _resolveEventActor(entry, args, hookName) {
+    const base = entry.actorId ? (game.actors.get(entry.actorId) ?? null) : null;
+    if (!entry.actorId) return base;
+
+    let candidate = null;
+    switch (hookName) {
+      case "updateActor":
+      case "createActor":
+      case "deleteActor":
+        candidate = args?.[0] ?? null;
+        break;
+      case "updateItem":
+      case "createItem":
+      case "deleteItem":
+        candidate = args?.[0]?.actor ?? null;
+        break;
+      case "createActiveEffect":
+        candidate = args?.[0]?.parent ?? null;
+        break;
+      case "sdItemEquipped":
+      case "sdItemUnequipped":
+        candidate = args?.[1] ?? args?.[0]?.parent ?? null;
+        break;
+      default:
+        candidate = null;
+    }
+
+    if (candidate?.isToken && candidate.documentName === "Actor"
+        && candidate.id === entry.actorId) {
+      return candidate;
+    }
+    return base;
+  }
+
   async _run(entry, args, hookName) {
     const { ButtonExecutor } = await import("./button-executor.mjs");
-    const actor = entry.actorId ? game.actors.get(entry.actorId) : null;
+    const actor = this._resolveEventActor(entry, args, hookName);
     if (entry.actorId && !actor) return;
 
-    const doc = await fromUuid(entry.docUuid).catch(() => null);
+    let doc = await fromUuid(entry.docUuid).catch(() => null);
+    if (doc?.documentName === "Item" && actor?.isToken && doc.actor && doc.actor !== actor) {
+      const syntheticItem = actor.items?.get?.(doc.id);
+      if (syntheticItem) doc = syntheticItem;
+    }
     const itemCtx = doc?.documentName === "Item" ? doc : null;
 
     const runtime = this._buildRuntime(entry, args);

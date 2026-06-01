@@ -45,22 +45,16 @@ export function getDefaultSettings() {
 
     calculations: {
       defense: [
-        { key: "total", label: "Defense Total", default: 10, parts: [
-          { op: "+", path: "system.defense.armor" },
-          { op: "+", path: "system.defense.bonus" }
-        ]}
+        { key: "total", label: "Defense Total", default: 10, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED }
       ],
       initiative: [
-        { key: "total", label: "Initiative Total", default: 0, parts: [
-          { op: "+", path: "system.attributes.attr1.mod" },
-          { op: "+", path: "system.initiative.bonus" }
-        ]}
+        { key: "total", label: "Initiative Total", default: 0, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED }
       ],
       movement: [
-        { key: "walk",  label: "Walk",  default: 30, parts: [{ op: "+", path: "system.movement.walk"  }] },
-        { key: "swim",  label: "Swim",  default: 15, parts: [{ op: "+", path: "system.movement.swim"  }] },
-        { key: "fly",   label: "Fly",   default: 0,  parts: [{ op: "+", path: "system.movement.fly"   }] },
-        { key: "climb", label: "Climb", default: 15, parts: [{ op: "+", path: "system.movement.climb" }] }
+        { key: "walk",  label: "Walk",  default: 30, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED },
+        { key: "swim",  label: "Swim",  default: 15, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED },
+        { key: "fly",   label: "Fly",   default: 0,  parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED },
+        { key: "climb", label: "Climb", default: 15, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED }
       ]
     },
 
@@ -71,6 +65,21 @@ export function getDefaultSettings() {
     colorScheme: "default"
   };
 }
+
+export function defaultCalcGraph() {
+  return {
+    nodes: [
+      { id: "num_default", type: "literal", x: 320, y: 230, data: { value: 0 } },
+      { id: "output",      type: "output",  x: 660, y: 230, data: {} }
+    ],
+    edges: [
+      { id: "e_num_out", fromNode: "num_default", fromPin: "v", toNode: "output", toPin: "value" }
+    ],
+    comments: []
+  };
+}
+
+export const DEFAULT_CALC_COMPILED = "0";
 
 const CALC_SECTIONS = ["defense", "initiative", "movement"];
 const VALID_OPS = new Set(["+", "-", "*", "/"]);
@@ -598,20 +607,19 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         const kK  = `calc_${sec}_${ei}_key`;
         const lK  = `calc_${sec}_${ei}_label`;
         const dK  = `calc_${sec}_${ei}_default`;
-        const gK  = `calc_${sec}_${ei}_useGraph`;
         if (raw[kK] !== undefined) e.key   = String(raw[kK]).trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "") || e.key;
         if (raw[lK] !== undefined) e.label = String(raw[lK]);
         if (raw[dK] !== undefined) {
           const dn = Number(raw[dK]);
           e.default = Number.isFinite(dn) ? Math.trunc(dn) : 0;
         }
-        e.useGraph = !!raw[gK];
-        const parts = Array.isArray(e.parts) ? e.parts : (e.parts = []);
-        for (let pi = 0; pi < parts.length; pi++) {
-          const opK = `calc_${sec}_${ei}_p${pi}_op`;
-          const pK  = `calc_${sec}_${ei}_p${pi}_path`;
-          if (raw[opK] !== undefined && VALID_OPS.has(raw[opK])) parts[pi].op = raw[opK];
-          if (raw[pK]  !== undefined) parts[pi].path = String(raw[pK]).trim();
+        // Calculations are node-graph only; the operator/path UI and graph toggle were removed.
+        e.useGraph = true;
+        if (!Array.isArray(e.parts)) e.parts = [];
+        const hasGraph = e.graphData && typeof e.graphData === "object" && Array.isArray(e.graphData.nodes) && e.graphData.nodes.length;
+        if (!hasGraph) {
+          e.graphData = defaultCalcGraph();
+          if (typeof e.compiledFormula !== "string" || !e.compiledFormula.trim()) e.compiledFormula = DEFAULT_CALC_COMPILED;
         }
       }
       cfg.calculations[sec] = list;
@@ -630,7 +638,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     let n = cfg.calculations[sec].length + 1;
     let key = `entry${n}`;
     while (used.has(key)) { n++; key = `entry${n}`; }
-    cfg.calculations[sec].push({ key, label: `Entry ${n}`, default: 0, parts: [{ op: "+", path: "" }] });
+    cfg.calculations[sec].push({ key, label: `Entry ${n}`, default: 0, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED });
     await saveSettings(cfg);
     this.render();
   }

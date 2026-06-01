@@ -1668,7 +1668,7 @@
       color-mix(in srgb, var(--sd-success, #5ae07a) 30%, transparent),
       color-mix(in srgb, var(--sd-success, #5ae07a) 14%, transparent));
   border-color: color-mix(in srgb, var(--sd-success, #5ae07a) 70%, transparent);
-  color: #fff;
+  color: var(--sd-text);
 }
 .sd-card-btn-equip.on {
   background: var(--sd-accent-glow, rgba(123,104,238,.15));

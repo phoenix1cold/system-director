@@ -257,6 +257,46 @@ export const MIGRATIONS = [
         return Object.keys(upd).length ? upd : null;
       });
     }
+  },
+
+  {
+    version:     "0.9.7",
+    description: "Calculations are node-graph only: seed a default Number(0) -> Output graph and drop legacy operator/path fields.",
+    run: async () => {
+      const DEF_GRAPH = () => ({
+        nodes: [
+          { id: "num_default", type: "literal", x: 320, y: 230, data: { value: 0 } },
+          { id: "output",      type: "output",  x: 660, y: 230, data: {} }
+        ],
+        edges: [
+          { id: "e_num_out", fromNode: "num_default", fromPin: "v", toNode: "output", toPin: "value" }
+        ],
+        comments: []
+      });
+      const cfg = foundry.utils.deepClone(game.settings.get("sd", "systemSettings") ?? {});
+      if (!cfg || typeof cfg !== "object") return;
+      const calc = cfg.calculations;
+      if (!calc || typeof calc !== "object") return;
+      const SECTIONS = ["defense", "initiative", "movement"];
+      let changed = false;
+      for (const sec of SECTIONS) {
+        const list = Array.isArray(calc[sec]) ? calc[sec] : null;
+        if (!list) continue;
+        for (const entry of list) {
+          if (!entry || typeof entry !== "object") continue;
+          const hasGraph = entry.graphData && typeof entry.graphData === "object"
+            && Array.isArray(entry.graphData.nodes) && entry.graphData.nodes.length;
+          if (!hasGraph) {
+            entry.graphData = DEF_GRAPH();
+            entry.compiledFormula = "0";
+            changed = true;
+          }
+          if (entry.useGraph !== true) { entry.useGraph = true; changed = true; }
+          if (Array.isArray(entry.parts) && entry.parts.length) { entry.parts = []; changed = true; }
+        }
+      }
+      if (changed) await game.settings.set("sd", "systemSettings", cfg);
+    }
   }
 
 ];

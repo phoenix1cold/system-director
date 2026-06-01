@@ -7422,7 +7422,7 @@ export class FormulaGraph {
       } else if (this.actionGraph) {
         this._addTriggerOutputNodes();
       } else if (!this.chainTrigger && !this.questTrigger) {
-        this._addOutputNode();
+        this._addCalcDefaultGraph();
       }
       return;
     }
@@ -9021,6 +9021,15 @@ export class FormulaGraph {
 
   _addOutputNode() {
     this.nodes.push({id:"output",type:"output",x:660,y:230,data:{}});
+  }
+
+  _addCalcDefaultGraph() {
+    // Calculations are node-graph only. Seed a default Number(0) -> Output graph
+    // so an empty calculation compiles to "0".
+    this.nodes.push({ id:"num_default", type:"literal", x:320, y:230, data:{ value:0 } });
+    this.nodes.push({ id:"output",      type:"output",  x:660, y:230, data:{} });
+    this.edges.push({ id:"e_num_out", fromNode:"num_default", fromPin:"v", toNode:"output", toPin:"value" });
+    this._id = 20;
   }
 
   _addInitiativeDefaultGraph() {
