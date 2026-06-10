@@ -1,0 +1,9 @@
+<nav class="config-tabs sheet-tabs" data-group="config">
+  {{#each tabs as |tab|}}
+  <a class="item tab-link {{tab.cssClass}}"
+     data-tab="{{tab.id}}"
+     data-group="{{tab.group}}">
+    {{tab.label}}
+  </a>
+  {{/each}}
+</nav>

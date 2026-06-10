@@ -1,0 +1,145 @@
+{
+  "id": "sd",
+  "title": "System Director",
+  "description": "System Director — pre-release",
+  "version": "0.9.7",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "14"
+  },
+  "authors": [
+    {
+      "name": "phoenix1cold"
+    }
+  ],
+  "license": "LICENSE",
+  "esmodules": [
+    "sd.mjs"
+  ],
+  "styles": [
+    "styles/system.css",
+    "styles/sd-themes.css",
+    "styles/sd-theme-fx.css",
+    "styles/sd-widget-variants.css",
+    "styles/sd-native-ui.css"
+  ],
+  "packs": [
+    {
+      "name": "sample-actors",
+      "label": "Sample Actors",
+      "path": "packs/sample-actors",
+      "type": "Actor",
+      "system": "sd"
+    },
+    {
+      "name": "sample-items",
+      "label": "Sample Items",
+      "path": "packs/sample-items",
+      "type": "Item",
+      "system": "sd"
+    },
+    {
+      "name": "sample-abilities",
+      "label": "Sample Abilities",
+      "path": "packs/sample-abilities",
+      "type": "Item",
+      "system": "sd"
+    }
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    },
+    {
+      "lang": "ru",
+      "name": "Русский",
+      "path": "lang/ru.json"
+    }
+  ],
+  "documentTypes": {
+    "Actor": {
+      "character": {
+        "htmlFields": [
+          "biography.value",
+          "biography.notes"
+        ]
+      },
+      "npc": {
+        "htmlFields": [
+          "biography.value"
+        ]
+      }
+    },
+    "Item": {
+      "inventory": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "ability": {
+        "htmlFields": [
+          "description",
+          "effect"
+        ]
+      },
+      "feature": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "class": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "skilltree": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "questlog": {
+        "htmlFields": [
+          "chainDescription"
+        ]
+      }
+    }
+  },
+  "media": [
+    {
+      "type": "setup",
+      "url": "systems/sd/assets/system-cover.webp",
+      "thumbnail": "systems/sd/assets/system-cover-thumb.webp"
+    },
+    {
+      "type": "cover",
+      "url": "systems/sd/assets/system-cover.webp",
+      "thumbnail": "systems/sd/assets/system-cover-thumb.webp"
+    },
+    {
+      "type": "icon",
+      "url": "systems/sd/assets/sd-cube.svg"
+    },
+    {
+      "type": "screenshot",
+      "url": "systems/sd/assets/system-cover.webp",
+      "thumbnail": "systems/sd/assets/system-cover-thumb.webp",
+      "caption": "System Director"
+    }
+  ],
+  "socket": true,
+  "initiative": "1d20",
+  "grid": {
+    "distance": 5,
+    "units": "ft"
+  },
+  "primaryTokenAttribute": "resources.hp",
+  "secondaryTokenAttribute": "resources.mp",
+  "url": "https://github.com/phoenix1cold/system-director",
+  "manifest": "https://github.com/phoenix1cold/system-director/releases/latest/download/system.json",
+  "download": "https://github.com/phoenix1cold/system-director/releases/download/v0.9.6/system.zip",
+  "readme": "https://github.com/phoenix1cold/system-director/blob/main/README.md",
+  "bugs": "https://github.com/phoenix1cold/system-director/issues",
+  "changelog": "https://github.com/phoenix1cold/system-director/releases"
+}

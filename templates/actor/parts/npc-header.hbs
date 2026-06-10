@@ -1,0 +1,38 @@
+<header class="sheet-header npc-header">
+  <div class="actor-portrait">
+    <img src="{{actor.img}}" alt="{{actor.name}}"
+         data-action="editImage"
+         class="portrait-img {{#unless isEditable}}readonly{{/unless}}" />
+    {{#if system.isDead}}<div class="death-overlay"><i class="fas fa-skull"></i></div>{{/if}}
+  </div>
+
+  <div class="actor-identity">
+    <input class="actor-name" type="text" name="name"
+           value="{{actor.name}}"
+           placeholder="{{localize 'SD.ActorName'}}"
+           {{#unless isEditable}}disabled{{/unless}} />
+
+    <div class="npc-classification">
+      <span class="badge cr-badge">CR {{system.classification.cr}}</span>
+      <span class="badge role-badge {{system.classification.role}}">{{system.classification.role}}</span>
+      <span class="badge size-badge">{{system.classification.size}}</span>
+      <span class="badge type-badge">{{system.classification.type}}</span>
+    </div>
+
+    <div class="resource-group hp-group">
+      <label>{{localize "SD.Resources.HP"}}</label>
+      <div class="resource-inputs">
+        <input type="number" name="system.resources.hp.value"
+               value="{{system.resources.hp.value}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+        <span>/</span>
+        <input type="number" name="system.resources.hp.max"
+               value="{{system.resources.hp.max}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="resource-bar">
+        <div class="resource-fill hp-fill" style="width: {{system.hpPercent}}%;"></div>
+      </div>
+    </div>
+  </div>
+</header>

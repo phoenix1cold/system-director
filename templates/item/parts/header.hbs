@@ -1,0 +1,55 @@
+<header class="sheet-header item-header">
+  <div class="actor-portrait">
+    <img src="{{item.img}}" alt="{{item.name}}"
+         data-action="editImage"
+         class="portrait-img {{#unless isEditable}}readonly{{/unless}}" />
+  </div>
+
+  <div class="actor-identity">
+    <input class="actor-name" type="text" name="name"
+           value="{{item.name}}"
+           placeholder="{{localize 'SD.ItemName'}}"
+           {{#unless isEditable}}disabled{{/unless}} />
+
+    <div class="item-meta">
+      <span class="badge">{{localize (concat 'ITEM.Type' (capitalize item.type))}}</span>
+
+      {{#if isInventory}}
+      <span class="badge {{rarityClass system.rarity}}">
+        {{localize (concat 'SD.Rarities.' system.rarity)}}
+      </span>
+      {{/if}}
+
+      {{#if isAbility}}
+      <span class="badge activation-badge">{{system.activation.type}}</span>
+      {{#if system.duration.concentration}}
+      <span class="badge conc-badge">{{localize "SD.Concentration"}}</span>
+      {{/if}}
+      {{/if}}
+
+      {{#if isInventory}}{{#if system.equippable}}
+      <span class="badge {{#if system.equipped}}equipped-badge{{else}}unequipped-badge{{/if}}">
+        <i class="fas fa-{{#if system.equipped}}check-circle{{else}}circle{{/if}}"></i>
+        {{#if system.equipped}}{{localize "SD.Equipped"}}{{else}}{{localize "SD.Unequipped"}}{{/if}}
+      </span>
+      {{/if}}{{/if}}
+    </div>
+  </div>
+
+  {{#if isEditable}}
+  {{#if isInventory}}{{#if system.equippable}}
+  <div class="item-equip-btn">
+    <button type="button" class="roll-button" data-action="toggleEquipped"
+            title="{{#if system.equipped}}{{localize 'SD.Unequip'}}{{else}}{{localize 'SD.Equip'}}{{/if}}">
+      <i class="fas fa-{{#if system.equipped}}shield-halved{{else}}shield{{/if}}"></i>
+    </button>
+  </div>
+  {{/if}}{{/if}}
+  <div class="item-use-btn">
+    <button type="button" class="roll-button" data-action="useItem"
+            title="{{localize 'SD.Use'}}">
+      <i class="fas fa-dice"></i>
+    </button>
+  </div>
+  {{/if}}
+</header>

@@ -1,0 +1,77 @@
+<section class="tab-content" data-group="sheet" data-tab="inventory" data-drop-zone="inventory">
+
+  <div class="section-controls">
+    <span class="encumbrance-label">
+      {{localize "SD.Weight"}}: {{system.encumbrance.current}} / {{system.encumbrance.max}}
+    </span>
+    <button type="button" class="create-btn" data-action="createItem" data-type="inventory"
+            title="{{localize 'SD.AddItem'}}">
+      <i class="fas fa-plus"></i> {{localize "SD.AddItem"}}
+    </button>
+  </div>
+
+  <div class="currency-row">
+    <label>{{system.currency.label1}}</label>
+    <input type="number" name="system.currency.primary"
+           value="{{system.currency.primary}}" min="0"
+           {{#unless isEditable}}disabled{{/unless}} />
+    <label>{{system.currency.label2}}</label>
+    <input type="number" name="system.currency.secondary"
+           value="{{system.currency.secondary}}" min="0"
+           {{#unless isEditable}}disabled{{/unless}} />
+    <label>{{system.currency.label3}}</label>
+    <input type="number" name="system.currency.tertiary"
+           value="{{system.currency.tertiary}}" min="0"
+           {{#unless isEditable}}disabled{{/unless}} />
+  </div>
+
+  {{#if inventory.length}}
+  {{#each inventory as |cat|}}
+  <div class="item-category">
+    <h4 class="category-header">{{cat.label}}</h4>
+    <ul class="item-list">
+      {{#each cat.items as |item|}}
+      <li class="item-row {{#if item.equipped}}equipped{{/if}}" data-item-id="{{item.id}}">
+        <img src="{{item.img}}" class="item-img" alt="{{item.name}}" />
+        <span class="item-name">{{item.name}}</span>
+
+        {{#if item.isStack}}<span class="item-qty">×{{item.quantity}}</span>{{/if}}
+        {{#if item.weight}}<span class="item-weight">{{item.weight}} lb</span>{{/if}}
+
+        <div class="item-controls">
+          {{#if item.hasAttack}}
+          <button type="button" class="item-btn" data-action="useItem" title="{{localize 'SD.Attack'}}">
+            <i class="fas fa-khanda"></i>
+          </button>
+          {{/if}}
+
+          {{#each item.buttons as |btn|}}
+          {{#if (or (eq btn.showIn "inline") (eq btn.showIn "both"))}}
+          <button type="button" class="item-btn custom-btn {{#unless btn._enabled}}disabled{{/unless}}"
+                  data-action="fireButton" data-item-id="{{../id}}" data-btn-index="{{@index}}"
+                  title="{{btn.tooltip}}"
+                  style="color:{{btn.color}}">
+            <i class="fa {{btn.icon}}"></i>
+          </button>
+          {{/if}}
+          {{/each}}
+          <button type="button" class="item-btn equip-btn" data-action="toggleEquipped"
+                  title="{{localize 'SD.ToggleEquip'}}">
+            <i class="fa {{#if item.equipped}}fa-shield-halved{{else}}fa-shield{{/if}}"></i>
+          </button>
+          <button type="button" class="item-btn" data-action="editItem" title="{{localize 'SD.Edit'}}">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button type="button" class="item-btn delete-btn" data-action="deleteItem" title="{{localize 'SD.Delete'}}">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/each}}
+  {{else}}
+  <div class="empty-list"><i class="fas fa-box-open"></i> {{localize "SD.NoItems"}}</div>
+  {{/if}}
+</section>
