@@ -6805,7 +6805,34 @@ export class FormulaGraph {
     this._historyIdx  = -1;
     this._suppressHistory = false;
     this._loadGraph();
+    this._sanitizeGraph();
     this._pushHistory();
+  }
+
+  /**
+   * Coerce node coordinates to finite numbers and reset a broken pan/zoom.
+   * Saved graph data (e.g. from world settings) may contain missing or
+   * string x/y values; without this, _fitView produces NaN pan/zoom and the
+   * whole editor freezes (no panning, nodes cannot be dragged).
+   */
+  _sanitizeGraph() {
+    if (!Array.isArray(this.nodes)) this.nodes = [];
+    let i = 0;
+    for (const n of this.nodes) {
+      if (!n || typeof n !== "object") continue;
+      const x = Number(n.x), y = Number(n.y);
+      n.x = Number.isFinite(x) ? x : 80 + (i % 4) * 260;
+      n.y = Number.isFinite(y) ? y : 80 + Math.floor(i / 4) * 180;
+      i++;
+    }
+    if (!Number.isFinite(Number(this._zoom)) || Number(this._zoom) <= 0) this._zoom = 1;
+    else this._zoom = Number(this._zoom);
+    if (!this._pan || !Number.isFinite(Number(this._pan.x)) || !Number.isFinite(Number(this._pan.y))) {
+      this._pan = { x: 60, y: 60 };
+    } else {
+      this._pan.x = Number(this._pan.x);
+      this._pan.y = Number(this._pan.y);
+    }
   }
 
   _snapshot() {
@@ -7681,7 +7708,12 @@ export class FormulaGraph {
     }
   }
 
-  open() { this._smartIndex = this._buildSmartIndex(); this._buildWin(); this._renderAll(); setTimeout(()=>this._fitView(),120); }
+  open() {
+    // Drop focus from the button that opened the editor (e.g. "Edit graph" in
+    // system settings) so Space/Delete/Ctrl+Z immediately work in the editor.
+    try { if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur(); } catch {  }
+    this._smartIndex = this._buildSmartIndex(); this._buildWin(); this._renderAll(); setTimeout(()=>this._fitView(),120);
+  }
   close() { this._cleanup.forEach(fn=>fn()); this.win?.remove(); this.win=null; }
 
   _buildSmartIndex() {
@@ -8753,6 +8785,10 @@ export class FormulaGraph {
         win.style.top  = `${Math.max(0, ev.clientY - ds.y)}px`;
       }
       if (this._panDrag) {
+        if (!this._panDrag.moved &&
+            Math.abs(ev.clientX - this._panDrag.sx) + Math.abs(ev.clientY - this._panDrag.sy) > 3) {
+          this._panDrag.moved = true;
+        }
         this._pan.x = ev.clientX - this._panDrag.ox;
         this._pan.y = ev.clientY - this._panDrag.oy;
         if (!this._panRaf) {
@@ -8776,7 +8812,22 @@ export class FormulaGraph {
     };
     const _up = ev => {
       ds = null;
-      if (this._panDrag) { this._panDrag = null; wrap.style.cursor = ""; }
+      if (this._panDrag) {
+        const pd = this._panDrag;
+        this._panDrag = null;
+        wrap.style.cursor = "";
+        if (pd.rmb) {
+          // Some platforms fire "contextmenu" on mousedown (suppressed below,
+          // stored in pd.menuAt), others after mouseup (handled via _lastRmbPan).
+          this._lastRmbPan = { moved: pd.moved, t: Date.now() };
+          if (!pd.moved && pd.menuAt) {
+            const r  = wrap.getBoundingClientRect();
+            const gx = (pd.menuAt.x - r.left - this._pan.x) / this._zoom;
+            const gy = (pd.menuAt.y - r.top  - this._pan.y) / this._zoom;
+            this._ctxMenu(pd.menuAt.x, pd.menuAt.y, gx, gy);
+          }
+        }
+      }
       let dragMoved = false;
       if (this._drag) {
         dragMoved = !!this._drag._moved;
@@ -8808,9 +8859,27 @@ export class FormulaGraph {
 
     let space = false;
     const _kd = ev => {
-      if (ev.code === "Space" && ev.target === document.body) { space = true; wrap.style.cursor = "grab"; return; }
-
       if (!this.win || !document.body.contains(this.win)) return;
+
+      if (ev.code === "Space") {
+        const st = ev.target;
+        const inSpaceField = st && (
+          st.tagName === "INPUT" || st.tagName === "TEXTAREA" || st.tagName === "SELECT" ||
+          st.isContentEditable
+        );
+        // When the editor is opened from a window (e.g. system settings), the
+        // opening button keeps focus, so ev.target is never document.body.
+        // Accept Space from any non-editable target and prevent it from
+        // re-activating the still-focused button.
+        if (!inSpaceField) {
+          ev.preventDefault();
+          if (st instanceof HTMLElement && st !== document.body) st.blur?.();
+          space = true;
+          wrap.style.cursor = "grab";
+        }
+        return;
+      }
+
       const t = ev.target;
       const inField = t && (
         t.tagName === "INPUT" ||
@@ -8845,9 +8914,12 @@ export class FormulaGraph {
     });
 
     wrap.addEventListener("mousedown", ev => {
-      if (ev.button === 1 || (ev.button === 0 && space)) {
+      if (ev.button === 1 || ev.button === 2 || (ev.button === 0 && space)) {
         ev.preventDefault();
-        this._panDrag = { ox: ev.clientX - this._pan.x, oy: ev.clientY - this._pan.y };
+        this._panDrag = {
+          ox: ev.clientX - this._pan.x, oy: ev.clientY - this._pan.y,
+          rmb: ev.button === 2, sx: ev.clientX, sy: ev.clientY, moved: false
+        };
         wrap.style.cursor = "grabbing";
         return;
       }
@@ -8918,6 +8990,19 @@ export class FormulaGraph {
 
     wrap.addEventListener("contextmenu", ev => {
       ev.preventDefault();
+      // Right-drag pans the canvas (matches the on-screen hint); only a
+      // right-click without movement opens the node menu.
+      if (this._panDrag?.rmb) {
+        // contextmenu fired while the right button is still down (mousedown
+        // platforms): defer the menu decision to mouseup.
+        this._panDrag.menuAt = { x: ev.clientX, y: ev.clientY };
+        return;
+      }
+      if (this._lastRmbPan && (Date.now() - this._lastRmbPan.t) < 300) {
+        const wasPan = this._lastRmbPan.moved;
+        this._lastRmbPan = null;
+        if (wasPan) return;
+      }
       const r  = wrap.getBoundingClientRect();
       const gx = (ev.clientX - r.left - this._pan.x) / this._zoom;
       const gy = (ev.clientY - r.top  - this._pan.y) / this._zoom;
@@ -9560,6 +9645,7 @@ export class FormulaGraph {
       });
     }
     el.querySelector(".gnhdr").addEventListener("mousedown",ev=>{
+      if(ev.button!==0) return;
       if(ev.target.classList.contains("ndel")) return;
       if(ev.target.closest(".nfedit")) return;
       ev.stopPropagation();
@@ -10308,8 +10394,9 @@ export class FormulaGraph {
 
   _doDrag(ev) {
     if(!this._drag) return;
-    const dx = (ev.clientX - this._drag.mx) / this._zoom;
-    const dy = (ev.clientY - this._drag.my) / this._zoom;
+    const z  = (Number.isFinite(this._zoom) && this._zoom > 0) ? this._zoom : 1;
+    const dx = (ev.clientX - this._drag.mx) / z;
+    const dy = (ev.clientY - this._drag.my) / z;
     if (Math.abs(dx) + Math.abs(dy) > 1) this._drag._moved = true;
 
     const group = this._drag.group?.length
@@ -10374,6 +10461,8 @@ export class FormulaGraph {
   }
 
   _applyTransform() {
+    if (!Number.isFinite(this._zoom) || this._zoom <= 0) this._zoom = 1;
+    if (!this._pan || !Number.isFinite(this._pan.x) || !Number.isFinite(this._pan.y)) this._pan = { x: 60, y: 60 };
     const tf = `translate(${this._pan.x}px,${this._pan.y}px) scale(${this._zoom})`;
     if(this.nodesEl)    this.nodesEl.style.transform    = tf;
     if(this.commentsEl) this.commentsEl.style.transform = tf;
@@ -10386,15 +10475,19 @@ export class FormulaGraph {
   }
 
   _fitView() {
-    if(!this.nodes.length||!this.win) return;
+    if(!this.win) return;
     const wrap=this.win.querySelector("#gwrap");
     const W=wrap.clientWidth, H=wrap.clientHeight;
-    const xs=this.nodes.map(n=>n.x), ys=this.nodes.map(n=>n.y);
+    const pts=this.nodes.filter(n=>Number.isFinite(n?.x)&&Number.isFinite(n?.y));
+    if(!pts.length||!W||!H){ this._zoom=1; this._pan={x:60,y:60}; this._applyTransform(); return; }
+    const xs=pts.map(n=>n.x), ys=pts.map(n=>n.y);
     const minX=Math.min(...xs)-50,maxX=Math.max(...xs)+220;
     const minY=Math.min(...ys)-40,maxY=Math.max(...ys)+160;
     this._zoom=Math.clamp(Math.min(W/(maxX-minX),H/(maxY-minY))*0.9,0.22,1.4);
+    if(!Number.isFinite(this._zoom)||this._zoom<=0) this._zoom=1;
     this._pan.x=(W-(maxX-minX)*this._zoom)/2-minX*this._zoom;
     this._pan.y=(H-(maxY-minY)*this._zoom)/2-minY*this._zoom;
+    if(!Number.isFinite(this._pan.x)||!Number.isFinite(this._pan.y)) this._pan={x:60,y:60};
     this._applyTransform();
     setTimeout(()=>this._redrawEdges(),50);
   }
@@ -10710,6 +10803,7 @@ export class FormulaGraph {
     this.edges    = foundry.utils.deepClone(fn.edges ?? []);
     this.comments = foundry.utils.deepClone(fn.comments ?? []);
     this._ensureFunctionAnchors();
+    this._sanitizeGraph();
     const numIds = this.nodes.map(n => { const v = parseInt(String(n.id ?? "").replace(/\D/g,"")) || 0; return v; });
     this._id = (Math.max(0, ...numIds) + 2) || 2;
     this._selected?.clear?.();
