@@ -99,6 +99,29 @@ export class WidgetRenderer {
     return fallback;
   }
 
+  static _numberSpec(spec, doc, fallback = "", { allowBlank = false } = {}) {
+    if (spec === undefined || spec === null || String(spec).trim() === "") {
+      return allowBlank ? "" : fallback;
+    }
+    const raw = String(spec).trim();
+    const direct = Number(raw);
+    if (Number.isFinite(direct)) return direct;
+
+    let value;
+    try {
+      value = FormulaEngine.isFormula(raw)
+        ? FormulaEngine.evaluate(raw, doc)
+        : this._get(doc, raw, undefined);
+    } catch {
+      value = undefined;
+    }
+    if (value && typeof value === "object" && "value" in value && typeof value.value !== "object") {
+      value = value.value;
+    }
+    const n = Number(value);
+    return Number.isFinite(n) ? n : (allowBlank ? "" : fallback);
+  }
+
   static _getRollFormula(w, doc) {
     const raw = w.formula ?? "1d20";
     return FormulaEngine.resolveForRoll(raw, doc);
@@ -234,26 +257,35 @@ export class WidgetRenderer {
   }
 
   static _render_number(w, doc) {
-    const val = this._getValue(w, doc, 0);
     const e   = this._esc;
-    const hasFormula = w.valueFormula && FormulaEngine.isFormula(w.valueFormula);
+    const nodeMode = w.numberMode === "node";
+    const val = nodeMode && w.path ? this._get(doc, w.path, 0) : this._getValue(w, doc, 0);
+    const hasFormula = !nodeMode && w.valueFormula && FormulaEngine.isFormula(w.valueFormula);
     if (hasFormula) {
       return `<div class="widget widget-number">
   <div class="widget-label">${e(w.label)} <span style="color:var(--sd-accent-2);font-size:9px" title="Formula: ${e(w.valueFormula)}">ƒ</span></div>
   <div class="widget-formula-val" style="font-size:18px;font-weight:700;text-align:center">${e(String(val))}</div>
 </div>`;
     }
+    const minVal  = this._numberSpec(nodeMode ? w.minFormula  : w.min,  doc, "", { allowBlank: true });
+    const maxVal  = this._numberSpec(nodeMode ? w.maxFormula  : w.max,  doc, "", { allowBlank: true });
+    let stepVal   = this._numberSpec(nodeMode ? w.stepFormula : w.step, doc, 1);
+    stepVal = Math.abs(Number(stepVal));
+    if (!Number.isFinite(stepVal) || stepVal <= 0) stepVal = 1;
+    const minAttr  = Number.isFinite(Number(minVal)) ? String(Number(minVal)) : "";
+    const maxAttr  = Number.isFinite(Number(maxVal)) ? String(Number(maxVal)) : "";
+    const stepAttr = String(stepVal);
     return `<div class="widget widget-number">
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.path ? this._copyBtn(w.path, "number value") : ""}</div>
   <div class="num-row">
     <button type="button" class="num-btn" data-action="widgetNumStep"
-            data-path="${e(w.path)}" data-step="-${w.step ?? 1}"
-            data-min="${w.min ?? ""}" data-max="${w.max ?? ""}">−</button>
-    <input type="number" name="${e(w.path)}" value="${e(val)}"
-           min="${w.min ?? ""}" max="${w.max ?? ""}" step="${w.step ?? 1}">
+            data-path="${e(w.path)}" data-step="-${e(stepAttr)}"
+            data-min="${e(minAttr)}" data-max="${e(maxAttr)}">−</button>
+    <input type="number" name="${e(w.path)}" data-path="${e(w.path)}" value="${e(val)}"
+           min="${e(minAttr)}" max="${e(maxAttr)}" step="${e(stepAttr)}">
     <button type="button" class="num-btn" data-action="widgetNumStep"
-            data-path="${e(w.path)}" data-step="${w.step ?? 1}"
-            data-min="${w.min ?? ""}" data-max="${w.max ?? ""}">+</button>
+            data-path="${e(w.path)}" data-step="${e(stepAttr)}"
+            data-min="${e(minAttr)}" data-max="${e(maxAttr)}">+</button>
   </div>
 </div>`;
   }
@@ -307,9 +339,9 @@ export class WidgetRenderer {
     return `<div class="widget widget-resource"${outerStyle}>
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.pathValue ? this._copyBtn(w.pathValue, "value") : ""}${w.pathMax ? this._copyBtn(w.pathMax, "max") : ""}</div>
   <div class="res-row">
-    <input type="number" name="${e(w.pathValue)}" value="${e(val)}" class="res-val">
+    <input type="number" name="${e(w.pathValue)}" data-path="${e(w.pathValue)}" value="${e(val)}" class="res-val">
     <span class="res-sep">/</span>
-    <input type="number" name="${e(w.pathMax)}" value="${e(max)}" class="res-max">
+    <input type="number" name="${e(w.pathMax)}" data-path="${e(w.pathMax)}" value="${e(max)}" class="res-max">
   </div>
   ${display}
 </div>`;
@@ -1243,7 +1275,7 @@ export class WidgetRenderer {
 
   static _render_effects(w, doc) {
     const e = this._esc;
-    const effects = [...(doc.effects ?? [])];
+    const effects = [...(doc.allApplicableEffects?.() ?? doc.effects ?? [])];
 
     const showPassive  = w.showPassive  !== false;
     const showDisabled = w.showDisabled !== false;
@@ -1277,15 +1309,16 @@ export class WidgetRenderer {
       const disabled = ef.disabled ? "effect-disabled" : "";
       const dur      = _durLabel(ef);
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
+      const uuid     = e(ef.uuid ?? "");
       rows += `
-      <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}" data-sd-preview-ref="effect:${e(ef.id)}">
+      <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" data-sd-preview-ref="effect:${e(ef.id)}">
         <img class="effect-img" src="${e(ef.img ?? ef.icon ?? 'icons/svg/aura.svg')}" alt="${e(ef.name)}">
         <span class="effect-name">${e(ef.name)}</span>
         ${dur ? `<span class="effect-dur">${e(dur)}</span>` : ""}
         <div class="effect-controls">
-          ${canEdit ? `<button type="button" class="effect-btn" data-action="effectToggle" data-effect-id="${e(ef.id)}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
-          <button type="button" class="effect-btn" data-action="effectEdit" data-effect-id="${e(ef.id)}" title="Edit"><i class="fas fa-pen"></i></button>
-          ${canEdit ? `<button type="button" class="effect-btn effect-btn-del" data-action="effectDelete" data-effect-id="${e(ef.id)}" title="Delete"><i class="fas fa-trash"></i></button>` : ""}
+          ${canEdit ? `<button type="button" class="effect-btn" data-action="effectToggle" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
+          <button type="button" class="effect-btn" data-action="effectEdit" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="Edit"><i class="fas fa-pen"></i></button>
+          ${canEdit ? `<button type="button" class="effect-btn effect-btn-del" data-action="effectDelete" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="Delete"><i class="fas fa-trash"></i></button>` : ""}
         </div>
       </li>`;
     }
@@ -1468,6 +1501,7 @@ export class WidgetRenderer {
       const cardBody = this._renderEffectCardSafe(ef);
       const disabled = ef.disabled ? " is-disabled" : "";
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
+      const uuid     = e(ef.uuid ?? "");
 
       const dur = ef.duration?.rounds ? `${ef.duration.rounds}r`
                : ef.duration?.seconds ? `${ef.duration.seconds}s` : "";
@@ -1476,13 +1510,13 @@ export class WidgetRenderer {
         ${ef.transfer ? `<span class="sd-item-card-pill">passive</span>` : ""}
       </div>`;
 
-      inner += `<article class="sd-item-card${disabled}" data-effect-id="${e(ef.id)}">
+      inner += `<article class="sd-item-card${disabled}" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}">
         ${cardBody}
         ${metaPills}
         <div class="sd-item-card-actions">
-          ${canEdit ? `<button type="button" class="sd-card-btn" data-action="effectToggle" data-effect-id="${e(ef.id)}" title="${ef.disabled ? "Enable" : "Disable"}"><i class="fas ${eyeIcon}"></i></button>` : ""}
-          <button type="button" class="sd-card-btn" data-action="effectEdit" data-effect-id="${e(ef.id)}" title="Edit"><i class="fas fa-pen"></i></button>
-          ${canEdit ? `<button type="button" class="sd-card-btn sd-card-btn-del" data-action="effectDelete" data-effect-id="${e(ef.id)}" title="Delete"><i class="fas fa-trash"></i></button>` : ""}
+          ${canEdit ? `<button type="button" class="sd-card-btn" data-action="effectToggle" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="${ef.disabled ? "Enable" : "Disable"}"><i class="fas ${eyeIcon}"></i></button>` : ""}
+          <button type="button" class="sd-card-btn" data-action="effectEdit" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="Edit"><i class="fas fa-pen"></i></button>
+          ${canEdit ? `<button type="button" class="sd-card-btn sd-card-btn-del" data-action="effectDelete" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="Delete"><i class="fas fa-trash"></i></button>` : ""}
         </div>
       </article>`;
     }
@@ -2332,10 +2366,11 @@ export class WidgetRenderer {
     for (const ef of effects) {
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
       const offCls   = ef.disabled ? "sd-hud-pop-row--off" : "";
-      rows += `<li class="sd-hud-pop-row ${offCls}" data-effect-id="${e(ef.id)}" data-sd-preview-ref="effect:${e(ef.id)}">
+      const uuid     = e(ef.uuid ?? "");
+      rows += `<li class="sd-hud-pop-row ${offCls}" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" data-sd-preview-ref="effect:${e(ef.id)}">
         <img src="${e(ef.img ?? ef.icon ?? 'icons/svg/aura.svg')}" alt="${e(ef.name)}">
         <span class="sd-hud-pop-name" title="${e(ef.name)}">${e(ef.name)}</span>
-        ${canEdit ? `<button type="button" data-action="effectToggle" data-effect-id="${e(ef.id)}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
+        ${canEdit ? `<button type="button" data-action="effectToggle" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
       </li>`;
     }
     return `<div class="widget widget-effects widget-compact"><details class="sd-hud-popover">

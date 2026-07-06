@@ -1,6 +1,7 @@
 import { FormulaEngine }   from "../helpers/formula-engine.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
 import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES } from "./widget-registry.mjs";
+import { getSystemPathEntries, isConfiguredSystemPath } from "../helpers/system-config.mjs";
 
 const SD_SLOT_TILE_ICON_PRESETS = [
   { name: "helmet",   label: "Helmet" },
@@ -21,7 +22,7 @@ const SD_HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
 const FIELD_DEFS = {
   text:      [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Read Only","readOnly","boolean"]],
-  number:    [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Min","min","number"],["Max","max","number"],["Step","step","number"]],
+  number:    [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Min (number or path)","min","text"],["Max (number or path)","max","text"],["Step","step","number"]],
   resource:  [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"]],
   dice:      [["Label","label"],["Widget Key","widgetKey","text"],["Roll Formula","formula","formula"],["Chat Flavor","flavor","text"]],
   button:    [["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-bolt)","icon","text"],["Roll Formula (optional)","formula","formula"],["Chat Flavor / Message","flavor","text"]],
@@ -182,7 +183,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     return;
   }
 
-  const _typeFields = FIELD_DEFS[w.type] ?? [["Label","label"]];
+  const _numberMode = w.type === "number" && w.numberMode === "node" ? "node" : "classic";
+  const _typeFields = w.type === "number" && _numberMode === "node"
+    ? [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"]]
+    : (FIELD_DEFS[w.type] ?? [["Label","label"]]);
   const _commonFields = [
   ];
   const fields = [..._typeFields, ..._commonFields];
@@ -201,6 +205,27 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         <i class="fas fa-diagram-project"></i> Open Graph Editor
       </button>
     </div>` : "";
+
+  const numberGraphRow = (w.type === "number" && _numberMode === "node") ? (() => {
+    const gd = w.numberGraph;
+    const hasGraph = !!(gd && Array.isArray(gd.nodes) && gd.nodes.length);
+    const status = hasGraph
+      ? `<span style="color:var(--sd-success);font-size:10px">${gd.nodes.length} node${gd.nodes.length===1?"":"s"}</span>`
+      : `<span style="color:var(--sd-text-3);font-size:10px;font-style:italic">no graph yet</span>`;
+    return `
+    <div class="wcfg-f" style="margin-bottom:10px">
+      <label class="wcfg-lbl">Node Graph</label>
+      <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.4">Wire Min, Max, and Step. This graph has no exec output.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" id="wcfg-number-graph-btn"
+          style="flex:1;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:5px;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:7px 12px;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s"
+          onmouseover="this.style.background='var(--sd-accent-2)'" onmouseout="this.style.background='var(--sd-bg-4)'">
+          <i class="fas fa-diagram-project"></i> Open Graph Editor
+        </button>
+        ${status}
+      </div>
+    </div>`;
+  })() : "";
 
   const attrGroupGraphsRow = (w.type === "attributeGroup") ? (() => {
     const cfgLabels  = CONFIG?.SD?.attributes ?? {};
@@ -314,6 +339,12 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           if ("bonus" in skl) list.push({ value: `system.skills.${key}.bonus`, label: `Skill: ${key} bonus` });
         }
       }
+
+      try {
+        for (const p of getSystemPathEntries()) {
+          list.push({ value: p.path, label: `System Path: ${p.sectionLabel} \u203a ${p.label}` });
+        }
+      } catch {  }
 
       const flatGroups = {
         "system.advancement": ["level", "proficiencyBonus"],
@@ -683,6 +714,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     <!-- Fields panel -->
     <div id="wcfg-panel-fields" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:0">
       ${attrGraphRow}
+      ${numberGraphRow}
       ${attrGroupGraphsRow}
       ${fieldRows}
       ${slotTileRow}
@@ -992,6 +1024,11 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     graph.open();
   });
 
+  popup.querySelector("#wcfg-number-graph-btn")?.addEventListener("click", () => {
+    const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc }, null, { mode: "numberWidget" });
+    graph.open();
+  });
+
   popup.querySelectorAll("[data-attr-group-graph]").forEach(btn => {
     btn.addEventListener("click", () => {
       const attrKey = btn.dataset.attrGroupGraph;
@@ -1090,6 +1127,13 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     const widget   = freshRow ? _findWidgetDeep(freshRow.widgets, w.id) : null;
     if (widget) {
       Object.assign(widget, changes);
+      if (widget.type === "number" && widget.numberMode === "node") {
+        delete widget.min;
+        delete widget.max;
+        delete widget.step;
+      } else if (widget.type === "number") {
+        widget.numberMode = "classic";
+      }
 
       if (widget.type === "slot" && widget.slotId != null && String(widget.slotId).trim() !== "") {
         const sid    = String(widget.slotId).trim();
@@ -1163,6 +1207,8 @@ function _isPathWritable(doc, path) {
   if (path.startsWith("flags."))               return true;
   if (path.startsWith("system.slotContents.")) return true;
   if (path.startsWith("system.customFields.")) return true;
+
+  try { if (isConfiguredSystemPath(path)) return true; } catch {  }
 
   if (foundry.utils.getProperty(doc, path) !== undefined) return true;
 

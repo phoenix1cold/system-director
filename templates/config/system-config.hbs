@@ -144,39 +144,53 @@
       </div>
     </div>
 
-    {{#each calcSections as |sec|}}
     <div class="config-section">
       <h3 class="config-section-title">
-        <i class="fas {{sec.icon}}"></i> {{sec.title}}
-        <span class="section-hint">Configure how each value is calculated</span>
+        <i class="fas fa-route"></i> System Paths
+        <span class="section-hint">Defense, Initiative, Movement and other calculated core paths</span>
+        <select name="systemPathAddSection"
+                style="margin-left:auto;max-width:130px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:3px 6px;">
+          {{#each systemPathSections as |section|}}
+          <option value="{{section.section}}" {{#if section.selected}}selected{{/if}}>{{section.label}}</option>
+          {{/each}}
+        </select>
         <button type="button" class="config-add-btn"
-                data-action="addCalcEntry" data-section="{{sec.section}}">
+                data-action="addCalcEntry">
           <i class="fas fa-plus"></i> Add
         </button>
       </h3>
       <div class="calc-config-list">
-        {{#each sec.entries as |entry|}}
+        {{#each systemPathEntries as |entry|}}
         <div class="calc-config-entry" style="border:1px solid var(--sd-border);border-radius:6px;padding:8px;margin-bottom:8px;background:var(--sd-bg-2,rgba(255,255,255,0.02));">
           <div class="calc-config-entry-header" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-            <input type="text" name="calc_{{sec.section}}_{{entry.index}}_key" value="{{entry.key}}" placeholder="key" title="Field key. Stored at system.{{sec.section}}.<key>" style="width:120px;font-family:monospace;" />
-            <input type="text" name="calc_{{sec.section}}_{{entry.index}}_label" value="{{entry.label}}" placeholder="Display label" style="flex:1;min-width:140px;" />
-            <label class="number-wrap" title="Default value applied to NEW actors only (system.{{sec.section}}.{{entry.key}})" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sd-text-3);">
+            <select name="calc_{{entry.section}}_{{entry.index}}_section" title="Path group. Stored below system.<group>.<key>" style="width:110px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:3px 6px;">
+              <option value="defense" {{#if entry.isDefense}}selected{{/if}}>Defense</option>
+              <option value="initiative" {{#if entry.isInitiative}}selected{{/if}}>Initiative</option>
+              <option value="movement" {{#if entry.isMovement}}selected{{/if}}>Movement</option>
+            </select>
+            <input type="text" name="calc_{{entry.section}}_{{entry.index}}_key" value="{{entry.key}}" placeholder="key" title="Field key. Stored at {{entry.path}}" style="width:120px;font-family:monospace;" />
+            <input type="text" name="calc_{{entry.section}}_{{entry.index}}_label" value="{{entry.label}}" placeholder="Display label" style="flex:1;min-width:140px;" />
+            <label class="number-wrap" title="Default value applied to NEW actors only ({{entry.path}})" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sd-text-3);">
               <span class="initial-lbl">Base</span>
-              <input type="number" step="1" name="calc_{{sec.section}}_{{entry.index}}_default" value="{{entry.default}}" style="width:60px;" />
+              <input type="number" step="1" name="calc_{{entry.section}}_{{entry.index}}_default" value="{{entry.default}}" style="width:60px;" />
             </label>
-            <button type="button" class="config-add-btn" data-action="editCalcGraph" data-section="{{sec.section}}" data-index="{{entry.index}}" title="Open the node-graph editor for this entry" style="font-size:10px;padding:2px 8px;">
+            <code style="font-size:10px;color:var(--sd-accent);background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;padding:2px 6px;">{{entry.path}}</code>
+            <button type="button" class="config-add-btn" data-action="editCalcGraph" data-section="{{entry.section}}" data-index="{{entry.index}}" title="Open the node-graph editor for this entry" style="font-size:10px;padding:2px 8px;">
               <i class="fas fa-diagram-project"></i> Edit graph{{#if entry.hasGraph}} ({{entry.graphNodeCount}}){{/if}}
             </button>
-            <button type="button" class="config-remove-btn" data-action="removeCalcEntry" data-section="{{sec.section}}" data-index="{{entry.index}}" title="Remove this entry">
+            <button type="button" class="config-remove-btn" data-action="removeCalcEntry" data-section="{{entry.section}}" data-index="{{entry.index}}" title="Remove this entry">
               <i class="fas fa-trash"></i>
             </button>
           </div>
           <div class="calc-graph-hint" style="font-size:10px;color:var(--sd-text-3);font-style:italic;padding:4px 2px;">
-            Using node graph &mdash; click "Edit graph" to configure. The compiled formula sets the value at <code>system.{{sec.section}}.{{entry.key}}</code>.
+            Using node graph &mdash; click "Edit graph" to configure. The compiled formula sets the value at <code>{{entry.path}}</code>.
             {{#unless entry.hasGraph}}<span style="color:var(--sd-warning,#d8a44a);">Graph is empty &mdash; falling back to Base value.</span>{{/unless}}
           </div>
         </div>
         {{/each}}
+        {{#unless systemPathEntries.length}}
+        <div style="font-size:11px;color:var(--sd-text-3);font-style:italic;padding:10px 2px;">No system paths configured.</div>
+        {{/unless}}
       </div>
       <p class="section-hint-text">
         <i class="fas fa-info-circle"></i>
@@ -185,7 +199,6 @@
         Click <strong>Edit graph</strong> to build the formula visually.
       </p>
     </div>
-    {{/each}}
 
     <div class="config-section">
       <h3 class="config-section-title">

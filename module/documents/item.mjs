@@ -258,62 +258,27 @@ export class SDItem extends Item {
     return data;
   }
 
-  get transferrableEffects() {
-    return [...(this.effects ?? [])].filter(ef => ef.transfer !== false && !ef.disabled);
+  static _isLegacyTransferredActorEffect(actor, effect) {
+    const sourceItemId = effect?.flags?.sd?.sourceItemId;
+    if (!sourceItemId || !effect?.flags?.sd?.sourceItemName) return false;
+    const item = actor?.items?.get?.(sourceItemId);
+    if (!item) return false;
+    const origin = String(effect.origin ?? "");
+    if (origin && origin !== item.uuid && !origin.startsWith(`${item.uuid}.`)) return false;
+    return item.effects?.some?.(ef => ef.name === effect.name && ef.transfer !== false) ?? false;
   }
 
-  async _onCreate(data, options, userId) {
-    await super._onCreate(data, options, userId);
-    if (game.user.id !== userId) return;
-    const actor = this.parent instanceof Actor ? this.parent : null;
-    if (!actor) return;
-    await this._applyTransferredEffects(actor);
-  }
-
-  async _onDelete(options, userId) {
-    await super._onDelete(options, userId);
-    if (game.user.id !== userId) return;
-    const actor = this.parent instanceof Actor ? this.parent : null;
-    if (!actor) return;
-    await this._removeTransferredEffects(actor);
-  }
-
-  async _applyTransferredEffects(actor) {
-    const toCreate = [];
-    for (const ef of this.transferrableEffects) {
-      const already = actor.effects.find(e =>
-        e.flags?.sd?.sourceItemId === this.id && e.name === ef.name
-      );
-      if (already) continue;
-      const efData = ef.toObject();
-      efData.origin   = this.uuid;
-      efData.transfer = true;
-      foundry.utils.setProperty(efData, "flags.sd.sourceItemId", this.id);
-      foundry.utils.setProperty(efData, "flags.sd.sourceItemName", this.name);
-      toCreate.push(efData);
-    }
-    if (toCreate.length) {
-      await actor.createEmbeddedDocuments("ActiveEffect", toCreate);
-    }
-  }
-
-  async _removeTransferredEffects(actor) {
+  static async cleanupLegacyTransferredEffects(actor) {
+    if (!actor || !game?.user?.isGM) return;
     const toDelete = actor.effects
-      .filter(e => e.flags?.sd?.sourceItemId === this.id)
-      .map(e => e.id);
-    if (toDelete.length) {
+      .filter(effect => SDItem._isLegacyTransferredActorEffect(actor, effect))
+      .map(effect => effect.id);
+    if (!toDelete.length) return;
+    try {
       await actor.deleteEmbeddedDocuments("ActiveEffect", toDelete);
+    } catch (err) {
+      console.warn("SD | legacy transferred effect cleanup failed:", err);
     }
-  }
-
-  async _onUpdateDescendantDocuments(parent, collection, documents, changes, options, userId) {
-    await super._onUpdateDescendantDocuments?.(parent, collection, documents, changes, options, userId);
-    if (collection !== "effects") return;
-    if (game.user.id !== userId) return;
-    const actor = this.parent instanceof Actor ? this.parent : null;
-    if (!actor) return;
-    await this._removeTransferredEffects(actor);
-    await this._applyTransferredEffects(actor);
   }
 
 }

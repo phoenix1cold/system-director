@@ -283,26 +283,4 @@ export class SDActor extends Actor {
     }
   }
 
-  async _onCreateDescendantDocuments(parent, collection, documents, data, options, userId) {
-    await super._onCreateDescendantDocuments(parent, collection, documents, data, options, userId);
-    if (collection !== "items") return;
-    if (game.user.id !== userId) return;
-    for (const item of documents) {
-      if (typeof item._applyTransferredEffects === "function") {
-        await item._applyTransferredEffects(this);
-      }
-    }
-  }
-
-  async _onDeleteDescendantDocuments(parent, collection, documents, ids, options, userId) {
-    await super._onDeleteDescendantDocuments(parent, collection, documents, ids, options, userId);
-    if (collection !== "items") return;
-    if (game.user.id !== userId) return;
-    for (const item of documents) {
-      if (typeof item._removeTransferredEffects === "function") {
-        await item._removeTransferredEffects(this);
-      }
-    }
-  }
-
 }

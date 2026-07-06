@@ -1,5 +1,5 @@
 import { BLUEPRINT_NODES, BLUEPRINT_CATS } from "../helpers/formula-engine.mjs";
-import { loadSettings } from "../helpers/system-config.mjs";
+import { getSystemPathEntries, loadSettings } from "../helpers/system-config.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -96,6 +96,9 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         const lbl = c.label && String(c.label).trim() ? c.label : c.key;
         _add(`system.currency.${c.key}`, `Currency — ${lbl}`);
       }
+      for (const p of getSystemPathEntries(cfg)) {
+        _add(p.path, `System Path - ${p.sectionLabel}: ${p.label}`);
+      }
     } catch {}
 
     _add("system.advancement.level",        "Level");
@@ -148,6 +151,10 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         if (!c?.key || _seenCur.has(c.key)) continue;
         const lbl = c.label && String(c.label).trim() ? c.label : c.key;
         _add(`system.currency.${c.key}`, `Currency — ${lbl}`);
+      }
+
+      for (const p of getSystemPathEntries(cfg)) {
+        _add(p.path, `System Path - ${p.sectionLabel}: ${p.label}`);
       }
 
       if (sys.advancement?.level !== undefined) _add("system.advancement.level", "Level");
