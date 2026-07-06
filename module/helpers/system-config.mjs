@@ -82,6 +82,11 @@ export function defaultCalcGraph() {
 export const DEFAULT_CALC_COMPILED = "0";
 
 const CALC_SECTIONS = ["defense", "initiative", "movement"];
+const SYSTEM_PATH_SECTION_META = {
+  defense:    { label: "Defense",    icon: "fa-shield-halved" },
+  initiative: { label: "Initiative", icon: "fa-bolt" },
+  movement:   { label: "Movement",   icon: "fa-person-running" }
+};
 const VALID_OPS = new Set(["+", "-", "*", "/"]);
 
 function _normalizeFormulaPart(p) {
@@ -114,6 +119,52 @@ export function normalizeCalculations(calc) {
     out[sec] = list.map((e, i) => _normalizeCalcEntry(e, `entry${i+1}`)).filter(e => e.key);
   }
   return out;
+}
+
+export function getSystemPathEntries(cfg = null) {
+  let src = cfg;
+  if (!src) {
+    try { src = loadSettings(); } catch { src = null; }
+  }
+  const rawCalc = src?.calculations ?? CONFIG?.SD?.calculations ?? {};
+  const calc = normalizeCalculations(rawCalc);
+  const out = [];
+  for (const sec of CALC_SECTIONS) {
+    const meta = SYSTEM_PATH_SECTION_META[sec] ?? { label: sec, icon: "fa-route" };
+    for (const [index, entry] of (calc[sec] ?? []).entries()) {
+      const key = String(entry?.key ?? "").trim();
+      if (!key) continue;
+      out.push({
+        section: sec,
+        sectionLabel: meta.label,
+        sectionIcon: meta.icon,
+        key,
+        label: String(entry?.label ?? key),
+        default: Number.isFinite(Number(entry?.default)) ? Math.trunc(Number(entry.default)) : 0,
+        useGraph: !!entry?.useGraph,
+        hasGraph: !!(entry?.graphData && Array.isArray(entry.graphData.nodes) && entry.graphData.nodes.length),
+        graphNodeCount: entry?.graphData?.nodes?.length ?? 0,
+        index,
+        path: `system.${sec}.${key}`,
+        parts: Array.isArray(entry?.parts) ? entry.parts : []
+      });
+    }
+  }
+  return out;
+}
+
+export function getSystemPathSections() {
+  return CALC_SECTIONS.map(section => ({
+    section,
+    label: SYSTEM_PATH_SECTION_META[section]?.label ?? section,
+    icon:  SYSTEM_PATH_SECTION_META[section]?.icon  ?? "fa-route"
+  }));
+}
+
+export function isConfiguredSystemPath(path, cfg = null) {
+  const p = String(path ?? "").trim();
+  if (!p) return false;
+  return getSystemPathEntries(cfg).some(entry => p === entry.path || p.startsWith(entry.path + "."));
 }
 
 export function evalCalcFormula(parts, ctx) {
@@ -499,10 +550,17 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         initialMin:   Number(val?.initialMin   ?? 0)
       })),
       currencyEntries: (cfg.currencies ?? []).map(c => ({ key: c.key, label: c.label })),
+      systemPathSections: getSystemPathSections().map((s, i) => ({ ...s, selected: i === 0 })),
+      systemPathEntries: getSystemPathEntries(cfg).map(e => ({
+        ...e,
+        isDefense:    e.section === "defense",
+        isInitiative: e.section === "initiative",
+        isMovement:   e.section === "movement"
+      })),
       calcSections: CALC_SECTIONS.map(sec => ({
         section: sec,
-        title: { defense: "Defense", initiative: "Initiative", movement: "Movement" }[sec],
-        icon:  { defense: "fa-shield-halved", initiative: "fa-bolt", movement: "fa-person-running" }[sec],
+        title: SYSTEM_PATH_SECTION_META[sec]?.label ?? sec,
+        icon:  SYSTEM_PATH_SECTION_META[sec]?.icon  ?? "fa-route",
         entries: (cfg.calculations?.[sec] ?? []).map((e, ei) => ({
           key:      e.key,
           label:    e.label,
@@ -600,13 +658,16 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     if (!cfg.calculations) cfg.calculations = { defense: [], initiative: [], movement: [] };
+    const nextCalculations = { defense: [], initiative: [], movement: [] };
     for (const sec of CALC_SECTIONS) {
       const list = Array.isArray(cfg.calculations[sec]) ? cfg.calculations[sec] : [];
       for (let ei = 0; ei < list.length; ei++) {
         const e   = list[ei];
+        const sK  = `calc_${sec}_${ei}_section`;
         const kK  = `calc_${sec}_${ei}_key`;
         const lK  = `calc_${sec}_${ei}_label`;
         const dK  = `calc_${sec}_${ei}_default`;
+        const nextSec = CALC_SECTIONS.includes(String(raw[sK] ?? "")) ? String(raw[sK]) : sec;
         if (raw[kK] !== undefined) e.key   = String(raw[kK]).trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "") || e.key;
         if (raw[lK] !== undefined) e.label = String(raw[lK]);
         if (raw[dK] !== undefined) {
@@ -621,15 +682,16 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
           e.graphData = defaultCalcGraph();
           if (typeof e.compiledFormula !== "string" || !e.compiledFormula.trim()) e.compiledFormula = DEFAULT_CALC_COMPILED;
         }
+        nextCalculations[nextSec].push(e);
       }
-      cfg.calculations[sec] = list;
     }
+    cfg.calculations = nextCalculations;
 
     return cfg;
   }
 
   static async _onAddCalcEntry(event, target) {
-    const sec = target.dataset.section;
+    const sec = target.dataset.section || this.element?.querySelector?.("[name='systemPathAddSection']")?.value || "defense";
     if (!CALC_SECTIONS.includes(sec)) return;
     const cfg = this._collectFormCfg();
     if (!cfg.calculations) cfg.calculations = { defense: [], initiative: [], movement: [] };

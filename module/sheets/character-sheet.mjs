@@ -51,6 +51,42 @@ function _promptTabName(current = "") {
   });
 }
 
+async function _chooseNumberWidgetMode() {
+  const mode = await foundry.applications.api.DialogV2.wait({
+    modal: true,
+    window: { title: "Number Widget" },
+    content: `<div style="padding:8px 0;font-size:12px;color:var(--sd-w-label, var(--sd-text-3));line-height:1.4">Choose Number widget version.</div>`,
+    buttons: [
+      { action: "classic", label: "Classic", icon: "fas fa-keyboard", default: true },
+      { action: "node",    label: "Node",    icon: "fas fa-diagram-project" }
+    ],
+    rejectClose: false
+  }).catch(() => "classic");
+  return mode === "node" ? "node" : "classic";
+}
+
+function _applyNumberWidgetMode(widget, mode) {
+  if (!widget || widget.type !== "number") return;
+  if (mode === "node") {
+    widget.numberMode  = "node";
+    widget.minFormula  = "";
+    widget.maxFormula  = "";
+    widget.stepFormula = "1";
+    delete widget.min;
+    delete widget.max;
+    delete widget.step;
+  } else {
+    widget.numberMode = "classic";
+    widget.min = "";
+    widget.max = "";
+    widget.step = 1;
+    delete widget.minFormula;
+    delete widget.maxFormula;
+    delete widget.stepFormula;
+    delete widget.numberGraph;
+  }
+}
+
 export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   static DEFAULT_OPTIONS = {
@@ -819,25 +855,63 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _wireWidget(cell, w) {
     const doc = this.document;
 
-    cell.querySelectorAll("input[data-path]").forEach(inp => {
+    const _readPath = (path) => {
+      if (!path) return 0;
+      if (path.startsWith("system.hiddenFields.")) {
+        const key = path.slice("system.hiddenFields.".length);
+        return this.document?.system?.hiddenFields?.[key] ?? 0;
+      }
+      return foundry.utils.getProperty(this.document, path) ?? 0;
+    };
+
+    const _fieldForPath = (path) => {
+      if (!path) return null;
+      return [...cell.querySelectorAll("input, select, textarea")]
+        .find(el => (el.dataset.path || el.getAttribute("name")) === path) ?? null;
+    };
+
+    const _numberForPath = (path) => {
+      const field = _fieldForPath(path);
+      const fromField = field ? Number(field.value) : NaN;
+      if (Number.isFinite(fromField)) return fromField;
+      const fromDoc = Number(_readPath(path));
+      return Number.isFinite(fromDoc) ? fromDoc : 0;
+    };
+
+    cell.querySelectorAll("input[data-path], input[name], select[data-path], select[name], textarea[data-path], textarea[name]").forEach(inp => {
       inp.addEventListener("change", async () => {
-        const v = inp.type === "number" ? Number(inp.value) : inp.value;
-        await doc.update({ [inp.dataset.path]: v });
+        const path = inp.dataset.path || inp.getAttribute("name");
+        if (!path || path.startsWith("__")) return;
+        let v;
+        if (inp.type === "checkbox") v = inp.checked;
+        else if (inp.type === "number") {
+          const n = Number(inp.value);
+          v = Number.isFinite(n) ? n : 0;
+        } else v = inp.value;
+        await doc.update({ [path]: v });
       });
     });
 
-    cell.querySelectorAll("[data-step]").forEach(btn => {
-      btn.addEventListener("click", async () => {
+    cell.querySelectorAll("[data-step], [data-action='widgetNumStep']").forEach(btn => {
+      btn.addEventListener("click", async ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
         const step   = parseFloat(btn.dataset.step);
         const path   = btn.dataset.path;
-        const cur    = Number(_readPath(path) ?? 0);
+        if (!path || !Number.isFinite(step)) return;
+        const cur    = _numberForPath(path);
         const dsMin  = btn.dataset.min;
         const dsMax  = btn.dataset.max;
-        const min    = (dsMin  !== undefined && dsMin  !== "") ? parseFloat(dsMin)
-                     : (w.min != null ? w.min : -Infinity);
-        const max    = (dsMax  !== undefined && dsMax  !== "") ? parseFloat(dsMax)
-                     : (w.max != null ? w.max :  Infinity);
-        await doc.update({ [path]: Math.clamp(cur + step, min, max) });
+        const rawMin = (dsMin  !== undefined && dsMin  !== "") ? parseFloat(dsMin)
+                     : (w.min != null ? Number(w.min) : -Infinity);
+        const rawMax = (dsMax  !== undefined && dsMax  !== "") ? parseFloat(dsMax)
+                     : (w.max != null ? Number(w.max) :  Infinity);
+        const min    = Number.isFinite(rawMin) ? rawMin : -Infinity;
+        const max    = Number.isFinite(rawMax) ? rawMax :  Infinity;
+        const next   = Math.clamp(cur + step, min, max);
+        const field  = _fieldForPath(path);
+        if (field && "value" in field) field.value = String(next);
+        await doc.update({ [path]: next });
       });
     });
 
@@ -1582,21 +1656,29 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         cls.createDialog({}, { parent: doc });
       });
     });
+    const _resolveEffectForButton = async (btn) => {
+      const uuid = btn.dataset.effectUuid;
+      if (uuid) {
+        const effect = await fromUuid(uuid).catch(() => null);
+        if (effect) return effect;
+      }
+      return doc.effects?.get(btn.dataset.effectId) ?? null;
+    };
     cell.querySelectorAll("[data-action='effectToggle']").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const ef = doc.effects?.get(btn.dataset.effectId);
+        const ef = await _resolveEffectForButton(btn);
         if (ef) await ef.update({ disabled: !ef.disabled });
       });
     });
     cell.querySelectorAll("[data-action='effectEdit']").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const ef = doc.effects?.get(btn.dataset.effectId);
+      btn.addEventListener("click", async () => {
+        const ef = await _resolveEffectForButton(btn);
         if (ef) ef.sheet.render(true);
       });
     });
     cell.querySelectorAll("[data-action='effectDelete']").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const ef = doc.effects?.get(btn.dataset.effectId);
+        const ef = await _resolveEffectForButton(btn);
         if (!ef) return;
         const ok = await foundry.applications.api.DialogV2.confirm({
           window: { title: "Delete Effect" },
@@ -1840,15 +1922,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         }
       });
     });
-
-    const _readPath = (path) => {
-      if (!path) return 0;
-      if (path.startsWith("system.hiddenFields.")) {
-        const key = path.slice("system.hiddenFields.".length);
-        return this.document?.system?.hiddenFields?.[key] ?? 0;
-      }
-      return foundry.utils.getProperty(this.document, path) ?? 0;
-    };
 
     cell.querySelectorAll(".sd-clock-segment").forEach(seg => {
       seg.addEventListener("click", async ev => {
@@ -2097,12 +2170,14 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       spellbook: { label: "Spellbook", abilityType: "", span: 3 }
     };
 
+    const numberMode = widgetType === "number" ? await _chooseNumberWidgetMode() : null;
     const widget = {
       id:   foundry.utils.randomID(8),
       span: 1,
       ...(defaults[widgetType] ?? { label: widgetType }),
       type: widgetType
     };
+    if (widgetType === "number") _applyNumberWidgetMode(widget, numberMode);
 
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const tab  = tabs.find(t => t.id === tabId);

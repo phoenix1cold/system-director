@@ -25,6 +25,7 @@ export const WIDGET_TYPES = {
     defaults: {
       label: "Value",
       path:  "system.flags.myNumber",
+      numberMode: "classic",
       min:   null,
       max:   null,
       step:  1
@@ -32,8 +33,8 @@ export const WIDGET_TYPES = {
     configFields: [
       { key: "label", type: "text",   label: "Label" },
       { key: "path",  type: "path",   label: "Data Path" },
-      { key: "min",   type: "number", label: "Min" },
-      { key: "max",   type: "number", label: "Max" },
+      { key: "min",   type: "text",   label: "Min (number or path)" },
+      { key: "max",   type: "text",   label: "Max (number or path)" },
       { key: "step",  type: "number", label: "Step" }
     ]
   },
@@ -752,5 +753,4 @@ export function createWidget(type, overrides = {}) {
     ...overrides
   };
 }
-
 

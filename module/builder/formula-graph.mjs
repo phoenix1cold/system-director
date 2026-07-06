@@ -125,6 +125,20 @@ export const NODE_DEFS = {
     isOutput:true
   },
 
+  number_output: {
+    title:"NUMBER OUTPUT", color:"#2a4060", cat:"_system",
+    desc:"Number widget output. Wire Min, Max, and Step. No exec chain.",
+    inputs:[
+      {id:"min",  label:"Min",  type:"value.number"},
+      {id:"max",  label:"Max",  type:"value.number"},
+      {id:"step", label:"Step", type:"value.number"}
+    ],
+    outputs:[],
+    fields:[],
+    isNumberWidgetOutput:true,
+    noDelete:true
+  },
+
   attr_score_val: {
     title:"Attr Score", color:"#7a4a1a", cat:"_attr",
     desc:"Live numeric value of this attribute (read-only, always present in attribute graphs).",
@@ -6618,7 +6632,7 @@ const WIDGET_CONFIG_NODES = {
   },
   wcfg_number:    { title:"Number ±",        color:"#2a4060", isWidgetConfig:true, widgetType:"number",
     inputs:[_mkPin("label","Label"),_mkPin("path","Path"),_mkPin("min","Min"),_mkPin("max","Max"),_mkPin("step","Step")],
-    outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Value"},{key:"path",label:"Data Path",type:"path",default:"system.flags.myNumber"},{key:"min",label:"Min",type:"number",default:0},{key:"max",label:"Max",type:"number",default:100},{key:"step",label:"Step",type:"number",default:1}]
+    outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Value"},{key:"path",label:"Data Path",type:"path",default:"system.flags.myNumber"},{key:"min",label:"Min",type:"text",default:""},{key:"max",label:"Max",type:"text",default:""},{key:"step",label:"Step",type:"number",default:1}]
   },
   wcfg_resource:  { title:"Resource Bar",    color:"#5a1a1a", isWidgetConfig:true, widgetType:"resource",
     inputs:[_mkPin("label","Label"),_mkPin("pathValue","Value Path"),_mkPin("pathMax","Max Path"),_mkPin("color","Color")],
@@ -6776,6 +6790,7 @@ export class FormulaGraph {
     this.configMode   = opts.mode === "config";
     this.sheetTrigger = opts.mode === "sheetTrigger";
     this.actionGraph  = opts.mode === "actionGraph";
+    this.numberWidgetMode = opts.mode === "numberWidget";
     this.actionGraphContext = opts.actionGraphContext ?? "";
     this.chainTrigger = opts.mode === "chainTrigger";
     this.questTrigger = opts.mode === "questTrigger";
@@ -18609,6 +18624,21 @@ export class FormulaGraph {
       }
       return;
     }
+    if (this.numberWidgetMode && this.widget) {
+      const s = this.widget.numberGraph;
+      if (s?.nodes?.length) {
+        this.nodes    = foundry.utils.deepClone(s.nodes);
+        this.edges    = foundry.utils.deepClone(s.edges ?? []);
+        this.comments = foundry.utils.deepClone(s.comments ?? []);
+        migrateGraph(this);
+        this._ensureNumberWidgetGraph();
+        const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
+        this._id = (Math.max(0,...numIds) + 2) || 2;
+      } else {
+        this._addNumberWidgetDefaultGraph();
+      }
+      return;
+    }
     if (this.configMode && this.widget) {
       const s = this.widget.configGraph;
       if (s?.nodes?.length) {
@@ -18776,6 +18806,39 @@ export class FormulaGraph {
           widget[field.key] = field.type === "number" ? Number(val) : val;
         }
         widget.configGraph = graphData;
+        await doc.update({"system.customTabs": tabs});
+      }
+      return;
+    }
+    if (this.numberWidgetMode && this.saveCtx) {
+      this._ensureNumberWidgetGraph();
+      const {tab, row, w, doc} = this.saveCtx;
+      const graphData = {
+        nodes: this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
+        edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
+        comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
+      };
+      const tabs = foundry.utils.deepClone(doc.system?.customTabs ?? []);
+      const _row = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
+      const widget = _row ? this._findWidgetDeepInRow(_row.widgets, w.id) : null;
+      if (!widget) console.warn("[sd] formula-graph: number widget not found in customTabs", { tabId: tab?.id, rowId: row?.id, widgetId: w?.id });
+      if (widget) {
+        const out = this.nodes.find(n => n.type === "number_output");
+        const compilePin = (pin, fallback = "") => {
+          if (!out) return fallback;
+          const edge = this.edges.find(e => e.toNode === out.id && e.toPin === pin);
+          if (!edge) return fallback;
+          const src = this.nodes.find(n => n.id === edge.fromNode);
+          return src ? this._compileValue(src, new Set(), edge.fromPin) : fallback;
+        };
+        widget.numberMode  = "node";
+        widget.numberGraph = graphData;
+        widget.minFormula  = compilePin("min", "");
+        widget.maxFormula  = compilePin("max", "");
+        widget.stepFormula = compilePin("step", "1");
+        delete widget.min;
+        delete widget.max;
+        delete widget.step;
         await doc.update({"system.customTabs": tabs});
       }
       return;
@@ -18969,6 +19032,21 @@ export class FormulaGraph {
         return src ? this._compileValue(src, new Set(), vEdge.fromPin) : "0";
       }
       return "0";
+    }
+
+    const numberOut = this.nodes.find(n=>n.type==="number_output");
+    if (numberOut) {
+      const compilePin = (pin, fallback = "") => {
+        const edge = this.edges.find(e=>e.toNode===numberOut.id&&e.toPin===pin);
+        if (!edge) return fallback;
+        const src = this.nodes.find(n=>n.id===edge.fromNode);
+        return src ? this._compileValue(src, new Set(), edge.fromPin) : fallback;
+      };
+      return JSON.stringify({
+        min:  compilePin("min", ""),
+        max:  compilePin("max", ""),
+        step: compilePin("step", "1")
+      });
     }
 
     const trigger = this.nodes.find(n=>n.type==="on_click");
@@ -19558,6 +19636,7 @@ export class FormulaGraph {
     if (!badge) return;
     const hasAttrOut  = this.nodes.some(n=>n.type==="attr_output");
     const hasSkillOut = this.nodes.some(n=>n.type==="skill_output");
+    const hasNumberOut = this.nodes.some(n=>n.type==="number_output");
     const hasOnClick  = this.nodes.some(n=>n.type==="on_click");
     const hasOutput   = this.nodes.some(n=>n.type==="output");
     if (hasAttrOut) {
@@ -19570,6 +19649,11 @@ export class FormulaGraph {
       badge.style.color   = "#60c0e8";
       badge.style.borderColor = "#1a4a7a";
       badge.textContent   = "✓ Skill graph — wire modValue (display) + On Click exec chain";
+    } else if (hasNumberOut) {
+      badge.style.display = "block";
+      badge.style.color   = "#74c0ff";
+      badge.style.borderColor = "#2a4060";
+      badge.textContent   = "Number widget graph - wire Min, Max, and Step";
     } else if (hasOnClick) {
       badge.style.display = "block";
       badge.style.color   = "#5ae07a";
@@ -19766,6 +19850,7 @@ export class FormulaGraph {
 
   _buildPal() {
     const ALLOWED_CONFIG_CATS = new Set(["Sources", "Math"]);
+    const ALLOWED_NUMBER_CATS = new Set(["Sources", "Math", "Compare", "Logic"]);
     const ALLOWED_QUEST_CATS  = new Set(["Flow", "Quest", "Sources", "Math", "Compare", "Logic"]);
     const ALLOWED_QUEST_SOURCES = new Set([
       "literal", "literal_str", "get_path", "actor_ref", "item_uuid", "fa_icon"
@@ -19775,6 +19860,7 @@ export class FormulaGraph {
       "tokenPool","diceTray","number","resource","progress","richtext"
     ]);
     const isWidgetGraph    = !!this.widget && !this.configMode;
+    const isNumberWidgetMode = !!this.numberWidgetMode;
     const isAttrGraph      = this.widget?.type === "attribute";
     const isItemGraph      = !!this.itemSaveCtx && !this.widget;
     const isSheetTrigger   = !!this.sheetTrigger;
@@ -19798,10 +19884,12 @@ export class FormulaGraph {
         if (d.isWidgetConfig) return false;
         if (d.hidden) return false;
         if (this.configMode && !ALLOWED_CONFIG_CATS.has(d.cat)) return false;
+        if (isNumberWidgetMode && !ALLOWED_NUMBER_CATS.has(d.cat)) return false;
         if (hidesEvents && d.isEvent) return false;
         if (hidesOnClick && type === "on_click") return false;
         if (isSheetTrigger && type === "output") return false;
         if (this.actionGraph && type === "output") return false;
+        if (isNumberWidgetMode && (type === "output" || type === "number_output")) return false;
         if (d.isInteractableOnly && this.actionGraphContext !== "interactable") return false;
         if (isFuncEditMode) {
           if (d.isEvent) return false;
@@ -20158,11 +20246,19 @@ export class FormulaGraph {
     const list=document.createElement("div");
     menu.appendChild(list);
 
+    const ALLOWED_NUMBER_CATS = new Set(["Sources", "Math", "Compare", "Logic"]);
+    const isNumberWidgetMode = !!this.numberWidgetMode;
     const build=(q="")=>{
       list.innerHTML="";
       CATS.forEach(cat=>{
-        const nodes=Object.entries(NODE_DEFS).filter(([,d])=>{
+        const nodes=Object.entries(NODE_DEFS).filter(([type,d])=>{
+          if (d.isWidgetConfig) return false;
           if(d.cat!==cat.id||d.hidden) return false;
+          if (isNumberWidgetMode) {
+            if (!ALLOWED_NUMBER_CATS.has(d.cat)) return false;
+            if (type === "output" || type === "number_output" || type === "on_click") return false;
+            if (d.isEvent) return false;
+          }
           if(!q) return true;
           const hay = (_NL(d.title) + " " + d.title).toLowerCase();
           return hay.includes(q.toLowerCase());
@@ -20213,6 +20309,40 @@ export class FormulaGraph {
     this.nodes.push({ id:"output",      type:"output",  x:660, y:230, data:{} });
     this.edges.push({ id:"e_num_out", fromNode:"num_default", fromPin:"v", toNode:"output", toPin:"value" });
     this._id = 20;
+  }
+
+  _addNumberWidgetDefaultGraph() {
+    const step = Number(this.widget?.stepFormula ?? this.widget?.step ?? 1);
+    const stepValue = Number.isFinite(step) && step > 0 ? step : 1;
+    this.nodes.push({ id:"num_step_default", type:"literal", x:320, y:260, data:{ value:stepValue } });
+    this.nodes.push({ id:"number_output", type:"number_output", x:660, y:230, data:{} });
+    this.edges.push({ id:"e_num_step_out", fromNode:"num_step_default", fromPin:"v", toNode:"number_output", toPin:"step" });
+    this._id = 20;
+  }
+
+  _ensureNumberWidgetGraph() {
+    const hasExecPin = pins => (pins ?? []).some(p => p?.type === "exec");
+    const bannedIds = new Set(this.nodes.filter(n => {
+      const def = NODE_DEFS[n.type];
+      return n.type === "output"
+        || n.type === "on_click"
+        || def?.isAction
+        || def?.isEvent
+        || hasExecPin(def?.inputs)
+        || hasExecPin(def?.outputs);
+    }).map(n => n.id));
+    if (bannedIds.size) {
+      this.nodes = this.nodes.filter(n => !bannedIds.has(n.id));
+      this.edges = this.edges.filter(e => !bannedIds.has(e.fromNode) && !bannedIds.has(e.toNode));
+    }
+    if (!this.nodes.some(n => n.type === "number_output")) {
+      this.nodes.push({ id:"number_output", type:"number_output", x:660, y:230, data:{} });
+    }
+    const out = this.nodes.find(n => n.type === "number_output");
+    if (out) {
+      const allowed = new Set(["min", "max", "step"]);
+      this.edges = this.edges.filter(e => e.toNode !== out.id || allowed.has(e.toPin));
+    }
   }
 
   _addInitiativeDefaultGraph() {

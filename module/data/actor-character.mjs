@@ -32,18 +32,12 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
         })
       }),
 
-      defense: new SchemaField({
-        armor:   new NumberField({ required: true, integer: true, initial: 10, nullable: false }),
-        bonus:   new NumberField({ required: true, integer: true, initial: 0,  nullable: false }),
-        total:   new NumberField({ required: true, integer: true, initial: 10, nullable: false })
+      defense: new ObjectField({
+        initial: () => ({ armor: 10, bonus: 0, total: 10 })
       }),
 
-      movement: new SchemaField({
-        walk:  new NumberField({ required: true, integer: true, initial: 30, nullable: false }),
-        swim:  new NumberField({ required: true, integer: true, initial: 15, nullable: false }),
-        fly:   new NumberField({ required: true, integer: true, initial: 0,  nullable: false }),
-        climb: new NumberField({ required: true, integer: true, initial: 15, nullable: false }),
-        units: new StringField({ initial: "ft", blank: false })
+      movement: new ObjectField({
+        initial: () => ({ walk: 30, swim: 15, fly: 0, climb: 15, units: "ft" })
       }),
 
   advancement: new SchemaField({
@@ -73,9 +67,8 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
         skill10: SkillField({ label: "Skill 10" })
       }),
 
-      initiative: new SchemaField({
-        bonus: new NumberField({ required: true, integer: true, initial: 0, nullable: false }),
-        total: new NumberField({ required: true, integer: true, initial: 0, nullable: false })
+      initiative: new ObjectField({
+        initial: () => ({ bonus: 0, total: 0 })
       }),
 
       rollConfig: RollConfigField({ label: "Default Roll" }),
@@ -150,11 +143,17 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
   }
 
   _prepareDefense() {
-    this.defense.total = (this.defense.armor ?? 0) + (this.defense.bonus ?? 0);
+    const armor = Number(this.defense?.armor ?? 0);
+    const bonus = Number(this.defense?.bonus ?? 0);
+    this.defense.armor = Number.isFinite(armor) ? Math.trunc(armor) : 0;
+    this.defense.bonus = Number.isFinite(bonus) ? Math.trunc(bonus) : 0;
+    this.defense.total = this.defense.armor + this.defense.bonus;
   }
 
   _prepareInitiative() {
-    this.initiative.total = (this.attributes?.attr1?.mod ?? 0) + (this.initiative.bonus ?? 0);
+    const bonus = Number(this.initiative?.bonus ?? 0);
+    this.initiative.bonus = Number.isFinite(bonus) ? Math.trunc(bonus) : 0;
+    this.initiative.total = (this.attributes?.attr1?.mod ?? 0) + this.initiative.bonus;
   }
 
   _prepareSkills() {

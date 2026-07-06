@@ -62,6 +62,42 @@ function _promptTabName(current = "") {
   });
 }
 
+async function _chooseNumberWidgetMode() {
+  const mode = await foundry.applications.api.DialogV2.wait({
+    modal: true,
+    window: { title: "Number Widget" },
+    content: `<div style="padding:8px 0;font-size:12px;color:var(--sd-text-2);line-height:1.4">Choose Number widget version.</div>`,
+    buttons: [
+      { action: "classic", label: "Classic", icon: "fas fa-keyboard", default: true },
+      { action: "node",    label: "Node",    icon: "fas fa-diagram-project" }
+    ],
+    rejectClose: false
+  }).catch(() => "classic");
+  return mode === "node" ? "node" : "classic";
+}
+
+function _applyNumberWidgetMode(widget, mode) {
+  if (!widget || widget.type !== "number") return;
+  if (mode === "node") {
+    widget.numberMode  = "node";
+    widget.minFormula  = "";
+    widget.maxFormula  = "";
+    widget.stepFormula = "1";
+    delete widget.min;
+    delete widget.max;
+    delete widget.step;
+  } else {
+    widget.numberMode = "classic";
+    widget.min = "";
+    widget.max = "";
+    widget.step = 1;
+    delete widget.minFormula;
+    delete widget.maxFormula;
+    delete widget.stepFormula;
+    delete widget.numberGraph;
+  }
+}
+
 export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
   static DEFAULT_OPTIONS = {
@@ -1935,6 +1971,14 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       ev.stopPropagation();
       const doc = this.document;
       const efId = btn.dataset.effectId;
+      const _resolveEffect = async () => {
+        const uuid = btn.dataset.effectUuid;
+        if (uuid) {
+          const effect = await fromUuid(uuid).catch(() => null);
+          if (effect) return effect;
+        }
+        return doc.effects?.get(efId) ?? null;
+      };
       switch (btn.dataset.action) {
         case "effectCreate": {
           const cls = foundry.utils.getDocumentClass("ActiveEffect");
@@ -1942,17 +1986,17 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           break;
         }
         case "effectToggle": {
-          const ef = doc.effects?.get(efId);
+          const ef = await _resolveEffect();
           if (ef) await ef.update({ disabled: !ef.disabled });
           break;
         }
         case "effectEdit": {
-          const ef = doc.effects?.get(efId);
+          const ef = await _resolveEffect();
           if (ef) ef.sheet.render(true);
           break;
         }
         case "effectDelete": {
-          const ef = doc.effects?.get(efId);
+          const ef = await _resolveEffect();
           if (!ef) break;
           const ok = await foundry.applications.api.DialogV2.confirm({
             window: { title: "Delete Effect" },
@@ -2154,15 +2198,6 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         await roll.toMessage({ speaker:ChatMessage.getSpeaker({ actor:this.document.actor }), flavor:btn.dataset.flavor });
       });
     });
-    con.querySelectorAll("[data-action='widgetNumStep']").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const path=btn.dataset.path, step=parseFloat(btn.dataset.step??1);
-        const min=btn.dataset.min!==""?parseFloat(btn.dataset.min):-Infinity;
-        const max=btn.dataset.max!==""?parseFloat(btn.dataset.max): Infinity;
-        const cur=Number(foundry.utils.getProperty(this.document,path)??0);
-        await this.document.update({ [path]: Math.clamp(cur+step,min,max) });
-      });
-    });
     con.querySelectorAll("[data-action='widgetToggle']").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         await this.document.update({ [btn.dataset.path]: !foundry.utils.getProperty(this.document,btn.dataset.path) });
@@ -2225,10 +2260,17 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.document.actor }), flavor: btn.dataset.flavor });
       });
     });
-    con.querySelectorAll("input[data-path]").forEach(inp=>{
+    con.querySelectorAll("input[data-path], select[data-path], textarea[data-path], .widget input[name], .widget select[name], .widget textarea[name]").forEach(inp=>{
       inp.addEventListener("change", async ()=>{
-        const val=inp.type==="number"?(parseFloat(inp.value)||0):inp.value;
-        await this.document.update({ [inp.dataset.path]: val });
+        const path = inp.dataset.path || inp.getAttribute("name");
+        if (!path || path.startsWith("__")) return;
+        let val;
+        if (inp.type === "checkbox") val = inp.checked;
+        else if (inp.type === "number") {
+          const n = Number(inp.value);
+          val = Number.isFinite(n) ? n : 0;
+        } else val = inp.value;
+        await this.document.update({ [path]: val });
       });
     });
 
@@ -2374,17 +2416,39 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       return foundry.utils.getProperty(this.document, path) ?? 0;
     };
 
-    con.querySelectorAll("[data-step]").forEach(btn => {
-      btn.addEventListener("click", async () => {
+    const _fieldForPath = (path, root = con) => {
+      if (!path) return null;
+      return [...root.querySelectorAll("input, select, textarea")]
+        .find(el => (el.dataset.path || el.getAttribute("name")) === path) ?? null;
+    };
+
+    const _numberForPath = (path, root = con) => {
+      const field = _fieldForPath(path, root);
+      const fromField = field ? Number(field.value) : NaN;
+      if (Number.isFinite(fromField)) return fromField;
+      const fromDoc = Number(_readPath(path));
+      return Number.isFinite(fromDoc) ? fromDoc : 0;
+    };
+
+    con.querySelectorAll("[data-step], [data-action='widgetNumStep']").forEach(btn => {
+      btn.addEventListener("click", async ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
         const step  = parseFloat(btn.dataset.step);
         const path  = btn.dataset.path;
-        if (!path) return;
-        const cur   = Number(_readPath(path)) || 0;
+        if (!path || !Number.isFinite(step)) return;
+        const root  = btn.closest(".widget") ?? con;
+        const cur   = _numberForPath(path, root);
         const dsMin = btn.dataset.min;
         const dsMax = btn.dataset.max;
-        const min   = (dsMin !== undefined && dsMin !== "") ? parseFloat(dsMin) : -Infinity;
-        const max   = (dsMax !== undefined && dsMax !== "") ? parseFloat(dsMax) :  Infinity;
-        await this.document.update({ [path]: Math.clamp(cur + step, min, max) });
+        const rawMin = (dsMin !== undefined && dsMin !== "") ? parseFloat(dsMin) : -Infinity;
+        const rawMax = (dsMax !== undefined && dsMax !== "") ? parseFloat(dsMax) :  Infinity;
+        const min   = Number.isFinite(rawMin) ? rawMin : -Infinity;
+        const max   = Number.isFinite(rawMax) ? rawMax :  Infinity;
+        const next  = Math.clamp(cur + step, min, max);
+        const field = _fieldForPath(path, root);
+        if (field && "value" in field) field.value = String(next);
+        await this.document.update({ [path]: next });
       });
     });
 
@@ -2855,7 +2919,9 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
 
   async _addWidget(tabId, rowId, widgetType, parentVsId = null) {
     const defaults={ text:{label:"Label",path:"system.hiddenFields.myField"}, number:{label:"Number",path:"system.hiddenFields.myNum"}, resource:{label:"Resource",pathValue:"system.uses.value",pathMax:"system.uses.max",color:"var(--sd-hp)"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"var(--sd-accent)",formula:"",flavor:""}, toggle:{label:"Toggle",path:"system.hiddenFields.myToggle",onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:"system.description",span:3}, attribute:{label:"Attr",path:"system.hiddenFields.myAttr"}, skill:{label:"Skill",path:"system.hiddenFields.mySkill"}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
+    const numberMode = widgetType === "number" ? await _chooseNumberWidgetMode() : null;
     const widget={id:foundry.utils.randomID(8),span:1,...(defaults[widgetType]??{label:widgetType}),type:widgetType};
+    if (widgetType === "number") _applyNumberWidgetMode(widget, numberMode);
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(!tab) return;
     if (rowId) {
       const row=tab.rows?.find(r=>r.id===rowId); if(!row) return;

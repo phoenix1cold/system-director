@@ -223,6 +223,20 @@ function wireHudWidget(cell, widgetDef, actor) {
     return foundry.utils.getProperty(actor, path);
   };
 
+  const _fieldForPath = (path) => {
+    if (!path) return null;
+    return [...cell.querySelectorAll("input, select, textarea")]
+      .find(el => (el.dataset.path || el.getAttribute("name")) === path) ?? null;
+  };
+
+  const _numberForPath = (path) => {
+    const field = _fieldForPath(path);
+    const fromField = field ? Number(field.value) : NaN;
+    if (Number.isFinite(fromField)) return fromField;
+    const fromDoc = Number(_readPath(path));
+    return Number.isFinite(fromDoc) ? fromDoc : 0;
+  };
+
   if (cell.dataset.sdAaDelegated !== "1") {
     cell.dataset.sdAaDelegated = "1";
     const _aaSkipActions = new Set([
@@ -252,7 +266,10 @@ function wireHudWidget(cell, widgetDef, actor) {
       if (!path || path.startsWith("__")) return;
       let v;
       if (inp.type === "checkbox") v = inp.checked;
-      else if (inp.type === "number") v = Number(inp.value);
+      else if (inp.type === "number") {
+        const n = Number(inp.value);
+        v = Number.isFinite(n) ? n : 0;
+      }
       else v = inp.value;
       try { await actor.update({ [path]: v }); } catch(e) {}
     });
@@ -284,32 +301,24 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
-  cell.querySelectorAll("[data-step]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const step = parseFloat(btn.dataset.step);
-      const path = btn.dataset.path;
-      if (!path || !Number.isFinite(step)) return;
-      const cur = Number(_readPath(path) ?? 0);
-      const dsMin = btn.dataset.min;
-      const dsMax = btn.dataset.max;
-      const min = dsMin !== undefined && dsMin !== "" ? parseFloat(dsMin) : -Infinity;
-      const max = dsMax !== undefined && dsMax !== "" ? parseFloat(dsMax) :  Infinity;
-      try { await actor.update({ [path]: Math.clamp(cur + step, min, max) }); } catch(e) {}
-    });
-  });
-
-  cell.querySelectorAll("[data-action='widgetNumStep']").forEach(btn => {
+  cell.querySelectorAll("[data-step], [data-action='widgetNumStep']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
+      ev.preventDefault();
       ev.stopPropagation();
       const step = parseFloat(btn.dataset.step);
       const path = btn.dataset.path;
       if (!path || !Number.isFinite(step)) return;
-      const cur = Number(_readPath(path) ?? 0);
+      const cur = _numberForPath(path);
       const dsMin = btn.dataset.min;
       const dsMax = btn.dataset.max;
-      const min = dsMin !== undefined && dsMin !== "" ? parseFloat(dsMin) : -Infinity;
-      const max = dsMax !== undefined && dsMax !== "" ? parseFloat(dsMax) :  Infinity;
-      try { await actor.update({ [path]: Math.clamp(cur + step, min, max) }); } catch(e) {}
+      const rawMin = dsMin !== undefined && dsMin !== "" ? parseFloat(dsMin) : -Infinity;
+      const rawMax = dsMax !== undefined && dsMax !== "" ? parseFloat(dsMax) :  Infinity;
+      const min = Number.isFinite(rawMin) ? rawMin : -Infinity;
+      const max = Number.isFinite(rawMax) ? rawMax :  Infinity;
+      const next = Math.clamp(cur + step, min, max);
+      const field = _fieldForPath(path);
+      if (field && "value" in field) field.value = String(next);
+      try { await actor.update({ [path]: next }); } catch(e) {}
     });
   });
 
@@ -471,24 +480,33 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   });
 
+  const _resolveEffectForButton = async (btn) => {
+    const uuid = btn.dataset.effectUuid;
+    if (uuid) {
+      const effect = await fromUuid(uuid).catch(() => null);
+      if (effect) return effect;
+    }
+    return actor.effects?.get(btn.dataset.effectId) ?? null;
+  };
+
   cell.querySelectorAll("[data-action='effectToggle']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
-      const ef = actor.effects?.get(btn.dataset.effectId);
+      const ef = await _resolveEffectForButton(btn);
       if (ef) await ef.update({ disabled: !ef.disabled });
     });
   });
   cell.querySelectorAll("[data-action='effectEdit']").forEach(btn => {
-    btn.addEventListener("click", (ev) => {
+    btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
-      const ef = actor.effects?.get(btn.dataset.effectId);
+      const ef = await _resolveEffectForButton(btn);
       if (ef) ef.sheet.render(true);
     });
   });
   cell.querySelectorAll("[data-action='effectDelete']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
-      const ef = actor.effects?.get(btn.dataset.effectId);
+      const ef = await _resolveEffectForButton(btn);
       if (!ef) return;
       const ok = await foundry.applications.api.DialogV2.confirm({
         window: { title: "Delete Effect" },

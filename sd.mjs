@@ -349,6 +349,14 @@ Hooks.once("ready", async () => {
     } catch (err) {
       console.warn("SD | feature→ability cleanup failed:", err);
     }
+
+    try {
+      for (const actor of game.actors ?? []) {
+        await SDItem.cleanupLegacyTransferredEffects?.(actor);
+      }
+    } catch (err) {
+      console.warn("SD | legacy item transfer cleanup failed:", err);
+    }
   }
   const { GridManager }    = await import("./module/builder/grid-manager.mjs");
   const { WidgetRenderer } = await import("./module/builder/widget-renderer.mjs");
