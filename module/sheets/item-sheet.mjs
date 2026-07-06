@@ -2,6 +2,7 @@ import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpers/effect-editor.mjs";
+import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 
@@ -1741,20 +1742,12 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     const e   = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     const effects = [...(doc.effects ?? [])];
 
-    const _durLabel = ef => {
-      const d = ef.duration;
-      if (!d) return "";
-      if (d.rounds  && d.rounds  > 0) return `${d.rounds}r`;
-      if (d.seconds && d.seconds > 0) return `${d.seconds}s`;
-      return "";
-    };
-
     const isEquippable = doc?.type === "inventory" && doc.system?.equippable === true;
 
     let rows = "";
     for (const ef of effects) {
       const disabled  = ef.disabled ? "effect-disabled" : "";
-      const dur       = _durLabel(ef);
+      const dur       = effectDurationLabel(ef);
       const eyeIcon   = ef.disabled ? "fa-eye-slash" : "fa-eye";
       const transfers = ef.transfer !== false;
       const tColor    = transfers ? "var(--sd-success)" : "var(--sd-warn)";
@@ -2979,7 +2972,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     if (wIdx < 0) return;
     const [moved] = srcContainer.splice(wIdx, 1);
     if (!moved) return;
-    if (moved.type === "vsection" && dst.parentVsId) { srcContainer.splice(wIdx, 0, moved); return; }
+    if (moved.type === "vsection" && dst.parentVsId) dst = { ...dst, parentVsId: null };
     let dstContainer;
     if (dst.rowId) {
       const dstRow = dstTab.rows?.find(r => r.id === dst.rowId);

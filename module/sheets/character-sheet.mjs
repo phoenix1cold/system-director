@@ -5,6 +5,7 @@ import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
+import { SDOnboarding } from "../helpers/onboarding.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -163,6 +164,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     this._wireAnimationTagDelegation();
     ItemPreviewPopup.attach(this.element, this.document);
     TabManager.activate(this);
+    SDOnboarding.bindCharacterSheet(this.element);
   }
 
   _wireAnimationTagDelegation() {
@@ -2042,6 +2044,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _makeDropZone(tab, row, label = "Drop here", parentVS = null) {
     const rowCols = Math.max(1, Math.min(9, Number(row?.cols) || 3));
     const dz = document.createElement("div");
+    dz.dataset.sdTour = "sheet-drop-zone";
+    dz.dataset.sdTip = parentVS ? "Drop a widget into this vertical section." : "Drop a widget here while edit mode is enabled.";
     dz.style.cssText = `
       ${(row && !parentVS) ? "" : (parentVS ? "" : `grid-column:span ${rowCols};`)}
       border:1px dashed var(--sd-accent-dim); border-radius:5px;
@@ -2328,8 +2332,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     if (clone.type === "vsection" && dst.parentVsId) {
-
-      return;
+      dst = { ...dst, parentVsId: null };
     }
 
     const insertIdx = dst.toEnd ? dstContainer.length : Math.max(0, Math.min(dstContainer.length, dst.index ?? dstContainer.length));
@@ -2392,8 +2395,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (!moved) return;
 
     if (moved.type === "vsection" && dst.parentVsId) {
-      srcContainer.splice(wIdx, 0, moved);
-      return;
+      dst = { ...dst, parentVsId: null };
     }
 
     let dstContainer;

@@ -10,18 +10,22 @@ const {
   SchemaField, ArrayField, ObjectField, TypedObjectField
 } = foundry.data.fields;
 
+const DEFAULT_ATTRIBUTES = () => ({
+  attr1: { value: 10, mod: 0, proficient: false },
+  attr2: { value: 10, mod: 0, proficient: false },
+  attr3: { value: 10, mod: 0, proficient: false },
+  attr4: { value: 10, mod: 0, proficient: false },
+  attr5: { value: 10, mod: 0, proficient: false },
+  attr6: { value: 10, mod: 0, proficient: false }
+});
+
 export class NPCData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
     return {
 
-      attributes: new SchemaField({
-        attr1: AttributeField({ initial: 10, label: "Attribute 1" }),
-        attr2: AttributeField({ initial: 10, label: "Attribute 2" }),
-        attr3: AttributeField({ initial: 10, label: "Attribute 3" }),
-        attr4: AttributeField({ initial: 10, label: "Attribute 4" }),
-        attr5: AttributeField({ initial: 10, label: "Attribute 5" }),
-        attr6: AttributeField({ initial: 10, label: "Attribute 6" })
+      attributes: new TypedObjectField(AttributeField({ initial: 10 }), {
+        initial: DEFAULT_ATTRIBUTES
       }),
 
       resources: new TypedObjectField(ResourceField({ initial: 10 }), {
@@ -37,6 +41,10 @@ export class NPCData extends foundry.abstract.TypeDataModel {
 
       movement: new ObjectField({
         initial: () => ({ walk: 30, fly: 0, swim: 0 })
+      }),
+
+      other: new ObjectField({
+        initial: () => ({})
       }),
 
       initiative: new ObjectField({

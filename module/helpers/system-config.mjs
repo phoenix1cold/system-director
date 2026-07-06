@@ -7,6 +7,7 @@ import {
   applyColorSchemeV2,
   localiseSchemeLabel
 } from "./color-schemes.mjs";
+import { SDOnboarding } from "./onboarding.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -55,7 +56,8 @@ export function getDefaultSettings() {
         { key: "swim",  label: "Swim",  default: 15, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED },
         { key: "fly",   label: "Fly",   default: 0,  parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED },
         { key: "climb", label: "Climb", default: 15, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED }
-      ]
+      ],
+      other: []
     },
 
     modifierFormula: "halved",
@@ -81,11 +83,12 @@ export function defaultCalcGraph() {
 
 export const DEFAULT_CALC_COMPILED = "0";
 
-const CALC_SECTIONS = ["defense", "initiative", "movement"];
+const CALC_SECTIONS = ["defense", "initiative", "movement", "other"];
 const SYSTEM_PATH_SECTION_META = {
   defense:    { label: "Defense",    icon: "fa-shield-halved" },
   initiative: { label: "Initiative", icon: "fa-bolt" },
-  movement:   { label: "Movement",   icon: "fa-person-running" }
+  movement:   { label: "Movement",   icon: "fa-person-running" },
+  other:      { label: "Other",      icon: "fa-route" }
 };
 const VALID_OPS = new Set(["+", "-", "*", "/"]);
 
@@ -111,7 +114,7 @@ function _normalizeCalcEntry(e, fallbackKey) {
 }
 
 export function normalizeCalculations(calc) {
-  const out = { defense: [], initiative: [], movement: [] };
+  const out = Object.fromEntries(CALC_SECTIONS.map(sec => [sec, []]));
   if (!calc || typeof calc !== "object") return out;
   for (const sec of CALC_SECTIONS) {
     const list = calc[sec];
@@ -165,6 +168,53 @@ export function isConfiguredSystemPath(path, cfg = null) {
   const p = String(path ?? "").trim();
   if (!p) return false;
   return getSystemPathEntries(cfg).some(entry => p === entry.path || p.startsWith(entry.path + "."));
+}
+
+function _cfgForPaths(cfg = null) {
+  if (cfg) return cfg;
+  try { return loadSettings(); } catch { return CONFIG?.SD ?? null; }
+}
+
+export function getConfiguredDataPathEntries(cfg = null) {
+  const src = _cfgForPaths(cfg);
+  const out = [];
+  const add = (path, label, group = "Core") => {
+    if (!path || out.some(e => e.path === path)) return;
+    out.push({ path, label, group });
+  };
+
+  for (const [key, label] of Object.entries(src?.attributes ?? {})) {
+    if (src?.attributesEnabled?.[key] === false) continue;
+    const name = String(label || key);
+    add(`system.attributes.${key}.value`, `${name} - Score`, "Attributes");
+    add(`system.attributes.${key}.mod`, `${name} - Modifier`, "Attributes");
+    add(`system.attributes.${key}.proficient`, `${name} - Proficient`, "Attributes");
+  }
+
+  for (const [key, res] of Object.entries(src?.resources ?? {})) {
+    if (!res || res.enabled === false) continue;
+    const name = String(res.label || key);
+    add(`system.resources.${key}.value`, `${name} - Current`, "Resources");
+    add(`system.resources.${key}.max`, `${name} - Max`, "Resources");
+    add(`system.resources.${key}.min`, `${name} - Min`, "Resources");
+  }
+
+  for (const c of (src?.currencies ?? [])) {
+    if (!c?.key) continue;
+    add(`system.currency.${c.key}`, `Currency - ${c.label || c.key}`, "Currency");
+  }
+
+  for (const p of getSystemPathEntries(src)) {
+    add(p.path, `System Path - ${p.sectionLabel}: ${p.label}`, "System Paths");
+  }
+
+  return out;
+}
+
+export function isConfiguredSettingsPath(path, cfg = null) {
+  const p = String(path ?? "").trim();
+  if (!p) return false;
+  return getConfiguredDataPathEntries(cfg).some(entry => p === entry.path || p.startsWith(entry.path + "."));
 }
 
 export function evalCalcFormula(parts, ctx) {
@@ -301,7 +351,12 @@ export function loadSettings() {
 }
 
 export async function saveSettings(data) {
-  await game.settings.set("sd", "systemSettings", data);
+  const clean = foundry.utils.deepClone(data ?? {});
+  delete clean.__initiativeFormula;
+  delete clean.__initiativeUseGraph;
+  delete clean.__onboardingEnabled;
+  delete clean.__helperTooltips;
+  await game.settings.set("sd", "systemSettings", clean);
 }
 
 export function buildActorBaseDefaults(actorType) {
@@ -453,6 +508,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       removeCalcPart:   SystemConfig._onRemoveCalcPart,
       editCalcGraph:    SystemConfig._onEditCalcGraph,
       editInitiativeGraph: SystemConfig._onEditInitiativeGraph,
+      startOnboarding:  SystemConfig._onStartOnboarding,
       resetDefaults:    SystemConfig._onResetDefaults,
       saveAndClose:     SystemConfig._onSaveAndClose
     }
@@ -510,6 +566,8 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         }
       });
     });
+
+    SDOnboarding.bindSystemConfig(this.element);
   }
 
   async _prepareContext(options) {
@@ -536,6 +594,10 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         hasGraph:       initNodeCount > 0,
         graphNodeCount: initNodeCount
       },
+      guidance: {
+        onboardingEnabled: (() => { try { return game.settings.get("sd", "onboardingEnabled") !== false; } catch { return true; } })(),
+        helperTooltips:    (() => { try { return game.settings.get("sd", "helperTooltips") !== false; } catch { return true; } })()
+      },
       attrEntries: Object.entries(cfg.attributes).map(([key, val]) => ({
         key,
         label:   val,
@@ -555,7 +617,8 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         ...e,
         isDefense:    e.section === "defense",
         isInitiative: e.section === "initiative",
-        isMovement:   e.section === "movement"
+        isMovement:   e.section === "movement",
+        isOther:      e.section === "other"
       })),
       calcSections: CALC_SECTIONS.map(sec => ({
         section: sec,
@@ -647,6 +710,8 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
     cfg.__initiativeFormula  = raw.initiativeFormula  !== undefined ? String(raw.initiativeFormula) : null;
     cfg.__initiativeUseGraph = !!raw.initiativeUseGraph;
+    cfg.__onboardingEnabled  = !!raw.onboardingEnabled;
+    cfg.__helperTooltips     = !!raw.helperTooltips;
 
     if (raw.uiScale !== undefined) {
       cfg.uiScale = Math.min(Math.max(Number(raw.uiScale) || 100, 50), 200);
@@ -657,8 +722,8 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       cfg.colorScheme = THEME_IDS.has(id) ? id : "default";
     }
 
-    if (!cfg.calculations) cfg.calculations = { defense: [], initiative: [], movement: [] };
-    const nextCalculations = { defense: [], initiative: [], movement: [] };
+    if (!cfg.calculations) cfg.calculations = Object.fromEntries(CALC_SECTIONS.map(sec => [sec, []]));
+    const nextCalculations = Object.fromEntries(CALC_SECTIONS.map(sec => [sec, []]));
     for (const sec of CALC_SECTIONS) {
       const list = Array.isArray(cfg.calculations[sec]) ? cfg.calculations[sec] : [];
       for (let ei = 0; ei < list.length; ei++) {
@@ -694,7 +759,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const sec = target.dataset.section || this.element?.querySelector?.("[name='systemPathAddSection']")?.value || "defense";
     if (!CALC_SECTIONS.includes(sec)) return;
     const cfg = this._collectFormCfg();
-    if (!cfg.calculations) cfg.calculations = { defense: [], initiative: [], movement: [] };
+    if (!cfg.calculations) cfg.calculations = Object.fromEntries(CALC_SECTIONS.map(s => [s, []]));
     if (!Array.isArray(cfg.calculations[sec])) cfg.calculations[sec] = [];
     const used = new Set(cfg.calculations[sec].map(e => e.key));
     let n = cfg.calculations[sec].length + 1;
@@ -782,8 +847,12 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const initFormula  = cfg.__initiativeFormula;
     const initUseGraph = cfg.__initiativeUseGraph;
+    const onboardingEnabled = cfg.__onboardingEnabled;
+    const helperTooltips    = cfg.__helperTooltips;
     delete cfg.__initiativeFormula;
     delete cfg.__initiativeUseGraph;
+    delete cfg.__onboardingEnabled;
+    delete cfg.__helperTooltips;
 
     await saveSettings(cfg);
 
@@ -792,8 +861,10 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         await game.settings.set("sd", "initiativeFormula", initFormula || "1d20");
       }
       await game.settings.set("sd", "initiativeUseGraph", !!initUseGraph);
+      await game.settings.set("sd", "onboardingEnabled", !!onboardingEnabled);
+      await game.settings.set("sd", "helperTooltips", !!helperTooltips);
     } catch(e) {
-      console.warn("SD | Could not save initiative settings:", e);
+      console.warn("SD | Could not save client/system settings:", e);
     }
 
     applySettings(cfg);
@@ -848,6 +919,10 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     });
     graph.open();
+  }
+
+  static async _onStartOnboarding(event, target) {
+    await SDOnboarding.reset();
   }
 
   static async _onResetDefaults(event, target) {

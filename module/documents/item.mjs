@@ -1,4 +1,5 @@
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
+import { durationForRounds } from "../helpers/effect-duration.mjs";
 
 export class SDItem extends Item {
 
@@ -225,7 +226,7 @@ export class SDItem extends Item {
         name,
         img: icon,
         disabled:  false,
-        duration:  rounds > 0 ? { rounds } : {},
+        duration:  durationForRounds(rounds),
         changes,
         origin:    this.uuid,
         flags:     { sd: { sourceItemId: this.id } }

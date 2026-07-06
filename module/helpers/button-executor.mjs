@@ -1,6 +1,7 @@
 import { SlotManager } from "../data/item-slots.mjs";
 import { formulaBounds, doubleDice, leadingD20Natural } from "../builder/formula-utils.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
+import { durationForRounds } from "./effect-duration.mjs";
 
 function _writeRollMeta(buttonDef, {
   roll, formula,
@@ -1849,7 +1850,7 @@ export class ButtonExecutor {
             name:     action.effectName || "Effect",
             img:      action.icon ?? "icons/svg/aura.svg",
             disabled: false,
-            duration: rounds > 0 ? { rounds } : {},
+            duration: durationForRounds(rounds),
             changes,
             origin:   item?.uuid ?? null,
             flags:    { sd: { sourceItemId: item?.id } }
@@ -1909,7 +1910,7 @@ export class ButtonExecutor {
               disabled: false,
               origin:   item?.uuid ?? sourceEffect.parent?.uuid ?? null,
               flags:    { sd: { sourceItemId: item?.id ?? null } },
-              duration: _aeuRounds > 0 ? { rounds: _aeuRounds } : {}
+              duration: durationForRounds(_aeuRounds)
             },
             { inplace: false }
           );
@@ -2720,7 +2721,7 @@ export class ButtonExecutor {
           name:     tpl.name     || "Effect",
           img:      tpl.icon     || "icons/svg/aura.svg",
           disabled: false,
-          duration: rounds > 0 ? { rounds } : {},
+          duration: durationForRounds(rounds),
           changes,
           origin:   item.uuid,
           flags:    { sd: { sourceItemId: item.id } }
@@ -4118,7 +4119,7 @@ export class ButtonExecutor {
           img:      action.icon     ?? "icons/svg/aura.svg",
           disabled: !!action.disabled,
           transfer: action.transfer !== false,
-          duration: rounds > 0 ? { rounds } : {},
+          duration: durationForRounds(rounds),
           changes:  (action.changes ?? []).filter(c => c.key),
           origin:   item?.uuid ?? actor?.uuid ?? "",
           flags:    { sd: { sourceItemId: item?.id ?? "" } }

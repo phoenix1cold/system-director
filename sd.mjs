@@ -42,11 +42,14 @@ import { SDTrade }             from "./module/helpers/trade.mjs";
 import { SDQuest }             from "./module/helpers/quest.mjs";
 import { installSdPause }      from "./module/helpers/sd-pause.mjs";
 import { SlotEffectSync }      from "./module/helpers/slot-effects.mjs";
+import { registerEffectDurationHooks } from "./module/helpers/effect-duration.mjs";
+import { installOnboarding } from "./module/helpers/onboarding.mjs";
 
 SDTrade.init();
 SDQuest.init();
 installSdPause();
 SlotEffectSync.install();
+registerEffectDurationHooks();
 
 globalThis.SD = {};
 
@@ -286,6 +289,7 @@ Hooks.once("init", () => {
   registerActionHudSettings();
 
   registerSettings();
+  installOnboarding();
 
   registerHandlebarsHelpers();
 
@@ -479,6 +483,32 @@ function registerSettings() {
     config:  true,
     type:    Boolean,
     default: false
+  });
+
+  game.settings.register("sd", "onboardingEnabled", {
+    name:    "SD Guide: show quick onboarding",
+    hint:    "Shows short highlighted walkthroughs for system settings, sheet building, and node graph basics.",
+    scope:   "client",
+    config:  true,
+    type:    Boolean,
+    default: true
+  });
+
+  game.settings.register("sd", "helperTooltips", {
+    name:    "SD Guide: show helper tooltips",
+    hint:    "Shows compact hover hints on key SD controls.",
+    scope:   "client",
+    config:  true,
+    type:    Boolean,
+    default: true
+  });
+
+  game.settings.register("sd", "onboardingSeenTours", {
+    name:    "SD Guide Seen Tours",
+    scope:   "client",
+    config:  false,
+    type:    Object,
+    default: {}
   });
 }
 

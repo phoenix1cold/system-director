@@ -1,5 +1,6 @@
 import { BLUEPRINT_NODES, BLUEPRINT_CATS } from "../helpers/formula-engine.mjs";
-import { getSystemPathEntries, loadSettings } from "../helpers/system-config.mjs";
+import { getConfiguredDataPathEntries, getSystemPathEntries, loadSettings } from "../helpers/system-config.mjs";
+import { SDOnboarding } from "../helpers/onboarding.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -78,6 +79,10 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     try {
       const cfg = loadSettings();
 
+      for (const p of getConfiguredDataPathEntries(cfg)) {
+        _add(p.path, p.label);
+      }
+
       for (const [key, label] of Object.entries(cfg.attributes ?? {})) {
         if (cfg.attributesEnabled?.[key] === false) continue;
         _add(`system.attributes.${key}.value`, `${label} — Score`);
@@ -129,6 +134,10 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
 
     if (isActor) {
       const sys = doc.system ?? {};
+      for (const p of getConfiguredDataPathEntries(cfg)) {
+        _add(p.path, p.label);
+      }
+
       for (const [key, attr] of Object.entries(sys.attributes ?? {})) {
         const cfgLabel = cfg?.attributes?.[key] ?? key;
         if (attr?.value !== undefined) _add(`system.attributes.${key}.value`, `${cfgLabel} — Score`);
@@ -211,6 +220,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     this._wireBlueprintCopy();
     this._wireSearch();
     this.element?.querySelector("[data-action='refreshPaths']")?.addEventListener("click", () => this.render());
+    SDOnboarding.bindToolbox(this.element);
   }
 
   _wireSearch() {

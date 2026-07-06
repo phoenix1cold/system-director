@@ -1,5 +1,6 @@
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
+import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 
 export class WidgetRenderer {
 
@@ -1296,18 +1297,10 @@ export class WidgetRenderer {
       return this._render_effects_cards(w, doc, filtered, canEdit, variantId);
     }
 
-    const _durLabel = (ef) => {
-      const d = ef.duration;
-      if (!d) return "";
-      if (d.rounds && d.rounds > 0) return `${d.rounds}r`;
-      if (d.seconds && d.seconds > 0) return `${d.seconds}s`;
-      return "";
-    };
-
     let rows = "";
     for (const ef of filtered) {
       const disabled = ef.disabled ? "effect-disabled" : "";
-      const dur      = _durLabel(ef);
+      const dur      = effectDurationLabel(ef);
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
       const uuid     = e(ef.uuid ?? "");
       rows += `
@@ -1503,8 +1496,7 @@ export class WidgetRenderer {
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
       const uuid     = e(ef.uuid ?? "");
 
-      const dur = ef.duration?.rounds ? `${ef.duration.rounds}r`
-               : ef.duration?.seconds ? `${ef.duration.seconds}s` : "";
+      const dur = effectDurationLabel(ef);
       const metaPills = `<div class="sd-item-card-meta">
         ${dur ? `<span class="sd-item-card-pill">${e(dur)}</span>` : ""}
         ${ef.transfer ? `<span class="sd-item-card-pill">passive</span>` : ""}

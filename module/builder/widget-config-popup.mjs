@@ -1,7 +1,8 @@
 import { FormulaEngine }   from "../helpers/formula-engine.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
 import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES } from "./widget-registry.mjs";
-import { getSystemPathEntries, isConfiguredSystemPath } from "../helpers/system-config.mjs";
+import { getConfiguredDataPathEntries, getSystemPathEntries, isConfiguredSettingsPath } from "../helpers/system-config.mjs";
+import { SDOnboarding } from "../helpers/onboarding.mjs";
 
 const SD_SLOT_TILE_ICON_PRESETS = [
   { name: "helmet",   label: "Helmet" },
@@ -341,6 +342,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       }
 
       try {
+        for (const p of getConfiguredDataPathEntries()) {
+          list.push({ value: p.path, label: `${p.group}: ${p.label}` });
+        }
         for (const p of getSystemPathEntries()) {
           list.push({ value: p.path, label: `System Path: ${p.sectionLabel} \u203a ${p.label}` });
         }
@@ -1194,6 +1198,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   document.addEventListener("mouseup", () => ds = null);
 
   popup.querySelector("input[data-field]")?.focus();
+  SDOnboarding.bindWidgetConfig(popup);
 
   return popup;
 }
@@ -1208,7 +1213,7 @@ function _isPathWritable(doc, path) {
   if (path.startsWith("system.slotContents.")) return true;
   if (path.startsWith("system.customFields.")) return true;
 
-  try { if (isConfiguredSystemPath(path)) return true; } catch {  }
+  try { if (isConfiguredSettingsPath(path)) return true; } catch {  }
 
   if (foundry.utils.getProperty(doc, path) !== undefined) return true;
 

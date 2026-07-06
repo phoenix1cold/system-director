@@ -544,9 +544,15 @@ export function BuilderMixin(Base) {
           ev.preventDefault();
           const step   = parseFloat(btn.dataset.step ?? 1);
           const path   = btn.dataset.path;
-          const min    = btn.dataset.min !== "" ? parseFloat(btn.dataset.min) : -Infinity;
-          const max    = btn.dataset.max !== "" ? parseFloat(btn.dataset.max) :  Infinity;
-          const cur    = parseFloat(foundry.utils.getProperty(this.document, path) ?? 0);
+          if (!path || !Number.isFinite(step)) break;
+          const dsMin  = btn.dataset.min;
+          const dsMax  = btn.dataset.max;
+          const rawMin = (dsMin !== undefined && dsMin !== "") ? parseFloat(dsMin) : -Infinity;
+          const rawMax = (dsMax !== undefined && dsMax !== "") ? parseFloat(dsMax) :  Infinity;
+          const min    = Number.isFinite(rawMin) ? rawMin : -Infinity;
+          const max    = Number.isFinite(rawMax) ? rawMax :  Infinity;
+          const curRaw = parseFloat(foundry.utils.getProperty(this.document, path) ?? 0);
+          const cur    = Number.isFinite(curRaw) ? curRaw : 0;
           const next   = Math.clamp(cur + step, min, max);
           await this.document.update({ [path]: next });
           break;
