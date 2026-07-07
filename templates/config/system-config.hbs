@@ -203,6 +203,30 @@
 
     <div class="config-section">
       <h3 class="config-section-title">
+        <i class="fas fa-brain"></i> AI
+        <span class="section-hint">Provider, world knowledge, events and dialogue memory</span>
+        <button type="button" class="config-add-btn" data-action="openAISettings">
+          <i class="fas fa-wand-magic-sparkles"></i> AI Settings
+        </button>
+      </h3>
+      <div class="config-field-row" style="align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="flex-shrink:0;min-width:160px;">World Knowledge</label>
+        <div style="flex:1;min-width:220px;font-size:11px;line-height:1.4;color:var(--sd-text-3);">
+          {{#if ai.hasWorldKnowledge}}
+            <span style="color:var(--sd-text-2);">{{ai.worldKnowledgePreview}}</span>
+          {{else}}
+            <span>{{ai.worldKnowledgePreview}}</span>
+          {{/if}}
+        </div>
+      </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        AI Dialogue Choices sends the default provider settings, world knowledge, world events, actor AI Bio and saved memories with dialogue requests.
+      </p>
+    </div>
+
+    <div class="config-section">
+      <h3 class="config-section-title">
         <i class="fas fa-calculator"></i> Mechanics
       </h3>
       <div class="config-field-row">

@@ -8,6 +8,7 @@ import {
   localiseSchemeLabel
 } from "./color-schemes.mjs";
 import { SDOnboarding } from "./onboarding.mjs";
+import { getAISettings, openAISettingsDialog } from "./ai-context.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -508,6 +509,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       removeCalcPart:   SystemConfig._onRemoveCalcPart,
       editCalcGraph:    SystemConfig._onEditCalcGraph,
       editInitiativeGraph: SystemConfig._onEditInitiativeGraph,
+      openAISettings:   SystemConfig._onOpenAISettings,
       startOnboarding:  SystemConfig._onStartOnboarding,
       resetDefaults:    SystemConfig._onResetDefaults,
       saveAndClose:     SystemConfig._onSaveAndClose
@@ -583,10 +585,20 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     try { initCompiled = String(game.settings.get("sd", "initiativeGraphCompiled") ?? ""); } catch {}
     try { initGraph    = game.settings.get("sd", "initiativeGraph") ?? null; } catch {}
     const initNodeCount = (initGraph && Array.isArray(initGraph.nodes)) ? initGraph.nodes.length : 0;
+    const aiSettings = getAISettings();
+    const worldKnowledge = String(aiSettings.worldKnowledge ?? "");
 
     return {
       ...base,
       cfg,
+      ai: {
+        hasWorldKnowledge: worldKnowledge.trim().length > 0,
+        worldKnowledgePreview: (() => {
+          const flat = worldKnowledge.trim().replace(/\s+/g, " ");
+          if (!flat) return "No world knowledge configured yet.";
+          return flat.length > 140 ? `${flat.slice(0, 140)}...` : flat;
+        })()
+      },
       initiative: {
         formula:        initFormula,
         useGraph:       initUseGraph,
@@ -923,6 +935,10 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static async _onStartOnboarding(event, target) {
     await SDOnboarding.startGuide({ force: true });
+  }
+
+  static async _onOpenAISettings(event, target) {
+    await openAISettingsDialog({ onSave: () => this.render() });
   }
 
   static async _onResetDefaults(event, target) {

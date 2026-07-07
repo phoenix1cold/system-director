@@ -2890,13 +2890,13 @@ export const NODE_DEFS = {
       {id:"errorMsg", label:"Error",    type:"value.string"}
     ],
     fields:[
-      {key:"url",          label:"URL",            type:"text",   default:"https://api.openai.com/v1/chat/completions",
+      {key:"url",          label:"URL",            type:"text",   default:"",
         placeholder:"https://api.openai.com/v1/chat/completions"},
       {key:"apiKey",       label:"API Key",        type:"text",   default:"",
         placeholder:"sk-... (leave empty if using API key setting)"},
       {key:"apiKeySetting",label:"API key setting (world)", type:"text", default:"",
         placeholder:"e.g. openaiKey  в†’ reads game.settings.get('sd', '<this>')"},
-      {key:"model",        label:"Model",          type:"text",   default:"gpt-4o-mini",
+      {key:"model",        label:"Model",          type:"text",   default:"",
         placeholder:"gpt-4o-mini, gpt-4o, claude-3-haiku, qwen2.5-7b-instructвЂ¦"},
       {key:"systemPrompt", label:"System Prompt",  type:"text",   default:"",
         placeholder:"e.g. You are a helpful Foundry VTT NPC."},
@@ -2910,16 +2910,113 @@ export const NODE_DEFS = {
     isAiBranch: true,
     toAction:(n,inp)=>({
       type:         "aiRequest",
-      url:          inp.url          ?? n.data.url          ?? "https://api.openai.com/v1/chat/completions",
+      url:          inp.url          ?? n.data.url          ?? "",
       apiKey:       inp.apiKey       ?? n.data.apiKey       ?? "",
       apiKeySetting: n.data.apiKeySetting ?? "",
-      model:        inp.model        ?? n.data.model        ?? "gpt-4o-mini",
+      model:        inp.model        ?? n.data.model        ?? "",
       systemPrompt: inp.systemPrompt ?? n.data.systemPrompt ?? "",
       prompt:       inp.prompt       ?? n.data.prompt       ?? "",
       temperature:  (inp.temperature != null && inp.temperature !== "") ? Number(inp.temperature) : Number(n.data.temperature ?? 0.7),
       maxTokens:    (inp.maxTokens   != null && inp.maxTokens   !== "") ? Number(inp.maxTokens)   : Number(n.data.maxTokens   ?? 512),
       flavor:       n.data.flavor ?? "AI",
       toChat:       n.data.toChat === "yes"
+    })
+  },
+
+  ai_dialogue_choices: {
+    title:"AI Dialogue Choices", color:"#4a4a8a", cat:"AI", wideNode:true,
+    desc:"Configuration source for Dialogue Builder. Connect its AI Choices output into Dialogue Builder's AI Choices input. At runtime it asks an OpenAI-compatible model to generate the NPC dialogue text and player response choices. Infinity Dialogue keeps sending the selected player answer plus dialogue history back to the model and reopens the next dialogue window while the model returns continue=true.",
+    inputs:[],
+    outputs:[{id:"choices", label:"AI Choices", type:"value.any"}],
+    fields:[
+      {key:"url",          label:"URL",            type:"text",   default:"",
+        placeholder:"https://api.openai.com/v1/chat/completions"},
+      {key:"apiKey",       label:"API Key",        type:"text",   default:"",
+        placeholder:"sk-... (leave empty if using API key setting)"},
+      {key:"apiKeySetting",label:"API key setting (world)", type:"text", default:"",
+        placeholder:"e.g. openaiKey - reads game.settings.get('sd', '<this>')"},
+      {key:"model",        label:"Model",          type:"text",   default:"",
+        placeholder:"gpt-4o-mini, gpt-4o, local model name..."},
+      {key:"systemPrompt", label:"System Prompt",  type:"textarea", default:"You are an RPG NPC dialogue writer. Generate concise in-character dialogue and player response choices.", rows:3},
+      {key:"prompt",       label:"Extra Prompt",   type:"textarea", default:"Use the current dialogue text as context. Generate meaningful player responses.", rows:3},
+      {key:"aiResponse",    label:"AI Response Context", type:"textarea", default:"", rows:2,
+        placeholder:"Optional: wire AI Request -> Response here, or use {__lastAiResponse}"},
+      {key:"choiceCount",  label:"Choice Count",   type:"number", default:3},
+      {key:"temperature",  label:"Temperature",    type:"number", default:0.7},
+      {key:"maxTokens",    label:"Max Tokens",     type:"number", default:700},
+      {key:"infinityDialogue", label:"Infinity Dialogue", type:"bool", default:false},
+      {key:"maxTurns",     label:"Max Turns Safety", type:"number", default:20}
+    ],
+    compile:(n,i)=>{
+      const asBool = (value) => {
+        if (typeof value === "boolean") return value;
+        if (typeof value === "number") return value !== 0;
+        const s = String(value ?? "").trim().toLowerCase();
+        return ["1", "true", "yes", "on"].includes(s);
+      };
+      const cfg = {
+        url:              i.url              ?? n.data.url              ?? "",
+        apiKey:           i.apiKey           ?? n.data.apiKey           ?? "",
+        apiKeySetting:    n.data.apiKeySetting ?? "",
+        model:            i.model            ?? n.data.model            ?? "",
+        systemPrompt:     i.systemPrompt     ?? n.data.systemPrompt     ?? "",
+        prompt:           i.prompt           ?? n.data.prompt           ?? "",
+        aiResponse:       i.aiResponse       ?? n.data.aiResponse       ?? "",
+        choiceCount:      i.choiceCount      ?? n.data.choiceCount      ?? 3,
+        temperature:      i.temperature      ?? n.data.temperature      ?? 0.7,
+        maxTokens:        i.maxTokens        ?? n.data.maxTokens        ?? 700,
+        infinityDialogue: asBool(n.data.infinityDialogue),
+        maxTurns:         i.maxTurns         ?? n.data.maxTurns         ?? 20
+      };
+      const json = JSON.stringify(cfg);
+      let b64 = "";
+      try { b64 = btoa(unescape(encodeURIComponent(json))); }
+      catch {
+        try { b64 = Buffer.from(json, "utf8").toString("base64"); } catch { b64 = ""; }
+      }
+      return `{__sdAiDialogueChoices:${b64}}`;
+    }
+  },
+
+  act_ai_memory_update: {
+    title:"AI Memory Update", color:"#4a4a8a", cat:"AI", wideNode:true,
+    desc:"Stores character memories. In Analyze mode it asks the default AI provider to extract durable memories from dialogue/context and adds them to the actor prompt. In Add mode it stores Memory Text directly. Provider fields are optional; blank values use AI Settings.",
+    inputs:[
+      {id:"exec",       label:"",            type:"exec"},
+      {id:"context",    label:"Context",     type:"value.string"},
+      {id:"memoryText", label:"Memory Text", type:"value.string"}
+    ],
+    outputs:[
+      {id:"exec",        label:"Done ->", type:"exec"},
+      {id:"error",       label:"Error ->", type:"exec"},
+      {id:"memoryCount", label:"Count",    type:"value.number"},
+      {id:"errorMsg",    label:"Error",    type:"value.string"}
+    ],
+    fields:[
+      {key:"mode",       label:"Mode",        type:"select", default:"analyze", options:[{value:"analyze",label:"Analyze dialogue"},{value:"add",label:"Add memory text"}]},
+      {key:"context",    label:"Context",     type:"textarea", default:"", rows:3, placeholder:"Blank = dialogue history and last AI response"},
+      {key:"memoryText", label:"Memory Text", type:"textarea", default:"", rows:2, placeholder:"Direct memory, or extra note for analysis"},
+      {key:"source",     label:"Source",      type:"text",     default:"AI Memory"},
+      {key:"url",        label:"URL",         type:"text",     default:"", placeholder:"Blank = AI Settings provider"},
+      {key:"apiKey",     label:"API Key",     type:"text",     default:""},
+      {key:"apiKeySetting", label:"API key setting (world)", type:"text", default:""},
+      {key:"model",      label:"Model",       type:"text",     default:"", placeholder:"Blank = AI Settings model"},
+      {key:"temperature",label:"Temperature", type:"number",   default:""},
+      {key:"maxTokens",  label:"Max Tokens",  type:"number",   default:""}
+    ],
+    isAiBranch:true,
+    toAction:(n,inp)=>({
+      type:"aiMemoryUpdate",
+      mode: n.data.mode ?? "analyze",
+      context: inp.context ?? n.data.context ?? "",
+      memoryText: inp.memoryText ?? n.data.memoryText ?? "",
+      source: n.data.source ?? "AI Memory",
+      url: inp.url ?? n.data.url ?? "",
+      apiKey: inp.apiKey ?? n.data.apiKey ?? "",
+      apiKeySetting: n.data.apiKeySetting ?? "",
+      model: inp.model ?? n.data.model ?? "",
+      temperature: (inp.temperature != null && inp.temperature !== "") ? Number(inp.temperature) : n.data.temperature,
+      maxTokens: (inp.maxTokens != null && inp.maxTokens !== "") ? Number(inp.maxTokens) : n.data.maxTokens
     })
   },
 
@@ -5988,11 +6085,71 @@ export const NODE_DEFS = {
   get_self_uuid: {
     title:"Get Object Self UUID", color:"#1a4060", cat:"Sources",
     isInteractableOnly:true,
-    desc:"Returns the UUID of the scene placeable (Tile / Wall / Light / Token / Note) this Interactable Button is attached to. Only available in Interactable button graphs.",
+    desc:"Returns the UUID of the scene placeable (Tile / Wall / Light / Token / Note / Token for Actor interactions) this Interactable Button is attached to. Only available in Interactable button graphs.",
     inputs:[],
     outputs:[{id:"v", label:"UUID", type:"value.string"}],
     fields:[],
     compile:(n)=>`{__sdSelfUuid}`
+  },
+
+  get_interactable_actor_uuid: {
+    title:"Get Interactable Actor UUID", color:"#1a4060", cat:"Sources",
+    isInteractableOnly:true,
+    desc:"Returns the Actor UUID behind the current interactable, when the interaction is configured on an Actor or attached to a Token with an actor.",
+    inputs:[],
+    outputs:[{id:"v", label:"Actor UUID", type:"value.string"}],
+    fields:[],
+    compile:()=>`{__sdInteractableActorUuid}`
+  },
+
+  get_interactable_config_uuid: {
+    title:"Get Interactable Config UUID", color:"#1a4060", cat:"Sources",
+    isInteractableOnly:true,
+    desc:"Returns the UUID of the document that owns this interactable configuration. For character interactions this is the Actor; for tile/token interactions it is the placeable document.",
+    inputs:[],
+    outputs:[{id:"v", label:"Config UUID", type:"value.string"}],
+    fields:[],
+    compile:()=>`{__sdInteractableConfigUuid}`
+  },
+
+  get_actor_name: {
+    title:"Get Actor Name", color:"#1a4060", cat:"Sources",
+    isInteractableOnly:true,
+    desc:"Returns the name of the Actor behind the current interactable target.",
+    inputs:[],
+    outputs:[{id:"v", label:"Actor Name", type:"value.string"}],
+    fields:[],
+    compile:()=>`{__sdInteractableActorName}`
+  },
+
+  get_token_name: {
+    title:"Get Token Name", color:"#1a4060", cat:"Sources",
+    isInteractableOnly:true,
+    desc:"Returns the name of the Token the current interactable is shown on.",
+    inputs:[],
+    outputs:[{id:"v", label:"Token Name", type:"value.string"}],
+    fields:[],
+    compile:()=>`{__sdInteractableTokenName}`
+  },
+
+  get_actor_portrait: {
+    title:"Get Actor Portrait", color:"#1a4060", cat:"Sources",
+    isInteractableOnly:true,
+    desc:"Returns the Actor portrait image path from the current interactable target.",
+    inputs:[],
+    outputs:[{id:"v", label:"Portrait", type:"value.string"}],
+    fields:[],
+    compile:()=>`{__sdInteractableActorPortrait}`
+  },
+
+  get_actor_token_image: {
+    title:"Get Actor Token Image", color:"#1a4060", cat:"Sources",
+    isInteractableOnly:true,
+    desc:"Returns the token texture image path for the Token the current interactable is shown on.",
+    inputs:[],
+    outputs:[{id:"v", label:"Token Image", type:"value.string"}],
+    fields:[],
+    compile:()=>`{__sdInteractableTokenImage}`
   },
 
   act_set_tile_image: {
@@ -6429,6 +6586,161 @@ export const NODE_DEFS = {
 };
 
 (() => {
+  const MAX_EL = 8;
+  const TYPE_OPTS = [
+    { value: "button",   label: "Choice button" },
+    { value: "label",    label: "Narration line" },
+    { value: "section",  label: "Section" },
+    { value: "text",     label: "Text input" },
+    { value: "number",   label: "Number input" },
+    { value: "checkbox", label: "Checkbox" },
+    { value: "select",   label: "Select" }
+  ];
+  const _count = (d) => Math.max(1, Math.min(MAX_EL, parseInt(d?.count) || 1));
+  const _emitOf = (d, i) => {
+    const v = d?.[`el${i}_emit`];
+    if (v === undefined || v === null || v === "") return true;
+    return v === "yes" || v === true;
+  };
+
+  const elFields = [];
+  for (let i = 0; i < MAX_EL; i++) {
+    const _exists  = (d) => _count(d) > i;
+    const _typeOf  = (d) => d?.[`el${i}_type`] ?? (i === 0 ? "button" : "text");
+    const _hasId   = (d) => _exists(d) && !["label","section"].includes(_typeOf(d));
+    const _hasDef  = (d) => _exists(d) && !["label","section","button"].includes(_typeOf(d));
+    const _isSel   = (d) => _exists(d) && _typeOf(d) === "select";
+    const _isBtn   = (d) => _exists(d) && _typeOf(d) === "button";
+    elFields.push(
+      {key:`el${i}_type`,    label:`Element ${i+1} - type`,        type:"select", default: i===0 ? "button" : "text",
+        options: TYPE_OPTS, visibleIf: _exists},
+      {key:`el${i}_id`,      label:`Element ${i+1} - Id (pin)`,    type:"text",   default: i===0 ? "choice1" : `item${i+1}`,
+        placeholder:"unique id, e.g. choice1",                    visibleIf: _hasId},
+      {key:`el${i}_label`,   label:`Element ${i+1} - Label`,       type:"text",   default: i===0 ? "Choice 1" : `Element ${i+1}`,
+        visibleIf: _exists},
+      {key:`el${i}_default`, label:`Element ${i+1} - Default`,     type:"text",   default:"",
+        placeholder:"start value (text/number/select) or 'yes' for checkbox", visibleIf: _hasDef},
+      {key:`el${i}_options`, label:`Element ${i+1} - Options (CSV)`, type:"text", default:"",
+        placeholder:"a,b,c - only for select",                    visibleIf: _isSel},
+      {key:`el${i}_emit`,    label:`Element ${i+1} - Emit exec on click?`, type:"select", default:"yes",
+        options:["yes","no"],                                     visibleIf: _isBtn}
+    );
+  }
+
+  NODE_DEFS.act_dialog_builder = {
+    title:"Dialogue Builder", color:"#a04020", cat:"Flow", wideNode:true,
+    desc:"Build an RPG-style dialogue window or a compact form prompt. Choice buttons expose exec outputs so a selected line can continue into another Dialogue Builder node. Picked is the chosen id; Choice is the shown choice label; element values are available as {__dlg.<id>}.",
+    inputs:[
+      {id:"exec",      label:"",           type:"exec"},
+      {id:"aiChoices", label:"AI Choices", type:"value.any"}
+    ],
+    outputs:[
+      {id:"submit",  label:"Submit ->", type:"exec"},
+      {id:"cancel",  label:"Cancel",    type:"exec"},
+      {id:"picked",  label:"Picked",    type:"value.string"},
+      {id:"choice",  label:"Choice",    type:"value.string"},
+      {id:"history", label:"History",   type:"value.string"}
+    ],
+    fields:[
+      {key:"mode",        label:"Mode",                         type:"select", default:"rpg",
+        options:[{value:"rpg",label:"RPG dialogue"},{value:"form",label:"Form prompt"}]},
+      {key:"title",       label:"Title",                        type:"text",     default:"Dialogue"},
+      {key:"speaker",     label:"Speaker",                      type:"text",     default:""},
+      {key:"portrait",    label:"Portrait image",               type:"text",     default:"", placeholder:"icons/svg/mystery-man.svg or image URL"},
+      {key:"description", label:"Dialogue text / Description",  type:"textarea", default:"", rows:4},
+      {key:"okLabel",     label:"OK label (when no choices)",   type:"text",     default:"Continue"},
+      {key:"cancelLabel", label:"Cancel label",                 type:"text",     default:"Cancel"},
+      {key:"count",       label:"Number of elements (1-8)",     type:"number",   default:1},
+      ...elFields
+    ],
+    isGenericBranch:true,
+    computeDynamicOutputs(node) {
+      const data = node?.data ?? {};
+      const c = _count(data);
+      const dynVals = [];
+      const dynExecs = [];
+      for (let i = 0; i < c; i++) {
+        const t = data[`el${i}_type`] ?? (i === 0 ? "button" : "text");
+        const id = String(data[`el${i}_id`] ?? "").trim();
+        const lbl = String(data[`el${i}_label`] ?? "").trim() || `E${i+1}`;
+        if (id && !["label","section"].includes(t)) {
+          const pinType = t === "checkbox" ? "value.bool"
+                       : t === "number"   ? "value.number"
+                       : "value.string";
+          dynVals.push({ id:`el${i}_val`, label:lbl, type: pinType });
+        }
+        if (t === "button" && _emitOf(data, i)) {
+          dynExecs.push({ id:`el${i}_exec`, label:`${lbl} ->`, type:"exec" });
+        }
+      }
+      return [
+        {id:"submit", label:"Submit ->", type:"exec"},
+        {id:"cancel", label:"Cancel",    type:"exec"},
+        ...dynExecs,
+        {id:"picked", label:"Picked",    type:"value.string"},
+        {id:"choice", label:"Choice",    type:"value.string"},
+        {id:"history", label:"History",  type:"value.string"},
+        ...dynVals
+      ];
+    },
+    dynamicBranchToken(node, fromPin) {
+      if (typeof fromPin !== "string") return null;
+      if (fromPin === "picked") return "{__dlgPicked}";
+      if (fromPin === "choice") return "{__dlgChoice}";
+      if (fromPin === "history") return "{__dlgHistory}";
+      const m = fromPin.match(/^el(\d+)_val$/);
+      if (!m) return null;
+      const i = Number(m[1]);
+      const elId = String(node?.data?.[`el${i}_id`] ?? "").trim();
+      if (!elId) return "0";
+      return `{__dlg.${elId}}`;
+    },
+    toAction(n, inp = {}) {
+      const c = _count(n?.data ?? {});
+      const elements = [];
+      for (let i = 0; i < c; i++) {
+        const t = n.data[`el${i}_type`] ?? (i === 0 ? "button" : "text");
+        const id = String(n.data[`el${i}_id`] ?? "").trim();
+        const lbl = String(n.data[`el${i}_label`] ?? "").trim();
+        const def = n.data[`el${i}_default`] ?? "";
+        const opts = String(n.data[`el${i}_options`] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+        const emit = _emitOf(n.data ?? {}, i);
+        const o = { type: t, label: lbl };
+        if (id) o.id = id;
+        if (t === "select" && opts.length) o.options = opts;
+        if (t === "checkbox") o.default = (def === "yes" || def === "true" || def === true || def === 1 || def === "1");
+        else if (t === "number") {
+          const num = Number(def);
+          o.default = (def === "" || def == null) ? 0 : (Number.isFinite(num) ? num : String(def));
+        }
+        else if (t !== "label" && t !== "section" && t !== "button") o.default = String(def ?? "");
+        if (t === "label" || t === "section") o.text = lbl;
+        if (t === "button") {
+          o.type = "rollButton";
+          o.formula = "0";
+          o.execIndex = i;
+          o.emit = emit;
+          o.icon = "fas fa-comment-dots";
+        }
+        elements.push(o);
+      }
+      return {
+        type:        "dialogBuilder",
+        aiChoices:   inp.aiChoices ?? "",
+        mode:        n.data.mode        ?? "rpg",
+        title:       n.data.title       ?? "Dialogue",
+        speaker:     n.data.speaker     ?? "",
+        portrait:    n.data.portrait    ?? "",
+        description: n.data.description ?? "",
+        okLabel:     n.data.okLabel     ?? "Continue",
+        cancelLabel: n.data.cancelLabel ?? "Cancel",
+        elements
+      };
+    }
+  };
+})();
+
+(() => {
 
   const OUT_OF_SHEET_FIELD = {
     key:     "outOfSheet",
@@ -6447,9 +6759,10 @@ export const NODE_DEFS = {
 (() => {
 
   const _FIELD_PIN_TYPES = {
-    text:   "value.any",
-    number: "value.any",
-    path:   "value.any"
+    text:     "value.any",
+    textarea: "value.any",
+    number:   "value.any",
+    path:     "value.any"
   };
   const PIN_RESERVED = new Set(["exec"]);
 
@@ -6583,8 +6896,9 @@ const BRANCH_PIN_TOKENS = {
   act_throw_on_sheet:  { successes: "{__lastSuccesses}", total: "{__lastRoll}", ..._ROLL_META },
   chat_save_button:    { result: "{__lastRoll}", ..._ROLL_META },
   act_progression:     { value: "{__lastRoll}", previous: "{__progPrev}", ..._ROLL_META },
-  act_dialog_builder:  { picked: "{__dlgPicked}" },
+  act_dialog_builder:  { picked: "{__dlgPicked}", choice: "{__dlgChoice}", history: "{__dlgHistory}" },
   act_ai_request:      { response: "{__lastAiResponse}", errorMsg: "{__lastAiError}" },
+  act_ai_memory_update:{ memoryCount: "{__aiMemoryCount}", errorMsg: "{__lastAiError}" },
   act_loop:            { index: "{__loopIndex}" },
   cast_to_actor:       { actorId: "{__castActorId}" },
   cast_to_item:        { itemId: "{__castItemId}" },
@@ -7678,7 +7992,7 @@ export class FormulaGraph {
         const out = this.nodes.find(n => n.type === "number_output");
         const compilePin = (pin, fallback = "") => {
           if (!out) return fallback;
-          const edge = this.edges.find(e => e.toNode === out.id && e.toPin === pin);
+          const edge = this._incomingEdge(out.id, pin);
           if (!edge) return fallback;
           const src = this.nodes.find(n => n.id === edge.fromNode);
           return src ? this._compileValue(src, new Set(), edge.fromPin) : fallback;
@@ -7711,7 +8025,7 @@ export class FormulaGraph {
         const def = NODE_DEFS[cfgNode.type];
         const compiledIns = {};
         for (const pin of (def.inputs ?? [])) {
-          const e = this.edges.find(e=>e.toNode===cfgNode.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(cfgNode.id, pin.id);
           if (e) {
             const src = this.nodes.find(n=>n.id===e.fromNode);
             if (src) compiledIns[pin.id] = this._compileValue(src, new Set(), e.fromPin);
@@ -7760,7 +8074,7 @@ export class FormulaGraph {
           const attrOut = this.nodes.find(n => n.type === "attr_output");
           let modValueFormula = null;
           if (attrOut) {
-            const mvEdge = this.edges.find(e => e.toNode === attrOut.id && e.toPin === "modValue");
+            const mvEdge = this._incomingEdge(attrOut.id, "modValue");
             const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
             modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
           }
@@ -7774,7 +8088,7 @@ export class FormulaGraph {
           if (this.widget?.type === "attribute") {
             const attrOut = this.nodes.find(n => n.type === "attr_output");
             if (attrOut) {
-              const mvEdge = this.edges.find(e => e.toNode === attrOut.id && e.toPin === "modValue");
+              const mvEdge = this._incomingEdge(attrOut.id, "modValue");
               const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
               widget.modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
             }
@@ -7786,7 +8100,7 @@ export class FormulaGraph {
           } else if (this.widget?.type === "skill") {
             const sklOut = this.nodes.find(n => n.type === "skill_output");
             if (sklOut) {
-              const mvEdge = this.edges.find(e => e.toNode === sklOut.id && e.toPin === "modValue");
+              const mvEdge = this._incomingEdge(sklOut.id, "modValue");
               const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
               widget.modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
             }
@@ -7921,7 +8235,7 @@ export class FormulaGraph {
   compile() {
     const valOut = this.nodes.find(n=>n.type==="attr_output" || n.type==="skill_output");
     if (valOut) {
-      const mvEdge = this.edges.find(e=>e.toNode===valOut.id&&e.toPin==="modValue");
+      const mvEdge = this._incomingEdge(valOut.id, "modValue");
       if (mvEdge) {
         const modSrc = this.nodes.find(n=>n.id===mvEdge.fromNode);
         if (modSrc) return this._compileValue(modSrc, new Set(), mvEdge.fromPin);
@@ -7931,7 +8245,7 @@ export class FormulaGraph {
 
     const initOut = this.nodes.find(n=>n.type==="init_output");
     if (initOut) {
-      const vEdge = this.edges.find(e=>e.toNode===initOut.id&&e.toPin==="value");
+      const vEdge = this._incomingEdge(initOut.id, "value");
       if (vEdge) {
         const src = this.nodes.find(n=>n.id===vEdge.fromNode);
         return src ? this._compileValue(src, new Set(), vEdge.fromPin) : "0";
@@ -7942,7 +8256,7 @@ export class FormulaGraph {
     const numberOut = this.nodes.find(n=>n.type==="number_output");
     if (numberOut) {
       const compilePin = (pin, fallback = "") => {
-        const edge = this.edges.find(e=>e.toNode===numberOut.id&&e.toPin===pin);
+        const edge = this._incomingEdge(numberOut.id, pin);
         if (!edge) return fallback;
         const src = this.nodes.find(n=>n.id===edge.fromNode);
         return src ? this._compileValue(src, new Set(), edge.fromPin) : fallback;
@@ -8023,7 +8337,7 @@ export class FormulaGraph {
 
     const out = this.nodes.find(n=>n.type==="output");
     if (!out) return "0";
-    const vEdge = this.edges.find(e=>e.toNode===out.id&&e.toPin==="value");
+    const vEdge = this._incomingEdge(out.id, "value");
     if (vEdge) {
       const src = this.nodes.find(n=>n.id===vEdge.fromNode);
       return src ? this._compileValue(src,new Set(),vEdge.fromPin) : "0";
@@ -8079,7 +8393,7 @@ export class FormulaGraph {
     const ins = {};
     for (const pin of (def.inputs??[])) {
       if (pin.type==="exec") continue;
-      const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+      const e = this._incomingEdge(node.id, pin.id);
       if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,v2,e.fromPin); }
     }
     if (def.dynamicPins) {
@@ -8088,7 +8402,7 @@ export class FormulaGraph {
         const {base, max} = grp;
         for (let i=0;i<max;i++) {
           const pinId=`${base}${i}`;
-          const e=this.edges.find(e=>e.toNode===node.id&&e.toPin===pinId);
+          const e=this._incomingEdge(node.id, pinId);
           if(e){ const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pinId]=this._compileValue(s,v2,e.fromPin); }
         }
       }
@@ -8102,7 +8416,9 @@ export class FormulaGraph {
     let current = nodeId;
     while (current && !visited.has(current)) {
       visited.add(current);
-      const prevEdge = this.edges.find(e => e.toNode === current && e.toPin === "exec");
+      const prevEdges = this._incomingEdges(current, "exec");
+      if (prevEdges.length !== 1) break;
+      const prevEdge = prevEdges[0];
       if (!prevEdge) break;
       const prevNode = this.nodes.find(n => n.id === prevEdge.fromNode);
       if (!prevNode) break;
@@ -8133,7 +8449,7 @@ export class FormulaGraph {
       }
 
       if (def.isBranch) {
-        const condEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="cond");
+        const condEdge = this._incomingEdge(node.id, "cond");
         const condNode = condEdge ? this.nodes.find(n=>n.id===condEdge.fromNode) : null;
         const cond     = condNode ? this._compileValue(condNode,new Set(),condEdge.fromPin) : "1";
 
@@ -8152,7 +8468,7 @@ export class FormulaGraph {
       }
 
       if (def.isSwitch) {
-        const valEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="value");
+        const valEdge = this._incomingEdge(node.id, "value");
         const valNode = valEdge ? this.nodes.find(n=>n.id===valEdge.fromNode) : null;
         const value   = valNode ? this._compileValue(valNode, new Set(), valEdge.fromPin) : (node.data?.value ?? "0");
 
@@ -8176,7 +8492,7 @@ export class FormulaGraph {
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         const loopEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="loop");
@@ -8198,7 +8514,7 @@ export class FormulaGraph {
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if (s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         const act = def.toAction?.(node, ins) ?? {};
@@ -8218,7 +8534,7 @@ export class FormulaGraph {
         const pInp = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) pInp[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         const hiEdge  = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="higher");
@@ -8244,7 +8560,7 @@ export class FormulaGraph {
         const saveInp = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) saveInp[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         const act = def.toAction?.(node, saveInp) ?? {};
@@ -8260,7 +8576,7 @@ export class FormulaGraph {
         const saveInp = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) saveInp[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
 
@@ -8289,7 +8605,7 @@ export class FormulaGraph {
       }
 
       if (def.isConsumeSlot) {
-        const levelEdge = this.edges.find(e=>e.toNode===node.id&&e.toPin==="level");
+        const levelEdge = this._incomingEdge(node.id, "level");
         const levelNode = levelEdge ? this.nodes.find(n=>n.id===levelEdge.fromNode) : null;
         const levelVal  = levelNode ? this._compileValue(levelNode, new Set(), levelEdge.fromPin) : null;
 
@@ -8313,7 +8629,7 @@ export class FormulaGraph {
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
 
@@ -8337,7 +8653,7 @@ export class FormulaGraph {
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
 
@@ -8361,7 +8677,7 @@ export class FormulaGraph {
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         const act = def.toAction?.(node, ins) ?? {};
@@ -8384,7 +8700,7 @@ export class FormulaGraph {
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         const act = def.toAction?.(node, ins) ?? {};
@@ -8407,7 +8723,7 @@ export class FormulaGraph {
         const ins = {};
         for (const pin of (def.inputs ?? [])) {
           if (pin.type === "exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         const act = def.toAction?.(node, ins) ?? {};
@@ -8430,7 +8746,7 @@ export class FormulaGraph {
         const ins = {};
         for (const pin of (def.inputs??[])) {
           if (pin.type==="exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         const act = def.toAction?.(node, ins) ?? {};
@@ -8473,7 +8789,7 @@ export class FormulaGraph {
         const ins = {};
         for (const pin of (def.inputs??[])) {
           if (pin.type==="exec") continue;
-          const e = this.edges.find(e=>e.toNode===node.id&&e.toPin===pin.id);
+          const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
         }
         if (def.dynamicPins) {
@@ -8482,7 +8798,7 @@ export class FormulaGraph {
             const {base, max} = grp;
             for(let i=0;i<max;i++){
               const pinId=`${base}${i}`;
-              const e=this.edges.find(e=>e.toNode===node.id&&e.toPin===pinId);
+              const e=this._incomingEdge(node.id, pinId);
               if(e){ const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pinId]=this._compileValue(s,new Set(),e.fromPin); }
             }
           }
@@ -8726,7 +9042,7 @@ export class FormulaGraph {
             <button id="gfit" title="Fit view">Fit</button>
           </div>
           <div style="position:absolute;bottom:12px;left:12px;font-size:9px;color:var(--sd-text-3);pointer-events:none">
-            RMB/Space+drag: pan - Scroll: zoom - Drag header: move node - Shift+Click: multi-select - Shift+Drag: marquee - Ctrl+Drag: comment box - Backspace: delete selection - Output->Input: connect - Dbl-click edge: delete
+            RMB/Space+drag: pan - Scroll: zoom - Drag header: move node - Shift+Click: multi-select - Shift+Drag: marquee - Ctrl+Drag: comment box - Backspace: delete selection - Output->Input: connect (multi-input allowed) - Dbl-click edge: delete
           </div>
           <div id="gmode-badge" style="position:absolute;top:10px;left:10px;font-size:10px;padding:4px 10px;border-radius:8px;pointer-events:none;border:1px solid var(--sd-border);background:var(--sd-bg-2);display:none;color:var(--sd-text-2)"></div>
         </div>
@@ -9370,7 +9686,7 @@ export class FormulaGraph {
   _migrateSkillGraph() {
     if (!this.nodes.find(n => n.type === "skill_output")) {
       const oldOut = this.nodes.find(n => n.type === "output");
-      const valEdge = oldOut ? this.edges.find(e => e.toNode === oldOut.id && e.toPin === "value") : null;
+      const valEdge = oldOut ? this._incomingEdge(oldOut.id, "value") : null;
       this.nodes = this.nodes.filter(n => n.type !== "output");
       this.edges = this.edges.filter(e => e.toNode !== (oldOut?.id ?? "__none__") && e.fromNode !== (oldOut?.id ?? "__none__"));
       this.nodes.push({ id:"skill_output", type:"skill_output", x: oldOut?.x ?? 500, y: oldOut?.y ?? 240, data:{} });
@@ -9447,11 +9763,13 @@ export class FormulaGraph {
 
   _addEdge(fn,fp,tn,tp) {
     if(fn===tn) return;
-    const displaced = this.edges.filter(e=>e.toNode===tn&&e.toPin===tp);
-    this.edges=this.edges.filter(e=>!(e.toNode===tn&&e.toPin===tp));
+    const exists = this.edges.some(e =>
+      e.fromNode === fn && e.fromPin === fp &&
+      e.toNode === tn && e.toPin === tp
+    );
+    if (exists) return;
     this.edges.push({id:`e${uid()}`,fromNode:fn,fromPin:fp,toNode:tn,toPin:tp});
     const touched = new Set([fn, tn]);
-    for (const d of displaced) touched.add(d.fromNode);
     for (const id of touched) {
       const n = this.nodes.find(x => x.id === id);
       if (n) this._renderNode(n);
@@ -9471,6 +9789,15 @@ export class FormulaGraph {
     }
     this._scheduleEdges?.();
     this._pushHistory();
+  }
+
+  _incomingEdges(nodeId, pinId) {
+    return this.edges.filter(e => e.toNode === nodeId && e.toPin === pinId);
+  }
+
+  _incomingEdge(nodeId, pinId) {
+    const edges = this._incomingEdges(nodeId, pinId);
+    return edges.length ? edges[edges.length - 1] : null;
   }
 
   _renderAll() {
@@ -10280,7 +10607,13 @@ export class FormulaGraph {
       inp=document.createElement("input");
       inp.type="checkbox";
       const curB = node.data[field.key];
-      inp.checked = (curB === undefined || curB === null) ? !!field.default : !!curB;
+      const asBool = (value) => {
+        if (typeof value === "boolean") return value;
+        if (typeof value === "number") return value !== 0;
+        const s = String(value ?? "").trim().toLowerCase();
+        return ["1", "true", "yes", "on"].includes(s);
+      };
+      inp.checked = (curB === undefined || curB === null) ? asBool(field.default) : asBool(curB);
       inp.style.cssText = "width:16px;height:16px;cursor:pointer;accent-color:var(--sd-accent);margin:0;flex-shrink:0";
       inp.dataset.fieldType=field.type;
       inp.addEventListener("mousedown",ev=>ev.stopPropagation());
@@ -10729,7 +11062,7 @@ export class FormulaGraph {
 
     const outerWires = {};
     for (const p of (fn.inputs ?? [])) {
-      const e = this.edges.find(e => e.toNode === callNode.id && e.toPin === p.id);
+      const e = this._incomingEdge(callNode.id, p.id);
       if (e) {
         const src = this.nodes.find(n => n.id === e.fromNode);
         if (src) outerWires[p.id] = this._compileValue(src, new Set(), e.fromPin);
@@ -10750,7 +11083,7 @@ export class FormulaGraph {
     try {
       const outNode = this.nodes.find(n => n.type === "func_outputs");
       if (outNode) {
-        const e = this.edges.find(e => e.toNode === outNode.id && e.toPin === fromPin);
+        const e = this._incomingEdge(outNode.id, fromPin);
         if (e) {
           const src = this.nodes.find(n => n.id === e.fromNode);
           if (src) result = this._compileValue(src, new Set(), e.fromPin);
@@ -10783,7 +11116,7 @@ export class FormulaGraph {
     const outerWires = {};
     for (const p of (fn.inputs ?? [])) {
       if (p.type === "exec") continue;
-      const e = this.edges.find(e => e.toNode === callNode.id && e.toPin === p.id);
+      const e = this._incomingEdge(callNode.id, p.id);
       if (e) {
         const src = this.nodes.find(n => n.id === e.fromNode);
         if (src) outerWires[p.id] = this._compileValue(src, new Set(), e.fromPin);

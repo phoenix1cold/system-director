@@ -228,6 +228,26 @@ Hooks.once("init", () => {
     }
   });
 
+  game.settings.register("sd", "aiSettings", {
+    name:    "AI Settings",
+    scope:   "world",
+    config:  false,
+    type:    Object,
+    default: {
+      worldKnowledge: "",
+      worldEvents: [],
+      provider: {
+        url: "",
+        apiKey: "",
+        apiKeySetting: "",
+        model: "",
+        temperature: 0.7,
+        maxTokens: 700,
+        systemPrompt: ""
+      }
+    }
+  });
+
   game.settings.register("sd", "sheetTemplates", {
     name:    "Sheet Templates",
     scope:   "world",

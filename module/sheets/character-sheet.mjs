@@ -98,6 +98,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       controls: [
         { icon: "fas fa-toolbox",     label: "Sheet Builder",    action: "openBuilder"      },
         { icon: "fas fa-bolt",        label: "Sheet Triggers",   action: "openSheetTriggers"},
+        { icon: "fas fa-hand-sparkles", label: "Interactions",   action: "openInteractions" },
+        { icon: "fas fa-brain",       label: "AI Bio",           action: "openAIBio"        },
         { icon: "fas fa-pen-ruler",   label: "Toggle Edit Mode", action: "toggleEditMode"   }
       ]
     },
@@ -108,6 +110,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       openTrade:         CharacterSheet._onOpenTrade,
       openBuilder:       CharacterSheet._onOpenBuilder,
       openSheetTriggers: CharacterSheet._onOpenSheetTriggers,
+      openInteractions:  CharacterSheet._onOpenInteractions,
+      openAIBio:         CharacterSheet._onOpenAIBio,
       toggleEditMode:    CharacterSheet._onToggleEditMode
     },
     form: { submitOnChange: true }
@@ -2587,6 +2591,16 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const graph = new FormulaGraph(null, this.document, null, null, null,
       { mode: "sheetTrigger" });
     graph.open();
+  }
+
+  static async _onOpenInteractions(event, target) {
+    const { openInteractablesEditor } = await import("../helpers/interactables.mjs");
+    openInteractablesEditor(this.document);
+  }
+
+  static async _onOpenAIBio(event, target) {
+    const { openActorAIBioDialog } = await import("../helpers/ai-context.mjs");
+    await openActorAIBioDialog(this.document);
   }
 
   static async _onToggleEditMode(event, target) {

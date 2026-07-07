@@ -2,6 +2,14 @@ import { SlotManager } from "../data/item-slots.mjs";
 import { formulaBounds, doubleDice, leadingD20Natural } from "../builder/formula-utils.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { durationForRounds } from "./effect-duration.mjs";
+import { SDDialogueBuilder } from "./dialogue-builder.mjs";
+import {
+  addActorAIInteraction,
+  addActorAIMemory,
+  buildAIDialogueContext,
+  getAIProviderConfig,
+  requestAIChat
+} from "./ai-context.mjs";
 
 function _writeRollMeta(buttonDef, {
   roll, formula,
@@ -66,6 +74,183 @@ function _sdMsgMode() {
   } catch {}
   try { return game.settings.get("core", "rollMode"); } catch {}
   return "publicroll";
+}
+
+const SD_AI_DIALOGUE_MARKER = "{__sdAiDialogueChoices:";
+
+function _sdStripQuotedString(value) {
+  if (typeof value !== "string") return value;
+  const s = value.trim();
+  if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
+    try {
+      const parsed = JSON.parse(s);
+      if (typeof parsed === "string") return parsed;
+    } catch { return s.slice(1, -1); }
+  }
+  return value;
+}
+
+function _sdDecodeB64(value) {
+  try {
+    const bin = (typeof atob === "function")
+      ? atob(value)
+      : Buffer.from(value, "base64").toString("binary");
+    try { return decodeURIComponent(escape(bin)); }
+    catch { return bin; }
+  } catch { return ""; }
+}
+
+function _sdParseAiDialogueConfig(raw) {
+  if (raw == null || raw === "") return null;
+  let s = String(_sdStripQuotedString(String(raw))).trim();
+  if (!s) return null;
+  if (s.startsWith(SD_AI_DIALOGUE_MARKER) && s.endsWith("}")) {
+    const b64 = s.slice(SD_AI_DIALOGUE_MARKER.length, -1);
+    try {
+      const cfg = JSON.parse(_sdDecodeB64(b64));
+      return cfg && typeof cfg === "object" ? cfg : null;
+    } catch (e) {
+      console.warn("SD | AI Dialogue Choices config decode failed:", e);
+      return null;
+    }
+  }
+  try {
+    const cfg = JSON.parse(s);
+    return cfg && typeof cfg === "object" ? cfg : null;
+  } catch { return null; }
+}
+
+function _sdCleanAiJsonText(text) {
+  let s = String(text ?? "").trim();
+  const fence = s.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence) s = fence[1].trim();
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  if (first >= 0 && last > first) return s.slice(first, last + 1);
+  return s;
+}
+
+function _sdParseAiDialogueResponse(text, fallbackCount = 3) {
+  const raw = String(text ?? "").trim();
+  const max = Math.max(1, Math.min(12, Number(fallbackCount) || 3));
+  let payload = null;
+  try { payload = JSON.parse(_sdCleanAiJsonText(raw)); } catch { payload = null; }
+
+  if (payload && typeof payload === "object") {
+    let choices = payload.choices ?? payload.answers ?? payload.responses ?? payload.options ?? [];
+    if (!Array.isArray(choices)) choices = [];
+    choices = choices.map((c, i) => {
+      if (c && typeof c === "object") {
+        return {
+          id: String(c.id ?? `ai${i + 1}`),
+          label: String(c.label ?? c.text ?? c.answer ?? c.choice ?? c.value ?? `Choice ${i + 1}`),
+          hint: String(c.hint ?? c.description ?? "")
+        };
+      }
+      return { id: `ai${i + 1}`, label: String(c ?? `Choice ${i + 1}`), hint: "" };
+    }).filter(c => c.label.trim() !== "");
+    const requested = Number(payload.count ?? choices.length ?? max);
+    const count = Math.max(1, Math.min(12, Number.isFinite(requested) ? requested : max));
+    choices = choices.slice(0, count);
+    return {
+      dialogueText: String(payload.dialogueText ?? payload.text ?? payload.npc ?? payload.response ?? payload.message ?? ""),
+      choices,
+      continueDialogue: payload.continue ?? payload.continueDialogue ?? payload.infinity ?? (choices.length > 0),
+      raw
+    };
+  }
+
+  const lines = raw.split(/\r?\n/)
+    .map(line => line.trim())
+    .map(line => line.replace(/^\s*(?:[-*]|\d+[\).\]:-])\s*/, "").trim())
+    .filter(Boolean);
+  const choices = lines.slice(0, max).map((label, i) => ({ id: `ai${i + 1}`, label, hint: "" }));
+  return {
+    dialogueText: choices.length ? "" : raw,
+    choices,
+    continueDialogue: choices.length > 0,
+    raw
+  };
+}
+
+async function _sdRequestAiDialogueChoices(cfg, {
+  baseText = "",
+  latestAiText = "",
+  history = [],
+  selectedChoice = "",
+  actor = null,
+  item = null,
+  speaker = "",
+  resolveText = (s) => s
+} = {}) {
+  const run = (value) => {
+    let s = String(_sdStripQuotedString(String(value ?? "")));
+    try { s = String(resolveText(s)); } catch {}
+    return s;
+  };
+
+  const provider = getAIProviderConfig({
+    url: run(cfg.url || ""),
+    apiKey: run(cfg.apiKey || ""),
+    apiKeySetting: run(cfg.apiKeySetting || ""),
+    model: run(cfg.model || ""),
+    temperature: cfg.temperature,
+    maxTokens: cfg.maxTokens
+  });
+  const count = Math.max(1, Math.min(12, Number(run(cfg.choiceCount ?? cfg.count ?? 3)) || 3));
+
+  const historyText = history.length
+    ? history.map((h, i) => {
+        const npc = h.ai ? `AI/NPC: ${h.ai}` : "";
+        const user = h.user ? `Player: ${h.user}` : "";
+        return `${i + 1}. ${[npc, user].filter(Boolean).join("\n")}`;
+      }).join("\n\n")
+    : "(empty)";
+  const userInstruction = run(cfg.prompt || "");
+  const aiContext = buildAIDialogueContext({
+    actor,
+    item,
+    speaker: run(speaker || "")
+  });
+  const systemPrompt = [
+    aiContext,
+    run(cfg.systemPrompt || "You generate RPG dialogue choices for a Foundry VTT dialogue window."),
+    "Return JSON only. No markdown.",
+    "JSON schema: {\"dialogueText\":\"NPC or AI line shown in the dialogue window\",\"count\":3,\"choices\":[{\"id\":\"choice1\",\"label\":\"player response text\",\"hint\":\"optional short hint\"}],\"continue\":true}.",
+    "The count must match the number of choices. If the conversation should end, return choices: [] and continue: false.",
+    `Generate around ${count} concise player response choices unless the scene clearly needs fewer.`
+  ].filter(Boolean).join("\n");
+  const prompt = [
+    userInstruction,
+    "Current Dialogue Text / Description:",
+    baseText || "(empty)",
+    latestAiText ? `Latest AI/NPC response:\n${latestAiText}` : "",
+    selectedChoice ? `Latest player choice:\n${selectedChoice}` : "",
+    "Dialogue history:",
+    historyText
+  ].filter(Boolean).join("\n\n");
+
+  const text = await requestAIChat({ provider, systemPrompt, prompt, json: true });
+  return _sdParseAiDialogueResponse(text, count);
+}
+
+function _sdApplyAiDialogueChoices(action, aiResult) {
+  const baseElements = (Array.isArray(action.elements) ? action.elements : [])
+    .filter(el => el && !["button", "choice", "rollButton"].includes(String(el.type ?? "")));
+  const choices = (aiResult?.choices ?? []).map((choice, i) => ({
+    type: "rollButton",
+    id: String(choice.id ?? `ai${i + 1}`),
+    label: String(choice.label ?? `Choice ${i + 1}`),
+    hint: String(choice.hint ?? ""),
+    icon: "fas fa-comment-dots",
+    emit: false
+  }));
+  return {
+    ...action,
+    description: aiResult?.dialogueText || action.description || "",
+    elements: [...baseElements, ...choices],
+    okLabel: choices.length ? (action.okLabel ?? "Continue") : "Continue"
+  };
 }
 
 const { StringField, NumberField, BooleanField, ArrayField, ObjectField, SchemaField } = foundry.data.fields;
@@ -534,6 +719,24 @@ export class ButtonExecutor {
       if (buttonDef?.__placeableUuid !== undefined) {
         formula = formula.replace(/\{__sdSelfUuid\}/g, String(buttonDef.__placeableUuid));
       }
+      if (buttonDef?.__interactableConfigUuid !== undefined) {
+        formula = formula.replace(/\{__sdInteractableConfigUuid\}/g, String(buttonDef.__interactableConfigUuid));
+      }
+      if (buttonDef?.__interactableActorUuid !== undefined) {
+        formula = formula.replace(/\{__sdInteractableActorUuid\}/g, String(buttonDef.__interactableActorUuid));
+      }
+      if (buttonDef?.__interactableActorName !== undefined) {
+        formula = formula.replace(/\{__sdInteractableActorName\}/g, String(buttonDef.__interactableActorName));
+      }
+      if (buttonDef?.__interactableTokenName !== undefined) {
+        formula = formula.replace(/\{__sdInteractableTokenName\}/g, String(buttonDef.__interactableTokenName));
+      }
+      if (buttonDef?.__interactableActorPortrait !== undefined) {
+        formula = formula.replace(/\{__sdInteractableActorPortrait\}/g, String(buttonDef.__interactableActorPortrait));
+      }
+      if (buttonDef?.__interactableTokenImage !== undefined) {
+        formula = formula.replace(/\{__sdInteractableTokenImage\}/g, String(buttonDef.__interactableTokenImage));
+      }
       if (buttonDef?.__lastRoll !== undefined) {
         formula = formula.replace(/\{__lastRoll\}/g, String(buttonDef.__lastRoll));
       }
@@ -580,9 +783,23 @@ export class ButtonExecutor {
       if (buttonDef?.__dlgPicked !== undefined) {
         formula = formula.replace(/\{__dlgPicked\}/g, String(buttonDef.__dlgPicked));
       }
-      if (buttonDef?.__dlgState && typeof buttonDef.__dlgState === "object") {
+      if (buttonDef?.__dlgChoice !== undefined) {
+        formula = formula.replace(/\{__dlgChoice\}/g, String(buttonDef.__dlgChoice));
+      }
+      if (buttonDef?.__dlgHistory !== undefined) {
+        formula = formula.replace(/\{__dlgHistory\}/g, String(buttonDef.__dlgHistory));
+      }
+      if (formula.includes("{__dlg.")) {
         formula = formula.replace(/\{__dlg\.([A-Za-z_][\w]*)\}/g, (_m, id) => {
-          const v = buttonDef.__dlgState[id];
+          const state = (buttonDef?.__dlgState && typeof buttonDef.__dlgState === "object")
+            ? buttonDef.__dlgState
+            : {};
+          const v = state[id];
+          if ((v === undefined || v === null) && id === String(buttonDef?.__dlgPicked ?? "")) {
+            return String(buttonDef?.__dlgChoice ?? "");
+          }
+          if ((v === undefined || v === null) && id === "choice") return String(buttonDef?.__dlgChoice ?? "");
+          if ((v === undefined || v === null) && id === "picked") return String(buttonDef?.__dlgPicked ?? "");
           if (v === undefined || v === null) return "";
           if (typeof v === "boolean") return v ? "1" : "0";
           return String(v);
@@ -618,6 +835,9 @@ export class ButtonExecutor {
       }
       if (runtime.__lastAiError !== undefined) {
         formula = formula.replace(/\{__lastAiError\}/g, String(runtime.__lastAiError));
+      }
+      if (runtime.__aiMemoryCount !== undefined) {
+        formula = formula.replace(/\{__aiMemoryCount\}/g, String(runtime.__aiMemoryCount));
       }
       if (runtime.__loopIndex !== undefined) {
         formula = formula.replace(/\{__loopIndex\}/g, String(runtime.__loopIndex));
@@ -3826,6 +4046,159 @@ export class ButtonExecutor {
       }
 
       case "dialogBuilder": {
+        try {
+          const dialogCtx = {
+            item,
+            actor,
+            buttonDef,
+            runtime,
+            resolveText: _injectRuntime
+          };
+          const aiCfg = _sdParseAiDialogueConfig(action.aiChoices);
+
+          if (aiCfg) {
+            const infinity = aiCfg.infinityDialogue === true
+              || aiCfg.infinityDialogue === "yes"
+              || aiCfg.infinityDialogue === "true"
+              || aiCfg.infinity === true
+              || aiCfg.infinity === "yes";
+            const maxTurns = Math.max(1, Math.min(50, Number(aiCfg.maxTurns ?? 20) || 20));
+            const history = [];
+            let latestAiText = runtime.__lastAiResponse ?? "";
+            const seededAiText = String(_sdStripQuotedString(_injectRuntime(String(aiCfg.aiResponse ?? aiCfg.aiText ?? "")))).trim();
+            if (seededAiText) latestAiText = seededAiText;
+            let selectedChoice = "";
+            let finalResult = null;
+            let cancelled = false;
+
+            for (let turn = 0; turn < (infinity ? maxTurns : 1); turn++) {
+              let aiResult;
+              try {
+                aiResult = await _sdRequestAiDialogueChoices(aiCfg, {
+                  baseText: _injectRuntime(String(action.description ?? "")),
+                  latestAiText,
+                  history,
+                  selectedChoice,
+                  actor,
+                  item,
+                  speaker: action.speaker ?? "",
+                  resolveText: _injectRuntime
+                });
+              } catch (err) {
+                const msg = String(err?.message ?? err);
+                runtime.__lastAiError = msg;
+                console.warn("SD | AI Dialogue Choices failed:", err);
+                ui.notifications?.warn?.(`SD | AI Dialogue Choices failed: ${msg}`);
+                aiResult = {
+                  dialogueText: _injectRuntime(String(action.description ?? "")),
+                  choices: [],
+                  continueDialogue: false,
+                  raw: ""
+                };
+              }
+
+              runtime.__lastAiResponse = aiResult.dialogueText || aiResult.raw || "";
+              latestAiText = aiResult.dialogueText || latestAiText;
+              const renderAction = _sdApplyAiDialogueChoices(
+                { ...action, description: latestAiText || action.description || "" },
+                aiResult
+              );
+
+              const result = await SDDialogueBuilder.show(renderAction, dialogCtx);
+
+              if (buttonDef && result?.state) buttonDef.__dlgState = { ...result.state };
+              if (!result || result.cancelled) {
+                cancelled = true;
+                for (const sub of (action.cancelActions ?? [])) {
+                  await this._runAction(sub, item, actor, buttonDef, runtime);
+                }
+                break;
+              }
+
+              finalResult = result;
+              const pickedId = String(result.pickedId ?? "");
+              const pickedLabel = String(result.pickedLabel ?? (pickedId || result.pinId || ""));
+              const pinId = String(result.pinId ?? "");
+              selectedChoice = pickedLabel;
+              history.push({ ai: latestAiText, user: selectedChoice });
+              try {
+                await addActorAIInteraction(actor, {
+                  speaker: _injectRuntime(String(action.speaker ?? "")),
+                  ai: latestAiText,
+                  user: selectedChoice
+                });
+              } catch (e) {
+                console.warn("SD | Could not record AI dialogue interaction:", e);
+              }
+
+              if (buttonDef) {
+                const state = { ...(buttonDef.__dlgState ?? {}), ...(result.state ?? {}) };
+                if (pickedId) state[pickedId] = pickedLabel;
+                if (pinId) state[pinId] = pickedLabel;
+                buttonDef.__dlgState = state;
+                buttonDef.__dlgPicked = pickedId || pinId || "";
+                buttonDef.__dlgChoice = pickedLabel;
+                buttonDef.__dlgHistory = JSON.stringify(history);
+              }
+
+              if (!infinity || aiResult.continueDialogue === false || aiResult.continueDialogue === "false" || aiResult.continueDialogue === "no") {
+                break;
+              }
+            }
+
+            if (!cancelled && finalResult) {
+              if (buttonDef) buttonDef.__dlgHistory = JSON.stringify(history);
+              for (const sub of (action.submitActions ?? [])) {
+                await this._runAction(sub, item, actor, buttonDef, runtime);
+              }
+            }
+            break;
+          }
+
+          const result = await SDDialogueBuilder.show(action, dialogCtx);
+
+          if (buttonDef && result?.state) buttonDef.__dlgState = { ...result.state };
+          if (!result || result.cancelled) {
+            for (const sub of (action.cancelActions ?? [])) {
+              await this._runAction(sub, item, actor, buttonDef, runtime);
+            }
+            break;
+          }
+
+          const pinId = String(result.pinId ?? "");
+          const pickedId = String(result.pickedId ?? "");
+          const pickedLabel = String(result.pickedLabel ?? (pickedId || pinId));
+          const emitFlag = String(result.emitFlag ?? "yes");
+          if (buttonDef) {
+            const state = { ...(buttonDef.__dlgState ?? {}), ...(result.state ?? {}) };
+            if (pickedId) state[pickedId] = pickedLabel;
+            if (pinId) state[pinId] = pickedLabel;
+            buttonDef.__dlgState = state;
+            buttonDef.__dlgPicked = pickedId || pinId || "";
+            buttonDef.__dlgChoice = pickedLabel;
+          }
+          try {
+            await addActorAIInteraction(actor, {
+              speaker: _injectRuntime(String(action.speaker ?? "")),
+              ai: _injectRuntime(String(action.description ?? "")),
+              user: pickedLabel
+            });
+          } catch (e) {
+            console.warn("SD | Could not record dialogue interaction:", e);
+          }
+
+          if (pinId && (pinId.startsWith("btn") || (/^el\d+_exec$/.test(pinId) && emitFlag === "yes"))) {
+            const branch = action[`${pinId}Actions`] ?? [];
+            for (const sub of branch) await this._runAction(sub, item, actor, buttonDef, runtime);
+          }
+          for (const sub of (action.submitActions ?? [])) {
+            await this._runAction(sub, item, actor, buttonDef, runtime);
+          }
+          break;
+        } catch (err) {
+          console.warn("SD | Dialog Builder custom UI failed, falling back to DialogV2.", err);
+        }
+
         const { DialogV2 } = foundry.applications.api;
         let elements = [];
         if (Array.isArray(action.elements)) {
@@ -3875,7 +4248,7 @@ export class ButtonExecutor {
           for (const el of elements) {
             if (!el || typeof el !== "object") continue;
             const visible  = _evalCond(el.visibleWhen,  st);
-            const disabled = _evalCond(el.disabledWhen, st);
+            const disabled = el.disabledWhen ? _evalCond(el.disabledWhen, st) : false;
             if (!visible) continue;
             const id = _esc(el.id ?? "");
             const lbl = _esc(el.label ?? "");
@@ -4097,7 +4470,16 @@ export class ButtonExecutor {
           break;
         }
         const [pinId, pickedId, emitFlag] = String(result).split("|");
-        if (buttonDef) buttonDef.__dlgPicked = pickedId || pinId || "";
+        const pickedEl = elements.find(el => String(el?.id ?? "") === String(pickedId ?? ""));
+        const pickedLabel = String(pickedEl?.label ?? pickedId ?? pinId ?? "");
+        if (buttonDef) {
+          const st = { ...(buttonDef.__dlgState ?? {}) };
+          if (pickedId) st[pickedId] = pickedLabel;
+          if (pinId) st[pinId] = pickedLabel;
+          buttonDef.__dlgState = st;
+          buttonDef.__dlgPicked = pickedId || pinId || "";
+          buttonDef.__dlgChoice = pickedLabel;
+        }
 
         if (pinId && (pinId.startsWith("btn") || (/^el\d+_exec$/.test(pinId) && emitFlag === "yes"))) {
           const branch = action[`${pinId}Actions`] ?? [];
@@ -4648,20 +5030,29 @@ export class ButtonExecutor {
           s = _aiResolveTokens(s);
           return s;
         };
-        const url        = _runStr(action.url   || "https://api.openai.com/v1/chat/completions").trim();
-        let   apiKey     = _runStr(action.apiKey || "").trim();
-        const model      = _runStr(action.model || "gpt-4o-mini").trim();
-        const sysPrompt  = _runStr(action.systemPrompt || "");
+        const provider = getAIProviderConfig({
+          url: _runStr(action.url || ""),
+          apiKey: _runStr(action.apiKey || ""),
+          apiKeySetting: _runStr(action.apiKeySetting || ""),
+          model: _runStr(action.model || ""),
+          temperature: action.temperature,
+          maxTokens: action.maxTokens
+        });
+        const url        = String(provider.url ?? "").trim();
+        let   apiKey     = String(provider.apiKey ?? "").trim();
+        const model      = String(provider.model || "gpt-4o-mini").trim();
+        const sysPrompt  = [_runStr(provider.systemPrompt || ""), _runStr(action.systemPrompt || "")]
+          .map(s => String(s ?? "").trim()).filter(Boolean).join("\n\n");
         const userPrompt = _runStr(action.prompt || "");
-        const temperature = action.temperature === "" || action.temperature == null
+        const temperature = provider.temperature === "" || provider.temperature == null
           ? null
-          : Number(action.temperature);
-        const maxTokens  = action.maxTokens === "" || action.maxTokens == null
+          : Number(provider.temperature);
+        const maxTokens  = provider.maxTokens === "" || provider.maxTokens == null
           ? null
-          : Math.max(1, Number(action.maxTokens) | 0);
+          : Math.max(1, Number(provider.maxTokens) | 0);
         const postToChat = action.toChat === "yes" || action.toChat === true;
 
-        const settingKey = String(action.apiKeySetting ?? "").trim();
+        const settingKey = String(provider.apiKeySetting ?? "").trim();
         if (!apiKey && settingKey) {
           try {
             const v = game.settings.get("sd", settingKey);
@@ -4761,6 +5152,82 @@ export class ButtonExecutor {
 
         for (const sub of (action.successActions ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
+        }
+        break;
+      }
+
+      case "aiMemoryUpdate": {
+        const _runStr = (raw) => {
+          if (raw == null) return "";
+          let s = String(raw);
+          try { s = _injectRuntime(s); } catch {}
+          return s;
+        };
+        runtime.__lastAiError = "";
+        runtime.__aiMemoryCount = 0;
+
+        const mode = String(action.mode ?? "analyze");
+        const contextText = _runStr(action.context ?? "");
+        const directMemory = _runStr(action.memoryText ?? "");
+        const provider = {
+          url: _runStr(action.url ?? ""),
+          apiKey: _runStr(action.apiKey ?? ""),
+          apiKeySetting: _runStr(action.apiKeySetting ?? ""),
+          model: _runStr(action.model ?? ""),
+          temperature: action.temperature,
+          maxTokens: action.maxTokens
+        };
+
+        try {
+          const memories = [];
+          if (mode === "add") {
+            if (directMemory.trim()) memories.push(directMemory.trim());
+          } else {
+            const source = [
+              directMemory.trim() ? `Manual note:\n${directMemory.trim()}` : "",
+              contextText.trim() ? `Context / dialogue:\n${contextText.trim()}` : "",
+              buttonDef?.__dlgHistory ? `Dialogue history:\n${buttonDef.__dlgHistory}` : "",
+              runtime.__lastAiResponse ? `Last AI response:\n${runtime.__lastAiResponse}` : ""
+            ].filter(Boolean).join("\n\n");
+            if (source.trim()) {
+              const text = await requestAIChat({
+                provider,
+                json: true,
+                systemPrompt: "You extract durable RPG character memories from dialogue. Return JSON only.",
+                prompt: [
+                  "Analyze the text and return only memories that the character should remember later.",
+                  "Return JSON: {\"memories\":[\"short memory 1\",\"short memory 2\"]}.",
+                  "If there is nothing worth remembering, return {\"memories\":[]}.",
+                  "",
+                  source
+                ].join("\n")
+              });
+              let parsed = null;
+              try { parsed = JSON.parse(_sdCleanAiJsonText(text)); } catch { parsed = null; }
+              const arr = Array.isArray(parsed?.memories) ? parsed.memories
+                : Array.isArray(parsed) ? parsed
+                : [];
+              for (const m of arr) {
+                const value = typeof m === "string" ? m : (m?.text ?? m?.memory ?? "");
+                if (String(value ?? "").trim()) memories.push(String(value).trim());
+              }
+            }
+          }
+
+          for (const m of memories) await addActorAIMemory(actor, m, action.source ?? "AI Memory");
+          runtime.__aiMemoryCount = memories.length;
+
+          for (const sub of (action.successActions ?? [])) {
+            await this._runAction(sub, item, actor, buttonDef, runtime);
+          }
+        } catch (e) {
+          const errMsg = String(e?.message ?? e);
+          runtime.__lastAiError = errMsg;
+          console.warn("SD | AI Memory Update failed:", e);
+          ui.notifications?.warn?.(`SD | AI Memory Update failed: ${errMsg}`);
+          for (const sub of (action.errorActions ?? [])) {
+            await this._runAction(sub, item, actor, buttonDef, runtime);
+          }
         }
         break;
       }

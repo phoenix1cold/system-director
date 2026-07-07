@@ -3,6 +3,7 @@ const FLAG_KEY   = "interactables";
 const HEX_RE     = /^#[0-9a-fA-F]{6}$/;
 
 const SUPPORTED_TYPES = ["Tile", "Token", "Note", "Wall", "AmbientLight", "AmbientSound", "Drawing", "Region"];
+const ACTOR_TYPE = "Actor";
 
 const ICON_PRESET_PATHS = [
   "icons/svg/circle.svg",
@@ -231,7 +232,16 @@ function _worldToScreen(pt) {
   return null;
 }
 
-function _allPlaceableDocsWithInteractables() {
+function _tokenActor(tokenPlaceable) {
+  try {
+    return (tokenPlaceable?.document?.actorId ? game.actors?.get(tokenPlaceable.document.actorId) : null)
+      ?? tokenPlaceable?.document?.actor
+      ?? tokenPlaceable?.actor
+      ?? null;
+  } catch { return null; }
+}
+
+function _allInteractableTargets() {
   const out = [];
   if (!canvas?.scene) return out;
   const collections = [
@@ -249,7 +259,27 @@ function _allPlaceableDocsWithInteractables() {
     for (const p of list) {
       const doc = p?.document;
       if (!doc) continue;
-      if (hasInteractables(doc)) out.push(doc);
+      if (hasInteractables(doc)) {
+        out.push({
+          key:        doc.uuid,
+          configDoc:  doc,
+          anchorDoc:  doc,
+          executeDoc: doc,
+          actorSource: false
+        });
+      }
+      if (doc.documentName === "Token") {
+        const actor = _tokenActor(p);
+        if (actor && hasInteractables(actor)) {
+          out.push({
+            key:        `${actor.uuid}::${doc.uuid}`,
+            configDoc:  actor,
+            anchorDoc:  doc,
+            executeDoc: doc,
+            actorSource: true
+          });
+        }
+      }
     }
   }
   return out;
@@ -283,9 +313,23 @@ function _activeActorForExec() {
   return { actor: null, token: null };
 }
 
-export async function executeInteractableButton(button, placeableDoc) {
+export async function executeInteractableButton(button, placeableDoc, context = {}) {
   if (!button || !button.enabled) return;
-  const { actor, token } = _activeActorForExec();
+  let { actor, token } = _activeActorForExec();
+  const configDoc = context.configDoc ?? placeableDoc;
+  const actorSource = configDoc?.documentName === ACTOR_TYPE ? configDoc : null;
+  if (!token && placeableDoc?.documentName === "Token") token = _docPlaceableObject(placeableDoc);
+  if (!actor && actorSource) actor = actorSource;
+  const placedActor = actorSource
+    ?? placeableDoc?.actor
+    ?? (placeableDoc?.documentName === "Token" && placeableDoc.actorId ? game.actors?.get(placeableDoc.actorId) : null)
+    ?? null;
+  const tokenName = placeableDoc?.documentName === "Token"
+    ? String(placeableDoc.name ?? placedActor?.name ?? "")
+    : "";
+  const tokenImage = placeableDoc?.documentName === "Token"
+    ? String(placeableDoc.texture?.src ?? placedActor?.prototypeToken?.texture?.src ?? placedActor?.img ?? "")
+    : "";
 
   const formula = String(button.compiledFormula ?? "").trim();
   if (!formula || formula === "0") {
@@ -319,6 +363,14 @@ export async function executeInteractableButton(button, placeableDoc) {
     __sdInteractable: true,
     __placeableDoc:  placeableDoc,
     __placeableUuid: placeableDoc?.uuid ?? null,
+    __interactableConfigDoc: configDoc,
+    __interactableConfigUuid: configDoc?.uuid ?? null,
+    __interactableActor: placedActor,
+    __interactableActorUuid: placedActor?.uuid ?? null,
+    __interactableActorName: placedActor?.name ?? "",
+    __interactableTokenName: tokenName,
+    __interactableActorPortrait: placedActor?.img ?? "",
+    __interactableTokenImage: tokenImage,
     __token:         token
   };
   const runtime = {};
@@ -367,6 +419,9 @@ class _Overlay {
       Hooks.on(`update${t}`, () => this.scheduleRefresh());
       Hooks.on(`delete${t}`, () => this.scheduleRefresh());
     }
+    Hooks.on("updateActor", () => this.scheduleRefresh());
+    Hooks.on("createActor", () => this.scheduleRefresh());
+    Hooks.on("deleteActor", () => this.scheduleRefresh());
 
     window.addEventListener("resize", () => this.scheduleRefresh());
   }
@@ -398,17 +453,17 @@ class _Overlay {
       return;
     }
 
-    const docs = _allPlaceableDocsWithInteractables();
+    const targets = _allInteractableTargets();
     const ownedTokens = _userOwnedTokens();
     const isGM = !!game.user?.isGM;
 
     const visibleNow = new Set();
 
-    for (const doc of docs) {
-      const data = getInteractables(doc);
+    for (const target of targets) {
+      const data = getInteractables(target.configDoc);
       if (!data.enabled) continue;
-      const center = _placeableCenter(doc);
-      const anchor = _placeableBoundsTop(doc) ?? center;
+      const center = _placeableCenter(target.anchorDoc);
+      const anchor = _placeableBoundsTop(target.anchorDoc) ?? center;
       if (!center || !anchor) continue;
 
       const buttons = data.buttons.filter(b => b.enabled).filter(b => {
@@ -430,8 +485,8 @@ class _Overlay {
         }
         let near = false;
         for (const t of ownedTokens) {
-          if (t.document === doc) continue;
-          const d = _docDistanceFromToken(doc, t.document);
+          if (!target.actorSource && t.document === target.anchorDoc) continue;
+          const d = _docDistanceFromToken(target.anchorDoc, t.document);
           if (d <= b.distance) { near = true; break; }
         }
         inRangeMap.set(b.id, near);
@@ -440,16 +495,16 @@ class _Overlay {
       const showButtons = buttons.filter(b => inRangeMap.get(b.id));
       if (!showButtons.length) continue;
 
-      const key = doc.uuid;
+      const key = target.key;
       visibleNow.add(key);
 
       let chip = this._activeChips.get(key);
       if (!chip) {
-        chip = this._buildChip(doc);
+        chip = this._buildChip(target);
         this._activeChips.set(key, chip);
         root.appendChild(chip);
       }
-      this._updateChip(chip, doc, showButtons, anchor);
+      this._updateChip(chip, target, showButtons, anchor);
     }
 
     for (const [key, chip] of [...this._activeChips.entries()]) {
@@ -460,22 +515,22 @@ class _Overlay {
     }
   }
 
-  static _buildChip(doc) {
+  static _buildChip(target) {
     const chip = document.createElement("div");
     chip.className = "sd-ibchip";
-    chip.dataset.uuid = doc.uuid;
+    chip.dataset.uuid = target.key;
     chip.style.cssText = "position:absolute;transform:translate(-50%,-100%);pointer-events:auto;display:flex;flex-direction:row;align-items:flex-end;gap:6px;padding:0;background:none;border:none";
     return chip;
   }
 
-  static _updateChip(chip, doc, buttons, anchor) {
+  static _updateChip(chip, target, buttons, anchor) {
     const scr = _worldToScreen(anchor);
     if (!scr) { chip.style.display = "none"; return; }
     chip.style.display = "flex";
     chip.style.left = `${Math.round(scr.x)}px`;
     chip.style.top  = `${Math.round(scr.y - 10)}px`;
 
-    const wantHtml = buttons.map(b => this._buttonHtml(doc, b)).join("");
+    const wantHtml = buttons.map(b => this._buttonHtml(target.anchorDoc, b)).join("");
     if (chip.dataset.cached !== wantHtml) {
       chip.dataset.cached = wantHtml;
       chip.innerHTML = wantHtml;
@@ -484,12 +539,16 @@ class _Overlay {
           ev.preventDefault();
           ev.stopPropagation();
           const id = btn.dataset.ibtnId;
-          const data = getInteractables(doc);
+          const data = getInteractables(target.configDoc);
           const def  = data.buttons.find(x => x.id === id);
           if (def) {
             btn.classList.add("sd-ibtn--pulse");
             setTimeout(() => btn.classList.remove("sd-ibtn--pulse"), 220);
-            await executeInteractableButton(def, doc);
+            await executeInteractableButton(def, target.executeDoc, {
+              configDoc: target.configDoc,
+              anchorDoc: target.anchorDoc,
+              actorSource: target.actorSource
+            });
           }
         });
       });
@@ -519,7 +578,16 @@ const SD_ICON_PRESETS_HTML = (current) => ICON_PRESET_PATHS.map(p => {
   </button>`;
 }).join("");
 
+function _docLabel(doc) {
+  const type = doc?.documentName ?? "Document";
+  const name = doc?.name || (doc?.id ? String(doc.id).slice(0, 6) : "");
+  return name ? `${type} - ${name}` : type;
+}
+
 function _renderEditorHTML(state) {
+  const footInfo = state.actorSource
+    ? "Buttons appear next to this actor's tokens on the current scene when a player-owned token is within range."
+    : "Buttons appear next to the placeable on the scene when a player-owned token is within range.";
   const head = `
     <div class="sd-iep-head">
       <i class="fas fa-bolt"></i>
@@ -605,7 +673,7 @@ function _renderEditorHTML(state) {
       <div class="sd-iep-right">${right}</div>
     </div>
     <div class="sd-iep-foot">
-      <span class="sd-iep-foot-info">Buttons appear next to the placeable on the scene when a player-owned token is within range.</span>
+      <span class="sd-iep-foot-info">${_esc(footInfo)}</span>
       <button type="button" class="sd-iep-save">Save & Close</button>
     </div>`;
 }
@@ -622,6 +690,8 @@ export function openInteractablesEditor(doc) {
     buttons:  data.buttons,
     selIdx:   data.buttons.length ? 0 : -1
   };
+  state.docLabel = _docLabel(doc);
+  state.actorSource = doc.documentName === ACTOR_TYPE;
 
   const popup = document.createElement("div");
   popup.id = "sd-iep-popup";
