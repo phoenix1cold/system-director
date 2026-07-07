@@ -202,7 +202,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.4">${w.type === "skill" ? "Wire Roll Formula output and On Click exec chain for this skill." : "Wire Attr Score → modValue output, and On Click exec chain."}</div>
       <button type="button" id="wcfg-attr-graph-btn"
         style="width:100%;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:5px;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:7px 12px;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s"
-        onmouseover="this.style.background='var(--sd-accent-2)'" onmouseout="this.style.background='var(--sd-bg-4)'">
+        onmouseover="this.style.background='var(--sd-accent-glow)'" onmouseout="this.style.background='var(--sd-bg-4)'">
         <i class="fas fa-diagram-project"></i> Open Graph Editor
       </button>
     </div>` : "";
@@ -220,7 +220,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       <div style="display:flex;gap:8px;align-items:center">
         <button type="button" id="wcfg-number-graph-btn"
           style="flex:1;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:5px;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:7px 12px;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s"
-          onmouseover="this.style.background='var(--sd-accent-2)'" onmouseout="this.style.background='var(--sd-bg-4)'">
+          onmouseover="this.style.background='var(--sd-accent-glow)'" onmouseout="this.style.background='var(--sd-bg-4)'">
           <i class="fas fa-diagram-project"></i> Open Graph Editor
         </button>
         ${status}
@@ -267,7 +267,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         ${status}
         <button type="button" data-attr-group-graph="${esc(k)}"
           style="background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:4px 9px;display:inline-flex;align-items:center;gap:5px;transition:background .15s"
-          onmouseover="this.style.background='var(--sd-accent-2)'" onmouseout="this.style.background='var(--sd-bg-4)'">
+          onmouseover="this.style.background='var(--sd-accent-glow)'" onmouseout="this.style.background='var(--sd-bg-4)'">
           <i class="fas fa-diagram-project"></i> Edit
         </button>
       </div>`;
@@ -597,7 +597,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       <div class="wcfg-f" style="margin-bottom:10px">
         <label class="wcfg-lbl">
           ${esc(lbl)}
-          <span style="background:var(--sd-accent-2);color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">action</span>
+          <span style="background:var(--sd-accent-2);color:var(--sd-accent-text,#fff);font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">action</span>
         </label>
         <div style="display:flex;gap:8px;align-items:center">
           <button type="button" data-open-action-graph="${esc(key)}"
@@ -695,8 +695,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     width:430px;height:min(620px,90vh);max-height:96vh;
     min-width:380px;min-height:280px;
     overflow:hidden;resize:both;
-    background:var(--sd-bg);border:1px solid var(--sd-accent-2);border-radius:8px;
-    box-shadow:0 8px 40px rgba(0,0,0,.85);z-index:${_wcfgZ};
+    background:var(--sd-popover-bg,var(--sd-bg));border:1px solid var(--sd-popover-border,var(--sd-accent-2));border-radius:8px;
+    box-shadow:var(--sd-popover-shadow,0 8px 40px rgba(0,0,0,.85));z-index:${_wcfgZ};
     font-family:'Signika','Palatino Linotype',serif;color:var(--sd-text);
     display:flex;flex-direction:column;`;
 
@@ -708,11 +708,11 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   popup.innerHTML = `
     <!-- Header -->
-    <div id="wcfg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--sd-bg);border-bottom:1px solid var(--sd-bg-3);flex-shrink:0;cursor:move">
+    <div id="wcfg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--sd-popover-bg,var(--sd-bg));border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move">
       <span style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--sd-accent)">
         <i class="fas ${ICON_MAP[w.type]??'fa-gear'}" style="margin-right:7px;opacity:.8"></i>Configure: ${esc(w.label || w.type)}
       </span>
-      <button type="button" id="wcfg-x" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:16px;padding:0">✕</button>
+      <button type="button" id="wcfg-x" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:16px;padding:0" aria-label="Close"><i class="fas fa-xmark"></i></button>
     </div>
 
     <!-- Fields panel -->
@@ -727,9 +727,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     </div>
 
     <!-- Footer -->
-    <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--sd-bg-3);flex-shrink:0;background:var(--sd-bg)">
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--sd-border);flex-shrink:0;background:var(--sd-popover-bg,var(--sd-bg))">
       <button type="button" id="wcfg-cancel" class="wcfg-footer-btn" style="padding:7px 16px;font-size:12px;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid var(--sd-border);background:var(--sd-bg-3);color:var(--sd-text-2)">Cancel</button>
-      <button type="button" id="wcfg-save"   class="wcfg-footer-btn" style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;border:1px solid var(--sd-accent);background:var(--sd-accent);color:#fff">
+      <button type="button" id="wcfg-save"   class="wcfg-footer-btn" style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;border:1px solid var(--sd-accent);background:var(--sd-accent);color:var(--sd-accent-text,#fff)">
         <i class="fas fa-check" style="margin-right:5px"></i>Save
       </button>
     </div>`;
@@ -1000,7 +1000,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     slotRowsContainer.appendChild(div);
   });
   popup.querySelectorAll("[data-open-graph]").forEach(btn => {
-    btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-2)");
+    btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-glow)");
     btn.addEventListener("mouseleave", () => btn.style.background = "var(--sd-bg-4)");
     btn.addEventListener("click", () => {
       const key = btn.dataset.openGraph;
@@ -1012,7 +1012,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   });
 
   popup.querySelectorAll("[data-open-action-graph]").forEach(btn => {
-    btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-2)");
+    btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-glow)");
     btn.addEventListener("mouseleave", () => btn.style.background = "var(--sd-bg-4)");
     btn.addEventListener("click", () => {
       const key = btn.dataset.openActionGraph;

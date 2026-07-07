@@ -922,7 +922,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static async _onStartOnboarding(event, target) {
-    await SDOnboarding.reset();
+    await SDOnboarding.startGuide({ force: true });
   }
 
   static async _onResetDefaults(event, target) {

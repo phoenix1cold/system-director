@@ -11,7 +11,62 @@ import { SDOnboarding } from "../helpers/onboarding.mjs";
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
 
+function _cleanGraphText(value) {
+  return String(value ?? "")
+    .replaceAll("РІвЂ вЂ™", "->")
+    .replaceAll("в†’", "->")
+    .replaceAll("→", "->")
+    .replaceAll("РІвЂ С’", "<-")
+    .replaceAll("в†ђ", "<-")
+    .replaceAll("←", "<-")
+    .replaceAll("РІвЂ вЂ", "^")
+    .replaceAll("в†‘", "^")
+    .replaceAll("↑", "^")
+    .replaceAll("РІвЂ вЂњ", "v")
+    .replaceAll("в†“", "v")
+    .replaceAll("↓", "v")
+    .replaceAll("РІР‚вЂќ", "-")
+    .replaceAll("вЂ”", "-")
+    .replaceAll("—", "-")
+    .replaceAll("РІР‚В¦", "...")
+    .replaceAll("вЂ¦", "...")
+    .replaceAll("…", "...")
+    .replaceAll("РІСљвЂў", "x")
+    .replaceAll("вњ•", "x")
+    .replaceAll("✕", "x")
+    .replaceAll("вњ“", "OK")
+    .replaceAll("вњ”", "OK")
+    .replaceAll("в¬‡", "Drop")
+    .replaceAll("в¬Ў", "[slots]")
+    .replaceAll("РІР‚Сћ", "*")
+    .replaceAll("вЂў", "*")
+    .replaceAll("•", "*")
+    .replaceAll("РІв‚¬вЂ™", "-")
+    .replaceAll("в€’", "-")
+    .replaceAll("−", "-")
+    .replaceAll("Р’В·", "-")
+    .replaceAll("·", "-")
+    .replaceAll("Р“вЂ”", "x")
+    .replaceAll("Г—", "x")
+    .replaceAll("×", "x")
+    .replaceAll("Р“В·", "/")
+    .replaceAll("РІвЂ°В ", "!=")
+    .replaceAll("в‰ ", "!=")
+    .replaceAll("≠", "!=")
+    .replaceAll("РІвЂ°Тђ", ">=")
+    .replaceAll("в‰Ґ", ">=")
+    .replaceAll("≥", ">=")
+    .replaceAll("РІвЂ°В¤", "<=")
+    .replaceAll("в‰¤", "<=")
+    .replaceAll("≤", "<=")
+    .replaceAll("В°", " deg")
+    .replaceAll("°", " deg");
+}
+
 function _slugLabel(s) {
+  s = _cleanGraphText(s)
+    .replace(/->/g, " Arrow ")
+    .replace(/<-/g, " ArrowL ");
   const map = {
     "в†’":"Arrow", "в†ђ":"ArrowL", "в†‘":"ArrowU", "в†“":"ArrowD",
     "в‰ ":"NEq", "в‰Ґ":"GEq", "в‰¤":"LEq", "в€ћ":"Inf",
@@ -80,20 +135,20 @@ function _NL(text) {
 
     if (lang !== "auto") {
       const direct = _ngLookupCached(lang, key);
-      if (typeof direct === "string" && direct !== "") return direct;
+      if (typeof direct === "string" && direct !== "") return _cleanGraphText(direct);
       const fb = _ngLookupCached(_NG_DEFAULT_LANG, key);
-      if (typeof fb === "string" && fb !== "") return fb;
-      return text;
+      if (typeof fb === "string" && fb !== "") return _cleanGraphText(fb);
+      return _cleanGraphText(text);
     }
 
     const i18n = globalThis.game?.i18n;
-    if (i18n?.has?.(key)) return i18n.localize(key);
+    if (i18n?.has?.(key)) return _cleanGraphText(i18n.localize(key));
     if (i18n?.localize) {
       const s = i18n.localize(key);
-      if (s && s !== key) return s;
+      if (s && s !== key) return _cleanGraphText(s);
     }
   } catch {  }
-  return text;
+  return _cleanGraphText(text);
 }
 
 function _round(expr, nodeData) {
@@ -182,7 +237,7 @@ export const NODE_DEFS = {
     title:"On Initiative Roll", color:"#b05000", cat:"_initiative",
     desc:"Fixed entry point fired when initiative is rolled. The compiled formula from this graph is used as the world initiative formula.",
     inputs:[],
-    outputs:[{id:"exec", label:"в†’ Execute", type:"exec"}],
+    outputs:[{id:"exec", label:"Execute", type:"exec"}],
     fields:[],
     isTrigger: true,
     isInitTrigger: true
@@ -216,9 +271,9 @@ export const NODE_DEFS = {
 
   on_click: {
     title:"On Click", color:"#b05000", cat:"Flow",
-    desc:"Entry point вЂ” fired when the item's Use button is pressed. Connect its exec output to your action chain.",
+    desc:"Entry point - fired when the item's Use button is pressed. Connect its exec output to your action chain.",
     inputs:[],
-    outputs:[{id:"exec", label:"в†’ Execute", type:"exec"}],
+    outputs:[{id:"exec", label:"Execute", type:"exec"}],
     fields:[],
     isTrigger: true
   },
@@ -795,7 +850,7 @@ export const NODE_DEFS = {
   },
 
   act_roll_value: {
-    title:"Roll в†’ Value", color:"#8a4400", cat:"Roll",
+    title:"Roll -> Value", color:"#8a4400", cat:"Roll",
     desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls. Outputs: Result (final sum), Formula (resolved string), Min/Max/Avg (theoretical bounds & expected value), Dice Array (every active die's value as a CSV array вЂ” pipe into Array Join / Array Length / Get Element / Filter to inspect individual die results, e.g. 2d6 в†’ \"3,5\"). For crit / fumble logic use Attack Check or Roll Check вЂ” Roll Value is intentionally just numbers and dice.",
     inputs:[
       {id:"exec",             label:"",              type:"exec"},
@@ -7186,10 +7241,10 @@ export class FormulaGraph {
     const r = anchorEl.getBoundingClientRect();
     const menu = document.createElement("div");
     menu.className = "sdgtpl-menu";
-    menu.style.cssText = `position:fixed;left:${Math.round(r.left)}px;top:${Math.round(r.bottom+6)}px;min-width:260px;max-width:380px;max-height:60vh;overflow:auto;background:#121220;border:1px solid #2a2a3e;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.8);z-index:25000;font-family:'Signika',sans-serif;color:var(--sd-text);padding:6px 0`;
+    menu.style.cssText = `position:fixed;left:${Math.round(r.left)}px;top:${Math.round(r.bottom+6)}px;min-width:260px;max-width:380px;max-height:60vh;overflow:auto;background:var(--sd-popover-bg,var(--sd-bg-2));border:1px solid var(--sd-popover-border,var(--sd-border));border-radius:8px;box-shadow:var(--sd-popover-shadow,0 12px 40px rgba(0,0,0,.8));z-index:25000;font-family:'Signika',sans-serif;color:var(--sd-text);padding:6px 0`;
 
     const header = document.createElement("div");
-    header.style.cssText = "padding:4px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sd-accent);border-bottom:1px solid #1a1a28;margin-bottom:4px";
+    header.style.cssText = "padding:4px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sd-accent);border-bottom:1px solid var(--sd-border);margin-bottom:4px";
     header.textContent = `Node Templates (${entries.length})`;
     menu.appendChild(header);
 
@@ -7203,14 +7258,14 @@ export class FormulaGraph {
     for (const tpl of entries) {
       const row = document.createElement("div");
       row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;transition:background .15s";
-      row.addEventListener("mouseenter", () => row.style.background = "rgba(116,167,255,.12)");
+      row.addEventListener("mouseenter", () => row.style.background = "var(--sd-accent-glow)");
       row.addEventListener("mouseleave", () => row.style.background = "");
 
       const main = document.createElement("div");
       main.style.cssText = "flex:1;min-width:0";
       main.innerHTML = `
         <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tpl.name)}</div>
-        <div style="font-size:9px;color:var(--sd-text-3)">${(tpl.nodes??[]).length} nodes В· ${(tpl.edges??[]).length} edges</div>`;
+        <div style="font-size:9px;color:var(--sd-text-3)">${(tpl.nodes??[]).length} nodes - ${(tpl.edges??[]).length} edges</div>`;
       main.addEventListener("click", () => {
         const wrap = this.win?.querySelector("#gwrap");
         let gx = 120, gy = 120;
@@ -7238,7 +7293,7 @@ export class FormulaGraph {
       del.type = "button";
       del.title = "Delete template";
       del.style.cssText = "background:transparent;border:none;color:#a06666;cursor:pointer;font-size:14px;padding:0 4px";
-      del.textContent = "Г—";
+      del.textContent = "x";
       del.addEventListener("click", async ev => {
         ev.stopPropagation();
         const store2 = this._readNodeTemplates();
@@ -7280,10 +7335,10 @@ export class FormulaGraph {
             ${r.nodeId ? `<span style="color:#6a7a9a;font-family:monospace;font-size:10px;margin-left:6px">${esc(r.nodeId)}</span>` : ""}
           </div>`;
         }).join("")
-      : `<div style="padding:14px;color:var(--sd-success)">No issues detected вњ“</div>`;
+      : `<div style="padding:14px;color:var(--sd-success)">No issues detected OK</div>`;
 
     foundry.applications.api.DialogV2.wait({
-      window: { title: `Graph Lint вЂ” ${header}` },
+      window: { title: `Graph Lint - ${header}` },
       position: { width: 640 },
       modal: true,
       content: `<div style="max-height:60vh;overflow-y:auto;font-size:12px;background:var(--sd-bg);color:var(--sd-text);border-radius:6px">${rows}</div>`,
@@ -8446,7 +8501,7 @@ export class FormulaGraph {
   _updatePreview() {
     const f = this.compile();
     if (!this.win) return;
-    this.win.querySelector("#gpreview").textContent = f||"вЂ”";
+    this.win.querySelector("#gpreview").textContent = f || "-";
 
     this._buildVarPanel();
 
@@ -8462,10 +8517,10 @@ export class FormulaGraph {
         if (!liveEl) {
           liveEl = document.createElement("div");
           liveEl.className = "gn-live-val";
-          liveEl.style.cssText = "padding:3px 8px 4px;border-top:1px solid #1a1a30;font-size:10px;font-family:monospace;color:#5ae07a;word-break:break-all;white-space:pre-wrap;background:#060610;border-radius:0 0 5px 5px";
+          liveEl.style.cssText = "padding:3px 8px 4px;border-top:1px solid var(--sd-graph-live-border,#1a1a30);font-size:10px;font-family:monospace;color:var(--sd-graph-live-text,var(--sd-success));word-break:break-all;white-space:pre-wrap;background:var(--sd-graph-live-bg,#060610);border-radius:0 0 5px 5px";
           outEl.appendChild(liveEl);
         }
-        let liveText = f || "вЂ”";
+        let liveText = f || "-";
         if (this.doc && f && f !== "0") {
           try {
             const resolved = f.replace(/\{([^}]+)\}/g, (_, p) => {
@@ -8475,7 +8530,7 @@ export class FormulaGraph {
               if (typeof v === "object") return "0";
               return String(v);
             });
-            liveText = `${f}\nв†’ ${resolved}`;
+            liveText = `${f}\n-> ${resolved}`;
           } catch {  }
         }
         liveEl.textContent = liveText;
@@ -8492,22 +8547,22 @@ export class FormulaGraph {
       badge.style.display = "block";
       badge.style.color   = "#e8c060";
       badge.style.borderColor = "#7a4a1a";
-      badge.textContent   = "вњ“ Attribute graph вЂ” wire modValue (display) + On Click exec chain";
+      badge.textContent   = "OK Attribute graph - wire modValue (display) + On Click exec chain";
     } else if (hasSkillOut) {
       badge.style.display = "block";
       badge.style.color   = "#60c0e8";
       badge.style.borderColor = "#1a4a7a";
-      badge.textContent   = "вњ“ Skill graph вЂ” wire modValue (display) + On Click exec chain";
+      badge.textContent   = "OK Skill graph - wire modValue (display) + On Click exec chain";
     } else if (hasOnClick) {
       badge.style.display = "block";
       badge.style.color   = "#5ae07a";
       badge.style.borderColor = "#1a5c2a";
-      badge.textContent   = "вњ“ Exec graph (On Click) вЂ” Output node not required";
+      badge.textContent   = "OK Exec graph (On Click) - Output node not required";
     } else if (hasOutput) {
       badge.style.display = "block";
       badge.style.color   = "var(--sd-accent)";
       badge.style.borderColor = "#534AB7";
-      badge.textContent   = "вњ“ Formula graph вЂ” connect a node to Output";
+      badge.textContent   = "OK Formula graph - connect a node to Output";
     } else {
       badge.style.display = "none";
     }
@@ -8620,38 +8675,38 @@ export class FormulaGraph {
       const _w = Math.min(1180, Math.floor(window.innerWidth * 0.97));
       const _h = Math.min(720, Math.floor(window.innerHeight * 0.93));
       const _l = Math.max(20, Math.floor((window.innerWidth - _w) / 2));
-      win.style.cssText=`position:fixed;top:30px;left:${_l}px;width:${_w}px;height:${_h}px;min-width:800px;min-height:520px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.95);z-index:20000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;resize:both`;
+      win.style.cssText=`position:fixed;top:30px;left:${_l}px;width:${_w}px;height:${_h}px;min-width:800px;min-height:520px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:12px;box-shadow:var(--sd-popover-shadow,0 24px 80px rgba(0,0,0,.95));z-index:20000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;resize:both`;
     }
     win.innerHTML=`
       <div id="gbar" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move;user-select:none">
         <i class="fas fa-diagram-project" style="color:var(--sd-accent);font-size:13px"></i>
         <b style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-accent);flex:none">Graph Editor</b>
-        <div id="gfnbar" style="display:none;align-items:center;gap:6px;flex:none;background:#2a1a3a;border:1px solid #4a3a6a;border-radius:8px;padding:3px 8px;color:#dccff8;font-size:11px">
-          <button id="gfnback" style="background:rgba(255,255,255,.08);border:1px solid #4a3a6a;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:3px 8px" title="Return to outer graph"><i class="fas fa-arrow-left" style="margin-right:3px"></i>Back</button>
+        <div id="gfnbar" style="display:none;align-items:center;gap:6px;flex:none;background:var(--sd-control-bg,var(--sd-bg-3));border:1px solid var(--sd-control-border,var(--sd-border));border-radius:8px;padding:3px 8px;color:var(--sd-text-2);font-size:11px">
+          <button id="gfnback" style="background:var(--sd-control-bg,var(--sd-bg-3));border:1px solid var(--sd-control-border,var(--sd-border));border-radius:6px;color:var(--sd-text);cursor:pointer;font-size:11px;padding:3px 8px" title="Return to outer graph"><i class="fas fa-arrow-left" style="margin-right:3px"></i>Back</button>
           <span id="gfncrumb" style="font-family:monospace;font-weight:600">\u0192 function</span>
-          <button id="gfnsave" style="background:#3a5a3a;border:1px solid #4a7a4a;border-radius:6px;color:#dfe8d0;cursor:pointer;font-size:11px;padding:3px 8px" title="Save function changes"><i class="fas fa-floppy-disk" style="margin-right:3px"></i>Save Fn</button>
+          <button id="gfnsave" style="background:var(--sd-success);border:1px solid var(--sd-success);border-radius:6px;color:var(--sd-accent-text,#fff);cursor:pointer;font-size:11px;padding:3px 8px" title="Save function changes"><i class="fas fa-floppy-disk" style="margin-right:3px"></i>Save Fn</button>
         </div>
-        <div id="gpreview" style="flex:1;font-size:10px;color:var(--sd-text-3);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">вЂ”</div>
+        <div id="gpreview" style="flex:1;font-size:10px;color:var(--sd-text-3);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">-</div>
         <button id="gtpl" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Insert a saved node template"><i class="fas fa-puzzle-piece" style="margin-right:4px"></i>Templates</button>
         <button id="gtplsave" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Save the selected nodes (Shift-click to select) as a reusable template"><i class="fas fa-bookmark" style="margin-right:4px"></i>Save as Tpl</button>
         <button id="gimport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Import template(s) from a JSON file"><i class="fas fa-file-import" style="margin-right:4px"></i>Import</button>
         <button id="gexport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Export current selection (or whole graph) as JSON template"><i class="fas fa-file-export" style="margin-right:4px"></i>Export</button>
         <button id="glint" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Validate this graph (unknown nodes, type mismatches, orphans, missing entry points)"><i class="fas fa-check-double" style="margin-right:4px"></i>Lint</button>
         <button id="gsave" style="background:var(--sd-accent);border:none;border-radius:8px;color:var(--sd-accent-text);cursor:pointer;font-size:11px;font-weight:800;padding:6px 16px;transition:.15s"><i class="fas fa-check" style="margin-right:5px"></i>Save & Apply</button>
-        <button id="grefresh" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Re-scan document"><i class="fas fa-rotate" style="margin-right:4px"></i>в†є Index</button>
-        <button id="gclose" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s" title="Close">вњ•</button>
+        <button id="grefresh" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Re-scan document"><i class="fas fa-arrows-rotate" style="margin-right:4px"></i>Refresh Index</button>
+        <button id="gclose" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s" title="Close" aria-label="Close graph editor"><i class="fas fa-xmark"></i></button>
       </div>
       <div style="display:flex;flex:1;overflow:hidden;min-height:0">
         <div id="gpal" style="width:190px;flex-shrink:0;background:var(--sd-bg-2);border-right:1px solid var(--sd-border);overflow-y:auto;padding:4px 0">${this._buildPal()}</div>
         <div id="gvarpanel" style="width:180px;flex-shrink:0;background:var(--sd-bg-3);border-right:1px solid var(--sd-border);overflow-y:auto;padding:4px 0;font-size:10px;color:var(--sd-text-2)"></div>
         <div id="gwrap" style="flex:1;position:relative;overflow:hidden;cursor:default;user-select:none;touch-action:none;
           background:
-            linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px) 0 0/32px 32px,
-            linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px) 0 0/32px 32px,
-            linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px) 0 0/8px 8px,
-            linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px) 0 0/8px 8px,
-            var(--sd-bg)">
-          <!-- EDGE SVG вЂ” screen-space coords, no transform -->
+            linear-gradient(90deg,var(--sd-graph-grid-major,rgba(255,255,255,.045)) 1px,transparent 1px) 0 0/32px 32px,
+            linear-gradient(var(--sd-graph-grid-major,rgba(255,255,255,.045)) 1px,transparent 1px) 0 0/32px 32px,
+            linear-gradient(90deg,var(--sd-graph-grid-minor,rgba(255,255,255,.025)) 1px,transparent 1px) 0 0/8px 8px,
+            linear-gradient(var(--sd-graph-grid-minor,rgba(255,255,255,.025)) 1px,transparent 1px) 0 0/8px 8px,
+            var(--sd-graph-bg,var(--sd-bg))">
+          <!-- EDGE SVG - screen-space coords, no transform -->
           <svg id="gedges" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none">
             <defs>
               <linearGradient id="sd-link-grad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -8660,18 +8715,18 @@ export class FormulaGraph {
               </linearGradient>
             </defs>
           </svg>
-          <!-- comments layer вЂ” drawn behind nodes (Unreal-style comment boxes) -->
+          <!-- comments layer - drawn behind nodes (Unreal-style comment boxes) -->
           <div id="gcomments" style="position:absolute;left:0;top:0;transform-origin:0 0;overflow:visible;will-change:transform"></div>
-          <!-- nodes layer вЂ” transform-origin 0 0, will-change for GPU -->
+          <!-- nodes layer - transform-origin 0 0, will-change for GPU -->
           <div id="gnodes" style="position:absolute;left:0;top:0;transform-origin:0 0;overflow:visible;will-change:transform"></div>
           <!-- zoom / fit controls -->
           <div style="position:absolute;bottom:12px;right:12px;display:flex;gap:4px">
             <button class="gz" data-d="0.15" title="Zoom in">+</button>
-            <button class="gz" data-d="-0.15" title="Zoom out">в€’</button>
-            <button id="gfit" title="Fit view">вЉЎ Fit</button>
+            <button class="gz" data-d="-0.15" title="Zoom out">-</button>
+            <button id="gfit" title="Fit view">Fit</button>
           </div>
           <div style="position:absolute;bottom:12px;left:12px;font-size:9px;color:var(--sd-text-3);pointer-events:none">
-            RMB/Space+drag: pan В· Scroll: zoom В· Drag header: move node В· Shift+Click: multi-select В· Shift+Drag: marquee В· Ctrl+Drag: comment box В· Backspace: delete selection В· Outputв†’Input: connect В· Dbl-click edge: delete
+            RMB/Space+drag: pan - Scroll: zoom - Drag header: move node - Shift+Click: multi-select - Shift+Drag: marquee - Ctrl+Drag: comment box - Backspace: delete selection - Output->Input: connect - Dbl-click edge: delete
           </div>
           <div id="gmode-badge" style="position:absolute;top:10px;left:10px;font-size:10px;padding:4px 10px;border-radius:8px;pointer-events:none;border:1px solid var(--sd-border);background:var(--sd-bg-2);display:none;color:var(--sd-text-2)"></div>
         </div>
@@ -8682,7 +8737,7 @@ export class FormulaGraph {
     this.nodesEl = win.querySelector("#gnodes");
     this.commentsEl = win.querySelector("#gcomments");
 
-    const btnBase = "background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:12px;height:30px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:.15s;box-shadow:0 4px 12px rgba(0,0,0,.4)";
+    const btnBase = "background:var(--sd-control-bg,var(--sd-bg-2));border:1px solid var(--sd-control-border,var(--sd-border));border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:12px;height:30px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:.15s;box-shadow:var(--sd-window-shadow,0 4px 12px rgba(0,0,0,.4))";
     win.querySelectorAll(".gz").forEach(b=>{b.style.cssText=btnBase+";width:30px";});
     win.querySelector("#gfit").style.cssText=btnBase+";padding:0 10px;font-size:11px;font-weight:600;gap:4px";
 
@@ -8856,7 +8911,7 @@ export class FormulaGraph {
       this._renderAll();
       this._scheduleEdges();
       const btn = win.querySelector("#grefresh");
-      if(btn){ const orig=btn.innerHTML; btn.innerHTML='<i class="fas fa-check" style="margin-right:4px"></i>Refreshed!'; btn.style.color="#aaffaa"; setTimeout(()=>{ btn.innerHTML=orig; btn.style.color="#6aaa6a"; },1200); }
+      if(btn){ const orig=btn.innerHTML; btn.innerHTML='<i class="fas fa-check" style="margin-right:4px"></i>Refreshed'; btn.style.color="#aaffaa"; setTimeout(()=>{ btn.innerHTML=orig; btn.style.color="var(--sd-text-2)"; },1200); }
     });
 
     win.querySelector("#gtpl")?.addEventListener("click", (ev) => {
@@ -9163,11 +9218,11 @@ export class FormulaGraph {
     document.querySelector(".sdgctx")?.remove();
     const menu=document.createElement("div");
     menu.className="sdgctx";
-    menu.style.cssText=`position:fixed;left:${sx}px;top:${sy}px;background:#121220;border:1px solid #2a2a3e;border-radius:6px;box-shadow:0 8px 32px rgba(0,0,0,.85);z-index:25000;min-width:200px;padding:4px 0;font-family:'Signika',serif;max-height:82vh;overflow-y:auto`;
+    menu.style.cssText=`position:fixed;left:${sx}px;top:${sy}px;background:var(--sd-popover-bg,var(--sd-bg-2));border:1px solid var(--sd-popover-border,var(--sd-border));border-radius:6px;box-shadow:var(--sd-popover-shadow,0 8px 32px rgba(0,0,0,.85));z-index:25000;min-width:200px;padding:4px 0;font-family:'Signika',serif;max-height:82vh;overflow-y:auto;color:var(--sd-text)`;
 
     const search=document.createElement("input");
-    search.placeholder="SearchвЂ¦";
-    search.style.cssText="width:calc(100% - 16px);margin:6px 8px 3px;background:#0c0c18;border:1px solid #2a2a3e;border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 8px;outline:none;box-sizing:border-box";
+    search.placeholder="Search...";
+    search.style.cssText="width:calc(100% - 16px);margin:6px 8px 3px;background:var(--sd-graph-field-bg,var(--sd-bg));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 8px;outline:none;box-sizing:border-box";
     menu.appendChild(search);
 
     const list=document.createElement("div");
@@ -9187,7 +9242,7 @@ export class FormulaGraph {
         });
         if(!nodes.length) return;
         const h=document.createElement("div");
-        h.style.cssText=`padding:3px 10px;font-size:9px;font-weight:700;text-transform:uppercase;color:${cat.color};border-top:1px solid #1a1a28;margin-top:3px`;
+        h.style.cssText=`padding:3px 10px;font-size:9px;font-weight:700;text-transform:uppercase;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:3px`;
         h.textContent=cat.id; list.appendChild(h);
         nodes.forEach(([type,def])=>{
           const item=document.createElement("div");
@@ -9374,6 +9429,7 @@ export class FormulaGraph {
     this._renderNode(node);
     this._updatePreview();
     this._pushHistory();
+    SDOnboarding.onGraphChanged?.(this);
     return node;
   }
 
@@ -9402,6 +9458,7 @@ export class FormulaGraph {
     }
     this._scheduleEdges?.();
     this._pushHistory();
+    SDOnboarding.onGraphChanged?.(this);
   }
 
   _removeEdge(edgeId) {
@@ -9444,7 +9501,7 @@ export class FormulaGraph {
     el.innerHTML = `
       <div class="gcmt-hdr" style="display:flex;align-items:center;gap:6px;padding:4px 10px;background:${color};border-radius:8px 8px 0 0;cursor:grab;user-select:none;font-family:Inter,'Segoe UI',Arial,sans-serif;color:#1a1a1a;font-weight:700;font-size:13px">
         <span class="gcmt-ttl" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.title || "Comment")}</span>
-        <span class="gcmt-del" style="cursor:pointer;padding:0 6px;color:#1a1a1a;opacity:.55;font-size:14px" title="Delete comment">Г—</span>
+        <span class="gcmt-del" style="cursor:pointer;padding:0 6px;color:#1a1a1a;opacity:.55;font-size:14px" title="Delete comment">x</span>
       </div>
       <div class="gcmt-rsz" style="position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,${color} 50%);border-bottom-right-radius:10px"></div>
     `;
@@ -9596,6 +9653,7 @@ export class FormulaGraph {
 
     const el=document.createElement("div");
     el.dataset.nid=node.id;
+    el.dataset.type=node.type;
 
     const W_BASE = def.wideNode ? 480 : def.isAttackBranch ? 380 : def.isBranch ? 320 : def.isAction ? 360 : (def.isOutput||def.isAttrOutput||def.isSkillOutput) ? 260 : 300;
 
@@ -9624,11 +9682,11 @@ export class FormulaGraph {
     const _border = _brokenBorder ?? `${_accent}55`;
     const _borderLeft = _brokenBorder ?? _accent;
     el.style.cssText=`position:absolute;left:${node.x}px;top:${node.y}px;min-width:${W_MIN}px;width:${W}px;max-width:640px;
-      background:linear-gradient(180deg,var(--sd-bg-2),#101521);
+      background:var(--sd-graph-node-bg,linear-gradient(180deg,var(--sd-bg-2),#101521));
       border:1px solid ${_border};
       border-left:3px solid ${_borderLeft};
       border-radius:16px;
-      box-shadow:0 18px 45px rgba(0,0,0,.5), 0 0 0 1px ${_accent}22 inset${_funcBroken?", 0 0 0 2px rgba(224,64,64,.4) inset":""};
+      box-shadow:var(--sd-graph-node-shadow,0 18px 45px rgba(0,0,0,.5)), 0 0 0 1px ${_accent}22 inset${_funcBroken?", 0 0 0 2px rgba(224,64,64,.4) inset":""};
       overflow:hidden;
       transform:translateZ(0);`;
 
@@ -9658,7 +9716,7 @@ export class FormulaGraph {
         ${(!isOut && !def.isWidgetConfig && !noDelete)?`<button class="ndel" data-nid="${node.id}"
           style="width:26px;height:26px;display:grid;place-items:center;border:none;border-radius:8px;
                  background:rgba(255,255,255,.1);color:#fff;cursor:pointer;font-size:16px;line-height:1;
-                 transition:.15s;flex-shrink:0">вњ•</button>`:""}
+                 transition:.15s;flex-shrink:0" aria-label="Delete node"><i class="fas fa-xmark"></i></button>`:""}
       </div>
       <div class="gnbody" style="padding:6px 0"></div>`;
 
@@ -9846,7 +9904,7 @@ export class FormulaGraph {
       const body = el.querySelector(".gnbody");
       const card = document.createElement("div");
       card.className = "gn-attr-card";
-      card.style.cssText = "margin:4px 8px 5px;border:1px solid #4a3a1a;border-radius:5px;background:#0e0a04;padding:5px 8px;display:flex;flex-direction:column;gap:3px;align-items:center";
+      card.style.cssText = "margin:4px 8px 5px;border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:5px;background:var(--sd-graph-live-bg,var(--sd-bg));padding:5px 8px;display:flex;flex-direction:column;gap:3px;align-items:center";
 
       const scoreDisplay = document.createElement("div");
       scoreDisplay.style.cssText = "font-size:28px;font-weight:700;color:#e8c060;font-family:monospace;line-height:1;letter-spacing:-1px";
@@ -9861,7 +9919,7 @@ export class FormulaGraph {
       const _refreshAttrCard = () => {
         const doc = this.doc;
         const p = node.data.path ?? "";
-        if (!doc || !p) { scoreDisplay.textContent = "вЂ”"; modDisplay.textContent = ""; return; }
+        if (!doc || !p) { scoreDisplay.textContent = "-"; modDisplay.textContent = ""; return; }
         const raw = foundry.utils.getProperty(doc, p);
         const score = raw !== undefined && raw !== null ? Number(raw) : null;
         if (score === null || isNaN(score)) { scoreDisplay.textContent = "?"; modDisplay.textContent = ""; return; }
@@ -9879,7 +9937,7 @@ export class FormulaGraph {
       const body = el.querySelector(".gnbody");
       const card = document.createElement("div");
       card.className = "gn-skill-card";
-      card.style.cssText = "margin:4px 8px 5px;border:1px solid #1a3a4a;border-radius:5px;background:#04090e;padding:5px 8px;display:flex;flex-direction:column;gap:3px;align-items:center";
+      card.style.cssText = "margin:4px 8px 5px;border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:5px;background:var(--sd-graph-live-bg,var(--sd-bg));padding:5px 8px;display:flex;flex-direction:column;gap:3px;align-items:center";
 
       const rankDisplay = document.createElement("div");
       rankDisplay.style.cssText = "font-size:28px;font-weight:700;color:#60c0e8;font-family:monospace;line-height:1;letter-spacing:-1px";
@@ -9890,7 +9948,7 @@ export class FormulaGraph {
       const _refreshSkillCard = () => {
         const doc = this.doc;
         const p = node.data.path ?? "";
-        if (!doc || !p) { rankDisplay.textContent = "вЂ”"; return; }
+        if (!doc || !p) { rankDisplay.textContent = "-"; return; }
         const raw = foundry.utils.getProperty(doc, p);
         const rank = raw !== undefined && raw !== null ? Number(raw) : null;
         if (rank === null || isNaN(rank)) { rankDisplay.textContent = "?"; return; }
@@ -10022,18 +10080,18 @@ export class FormulaGraph {
       const l=document.createElement("label");
       const lbl=_NL(field.label);
       l.textContent=lbl;
-      l.style.cssText="font-size:10px;color:#8080aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;flex-shrink:1;min-width:0;font-weight:600;letter-spacing:.03em;text-transform:uppercase;margin-right:4px";
+      l.style.cssText="font-size:10px;color:var(--sd-label,var(--sd-text-2));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;flex-shrink:1;min-width:0;font-weight:600;letter-spacing:.03em;text-transform:uppercase;margin-right:4px";
       l.title=lbl;
       wrap.appendChild(l);
     }
 
-    const IS="background:#1a1e2e;border:1px solid rgba(120,100,220,.35);border-radius:6px;color:var(--sd-text);font-size:12px;padding:5px 10px;font-family:monospace;outline:none;min-width:80px;max-width:420px;width:auto;box-sizing:border-box;height:28px;field-sizing:content";
+    const IS="background:var(--sd-graph-field-bg,var(--sd-bg-3));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:6px;color:var(--sd-text);font-size:12px;padding:5px 10px;font-family:monospace;outline:none;min-width:80px;max-width:420px;width:auto;box-sizing:border-box;height:28px;field-sizing:content";
     const SI=IS+";cursor:pointer";
     const idx=this._smartIndex??{slots:[],ownedItems:[],effects:[],widgets:[],invItemSlots:[]};
 
     if(field.type==="slot-picker"){
       const cur=node.data[field.key]??field.default??"slot1";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Slot ID вЂ” auto-indexed";
+      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Slot ID - auto-indexed";
       const groups={self:[],actor:[],items:{}};
       for(const s of idx.slots){
         if(s.source==="self") groups.self.push(s);
@@ -10046,7 +10104,7 @@ export class FormulaGraph {
         const g=document.createElement("optgroup"); g.label=lbl;
         for(const s of list){
           const o=document.createElement("option"); o.value=s.id;
-          o.textContent=`${s.id} вЂ” ${s.label}`;
+          o.textContent=`${s.id} - ${s.label}`;
           if(s.slotPath!=null) o.dataset.slotPath=s.slotPath;
           const isMatch = s.id===cur && (curPath==null || curPath===s.slotPath || (!s.slotPath && curPath==null));
           if(isMatch) o.selected=true;
@@ -10069,8 +10127,8 @@ export class FormulaGraph {
 
     if(field.type==="item-picker"){
       const cur=node.data[field.key]??field.default??"";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Owned item вЂ” auto-indexed";
-      { const o=document.createElement("option"); o.value=""; o.textContent="вЂ” pick item вЂ”"; if(!cur)o.selected=true; sel.appendChild(o); }
+      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Owned item - auto-indexed";
+      { const o=document.createElement("option"); o.value=""; o.textContent="- pick item -"; if(!cur)o.selected=true; sel.appendChild(o); }
       const byType={};
       for(const it of idx.ownedItems)(byType[it.type]||(byType[it.type]=[])).push(it);
       for(const [tp,list] of Object.entries(byType)){
@@ -10086,8 +10144,8 @@ export class FormulaGraph {
 
     if(field.type==="effect-picker"){
       const cur=node.data[field.key]??field.default??"";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Active Effect вЂ” auto-indexed";
-      { const o=document.createElement("option"); o.value=""; o.textContent="вЂ” pick effect вЂ”"; if(!cur)o.selected=true; sel.appendChild(o); }
+      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Active Effect - auto-indexed";
+      { const o=document.createElement("option"); o.value=""; o.textContent="- pick effect -"; if(!cur)o.selected=true; sel.appendChild(o); }
       for(const fx of idx.effects){ const o=document.createElement("option"); o.value=fx.name; o.textContent=fx.name; if(fx.name===cur)o.selected=true; sel.appendChild(o); }
       if(cur && !idx.effects.find(e=>e.name===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom)"; o.selected=true; sel.appendChild(o); }
       sel.addEventListener("mousedown",ev=>ev.stopPropagation());
@@ -10098,11 +10156,11 @@ export class FormulaGraph {
     if(field.type==="effect-uuid-picker"){
       const cur=node.data[field.key]??field.default??"";
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Effect вЂ” picks UUID automatically";
-      { const o=document.createElement("option"); o.value=""; o.textContent="вЂ” pick effect вЂ”"; if(!cur)o.selected=true; sel.appendChild(o); }
+      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Effect - picks UUID automatically";
+      { const o=document.createElement("option"); o.value=""; o.textContent="- pick effect -"; if(!cur)o.selected=true; sel.appendChild(o); }
       for(const fx of idx.effects){ const o=document.createElement("option"); o.value=fx.uuid; o.textContent=fx.name; if(fx.uuid===cur)o.selected=true; sel.appendChild(o); }
       if(cur && !idx.effects.find(e=>e.uuid===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom uuid)"; o.selected=true; sel.appendChild(o); }
-      const rawInp=document.createElement("input"); rawInp.type="text"; rawInp.placeholder="or paste UUIDвЂ¦"; rawInp.value=cur;
+      const rawInp=document.createElement("input"); rawInp.type="text"; rawInp.placeholder="or paste UUID..."; rawInp.value=cur;
       rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
       sel.addEventListener("mousedown",ev=>ev.stopPropagation());
       rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
@@ -10113,8 +10171,8 @@ export class FormulaGraph {
 
     if(field.type==="widget-picker"){
       const cur=node.data[field.key]??field.default??"";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Widget key вЂ” auto-indexed from tabs";
-      { const o=document.createElement("option"); o.value=""; o.textContent="вЂ” any widget вЂ”"; if(!cur)o.selected=true; sel.appendChild(o); }
+      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Widget key - auto-indexed from tabs";
+      { const o=document.createElement("option"); o.value=""; o.textContent="- any widget -"; if(!cur)o.selected=true; sel.appendChild(o); }
       for(const w of idx.widgets){ const o=document.createElement("option"); o.value=w.key; o.textContent=`${w.label} [${w.type}]`; if(w.key===cur)o.selected=true; sel.appendChild(o); }
       if(cur && !idx.widgets.find(w=>w.key===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom)"; o.selected=true; sel.appendChild(o); }
       sel.addEventListener("mousedown",ev=>ev.stopPropagation());
@@ -10130,12 +10188,12 @@ export class FormulaGraph {
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0";
 
       const selItem=document.createElement("select"); selItem.style.cssText=SI; selItem.title="Container item";
-      { const o=document.createElement("option"); o.value=""; o.textContent="вЂ” container item вЂ”"; if(!curItem)o.selected=true; selItem.appendChild(o); }
+      { const o=document.createElement("option"); o.value=""; o.textContent="- container item -"; if(!curItem)o.selected=true; selItem.appendChild(o); }
       const byType={};
       for(const it of idx.ownedItems)(byType[it.type]||(byType[it.type]=[])).push(it);
       for(const [tp,list] of Object.entries(byType)){
         const g=document.createElement("optgroup"); g.label=tp;
-        for(const it of list){ const hasSlots=idx.invItemSlots.some(s=>s.itemId===it.id); const o=document.createElement("option"); o.value=it.name; o.textContent=it.name+(hasSlots?" в¬Ў":""); if(it.name===curItem)o.selected=true; g.appendChild(o); }
+        for(const it of list){ const hasSlots=idx.invItemSlots.some(s=>s.itemId===it.id); const o=document.createElement("option"); o.value=it.name; o.textContent=it.name+(hasSlots?" [slots]":""); if(it.name===curItem)o.selected=true; g.appendChild(o); }
         selItem.appendChild(g);
       }
 
@@ -10145,7 +10203,7 @@ export class FormulaGraph {
         const chosen=idx.ownedItems.find(i=>i.name===selItem.value);
         const slots=chosen ? idx.invItemSlots.filter(s=>s.itemId===chosen.id) : [];
         if(!slots.length){ const o=document.createElement("option"); o.value=node.data[slotKey]||"slot1"; o.textContent=(node.data[slotKey]||"slot1")+" (no indexed slots)"; selSlot.appendChild(o); return; }
-        for(const s of slots){ const o=document.createElement("option"); o.value=s.slotId; o.textContent=`${s.slotId} вЂ” ${s.slotLabel}`; if(s.slotId===curSlot)o.selected=true; selSlot.appendChild(o); }
+        for(const s of slots){ const o=document.createElement("option"); o.value=s.slotId; o.textContent=`${s.slotId} - ${s.slotLabel}`; if(s.slotId===curSlot)o.selected=true; selSlot.appendChild(o); }
       };
       buildSlotOpts();
 
@@ -10162,7 +10220,7 @@ export class FormulaGraph {
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0";
 
       const selItem=document.createElement("select"); selItem.style.cssText=SI; selItem.title="Pick owned item by name";
-      { const o=document.createElement("option"); o.value=""; o.textContent="вЂ” pick owned item вЂ”"; if(!curName)o.selected=true; selItem.appendChild(o); }
+      { const o=document.createElement("option"); o.value=""; o.textContent="- pick owned item -"; if(!curName)o.selected=true; selItem.appendChild(o); }
       const byType2={};
       for(const it of idx.ownedItems)(byType2[it.type]||(byType2[it.type]=[])).push(it);
       for(const [tp,list] of Object.entries(byType2)){
@@ -10175,18 +10233,18 @@ export class FormulaGraph {
         const chosen=idx.ownedItems.find(i=>i.name===selItem.value);
         node.data["itemName"]=selItem.value;
         node.data[field.key]=chosen?.uuid??"";
-        dropZone.textContent=chosen ? `вњ” ${chosen.name}` : "в¬‡ drag item here";
+        dropZone.textContent=chosen ? `OK ${chosen.name}` : "Drop item here";
         dropZone.style.color=chosen?"#6aaa6a":"#5a7a9a";
         this._updatePreview();
       });
 
       const dropZone=document.createElement("div");
       const hasVal=curUuid||curName;
-      dropZone.textContent=hasVal ? `вњ” ${curName||curUuid}` : "в¬‡ drag item here";
-      dropZone.style.cssText=`background:#060612;border:2px dashed ${hasVal?"#3a6a3a":"#2a3a5a"};border-radius:4px;color:${hasVal?"#6aaa6a":"#5a7a9a"};font-size:11px;padding:5px 8px;text-align:center;cursor:copy;transition:border-color .15s,color .15s;`;
+      dropZone.textContent=hasVal ? `OK ${curName||curUuid}` : "Drop item here";
+      dropZone.style.cssText=`background:var(--sd-graph-live-bg,var(--sd-bg));border:2px dashed ${hasVal?"var(--sd-success)":"var(--sd-border)"};border-radius:4px;color:${hasVal?"var(--sd-success)":"var(--sd-text-3)"};font-size:11px;padding:5px 8px;text-align:center;cursor:copy;transition:border-color .15s,color .15s;`;
       dropZone.title="Drag an item from the Foundry sidebar to auto-fill UUID";
-      dropZone.addEventListener("dragover",ev=>{ ev.preventDefault(); dropZone.style.borderColor="var(--sd-accent)"; dropZone.style.color="#a090ff"; });
-      dropZone.addEventListener("dragleave",()=>{ dropZone.style.borderColor=node.data[field.key]?"#3a6a3a":"#2a3a5a"; dropZone.style.color=node.data[field.key]?"#6aaa6a":"#5a7a9a"; });
+      dropZone.addEventListener("dragover",ev=>{ ev.preventDefault(); dropZone.style.borderColor="var(--sd-accent)"; dropZone.style.color="var(--sd-accent)"; });
+      dropZone.addEventListener("dragleave",()=>{ dropZone.style.borderColor=node.data[field.key]?"var(--sd-success)":"var(--sd-border)"; dropZone.style.color=node.data[field.key]?"var(--sd-success)":"var(--sd-text-3)"; });
       dropZone.addEventListener("drop",async ev=>{
         ev.preventDefault();
         try{
@@ -10198,8 +10256,8 @@ export class FormulaGraph {
           const found=idx.ownedItems.find(i=>i.uuid===uuid)||idx.ownedItems.find(i=>i.id===d.id);
           const label=found?.name ?? d.name ?? uuid;
           node.data["itemName"]=found?.name??"";
-          dropZone.textContent=`вњ” ${label}`;
-          dropZone.style.borderColor="#3a6a3a"; dropZone.style.color="#6aaa6a";
+          dropZone.textContent=`OK ${label}`;
+          dropZone.style.borderColor="var(--sd-success)"; dropZone.style.color="var(--sd-success)";
 
           const opt=[...selItem.options].find(o=>o.value===(found?.name??""));
           if(opt) selItem.value=opt.value;
@@ -10209,8 +10267,8 @@ export class FormulaGraph {
 
       dropZone.addEventListener("dblclick",()=>{
         node.data[field.key]=""; node.data["itemName"]="";
-        dropZone.textContent="в¬‡ drag item here";
-        dropZone.style.borderColor="#2a3a5a"; dropZone.style.color="#5a7a9a";
+        dropZone.textContent="Drop item here";
+        dropZone.style.borderColor="var(--sd-border)"; dropZone.style.color="var(--sd-text-3)";
         selItem.value=""; this._updatePreview();
       });
 
@@ -10451,7 +10509,7 @@ export class FormulaGraph {
     const targetPinDef = targetIns.find(p=>p.id===pin.dataset.pid);
     const targetType   = targetPinDef?.type;
     if (!arePinsCompatible(conn.fromType, targetType)) {
-      ui.notifications?.warn?.(`Incompatible pin types: ${pinSubtype(conn.fromType)} в†’ ${pinSubtype(targetType)}`);
+      ui.notifications?.warn?.(`Incompatible pin types: ${pinSubtype(conn.fromType)} -> ${pinSubtype(targetType)}`);
       return;
     }
     this._addEdge(conn.fromNode,conn.fromPin,pin.dataset.nid,pin.dataset.pid);
@@ -10484,13 +10542,13 @@ export class FormulaGraph {
     menu.id = "sd-quick-insert-menu";
     menu.style.cssText = `position:fixed;left:${ev.clientX}px;top:${ev.clientY}px;
       min-width:240px;max-width:340px;max-height:60vh;overflow:auto;
-      background:#121220;border:1px solid #2a2a3e;border-radius:8px;
-      box-shadow:0 12px 40px rgba(0,0,0,.8);z-index:25000;
+      background:var(--sd-popover-bg,var(--sd-bg-2));border:1px solid var(--sd-popover-border,var(--sd-border));border-radius:8px;
+      box-shadow:var(--sd-popover-shadow,0 12px 40px rgba(0,0,0,.8));z-index:25000;
       font-family:'Signika',sans-serif;color:var(--sd-text);padding:6px 0`;
 
     const head = document.createElement("div");
     head.textContent = `${_NL("Insert node compatible with")} ${pinSubtype(fromType) || "exec"}`;
-    head.style.cssText = "padding:6px 12px;font-size:11px;color:var(--sd-text-2);border-bottom:1px solid #2a2a3e";
+    head.style.cssText = "padding:6px 12px;font-size:11px;color:var(--sd-text-2);border-bottom:1px solid var(--sd-border)";
     menu.appendChild(head);
 
     if (!candidates.length) {
@@ -10511,7 +10569,7 @@ export class FormulaGraph {
         const item = document.createElement("div");
         item.textContent = _NL(c.def.title ?? c.type);
         item.style.cssText = "padding:5px 14px;font-size:12px;cursor:pointer";
-        item.addEventListener("mouseenter", () => item.style.background = "#1f2538");
+        item.addEventListener("mouseenter", () => item.style.background = "var(--sd-control-hover,var(--sd-bg-3))");
         item.addEventListener("mouseleave", () => item.style.background = "");
         item.addEventListener("click", () => {
           menu.remove();
@@ -11047,7 +11105,7 @@ export class FormulaGraph {
       const _w = Math.min(1000, Math.floor(window.innerWidth * 0.94));
       const _h = Math.min(640, Math.floor(window.innerHeight * 0.90));
       const _l = Math.max(20, Math.floor((window.innerWidth - _w) / 2));
-      wrap.style.cssText = `position:fixed;top:60px;left:${_l}px;width:${_w}px;height:${_h}px;min-width:620px;min-height:420px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.95);z-index:21000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;resize:both`;
+      wrap.style.cssText = `position:fixed;top:60px;left:${_l}px;width:${_w}px;height:${_h}px;min-width:620px;min-height:420px;background:var(--sd-popover-bg,var(--sd-bg));border:1px solid var(--sd-popover-border,var(--sd-border));border-radius:12px;box-shadow:var(--sd-popover-shadow,0 24px 80px rgba(0,0,0,.95));z-index:21000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;resize:both`;
     }
 
     wrap.innerHTML = `
@@ -11322,11 +11380,15 @@ if(!document.getElementById("sd-graph-css")){
     .gpin{transition:transform .12s ease,box-shadow .12s ease}
     .gnhdr{transition:opacity .15s}
     .gnhdr:active{cursor:grabbing!important;opacity:.9}
-    .node-selected{outline:2px solid rgba(116,167,255,.9)!important;outline-offset:0}
+    .node-selected{outline:2px solid var(--sd-accent)!important;outline-offset:0}
     .ndel:hover{background:rgba(255,124,124,.22)!important}
-    .gpal:hover{background:rgba(116,167,255,.1)!important}
+    .gpal:hover{background:var(--sd-accent-glow)!important}
     #gpal::-webkit-scrollbar{width:4px}
-    #gpal::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+    #gpal::-webkit-scrollbar-thumb{background:var(--sd-border);border-radius:2px}
+    #gbar button{display:inline-flex;align-items:center;justify-content:center;min-height:28px;line-height:1;white-space:nowrap;flex:none}
+    #gbar button i{pointer-events:none}
+    #grefresh{min-width:104px}
+    #gclose{padding:0!important;min-width:30px}
     #gsave:hover{filter:brightness(1.1)}
     #gclose:hover{background:rgba(255,124,124,.2)!important;color:#ff7c7c!important}
   `;

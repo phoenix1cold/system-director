@@ -297,13 +297,17 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         tabs.forEach(t => {
           const b = root.querySelector(`#${t.btnId}`);
           const p = root.querySelector(`#${t.panelId}`);
-          if (b) { b.style.background="#13131d"; b.style.color="#555"; b.style.borderBottom="2px solid transparent"; }
+          if (b) {
+            b.style.background = "var(--sd-bg)";
+            b.style.color = "var(--sd-text-3)";
+            b.style.borderBottom = "2px solid transparent";
+          }
           if (p) p.style.display = "none";
         });
 
-        btn.style.background   = "#1a1a24";
-        btn.style.color        = "#7b68ee";
-        btn.style.borderBottom = "2px solid #7b68ee";
+        btn.style.background   = "var(--sd-bg)";
+        btn.style.color        = "var(--sd-accent)";
+        btn.style.borderBottom = "2px solid var(--sd-accent)";
         panel.style.display    = "flex";
         panel.style.flexDirection = "column";
       });

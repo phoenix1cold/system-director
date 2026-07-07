@@ -43,8 +43,8 @@
   box-shadow: var(--sd-shadow);
 }
 .sd-w-richtext.sd-v-scroll {
-  max-height: 140px !important;
-  overflow-y: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
   padding: 8px 12px !important;
   background: var(--sd-bg-3) !important;
   border: 1px solid var(--sd-border) !important;

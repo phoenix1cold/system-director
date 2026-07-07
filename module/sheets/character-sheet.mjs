@@ -155,6 +155,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   _onRender(context, options) {
+    this._captureScrollMemory();
     this._buildTabNav();
     this._buildTabPanels();
     this._wireHeaderInputs();
@@ -165,6 +166,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ItemPreviewPopup.attach(this.element, this.document);
     TabManager.activate(this);
     SDOnboarding.bindCharacterSheet(this.element);
+    this._wireScrollMemory();
+    this._restoreScrollMemory();
   }
 
   _wireAnimationTagDelegation() {
@@ -195,6 +198,50 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (t?.closest?.(".richtext-editor, .richtext-edit-wrap, .sd-wcfg-popup, prose-mirror, .sd-richtext-pm-target, .sd-richtext-editor, .editor.prosemirror, .ProseMirror, .prosemirror-menu")) return;
     if (t?.tagName?.toLowerCase?.() === "prose-mirror") return;
     return super._onChangeForm(formConfig, event);
+  }
+
+  _scrollKey(panel) {
+    return panel?.dataset?.tab ?? panel?.dataset?.tabId ?? this.tabGroups.sheet ?? "__default";
+  }
+
+  _captureScrollMemory() {
+    const root = this.element;
+    if (!root) return;
+    this._sdScrollMemory ??= {};
+    root.querySelectorAll(".sd-tab-panel").forEach(panel => {
+      const key = this._scrollKey(panel);
+      if (key) this._sdScrollMemory[key] = panel.scrollTop || 0;
+    });
+  }
+
+  _wireScrollMemory() {
+    const root = this.element;
+    if (!root) return;
+    this._sdScrollMemory ??= {};
+    root.querySelectorAll(".sd-tab-panel").forEach(panel => {
+      if (panel.dataset.sdScrollMemory === "1") return;
+      panel.dataset.sdScrollMemory = "1";
+      panel.addEventListener("scroll", () => {
+        const key = this._scrollKey(panel);
+        if (key) this._sdScrollMemory[key] = panel.scrollTop || 0;
+      }, { passive: true });
+    });
+  }
+
+  _restoreScrollMemory() {
+    const root = this.element;
+    const memory = this._sdScrollMemory;
+    if (!root || !memory) return;
+    const apply = () => {
+      root.querySelectorAll(".sd-tab-panel").forEach(panel => {
+        const key = this._scrollKey(panel);
+        const y = Number(memory[key] ?? 0);
+        if (!Number.isFinite(y) || y <= 0) return;
+        panel.scrollTop = Math.min(y, Math.max(0, panel.scrollHeight - panel.clientHeight));
+      });
+    };
+    requestAnimationFrame(apply);
+    window.setTimeout(apply, 50);
   }
 
   _wireTrackerDelegation() {
@@ -365,6 +412,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       root.querySelector(".window-content")?.appendChild(container);
     }
 
+    this._captureScrollMemory();
     container.innerHTML = "";
 
     const tabs = this.document.system.customTabs ?? [];
@@ -2106,6 +2154,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   _switchTab(tabId) {
+    this._captureScrollMemory();
     this.tabGroups.sheet = tabId;
     const root = this.element;
 
@@ -2119,6 +2168,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     root.querySelectorAll(".sd-tab-panel").forEach(p => {
       p.style.display = p.dataset.tab === tabId ? "flex" : "none";
     });
+    this._restoreScrollMemory();
   }
 
   async _addTab(label = "New Tab") {

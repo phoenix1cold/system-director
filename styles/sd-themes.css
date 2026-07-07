@@ -1,3 +1,31 @@
+:root {
+  --sd-surface:           var(--sd-bg);
+  --sd-surface-2:         var(--sd-bg-2);
+  --sd-surface-3:         var(--sd-bg-3);
+  --sd-window-shadow:     var(--sd-shadow, 0 16px 48px rgba(0,0,0,.55));
+  --sd-popover-bg:        var(--sd-bg);
+  --sd-popover-border:    var(--sd-border);
+  --sd-popover-shadow:    var(--sd-shadow, 0 16px 48px rgba(0,0,0,.65));
+  --sd-control-bg:        var(--sd-bg-3);
+  --sd-control-hover:     var(--sd-bg-4);
+  --sd-control-border:    var(--sd-border);
+  --sd-input-focus-shadow: 0 0 0 2px var(--sd-accent-glow);
+  --sd-tip-bg:            var(--sd-bg-2);
+  --sd-tip-text:          var(--sd-text);
+  --sd-tip-border:        var(--sd-accent);
+  --sd-tip-shadow:        var(--sd-shadow, 0 10px 28px rgba(0,0,0,.55));
+  --sd-graph-bg:          var(--sd-bg);
+  --sd-graph-grid-major:  rgba(255,255,255,.045);
+  --sd-graph-grid-minor:  rgba(255,255,255,.025);
+  --sd-graph-node-bg:     linear-gradient(180deg,var(--sd-bg-2),#101521);
+  --sd-graph-node-shadow: 0 18px 45px rgba(0,0,0,.50);
+  --sd-graph-field-bg:    #1a1e2e;
+  --sd-graph-field-border: rgba(120,100,220,.35);
+  --sd-graph-live-bg:     #060610;
+  --sd-graph-live-border: #1a1a30;
+  --sd-graph-live-text:   var(--sd-success);
+}
+
 :root[data-sd-theme="default"],
 [data-sd-theme="default"] {
   --sd-bg:            #1a1a24;
@@ -188,6 +216,27 @@
   --sd-stamina:       #3e7a2a;
 
   --sd-shadow:        0 2px 12px rgba(80,50,20,.20);
+  --sd-window-shadow: 0 10px 30px rgba(74,48,20,.18);
+  --sd-popover-bg:    #f7edd8;
+  --sd-popover-border:#b6945c;
+  --sd-popover-shadow:0 12px 32px rgba(74,48,20,.22);
+  --sd-control-bg:    #f8efde;
+  --sd-control-hover: #ead8b8;
+  --sd-control-border:#b6945c;
+  --sd-tip-bg:        #fff7e6;
+  --sd-tip-text:      #3a2a14;
+  --sd-tip-border:    #9a5a24;
+  --sd-tip-shadow:    0 10px 26px rgba(74,48,20,.26);
+  --sd-graph-bg:      #f7eedb;
+  --sd-graph-grid-major: rgba(112,78,36,.16);
+  --sd-graph-grid-minor: rgba(112,78,36,.075);
+  --sd-graph-node-bg: linear-gradient(180deg,#fff2d5 0%,#efe0c2 100%);
+  --sd-graph-node-shadow: 0 12px 28px rgba(74,48,20,.22), 0 1px 0 rgba(255,255,255,.65) inset;
+  --sd-graph-field-bg: #fbf1dd;
+  --sd-graph-field-border: rgba(138,72,32,.34);
+  --sd-graph-live-bg: #fff5df;
+  --sd-graph-live-border: #d6bd8d;
+  --sd-graph-live-text: #2f6f24;
 }
 
 :root[data-sd-theme="solar"],

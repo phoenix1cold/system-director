@@ -43,7 +43,7 @@ import { SDQuest }             from "./module/helpers/quest.mjs";
 import { installSdPause }      from "./module/helpers/sd-pause.mjs";
 import { SlotEffectSync }      from "./module/helpers/slot-effects.mjs";
 import { registerEffectDurationHooks } from "./module/helpers/effect-duration.mjs";
-import { installOnboarding } from "./module/helpers/onboarding.mjs";
+import { installOnboarding, SDOnboarding } from "./module/helpers/onboarding.mjs";
 
 SDTrade.init();
 SDQuest.init();
@@ -371,6 +371,7 @@ Hooks.once("ready", async () => {
   const { EVENT_BUS } = await import("./module/helpers/event-bus.mjs");
   EVENT_BUS.init();
   globalThis._SD_EVENT_BUS = EVENT_BUS;
+  SDOnboarding.showWelcomeIfNeeded();
 
   try {
     const Vision = await import("./module/helpers/vision.mjs");
