@@ -167,6 +167,14 @@ const _ROUND_FIELD = {
   ]
 };
 
+const AI_PROVIDER_PROFILE_OPTIONS = [
+  { value:"",          label:"Default" },
+  { value:"dialogue",  label:"Dialogue" },
+  { value:"memory",    label:"Memory" },
+  { value:"bio",       label:"Dynamic Bio" },
+  { value:"assistant", label:"Assistant" }
+];
+
 export const NODE_DEFS = {
 
   output: {
@@ -2890,6 +2898,7 @@ export const NODE_DEFS = {
       {id:"errorMsg", label:"Error",    type:"value.string"}
     ],
     fields:[
+      {key:"providerProfile", label:"Provider Profile", type:"select", default:"", options:AI_PROVIDER_PROFILE_OPTIONS},
       {key:"url",          label:"URL",            type:"text",   default:"",
         placeholder:"https://api.openai.com/v1/chat/completions"},
       {key:"apiKey",       label:"API Key",        type:"text",   default:"",
@@ -2910,6 +2919,7 @@ export const NODE_DEFS = {
     isAiBranch: true,
     toAction:(n,inp)=>({
       type:         "aiRequest",
+      providerProfile: n.data.providerProfile ?? "",
       url:          inp.url          ?? n.data.url          ?? "",
       apiKey:       inp.apiKey       ?? n.data.apiKey       ?? "",
       apiKeySetting: n.data.apiKeySetting ?? "",
@@ -2923,12 +2933,65 @@ export const NODE_DEFS = {
     })
   },
 
+  act_ai_assistant: {
+    title:"AI Assistant", color:"#4a4a8a", cat:"AI", wideNode:true,
+    desc:"Asks the AI helper configured in AI Settings. Use it for graph logic help, narration, generated text, summaries, hints, or any assistant-style response. Blank provider fields use the selected Provider Profile; Assistant is the default profile.",
+    inputs:[
+      {id:"exec",         label:"",              type:"exec"},
+      {id:"prompt",       label:"Prompt",        type:"value.string"},
+      {id:"context",      label:"Context",       type:"value.string"},
+      {id:"systemPrompt", label:"System Prompt", type:"value.string"},
+      {id:"temperature",  label:"Temperature",   type:"value.number"},
+      {id:"maxTokens",    label:"Max Tokens",    type:"value.number"}
+    ],
+    outputs:[
+      {id:"exec",     label:"Done ->",  type:"exec"},
+      {id:"error",    label:"Error ->", type:"exec"},
+      {id:"response", label:"Response", type:"value.string"},
+      {id:"errorMsg", label:"Error",    type:"value.string"}
+    ],
+    fields:[
+      {key:"providerProfile", label:"Provider Profile", type:"select", default:"assistant", options:AI_PROVIDER_PROFILE_OPTIONS},
+      {key:"systemPrompt", label:"System Prompt", type:"textarea", rows:3,
+        default:"You are an AI assistant inside a Foundry VTT node graph. Help concisely and return directly usable text."},
+      {key:"prompt", label:"Prompt", type:"textarea", rows:4, default:"", placeholder:"Ask the assistant what to generate or decide."},
+      {key:"context", label:"Context", type:"textarea", rows:3, default:"", placeholder:"Optional extra context; can be wired from another node."},
+      {key:"includeActorContext", label:"Include Actor AI Bio / World", type:"select", default:"yes", options:["yes","no"]},
+      {key:"url",        label:"URL",         type:"text",   default:"", placeholder:"Blank = selected profile"},
+      {key:"apiKey",     label:"API Key",     type:"text",   default:""},
+      {key:"apiKeySetting", label:"API key setting (world)", type:"text", default:""},
+      {key:"model",      label:"Model",       type:"text",   default:"", placeholder:"Blank = selected profile model"},
+      {key:"temperature",label:"Temperature", type:"number", default:""},
+      {key:"maxTokens",  label:"Max Tokens",  type:"number", default:""},
+      {key:"flavor",     label:"Chat label",  type:"text",   default:"AI Assistant"},
+      {key:"toChat",     label:"Post to chat", type:"select", default:"no", options:["no","yes"]}
+    ],
+    isAiBranch:true,
+    toAction:(n,inp)=>({
+      type:"aiAssistant",
+      providerProfile: n.data.providerProfile ?? "assistant",
+      systemPrompt: inp.systemPrompt ?? n.data.systemPrompt ?? "",
+      prompt: inp.prompt ?? n.data.prompt ?? "",
+      context: inp.context ?? n.data.context ?? "",
+      includeActorContext: n.data.includeActorContext !== "no",
+      url: n.data.url ?? "",
+      apiKey: n.data.apiKey ?? "",
+      apiKeySetting: n.data.apiKeySetting ?? "",
+      model: n.data.model ?? "",
+      temperature: (inp.temperature != null && inp.temperature !== "") ? Number(inp.temperature) : n.data.temperature,
+      maxTokens: (inp.maxTokens != null && inp.maxTokens !== "") ? Number(inp.maxTokens) : n.data.maxTokens,
+      flavor: n.data.flavor ?? "AI Assistant",
+      toChat: n.data.toChat === "yes"
+    })
+  },
+
   ai_dialogue_choices: {
     title:"AI Dialogue Choices", color:"#4a4a8a", cat:"AI", wideNode:true,
     desc:"Configuration source for Dialogue Builder. Connect its AI Choices output into Dialogue Builder's AI Choices input. At runtime it asks an OpenAI-compatible model to generate the NPC dialogue text and player response choices. Infinity Dialogue keeps sending the selected player answer plus dialogue history back to the model and reopens the next dialogue window while the model returns continue=true.",
     inputs:[],
     outputs:[{id:"choices", label:"AI Choices", type:"value.any"}],
     fields:[
+      {key:"providerProfile", label:"Provider Profile", type:"select", default:"dialogue", options:AI_PROVIDER_PROFILE_OPTIONS},
       {key:"url",          label:"URL",            type:"text",   default:"",
         placeholder:"https://api.openai.com/v1/chat/completions"},
       {key:"apiKey",       label:"API Key",        type:"text",   default:"",
@@ -2955,6 +3018,7 @@ export const NODE_DEFS = {
         return ["1", "true", "yes", "on"].includes(s);
       };
       const cfg = {
+        providerProfile:  n.data.providerProfile ?? "dialogue",
         url:              i.url              ?? n.data.url              ?? "",
         apiKey:           i.apiKey           ?? n.data.apiKey           ?? "",
         apiKeySetting:    n.data.apiKeySetting ?? "",
@@ -2993,6 +3057,7 @@ export const NODE_DEFS = {
       {id:"errorMsg",    label:"Error",    type:"value.string"}
     ],
     fields:[
+      {key:"providerProfile", label:"Provider Profile", type:"select", default:"memory", options:AI_PROVIDER_PROFILE_OPTIONS},
       {key:"mode",       label:"Mode",        type:"select", default:"analyze", options:[{value:"analyze",label:"Analyze dialogue"},{value:"add",label:"Add memory text"}]},
       {key:"context",    label:"Context",     type:"textarea", default:"", rows:3, placeholder:"Blank = dialogue history and last AI response"},
       {key:"memoryText", label:"Memory Text", type:"textarea", default:"", rows:2, placeholder:"Direct memory, or extra note for analysis"},
@@ -3007,6 +3072,7 @@ export const NODE_DEFS = {
     isAiBranch:true,
     toAction:(n,inp)=>({
       type:"aiMemoryUpdate",
+      providerProfile: n.data.providerProfile ?? "memory",
       mode: n.data.mode ?? "analyze",
       context: inp.context ?? n.data.context ?? "",
       memoryText: inp.memoryText ?? n.data.memoryText ?? "",
@@ -6898,6 +6964,7 @@ const BRANCH_PIN_TOKENS = {
   act_progression:     { value: "{__lastRoll}", previous: "{__progPrev}", ..._ROLL_META },
   act_dialog_builder:  { picked: "{__dlgPicked}", choice: "{__dlgChoice}", history: "{__dlgHistory}" },
   act_ai_request:      { response: "{__lastAiResponse}", errorMsg: "{__lastAiError}" },
+  act_ai_assistant:    { response: "{__lastAiResponse}", errorMsg: "{__lastAiError}" },
   act_ai_memory_update:{ memoryCount: "{__aiMemoryCount}", errorMsg: "{__lastAiError}" },
   act_loop:            { index: "{__loopIndex}" },
   cast_to_actor:       { actorId: "{__castActorId}" },
@@ -7814,6 +7881,334 @@ export class FormulaGraph {
     if (!result || typeof result !== "object" || !result.__sdOk) return null;
     const v = result.__sdValue;
     return (typeof v === "string" && v.length) ? v : null;
+  }
+
+  _aiGraphSnapshot() {
+    return {
+      mode: this.actionGraph ? "action" : this.numberWidgetMode ? "number-widget" : this.initiativeMode ? "initiative" : "formula",
+      widgetType: this.widget?.type ?? "",
+      nodes: (this.nodes ?? []).map(n => ({
+        id: n.id,
+        type: n.type,
+        title: NODE_DEFS[n.type]?.title ?? n.type,
+        x: Math.round(Number(n.x) || 0),
+        y: Math.round(Number(n.y) || 0),
+        data: n.data ?? {}
+      })),
+      edges: (this.edges ?? []).map(e => ({
+        id: e.id,
+        fromNode: e.fromNode,
+        fromPin: e.fromPin,
+        toNode: e.toNode,
+        toPin: e.toPin
+      }))
+    };
+  }
+
+  _aiNodeCatalog(query = "", max = 140) {
+    const ctx = this._nodeFilterContext();
+    const terms = String(query ?? "").toLowerCase().split(/[^a-zа-я0-9_]+/i).filter(t => t.length > 1);
+    const pinBrief = pins => (pins ?? []).map(p => ({ id: p.id, label: p.label ?? "", type: p.type ?? "value.any" }));
+    const fieldBrief = fields => (fields ?? []).map(f => ({
+      key: f.key,
+      label: f.label ?? f.key,
+      type: f.type ?? "text",
+      default: f.default ?? "",
+      options: Array.isArray(f.options) ? f.options.slice(0, 20) : undefined
+    }));
+    const rows = [];
+    for (const [type, def] of Object.entries(NODE_DEFS)) {
+      if (!this._isNodeAvailableInCurrentGraph(type, def, null, ctx)) continue;
+      const hay = `${type} ${def.title ?? ""} ${def.cat ?? ""} ${def.desc ?? ""}`.toLowerCase();
+      let score = terms.length ? 0 : 1;
+      for (const t of terms) {
+        if (type.toLowerCase().includes(t)) score += 6;
+        if (String(def.title ?? "").toLowerCase().includes(t)) score += 5;
+        if (String(def.cat ?? "").toLowerCase().includes(t)) score += 2;
+        if (String(def.desc ?? "").toLowerCase().includes(t)) score += 1;
+      }
+      if (terms.length && score <= 0) continue;
+      rows.push({
+        type,
+        title: _NL(def.title ?? type),
+        category: _NL(def.cat ?? ""),
+        description: _NL(def.desc ?? "").slice(0, 260),
+        inputs: pinBrief(def.inputs),
+        outputs: pinBrief(def.outputs),
+        fields: fieldBrief(def.fields),
+        score
+      });
+    }
+    rows.sort((a, b) => (b.score - a.score) || a.category.localeCompare(b.category) || a.title.localeCompare(b.title));
+    return rows.slice(0, max);
+  }
+
+  _parseAIAssistantPlan(text) {
+    let s = String(text ?? "").trim();
+    const fence = s.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    if (fence) s = fence[1].trim();
+    const firstObj = s.indexOf("{");
+    const lastObj = s.lastIndexOf("}");
+    if (firstObj >= 0 && lastObj > firstObj) s = s.slice(firstObj, lastObj + 1);
+    const parsed = JSON.parse(s);
+    if (Array.isArray(parsed)) return { message: "", actions: parsed };
+    return parsed && typeof parsed === "object" ? parsed : { message: "", actions: [] };
+  }
+
+  _resolveAIAssistantNodeRef(ref, created = {}) {
+    const key = String(ref ?? "").trim();
+    if (!key) return null;
+    if (created[key]) return this.nodes.find(n => n.id === created[key]) ?? null;
+    return this.nodes.find(n => n.id === key) ?? null;
+  }
+
+  _pinDefForAI(node, side, pinId) {
+    const def = NODE_DEFS[node?.type ?? ""];
+    if (!def) return null;
+    const staticPins = side === "output" ? (def.outputs ?? []) : (def.inputs ?? []);
+    const dynamicPins = side === "output" && typeof def.computeDynamicOutputs === "function"
+      ? (def.computeDynamicOutputs(node) ?? [])
+      : side === "input" && typeof def.computeDynamicInputs === "function"
+        ? (def.computeDynamicInputs(node) ?? [])
+        : [];
+    return [...dynamicPins, ...staticPins].find(p => p.id === pinId) ?? null;
+  }
+
+  _previewAIAssistantActions(plan) {
+    const actions = Array.isArray(plan?.actions) ? plan.actions : [];
+    const lines = [];
+    if (plan?.message) lines.push(String(plan.message));
+    for (const [i, a] of actions.entries()) {
+      const op = String(a?.op ?? a?.action ?? "").trim();
+      if (op === "addNode") lines.push(`${i + 1}. Add node ${a.type}${a.ref ? ` as ${a.ref}` : ""}`);
+      else if (op === "setData") lines.push(`${i + 1}. Set data on ${a.node ?? a.ref ?? a.id}`);
+      else if (op === "connect") lines.push(`${i + 1}. Connect ${a.from ?? a.fromNode}.${a.fromPin} -> ${a.to ?? a.toNode}.${a.toPin}`);
+      else lines.push(`${i + 1}. ${op || "Unknown action"}`);
+    }
+    return lines.join("\n") || "No graph changes proposed.";
+  }
+
+  async _confirmAIAssistantPlan(plan) {
+    const { DialogV2 } = foundry.applications.api;
+    const preview = this._previewAIAssistantActions(plan);
+    const res = await DialogV2.wait({
+      window: { title: "Apply AI Graph Plan", icon: "fa-solid fa-brain", resizable: true },
+      modal: true,
+      content: `<div style="display:flex;flex-direction:column;gap:8px;min-width:560px;min-height:320px;">
+        <label style="font-size:12px;font-weight:700;color:var(--sd-text-2);">Planned graph changes</label>
+        <textarea readonly rows="14" style="width:100%;min-height:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:9px 11px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.4;">${esc(preview).replace(/<\/textarea/gi, "<\\/textarea")}</textarea>
+      </div>`,
+      buttons: [
+        { action: "apply", label: "Apply", icon: "fas fa-check", default: true, callback: () => true },
+        { action: "cancel", label: "Cancel", callback: () => false }
+      ],
+      rejectClose: false
+    }).catch(() => false);
+    return !!res;
+  }
+
+  _applyAIAssistantPlan(plan) {
+    const actions = Array.isArray(plan?.actions) ? plan.actions : [];
+    const created = {};
+    const skipped = [];
+    let added = 0, updated = 0, connected = 0;
+
+    const setNodeData = (node, data) => {
+      if (!node || !data || typeof data !== "object") return false;
+      const clean = {};
+      for (const [k, v] of Object.entries(data)) {
+        if (v === undefined || typeof v === "function") continue;
+        clean[k] = v;
+      }
+      Object.assign(node.data, clean);
+      this._renderNode(node);
+      return true;
+    };
+
+    for (const raw of actions) {
+      const a = raw && typeof raw === "object" ? raw : {};
+      const op = String(a.op ?? a.action ?? "").trim();
+      try {
+        if (op === "addNode") {
+          const type = String(a.type ?? "").trim();
+          const def = NODE_DEFS[type];
+          if (!def || !this._isNodeAvailableInCurrentGraph(type, def)) {
+            skipped.push(`addNode ${type}: unavailable node type`);
+            continue;
+          }
+          const x = Number.isFinite(Number(a.x)) ? Number(a.x) : 160 + added * 260;
+          const y = Number.isFinite(Number(a.y)) ? Number(a.y) : 180 + added * 60;
+          const node = this._addNode(type, x, y, a.data && typeof a.data === "object" ? a.data : null);
+          if (!node) {
+            skipped.push(`addNode ${type}: failed`);
+            continue;
+          }
+          const ref = String(a.ref ?? a.id ?? "").trim();
+          if (ref) created[ref] = node.id;
+          added++;
+          continue;
+        }
+
+        if (op === "setData") {
+          const node = this._resolveAIAssistantNodeRef(a.node ?? a.ref ?? a.id, created);
+          if (!node) {
+            skipped.push(`setData ${a.node ?? a.ref ?? a.id}: node not found`);
+            continue;
+          }
+          if (setNodeData(node, a.data ?? a.fields ?? {})) updated++;
+          continue;
+        }
+
+        if (op === "connect") {
+          const from = this._resolveAIAssistantNodeRef(a.from ?? a.fromNode, created);
+          const to = this._resolveAIAssistantNodeRef(a.to ?? a.toNode, created);
+          const fromPin = String(a.fromPin ?? a.output ?? "").trim();
+          const toPin = String(a.toPin ?? a.input ?? "").trim();
+          if (!from || !to || !fromPin || !toPin) {
+            skipped.push(`connect: missing node or pin`);
+            continue;
+          }
+          const outPin = this._pinDefForAI(from, "output", fromPin);
+          const inPin = this._pinDefForAI(to, "input", toPin);
+          if (!outPin || !inPin) {
+            skipped.push(`connect ${from.id}.${fromPin} -> ${to.id}.${toPin}: pin not found`);
+            continue;
+          }
+          if (!arePinsCompatible(outPin.type, inPin.type)) {
+            skipped.push(`connect ${from.id}.${fromPin} -> ${to.id}.${toPin}: incompatible ${outPin.type} -> ${inPin.type}`);
+            continue;
+          }
+          const before = this.edges.length;
+          this._addEdge(from.id, fromPin, to.id, toPin);
+          if (this.edges.length > before) connected++;
+          continue;
+        }
+
+        if (op) skipped.push(`${op}: unsupported operation`);
+      } catch (e) {
+        skipped.push(`${op || "action"}: ${String(e?.message ?? e)}`);
+      }
+    }
+
+    this._scheduleEdges?.();
+    this._updatePreview?.();
+    if (updated > 0 && added === 0 && connected === 0) this._pushHistory?.();
+    SDOnboarding.onGraphChanged?.(this);
+    return { added, updated, connected, skipped };
+  }
+
+  async _openAIAssistant() {
+    const { DialogV2 } = foundry.applications.api;
+    const defaultPrompt = "Help me understand or improve this node graph. You may search the available node catalog and, if I choose Build & Apply, propose nodes and connections to add.";
+    const result = await DialogV2.wait({
+      window: { title: "AI Graph Assistant", icon: "fa-solid fa-brain", resizable: true },
+      modal: true,
+      content: `<form style="display:flex;flex-direction:column;gap:8px;min-width:560px;min-height:300px;">
+        <label style="font-size:12px;font-weight:700;color:var(--sd-text-2);">Ask about this graph</label>
+        <textarea name="prompt" rows="9" style="width:100%;min-height:200px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:8px 10px;resize:vertical;font-family:inherit;line-height:1.4;">${esc(defaultPrompt)}</textarea>
+        <p style="margin:0;font-size:11px;line-height:1.35;color:var(--sd-text-3);">Uses AI Settings -> Task Models -> Assistant. Ask only returns advice. Build & Apply lets the assistant place nodes, set fields, and connect pins after you confirm the proposed plan.</p>
+      </form>`,
+      buttons: [
+        {
+          action: "ask", label: "Ask", icon: "fas fa-paper-plane", default: true,
+          callback: (ev, btn, dialog) => {
+            const root = dialog?.element ?? dialog;
+            return { ok: true, mode: "ask", prompt: String(root?.querySelector?.("[name='prompt']")?.value ?? "") };
+          }
+        },
+        {
+          action: "apply", label: "Build & Apply", icon: "fas fa-wand-magic-sparkles",
+          callback: (ev, btn, dialog) => {
+            const root = dialog?.element ?? dialog;
+            return { ok: true, mode: "apply", prompt: String(root?.querySelector?.("[name='prompt']")?.value ?? "") };
+          }
+        },
+        { action: "cancel", label: "Cancel", callback: () => ({ ok: false }) }
+      ],
+      rejectClose: false
+    }).catch(() => ({ ok: false }));
+
+    const prompt = String(result?.prompt ?? "").trim();
+    if (!result?.ok || !prompt) return;
+
+    const graphContext = this._aiGraphSnapshot();
+    const nodeCatalog = this._aiNodeCatalog(prompt, result.mode === "apply" ? 180 : 90);
+
+    try {
+      const { requestAIChat } = await import("../helpers/ai-context.mjs");
+      if (result.mode === "apply") {
+        const answer = await requestAIChat({
+          provider: { providerProfile: "assistant" },
+          json: true,
+          systemPrompt: [
+            "You are an expert Foundry VTT Sheet Director node graph builder.",
+            "You can inspect the current graph and the available node catalog.",
+            "Return JSON only. Do not use markdown.",
+            "Allowed operations:",
+            "{\"op\":\"addNode\",\"ref\":\"shortNewNodeRef\",\"type\":\"node_type\",\"x\":number,\"y\":number,\"data\":{fieldKey:value}}",
+            "{\"op\":\"setData\",\"node\":\"existingNodeIdOrNewRef\",\"data\":{fieldKey:value}}",
+            "{\"op\":\"connect\",\"from\":\"existingNodeIdOrNewRef\",\"fromPin\":\"outputPinId\",\"to\":\"existingNodeIdOrNewRef\",\"toPin\":\"inputPinId\"}",
+            "Use only node types and pin ids from the provided catalog. Use existing node ids from the current graph for existing nodes. Use ref names for nodes you add. Keep changes minimal and avoid deleting anything.",
+            "Schema: {\"message\":\"short explanation\",\"actions\":[...]}."
+          ].join("\n")
+        ,
+          prompt: [
+            "User request:",
+            prompt,
+            "",
+            "Current graph JSON:",
+            JSON.stringify(graphContext, null, 2).slice(0, 24000),
+            "",
+            "Available node catalog JSON:",
+            JSON.stringify(nodeCatalog, null, 2).slice(0, 36000)
+          ].join("\n")
+        });
+        const plan = this._parseAIAssistantPlan(answer);
+        if (!Array.isArray(plan.actions) || !plan.actions.length) {
+          ui.notifications?.warn?.("SD | AI Graph Assistant did not propose any graph changes.");
+          return;
+        }
+        if (!(await this._confirmAIAssistantPlan(plan))) return;
+        const applied = this._applyAIAssistantPlan(plan);
+        const summary = [
+          `Added: ${applied.added}`,
+          `Updated: ${applied.updated}`,
+          `Connected: ${applied.connected}`,
+          applied.skipped.length ? `Skipped: ${applied.skipped.length}` : ""
+        ].filter(Boolean).join(", ");
+        if (applied.skipped.length) console.warn("SD | AI Graph Assistant skipped actions:", applied.skipped);
+        ui.notifications?.info?.(`SD | AI Graph Assistant applied plan. ${summary}`);
+        return;
+      }
+
+      const answer = await requestAIChat({
+        provider: { providerProfile: "assistant" },
+        systemPrompt: "You are an expert Foundry VTT Sheet Director node graph assistant. You can inspect the current graph and search the node catalog. Give concise, practical graph-building advice. Do not claim you changed the graph.",
+        prompt: [
+          prompt,
+          "",
+          "Current graph JSON:",
+          JSON.stringify(graphContext, null, 2).slice(0, 24000),
+          "",
+          "Available node catalog search results JSON:",
+          JSON.stringify(nodeCatalog, null, 2).slice(0, 24000)
+        ].join("\n")
+      });
+      const safeAnswer = esc(String(answer ?? "")).replace(/>/g, "&gt;").replace(/<\/textarea/gi, "<\\/textarea");
+      await DialogV2.wait({
+        window: { title: "AI Graph Assistant", icon: "fa-solid fa-brain", resizable: true },
+        modal: false,
+        content: `<div style="display:flex;flex-direction:column;gap:8px;min-width:560px;min-height:320px;">
+          <label style="font-size:12px;font-weight:700;color:var(--sd-text-2);">Assistant Response</label>
+          <textarea readonly rows="14" style="width:100%;min-height:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:9px 11px;resize:vertical;font-family:inherit;line-height:1.45;">${safeAnswer}</textarea>
+        </div>`,
+        buttons: [{ action: "ok", label: "OK", icon: "fas fa-check", default: true }],
+        rejectClose: false
+      });
+    } catch (e) {
+      console.warn("SD | AI Graph Assistant failed:", e);
+      ui.notifications?.warn?.(`SD | AI Graph Assistant failed: ${String(e?.message ?? e)}`);
+    }
   }
 
   _loadGraph() {
@@ -9008,6 +9403,7 @@ export class FormulaGraph {
         <button id="gimport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Import template(s) from a JSON file"><i class="fas fa-file-import" style="margin-right:4px"></i>Import</button>
         <button id="gexport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Export current selection (or whole graph) as JSON template"><i class="fas fa-file-export" style="margin-right:4px"></i>Export</button>
         <button id="glint" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Validate this graph (unknown nodes, type mismatches, orphans, missing entry points)"><i class="fas fa-check-double" style="margin-right:4px"></i>Lint</button>
+        <button id="gaiassist" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Ask the AI assistant about this graph"><i class="fas fa-brain" style="margin-right:4px"></i>AI</button>
         <button id="gsave" style="background:var(--sd-accent);border:none;border-radius:8px;color:var(--sd-accent-text);cursor:pointer;font-size:11px;font-weight:800;padding:6px 16px;transition:.15s"><i class="fas fa-check" style="margin-right:5px"></i>Save & Apply</button>
         <button id="grefresh" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Re-scan document"><i class="fas fa-arrows-rotate" style="margin-right:4px"></i>Refresh Index</button>
         <button id="gclose" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s" title="Close" aria-label="Close graph editor"><i class="fas fa-xmark"></i></button>
@@ -9244,6 +9640,8 @@ export class FormulaGraph {
     win.querySelector("#gexport")?.addEventListener("click", () => this._exportSelectionAsFile());
 
     win.querySelector("#glint")?.addEventListener("click", () => this._runLint());
+
+    win.querySelector("#gaiassist")?.addEventListener("click", () => this._openAIAssistant());
 
     this._raf = 0;
     this._scheduleEdges = () => {

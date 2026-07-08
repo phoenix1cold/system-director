@@ -190,6 +190,7 @@ async function _sdRequestAiDialogueChoices(cfg, {
   };
 
   const provider = getAIProviderConfig({
+    providerProfile: run(cfg.providerProfile || "dialogue"),
     url: run(cfg.url || ""),
     apiKey: run(cfg.apiKey || ""),
     apiKeySetting: run(cfg.apiKeySetting || ""),
@@ -5031,6 +5032,7 @@ export class ButtonExecutor {
           return s;
         };
         const provider = getAIProviderConfig({
+          providerProfile: _runStr(action.providerProfile || ""),
           url: _runStr(action.url || ""),
           apiKey: _runStr(action.apiKey || ""),
           apiKeySetting: _runStr(action.apiKeySetting || ""),
@@ -5156,6 +5158,102 @@ export class ButtonExecutor {
         break;
       }
 
+      case "aiAssistant": {
+        let _aiFE = null;
+        try {
+          const mod = await import("./formula-engine.mjs");
+          _aiFE = mod?.FormulaEngine ?? null;
+        } catch { }
+        const _aiDoc = item ?? actor ?? {};
+        const _aiResolveTokens = (s) => {
+          if (!_aiFE) return s;
+          try {
+            return s.replace(/\{([^}]+)\}/g, (match, inner) => {
+              try {
+                const v = _aiFE._resolveToken
+                  ? _aiFE._resolveToken(inner.trim(), _aiDoc)
+                  : null;
+                return (v == null) ? match : String(v);
+              } catch { return match; }
+            });
+          } catch { return s; }
+        };
+        const _runStr = (raw) => {
+          if (raw == null) return "";
+          let s = String(raw);
+          try { s = _injectRuntime(s); } catch {}
+          return _aiResolveTokens(s);
+        };
+
+        runtime.__lastAiResponse = "";
+        runtime.__lastAiError = "";
+
+        const actorContext = action.includeActorContext === false || action.includeActorContext === "no"
+          ? ""
+          : buildAIDialogueContext({ actor, item });
+        const systemPrompt = [
+          actorContext,
+          _runStr(action.systemPrompt || "You are an AI assistant inside a Foundry VTT node graph.")
+        ].map(s => String(s ?? "").trim()).filter(Boolean).join("\n\n");
+        const userPrompt = [
+          _runStr(action.context || "").trim() ? `Context:\n${_runStr(action.context || "").trim()}` : "",
+          _runStr(action.prompt || "").trim() ? `Request:\n${_runStr(action.prompt || "").trim()}` : ""
+        ].filter(Boolean).join("\n\n");
+        const provider = getAIProviderConfig({
+          providerProfile: _runStr(action.providerProfile || "assistant"),
+          url: _runStr(action.url || ""),
+          apiKey: _runStr(action.apiKey || ""),
+          apiKeySetting: _runStr(action.apiKeySetting || ""),
+          model: _runStr(action.model || ""),
+          temperature: action.temperature,
+          maxTokens: action.maxTokens
+        });
+
+        if (!userPrompt.trim()) {
+          runtime.__lastAiError = "Prompt is empty.";
+          ui.notifications?.warn?.("SD | AI Assistant: prompt is empty.");
+          for (const sub of (action.errorActions ?? [])) {
+            await this._runAction(sub, item, actor, buttonDef, runtime);
+          }
+          break;
+        }
+
+        try {
+          const responseText = await requestAIChat({ provider, systemPrompt, prompt: userPrompt });
+          runtime.__lastAiResponse = String(responseText ?? "");
+          if (action.toChat === true || action.toChat === "yes") {
+            const flavor = action.flavor ?? "AI Assistant";
+            const safeText = String(runtime.__lastAiResponse)
+              .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+              .replace(/\n/g, "<br>");
+            await ChatMessage.create({
+              speaker: ChatMessage.getSpeaker({ actor }),
+              content: `<div class="sd-chat-card sd-ai-card"
+                           style="background:#101622;border:1px solid #3d5d82;border-top:3px solid #6aa4df;border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.45)">
+                         <div style="padding:6px 12px;border-bottom:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.24);font-size:11px;color:#b9d5f0;display:flex;align-items:center;gap:6px;">
+                           <i class="fas fa-brain"></i>
+                           <span style="flex:1;text-transform:uppercase;letter-spacing:.5px">${flavor}</span>
+                           <span style="font-size:9px;color:#86a6c4">${provider.model}</span>
+                         </div>
+                         <div style="padding:8px 12px;font-size:12px;color:#e4edf6;line-height:1.4;">${safeText}</div>
+                       </div>`
+            });
+          }
+          for (const sub of (action.successActions ?? [])) {
+            await this._runAction(sub, item, actor, buttonDef, runtime);
+          }
+        } catch (e) {
+          const errMsg = String(e?.message ?? e);
+          runtime.__lastAiError = errMsg;
+          console.warn("SD | AI Assistant failed:", e);
+          ui.notifications?.warn?.(`SD | AI Assistant failed: ${errMsg}`);
+          for (const sub of (action.errorActions ?? [])) {
+            await this._runAction(sub, item, actor, buttonDef, runtime);
+          }
+        }
+        break;
+      }
+
       case "aiMemoryUpdate": {
         const _runStr = (raw) => {
           if (raw == null) return "";
@@ -5170,6 +5268,7 @@ export class ButtonExecutor {
         const contextText = _runStr(action.context ?? "");
         const directMemory = _runStr(action.memoryText ?? "");
         const provider = {
+          providerProfile: _runStr(action.providerProfile || "memory"),
           url: _runStr(action.url ?? ""),
           apiKey: _runStr(action.apiKey ?? ""),
           apiKeySetting: _runStr(action.apiKeySetting ?? ""),

@@ -5,6 +5,14 @@ const AI_PROFILE_FLAG = "aiProfile";
 const AI_MEMORY_FLAG = "aiMemory";
 const { ApplicationV2 } = foundry.applications.api;
 
+const AI_PROVIDER_PROFILE_DEFS = [
+  { key: "default", label: "Default", hint: "Fallback provider used when a task profile leaves a field blank." },
+  { key: "dialogue", label: "Dialogue", hint: "NPC dialogue and AI Dialogue Choices." },
+  { key: "memory", label: "Memory", hint: "Memory extraction and memory maintenance." },
+  { key: "bio", label: "Dynamic Bio", hint: "Actor profile and relationship updates." },
+  { key: "assistant", label: "Assistant", hint: "AI Assistant node in the graph." }
+];
+
 function _esc(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -13,8 +21,30 @@ function _esc(value) {
     .replace(/"/g, "&quot;");
 }
 
+function _normalizeAIProvider(value) {
+  const provider = (value && typeof value === "object") ? value : {};
+  return {
+    url: String(provider.url ?? ""),
+    apiKey: String(provider.apiKey ?? ""),
+    apiKeySetting: String(provider.apiKeySetting ?? ""),
+    model: String(provider.model ?? ""),
+    temperature: provider.temperature === "" || provider.temperature == null ? "" : Number(provider.temperature),
+    maxTokens: provider.maxTokens === "" || provider.maxTokens == null ? "" : Number(provider.maxTokens),
+    systemPrompt: String(provider.systemPrompt ?? "")
+  };
+}
+
 function _normalizeAISettings(value) {
-  const provider = value?.provider ?? {};
+  const provider = _normalizeAIProvider(value?.provider ?? {});
+  const rawProfiles = value?.providerProfiles ?? value?.providers ?? {};
+  const providerProfiles = {};
+  for (const def of AI_PROVIDER_PROFILE_DEFS) {
+    providerProfiles[def.key] = _normalizeAIProvider(
+      def.key === "default"
+        ? (rawProfiles?.default ?? provider)
+        : (rawProfiles?.[def.key] ?? {})
+    );
+  }
   const events = Array.isArray(value?.worldEvents)
     ? value.worldEvents.map((ev, i) => ({
         id: String(ev?.id || `event_${i + 1}`),
@@ -28,15 +58,8 @@ function _normalizeAISettings(value) {
   return {
     worldKnowledge: String(value?.worldKnowledge ?? ""),
     worldEvents: events,
-    provider: {
-      url: String(provider.url ?? ""),
-      apiKey: String(provider.apiKey ?? ""),
-      apiKeySetting: String(provider.apiKeySetting ?? ""),
-      model: String(provider.model ?? ""),
-      temperature: provider.temperature === "" || provider.temperature == null ? "" : Number(provider.temperature),
-      maxTokens: provider.maxTokens === "" || provider.maxTokens == null ? "" : Number(provider.maxTokens),
-      systemPrompt: String(provider.systemPrompt ?? "")
-    }
+    provider,
+    providerProfiles
   };
 }
 
@@ -91,6 +114,10 @@ export function getAISettings() {
   }
 }
 
+export function getAIProviderProfileDefs() {
+  return AI_PROVIDER_PROFILE_DEFS.map(def => ({ ...def }));
+}
+
 export async function setAISettings(value) {
   const clean = _normalizeAISettings(value);
   await game.settings.set(MODULE_ID, AI_SETTINGS_KEY, clean);
@@ -100,10 +127,18 @@ export async function setAISettings(value) {
 export function getAIProviderConfig(overrides = {}) {
   const settings = getAISettings();
   const provider = settings.provider ?? {};
+  const profileKey = String(overrides.providerProfile ?? overrides.profile ?? overrides.providerKey ?? "").trim() || "default";
+  const profile = settings.providerProfiles?.[profileKey] ?? {};
+  const defaultProfile = settings.providerProfiles?.default ?? {};
   const pick = (key, fallback = "") => _isMeaningful(overrides[key])
     ? overrides[key]
-    : (_isMeaningful(provider[key]) ? provider[key] : fallback);
+    : (_isMeaningful(profile[key])
+        ? profile[key]
+        : (_isMeaningful(defaultProfile[key])
+            ? defaultProfile[key]
+            : (_isMeaningful(provider[key]) ? provider[key] : fallback)));
   return {
+    providerProfile: profileKey,
     url: pick("url", "https://api.openai.com/v1/chat/completions"),
     apiKey: pick("apiKey", ""),
     apiKeySetting: pick("apiKeySetting", ""),
@@ -283,7 +318,7 @@ export async function updateActorDynamicBio(actor, provider = {}) {
   ].join("\n");
 
   const text = await requestAIChat({
-    provider,
+    provider: { providerProfile: "bio", ...provider },
     json: true,
     systemPrompt: "You maintain RPG character profiles from dialogue history.",
     prompt
@@ -438,11 +473,35 @@ class SDAISettingsEditor extends ApplicationV2 {
     </div>`;
   }
 
+  _profileRow(def, provider = {}) {
+    const p = _normalizeAIProvider(provider);
+    return `<div class="sd-ai-provider-profile" data-profile-key="${_esc(def.key)}" style="border:1px solid var(--sd-border);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;background:rgba(255,255,255,.02);">
+      <div style="display:flex;gap:8px;align-items:baseline;">
+        <strong style="font-size:12px;color:var(--sd-text);">${_esc(def.label)}</strong>
+        <span style="font-size:11px;color:var(--sd-text-3);line-height:1.3;">${_esc(def.hint)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr 72px 82px;gap:6px;">
+        <input name="profileUrl" value="${_esc(p.url)}" placeholder="URL blank = Default" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:6px 8px;">
+        <input name="profileModel" value="${_esc(p.model)}" placeholder="Model" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:6px 8px;">
+        <input name="profileApiKey" value="${_esc(p.apiKey)}" placeholder="API key" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:6px 8px;">
+        <input name="profileApiKeySetting" value="${_esc(p.apiKeySetting)}" placeholder="Key setting" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:6px 8px;">
+        <input name="profileTemperature" type="number" step="0.05" value="${_esc(p.temperature)}" placeholder="Temp" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:6px 8px;">
+        <input name="profileMaxTokens" type="number" step="1" value="${_esc(p.maxTokens)}" placeholder="Tokens" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:6px 8px;">
+      </div>
+      <textarea name="profileSystemPrompt" rows="2" placeholder="Optional system prompt for this task profile" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:7px 9px;resize:vertical;">${_esc(p.systemPrompt)}</textarea>
+    </div>`;
+  }
+
   async _renderHTML(context, options) {
     const s = getAISettings();
     const p = s.provider ?? {};
     const rows = (s.worldEvents ?? []).map(ev => this._eventRow(ev)).join("");
-    return `<form class="sd-ai-settings-form" autocomplete="off" style="height:100%;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:hidden;">
+    const profileRows = AI_PROVIDER_PROFILE_DEFS
+      .filter(def => def.key !== "default")
+      .map(def => this._profileRow(def, s.providerProfiles?.[def.key] ?? {}))
+      .join("");
+    return `<form class="sd-ai-settings-form" autocomplete="off" style="height:100%;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:auto;padding-right:2px;">
+      <div style="font-size:12px;font-weight:800;color:var(--sd-text-2);text-transform:uppercase;">Default Provider</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:0 0 auto;">
         <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2);font-weight:700;">Provider URL
           <input name="url" value="${_esc(p.url)}" placeholder="Use fallback OpenAI-compatible URL" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:6px 8px;">
@@ -466,6 +525,13 @@ class SDAISettingsEditor extends ApplicationV2 {
       <label style="display:flex;flex-direction:column;gap:4px;flex:0 0 auto;font-size:11px;color:var(--sd-text-2);font-weight:700;">Default System Prompt
         <textarea name="systemPrompt" rows="2" placeholder="Optional provider-wide system prompt" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:7px 9px;resize:vertical;">${_esc(p.systemPrompt)}</textarea>
       </label>
+      <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;">
+        <div style="display:flex;gap:8px;align-items:baseline;">
+          <strong style="font-size:12px;color:var(--sd-text-2);text-transform:uppercase;">Task Models</strong>
+          <span style="font-size:11px;color:var(--sd-text-3);">Blank fields inherit Default Provider. Set only Model if all tasks use the same URL/key.</span>
+        </div>
+        ${profileRows}
+      </div>
       <label style="display:flex;flex-direction:column;gap:4px;flex:1 1 190px;min-height:140px;font-size:11px;color:var(--sd-text-2);font-weight:700;">World Knowledge
         <textarea name="worldKnowledge" placeholder="Setting, factions, places, lore, tone and facts every AI dialogue should know." style="flex:1;min-height:120px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:5px;color:var(--sd-text);padding:8px 10px;resize:none;line-height:1.4;">${_esc(s.worldKnowledge)}</textarea>
       </label>
@@ -508,16 +574,32 @@ class SDAISettingsEditor extends ApplicationV2 {
         text: String(row.querySelector("[name='eventText']")?.value ?? ""),
         updated: Date.now()
       })).filter(ev => ev.title.trim() || ev.text.trim());
+      const defaultProvider = {
+        url: form.querySelector("[name='url']")?.value ?? "",
+        apiKey: form.querySelector("[name='apiKey']")?.value ?? "",
+        apiKeySetting: form.querySelector("[name='apiKeySetting']")?.value ?? "",
+        model: form.querySelector("[name='model']")?.value ?? "",
+        temperature: form.querySelector("[name='temperature']")?.value ?? "",
+        maxTokens: form.querySelector("[name='maxTokens']")?.value ?? "",
+        systemPrompt: form.querySelector("[name='systemPrompt']")?.value ?? ""
+      };
+      const providerProfiles = { default: defaultProvider };
+      for (const row of form.querySelectorAll(".sd-ai-provider-profile")) {
+        const key = String(row.dataset.profileKey ?? "").trim();
+        if (!key) continue;
+        providerProfiles[key] = {
+          url: row.querySelector("[name='profileUrl']")?.value ?? "",
+          apiKey: row.querySelector("[name='profileApiKey']")?.value ?? "",
+          apiKeySetting: row.querySelector("[name='profileApiKeySetting']")?.value ?? "",
+          model: row.querySelector("[name='profileModel']")?.value ?? "",
+          temperature: row.querySelector("[name='profileTemperature']")?.value ?? "",
+          maxTokens: row.querySelector("[name='profileMaxTokens']")?.value ?? "",
+          systemPrompt: row.querySelector("[name='profileSystemPrompt']")?.value ?? ""
+        };
+      }
       const saved = await setAISettings({
-        provider: {
-          url: form.querySelector("[name='url']")?.value ?? "",
-          apiKey: form.querySelector("[name='apiKey']")?.value ?? "",
-          apiKeySetting: form.querySelector("[name='apiKeySetting']")?.value ?? "",
-          model: form.querySelector("[name='model']")?.value ?? "",
-          temperature: form.querySelector("[name='temperature']")?.value ?? "",
-          maxTokens: form.querySelector("[name='maxTokens']")?.value ?? "",
-          systemPrompt: form.querySelector("[name='systemPrompt']")?.value ?? ""
-        },
+        provider: defaultProvider,
+        providerProfiles,
         worldKnowledge: form.querySelector("[name='worldKnowledge']")?.value ?? "",
         worldEvents: events
       });

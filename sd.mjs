@@ -244,6 +244,53 @@ Hooks.once("init", () => {
         temperature: 0.7,
         maxTokens: 700,
         systemPrompt: ""
+      },
+      providerProfiles: {
+        default: {
+          url: "",
+          apiKey: "",
+          apiKeySetting: "",
+          model: "",
+          temperature: 0.7,
+          maxTokens: 700,
+          systemPrompt: ""
+        },
+        dialogue: {
+          url: "",
+          apiKey: "",
+          apiKeySetting: "",
+          model: "",
+          temperature: "",
+          maxTokens: "",
+          systemPrompt: ""
+        },
+        memory: {
+          url: "",
+          apiKey: "",
+          apiKeySetting: "",
+          model: "",
+          temperature: "",
+          maxTokens: "",
+          systemPrompt: ""
+        },
+        bio: {
+          url: "",
+          apiKey: "",
+          apiKeySetting: "",
+          model: "",
+          temperature: "",
+          maxTokens: "",
+          systemPrompt: ""
+        },
+        assistant: {
+          url: "",
+          apiKey: "",
+          apiKeySetting: "",
+          model: "",
+          temperature: "",
+          maxTokens: "",
+          systemPrompt: ""
+        }
       }
     }
   });
