@@ -7980,9 +7980,21 @@ export class FormulaGraph {
     if (plan?.message) lines.push(String(plan.message));
     for (const [i, a] of actions.entries()) {
       const op = String(a?.op ?? a?.action ?? "").trim();
-      if (op === "addNode") lines.push(`${i + 1}. Add node ${a.type}${a.ref ? ` as ${a.ref}` : ""}`);
-      else if (op === "setData") lines.push(`${i + 1}. Set data on ${a.node ?? a.ref ?? a.id}`);
+      if (op === "addNode") {
+        const dataKeys = a.data && typeof a.data === "object" ? Object.keys(a.data) : [];
+        lines.push(`${i + 1}. Add node ${a.type}${a.ref ? ` as ${a.ref}` : ""}${dataKeys.length ? ` with ${dataKeys.join(", ")}` : ""}`);
+      }
+      else if (op === "setData") {
+        const data = a.data ?? a.fields ?? {};
+        const fields = data && typeof data === "object"
+          ? Object.entries(data).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", ")
+          : "";
+        lines.push(`${i + 1}. Set data on ${a.node ?? a.ref ?? a.id}${fields ? `: ${fields}` : ""}`);
+      }
       else if (op === "connect") lines.push(`${i + 1}. Connect ${a.from ?? a.fromNode}.${a.fromPin} -> ${a.to ?? a.toNode}.${a.toPin}`);
+      else if (op === "deleteNode") lines.push(`${i + 1}. Delete node ${a.node ?? a.ref ?? a.id}`);
+      else if (op === "deleteEdge") lines.push(`${i + 1}. Delete edge ${a.edge ?? a.id ?? `${a.from ?? a.fromNode}.${a.fromPin} -> ${a.to ?? a.toNode}.${a.toPin}`}`);
+      else if (op === "clearGraph") lines.push(`${i + 1}. Clear graph${Array.isArray(a.keep) && a.keep.length ? `, keep ${a.keep.join(", ")}` : ""}`);
       else lines.push(`${i + 1}. ${op || "Unknown action"}`);
     }
     return lines.join("\n") || "No graph changes proposed.";
@@ -8011,7 +8023,7 @@ export class FormulaGraph {
     const actions = Array.isArray(plan?.actions) ? plan.actions : [];
     const created = {};
     const skipped = [];
-    let added = 0, updated = 0, connected = 0;
+    let added = 0, updated = 0, connected = 0, deleted = 0, disconnected = 0;
 
     const setNodeData = (node, data) => {
       if (!node || !data || typeof data !== "object") return false;
@@ -8025,29 +8037,32 @@ export class FormulaGraph {
       return true;
     };
 
-    for (const raw of actions) {
-      const a = raw && typeof raw === "object" ? raw : {};
-      const op = String(a.op ?? a.action ?? "").trim();
-      try {
-        if (op === "addNode") {
-          const type = String(a.type ?? "").trim();
-          const def = NODE_DEFS[type];
-          if (!def || !this._isNodeAvailableInCurrentGraph(type, def)) {
-            skipped.push(`addNode ${type}: unavailable node type`);
+    const prevSuppressHistory = this._suppressHistory;
+    this._suppressHistory = true;
+    try {
+      for (const raw of actions) {
+        const a = raw && typeof raw === "object" ? raw : {};
+        const op = String(a.op ?? a.action ?? "").trim();
+        try {
+          if (op === "addNode") {
+            const type = String(a.type ?? "").trim();
+            const def = NODE_DEFS[type];
+            if (!def || !this._isNodeAvailableInCurrentGraph(type, def)) {
+              skipped.push(`addNode ${type}: unavailable node type`);
+              continue;
+            }
+            const x = Number.isFinite(Number(a.x)) ? Number(a.x) : 160 + added * 260;
+            const y = Number.isFinite(Number(a.y)) ? Number(a.y) : 180 + added * 60;
+            const node = this._addNode(type, x, y, a.data && typeof a.data === "object" ? a.data : null);
+            if (!node) {
+              skipped.push(`addNode ${type}: failed`);
+              continue;
+            }
+            const ref = String(a.ref ?? a.id ?? "").trim();
+            if (ref) created[ref] = node.id;
+            added++;
             continue;
           }
-          const x = Number.isFinite(Number(a.x)) ? Number(a.x) : 160 + added * 260;
-          const y = Number.isFinite(Number(a.y)) ? Number(a.y) : 180 + added * 60;
-          const node = this._addNode(type, x, y, a.data && typeof a.data === "object" ? a.data : null);
-          if (!node) {
-            skipped.push(`addNode ${type}: failed`);
-            continue;
-          }
-          const ref = String(a.ref ?? a.id ?? "").trim();
-          if (ref) created[ref] = node.id;
-          added++;
-          continue;
-        }
 
         if (op === "setData") {
           const node = this._resolveAIAssistantNodeRef(a.node ?? a.ref ?? a.id, created);
@@ -8084,17 +8099,80 @@ export class FormulaGraph {
           continue;
         }
 
-        if (op) skipped.push(`${op}: unsupported operation`);
-      } catch (e) {
-        skipped.push(`${op || "action"}: ${String(e?.message ?? e)}`);
+        if (op === "deleteNode") {
+          const node = this._resolveAIAssistantNodeRef(a.node ?? a.ref ?? a.id, created);
+          if (!node) {
+            skipped.push(`deleteNode ${a.node ?? a.ref ?? a.id}: node not found`);
+            continue;
+          }
+          if (node.id === "output" || node.id === "init_on_roll" || node.id === "init_output" || NODE_DEFS[node.type]?.noDelete) {
+            skipped.push(`deleteNode ${node.id}: protected node`);
+            continue;
+          }
+          const before = this.nodes.length;
+          this._delNode(node.id);
+          if (this.nodes.length < before) deleted++;
+          continue;
+        }
+
+        if (op === "deleteEdge") {
+          const edgeId = String(a.edge ?? a.id ?? "").trim();
+          let edge = edgeId ? this.edges.find(e => e.id === edgeId) : null;
+          if (!edge) {
+            const from = this._resolveAIAssistantNodeRef(a.from ?? a.fromNode, created);
+            const to = this._resolveAIAssistantNodeRef(a.to ?? a.toNode, created);
+            const fromPin = String(a.fromPin ?? a.output ?? "").trim();
+            const toPin = String(a.toPin ?? a.input ?? "").trim();
+            edge = this.edges.find(e =>
+              (!from || e.fromNode === from.id) &&
+              (!to || e.toNode === to.id) &&
+              (!fromPin || e.fromPin === fromPin) &&
+              (!toPin || e.toPin === toPin)
+            );
+          }
+          if (!edge) {
+            skipped.push(`deleteEdge: edge not found`);
+            continue;
+          }
+          const before = this.edges.length;
+          this._removeEdge(edge.id);
+          if (this.edges.length < before) disconnected++;
+          continue;
+        }
+
+        if (op === "clearGraph") {
+          const keep = new Set((Array.isArray(a.keep) ? a.keep : []).map(v => String(v)));
+          const protectedIds = new Set(["output", "init_on_roll", "init_output"]);
+          const before = this.nodes.length;
+          const removeIds = new Set(this.nodes
+            .filter(n => !protectedIds.has(n.id) && !keep.has(n.id) && !keep.has(n.type) && !NODE_DEFS[n.type]?.noDelete)
+            .map(n => n.id));
+          if (!removeIds.size) {
+            skipped.push("clearGraph: no removable nodes");
+            continue;
+          }
+          this.nodes = this.nodes.filter(n => !removeIds.has(n.id));
+          this.edges = this.edges.filter(e => !removeIds.has(e.fromNode) && !removeIds.has(e.toNode));
+          this._renderAll();
+          this._pushHistory?.();
+          deleted += before - this.nodes.length;
+          continue;
+        }
+
+          if (op) skipped.push(`${op}: unsupported operation`);
+        } catch (e) {
+          skipped.push(`${op || "action"}: ${String(e?.message ?? e)}`);
+        }
       }
+    } finally {
+      this._suppressHistory = prevSuppressHistory;
     }
 
     this._scheduleEdges?.();
     this._updatePreview?.();
-    if (updated > 0 && added === 0 && connected === 0) this._pushHistory?.();
+    if (added || updated || connected || deleted || disconnected) this._pushHistory?.();
     SDOnboarding.onGraphChanged?.(this);
-    return { added, updated, connected, skipped };
+    return { added, updated, connected, deleted, disconnected, skipped };
   }
 
   _aiChatStorageKey() {
@@ -8164,39 +8242,52 @@ export class FormulaGraph {
       const role = String(m.role ?? "assistant");
       const isUser = role === "user";
       const isPending = !!m.pending;
-      const plan = m.plan && Array.isArray(m.plan.actions) && m.plan.actions.length;
+      const hasPlan = m.plan && Array.isArray(m.plan.actions) && m.plan.actions.length;
+      const plan = hasPlan && !m.applied;
       const body = esc(String(m.content ?? "")).replace(/>/g, "&gt;");
-      return `<div class="sd-ai-chat-msg" data-msg-index="${i}" style="display:flex;flex-direction:column;gap:5px;align-items:${isUser ? "flex-end" : "flex-start"};">
-        <div style="max-width:88%;border:1px solid ${isUser ? "rgba(116,167,255,.35)" : "var(--sd-border)"};background:${isUser ? "rgba(80,120,190,.18)" : "var(--sd-bg-2)"};border-radius:8px;padding:8px 10px;color:var(--sd-text);font-size:12px;line-height:1.45;white-space:pre-wrap;word-break:break-word;">
-          ${isPending ? `<i class="fas fa-spinner fa-spin" style="margin-right:6px"></i>` : ""}${body}
+      return `<div class="sd-ai-chat-msg" data-msg-index="${i}" style="display:flex;gap:8px;align-items:flex-start;justify-content:${isUser ? "flex-end" : "flex-start"};">
+        ${isUser ? "" : `<div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--sd-accent),#5ec6a8);display:flex;align-items:center;justify-content:center;color:var(--sd-accent-text,#fff);font-size:12px;flex:0 0 auto;"><i class="fas fa-brain"></i></div>`}
+        <div style="display:flex;flex-direction:column;gap:6px;max-width:82%;align-items:${isUser ? "flex-end" : "flex-start"};">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--sd-text-3);">${isUser ? "You" : hasPlan ? "Assistant Plan" : "Assistant"}</div>
+          <div style="border:1px solid ${isUser ? "rgba(116,167,255,.45)" : plan ? "rgba(120,190,120,.45)" : "var(--sd-border)"};background:${isUser ? "rgba(70,105,170,.22)" : plan ? "rgba(60,120,70,.16)" : "var(--sd-bg-2)"};border-radius:10px;padding:9px 11px;color:var(--sd-text);font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;box-shadow:0 4px 14px rgba(0,0,0,.18);">
+            ${isPending ? `<i class="fas fa-spinner fa-spin" style="margin-right:6px;color:var(--sd-accent);"></i>` : ""}${body}
+          </div>
+          ${plan ? `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <button type="button" data-action="apply-plan" data-msg-index="${i}" style="font-size:11px;background:var(--sd-accent);border:1px solid var(--sd-accent);border-radius:7px;color:var(--sd-accent-text,#fff);padding:6px 10px;cursor:pointer;font-weight:800;"><i class="fas fa-wand-magic-sparkles"></i> Apply Plan</button>
+            <span style="font-size:11px;color:var(--sd-text-3);">Need changes? Tell me in chat and I will revise the plan.</span>
+          </div>` : hasPlan && m.applied ? `<span style="font-size:11px;color:var(--sd-success);"><i class="fas fa-check"></i> Plan applied</span>` : ""}
         </div>
-        ${plan ? `<button type="button" data-action="apply-plan" data-msg-index="${i}" style="font-size:11px;background:var(--sd-accent);border:1px solid var(--sd-accent);border-radius:6px;color:var(--sd-accent-text,#fff);padding:5px 9px;cursor:pointer;"><i class="fas fa-wand-magic-sparkles"></i> Apply Plan</button>` : ""}
+        ${isUser ? `<div style="width:26px;height:26px;border-radius:50%;background:var(--sd-bg-3);border:1px solid var(--sd-border);display:flex;align-items:center;justify-content:center;color:var(--sd-text-2);font-size:12px;flex:0 0 auto;"><i class="fas fa-user"></i></div>` : ""}
       </div>`;
     }).join("");
 
     win.innerHTML = `
-      <div class="sd-ai-chat-head" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);cursor:move;user-select:none;">
-        <i class="fas fa-brain" style="color:var(--sd-accent)"></i>
-        <strong style="font-size:12px;color:var(--sd-accent);text-transform:uppercase;letter-spacing:.08em;flex:1;">AI Graph Assistant</strong>
-        <button type="button" data-action="new-chat" title="New chat" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text-2);width:28px;height:26px;cursor:pointer;"><i class="fas fa-plus"></i></button>
-        <button type="button" data-action="close" title="Close" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text-2);width:28px;height:26px;cursor:pointer;"><i class="fas fa-xmark"></i></button>
+      <div class="sd-ai-chat-head" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(180deg,var(--sd-bg-2),var(--sd-bg-3));border-bottom:1px solid var(--sd-border);cursor:move;user-select:none;">
+        <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--sd-accent),#5ec6a8);display:flex;align-items:center;justify-content:center;color:var(--sd-accent-text,#fff);"><i class="fas fa-brain"></i></div>
+        <div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;">
+          <strong style="font-size:12px;color:var(--sd-text);text-transform:uppercase;letter-spacing:.08em;">AI Graph Assistant</strong>
+          <span style="font-size:11px;color:var(--sd-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Chat, inspect, search nodes, edit fields, delete nodes, and apply graph plans.</span>
+        </div>
+        <button type="button" data-action="new-chat" title="New chat" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:7px;color:var(--sd-text-2);width:30px;height:28px;cursor:pointer;"><i class="fas fa-plus"></i></button>
+        <button type="button" data-action="close" title="Close" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:7px;color:var(--sd-text-2);width:30px;height:28px;cursor:pointer;"><i class="fas fa-xmark"></i></button>
       </div>
       <div style="display:flex;min-height:0;flex:1;">
-        <aside style="width:180px;flex:0 0 180px;border-right:1px solid var(--sd-border);background:var(--sd-bg-2);overflow:auto;padding:6px;">
+        <aside style="width:210px;flex:0 0 210px;border-right:1px solid var(--sd-border);background:var(--sd-bg-2);overflow:auto;padding:8px;">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);font-weight:800;margin:2px 2px 8px;">Chats</div>
           ${chats.map(c => `<div data-chat-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;margin-bottom:5px;">
-            <button type="button" data-action="select-chat" data-chat-id="${esc(c.id)}" style="flex:1;text-align:left;background:${c.id === chat.id ? "rgba(116,167,255,.18)" : "var(--sd-bg-3)"};border:1px solid ${c.id === chat.id ? "var(--sd-accent)" : "var(--sd-border)"};border-radius:6px;color:var(--sd-text);padding:6px 7px;font-size:11px;line-height:1.25;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(c.title)}</button>
-            <button type="button" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete chat" style="background:transparent;border:1px solid var(--sd-border);border-radius:6px;color:#d66;width:24px;height:24px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+            <button type="button" data-action="select-chat" data-chat-id="${esc(c.id)}" style="flex:1;text-align:left;background:${c.id === chat.id ? "rgba(116,167,255,.18)" : "var(--sd-bg)"};border:1px solid ${c.id === chat.id ? "var(--sd-accent)" : "var(--sd-border)"};border-radius:8px;color:var(--sd-text);padding:7px 8px;font-size:11px;line-height:1.25;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(c.title)}</button>
+            <button type="button" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete chat" style="background:transparent;border:1px solid var(--sd-border);border-radius:7px;color:#d66;width:26px;height:26px;cursor:pointer;"><i class="fas fa-trash"></i></button>
           </div>`).join("")}
         </aside>
         <main style="display:flex;flex-direction:column;min-width:0;flex:1;">
-          <div class="sd-ai-chat-messages" style="flex:1;min-height:0;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:10px;background:var(--sd-bg);">
-            ${msgHtml || `<div style="font-size:12px;color:var(--sd-text-3);line-height:1.45;">Ask questions about this graph, search nodes, or use Build Plan to let the assistant propose node placement and connections.</div>`}
+          <div class="sd-ai-chat-messages" style="flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:14px;background:var(--sd-bg);">
+            ${msgHtml || `<div style="margin:auto;max-width:440px;text-align:center;font-size:12px;color:var(--sd-text-3);line-height:1.5;border:1px dashed var(--sd-border);border-radius:10px;padding:18px;background:var(--sd-bg-2);">Ask normally. If you ask to create, change, delete, connect, clear, fix, or help build the graph, the assistant will propose an applyable plan in chat.</div>`}
           </div>
-          <div style="border-top:1px solid var(--sd-border);padding:8px;background:var(--sd-bg-2);display:flex;flex-direction:column;gap:6px;">
-            <textarea name="message" rows="3" placeholder="Ask about the graph, or describe what nodes should be built..." style="width:100%;box-sizing:border-box;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:8px 10px;resize:vertical;font-family:inherit;font-size:12px;line-height:1.4;"></textarea>
-            <div style="display:flex;gap:6px;justify-content:flex-end;">
-              <button type="button" data-action="send" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:6px 10px;cursor:pointer;"><i class="fas fa-paper-plane"></i> Send</button>
-              <button type="button" data-action="build-plan" style="background:var(--sd-accent);border:1px solid var(--sd-accent);border-radius:6px;color:var(--sd-accent-text,#fff);padding:6px 10px;cursor:pointer;font-weight:700;"><i class="fas fa-diagram-project"></i> Build Plan</button>
+          <div style="border-top:1px solid var(--sd-border);padding:10px;background:var(--sd-bg-2);display:flex;flex-direction:column;gap:7px;">
+            <textarea name="message" rows="3" placeholder="Message the graph assistant..." style="width:100%;box-sizing:border-box;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:9px;color:var(--sd-text);padding:9px 11px;resize:vertical;font-family:inherit;font-size:12px;line-height:1.45;"></textarea>
+            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+              <span style="font-size:11px;color:var(--sd-text-3);">Ctrl+Enter sends. Plans appear with an Apply Plan button.</span>
+              <button type="button" data-action="send" style="background:var(--sd-accent);border:1px solid var(--sd-accent);border-radius:8px;color:var(--sd-accent-text,#fff);padding:7px 13px;cursor:pointer;font-weight:800;"><i class="fas fa-paper-plane"></i> Send</button>
             </div>
           </div>
         </main>
@@ -8226,10 +8317,9 @@ export class FormulaGraph {
         this._renderAIAssistantChat();
       });
     });
-    win.querySelector("[data-action='send']")?.addEventListener("click", () => this._sendAIAssistantChat("ask"));
-    win.querySelector("[data-action='build-plan']")?.addEventListener("click", () => this._sendAIAssistantChat("plan"));
+    win.querySelector("[data-action='send']")?.addEventListener("click", () => this._sendAIAssistantChat());
     win.querySelector("[name='message']")?.addEventListener("keydown", ev => {
-      if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) this._sendAIAssistantChat("ask");
+      if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) this._sendAIAssistantChat();
     });
     win.querySelectorAll("[data-action='apply-plan']").forEach(btn => {
       btn.addEventListener("click", async () => {
@@ -8237,9 +8327,10 @@ export class FormulaGraph {
         if (!msg?.plan) return;
         if (!(await this._confirmAIAssistantPlan(msg.plan))) return;
         const applied = this._applyAIAssistantPlan(msg.plan);
+        msg.applied = true;
         chat.messages.push({
           role: "assistant",
-          content: `Applied plan. Added: ${applied.added}, updated: ${applied.updated}, connected: ${applied.connected}${applied.skipped.length ? `, skipped: ${applied.skipped.length}` : ""}.`,
+          content: `Applied plan. Added: ${applied.added}, updated: ${applied.updated}, connected: ${applied.connected}, deleted: ${applied.deleted}, disconnected: ${applied.disconnected}${applied.skipped.length ? `, skipped: ${applied.skipped.length}` : ""}.`,
           ts: Date.now()
         });
         chat.updated = Date.now();
@@ -8271,7 +8362,7 @@ export class FormulaGraph {
     }
   }
 
-  async _sendAIAssistantChat(mode = "ask") {
+  async _sendAIAssistantChat() {
     const chat = this._activeAIAssistantChat();
     const input = this._aiChatWin?.querySelector?.("[name='message']");
     const prompt = String(input?.value ?? "").trim();
@@ -8279,53 +8370,73 @@ export class FormulaGraph {
     if (input) input.value = "";
     if (chat.title === "New chat") chat.title = prompt.slice(0, 42) || "New chat";
     chat.messages.push({ role: "user", content: prompt, ts: Date.now() });
-    const pending = { role: "assistant", content: mode === "plan" ? "Building graph plan..." : "Thinking...", pending: true, ts: Date.now() };
+    const pending = { role: "assistant", content: "Thinking...", pending: true, ts: Date.now() };
     chat.messages.push(pending);
     chat.updated = Date.now();
     this._saveAIAssistantChats();
     this._renderAIAssistantChat();
 
     const graphContext = this._aiGraphSnapshot();
-    const nodeCatalog = this._aiNodeCatalog(prompt, mode === "plan" ? 180 : 90);
+    const nodeCatalog = this._aiNodeCatalog(prompt, 180);
     const conversation = chat.messages
       .filter(m => !m.pending)
       .slice(-12)
-      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .map(m => {
+        const planText = m.plan ? `\nPlan JSON: ${JSON.stringify(m.plan).slice(0, 8000)}` : "";
+        return `${m.role === "user" ? "User" : "Assistant"}: ${m.content}${planText}`;
+      })
       .join("\n\n");
 
     try {
       const { requestAIChat } = await import("../helpers/ai-context.mjs");
-      if (mode === "plan") {
-        const answer = await requestAIChat({
-          provider: { providerProfile: "assistant" },
-          json: true,
-          systemPrompt: [
-            "You are an expert Foundry VTT Sheet Director node graph builder.",
-            "You can inspect the current graph and the available node catalog.",
-            "Return JSON only. Do not use markdown.",
-            "Allowed operations:",
-            "{\"op\":\"addNode\",\"ref\":\"shortNewNodeRef\",\"type\":\"node_type\",\"x\":number,\"y\":number,\"data\":{fieldKey:value}}",
-            "{\"op\":\"setData\",\"node\":\"existingNodeIdOrNewRef\",\"data\":{fieldKey:value}}",
-            "{\"op\":\"connect\",\"from\":\"existingNodeIdOrNewRef\",\"fromPin\":\"outputPinId\",\"to\":\"existingNodeIdOrNewRef\",\"toPin\":\"inputPinId\"}",
-            "Use only node types and pin ids from the provided catalog. Use existing node ids from the current graph for existing nodes. Use ref names for nodes you add. Keep changes minimal and avoid deleting anything.",
-            "Schema: {\"message\":\"short explanation\",\"actions\":[...]}."
-          ].join("\n"),
-          prompt: [
-            "Conversation:",
-            conversation,
-            "",
-            "Latest user request:",
-            prompt,
-            "",
-            "Current graph JSON:",
-            JSON.stringify(graphContext, null, 2).slice(0, 24000),
-            "",
-            "Available node catalog JSON:",
-            JSON.stringify(nodeCatalog, null, 2).slice(0, 36000)
-          ].join("\n")
-        });
-        const plan = this._parseAIAssistantPlan(answer);
-        pending.pending = false;
+      const answer = await requestAIChat({
+        provider: { providerProfile: "assistant" },
+        json: true,
+        systemPrompt: [
+          "You are an expert Foundry VTT Sheet Director node graph chat assistant.",
+          "You can inspect the current graph, search the available node catalog, answer questions, and propose graph edits.",
+          "Always return JSON only. No markdown.",
+          "Response schema: {\"message\":\"chat response for the user\",\"actions\":[...]}",
+          "If the user only asks a conceptual question, set actions to [].",
+          "If the latest user request asks to build, create, add, help build, fix, change, update, set a value, connect, delete, remove, clear, redo, revise, or otherwise modify the graph, return a complete replacement actions plan based on the CURRENT graph.",
+          "If the user dislikes a previous plan and asks to change it, use the conversation as context but output a full new replacement plan against the current graph. Do not output only a partial diff of an unapplied plan.",
+          "Allowed operations:",
+          "{\"op\":\"addNode\",\"ref\":\"shortNewNodeRef\",\"type\":\"node_type\",\"x\":number,\"y\":number,\"data\":{fieldKey:value}}",
+          "{\"op\":\"setData\",\"node\":\"existingNodeIdOrNewRef\",\"data\":{fieldKey:value}}",
+          "{\"op\":\"connect\",\"from\":\"existingNodeIdOrNewRef\",\"fromPin\":\"outputPinId\",\"to\":\"existingNodeIdOrNewRef\",\"toPin\":\"inputPinId\"}",
+          "{\"op\":\"deleteNode\",\"node\":\"existingNodeIdOrNewRef\"}",
+          "{\"op\":\"deleteEdge\",\"edge\":\"edgeId\"}",
+          "{\"op\":\"deleteEdge\",\"from\":\"existingNodeIdOrNewRef\",\"fromPin\":\"outputPinId\",\"to\":\"existingNodeIdOrNewRef\",\"toPin\":\"inputPinId\"}",
+          "{\"op\":\"clearGraph\",\"keep\":[\"nodeIdOrNodeTypeToKeep\"]}",
+          "Use setData to change any field/value inside an existing or newly added node.",
+          "Use only node types, field keys, and pin ids from the provided catalog/current graph.",
+          "Never delete protected output/init/noDelete nodes. Avoid destructive changes unless the user asks for deletion or clearing.",
+          "Keep plans minimal, readable, and spatially arranged."
+        ].join("\n"),
+        prompt: [
+          "Conversation:",
+          conversation,
+          "",
+          "Latest user request:",
+          prompt,
+          "",
+          "Current graph JSON:",
+          JSON.stringify(graphContext, null, 2).slice(0, 26000),
+          "",
+          "Available node catalog JSON:",
+          JSON.stringify(nodeCatalog, null, 2).slice(0, 42000)
+        ].join("\n")
+      });
+
+      let plan;
+      try {
+        plan = this._parseAIAssistantPlan(answer);
+      } catch {
+        plan = { message: String(answer ?? ""), actions: [] };
+      }
+      if (!Array.isArray(plan.actions)) plan.actions = [];
+      pending.pending = false;
+      if (plan.actions.length) {
         pending.plan = plan;
         pending.content = [
           plan.message || "I prepared a graph plan.",
@@ -8333,25 +8444,7 @@ export class FormulaGraph {
           this._previewAIAssistantActions(plan)
         ].filter(Boolean).join("\n");
       } else {
-        const answer = await requestAIChat({
-          provider: { providerProfile: "assistant" },
-          systemPrompt: "You are an expert Foundry VTT Sheet Director node graph assistant. You can inspect the current graph and search the node catalog. Give concise, practical graph-building advice. Do not claim you changed the graph unless an Apply Plan action was actually applied.",
-          prompt: [
-            "Conversation:",
-            conversation,
-            "",
-            "Latest user request:",
-            prompt,
-            "",
-            "Current graph JSON:",
-            JSON.stringify(graphContext, null, 2).slice(0, 24000),
-            "",
-            "Available node catalog search results JSON:",
-            JSON.stringify(nodeCatalog, null, 2).slice(0, 24000)
-          ].join("\n")
-        });
-        pending.pending = false;
-        pending.content = String(answer ?? "");
+        pending.content = plan.message || String(answer ?? "");
       }
     } catch (e) {
       pending.pending = false;
