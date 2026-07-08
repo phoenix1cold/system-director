@@ -8097,46 +8097,205 @@ export class FormulaGraph {
     return { added, updated, connected, skipped };
   }
 
-  async _openAIAssistant() {
-    const { DialogV2 } = foundry.applications.api;
-    const defaultPrompt = "Help me understand or improve this node graph. You may search the available node catalog and, if I choose Build & Apply, propose nodes and connections to add.";
-    const result = await DialogV2.wait({
-      window: { title: "AI Graph Assistant", icon: "fa-solid fa-brain", resizable: true },
-      modal: true,
-      content: `<form style="display:flex;flex-direction:column;gap:8px;min-width:560px;min-height:300px;">
-        <label style="font-size:12px;font-weight:700;color:var(--sd-text-2);">Ask about this graph</label>
-        <textarea name="prompt" rows="9" style="width:100%;min-height:200px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:8px 10px;resize:vertical;font-family:inherit;line-height:1.4;">${esc(defaultPrompt)}</textarea>
-        <p style="margin:0;font-size:11px;line-height:1.35;color:var(--sd-text-3);">Uses AI Settings -> Task Models -> Assistant. Ask only returns advice. Build & Apply lets the assistant place nodes, set fields, and connect pins after you confirm the proposed plan.</p>
-      </form>`,
-      buttons: [
-        {
-          action: "ask", label: "Ask", icon: "fas fa-paper-plane", default: true,
-          callback: (ev, btn, dialog) => {
-            const root = dialog?.element ?? dialog;
-            return { ok: true, mode: "ask", prompt: String(root?.querySelector?.("[name='prompt']")?.value ?? "") };
-          }
-        },
-        {
-          action: "apply", label: "Build & Apply", icon: "fas fa-wand-magic-sparkles",
-          callback: (ev, btn, dialog) => {
-            const root = dialog?.element ?? dialog;
-            return { ok: true, mode: "apply", prompt: String(root?.querySelector?.("[name='prompt']")?.value ?? "") };
-          }
-        },
-        { action: "cancel", label: "Cancel", callback: () => ({ ok: false }) }
-      ],
-      rejectClose: false
-    }).catch(() => ({ ok: false }));
+  _aiChatStorageKey() {
+    const docPart = this.doc?.uuid ?? this.doc?.id ?? "world";
+    const widgetPart = this.widget?.id ?? this.widget?.key ?? this.saveCtx?.attrKey ?? this.saveCtx?.skillKey ?? "graph";
+    return `sd.aiGraphAssistant.chats.v1.${docPart}.${widgetPart}`;
+  }
 
-    const prompt = String(result?.prompt ?? "").trim();
-    if (!result?.ok || !prompt) return;
+  _loadAIAssistantChats() {
+    try {
+      const raw = localStorage.getItem(this._aiChatStorageKey());
+      const parsed = JSON.parse(raw || "[]");
+      if (Array.isArray(parsed)) {
+        return parsed.filter(c => c && typeof c === "object").map(c => ({
+          id: String(c.id || uid()),
+          title: String(c.title || "New chat"),
+          created: Number(c.created || Date.now()),
+          updated: Number(c.updated || Date.now()),
+          messages: Array.isArray(c.messages) ? c.messages : []
+        }));
+      }
+    } catch { }
+    return [];
+  }
+
+  _saveAIAssistantChats() {
+    try {
+      localStorage.setItem(this._aiChatStorageKey(), JSON.stringify(this._aiChats ?? []));
+    } catch (e) {
+      console.warn("SD | Could not save AI graph assistant chats:", e);
+    }
+  }
+
+  _newAIAssistantChat() {
+    const chat = { id: `chat_${uid()}`, title: "New chat", created: Date.now(), updated: Date.now(), messages: [] };
+    if (!Array.isArray(this._aiChats)) this._aiChats = [];
+    this._aiChats.unshift(chat);
+    this._aiActiveChatId = chat.id;
+    this._saveAIAssistantChats();
+    return chat;
+  }
+
+  _activeAIAssistantChat() {
+    if (!Array.isArray(this._aiChats)) this._aiChats = this._loadAIAssistantChats();
+    if (!this._aiChats.length) return this._newAIAssistantChat();
+    let chat = this._aiChats.find(c => c.id === this._aiActiveChatId);
+    if (!chat) {
+      chat = this._aiChats[0];
+      this._aiActiveChatId = chat.id;
+    }
+    return chat;
+  }
+
+  _deleteAIAssistantChat(id) {
+    this._aiChats = (this._aiChats ?? []).filter(c => c.id !== id);
+    if (!this._aiChats.length) this._newAIAssistantChat();
+    else if (this._aiActiveChatId === id) this._aiActiveChatId = this._aiChats[0].id;
+    this._saveAIAssistantChats();
+  }
+
+  _renderAIAssistantChat() {
+    const win = this._aiChatWin;
+    if (!win) return;
+    const chat = this._activeAIAssistantChat();
+    const chats = this._aiChats ?? [];
+    const msgHtml = (chat.messages ?? []).map((m, i) => {
+      const role = String(m.role ?? "assistant");
+      const isUser = role === "user";
+      const isPending = !!m.pending;
+      const plan = m.plan && Array.isArray(m.plan.actions) && m.plan.actions.length;
+      const body = esc(String(m.content ?? "")).replace(/>/g, "&gt;");
+      return `<div class="sd-ai-chat-msg" data-msg-index="${i}" style="display:flex;flex-direction:column;gap:5px;align-items:${isUser ? "flex-end" : "flex-start"};">
+        <div style="max-width:88%;border:1px solid ${isUser ? "rgba(116,167,255,.35)" : "var(--sd-border)"};background:${isUser ? "rgba(80,120,190,.18)" : "var(--sd-bg-2)"};border-radius:8px;padding:8px 10px;color:var(--sd-text);font-size:12px;line-height:1.45;white-space:pre-wrap;word-break:break-word;">
+          ${isPending ? `<i class="fas fa-spinner fa-spin" style="margin-right:6px"></i>` : ""}${body}
+        </div>
+        ${plan ? `<button type="button" data-action="apply-plan" data-msg-index="${i}" style="font-size:11px;background:var(--sd-accent);border:1px solid var(--sd-accent);border-radius:6px;color:var(--sd-accent-text,#fff);padding:5px 9px;cursor:pointer;"><i class="fas fa-wand-magic-sparkles"></i> Apply Plan</button>` : ""}
+      </div>`;
+    }).join("");
+
+    win.innerHTML = `
+      <div class="sd-ai-chat-head" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);cursor:move;user-select:none;">
+        <i class="fas fa-brain" style="color:var(--sd-accent)"></i>
+        <strong style="font-size:12px;color:var(--sd-accent);text-transform:uppercase;letter-spacing:.08em;flex:1;">AI Graph Assistant</strong>
+        <button type="button" data-action="new-chat" title="New chat" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text-2);width:28px;height:26px;cursor:pointer;"><i class="fas fa-plus"></i></button>
+        <button type="button" data-action="close" title="Close" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text-2);width:28px;height:26px;cursor:pointer;"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div style="display:flex;min-height:0;flex:1;">
+        <aside style="width:180px;flex:0 0 180px;border-right:1px solid var(--sd-border);background:var(--sd-bg-2);overflow:auto;padding:6px;">
+          ${chats.map(c => `<div data-chat-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;margin-bottom:5px;">
+            <button type="button" data-action="select-chat" data-chat-id="${esc(c.id)}" style="flex:1;text-align:left;background:${c.id === chat.id ? "rgba(116,167,255,.18)" : "var(--sd-bg-3)"};border:1px solid ${c.id === chat.id ? "var(--sd-accent)" : "var(--sd-border)"};border-radius:6px;color:var(--sd-text);padding:6px 7px;font-size:11px;line-height:1.25;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(c.title)}</button>
+            <button type="button" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete chat" style="background:transparent;border:1px solid var(--sd-border);border-radius:6px;color:#d66;width:24px;height:24px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+          </div>`).join("")}
+        </aside>
+        <main style="display:flex;flex-direction:column;min-width:0;flex:1;">
+          <div class="sd-ai-chat-messages" style="flex:1;min-height:0;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:10px;background:var(--sd-bg);">
+            ${msgHtml || `<div style="font-size:12px;color:var(--sd-text-3);line-height:1.45;">Ask questions about this graph, search nodes, or use Build Plan to let the assistant propose node placement and connections.</div>`}
+          </div>
+          <div style="border-top:1px solid var(--sd-border);padding:8px;background:var(--sd-bg-2);display:flex;flex-direction:column;gap:6px;">
+            <textarea name="message" rows="3" placeholder="Ask about the graph, or describe what nodes should be built..." style="width:100%;box-sizing:border-box;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:8px 10px;resize:vertical;font-family:inherit;font-size:12px;line-height:1.4;"></textarea>
+            <div style="display:flex;gap:6px;justify-content:flex-end;">
+              <button type="button" data-action="send" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:6px 10px;cursor:pointer;"><i class="fas fa-paper-plane"></i> Send</button>
+              <button type="button" data-action="build-plan" style="background:var(--sd-accent);border:1px solid var(--sd-accent);border-radius:6px;color:var(--sd-accent-text,#fff);padding:6px 10px;cursor:pointer;font-weight:700;"><i class="fas fa-diagram-project"></i> Build Plan</button>
+            </div>
+          </div>
+        </main>
+      </div>`;
+
+    const messages = win.querySelector(".sd-ai-chat-messages");
+    if (messages) messages.scrollTop = messages.scrollHeight;
+
+    win.querySelector("[data-action='close']")?.addEventListener("click", () => {
+      win.remove();
+      this._aiChatWin = null;
+    });
+    win.querySelector("[data-action='new-chat']")?.addEventListener("click", () => {
+      this._newAIAssistantChat();
+      this._renderAIAssistantChat();
+    });
+    win.querySelectorAll("[data-action='select-chat']").forEach(btn => {
+      btn.addEventListener("click", () => {
+        this._aiActiveChatId = btn.dataset.chatId;
+        this._renderAIAssistantChat();
+      });
+    });
+    win.querySelectorAll("[data-action='delete-chat']").forEach(btn => {
+      btn.addEventListener("click", ev => {
+        ev.stopPropagation();
+        this._deleteAIAssistantChat(btn.dataset.chatId);
+        this._renderAIAssistantChat();
+      });
+    });
+    win.querySelector("[data-action='send']")?.addEventListener("click", () => this._sendAIAssistantChat("ask"));
+    win.querySelector("[data-action='build-plan']")?.addEventListener("click", () => this._sendAIAssistantChat("plan"));
+    win.querySelector("[name='message']")?.addEventListener("keydown", ev => {
+      if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) this._sendAIAssistantChat("ask");
+    });
+    win.querySelectorAll("[data-action='apply-plan']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const msg = chat.messages[Number(btn.dataset.msgIndex)];
+        if (!msg?.plan) return;
+        if (!(await this._confirmAIAssistantPlan(msg.plan))) return;
+        const applied = this._applyAIAssistantPlan(msg.plan);
+        chat.messages.push({
+          role: "assistant",
+          content: `Applied plan. Added: ${applied.added}, updated: ${applied.updated}, connected: ${applied.connected}${applied.skipped.length ? `, skipped: ${applied.skipped.length}` : ""}.`,
+          ts: Date.now()
+        });
+        chat.updated = Date.now();
+        this._saveAIAssistantChats();
+        this._renderAIAssistantChat();
+        if (applied.skipped.length) console.warn("SD | AI Graph Assistant skipped actions:", applied.skipped);
+      });
+    });
+
+    if (!this._aiChatDragBound) {
+      this._aiChatDragBound = true;
+      let drag = null;
+      win.addEventListener("mousedown", ev => {
+        if (!ev.target.closest(".sd-ai-chat-head") || ev.target.closest("button")) return;
+        drag = { x: ev.clientX - win.offsetLeft, y: ev.clientY - win.offsetTop };
+      });
+      const move = ev => {
+        if (!drag || !this._aiChatWin) return;
+        win.style.left = `${Math.max(0, ev.clientX - drag.x)}px`;
+        win.style.top = `${Math.max(0, ev.clientY - drag.y)}px`;
+      };
+      const up = () => { drag = null; };
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", up);
+      this._cleanup?.push?.(() => {
+        document.removeEventListener("mousemove", move);
+        document.removeEventListener("mouseup", up);
+      });
+    }
+  }
+
+  async _sendAIAssistantChat(mode = "ask") {
+    const chat = this._activeAIAssistantChat();
+    const input = this._aiChatWin?.querySelector?.("[name='message']");
+    const prompt = String(input?.value ?? "").trim();
+    if (!prompt) return;
+    if (input) input.value = "";
+    if (chat.title === "New chat") chat.title = prompt.slice(0, 42) || "New chat";
+    chat.messages.push({ role: "user", content: prompt, ts: Date.now() });
+    const pending = { role: "assistant", content: mode === "plan" ? "Building graph plan..." : "Thinking...", pending: true, ts: Date.now() };
+    chat.messages.push(pending);
+    chat.updated = Date.now();
+    this._saveAIAssistantChats();
+    this._renderAIAssistantChat();
 
     const graphContext = this._aiGraphSnapshot();
-    const nodeCatalog = this._aiNodeCatalog(prompt, result.mode === "apply" ? 180 : 90);
+    const nodeCatalog = this._aiNodeCatalog(prompt, mode === "plan" ? 180 : 90);
+    const conversation = chat.messages
+      .filter(m => !m.pending)
+      .slice(-12)
+      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .join("\n\n");
 
     try {
       const { requestAIChat } = await import("../helpers/ai-context.mjs");
-      if (result.mode === "apply") {
+      if (mode === "plan") {
         const answer = await requestAIChat({
           provider: { providerProfile: "assistant" },
           json: true,
@@ -8150,10 +8309,12 @@ export class FormulaGraph {
             "{\"op\":\"connect\",\"from\":\"existingNodeIdOrNewRef\",\"fromPin\":\"outputPinId\",\"to\":\"existingNodeIdOrNewRef\",\"toPin\":\"inputPinId\"}",
             "Use only node types and pin ids from the provided catalog. Use existing node ids from the current graph for existing nodes. Use ref names for nodes you add. Keep changes minimal and avoid deleting anything.",
             "Schema: {\"message\":\"short explanation\",\"actions\":[...]}."
-          ].join("\n")
-        ,
+          ].join("\n"),
           prompt: [
-            "User request:",
+            "Conversation:",
+            conversation,
+            "",
+            "Latest user request:",
             prompt,
             "",
             "Current graph JSON:",
@@ -8164,51 +8325,61 @@ export class FormulaGraph {
           ].join("\n")
         });
         const plan = this._parseAIAssistantPlan(answer);
-        if (!Array.isArray(plan.actions) || !plan.actions.length) {
-          ui.notifications?.warn?.("SD | AI Graph Assistant did not propose any graph changes.");
-          return;
-        }
-        if (!(await this._confirmAIAssistantPlan(plan))) return;
-        const applied = this._applyAIAssistantPlan(plan);
-        const summary = [
-          `Added: ${applied.added}`,
-          `Updated: ${applied.updated}`,
-          `Connected: ${applied.connected}`,
-          applied.skipped.length ? `Skipped: ${applied.skipped.length}` : ""
-        ].filter(Boolean).join(", ");
-        if (applied.skipped.length) console.warn("SD | AI Graph Assistant skipped actions:", applied.skipped);
-        ui.notifications?.info?.(`SD | AI Graph Assistant applied plan. ${summary}`);
-        return;
+        pending.pending = false;
+        pending.plan = plan;
+        pending.content = [
+          plan.message || "I prepared a graph plan.",
+          "",
+          this._previewAIAssistantActions(plan)
+        ].filter(Boolean).join("\n");
+      } else {
+        const answer = await requestAIChat({
+          provider: { providerProfile: "assistant" },
+          systemPrompt: "You are an expert Foundry VTT Sheet Director node graph assistant. You can inspect the current graph and search the node catalog. Give concise, practical graph-building advice. Do not claim you changed the graph unless an Apply Plan action was actually applied.",
+          prompt: [
+            "Conversation:",
+            conversation,
+            "",
+            "Latest user request:",
+            prompt,
+            "",
+            "Current graph JSON:",
+            JSON.stringify(graphContext, null, 2).slice(0, 24000),
+            "",
+            "Available node catalog search results JSON:",
+            JSON.stringify(nodeCatalog, null, 2).slice(0, 24000)
+          ].join("\n")
+        });
+        pending.pending = false;
+        pending.content = String(answer ?? "");
       }
-
-      const answer = await requestAIChat({
-        provider: { providerProfile: "assistant" },
-        systemPrompt: "You are an expert Foundry VTT Sheet Director node graph assistant. You can inspect the current graph and search the node catalog. Give concise, practical graph-building advice. Do not claim you changed the graph.",
-        prompt: [
-          prompt,
-          "",
-          "Current graph JSON:",
-          JSON.stringify(graphContext, null, 2).slice(0, 24000),
-          "",
-          "Available node catalog search results JSON:",
-          JSON.stringify(nodeCatalog, null, 2).slice(0, 24000)
-        ].join("\n")
-      });
-      const safeAnswer = esc(String(answer ?? "")).replace(/>/g, "&gt;").replace(/<\/textarea/gi, "<\\/textarea");
-      await DialogV2.wait({
-        window: { title: "AI Graph Assistant", icon: "fa-solid fa-brain", resizable: true },
-        modal: false,
-        content: `<div style="display:flex;flex-direction:column;gap:8px;min-width:560px;min-height:320px;">
-          <label style="font-size:12px;font-weight:700;color:var(--sd-text-2);">Assistant Response</label>
-          <textarea readonly rows="14" style="width:100%;min-height:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:9px 11px;resize:vertical;font-family:inherit;line-height:1.45;">${safeAnswer}</textarea>
-        </div>`,
-        buttons: [{ action: "ok", label: "OK", icon: "fas fa-check", default: true }],
-        rejectClose: false
-      });
     } catch (e) {
+      pending.pending = false;
+      pending.content = `Error: ${String(e?.message ?? e)}`;
       console.warn("SD | AI Graph Assistant failed:", e);
-      ui.notifications?.warn?.(`SD | AI Graph Assistant failed: ${String(e?.message ?? e)}`);
     }
+
+    chat.updated = Date.now();
+    this._saveAIAssistantChats();
+    this._renderAIAssistantChat();
+  }
+
+  async _openAIAssistant() {
+    if (this._aiChatWin && document.body.contains(this._aiChatWin)) {
+      this._aiChatWin.style.display = "flex";
+      this._aiChatWin.style.zIndex = "26000";
+      this._renderAIAssistantChat();
+      return;
+    }
+    this._aiChats = this._loadAIAssistantChats();
+    if (!this._aiChats.length) this._newAIAssistantChat();
+    const win = document.createElement("div");
+    win.className = "sd sd-ai-graph-chat";
+    win.style.cssText = `position:fixed;right:28px;top:80px;width:min(820px,92vw);height:min(680px,86vh);min-width:560px;min-height:420px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:10px;box-shadow:var(--sd-popover-shadow,0 24px 80px rgba(0,0,0,.9));z-index:26000;display:flex;flex-direction:column;color:var(--sd-text);font-family:Inter,'Segoe UI',Arial,sans-serif;overflow:hidden;resize:both;`;
+    document.body.appendChild(win);
+    this._aiChatWin = win;
+    this._aiChatDragBound = false;
+    this._renderAIAssistantChat();
   }
 
   _loadGraph() {
