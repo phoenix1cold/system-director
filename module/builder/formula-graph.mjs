@@ -277,6 +277,36 @@ export const NODE_DEFS = {
     isBranch:true
   },
 
+  if_node: {
+    title:"If Compare", color:"#8a2a8a", cat:"Flow",
+    desc:"Exec passes through when A compares true against B/value. Handy for assistant-built simple checks like HP < 5 -> Message.",
+    inputs:[
+      {id:"exec", label:"", type:"exec"},
+      {id:"a",    label:"A", type:"value.any"},
+      {id:"b",    label:"B", type:"value.any"}
+    ],
+    outputs:[{id:"exec", label:"True", type:"exec"}],
+    fields:[
+      {key:"operator",  label:"Operator", type:"select", default:"<", options:["<","<=",">",">=","==","!="]},
+      {key:"value",     label:"B fallback", type:"text", default:"0"},
+      {key:"condition", label:"Condition override", type:"text", default:"", placeholder:"Optional full formula condition"}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>{
+      const explicit = String(n.data.condition ?? "").trim();
+      if (explicit) return {type:"gate", condition: explicit};
+      const allowed = new Set(["<","<=",">",">=","==","!="]);
+      let op = String(n.data.operator ?? "<").trim();
+      if (op === "=") op = "==";
+      if (op === "===") op = "==";
+      if (op === "!==") op = "!=";
+      if (!allowed.has(op)) op = "<";
+      const a = inp.a ?? "0";
+      const b = inp.b ?? n.data.value ?? "0";
+      return {type:"gate", condition:`(${a}${op}${b})`};
+    }
+  },
+
   on_click: {
     title:"On Click", color:"#b05000", cat:"Flow",
     desc:"Entry point - fired when the item's Use button is pressed. Connect its exec output to your action chain.",
@@ -1825,11 +1855,13 @@ export const NODE_DEFS = {
     title:"Message", color:"#4a4a1a", cat:"Chat",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
-    fields:[],
+    fields:[{key:"message",label:"Message",type:"textarea",default:""}],
     isAction:true,
     dynamicPins:[{ base:"text", label:"Text", max:10, type:"value.string" }],
     toAction:(n,inp)=>{
       const parts=[];
+      const base = String(n.data.message ?? "").trim();
+      if (base) parts.push(base);
       for(let i=0;i<10;i++){
         const v=inp[`text${i}`];
         if(v!==undefined && v!==null && v!=="") parts.push(String(v));
@@ -7887,14 +7919,20 @@ export class FormulaGraph {
     return {
       mode: this.actionGraph ? "action" : this.numberWidgetMode ? "number-widget" : this.initiativeMode ? "initiative" : "formula",
       widgetType: this.widget?.type ?? "",
-      nodes: (this.nodes ?? []).map(n => ({
-        id: n.id,
-        type: n.type,
-        title: NODE_DEFS[n.type]?.title ?? n.type,
-        x: Math.round(Number(n.x) || 0),
-        y: Math.round(Number(n.y) || 0),
-        data: n.data ?? {}
-      })),
+      nodes: (this.nodes ?? []).map(n => {
+        const def = NODE_DEFS[n.type];
+        const brief = pins => (pins ?? []).map(p => ({ id: p.id, label: p.label ?? "", type: p.type ?? "value.any" }));
+        return {
+          id: n.id,
+          type: n.type,
+          title: def?.title ?? n.type,
+          x: Math.round(Number(n.x) || 0),
+          y: Math.round(Number(n.y) || 0),
+          data: n.data ?? {},
+          inputs: brief(this._aiPinsForDef(def, n, "input", true)),
+          outputs: brief(this._aiPinsForDef(def, n, "output", true))
+        };
+      }),
       edges: (this.edges ?? []).map(e => ({
         id: e.id,
         fromNode: e.fromNode,
@@ -7907,7 +7945,8 @@ export class FormulaGraph {
 
   _aiNodeCatalog(query = "", max = 140) {
     const ctx = this._nodeFilterContext();
-    const terms = String(query ?? "").toLowerCase().split(/[^a-zа-я0-9_]+/i).filter(t => t.length > 1);
+    const terms = String(query ?? "").toLowerCase().split(/[^\p{L}0-9_]+/u).filter(t => t.length > 1);
+    const coreTypes = new Set(this._aiAssistantCoreNodeTypes());
     const pinBrief = pins => (pins ?? []).map(p => ({ id: p.id, label: p.label ?? "", type: p.type ?? "value.any" }));
     const fieldBrief = fields => (fields ?? []).map(f => ({
       key: f.key,
@@ -7919,22 +7958,27 @@ export class FormulaGraph {
     const rows = [];
     for (const [type, def] of Object.entries(NODE_DEFS)) {
       if (!this._isNodeAvailableInCurrentGraph(type, def, null, ctx)) continue;
-      const hay = `${type} ${def.title ?? ""} ${def.cat ?? ""} ${def.desc ?? ""}`.toLowerCase();
+      const aliases = this._aiNodeAliases(type);
+      const hay = `${type} ${def.title ?? ""} ${def.cat ?? ""} ${def.desc ?? ""} ${aliases.join(" ")}`.toLowerCase();
+      const isCore = coreTypes.has(type);
       let score = terms.length ? 0 : 1;
       for (const t of terms) {
         if (type.toLowerCase().includes(t)) score += 6;
         if (String(def.title ?? "").toLowerCase().includes(t)) score += 5;
         if (String(def.cat ?? "").toLowerCase().includes(t)) score += 2;
         if (String(def.desc ?? "").toLowerCase().includes(t)) score += 1;
+        if (aliases.some(a => String(a).toLowerCase().includes(t))) score += 4;
       }
-      if (terms.length && score <= 0) continue;
+      if (isCore) score += terms.length ? 0.5 : 1;
+      if (terms.length && score <= 0 && !isCore) continue;
       rows.push({
         type,
         title: _NL(def.title ?? type),
         category: _NL(def.cat ?? ""),
         description: _NL(def.desc ?? "").slice(0, 260),
-        inputs: pinBrief(def.inputs),
-        outputs: pinBrief(def.outputs),
+        aliases,
+        inputs: pinBrief(this._aiPinsForDef(def, null, "input", true)),
+        outputs: pinBrief(this._aiPinsForDef(def, null, "output", true)),
         fields: fieldBrief(def.fields),
         score
       });
@@ -7955,23 +7999,258 @@ export class FormulaGraph {
     return parsed && typeof parsed === "object" ? parsed : { message: "", actions: [] };
   }
 
+  _aiAssistantCoreNodeTypes() {
+    return [
+      "on_click", "branch", "if_node", "gate", "sequence",
+      "get_path", "literal", "literal_str",
+      "lt", "lte", "gt", "gte", "eq", "neq", "and", "or", "not",
+      "act_message", "act_notify", "act_roll_value", "act_damage", "act_heal", "act_modify",
+      "act_ai_request", "act_ai_assistant", "ai_dialogue_choices", "act_dialog_builder",
+      "get_actor_name", "get_token_name", "get_actor_portrait", "get_actor_token_image"
+    ];
+  }
+
+  _aiNodeAliases(type) {
+    const map = {
+      on_click: ["trigger", "button click", "on click", "клик", "нажатие"],
+      branch: ["if", "else", "condition branch", "ветвление", "условие"],
+      if_node: ["if compare", "if_node", "compare exec", "если", "сравнить", "меньше", "больше"],
+      gate: ["if pass", "guard", "condition gate", "пропустить если"],
+      get_path: ["get field value", "field value", "get_field_value", "path value", "hp", "хп", "здоровье", "поле", "путь"],
+      literal: ["number", "constant number", "threshold", "число", "константа"],
+      literal_str: ["text", "string", "message text", "текст", "строка"],
+      lt: ["less than", "<", "меньше"],
+      lte: ["less or equal", "<=", "меньше равно"],
+      gt: ["greater than", ">", "больше"],
+      gte: ["greater or equal", ">=", "больше равно"],
+      eq: ["equals", "==", "равно"],
+      neq: ["not equals", "!=", "не равно"],
+      act_message: ["chat output", "send chat", "act_send_chat", "message", "чат", "сообщение", "вывести в чат"],
+      act_notify: ["notification", "toast", "уведомление"],
+      act_roll_value: ["roll value", "roll -> value", "бросок", "ролл"],
+      act_damage: ["damage", "урон"],
+      act_heal: ["heal", "healing", "лечение"],
+      act_modify: ["modify field", "change field", "изменить поле"],
+      act_dialog_builder: ["dialogue builder", "dialog builder", "диалог"],
+      ai_dialogue_choices: ["ai dialogue choices", "ai choices", "варианты ответов"],
+      act_ai_request: ["ai request", "request ai", "нейросеть"],
+      act_ai_assistant: ["ai assistant", "assistant"]
+    };
+    return map[type] ?? [];
+  }
+
+  _aiNormKey(value) {
+    return String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s\-]+/g, "_")
+      .replace(/[^a-z0-9_а-яё<>!=]/gi, "");
+  }
+
+  _aiPinsForDef(def, node = null, side = "input", catalog = false) {
+    if (!def) return [];
+    const pins = [];
+    const addPins = arr => {
+      for (const p of (arr ?? [])) {
+        if (!p?.id || pins.some(x => x.id === p.id)) continue;
+        pins.push(p);
+      }
+    };
+    addPins(side === "output" ? def.outputs : def.inputs);
+    if (side === "output" && node && typeof def.computeDynamicOutputs === "function") {
+      addPins(def.computeDynamicOutputs(node) ?? []);
+    }
+    if (side === "input" && node && typeof def.computeDynamicInputs === "function") {
+      addPins(def.computeDynamicInputs(node) ?? []);
+    }
+    if (side === "input" && def.dynamicPins) {
+      const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [def.dynamicPins];
+      for (const grp of groups) {
+        const base = grp?.base;
+        const max = Math.max(0, Number(grp?.max ?? 0) || 0);
+        if (!base || !max) continue;
+        const limit = catalog ? Math.min(max, 4) : max;
+        for (let i = 0; i < limit; i++) {
+          const id = `${base}${i}`;
+          if (pins.some(x => x.id === id)) continue;
+          pins.push({ id, label: `${grp.label ?? base} ${i + 1}`, type: grp.type ?? "value.any" });
+        }
+      }
+    }
+    return pins;
+  }
+
+  _normalizeAIAssistantOp(op) {
+    const key = this._aiNormKey(op);
+    const map = {
+      add: "addNode",
+      add_node: "addNode",
+      create: "addNode",
+      create_node: "addNode",
+      node: "addNode",
+      set: "setData",
+      set_data: "setData",
+      update: "setData",
+      update_node: "setData",
+      edit: "setData",
+      connect_nodes: "connect",
+      link: "connect",
+      wire: "connect",
+      delete: "deleteNode",
+      delete_node: "deleteNode",
+      remove: "deleteNode",
+      remove_node: "deleteNode",
+      disconnect: "deleteEdge",
+      delete_edge: "deleteEdge",
+      remove_edge: "deleteEdge",
+      clear: "clearGraph",
+      clear_graph: "clearGraph"
+    };
+    return map[key] ?? String(op ?? "").trim();
+  }
+
+  _normalizeAIAssistantNodeType(type, data = null) {
+    const raw = String(type ?? "").trim();
+    if (NODE_DEFS[raw]) return raw;
+    const key = this._aiNormKey(raw);
+    const op = this._aiNormKey(data?.operator ?? data?.op ?? data?.compare ?? "");
+    const cmpByOp = {
+      "<": "lt", lt: "lt", less: "lt", less_than: "lt", "меньше": "lt",
+      "<=": "lte", lte: "lte", le: "lte", less_or_equal: "lte",
+      ">": "gt", gt: "gt", greater: "gt", greater_than: "gt", "больше": "gt",
+      ">=": "gte", gte: "gte", ge: "gte", greater_or_equal: "gte",
+      "==": "eq", "=": "eq", eq: "eq", equals: "eq",
+      "!=": "neq", neq: "neq", not_equals: "neq"
+    };
+    const map = {
+      trigger: "on_click",
+      on_click: "on_click",
+      click: "on_click",
+      get_field_value: "get_path",
+      get_field: "get_path",
+      field_value: "get_path",
+      get_path_value: "get_path",
+      path_value: "get_path",
+      hp: "get_path",
+      health: "get_path",
+      text: "literal_str",
+      string: "literal_str",
+      message_text: "literal_str",
+      number: "literal",
+      constant: "literal",
+      const: "literal",
+      if: "if_node",
+      if_node: "if_node",
+      condition: "if_node",
+      condition_check: "if_node",
+      compare_exec: "if_node",
+      compare: "if_node",
+      comparator: "if_node",
+      chat: "act_message",
+      message: "act_message",
+      send_chat: "act_message",
+      act_send_chat: "act_message",
+      chat_output: "act_message",
+      output_chat: "act_message",
+      notify: "act_notify",
+      notification: "act_notify",
+      roll_value: "act_roll_value",
+      roll: "act_roll_value",
+      damage: "act_damage",
+      heal: "act_heal",
+      healing: "act_heal",
+      modify: "act_modify",
+      modify_field: "act_modify",
+      dialogue_builder: "act_dialog_builder",
+      dialog_builder: "act_dialog_builder",
+      dialog: "act_dialog_builder"
+    };
+    return map[key] ?? raw;
+  }
+
+  _normalizeAIAssistantNodeData(type, data = {}, originalType = "") {
+    const clean = data && typeof data === "object" ? { ...data } : {};
+    if (type === "get_path") {
+      clean.path = clean.path ?? clean.field ?? clean.fieldPath ?? clean.hpPath ?? clean.dataPath ?? "system.resources.hp.value";
+    }
+    if (type === "literal") {
+      clean.value = clean.value ?? clean.number ?? clean.threshold ?? clean.amount ?? 0;
+    }
+    if (type === "literal_str") {
+      clean.value = clean.value ?? clean.text ?? clean.message ?? clean.content ?? "";
+    }
+    if (type === "act_message") {
+      clean.message = clean.message ?? clean.text ?? clean.content ?? clean.flavor ?? clean.label ?? "";
+    }
+    if (type === "if_node") {
+      let op = clean.operator ?? clean.op ?? clean.compare ?? clean.comparison ?? "<";
+      op = String(op).trim();
+      if (op === "lt" || op === "less" || op === "less_than" || op === "меньше") op = "<";
+      if (op === "lte" || op === "le" || op === "less_or_equal") op = "<=";
+      if (op === "gt" || op === "greater" || op === "greater_than" || op === "больше") op = ">";
+      if (op === "gte" || op === "ge" || op === "greater_or_equal") op = ">=";
+      if (op === "=" || op === "eq" || op === "equals") op = "==";
+      if (op === "neq" || op === "not_equals") op = "!=";
+      clean.operator = ["<","<=",">",">=","==","!="].includes(op) ? op : "<";
+      clean.value = clean.value ?? clean.b ?? clean.threshold ?? clean.limit ?? 0;
+    }
+    return clean;
+  }
+
   _resolveAIAssistantNodeRef(ref, created = {}) {
     const key = String(ref ?? "").trim();
     if (!key) return null;
     if (created[key]) return this.nodes.find(n => n.id === created[key]) ?? null;
-    return this.nodes.find(n => n.id === key) ?? null;
+    const exact = this.nodes.find(n => n.id === key);
+    if (exact) return exact;
+    const norm = this._aiNormKey(key);
+    if (norm === "trigger" || norm === "on_click" || norm === "click") {
+      return this.nodes.find(n => NODE_DEFS[n.type]?.isTrigger || n.type === "on_click") ?? null;
+    }
+    const type = this._normalizeAIAssistantNodeType(key);
+    const byType = this.nodes.find(n => n.type === type);
+    if (byType) return byType;
+    return this.nodes.find(n => this._aiNormKey(NODE_DEFS[n.type]?.title ?? n.type) === norm) ?? null;
   }
 
   _pinDefForAI(node, side, pinId) {
     const def = NODE_DEFS[node?.type ?? ""];
     if (!def) return null;
-    const staticPins = side === "output" ? (def.outputs ?? []) : (def.inputs ?? []);
-    const dynamicPins = side === "output" && typeof def.computeDynamicOutputs === "function"
-      ? (def.computeDynamicOutputs(node) ?? [])
-      : side === "input" && typeof def.computeDynamicInputs === "function"
-        ? (def.computeDynamicInputs(node) ?? [])
-        : [];
-    return [...dynamicPins, ...staticPins].find(p => p.id === pinId) ?? null;
+    return this._aiPinsForDef(def, node, side, false).find(p => p.id === pinId) ?? null;
+  }
+
+  _resolveAIAssistantPinId(node, side, requested, preferredType = null) {
+    const def = NODE_DEFS[node?.type ?? ""];
+    if (!def) return "";
+    const pins = this._aiPinsForDef(def, node, side, false);
+    if (!pins.length) return "";
+    const raw = String(requested ?? "").trim();
+    if (raw && pins.some(p => p.id === raw)) return raw;
+    const norm = this._aiNormKey(raw);
+    const byNorm = norm
+      ? pins.find(p => this._aiNormKey(p.id) === norm || this._aiNormKey(p.label ?? "") === norm)
+      : null;
+    if (byNorm) return byNorm.id;
+    const wanted = new Set([norm].filter(Boolean));
+    const add = (...vals) => vals.forEach(v => wanted.add(this._aiNormKey(v)));
+    if (side === "output") add("v", "value", "out", "output", "result", "formula", "text");
+    else add("v", "value", "in", "input", "a", "b", "cond", "condition", "message", "text", "amount");
+    if (wanted.has("condition")) wanted.add("cond");
+    if (wanted.has("message")) wanted.add("text0");
+    if (wanted.has("text")) wanted.add("text0");
+    const byAlias = pins.find(p => wanted.has(this._aiNormKey(p.id)) || wanted.has(this._aiNormKey(p.label ?? "")));
+    if (byAlias) return byAlias.id;
+    if (preferredType) {
+      const compatible = pins.filter(p => arePinsCompatible(preferredType, p.type));
+      if (compatible.length === 1) return compatible[0].id;
+      const nonExec = compatible.find(p => p.type !== "exec");
+      if (nonExec) return nonExec.id;
+      if (compatible[0]) return compatible[0].id;
+    }
+    if (pins.length === 1) return pins[0].id;
+    const execPin = pins.find(p => p.type === "exec");
+    if ((norm === "exec" || norm === "execute" || norm === "true" || norm === "pass") && execPin) return execPin.id;
+    return "";
   }
 
   _previewAIAssistantActions(plan) {
@@ -8022,6 +8301,7 @@ export class FormulaGraph {
   _applyAIAssistantPlan(plan) {
     const actions = Array.isArray(plan?.actions) ? plan.actions : [];
     const created = {};
+    const pendingExecByValueNode = {};
     const skipped = [];
     let added = 0, updated = 0, connected = 0, deleted = 0, disconnected = 0;
 
@@ -8041,25 +8321,28 @@ export class FormulaGraph {
     this._suppressHistory = true;
     try {
       for (const raw of actions) {
-        const a = raw && typeof raw === "object" ? raw : {};
-        const op = String(a.op ?? a.action ?? "").trim();
+        const a = raw && typeof raw === "object" ? { ...raw } : {};
+        const op = this._normalizeAIAssistantOp(a.op ?? a.action ?? "");
         try {
           if (op === "addNode") {
-            const type = String(a.type ?? "").trim();
+            const originalType = String(a.type ?? "").trim();
+            const type = this._normalizeAIAssistantNodeType(originalType, a.data);
+            const data = this._normalizeAIAssistantNodeData(type, a.data, originalType);
             const def = NODE_DEFS[type];
             if (!def || !this._isNodeAvailableInCurrentGraph(type, def)) {
-              skipped.push(`addNode ${type}: unavailable node type`);
+              skipped.push(`addNode ${originalType || type}: unavailable node type`);
               continue;
             }
             const x = Number.isFinite(Number(a.x)) ? Number(a.x) : 160 + added * 260;
             const y = Number.isFinite(Number(a.y)) ? Number(a.y) : 180 + added * 60;
-            const node = this._addNode(type, x, y, a.data && typeof a.data === "object" ? a.data : null);
+            const node = this._addNode(type, x, y, data);
             if (!node) {
               skipped.push(`addNode ${type}: failed`);
               continue;
             }
             const ref = String(a.ref ?? a.id ?? "").trim();
             if (ref) created[ref] = node.id;
+            if (originalType && originalType !== ref) created[originalType] = node.id;
             added++;
             continue;
           }
@@ -8070,22 +8353,41 @@ export class FormulaGraph {
             skipped.push(`setData ${a.node ?? a.ref ?? a.id}: node not found`);
             continue;
           }
-          if (setNodeData(node, a.data ?? a.fields ?? {})) updated++;
+          const data = this._normalizeAIAssistantNodeData(node.type, a.data ?? a.fields ?? {}, node.type);
+          if (setNodeData(node, data)) updated++;
           continue;
         }
 
         if (op === "connect") {
           const from = this._resolveAIAssistantNodeRef(a.from ?? a.fromNode, created);
           const to = this._resolveAIAssistantNodeRef(a.to ?? a.toNode, created);
-          const fromPin = String(a.fromPin ?? a.output ?? "").trim();
-          const toPin = String(a.toPin ?? a.input ?? "").trim();
-          if (!from || !to || !fromPin || !toPin) {
+          const rawFromPin = a.fromPin ?? a.output ?? "";
+          const rawToPin = a.toPin ?? a.input ?? "";
+          const fromPin = this._resolveAIAssistantPinId(from, "output", rawFromPin);
+          const outPin = fromPin ? this._pinDefForAI(from, "output", fromPin) : null;
+          const toPin = this._resolveAIAssistantPinId(to, "input", rawToPin, outPin?.type);
+          const inPin = toPin ? this._pinDefForAI(to, "input", toPin) : null;
+          if (!from || !to || !fromPin) {
             skipped.push(`connect: missing node or pin`);
             continue;
           }
-          const outPin = this._pinDefForAI(from, "output", fromPin);
-          const inPin = this._pinDefForAI(to, "input", toPin);
+          if (!toPin) {
+            const wantsExec = this._aiNormKey(rawToPin) === "exec" || this._aiNormKey(rawToPin) === "execute";
+            const toHasExec = this._aiPinsForDef(NODE_DEFS[to.type], to, "input", false).some(p => p.type === "exec");
+            if (outPin?.type === "exec" && wantsExec && !toHasExec) {
+              pendingExecByValueNode[to.id] = { fromId: from.id, fromPin };
+              continue;
+            }
+            skipped.push(`connect ${from.id}.${fromPin} -> ${to.id}.${String(rawToPin ?? "").trim()}: pin not found`);
+            continue;
+          }
           if (!outPin || !inPin) {
+            const wantsExec = this._aiNormKey(rawToPin) === "exec" || this._aiNormKey(rawToPin) === "execute";
+            const toHasExec = this._aiPinsForDef(NODE_DEFS[to.type], to, "input", false).some(p => p.type === "exec");
+            if (outPin?.type === "exec" && wantsExec && !toHasExec) {
+              pendingExecByValueNode[to.id] = { fromId: from.id, fromPin };
+              continue;
+            }
             skipped.push(`connect ${from.id}.${fromPin} -> ${to.id}.${toPin}: pin not found`);
             continue;
           }
@@ -8096,6 +8398,21 @@ export class FormulaGraph {
           const before = this.edges.length;
           this._addEdge(from.id, fromPin, to.id, toPin);
           if (this.edges.length > before) connected++;
+          const pendingExec = pendingExecByValueNode[from.id];
+          if (pendingExec) {
+            const execIn = this._aiPinsForDef(NODE_DEFS[to.type], to, "input", false).find(p => p.type === "exec");
+            if (execIn && !this.edges.some(e =>
+              e.fromNode === pendingExec.fromId &&
+              e.fromPin === pendingExec.fromPin &&
+              e.toNode === to.id &&
+              e.toPin === execIn.id
+            )) {
+              const beforeExec = this.edges.length;
+              this._addEdge(pendingExec.fromId, pendingExec.fromPin, to.id, execIn.id);
+              if (this.edges.length > beforeExec) connected++;
+              delete pendingExecByValueNode[from.id];
+            }
+          }
           continue;
         }
 
@@ -8245,49 +8562,49 @@ export class FormulaGraph {
       const hasPlan = m.plan && Array.isArray(m.plan.actions) && m.plan.actions.length;
       const plan = hasPlan && !m.applied;
       const body = esc(String(m.content ?? "")).replace(/>/g, "&gt;");
-      return `<div class="sd-ai-chat-msg" data-msg-index="${i}" style="display:flex;gap:8px;align-items:flex-start;justify-content:${isUser ? "flex-end" : "flex-start"};">
-        ${isUser ? "" : `<div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--sd-accent),#5ec6a8);display:flex;align-items:center;justify-content:center;color:var(--sd-accent-text,#fff);font-size:12px;flex:0 0 auto;"><i class="fas fa-brain"></i></div>`}
-        <div style="display:flex;flex-direction:column;gap:6px;max-width:82%;align-items:${isUser ? "flex-end" : "flex-start"};">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--sd-text-3);">${isUser ? "You" : hasPlan ? "Assistant Plan" : "Assistant"}</div>
-          <div style="border:1px solid ${isUser ? "rgba(116,167,255,.45)" : plan ? "rgba(120,190,120,.45)" : "var(--sd-border)"};background:${isUser ? "rgba(70,105,170,.22)" : plan ? "rgba(60,120,70,.16)" : "var(--sd-bg-2)"};border-radius:10px;padding:9px 11px;color:var(--sd-text);font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;box-shadow:0 4px 14px rgba(0,0,0,.18);">
-            ${isPending ? `<i class="fas fa-spinner fa-spin" style="margin-right:6px;color:var(--sd-accent);"></i>` : ""}${body}
+      return `<div class="sd-ai-chat-msg ${isUser ? "is-user" : "is-assistant"} ${hasPlan ? "has-plan" : ""}" data-msg-index="${i}">
+        ${isUser ? "" : `<div class="sd-ai-chat-avatar"><i class="fas fa-brain"></i></div>`}
+        <div class="sd-ai-chat-msg-stack">
+          <div class="sd-ai-chat-role">${isUser ? "You" : hasPlan ? "Assistant Plan" : "Assistant"}</div>
+          <div class="sd-ai-chat-bubble ${isUser ? "is-user" : ""} ${plan ? "is-plan" : ""}">
+            ${isPending ? `<i class="fas fa-spinner fa-spin sd-ai-chat-spinner"></i>` : ""}${body}
           </div>
-          ${plan ? `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <button type="button" data-action="apply-plan" data-msg-index="${i}" style="font-size:11px;background:var(--sd-accent);border:1px solid var(--sd-accent);border-radius:7px;color:var(--sd-accent-text,#fff);padding:6px 10px;cursor:pointer;font-weight:800;"><i class="fas fa-wand-magic-sparkles"></i> Apply Plan</button>
-            <span style="font-size:11px;color:var(--sd-text-3);">Need changes? Tell me in chat and I will revise the plan.</span>
-          </div>` : hasPlan && m.applied ? `<span style="font-size:11px;color:var(--sd-success);"><i class="fas fa-check"></i> Plan applied</span>` : ""}
+          ${plan ? `<div class="sd-ai-chat-plan-actions">
+            <button type="button" data-action="apply-plan" data-msg-index="${i}" class="sd-ai-chat-apply"><i class="fas fa-wand-magic-sparkles"></i> Apply Plan</button>
+            <span>Need changes? Tell me in chat and I will revise the plan.</span>
+          </div>` : hasPlan && m.applied ? `<span class="sd-ai-chat-applied"><i class="fas fa-check"></i> Plan applied</span>` : ""}
         </div>
-        ${isUser ? `<div style="width:26px;height:26px;border-radius:50%;background:var(--sd-bg-3);border:1px solid var(--sd-border);display:flex;align-items:center;justify-content:center;color:var(--sd-text-2);font-size:12px;flex:0 0 auto;"><i class="fas fa-user"></i></div>` : ""}
+        ${isUser ? `<div class="sd-ai-chat-avatar is-user"><i class="fas fa-user"></i></div>` : ""}
       </div>`;
     }).join("");
 
     win.innerHTML = `
-      <div class="sd-ai-chat-head" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(180deg,var(--sd-bg-2),var(--sd-bg-3));border-bottom:1px solid var(--sd-border);cursor:move;user-select:none;">
-        <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--sd-accent),#5ec6a8);display:flex;align-items:center;justify-content:center;color:var(--sd-accent-text,#fff);"><i class="fas fa-brain"></i></div>
-        <div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;">
-          <strong style="font-size:12px;color:var(--sd-text);text-transform:uppercase;letter-spacing:.08em;">AI Graph Assistant</strong>
-          <span style="font-size:11px;color:var(--sd-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Chat, inspect, search nodes, edit fields, delete nodes, and apply graph plans.</span>
+      <div class="sd-ai-chat-head">
+        <div class="sd-ai-chat-mark"><i class="fas fa-brain"></i></div>
+        <div class="sd-ai-chat-titlebox">
+          <strong>AI Graph Assistant</strong>
+          <span>Chat, inspect, search nodes, edit fields, delete nodes, and apply graph plans.</span>
         </div>
-        <button type="button" data-action="new-chat" title="New chat" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:7px;color:var(--sd-text-2);width:30px;height:28px;cursor:pointer;"><i class="fas fa-plus"></i></button>
-        <button type="button" data-action="close" title="Close" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:7px;color:var(--sd-text-2);width:30px;height:28px;cursor:pointer;"><i class="fas fa-xmark"></i></button>
+        <button type="button" data-action="new-chat" title="New chat" class="sd-ai-chat-iconbtn"><i class="fas fa-plus"></i></button>
+        <button type="button" data-action="close" title="Close" class="sd-ai-chat-iconbtn"><i class="fas fa-xmark"></i></button>
       </div>
-      <div style="display:flex;min-height:0;flex:1;">
-        <aside style="width:210px;flex:0 0 210px;border-right:1px solid var(--sd-border);background:var(--sd-bg-2);overflow:auto;padding:8px;">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);font-weight:800;margin:2px 2px 8px;">Chats</div>
-          ${chats.map(c => `<div data-chat-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;margin-bottom:5px;">
-            <button type="button" data-action="select-chat" data-chat-id="${esc(c.id)}" style="flex:1;text-align:left;background:${c.id === chat.id ? "rgba(116,167,255,.18)" : "var(--sd-bg)"};border:1px solid ${c.id === chat.id ? "var(--sd-accent)" : "var(--sd-border)"};border-radius:8px;color:var(--sd-text);padding:7px 8px;font-size:11px;line-height:1.25;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(c.title)}</button>
-            <button type="button" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete chat" style="background:transparent;border:1px solid var(--sd-border);border-radius:7px;color:#d66;width:26px;height:26px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+      <div class="sd-ai-chat-body">
+        <aside class="sd-ai-chat-sidebar">
+          <div class="sd-ai-chat-side-title">Chats</div>
+          ${chats.map(c => `<div data-chat-id="${esc(c.id)}" class="sd-ai-chat-row">
+            <button type="button" data-action="select-chat" data-chat-id="${esc(c.id)}" class="sd-ai-chat-tab ${c.id === chat.id ? "is-active" : ""}">${esc(c.title)}</button>
+            <button type="button" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete chat" class="sd-ai-chat-delete"><i class="fas fa-trash"></i></button>
           </div>`).join("")}
         </aside>
-        <main style="display:flex;flex-direction:column;min-width:0;flex:1;">
-          <div class="sd-ai-chat-messages" style="flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:14px;background:var(--sd-bg);">
-            ${msgHtml || `<div style="margin:auto;max-width:440px;text-align:center;font-size:12px;color:var(--sd-text-3);line-height:1.5;border:1px dashed var(--sd-border);border-radius:10px;padding:18px;background:var(--sd-bg-2);">Ask normally. If you ask to create, change, delete, connect, clear, fix, or help build the graph, the assistant will propose an applyable plan in chat.</div>`}
+        <main class="sd-ai-chat-main">
+          <div class="sd-ai-chat-messages">
+            ${msgHtml || `<div class="sd-ai-chat-empty">Ask normally. If you ask to create, change, delete, connect, clear, fix, or help build the graph, the assistant will propose an applyable plan in chat.</div>`}
           </div>
-          <div style="border-top:1px solid var(--sd-border);padding:10px;background:var(--sd-bg-2);display:flex;flex-direction:column;gap:7px;">
-            <textarea name="message" rows="3" placeholder="Message the graph assistant..." style="width:100%;box-sizing:border-box;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:9px;color:var(--sd-text);padding:9px 11px;resize:vertical;font-family:inherit;font-size:12px;line-height:1.45;"></textarea>
-            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
-              <span style="font-size:11px;color:var(--sd-text-3);">Ctrl+Enter sends. Plans appear with an Apply Plan button.</span>
-              <button type="button" data-action="send" style="background:var(--sd-accent);border:1px solid var(--sd-accent);border-radius:8px;color:var(--sd-accent-text,#fff);padding:7px 13px;cursor:pointer;font-weight:800;"><i class="fas fa-paper-plane"></i> Send</button>
+          <div class="sd-ai-chat-composer">
+            <textarea name="message" rows="3" placeholder="Message the graph assistant..."></textarea>
+            <div class="sd-ai-chat-compose-row">
+              <span>Ctrl+Enter sends. Plans appear with an Apply Plan button.</span>
+              <button type="button" data-action="send" class="sd-ai-chat-send"><i class="fas fa-paper-plane"></i> Send</button>
             </div>
           </div>
         </main>
@@ -8328,9 +8645,12 @@ export class FormulaGraph {
         if (!(await this._confirmAIAssistantPlan(msg.plan))) return;
         const applied = this._applyAIAssistantPlan(msg.plan);
         msg.applied = true;
+        const skippedText = applied.skipped.length
+          ? `\n\nSkipped:\n${applied.skipped.slice(0, 8).map(s => `- ${s}`).join("\n")}${applied.skipped.length > 8 ? `\n- ...${applied.skipped.length - 8} more` : ""}`
+          : "";
         chat.messages.push({
           role: "assistant",
-          content: `Applied plan. Added: ${applied.added}, updated: ${applied.updated}, connected: ${applied.connected}, deleted: ${applied.deleted}, disconnected: ${applied.disconnected}${applied.skipped.length ? `, skipped: ${applied.skipped.length}` : ""}.`,
+          content: `Applied plan. Added: ${applied.added}, updated: ${applied.updated}, connected: ${applied.connected}, deleted: ${applied.deleted}, disconnected: ${applied.disconnected}${applied.skipped.length ? `, skipped: ${applied.skipped.length}` : ""}.${skippedText}`,
           ts: Date.now()
         });
         chat.updated = Date.now();
@@ -8409,7 +8729,10 @@ export class FormulaGraph {
           "{\"op\":\"deleteEdge\",\"from\":\"existingNodeIdOrNewRef\",\"fromPin\":\"outputPinId\",\"to\":\"existingNodeIdOrNewRef\",\"toPin\":\"inputPinId\"}",
           "{\"op\":\"clearGraph\",\"keep\":[\"nodeIdOrNodeTypeToKeep\"]}",
           "Use setData to change any field/value inside an existing or newly added node.",
-          "Use only node types, field keys, and pin ids from the provided catalog/current graph.",
+          "The provided catalog is authoritative. Use only exact node type ids, field keys, and pin ids from the catalog/current graph.",
+          "Do not invent node ids like get_field_value, send_chat, chat_output, compare, unless they appear in the catalog. Prefer catalog ids: get_path, if_node, branch, gate, act_message.",
+          "For simple checks like HP < 5 then chat: add get_path(path=system.resources.hp.value), add if_node(operator=<, value=5), add act_message(message=...), connect trigger.exec -> if_node.exec, get_path.v -> if_node.a, if_node.exec -> act_message.exec.",
+          "For constant text in chat, set act_message.data.message. For dynamic chat text, connect literal_str.v to act_message.text0.",
           "Never delete protected output/init/noDelete nodes. Avoid destructive changes unless the user asks for deletion or clearing.",
           "Keep plans minimal, readable, and spatially arranged."
         ].join("\n"),
@@ -8468,7 +8791,6 @@ export class FormulaGraph {
     if (!this._aiChats.length) this._newAIAssistantChat();
     const win = document.createElement("div");
     win.className = "sd sd-ai-graph-chat";
-    win.style.cssText = `position:fixed;right:28px;top:80px;width:min(820px,92vw);height:min(680px,86vh);min-width:560px;min-height:420px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:10px;box-shadow:var(--sd-popover-shadow,0 24px 80px rgba(0,0,0,.9));z-index:26000;display:flex;flex-direction:column;color:var(--sd-text);font-family:Inter,'Segoe UI',Arial,sans-serif;overflow:hidden;resize:both;`;
     document.body.appendChild(win);
     this._aiChatWin = win;
     this._aiChatDragBound = false;
@@ -12386,6 +12708,54 @@ if(!document.getElementById("sd-graph-css")){
     #gclose{padding:0!important;min-width:30px}
     #gsave:hover{filter:brightness(1.1)}
     #gclose:hover{background:rgba(255,124,124,.2)!important;color:#ff7c7c!important}
+    .sd-ai-graph-chat,.sd-ai-graph-chat *{box-sizing:border-box;text-align:left}
+    .sd-ai-graph-chat{
+      position:fixed;right:30px;top:72px;width:min(760px,calc(100vw - 76px));height:min(640px,calc(100vh - 118px));
+      min-width:min(560px,calc(100vw - 76px));min-height:420px;background:var(--sd-bg);border:1px solid var(--sd-border);
+      border-radius:12px;box-shadow:var(--sd-popover-shadow,0 24px 80px rgba(0,0,0,.9));z-index:26000;
+      display:flex;flex-direction:column;color:var(--sd-text);font-family:Inter,'Segoe UI',Arial,sans-serif;overflow:hidden;resize:both;
+    }
+    .sd-ai-chat-head{height:52px;display:flex;align-items:center;gap:10px;padding:9px 12px;background:linear-gradient(180deg,var(--sd-bg-2),var(--sd-bg-3));border-bottom:1px solid var(--sd-border);cursor:move;user-select:none;flex:0 0 auto}
+    .sd-ai-chat-mark,.sd-ai-chat-avatar{width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,var(--sd-accent),#5ec6a8);display:flex;align-items:center;justify-content:center;color:var(--sd-accent-text,#fff);font-size:12px;flex:0 0 auto}
+    .sd-ai-chat-titlebox{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+    .sd-ai-chat-titlebox strong{font-size:12px;color:var(--sd-text);text-transform:uppercase;letter-spacing:.08em;line-height:1.1}
+    .sd-ai-chat-titlebox span{font-size:11px;color:var(--sd-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+    .sd-ai-chat-iconbtn{background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}
+    .sd-ai-chat-iconbtn:hover{border-color:var(--sd-accent);color:var(--sd-text)}
+    .sd-ai-chat-body{display:grid;grid-template-columns:190px minmax(0,1fr);min-height:0;flex:1}
+    .sd-ai-chat-sidebar{min-height:0;overflow:auto;background:var(--sd-bg-2);border-right:1px solid var(--sd-border);padding:8px}
+    .sd-ai-chat-side-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);font-weight:800;margin:2px 2px 8px}
+    .sd-ai-chat-row{display:grid;grid-template-columns:minmax(0,1fr) 26px;gap:5px;align-items:center;margin-bottom:5px}
+    .sd-ai-chat-tab{min-width:0;text-align:left;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text);padding:7px 8px;font-size:11px;line-height:1.25;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .sd-ai-chat-tab.is-active{background:rgba(116,167,255,.18);border-color:var(--sd-accent);box-shadow:0 0 0 1px rgba(116,167,255,.24) inset}
+    .sd-ai-chat-delete{width:26px;height:26px;background:transparent;border:1px solid var(--sd-border);border-radius:7px;color:#d66;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+    .sd-ai-chat-delete:hover{background:rgba(214,80,80,.14)}
+    .sd-ai-chat-main{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--sd-bg)}
+    .sd-ai-chat-messages{flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:14px;background:var(--sd-bg)}
+    .sd-ai-chat-empty{margin:auto;max-width:430px;text-align:center!important;font-size:12px;color:var(--sd-text-3);line-height:1.5;border:1px dashed var(--sd-border);border-radius:10px;padding:18px;background:var(--sd-bg-2)}
+    .sd-ai-chat-msg{display:flex;gap:9px;align-items:flex-start;justify-content:flex-start;width:100%}
+    .sd-ai-chat-msg.is-user{justify-content:flex-end}
+    .sd-ai-chat-avatar{width:26px;height:26px;border-radius:50%;font-size:11px;margin-top:18px}
+    .sd-ai-chat-avatar.is-user{background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text-2)}
+    .sd-ai-chat-msg-stack{display:flex;flex-direction:column;gap:6px;max-width:min(560px,82%);align-items:flex-start;min-width:0}
+    .sd-ai-chat-msg.is-user .sd-ai-chat-msg-stack{align-items:flex-end}
+    .sd-ai-chat-role{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--sd-text-3);line-height:1}
+    .sd-ai-chat-bubble{border:1px solid var(--sd-border);background:var(--sd-bg-2);border-radius:10px;padding:9px 11px;color:var(--sd-text);font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;box-shadow:0 4px 14px rgba(0,0,0,.18);width:fit-content;max-width:100%;text-align:left!important}
+    .sd-ai-chat-bubble.is-user{border-color:rgba(116,167,255,.45);background:rgba(70,105,170,.22)}
+    .sd-ai-chat-bubble.is-plan{border-color:rgba(120,190,120,.45);background:rgba(60,120,70,.16)}
+    .sd-ai-chat-spinner{margin-right:6px;color:var(--sd-accent)}
+    .sd-ai-chat-plan-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+    .sd-ai-chat-plan-actions span{font-size:11px;color:var(--sd-text-3)}
+    .sd-ai-chat-applied{font-size:11px;color:var(--sd-success)}
+    .sd-ai-chat-apply,.sd-ai-chat-send{background:var(--sd-accent);border:1px solid var(--sd-accent);border-radius:8px;color:var(--sd-accent-text,#fff);padding:7px 12px;cursor:pointer;font-size:11px;font-weight:800;display:inline-flex;gap:5px;align-items:center;justify-content:center}
+    .sd-ai-chat-apply:hover,.sd-ai-chat-send:hover{filter:brightness(1.08)}
+    .sd-ai-chat-composer{border-top:1px solid var(--sd-border);padding:10px;background:var(--sd-bg-2);display:flex;flex-direction:column;gap:7px;flex:0 0 auto}
+    .sd-ai-chat-composer textarea{width:100%;box-sizing:border-box;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:9px;color:var(--sd-text);padding:9px 11px;resize:vertical;font-family:inherit;font-size:12px;line-height:1.45;min-height:70px;outline:none;text-align:left!important}
+    .sd-ai-chat-composer textarea:focus{border-color:var(--sd-accent);box-shadow:0 0 0 1px rgba(116,167,255,.28)}
+    .sd-ai-chat-compose-row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+    .sd-ai-chat-compose-row span{font-size:11px;color:var(--sd-text-3)}
+    .sd-ai-chat-messages::-webkit-scrollbar,.sd-ai-chat-sidebar::-webkit-scrollbar{width:6px}
+    .sd-ai-chat-messages::-webkit-scrollbar-thumb,.sd-ai-chat-sidebar::-webkit-scrollbar-thumb{background:var(--sd-border);border-radius:3px}
   `;
   document.head.appendChild(s);
 }
