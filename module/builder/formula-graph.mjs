@@ -291,10 +291,10 @@ export const NODE_DEFS = {
       {key:"value",     label:"B fallback", type:"text", default:"0"},
       {key:"condition", label:"Condition override", type:"text", default:"", placeholder:"Optional full formula condition"}
     ],
-    isAction:true,
-    toAction:(n,inp)=>{
+    isIfCompare:true,
+    condition:(n,inp)=>{
       const explicit = String(n.data.condition ?? "").trim();
-      if (explicit) return {type:"gate", condition: explicit};
+      if (explicit) return explicit;
       const allowed = new Set(["<","<=",">",">=","==","!="]);
       let op = String(n.data.operator ?? "<").trim();
       if (op === "=") op = "==";
@@ -303,7 +303,7 @@ export const NODE_DEFS = {
       if (!allowed.has(op)) op = "<";
       const a = inp.a ?? "0";
       const b = inp.b ?? n.data.value ?? "0";
-      return {type:"gate", condition:`(${a}${op}${b})`};
+      return `(${a}${op}${b})`;
     }
   },
 
@@ -7915,10 +7915,91 @@ export class FormulaGraph {
     return (typeof v === "string" && v.length) ? v : null;
   }
 
+  _aiKnownDataPaths() {
+    const paths = new Map();
+    const add = (path, label = "", source = "document", valueType = "") => {
+      const p = String(path ?? "").trim();
+      if (!p || paths.has(p)) return;
+      if (!p.startsWith("system.") && !p.startsWith("flags.")) return;
+      paths.set(p, { path: p, label: String(label || p), source, valueType });
+    };
+    const typeOf = v => Array.isArray(v) ? "array" : (v === null ? "null" : typeof v);
+
+    const addConfigured = () => {
+      let cfg = null;
+      try { cfg = game.settings.get("sd", "systemSettings") ?? null; } catch {}
+      cfg ??= CONFIG?.SD ?? null;
+      for (const [key, label] of Object.entries(cfg?.attributes ?? {})) {
+        if (cfg?.attributesEnabled?.[key] === false) continue;
+        const name = String(label || key);
+        add(`system.attributes.${key}.value`, `${name} - Score`, "system");
+        add(`system.attributes.${key}.mod`, `${name} - Modifier`, "system");
+        add(`system.attributes.${key}.proficient`, `${name} - Proficient`, "system");
+      }
+      for (const [key, res] of Object.entries(cfg?.resources ?? {})) {
+        if (!res || res.enabled === false) continue;
+        const name = String(res.label || key);
+        add(`system.resources.${key}.value`, `${name} - Current`, "system");
+        add(`system.resources.${key}.max`, `${name} - Max`, "system");
+        add(`system.resources.${key}.min`, `${name} - Min`, "system");
+      }
+      for (const c of (cfg?.currencies ?? [])) {
+        if (c?.key) add(`system.currency.${c.key}`, `Currency - ${c.label || c.key}`, "system");
+      }
+      for (const [section, entries] of Object.entries(cfg?.calculations ?? {})) {
+        for (const entry of (entries ?? [])) {
+          if (!entry?.key) continue;
+          add(`system.calculations.${section}.${entry.key}.value`, entry.label || entry.key, "system");
+        }
+      }
+    };
+
+    const addWidgetPaths = (doc, source) => {
+      const visit = widgets => {
+        for (const w of (widgets ?? [])) {
+          if (!w || typeof w !== "object") continue;
+          const label = w.label || w.widgetKey || w.type || "Widget";
+          for (const key of ["path", "pathValue", "pathMax", "scorePath", "rankPath", "flagPath"]) {
+            if (typeof w[key] === "string") add(w[key], `${label} (${key})`, source);
+          }
+          if (Array.isArray(w.widgets)) visit(w.widgets);
+        }
+      };
+      for (const tab of (doc?.system?.customTabs ?? [])) {
+        for (const row of (tab.rows ?? [])) visit(row.widgets ?? []);
+      }
+    };
+
+    const addDoc = (doc, source) => {
+      if (!doc?.system) return;
+      for (const [key, value] of Object.entries(doc.system.hiddenFields ?? {})) {
+        add(`system.hiddenFields.${key}`, `Hidden Field - ${key}`, source, typeOf(value));
+      }
+      try {
+        const flat = foundry.utils.flattenObject(doc.system ?? {});
+        for (const [key, value] of Object.entries(flat)) {
+          if (value && typeof value === "object") continue;
+          add(`system.${key}`, key, source, typeOf(value));
+          if (paths.size > 280) break;
+        }
+      } catch {}
+      addWidgetPaths(doc, source);
+    };
+
+    addConfigured();
+    const ActorCls = globalThis.Actor;
+    const doc = this.doc ?? null;
+    const actor = ActorCls && doc instanceof ActorCls ? doc : (doc?.parent ?? doc?.actor ?? null);
+    addDoc(doc, "current-document");
+    if (actor && actor !== doc) addDoc(actor, "actor");
+    return [...paths.values()].slice(0, 320);
+  }
+
   _aiGraphSnapshot() {
     return {
       mode: this.actionGraph ? "action" : this.numberWidgetMode ? "number-widget" : this.initiativeMode ? "initiative" : "formula",
       widgetType: this.widget?.type ?? "",
+      availableDataPaths: this._aiKnownDataPaths(),
       nodes: (this.nodes ?? []).map(n => {
         const def = NODE_DEFS[n.type];
         const brief = pins => (pins ?? []).map(p => ({ id: p.id, label: p.label ?? "", type: p.type ?? "value.any" }));
@@ -8731,8 +8812,10 @@ export class FormulaGraph {
           "Use setData to change any field/value inside an existing or newly added node.",
           "The provided catalog is authoritative. Use only exact node type ids, field keys, and pin ids from the catalog/current graph.",
           "Do not invent node ids like get_field_value, send_chat, chat_output, compare, unless they appear in the catalog. Prefer catalog ids: get_path, if_node, branch, gate, act_message.",
-          "For simple checks like HP < 5 then chat: add get_path(path=system.resources.hp.value), add if_node(operator=<, value=5), add act_message(message=...), connect trigger.exec -> if_node.exec, get_path.v -> if_node.a, if_node.exec -> act_message.exec.",
+          "Do not fan out one exec output directly into multiple independent nodes. Exec flow should be one chain. Use sequence for multiple independent actions, and branch/if_node for conditional flow.",
+          "For simple checks like HP < 5 then chat: add get_path(path=system.resources.hp.value), add if_node(operator=<, value=5), add act_message(message=...), connect trigger.exec -> if_node.exec, get_path.v -> if_node.a, if_node.exec -> act_message.exec. Do not add a duplicate second if_node.",
           "For constant text in chat, set act_message.data.message. For dynamic chat text, connect literal_str.v to act_message.text0.",
+          "Use availableDataPaths from Current graph JSON when choosing actor/item/system paths. Hidden fields are valid as system.hiddenFields.<key>.",
           "Never delete protected output/init/noDelete nodes. Avoid destructive changes unless the user asks for deletion or clearing.",
           "Keep plans minimal, readable, and spatially arranged."
         ].join("\n"),
@@ -9426,6 +9509,25 @@ export class FormulaGraph {
         if (Array.isArray(innerActions) && innerActions.length) actions.push(...innerActions);
         const outEdge = this.edges.find(e => e.fromNode === node.id && e.fromPin === "_exec");
         if (outEdge) _walk(outEdge.toNode, vis);
+        return;
+      }
+
+      if (def.isIfCompare) {
+        const ins = {};
+        for (const pin of (def.inputs ?? [])) {
+          if (pin.type === "exec") continue;
+          const e = this._incomingEdge(node.id, pin.id);
+          if (e) {
+            const s = this.nodes.find(n => n.id === e.fromNode);
+            if (s) ins[pin.id] = this._compileValue(s, new Set(), e.fromPin);
+          }
+        }
+        const cond = def.condition?.(node, ins) ?? "0";
+        const trueEdge = this.edges.find(e => e.fromNode === node.id && e.fromPin === "exec");
+        const before = [...actions];
+        if (trueEdge) _walk(trueEdge.toNode, new Set(vis));
+        const trueActions = actions.splice(before.length);
+        actions.push({ type: "branch", condition: cond, trueActions, falseActions: [] });
         return;
       }
 

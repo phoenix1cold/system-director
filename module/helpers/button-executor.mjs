@@ -1074,7 +1074,7 @@ export class ButtonExecutor {
             for (const tActor of targets) {
               let newVal;
               if (action.setValue !== "" && action.setValue !== null && action.setValue !== undefined) {
-                newVal = Number(action.setValue);
+                newVal = await _resolveDelta(action.setValue);
               } else {
                 const delta = action.delta != null ? await _resolveDelta(action.delta) : -1;
                 const cur   = Number(foundry.utils.getProperty(tActor, path) ?? 0);
@@ -1095,7 +1095,7 @@ export class ButtonExecutor {
           if (!tActor) { ui.notifications.warn("No token selected or targeted."); break; }
           let newVal;
           if (action.setValue !== "" && action.setValue !== null && action.setValue !== undefined) {
-            newVal = Number(action.setValue);
+            newVal = await _resolveDelta(action.setValue);
           } else {
             const delta = action.delta != null ? await _resolveDelta(action.delta) : -1;
             const cur   = Number(foundry.utils.getProperty(tActor, path) ?? 0);
@@ -1113,7 +1113,7 @@ export class ButtonExecutor {
         let newVal;
         let deltaVal = action.delta != null ? await _resolveDelta(action.delta) : 0;
         if (action.setValue !== "" && action.setValue !== null && action.setValue !== undefined) {
-          newVal = Number(action.setValue);
+          newVal = await _resolveDelta(action.setValue);
         } else {
           newVal = (Number(current) || 0) + deltaVal;
         }
