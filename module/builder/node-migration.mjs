@@ -1,5 +1,120 @@
 export const NODE_TYPE_MIGRATIONS = {
 
+  get_var: {
+    newType: "var_read",
+    dataMap: (d) => ({
+      scope: "actor",
+      name: String(d?.name ?? "myVar"),
+      default: String(d?.default ?? "0")
+    })
+  },
+
+  var_get: {
+    newType: "var_read",
+    dataMap: (d) => ({
+      scope: "local",
+      name: String(d?.name ?? "myVar"),
+      default: String(d?.default ?? "0")
+    })
+  },
+
+  act_set_var: {
+    newType: "var_write",
+    dataMap: (d) => ({
+      scope: String(d?.scope ?? "actor"),
+      name: String(d?.name ?? "myVar")
+    })
+  },
+
+  var_set: {
+    newType: "var_write",
+    dataMap: (d) => ({
+      scope: "local",
+      name: String(d?.name ?? "myVar")
+    })
+  },
+
+  arr_at: {
+    newType: "arr_get",
+    dataMap: (d) => ({
+      i: Number.isFinite(Number(d?.index)) ? Number(d.index) : 0,
+      def: ""
+    }),
+    pinMapIn: { tokens: "a", index: "i" }
+  },
+
+  arr_sum_num: {
+    newType: "arr_aggregate",
+    dataMap: () => ({ op: "sum" })
+  },
+
+  arr_avg_num: {
+    newType: "arr_aggregate",
+    dataMap: () => ({ op: "avg" })
+  },
+
+  arr_min_num: {
+    newType: "arr_aggregate",
+    dataMap: () => ({ op: "min" })
+  },
+
+  arr_max_num: {
+    newType: "arr_aggregate",
+    dataMap: () => ({ op: "max" })
+  },
+
+  arr_random_pick: {
+    newType: "arr_random_from",
+    dataMap: (d) => ({ n: Number.isFinite(Number(d?.n)) ? Number(d.n) : 1 }),
+    pinMapIn: { a: "a0" },
+    pinMapOut: { v: "arr" }
+  },
+
+  get_actor_name: {
+    newType: "actor_token_info",
+    pinMapOut: { v: "actorName" }
+  },
+
+  get_token_name: {
+    newType: "actor_token_info",
+    pinMapOut: { v: "tokenName" }
+  },
+
+  get_actor_portrait: {
+    newType: "actor_token_info",
+    pinMapOut: { v: "portrait" }
+  },
+
+  get_actor_token_image: {
+    newType: "actor_token_info",
+    pinMapOut: { v: "tokenImage" }
+  },
+
+  quest_activate: {
+    newType: "quest_set_state",
+    dataMap: (d) => ({ ...d, state: "activate" })
+  },
+
+  quest_complete: {
+    newType: "quest_set_state",
+    dataMap: (d) => ({ ...d, state: "complete" })
+  },
+
+  quest_fail: {
+    newType: "quest_set_state",
+    dataMap: (d) => ({ ...d, state: "fail" })
+  },
+
+  quest_lock: {
+    newType: "quest_set_state",
+    dataMap: (d) => ({ ...d, state: "lock" })
+  },
+
+  quest_make_available: {
+    newType: "quest_set_state",
+    dataMap: (d) => ({ ...d, state: "available" })
+  },
+
   attr_score: {
     newType: "attr_score_val"
   },

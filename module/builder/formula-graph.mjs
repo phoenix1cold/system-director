@@ -1,4 +1,4 @@
-import { migrateGraph } from "./node-migration.mjs";
+import { migrateGraph, NODE_TYPE_MIGRATIONS } from "./node-migration.mjs";
 import { pinSubtype, subtypeColor, arePinsCompatible } from "./pin-types.mjs";
 import { lintGraph, lintSummary } from "./graph-linter.mjs";
 import {
@@ -10,6 +10,38 @@ import { SDOnboarding } from "../helpers/onboarding.mjs";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
+
+function _arrayArg(value) {
+  try {
+    return `b64:${btoa(unescape(encodeURIComponent(String(value ?? ""))))}`;
+  } catch {
+    return "b64:";
+  }
+}
+
+function _messageComposerButtons(data = {}) {
+  const stored = Array.isArray(data?.buttons) ? data.buttons : [];
+  const defaults = [
+    { id:"btn0", enabled:true,  label:"Apply",    icon:"fas fa-check", variant:"primary" },
+    { id:"btn1", enabled:false, label:"Details",  icon:"fas fa-circle-info", variant:"secondary" },
+    { id:"btn2", enabled:false, label:"Continue", icon:"fas fa-arrow-right", variant:"success" },
+    { id:"btn3", enabled:false, label:"Cancel",   icon:"fas fa-xmark", variant:"danger" },
+    { id:"btn4", enabled:false, label:"Option 5", icon:"fas fa-circle", variant:"secondary" },
+    { id:"btn5", enabled:false, label:"Option 6", icon:"fas fa-circle", variant:"secondary" }
+  ];
+  const variants = new Set(["primary", "secondary", "success", "danger", "warning"]);
+  return defaults.map((fallback, index) => {
+    const source = stored.find(button => String(button?.id ?? "") === fallback.id) ?? stored[index] ?? {};
+    const variant = variants.has(String(source.variant ?? "")) ? String(source.variant) : fallback.variant;
+    return {
+      id: fallback.id,
+      enabled: source.enabled === undefined ? fallback.enabled : !!source.enabled,
+      label: String(source.label ?? fallback.label).trim() || fallback.label,
+      icon: String(source.icon ?? fallback.icon).trim() || fallback.icon,
+      variant
+    };
+  });
+}
 
 function _cleanGraphText(value) {
   return String(value ?? "")
@@ -889,7 +921,7 @@ export const NODE_DEFS = {
 
   act_roll_value: {
     title:"Roll -> Value", color:"#8a4400", cat:"Roll",
-    desc:"Rolls dice and forwards the numeric result as a value output. When Roll dialog is enabled, a Disadvantage/Normal/Advantage picker opens first, each option using the formula from its corresponding pin. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls. Outputs: Result (final sum), Formula (resolved string), Min/Max/Avg (theoretical bounds & expected value), Dice Array (every active die's value as a CSV array вЂ” pipe into Array Join / Array Length / Get Element / Filter to inspect individual die results, e.g. 2d6 в†’ \"3,5\"). For crit / fumble logic use Attack Check or Roll Check вЂ” Roll Value is intentionally just numbers and dice.",
+    desc:"Rolls dice and forwards the numeric result as a value output. Min / Max / Avg are theoretical formula bounds. Min Value and Max Value contain the selected lowest/highest active die results from the actual roll; configure their independent counts, and use the Sum outputs when a numeric total of the selected dice is needed. Dice Array contains every active die result.",
     inputs:[
       {id:"exec",             label:"",              type:"exec"},
       {id:"formula",          label:"Formula",        type:"value.string"},
@@ -897,7 +929,9 @@ export const NODE_DEFS = {
       {id:"disFormula",       label:"Dis Formula",    type:"value.string"},
       {id:"rerollEnabled",    label:"Reroll button",  type:"value.bool"},
       {id:"rerollPath",       label:"Reroll Path",    type:"value.path"},
-      {id:"rerollCost",       label:"Reroll Cost",    type:"value.number"}
+      {id:"rerollCost",       label:"Reroll Cost",    type:"value.number"},
+      {id:"minValueCount",    label:"Lowest Count",   type:"value.number"},
+      {id:"maxValueCount",    label:"Highest Count",  type:"value.number"}
     ],
     outputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -906,7 +940,11 @@ export const NODE_DEFS = {
       {id:"min",           label:"Min",           type:"value.number"},
       {id:"max",           label:"Max",           type:"value.number"},
       {id:"avg",           label:"Avg",           type:"value.number"},
-      {id:"diceArray",     label:"Dice Array",    type:"value.array"}
+      {id:"diceArray",     label:"Dice Array",    type:"value.array"},
+      {id:"minValue",      label:"Min Value",     type:"value.any"},
+      {id:"maxValue",      label:"Max Value",     type:"value.any"},
+      {id:"minValueTotal", label:"Min Value Sum", type:"value.number"},
+      {id:"maxValueTotal", label:"Max Value Sum", type:"value.number"}
     ],
     fields:[
       {key:"formula",        label:"Formula",              type:"text",   default:"1d6"},
@@ -917,7 +955,9 @@ export const NODE_DEFS = {
       {key:"disFormula",     label:"Dis formula (pin>field)", type:"text", default:"",   placeholder:"e.g. 2d20kl1 + @mod"},
       {key:"rerollEnabled",  label:"Reroll button",       type:"select", default:"no", options:["no","yes"]},
       {key:"rerollPath",     label:"Reroll resource path", type:"path",   default:"",   placeholder:"e.g. system.resources.luck.value"},
-      {key:"rerollCost",     label:"Reroll cost",          type:"number", default:1}
+      {key:"rerollCost",     label:"Reroll cost",          type:"number", default:1},
+      {key:"minValueCount",  label:"Lowest dice count",    type:"number", default:1},
+      {key:"maxValueCount",  label:"Highest dice count",   type:"number", default:1}
     ],
     isAction:true,
     toAction:(n,inp)=>{
@@ -935,7 +975,9 @@ export const NODE_DEFS = {
         disFormula,
         rerollEnabled,
         rerollPath: (inp.rerollPath != null && inp.rerollPath !== "") ? String(inp.rerollPath) : (n.data.rerollPath ?? ""),
-        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0
+        rerollCost: Number((inp.rerollCost != null && inp.rerollCost !== "") ? inp.rerollCost : (n.data.rerollCost ?? 1)) || 0,
+        minValueCount: (inp.minValueCount != null && inp.minValueCount !== "") ? inp.minValueCount : (n.data.minValueCount ?? 1),
+        maxValueCount: (inp.maxValueCount != null && inp.maxValueCount !== "") ? inp.maxValueCount : (n.data.maxValueCount ?? 1)
       };
     }
   },
@@ -1171,11 +1213,12 @@ export const NODE_DEFS = {
     inputs:[{id:"tokens", label:"Tokens", type:"value.array"}],
     outputs:[{id:"v", label:"Count", type:"value.number"}],
     fields:[],
-    compile:(_,i)=>`{arrayLength:${i.tokens ?? ""}}`
+    compile:(_,i)=>`{arrayLength:${_arrayArg(i.tokens ?? "")}}`
   },
 
   arr_at: {
     title:"Token at Index", color:"#2a7a3a", cat:"Array",
+    hidden:true, replacement:"arr_get",
     desc:"Returns the Nth token id (0-based) from a comma-joined list (Saved[]/Failed[]/All[] etc.). If Index is out of range, returns empty.",
     inputs:[
       {id:"tokens", label:"Tokens", type:"value.array"},
@@ -1183,7 +1226,7 @@ export const NODE_DEFS = {
     ],
     outputs:[{id:"v", label:"Token", type:"value.any"}],
     fields:[{key:"index",label:"Index",type:"number",default:0}],
-    compile:(n,i)=>`{arrayAt:${i.tokens ?? ""}|${i.index ?? n.data.index ?? 0}}`
+    compile:(n,i)=>`{arrayAt:${_arrayArg(i.tokens ?? "")}|${_arrayArg(i.index ?? n.data.index ?? 0)}}`
   },
 
   arr_map_field: {
@@ -1192,7 +1235,7 @@ export const NODE_DEFS = {
     inputs:[{id:"tokens", label:"Tokens", type:"value.array"}],
     outputs:[{id:"v", label:"Values", type:"value.array"}],
     fields:[{key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}],
-    compile:(n,i)=>`{arrayMapField:${i.tokens ?? ""}|${n.data.path ?? ""}}`
+    compile:(n,i)=>`{arrayMapField:${_arrayArg(i.tokens ?? "")}|${_arrayArg(n.data.path ?? "")}}`
   },
 
   arr_aggregate_field: {
@@ -1204,7 +1247,7 @@ export const NODE_DEFS = {
       {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
       {key:"op",  label:"Op",   type:"select",default:"sum",options:["sum","avg","min","max","count"]}
     ],
-    compile:(n,i)=>`{arrayAgg:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "sum"}}`
+    compile:(n,i)=>`{arrayAgg:${_arrayArg(i.tokens ?? "")}|${_arrayArg(n.data.path ?? "")}|${_arrayArg(n.data.op ?? "sum")}}`
   },
 
   arr_find_extreme: {
@@ -1216,7 +1259,7 @@ export const NODE_DEFS = {
       {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
       {key:"op",  label:"Pick", type:"select",default:"max",options:["max","min"]}
     ],
-    compile:(n,i)=>`{arrayFindExtreme:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "max"}}`
+    compile:(n,i)=>`{arrayFindExtreme:${_arrayArg(i.tokens ?? "")}|${_arrayArg(n.data.path ?? "")}|${_arrayArg(n.data.op ?? "max")}}`
   },
 
   arr_filter: {
@@ -1243,7 +1286,7 @@ export const NODE_DEFS = {
           )) {
         cmp = cmp.slice(1, -1);
       }
-      return `{arrayFilter:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? ">"}|${cmp}}`;
+      return `{arrayFilter:${_arrayArg(i.tokens ?? "")}|${_arrayArg(n.data.path ?? "")}|${_arrayArg(n.data.op ?? ">")}|${_arrayArg(cmp)}}`;
     }
   },
 
@@ -1252,8 +1295,8 @@ export const NODE_DEFS = {
     desc:"Read the same field on two tokens and route exec into Greater / Less / Equal based on (A в€’ B). Diff outputs the numeric difference and Winner outputs the id of the higher token (empty on tie).",
     inputs:[
       {id:"exec",   label:"",        type:"exec"},
-      {id:"a",      label:"Token A", type:"value.array"},
-      {id:"b",      label:"Token B", type:"value.array"}
+      {id:"a",      label:"Token A", type:"value.token"},
+      {id:"b",      label:"Token B", type:"value.token"}
     ],
     outputs:[
       {id:"greater", label:"A > B в†’", type:"exec"},
@@ -1283,7 +1326,7 @@ export const NODE_DEFS = {
       {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
       {key:"op",  label:"Order",type:"select",default:"desc",options:["desc","asc"]}
     ],
-    compile:(n,i)=>`{arraySort:${i.tokens ?? ""}|${n.data.path ?? ""}|${n.data.op ?? "desc"}}`
+    compile:(n,i)=>`{arraySort:${_arrayArg(i.tokens ?? "")}|${_arrayArg(n.data.path ?? "")}|${_arrayArg(n.data.op ?? "desc")}}`
   },
 
   arr_slice: {
@@ -1302,7 +1345,7 @@ export const NODE_DEFS = {
     compile:(n,i)=>{
       const s = (i.start ?? n.data.start ?? 0);
       const c = (i.count ?? n.data.count ?? -1);
-      return `{arraySlice:${i.tokens ?? ""}|${s}|${c}}`;
+      return `{arraySlice:${_arrayArg(i.tokens ?? "")}|${_arrayArg(s)}|${_arrayArg(c)}}`;
     }
   },
 
@@ -1315,7 +1358,7 @@ export const NODE_DEFS = {
     ],
     outputs:[{id:"v", label:"A+B", type:"value.array"}],
     fields:[],
-    compile:(_,i)=>`{arrayConcat:${i.a ?? ""}|${i.b ?? ""}}`
+    compile:(_,i)=>`{arrayConcat:${_arrayArg(i.a ?? "")}|${_arrayArg(i.b ?? "")}}`
   },
 
   arr_union: {
@@ -1327,7 +1370,7 @@ export const NODE_DEFS = {
     ],
     outputs:[{id:"v", label:"A в€Є B", type:"value.array"}],
     fields:[],
-    compile:(_,i)=>`{arrayUnion:${i.a ?? ""}|${i.b ?? ""}}`
+    compile:(_,i)=>`{arrayUnion:${_arrayArg(i.a ?? "")}|${_arrayArg(i.b ?? "")}}`
   },
 
   arr_intersect: {
@@ -1339,7 +1382,7 @@ export const NODE_DEFS = {
     ],
     outputs:[{id:"v", label:"A в€© B", type:"value.array"}],
     fields:[],
-    compile:(_,i)=>`{arrayIntersect:${i.a ?? ""}|${i.b ?? ""}}`
+    compile:(_,i)=>`{arrayIntersect:${_arrayArg(i.a ?? "")}|${_arrayArg(i.b ?? "")}}`
   },
 
   arr_difference: {
@@ -1351,7 +1394,7 @@ export const NODE_DEFS = {
     ],
     outputs:[{id:"v", label:"A в€’ B", type:"value.array"}],
     fields:[],
-    compile:(_,i)=>`{arrayDifference:${i.a ?? ""}|${i.b ?? ""}}`
+    compile:(_,i)=>`{arrayDifference:${_arrayArg(i.a ?? "")}|${_arrayArg(i.b ?? "")}}`
   },
 
   arr_contains: {
@@ -1363,7 +1406,7 @@ export const NODE_DEFS = {
     ],
     outputs:[{id:"v", label:"In?", type:"value.bool"}],
     fields:[],
-    compile:(_,i)=>`{arrayContains:${i.tokens ?? ""}|${i.id ?? ""}}`
+    compile:(_,i)=>`{arrayContains:${_arrayArg(i.tokens ?? "")}|${_arrayArg(i.id ?? "")}}`
   },
 
   arr_distinct: {
@@ -1372,7 +1415,7 @@ export const NODE_DEFS = {
     inputs:[{id:"tokens", label:"Tokens", type:"value.array"}],
     outputs:[{id:"v", label:"Unique", type:"value.array"}],
     fields:[],
-    compile:(_,i)=>`{arrayDistinct:${i.tokens ?? ""}}`
+    compile:(_,i)=>`{arrayDistinct:${_arrayArg(i.tokens ?? "")}}`
   },
 
   arr_make: {
@@ -1396,27 +1439,24 @@ export const NODE_DEFS = {
       {key:"v3", label:"#3 (literal)", type:"text", default:""}
     ],
     compile:(n,i)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const parts = [];
       for (let k = 0; k < 8; k++) {
         const id = `v${k}`;
         const fromPin = i[id];
         const fromField = n.data?.[id];
         const v = (fromPin != null && fromPin !== "") ? fromPin : (fromField ?? "");
-        parts.push(_b64(v));
+        parts.push(_arrayArg(v));
       }
-      const tail = `|len`.padStart(0, "");
       return `{arrayMake:${parts.join("|")}}`;
     },
     compilePin:(n,i,pin)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const parts = [];
       for (let k = 0; k < 8; k++) {
         const id = `v${k}`;
         const fromPin = i[id];
         const fromField = n.data?.[id];
         const v = (fromPin != null && fromPin !== "") ? fromPin : (fromField ?? "");
-        parts.push(_b64(v));
+        parts.push(_arrayArg(v));
       }
       const arr = `{arrayMake:${parts.join("|")}}`;
       if (pin === "len") return `{arrayLength:${arr}}`;
@@ -1434,14 +1474,12 @@ export const NODE_DEFS = {
     outputs:[{id:"v", label:"Array", type:"value.array"},{id:"len", label:"Length", type:"value.number"}],
     fields:[{key:"sep",label:"Separator",type:"text",default:","}],
     compile:(n,i)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const sep = (i.sep != null && i.sep !== "") ? i.sep : (n.data.sep ?? ",");
-      return `{arraySplit:${_b64(i.s ?? "")}|${_b64(sep)}}`;
+      return `{arraySplit:${_arrayArg(i.s ?? "")}|${_arrayArg(sep)}}`;
     },
     compilePin:(n,i,pin)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const sep = (i.sep != null && i.sep !== "") ? i.sep : (n.data.sep ?? ",");
-      const arr = `{arraySplit:${_b64(i.s ?? "")}|${_b64(sep)}}`;
+      const arr = `{arraySplit:${_arrayArg(i.s ?? "")}|${_arrayArg(sep)}}`;
       if (pin === "len") return `{arrayLength:${arr}}`;
       return arr;
     }
@@ -1457,9 +1495,8 @@ export const NODE_DEFS = {
     outputs:[{id:"v", label:"String", type:"value.string"}],
     fields:[{key:"sep",label:"Separator",type:"text",default:", "}],
     compile:(n,i)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const sep = (i.sep != null && i.sep !== "") ? i.sep : (n.data.sep ?? ", ");
-      return `{arrayJoin:${i.a ?? ""}|${_b64(sep)}}`;
+      return `{arrayJoin:${_arrayArg(i.a ?? "")}|${_arrayArg(sep)}}`;
     }
   },
 
@@ -1473,12 +1510,10 @@ export const NODE_DEFS = {
     outputs:[{id:"v", label:"Array", type:"value.array"},{id:"len", label:"Length", type:"value.number"}],
     fields:[],
     compile:(_,i)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
-      return `{arrayPush:${i.a ?? ""}|${_b64(i.v ?? "")}}`;
+      return `{arrayPush:${_arrayArg(i.a ?? "")}|${_arrayArg(i.v ?? "")}}`;
     },
     compilePin:(_,i,pin)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
-      const arr = `{arrayPush:${i.a ?? ""}|${_b64(i.v ?? "")}}`;
+      const arr = `{arrayPush:${_arrayArg(i.a ?? "")}|${_arrayArg(i.v ?? "")}}`;
       if (pin === "len") return `{arrayLength:${arr}}`;
       return arr;
     }
@@ -1501,17 +1536,15 @@ export const NODE_DEFS = {
       {key:"def",label:"Default", type:"text",   default:""}
     ],
     compile:(n,i)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const idx = (i.i != null && i.i !== "") ? i.i : (n.data.i ?? 0);
       const def = (i.def != null && i.def !== "") ? i.def : (n.data.def ?? "");
-      return `{arrayGet:${i.a ?? ""}|${idx}|${_b64(def)}}`;
+      return `{arrayGet:${_arrayArg(i.a ?? "")}|${_arrayArg(idx)}|${_arrayArg(def)}}`;
     },
     compilePin:(n,i,pin)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const idx = (i.i != null && i.i !== "") ? i.i : (n.data.i ?? 0);
       const def = (i.def != null && i.def !== "") ? i.def : (n.data.def ?? "");
-      if (pin === "found") return `{arrayHasIndex:${i.a ?? ""}|${idx}}`;
-      return `{arrayGet:${i.a ?? ""}|${idx}|${_b64(def)}}`;
+      if (pin === "found") return `{arrayHasIndex:${_arrayArg(i.a ?? "")}|${_arrayArg(idx)}}`;
+      return `{arrayGet:${_arrayArg(i.a ?? "")}|${_arrayArg(idx)}|${_arrayArg(def)}}`;
     }
   },
 
@@ -1521,7 +1554,7 @@ export const NODE_DEFS = {
     inputs:[{id:"a", label:"Array", type:"value.array"}],
     outputs:[{id:"v", label:"Value", type:"value.any"}],
     fields:[],
-    compile:(_,i)=>`{arrayGet:${i.a ?? ""}|0|}`
+    compile:(_,i)=>`{arrayGet:${_arrayArg(i.a ?? "")}|${_arrayArg(0)}|${_arrayArg("")}}`
   },
 
   arr_last: {
@@ -1530,7 +1563,7 @@ export const NODE_DEFS = {
     inputs:[{id:"a", label:"Array", type:"value.array"}],
     outputs:[{id:"v", label:"Value", type:"value.any"}],
     fields:[],
-    compile:(_,i)=>`{arrayGet:${i.a ?? ""}|-1|}`
+    compile:(_,i)=>`{arrayGet:${_arrayArg(i.a ?? "")}|${_arrayArg(-1)}|${_arrayArg("")}}`
   },
 
   arr_reverse: {
@@ -1539,47 +1572,71 @@ export const NODE_DEFS = {
     inputs:[{id:"a", label:"Array", type:"value.array"}],
     outputs:[{id:"v", label:"Array", type:"value.array"}],
     fields:[],
-    compile:(_,i)=>`{arrayReverse:${i.a ?? ""}}`
+    compile:(_,i)=>`{arrayReverse:${_arrayArg(i.a ?? "")}}`
+  },
+
+  arr_aggregate: {
+    title:"Array Aggregate", color:"#2a7a3a", cat:"Array",
+    desc:"Calculate Sum, Average, Minimum, Maximum, or numeric Count for any array. Non-numeric elements are ignored.",
+    keywords:"sum average avg min max count numeric statistics",
+    inputs:[{id:"a", label:"Array", type:"value.array"}],
+    outputs:[{id:"v", label:"Result", type:"value.number"}],
+    fields:[{
+      key:"op", label:"Operation", type:"select", default:"sum",
+      options:[
+        {value:"sum",   label:"Sum"},
+        {value:"avg",   label:"Average"},
+        {value:"min",   label:"Minimum"},
+        {value:"max",   label:"Maximum"},
+        {value:"count", label:"Numeric Count"}
+      ]
+    }],
+    compile:(n,i)=>`{arrayNum:${_arrayArg(i.a ?? "")}|${_arrayArg(n.data?.op ?? "sum")}}`
   },
 
   arr_sum_num: {
     title:"Array Sum (numeric)", color:"#2a7a3a", cat:"Array",
+    hidden:true, replacement:"arr_aggregate",
     desc:"Sum of numeric elements in an already-numeric array (e.g. produced by `Map Field` or `Array Make` with numbers). Non-numeric elements are skipped. Returns 0 for empty arrays.",
     inputs:[{id:"a", label:"Array", type:"value.array"}],
     outputs:[{id:"v", label:"Sum", type:"value.number"}],
     fields:[],
-    compile:(_,i)=>`{arrayNum:${i.a ?? ""}|sum}`
+    compile:(_,i)=>`{arrayNum:${_arrayArg(i.a ?? "")}|${_arrayArg("sum")}}`
   },
 
   arr_avg_num: {
     title:"Array Average (numeric)", color:"#2a7a3a", cat:"Array",
+    hidden:true, replacement:"arr_aggregate",
     desc:"Average of numeric elements. Non-numeric elements are skipped. Returns 0 if there are no numeric elements.",
     inputs:[{id:"a", label:"Array", type:"value.array"}],
     outputs:[{id:"v", label:"Avg", type:"value.number"}],
     fields:[],
-    compile:(_,i)=>`{arrayNum:${i.a ?? ""}|avg}`
+    compile:(_,i)=>`{arrayNum:${_arrayArg(i.a ?? "")}|${_arrayArg("avg")}}`
   },
 
   arr_min_num: {
     title:"Array Min (numeric)", color:"#2a7a3a", cat:"Array",
+    hidden:true, replacement:"arr_aggregate",
     desc:"Lowest numeric element. Returns 0 for empty / non-numeric arrays.",
     inputs:[{id:"a", label:"Array", type:"value.array"}],
     outputs:[{id:"v", label:"Min", type:"value.number"}],
     fields:[],
-    compile:(_,i)=>`{arrayNum:${i.a ?? ""}|min}`
+    compile:(_,i)=>`{arrayNum:${_arrayArg(i.a ?? "")}|${_arrayArg("min")}}`
   },
 
   arr_max_num: {
     title:"Array Max (numeric)", color:"#2a7a3a", cat:"Array",
+    hidden:true, replacement:"arr_aggregate",
     desc:"Highest numeric element. Returns 0 for empty / non-numeric arrays.",
     inputs:[{id:"a", label:"Array", type:"value.array"}],
     outputs:[{id:"v", label:"Max", type:"value.number"}],
     fields:[],
-    compile:(_,i)=>`{arrayNum:${i.a ?? ""}|max}`
+    compile:(_,i)=>`{arrayNum:${_arrayArg(i.a ?? "")}|${_arrayArg("max")}}`
   },
 
   arr_random_pick: {
     title:"Array Random Pick", color:"#2a7a3a", cat:"Array",
+    hidden:true, replacement:"arr_random_from",
     desc:"Pick `count` random elements (without repetition). Default count is 1 and returns a single element as the value. Count > 1 returns an array.",
     inputs:[
       {id:"a", label:"Array", type:"value.array"},
@@ -1592,11 +1649,11 @@ export const NODE_DEFS = {
     fields:[{key:"n",label:"Count",type:"number",default:1}],
     compile:(n,i)=>{
       const cnt = (i.n != null && i.n !== "") ? i.n : (n.data.n ?? 1);
-      return `{arrayRandomPick:${i.a ?? ""}|${cnt}}`;
+      return `{arrayRandomPick:${_arrayArg(i.a ?? "")}|${_arrayArg(cnt)}}`;
     },
     compilePin:(n,i,pin)=>{
       const cnt = (i.n != null && i.n !== "") ? i.n : (n.data.n ?? 1);
-      return `{arrayRandomPick:${i.a ?? ""}|${cnt}}`;
+      return `{arrayRandomPick:${_arrayArg(i.a ?? "")}|${_arrayArg(cnt)}}`;
     }
   },
 
@@ -1621,7 +1678,7 @@ export const NODE_DEFS = {
         const v = i[`a${k}`];
         if (v != null && v !== "") lists.push(v);
       }
-      return `{arrayRandomFrom:${cnt}|${lists.join("|")}}`;
+      return `{arrayRandomFrom:${_arrayArg(cnt)}|${lists.map(_arrayArg).join("|")}}`;
     },
     compilePin:(n,i,pin)=>{
       const cnt = (i.n != null && i.n !== "") ? i.n : (n.data.n ?? 1);
@@ -1630,7 +1687,7 @@ export const NODE_DEFS = {
         const v = i[`a${k}`];
         if (v != null && v !== "") lists.push(v);
       }
-      const arr = `{arrayRandomFrom:${cnt}|${lists.join("|")}}`;
+      const arr = `{arrayRandomFrom:${_arrayArg(cnt)}|${lists.map(_arrayArg).join("|")}}`;
       if (pin === "len") return `{arrayLength:${arr}}`;
       return arr;
     }
@@ -1653,14 +1710,12 @@ export const NODE_DEFS = {
       {key:"v",    label:"Value", type:"text",   default:""}
     ],
     compile:(n,i)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const cmp = (i.v != null && i.v !== "") ? i.v : (n.data.v ?? "");
-      return `{arrayFilterGeneric:${i.a ?? ""}|${n.data.op ?? "=="}|${_b64(cmp)}}`;
+      return `{arrayFilterGeneric:${_arrayArg(i.a ?? "")}|${_arrayArg(n.data.op ?? "==")}|${_arrayArg(cmp)}}`;
     },
     compilePin:(n,i,pin)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const cmp = (i.v != null && i.v !== "") ? i.v : (n.data.v ?? "");
-      const arr = `{arrayFilterGeneric:${i.a ?? ""}|${n.data.op ?? "=="}|${_b64(cmp)}}`;
+      const arr = `{arrayFilterGeneric:${_arrayArg(i.a ?? "")}|${_arrayArg(n.data.op ?? "==")}|${_arrayArg(cmp)}}`;
       if (pin === "len") return `{arrayLength:${arr}}`;
       return arr;
     }
@@ -1678,9 +1733,8 @@ export const NODE_DEFS = {
       {key:"formula", label:"Formula (use {__elem})", type:"text", default:"{__elem}", placeholder:"e.g. {__elem} * 2"}
     ],
     compile:(n,i)=>{
-      const _b64 = (s) => { try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
       const f = (i.formula != null && i.formula !== "") ? i.formula : (n.data.formula ?? "{__elem}");
-      return `{arrayMapFormula:${i.a ?? ""}|${_b64(f)}}`;
+      return `{arrayMapFormula:${_arrayArg(i.a ?? "")}|${_arrayArg(f)}}`;
     }
   },
 
@@ -1867,6 +1921,84 @@ export const NODE_DEFS = {
         if(v!==undefined && v!==null && v!=="") parts.push(String(v));
       }
       return {type:"message", messageParts:parts};
+    }
+  },
+
+  act_message_composer: {
+    title:"Message Composer", color:"#7a4a22", cat:"Chat", wideNode:true,
+    desc:"Build one styled chat card from text, a result or damage value, an image, and up to six interactive buttons. Each button output runs its connected exec branch when clicked. For an Apply Damage button, connect it to Damage with Chat card set to no.",
+    keywords:"message compiler compilator composer chat card damage message buttons interactive action card",
+    inputs:[
+      {id:"exec",       label:"",            type:"exec"},
+      {id:"title",      label:"Title",       type:"value.string"},
+      {id:"message",    label:"Message",     type:"value.string"},
+      {id:"value",      label:"Value",       type:"value.any"},
+      {id:"valueLabel", label:"Value label", type:"value.string"},
+      {id:"image",      label:"Image",       type:"value.string"}
+    ],
+    outputs:[{id:"posted", label:"Posted ->", type:"exec"}],
+    catalogOutputs:[
+      {id:"btn0", label:"Button 1 ->", type:"exec"},
+      {id:"btn1", label:"Button 2 ->", type:"exec"},
+      {id:"btn2", label:"Button 3 ->", type:"exec"},
+      {id:"btn3", label:"Button 4 ->", type:"exec"},
+      {id:"btn4", label:"Button 5 ->", type:"exec"},
+      {id:"btn5", label:"Button 6 ->", type:"exec"}
+    ],
+    fields:[
+      {key:"style",      label:"Card style", type:"select", default:"message", options:[
+        {value:"message", label:"Message"},
+        {value:"damage",  label:"Damage"},
+        {value:"healing", label:"Healing"},
+        {value:"check",   label:"Check"},
+        {value:"notice",  label:"Notice"}
+      ]},
+      {key:"title",      label:"Title",       type:"text",     default:"Message"},
+      {key:"message",    label:"Message",     type:"textarea", default:"", rows:4},
+      {key:"value",      label:"Value",       type:"text",     default:""},
+      {key:"valueLabel", label:"Value label", type:"text",     default:""},
+      {key:"image",      label:"Image",       type:"text",     default:"", placeholder:"Actor portrait, item image, or path"},
+      {key:"access", label:"Button access", type:"select", default:"actorOwner", options:[
+        {value:"actorOwner", label:"Actor owners"},
+        {value:"author",     label:"Message author"},
+        {value:"gm",         label:"GM only"},
+        {value:"everyone",   label:"Everyone"}
+      ]},
+      {key:"buttonUse", label:"Button use", type:"select", default:"once", options:[
+        {value:"once",     label:"Once"},
+        {value:"reusable", label:"Reusable"}
+      ]},
+      {key:"visibility", label:"Message visibility", type:"select", default:"public", options:[
+        {value:"public", label:"Public"},
+        {value:"gm",     label:"Whisper to GM"},
+        {value:"self",   label:"Whisper to self"}
+      ]},
+      {key:"buttons", label:"Buttons", type:"message-buttons-editor", default:[]}
+    ],
+    isAction:true,
+    isGenericBranch:true,
+    computeDynamicOutputs(node) {
+      const buttons = _messageComposerButtons(node?.data).filter(button => button.enabled);
+      return [
+        {id:"posted", label:"Posted ->", type:"exec"},
+        ...buttons.map(button => ({id:button.id, label:`${button.label} ->`, type:"exec"}))
+      ];
+    },
+    toAction(n, inp = {}) {
+      const buttons = _messageComposerButtons(n?.data).filter(button => button.enabled);
+      return {
+        type:"messageComposer",
+        style:String(n.data?.style ?? "message"),
+        title:inp.title ?? n.data?.title ?? "Message",
+        message:inp.message ?? n.data?.message ?? "",
+        value:inp.value ?? n.data?.value ?? "",
+        valueLabel:inp.valueLabel ?? n.data?.valueLabel ?? "",
+        image:inp.image ?? n.data?.image ?? "",
+        access:String(n.data?.access ?? "actorOwner"),
+        buttonUse:String(n.data?.buttonUse ?? "once"),
+        visibility:String(n.data?.visibility ?? "public"),
+        buttons:buttons.map(({id, label, icon, variant}) => ({id, label, icon, variant}))
+      };
     }
   },
 
@@ -2913,6 +3045,7 @@ export const NODE_DEFS = {
     title:"AI Request (OpenAI-compatible)", color:"#4a4a8a", cat:"AI",
     desc:"POSTs an OpenAI-compatible chat-completion request to the given URL with Authorization: Bearer <key>. Compatible with api.openai.com, openrouter.ai, LM Studio (http://localhost:1234/v1/chat/completions), Ollama OAI compat, vLLM, etc. Output 'Response' carries choices[0].message.content as a string. Use {__lastAiResponse} in downstream formulas / text. SECURITY: API key is stored on the document where the graph lives вЂ” visible to all owners. Use 'API key setting' to read from a world setting (sd.<settingKey>) instead.",
     wideNode:true,
+    hidden:true,
     inputs:[
       {id:"exec",         label:"",            type:"exec"},
       {id:"url",          label:"URL",          type:"value.string"},
@@ -2966,7 +3099,7 @@ export const NODE_DEFS = {
   },
 
   act_ai_assistant: {
-    title:"AI Assistant", color:"#4a4a8a", cat:"AI", wideNode:true,
+    title:"AI Assistant", color:"#4a4a8a", cat:"AI", wideNode:true, hidden:true,
     desc:"Asks the AI helper configured in AI Settings. Use it for graph logic help, narration, generated text, summaries, hints, or any assistant-style response. Blank provider fields use the selected Provider Profile; Assistant is the default profile.",
     inputs:[
       {id:"exec",         label:"",              type:"exec"},
@@ -3018,7 +3151,7 @@ export const NODE_DEFS = {
   },
 
   ai_dialogue_choices: {
-    title:"AI Dialogue Choices", color:"#4a4a8a", cat:"AI", wideNode:true,
+    title:"AI Dialogue Choices", color:"#4a4a8a", cat:"AI", wideNode:true, hidden:true,
     desc:"Configuration source for Dialogue Builder. Connect its AI Choices output into Dialogue Builder's AI Choices input. At runtime it asks an OpenAI-compatible model to generate the NPC dialogue text and player response choices. Infinity Dialogue keeps sending the selected player answer plus dialogue history back to the model and reopens the next dialogue window while the model returns continue=true.",
     inputs:[],
     outputs:[{id:"choices", label:"AI Choices", type:"value.any"}],
@@ -3075,7 +3208,7 @@ export const NODE_DEFS = {
   },
 
   act_ai_memory_update: {
-    title:"AI Memory Update", color:"#4a4a8a", cat:"AI", wideNode:true,
+    title:"AI Memory Update", color:"#4a4a8a", cat:"AI", wideNode:true, hidden:true,
     desc:"Stores character memories. In Analyze mode it asks the default AI provider to extract durable memories from dialogue/context and adds them to the actor prompt. In Add mode it stores Memory Text directly. Provider fields are optional; blank values use AI Settings.",
     inputs:[
       {id:"exec",       label:"",            type:"exec"},
@@ -3418,9 +3551,7 @@ export const NODE_DEFS = {
       {key:"name",   label:"Effect name", type:"text",   default:""},
       {key:"target", label:"Target",      type:"select", default:"self", options:["self","actor","token_target","selected_token"]}
     ],
-    compile:(_,i,n)=>{
-      return `(hasEffect(${JSON.stringify(i.name ?? n?.data?.name ?? "")},${JSON.stringify(i.target ?? n?.data?.target ?? "self")}))`;
-    }
+    compile:(n,i)=>`{__sdHasEffect:${_arrayArg(i.target ?? n.data.target ?? "self")}|${_arrayArg(i.name ?? n.data.name ?? "")}}`
   },
 
   act_place_aura: {
@@ -4051,8 +4182,8 @@ export const NODE_DEFS = {
     ],
     outputs:[{id:"exec",label:"Pass в†’",type:"exec"}],
     fields:[],
-    isAction:true,
-    toAction:(n,inp)=>({type:"gate", condition: inp.cond ?? 0})
+    isIfCompare:true,
+    condition:(_,inp)=>inp.cond ?? "0"
   },
 
   reroute: {
@@ -4078,10 +4209,10 @@ export const NODE_DEFS = {
       {key:"a", label:"True (const)",  type:"text", default:"1"},
       {key:"b", label:"False (const)", type:"text", default:"0"}
     ],
-    compile:(_,i,n)=>{
+    compile:(n,i)=>{
       const c = i.cond ?? "0";
-      const a = i.a    ?? n?.data?.a ?? "1";
-      const b = i.b    ?? n?.data?.b ?? "0";
+      const a = i.a    ?? n.data?.a ?? "1";
+      const b = i.b    ?? n.data?.b ?? "0";
       return `(${c}?${a}:${b})`;
     }
   },
@@ -4098,15 +4229,16 @@ export const NODE_DEFS = {
       {key:"min", label:"Min", type:"number", default:1},
       {key:"max", label:"Max", type:"number", default:6}
     ],
-    compile:(_,i,n)=>{
-      const lo = i.min ?? n?.data?.min ?? 1;
-      const hi = i.max ?? n?.data?.max ?? 6;
+    compile:(n,i)=>{
+      const lo = i.min ?? n.data?.min ?? 1;
+      const hi = i.max ?? n.data?.max ?? 6;
       return `floor(random*(${hi}-${lo}+1)+${lo})`;
     }
   },
 
   get_var: {
     title:"Get Variable", color:"#2a3a5a", cat:"Sources",
+    hidden:true, replacement:"var_read",
     desc:"Read a named variable stored on this actor (actor.flags.sd.vars.NAME). Use with Set Variable to pass data between button clicks or graph segments.",
     inputs:[], outputs:[{id:"v", label:"Value", type:"value.any"}],
     fields:[{key:"name", label:"Variable Name", type:"text", default:"myVar", placeholder:"e.g. lastRollResult"}],
@@ -4198,6 +4330,7 @@ export const NODE_DEFS = {
 
   act_set_var: {
     title:"Set Variable", color:"#2a3a6a", cat:"Field Ops",
+    hidden:true, replacement:"var_write",
     desc:"Store a value in actor.flags.sd.vars.NAME (or world settings) for retrieval later. Useful for persisting roll results between button presses. Name and Scope can be fed via pins (UE-style вЂ” when wired the matching field hides).",
     inputs:[
       {id:"exec",  label:"",        type:"exec"},
@@ -4484,6 +4617,7 @@ export const NODE_DEFS = {
 
   on_event: {
     title:"On Event", color:"#c04040", cat:"Events", wideNode:true,
+    hidden:true, replacement:"specific On-* event nodes",
     desc:"Declarative event trigger: pick the event type from the dropdown. Equivalent to the specific On-* nodes but keeps the graph compact when you only need a single exec chain.",
     inputs:[], outputs:[
       {id:"exec", label:"в†’ Fire", type:"exec"}
@@ -4811,7 +4945,9 @@ export const NODE_DEFS = {
     desc:"Writes a variable by scope. Local lasts until the end of the current graph pass. Actor is stored in actor.flags.sd.vars. World goes into game.settings.",
     inputs:[
       {id:"exec",  label:"",      type:"exec"},
-      {id:"value", label:"Value", type:"value.any"}
+      {id:"name",  label:"Name",  type:"value.string"},
+      {id:"value", label:"Value", type:"value.any"},
+      {id:"scope", label:"Scope", type:"value.string"}
     ],
     outputs:[{id:"exec", label:"в†’", type:"exec"}],
     fields:[
@@ -4821,14 +4957,15 @@ export const NODE_DEFS = {
     isAction:true,
     toAction:(n,inp)=>({
       type:  "setVar",
-      name:  n.data.name  ?? "myVar",
+      name:  (inp.name != null && inp.name !== "") ? String(inp.name) : (n.data.name ?? "myVar"),
       value: inp.value    ?? "0",
-      scope: n.data.scope ?? "local"
+      scope: (inp.scope != null && inp.scope !== "") ? String(inp.scope) : (n.data.scope ?? "local")
     })
   },
 
   var_get: {
     title:"Get Variable", color:"#2a6a9a", cat:"Sources",
+    hidden:true, replacement:"var_read",
     desc:"Reads the value of a local graph variable. Variables are defined in the Variables panel of the graph editor.",
     inputs:[],
     outputs:[{id:"v", label:"Value", type:"value.any"}],
@@ -4841,6 +4978,7 @@ export const NODE_DEFS = {
 
   var_set: {
     title:"Set Variable", color:"#2a6a9a", cat:"Sources",
+    hidden:true, replacement:"var_write",
     desc:"Assigns a value to a local graph variable. Variables live within a single button press (per-run).",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
@@ -4854,7 +4992,8 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({
       type:  "setVar",
       name:  n.data.name ?? "myVar",
-      value: inp.value ?? "0"
+      value: inp.value ?? "0",
+      scope: "local"
     })
   },
 
@@ -5418,8 +5557,39 @@ export const NODE_DEFS = {
     isEvent:true, eventHook:"sdQuestRevealed"
   },
 
+  quest_set_state: {
+    title:"Set Quest State", color:"#3a8a60", cat:"Quest", wideNode:true,
+    desc:"Change a quest to Available, Active, Completed, Failed, or Locked. Replaces the five separate quest-state nodes.",
+    keywords:"activate complete fail lock available status state",
+    inputs:[
+      {id:"exec",     label:"",          type:"exec"},
+      {id:"questId",  label:"Quest Id",  type:"value.string"},
+      {id:"actorRef", label:"Actor",     type:"value.string"}
+    ],
+    outputs:[{id:"exec", label:"->", type:"exec"}],
+    fields:[
+      {key:"state", label:"State", type:"select", default:"activate", options:[
+        {value:"available", label:"Quest available"},
+        {value:"activate",  label:"Quest active"},
+        {value:"complete",  label:"Quest completed"},
+        {value:"fail",      label:"Quest failed"},
+        {value:"lock",      label:"Quest locked"}
+      ]},
+      {key:"questId",  label:"Quest Id", type:"text", default:"this"},
+      {key:"actorRef", label:"Actor for Active state", type:"text", default:"", placeholder:"id, UUID, this, or blank"}
+    ],
+    toAction:(n,inp)=>({
+      type:"questAction",
+      op:String(n.data?.state ?? "activate"),
+      questLogUuid:"this",
+      questId:String(inp.questId ?? n.data?.questId ?? "this"),
+      actorRef:String(inp.actorRef ?? n.data?.actorRef ?? "")
+    })
+  },
+
   quest_activate: {
     title:"Activate Quest", color:"#3a8a60", cat:"Quest", wideNode:true,
+    hidden:true, replacement:"quest_set_state",
     desc:"Set status of a quest to 'active'. If 'Set on actor' is wired or filled, also writes actor.system.activeQuest.",
     inputs:[
       {id:"exec",     label:"",          type:"exec"},
@@ -5441,6 +5611,7 @@ export const NODE_DEFS = {
 
   quest_complete: {
     title:"Complete Quest", color:"#3a8a60", cat:"Quest",
+    hidden:true, replacement:"quest_set_state",
     desc:"Set status of a quest to 'completed' and fire sdQuestCompleted hook.",
     inputs:[
       {id:"exec",    label:"",         type:"exec"},
@@ -5459,6 +5630,7 @@ export const NODE_DEFS = {
 
   quest_fail: {
     title:"Fail Quest", color:"#a04050", cat:"Quest",
+    hidden:true, replacement:"quest_set_state",
     desc:"Set status of a quest to 'failed' and fire sdQuestFailed.",
     inputs:[
       {id:"exec",    label:"",         type:"exec"},
@@ -5477,6 +5649,7 @@ export const NODE_DEFS = {
 
   quest_lock: {
     title:"Lock Quest", color:"#7a7a8a", cat:"Quest",
+    hidden:true, replacement:"quest_set_state",
     desc:"Set status of a quest to 'locked' (hidden from players regardless of visibility).",
     inputs:[
       {id:"exec",    label:"",         type:"exec"},
@@ -5495,6 +5668,7 @@ export const NODE_DEFS = {
 
   quest_make_available: {
     title:"Make Quest Available", color:"#5a8ad8", cat:"Quest",
+    hidden:true, replacement:"quest_set_state",
     desc:"Set status of a quest to 'available' (unlocked for activation).",
     inputs:[
       {id:"exec",    label:"",         type:"exec"},
@@ -6210,8 +6384,31 @@ export const NODE_DEFS = {
     compile:()=>`{__sdInteractableConfigUuid}`
   },
 
+  actor_token_info: {
+    title:"Actor / Token Info", color:"#1a4060", cat:"Sources",
+    isInteractableOnly:true,
+    desc:"Read the actor name, token name, actor portrait, and token image from the current character interaction in one node.",
+    keywords:"get actor name token name portrait image texture avatar",
+    inputs:[],
+    outputs:[
+      {id:"actorName",  label:"Actor Name",  type:"value.string"},
+      {id:"tokenName",  label:"Token Name",  type:"value.string"},
+      {id:"portrait",   label:"Portrait",    type:"value.string"},
+      {id:"tokenImage", label:"Token Image", type:"value.string"}
+    ],
+    fields:[],
+    compile:()=>`{__sdInteractableActorName}`,
+    compilePin:(_,__,pin)=>({
+      actorName:  "{__sdInteractableActorName}",
+      tokenName:  "{__sdInteractableTokenName}",
+      portrait:   "{__sdInteractableActorPortrait}",
+      tokenImage: "{__sdInteractableTokenImage}"
+    }[pin] ?? "")
+  },
+
   get_actor_name: {
     title:"Get Actor Name", color:"#1a4060", cat:"Sources",
+    hidden:true, replacement:"actor_token_info",
     isInteractableOnly:true,
     desc:"Returns the name of the Actor behind the current interactable target.",
     inputs:[],
@@ -6222,6 +6419,7 @@ export const NODE_DEFS = {
 
   get_token_name: {
     title:"Get Token Name", color:"#1a4060", cat:"Sources",
+    hidden:true, replacement:"actor_token_info",
     isInteractableOnly:true,
     desc:"Returns the name of the Token the current interactable is shown on.",
     inputs:[],
@@ -6232,6 +6430,7 @@ export const NODE_DEFS = {
 
   get_actor_portrait: {
     title:"Get Actor Portrait", color:"#1a4060", cat:"Sources",
+    hidden:true, replacement:"actor_token_info",
     isInteractableOnly:true,
     desc:"Returns the Actor portrait image path from the current interactable target.",
     inputs:[],
@@ -6242,6 +6441,7 @@ export const NODE_DEFS = {
 
   get_actor_token_image: {
     title:"Get Actor Token Image", color:"#1a4060", cat:"Sources",
+    hidden:true, replacement:"actor_token_info",
     isInteractableOnly:true,
     desc:"Returns the token texture image path for the Token the current interactable is shown on.",
     inputs:[],
@@ -6975,7 +7175,11 @@ const _ROLL_META_BASIC = {
   min:           "{__lastMin}",
   max:           "{__lastMax}",
   avg:           "{__lastAvg}",
-  diceArray:     "{__lastDice}"
+  diceArray:     "{__lastDice}",
+  minValue:      "{__lastMinValue}",
+  maxValue:      "{__lastMaxValue}",
+  minValueTotal: "{__lastMinValueTotal}",
+  maxValueTotal: "{__lastMaxValueTotal}"
 };
 const _ROLL_META = {
   ..._ROLL_META_BASIC,
@@ -7020,6 +7224,10 @@ const BRANCH_PIN_TOKENS = {
   },
   act_for_each_token: {
     token: "{__currentTarget}",
+    index: "{__loopIndex}"
+  },
+  arr_for_each: {
+    item:  "{__loopItem}",
     index: "{__loopIndex}"
   },
   arr_compare_two: {
@@ -7288,6 +7496,8 @@ export class FormulaGraph {
     this._history     = [];
     this._historyIdx  = -1;
     this._suppressHistory = false;
+    this._palQuery    = "";
+    this._migrationCount = 0;
     this._loadGraph();
     this._sanitizeGraph();
     this._pushHistory();
@@ -7915,6 +8125,12 @@ export class FormulaGraph {
     return (typeof v === "string" && v.length) ? v : null;
   }
 
+  _runMigrations() {
+    const result = migrateGraph(this);
+    this._migrationCount += Number(result?.changed) || 0;
+    return result;
+  }
+
   _aiKnownDataPaths() {
     const paths = new Map();
     const add = (path, label = "", source = "document", valueType = "") => {
@@ -8085,9 +8301,10 @@ export class FormulaGraph {
       "on_click", "branch", "if_node", "gate", "sequence",
       "get_path", "literal", "literal_str",
       "lt", "lte", "gt", "gte", "eq", "neq", "and", "or", "not",
-      "act_message", "act_notify", "act_roll_value", "act_damage", "act_heal", "act_modify",
+      "act_message", "act_message_composer", "act_notify", "act_roll_value", "act_damage", "act_heal", "act_modify",
       "act_ai_request", "act_ai_assistant", "ai_dialogue_choices", "act_dialog_builder",
-      "get_actor_name", "get_token_name", "get_actor_portrait", "get_actor_token_image"
+      "actor_token_info", "arr_get", "arr_aggregate", "arr_random_from",
+      "var_read", "var_write", "quest_set_state"
     ];
   }
 
@@ -8115,7 +8332,15 @@ export class FormulaGraph {
       act_dialog_builder: ["dialogue builder", "dialog builder", "диалог"],
       ai_dialogue_choices: ["ai dialogue choices", "ai choices", "варианты ответов"],
       act_ai_request: ["ai request", "request ai", "нейросеть"],
-      act_ai_assistant: ["ai assistant", "assistant"]
+      act_ai_assistant: ["ai assistant", "assistant"],
+      actor_token_info: ["get actor name", "get token name", "get actor portrait", "get actor token image", "actor info", "token info"],
+      arr_get: ["array get", "token at index", "array at", "element at index"],
+      arr_aggregate: ["array sum", "array average", "array min", "array max", "array count", "aggregate array"],
+      arr_random_from: ["array random pick", "random from array", "pick random elements"],
+      act_message_composer: ["message composer", "message compiler", "message compilator", "interactive chat card", "damage card", "chat buttons", "compile message"],
+      var_read: ["get variable", "read variable"],
+      var_write: ["set variable", "write variable"],
+      quest_set_state: ["activate quest", "complete quest", "fail quest", "lock quest", "make quest available"]
     };
     return map[type] ?? [];
   }
@@ -8138,6 +8363,7 @@ export class FormulaGraph {
       }
     };
     addPins(side === "output" ? def.outputs : def.inputs);
+    if (catalog && side === "output") addPins(def.catalogOutputs);
     if (side === "output" && node && typeof def.computeDynamicOutputs === "function") {
       addPins(def.computeDynamicOutputs(node) ?? []);
     }
@@ -8192,7 +8418,11 @@ export class FormulaGraph {
 
   _normalizeAIAssistantNodeType(type, data = null) {
     const raw = String(type ?? "").trim();
-    if (NODE_DEFS[raw]) return raw;
+    if (NODE_DEFS[raw]) {
+      const migrated = NODE_TYPE_MIGRATIONS[raw]?.newType;
+      if (migrated && NODE_DEFS[migrated]) return migrated;
+      return raw;
+    }
     const key = this._aiNormKey(raw);
     const op = this._aiNormKey(data?.operator ?? data?.op ?? data?.compare ?? "");
     const cmpByOp = {
@@ -8233,6 +8463,12 @@ export class FormulaGraph {
       act_send_chat: "act_message",
       chat_output: "act_message",
       output_chat: "act_message",
+      message_composer: "act_message_composer",
+      message_compiler: "act_message_composer",
+      message_compilator: "act_message_composer",
+      interactive_chat_card: "act_message_composer",
+      chat_card: "act_message_composer",
+      damage_card: "act_message_composer",
       notify: "act_notify",
       notification: "act_notify",
       roll_value: "act_roll_value",
@@ -8246,11 +8482,22 @@ export class FormulaGraph {
       dialog_builder: "act_dialog_builder",
       dialog: "act_dialog_builder"
     };
-    return map[key] ?? raw;
+    if (map[key]) return map[key];
+    const byCatalogName = Object.entries(NODE_DEFS).find(([nodeType, def]) => {
+      if (def?.hidden || def?.isWidgetConfig) return false;
+      if (this._aiNormKey(nodeType) === key || this._aiNormKey(def?.title) === key) return true;
+      return this._aiNodeAliases(nodeType).some(alias => this._aiNormKey(alias) === key);
+    });
+    return byCatalogName?.[0] ?? raw;
   }
 
   _normalizeAIAssistantNodeData(type, data = {}, originalType = "") {
-    const clean = data && typeof data === "object" ? { ...data } : {};
+    let clean = data && typeof data === "object" ? { ...data } : {};
+    const migration = NODE_TYPE_MIGRATIONS[String(originalType ?? "").trim()];
+    if (migration?.newType === type) {
+      const migrated = migration.dataMap ? migration.dataMap(clean) : { ...clean };
+      clean = { ...(migrated ?? {}), ...clean };
+    }
     if (type === "get_path") {
       clean.path = clean.path ?? clean.field ?? clean.fieldPath ?? clean.hpPath ?? clean.dataPath ?? "system.resources.hp.value";
     }
@@ -8262,6 +8509,31 @@ export class FormulaGraph {
     }
     if (type === "act_message") {
       clean.message = clean.message ?? clean.text ?? clean.content ?? clean.flavor ?? clean.label ?? "";
+    }
+    if (type === "act_message_composer") {
+      clean.title = clean.title ?? clean.label ?? clean.flavor ?? "Message";
+      clean.message = clean.message ?? clean.text ?? clean.content ?? clean.description ?? "";
+      if (!Array.isArray(clean.buttons)) {
+        const rawLabels = Array.isArray(clean.buttonLabels)
+          ? clean.buttonLabels
+          : String(clean.buttonLabels ?? clean.buttonLabel ?? "").split(/[|,]/).map(value => value.trim()).filter(Boolean);
+        const requestedCount = Math.max(1, Math.min(6, Number(clean.buttonCount ?? rawLabels.length ?? 1) || 1));
+        clean.buttons = Array.from({length:6}, (_, index) => ({
+          id:`btn${index}`,
+          enabled:index < requestedCount,
+          label:String(rawLabels[index] ?? (index === 0 ? "Apply" : `Button ${index + 1}`)),
+          icon:index === 0 ? "fas fa-check" : "fas fa-circle",
+          variant:index === 0 ? "primary" : "secondary"
+        }));
+      } else {
+        clean.buttons = clean.buttons.slice(0, 6).map((button, index) => ({
+          id:`btn${index}`,
+          enabled:button?.enabled !== false,
+          label:String(button?.label ?? button?.text ?? `Button ${index + 1}`),
+          icon:String(button?.icon ?? (index === 0 ? "fas fa-check" : "fas fa-circle")),
+          variant:String(button?.variant ?? button?.style ?? (index === 0 ? "primary" : "secondary"))
+        }));
+      }
     }
     if (type === "if_node") {
       let op = clean.operator ?? clean.op ?? clean.compare ?? clean.comparison ?? "<";
@@ -8889,7 +9161,7 @@ export class FormulaGraph {
         this.nodes    = foundry.utils.deepClone(s.nodes);
         this.edges    = foundry.utils.deepClone(s.edges ?? []);
         this.comments = foundry.utils.deepClone(s.comments ?? []);
-        migrateGraph(this);
+        this._runMigrations();
         if (this.initiativeMode) this._ensureInitiativeNodes();
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
@@ -8908,7 +9180,7 @@ export class FormulaGraph {
         this.nodes    = foundry.utils.deepClone(s.nodes);
         this.edges    = foundry.utils.deepClone(s.edges ?? []);
         this.comments = foundry.utils.deepClone(s.comments ?? []);
-        migrateGraph(this);
+        this._runMigrations();
         this._ensureNumberWidgetGraph();
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
@@ -8923,7 +9195,7 @@ export class FormulaGraph {
         this.nodes = foundry.utils.deepClone(s.nodes);
         this.edges = foundry.utils.deepClone(s.edges ?? []);
         this.comments = foundry.utils.deepClone(s.comments ?? []);
-        migrateGraph(this);
+        this._runMigrations();
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
       } else {
@@ -8937,7 +9209,7 @@ export class FormulaGraph {
         this.nodes = foundry.utils.deepClone(s.nodes);
         this.edges = foundry.utils.deepClone(s.edges ?? []);
         this.comments = foundry.utils.deepClone(s.comments ?? []);
-        migrateGraph(this);
+        this._runMigrations();
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
       } else {
@@ -8952,7 +9224,7 @@ export class FormulaGraph {
         this.nodes = foundry.utils.deepClone(g.nodes);
         this.edges = foundry.utils.deepClone(g.edges ?? []);
         this.comments = foundry.utils.deepClone(g.comments ?? []);
-        migrateGraph(this);
+        this._runMigrations();
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
       } else {
@@ -8968,7 +9240,7 @@ export class FormulaGraph {
         this.nodes = foundry.utils.deepClone(s.nodes);
         this.edges = foundry.utils.deepClone(s.edges??[]);
         this.comments = foundry.utils.deepClone(s.comments ?? []);
-        migrateGraph(this);
+        this._runMigrations();
         this._migrateAttrGraph();
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
@@ -8983,7 +9255,7 @@ export class FormulaGraph {
       this.nodes = foundry.utils.deepClone(s.nodes);
       this.edges = foundry.utils.deepClone(s.edges??[]);
       this.comments = foundry.utils.deepClone(s.comments ?? []);
-      migrateGraph(this);
+      this._runMigrations();
       if (this.widget?.type === "attribute") {
         this._migrateAttrGraph();
       } else if (this.widget?.type === "skill") {
@@ -9142,9 +9414,7 @@ export class FormulaGraph {
             const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
             modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
           }
-          const onClickNode = this.nodes.find(n => n.type === "on_click");
-          const clickEdge   = onClickNode ? this.edges.find(e => e.fromNode === onClickNode.id && e.fromPin === "exec") : null;
-          const onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
+          const onClickFormula = this._compileOnClickFormula();
           widget.attrGraphs = (widget.attrGraphs && typeof widget.attrGraphs === "object") ? { ...widget.attrGraphs } : {};
           widget.attrGraphs[attrKey] = { graphData: data, modValueFormula, onClickFormula };
         } else {
@@ -9156,9 +9426,7 @@ export class FormulaGraph {
               const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
               widget.modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
             }
-            const onClickNode = this.nodes.find(n => n.type === "on_click");
-            const clickEdge   = onClickNode ? this.edges.find(e => e.fromNode === onClickNode.id && e.fromPin === "exec") : null;
-            widget.onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
+            widget.onClickFormula = this._compileOnClickFormula();
             widget.modFormula = undefined;
             widget.formula    = undefined;
           } else if (this.widget?.type === "skill") {
@@ -9168,9 +9436,7 @@ export class FormulaGraph {
               const modSrc = mvEdge ? this.nodes.find(n => n.id === mvEdge.fromNode) : null;
               widget.modValueFormula = modSrc ? this._compileValue(modSrc, new Set(), mvEdge.fromPin) : null;
             }
-            const onClickNode = this.nodes.find(n => n.type === "on_click");
-            const clickEdge   = onClickNode ? this.edges.find(e => e.fromNode === onClickNode.id && e.fromPin === "exec") : null;
-            widget.onClickFormula = clickEdge ? this._compileExecChain(clickEdge.toNode) : null;
+            widget.onClickFormula = this._compileOnClickFormula();
           }
         }
         await doc.update({"system.customTabs":tabs});
@@ -9296,6 +9562,27 @@ export class FormulaGraph {
     return (this._smartIndex?.invItemSlots ?? []).filter(s => s.itemId === itemId).map(s => ({ id: s.slotId, label: s.slotLabel, source: itemId }));
   }
 
+  _compileEntryActions(entry, exitPin = "exec") {
+    if (!entry) return [];
+    const actions = [];
+    const edges = this.edges.filter(edge => edge.fromNode === entry.id && edge.fromPin === exitPin);
+    for (const edge of edges) {
+      try {
+        const branch = JSON.parse(this._compileExecChain(edge.toNode));
+        if (Array.isArray(branch)) actions.push(...branch);
+      } catch {}
+    }
+    return actions;
+  }
+
+  _compileOnClickFormula() {
+    const actions = [];
+    for (const trigger of this.nodes.filter(node => node.type === "on_click")) {
+      actions.push(...this._compileEntryActions(trigger));
+    }
+    return actions.length ? JSON.stringify(actions) : null;
+  }
+
   compile() {
     const valOut = this.nodes.find(n=>n.type==="attr_output" || n.type==="skill_output");
     if (valOut) {
@@ -9332,20 +9619,16 @@ export class FormulaGraph {
       });
     }
 
-    const trigger = this.nodes.find(n=>n.type==="on_click");
+    const triggerNodes = this.nodes.filter(n=>n.type==="on_click");
     const eventNodes = this.nodes.filter(n => NODE_DEFS[n.type]?.isEvent);
-    if (trigger || eventNodes.length) {
+    if (triggerNodes.length || eventNodes.length) {
       const triggers = {};
-      const _chainFor = (entry) => {
-        const exitPin = (entry.type === "on_click") ? "exec" : "exec";
-        const e = this.edges.find(ed => ed.fromNode === entry.id && ed.fromPin === exitPin);
-        if (!e) return null;
-        try { return JSON.parse(this._compileExecChain(e.toNode)); }
-        catch { return []; }
-      };
-      if (trigger) {
+      const _chainFor = (entry) => this._compileEntryActions(entry);
+      for (const trigger of triggerNodes) {
         const actions = _chainFor(trigger);
-        if (actions?.length) triggers.onClick = actions;
+        if (!actions?.length) continue;
+        if (!Array.isArray(triggers.onClick)) triggers.onClick = [];
+        triggers.onClick.push(...actions);
       }
       const _dynHook = (ev) => {
         if (ev.type !== "on_event") return NODE_DEFS[ev.type]?.eventHook;
@@ -9369,7 +9652,7 @@ export class FormulaGraph {
       for (const ev of eventNodes) {
         const actions = _chainFor(ev);
         if (!actions?.length) continue;
-        const key = (ev.type === "on_event") ? `on_event::${ev.id}` : ev.type;
+        const key = `${ev.type}::${ev.id}`;
         triggers[key] = { hook: _dynHook(ev), data: ev.data ?? {}, actions };
       }
       const macroInputs = this.nodes.filter(n => NODE_DEFS[n.type]?.isMacroInput);
@@ -9377,10 +9660,7 @@ export class FormulaGraph {
       for (const mi of macroInputs) {
         const mid = mi.data?.macroId?.trim();
         if (!mid) continue;
-        const e = this.edges.find(ed => ed.fromNode === mi.id && ed.fromPin === "exec");
-        if (!e) { macros[mid] = []; continue; }
-        try { macros[mid] = JSON.parse(this._compileExecChain(e.toNode)); }
-        catch { macros[mid] = []; }
+        macros[mid] = this._compileEntryActions(mi);
       }
 
       if (Object.keys(triggers).length) {
@@ -9975,13 +10255,17 @@ export class FormulaGraph {
     const macros = new Map();
 
     for (const n of this.nodes) {
-      if (n.type === "var_get") {
-        const k = (n.data?.name ?? "").trim() || "(unnamed)";
+      if (["var_read", "var_get", "get_var"].includes(n.type)) {
+        const scope = n.type === "get_var" ? "actor" : (n.type === "var_get" ? "local" : String(n.data?.scope ?? "local"));
+        const name = String(n.data?.name ?? "").trim() || "(unnamed)";
+        const k = `${scope}: ${name}`;
         const rec = vars.get(k) ?? { nodes: [], hasSet:false, hasGet:false };
         rec.nodes.push(n.id); rec.hasGet = true;
         vars.set(k, rec);
-      } else if (n.type === "var_set") {
-        const k = (n.data?.name ?? "").trim() || "(unnamed)";
+      } else if (["var_write", "var_set", "act_set_var"].includes(n.type)) {
+        const scope = n.type === "act_set_var" ? String(n.data?.scope ?? "actor") : (n.type === "var_set" ? "local" : String(n.data?.scope ?? "local"));
+        const name = String(n.data?.name ?? "").trim() || "(unnamed)";
+        const k = `${scope}: ${name}`;
         const rec = vars.get(k) ?? { nodes: [], hasSet:false, hasGet:false };
         rec.nodes.push(n.id); rec.hasSet = true;
         vars.set(k, rec);
@@ -10029,7 +10313,7 @@ export class FormulaGraph {
 
     panel.innerHTML = `
       ${sectionHeader("Variables", vars.size)}
-      ${varRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No variables. Use <b>var_set</b> / <b>var_get</b> nodes.</div>`}
+      ${varRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No variables. Use Read Variable and Write Variable.</div>`}
       ${sectionHeader("Macros", macros.size)}
       ${macroRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No macros. Use <b>macro_input</b> (define) / <b>macro_call</b> (invoke).</div>`}
     `;
@@ -10079,7 +10363,8 @@ export class FormulaGraph {
     win.innerHTML=`
       <div id="gbar" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move;user-select:none">
         <i class="fas fa-diagram-project" style="color:var(--sd-accent);font-size:13px"></i>
-        <b style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-accent);flex:none">Graph Editor</b>
+        <b style="font-size:11px;text-transform:uppercase;letter-spacing:0;color:var(--sd-accent);flex:none">Graph Editor</b>
+        ${this._migrationCount ? `<span id="gmigration" title="Legacy nodes were updated in memory. Save & Apply to persist the migrated graph." style="display:flex;align-items:center;gap:5px;flex:none;padding:4px 7px;border:1px solid var(--sd-warning,#d7a53a);border-radius:6px;color:var(--sd-warning,#d7a53a);font-size:10px;letter-spacing:0"><i class="fas fa-wand-magic-sparkles"></i>${this._migrationCount} updated</span>` : ""}
         <div id="gfnbar" style="display:none;align-items:center;gap:6px;flex:none;background:var(--sd-control-bg,var(--sd-bg-3));border:1px solid var(--sd-control-border,var(--sd-border));border-radius:8px;padding:3px 8px;color:var(--sd-text-2);font-size:11px">
           <button id="gfnback" style="background:var(--sd-control-bg,var(--sd-bg-3));border:1px solid var(--sd-control-border,var(--sd-border));border-radius:6px;color:var(--sd-text);cursor:pointer;font-size:11px;padding:3px 8px" title="Return to outer graph"><i class="fas fa-arrow-left" style="margin-right:3px"></i>Back</button>
           <span id="gfncrumb" style="font-family:monospace;font-weight:600">\u0192 function</span>
@@ -10097,7 +10382,16 @@ export class FormulaGraph {
         <button id="gclose" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s" title="Close" aria-label="Close graph editor"><i class="fas fa-xmark"></i></button>
       </div>
       <div style="display:flex;flex:1;overflow:hidden;min-height:0">
-        <div id="gpal" style="width:190px;flex-shrink:0;background:var(--sd-bg-2);border-right:1px solid var(--sd-border);overflow-y:auto;padding:4px 0">${this._buildPal()}</div>
+        <aside style="width:210px;min-width:180px;flex-shrink:0;background:var(--sd-bg-2);border-right:1px solid var(--sd-border);display:flex;flex-direction:column;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:5px;padding:7px;border-bottom:1px solid var(--sd-border);flex-shrink:0">
+            <label for="gpalsearch" style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;background:var(--sd-graph-field-bg,var(--sd-bg));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:6px;padding:0 7px;color:var(--sd-text-3)">
+              <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+              <input id="gpalsearch" type="search" value="${esc(this._palQuery)}" placeholder="Find nodes..." autocomplete="off" style="width:100%;min-width:0;height:28px;padding:0;border:0;background:transparent;color:var(--sd-text);font-size:11px;outline:none;box-shadow:none;letter-spacing:0">
+            </label>
+            <button id="gpalclear" type="button" title="Clear node search" aria-label="Clear node search" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex:0 0 30px;border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg-3);color:var(--sd-text-2);cursor:pointer"><i class="fas fa-xmark"></i></button>
+          </div>
+          <div id="gpal" style="flex:1;min-height:0;overflow-y:auto;padding:4px 0">${this._buildPal()}</div>
+        </aside>
         <div id="gvarpanel" style="width:180px;flex-shrink:0;background:var(--sd-bg-3);border-right:1px solid var(--sd-border);overflow-y:auto;padding:4px 0;font-size:10px;color:var(--sd-text-2)"></div>
         <div id="gwrap" style="flex:1;position:relative;overflow:hidden;cursor:default;user-select:none;touch-action:none;
           background:
@@ -10218,7 +10512,24 @@ export class FormulaGraph {
     return true;
   }
 
-  _buildPal() {
+  _matchesNodeSearch(type, def, query = "") {
+    const q = String(query ?? "").trim().toLocaleLowerCase();
+    if (!q) return true;
+    const terms = q.split(/\s+/).filter(Boolean);
+    const haystack = [
+      type,
+      def?.title,
+      _NL(def?.title),
+      def?.desc,
+      _NL(def?.desc),
+      def?.cat,
+      def?.keywords,
+      def?.replacement
+    ].filter(Boolean).join(" ").toLocaleLowerCase();
+    return terms.every(term => haystack.includes(term));
+  }
+
+  _buildPal(query = this._palQuery) {
     const ctx = this._nodeFilterContext();
 
     const rows = CATS.map(cat=>{
@@ -10226,28 +10537,39 @@ export class FormulaGraph {
       if (ctx.isNumberWidgetMode && !ctx.ALLOWED_NUMBER_CATS.has(cat.id)) return "";
 
       if (cat.id === "Functions") {
-        return this._buildPalFunctions(cat);
+        return this._buildPalFunctions(cat, query);
       }
 
-      const nodes = Object.entries(NODE_DEFS).filter(([type,d]) => {
-        return this._isNodeAvailableInCurrentGraph(type, d, cat.id, ctx);
-      });
+      const nodes = Object.entries(NODE_DEFS)
+        .filter(([type,d]) => this._isNodeAvailableInCurrentGraph(type, d, cat.id, ctx))
+        .filter(([type,d]) => this._matchesNodeSearch(type, d, query))
+        .sort((a,b) => String(_NL(a[1].title)).localeCompare(String(_NL(b[1].title))));
       if (!nodes.length) return "";
-      return `<div style="padding:5px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:4px">${esc(_NL(cat.id))}</div>
+      return `<div style="display:flex;align-items:center;gap:6px;padding:6px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:4px">
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(_NL(cat.id))}</span>
+          <span style="color:var(--sd-text-3);font-weight:600">${nodes.length}</span>
+        </div>
         ${nodes.map(([type,d])=>`<div class="gpal" data-type="${type}" draggable="true" title="${esc(_NL(d.desc??d.title))}"
-          style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:grab;border-radius:8px;margin:1px 4px;transition:.15s">
+          style="display:flex;align-items:center;gap:8px;min-height:28px;padding:5px 10px;cursor:grab;border-radius:6px;margin:1px 4px;transition:.15s;box-sizing:border-box">
           <div style="width:9px;height:9px;border-radius:${d.isAction?'2px':'50%'};flex-shrink:0;background:${d.color};opacity:.9"></div>
-          <span style="font-size:11px;color:var(--sd-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(_NL(d.title))}</span>
+          <span style="min-width:0;font-size:11px;color:var(--sd-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:0">${esc(_NL(d.title))}</span>
         </div>`).join("")}`;
     }).join("");
-    return rows;
+    if (rows.trim()) return rows;
+    return `<div style="padding:18px 12px;text-align:center;color:var(--sd-text-3);font-size:10px;line-height:1.4">No matching nodes</div>`;
   }
 
-  _buildPalFunctions(cat) {
+  _buildPalFunctions(cat, query = "") {
     const isGM = !!(game?.user?.isGM);
     const lib = this._getFunctionLib?.() ?? { functions: {} };
-    const fns = Object.values(lib.functions ?? {});
+    const q = String(query ?? "").trim().toLocaleLowerCase();
+    const fns = Object.values(lib.functions ?? {}).filter(fn => {
+      if (!q) return true;
+      const hay = [fn.id, fn.name, fn.description].filter(Boolean).join(" ").toLocaleLowerCase();
+      return q.split(/\s+/).filter(Boolean).every(term => hay.includes(term));
+    });
     fns.sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+    if (q && !fns.length) return "";
 
     const head = `<div style="padding:5px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:4px">${esc(_NL(cat.id))}</div>`;
     const btns = isGM ? `<div style="display:flex;gap:4px;padding:3px 6px 4px">
@@ -10330,6 +10652,20 @@ export class FormulaGraph {
     win.querySelector("#glint")?.addEventListener("click", () => this._runLint());
 
     win.querySelector("#gaiassist")?.addEventListener("click", () => this._openAIAssistant());
+
+    const palSearch = win.querySelector("#gpalsearch");
+    palSearch?.addEventListener("input", () => {
+      this._palQuery = palSearch.value ?? "";
+      this._refreshPalette(false);
+    });
+    win.querySelector("#gpalclear")?.addEventListener("click", () => {
+      this._palQuery = "";
+      if (palSearch) {
+        palSearch.value = "";
+        palSearch.focus();
+      }
+      this._refreshPalette(false);
+    });
 
     this._raf = 0;
     this._scheduleEdges = () => {
@@ -10638,10 +10974,8 @@ export class FormulaGraph {
         if (ctx.isQuestModeAny && !ctx.ALLOWED_QUEST_CATS.has(cat.id)) return;
         const nodes=Object.entries(NODE_DEFS).filter(([type,d])=>{
           if (!this._isNodeAvailableInCurrentGraph(type, d, cat.id, ctx)) return false;
-          if(!q) return true;
-          const hay = (_NL(d.title) + " " + d.title).toLowerCase();
-          return hay.includes(q.toLowerCase());
-        });
+          return this._matchesNodeSearch(type, d, q);
+        }).sort((a,b)=>String(_NL(a[1].title)).localeCompare(String(_NL(b[1].title))));
         if(!nodes.length) return;
         const h=document.createElement("div");
         h.style.cssText=`padding:3px 10px;font-size:9px;font-weight:700;text-transform:uppercase;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:3px`;
@@ -11068,24 +11402,16 @@ export class FormulaGraph {
     el.dataset.nid=node.id;
     el.dataset.type=node.type;
 
-    const W_BASE = def.wideNode ? 480 : def.isAttackBranch ? 380 : def.isBranch ? 320 : def.isAction ? 360 : (def.isOutput||def.isAttrOutput||def.isSkillOutput) ? 260 : 300;
-
-    const _resolvedIns  = def.computeDynamicInputs  ? def.computeDynamicInputs(node)  : (def.inputs  ?? []);
-    const _resolvedOuts = def.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def.outputs ?? []);
-    const _allPinLabels = [
-      ..._resolvedIns.map(p => p.label ?? ""),
-      ..._resolvedOuts.map(p => p.label ?? "")
-    ];
-    const _longestPinLabel = _allPinLabels.reduce((m, s) => Math.max(m, String(s).length), 0);
-    const W_PIN = _longestPinLabel > 0 ? 80 + Math.ceil(_longestPinLabel * 7.2) : 0;
-
-    const _longestDataVal = Object.values(node.data ?? {}).reduce((max, v) => {
-      const len = typeof v === "string" ? v.length : 0;
-      return len > max ? len : max;
-    }, 0);
-    const W_DATA = _longestDataVal > 0 ? Math.min(560, 100 + Math.ceil(_longestDataVal * 7.5)) : 0;
-    const W_MIN = W_BASE;
-    const W = Math.max(W_BASE, W_PIN, W_DATA);
+    const _nodeComplexity = (def.inputs?.length ?? 0) + (def.outputs?.length ?? 0) + (def.fields?.length ?? 0);
+    const W = Number(def.nodeWidth) || (def.wideNode || _nodeComplexity > 18
+      ? 620
+      : (def.isAttackBranch || def.isBranch || def.isGenericBranch)
+        ? 540
+        : def.isAction
+          ? 520
+          : (def.isOutput || def.isAttrOutput || def.isSkillOutput)
+            ? 400
+            : 460);
 
     const _kind   = getNodeKind(def);
     const _accent = SD_NODE_KIND_COLOURS[_kind] ?? "rgba(255,255,255,.08)";
@@ -11094,11 +11420,11 @@ export class FormulaGraph {
     const _brokenBorder = _funcBroken ? "#e04040" : null;
     const _border = _brokenBorder ?? `${_accent}55`;
     const _borderLeft = _brokenBorder ?? _accent;
-    el.style.cssText=`position:absolute;left:${node.x}px;top:${node.y}px;min-width:${W_MIN}px;width:${W}px;max-width:640px;
+    el.style.cssText=`position:absolute;left:${node.x}px;top:${node.y}px;width:${W}px;max-width:680px;
       background:var(--sd-graph-node-bg,linear-gradient(180deg,var(--sd-bg-2),#101521));
       border:1px solid ${_border};
       border-left:3px solid ${_borderLeft};
-      border-radius:16px;
+      border-radius:8px;
       box-shadow:var(--sd-graph-node-shadow,0 18px 45px rgba(0,0,0,.5)), 0 0 0 1px ${_accent}22 inset${_funcBroken?", 0 0 0 2px rgba(224,64,64,.4) inset":""};
       overflow:hidden;
       transform:translateZ(0);`;
@@ -11121,7 +11447,7 @@ export class FormulaGraph {
         height:42px;display:flex;align-items:center;gap:10px;padding:0 12px;
         background:linear-gradient(90deg,${_hc}dd,${_hc}99);
         cursor:grab;user-select:none;">
-        <span style="font-size:12px;font-weight:800;color:#fff;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;letter-spacing:.2px" title="${esc(_NL(_hdrTitle))}">${esc(_NL(_hdrTitle))}</span>
+        <span style="font-size:12px;font-weight:800;color:#fff;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;letter-spacing:0" title="${esc(_NL(_hdrTitle))}">${esc(_NL(_hdrTitle))}</span>
         ${def.isFunctionCall && !_funcBroken ? `<button class="nfedit" data-nid="${node.id}" title="Edit function (double-click)"
           style="width:26px;height:26px;display:grid;place-items:center;border:none;border-radius:8px;
                  background:rgba(255,255,255,.1);color:#fff;cursor:pointer;font-size:12px;line-height:1;
@@ -11185,9 +11511,6 @@ export class FormulaGraph {
       inputPins = [...inputPins, ...dynPins];
     }
 
-    for(const p of inputPins.filter(p=>p.type==="exec"))
-      body.appendChild(this._pinRow(node,p,"input"));
-
     const valInsRaw = inputPins.filter(p=>p.type!=="exec");
 
     const valIns = valInsRaw.filter(p => {
@@ -11215,42 +11538,33 @@ export class FormulaGraph {
       if (!pinKeys.has(f.key) && !usedKeys.has(f.key)) rows.push({ inp:null, fld:f });
     }
 
-    const rowCount = Math.max(rows.length, valOuts.length);
-
-    const grid = document.createElement("div");
-    grid.style.cssText = "display:grid;grid-template-columns:max-content minmax(90px,1fr) max-content;column-gap:8px;align-items:center;padding:0 4px";
-
-    for (let i = 0; i < rowCount; i++) {
-      const r    = rows[i]    ?? { inp:null, fld:null };
-      const inp  = r.inp;
-      const fld  = r.fld;
-      const outp = valOuts[i] ?? null;
-
-      const leftCell = document.createElement("div");
-      leftCell.style.cssText = "display:flex;align-items:center;justify-content:flex-start;min-height:30px;min-width:0";
-      if (inp) leftCell.appendChild(this._pinEl(node, inp, "input"));
-      grid.appendChild(leftCell);
-
-      const midCell = document.createElement("div");
-      midCell.style.cssText = "display:flex;align-items:center;min-height:30px;min-width:0";
-      if (fld) midCell.appendChild(this._fldEl(node, fld, { hideLabel: !!inp }));
-      grid.appendChild(midCell);
-
-      const rightCell = document.createElement("div");
-      rightCell.style.cssText = "display:flex;align-items:center;justify-content:flex-end;min-height:30px;min-width:0";
-      if (outp) rightCell.appendChild(this._pinEl(node, outp, "output"));
-      grid.appendChild(rightCell);
-    }
-
-    if (rowCount > 0) body.appendChild(grid);
-
     let activeExecOuts = outputPins.filter(p=>p.type==="exec");
     if (def.isSequence) {
       const count = Math.max(2, Math.min(12, parseInt(node.data?.count) || 2));
       activeExecOuts = activeExecOuts.slice(0, count);
     }
-    for(const p of activeExecOuts)
-      body.appendChild(this._pinRow(node,p,"output"));
+
+    const layout = document.createElement("div");
+    layout.className = "gn-columns";
+    const leftColumn = document.createElement("div");
+    leftColumn.className = "gn-column gn-column-inputs";
+    const centerColumn = document.createElement("div");
+    centerColumn.className = "gn-column gn-column-controls";
+    const rightColumn = document.createElement("div");
+    rightColumn.className = "gn-column gn-column-outputs";
+
+    for (const pin of [...inputPins.filter(p => p.type === "exec"), ...valIns]) {
+      leftColumn.appendChild(this._pinEl(node, pin, "input"));
+    }
+    for (const row of rows) {
+      if (row.fld) centerColumn.appendChild(this._fldEl(node, row.fld, { hideLabel: !!row.inp }));
+    }
+    for (const pin of [...activeExecOuts, ...valOuts]) {
+      rightColumn.appendChild(this._pinEl(node, pin, "output"));
+    }
+
+    layout.append(leftColumn, centerColumn, rightColumn);
+    body.appendChild(layout);
 
     el.querySelector(".ndel")?.addEventListener("click",ev=>{ev.stopPropagation();this._delNode(node.id);});
     el.querySelector(".nfedit")?.addEventListener("click",ev=>{
@@ -11387,38 +11701,15 @@ export class FormulaGraph {
     });
   }
 
-  _pinRow(node,pin,side) {
-    const row=document.createElement("div");
-    const isExec=pin.type==="exec"||!pin.type;
-    row.style.cssText=`display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;column-gap:8px;align-items:center;min-height:30px;padding:0 14px`;
-    const dot=this._dotEl(node,pin,side);
-    const lbl=document.createElement("span");
-    lbl.textContent=_NL(pin.label||"");
-    lbl.style.cssText=`font-size:12px;color:${isExec?"#ffca6b":"var(--sd-text-2)"};
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1`;
-    const spacer=document.createElement("div");
-    if(side==="input"){
-      const left=document.createElement("div");
-      left.style.cssText="display:flex;align-items:center;gap:7px;justify-content:flex-start";
-      left.appendChild(dot); left.appendChild(lbl);
-      row.appendChild(left); row.appendChild(spacer); row.appendChild(document.createElement("div"));
-    } else {
-      const right=document.createElement("div");
-      right.style.cssText="display:flex;align-items:center;gap:7px;justify-content:flex-end";
-      right.appendChild(lbl); right.appendChild(dot);
-      row.appendChild(document.createElement("div")); row.appendChild(spacer); row.appendChild(right);
-    }
-    return row;
-  }
-
   _pinEl(node,pin,side) {
     const wrap=document.createElement("div");
-    wrap.style.cssText=`display:flex;align-items:center;gap:7px;padding:3px 0;${side==="output"?"padding-right:10px;justify-content:flex-end":"padding-left:10px"}`;
+    wrap.className = `gn-pin gn-pin-${side}`;
+    wrap.style.cssText=`display:flex;align-items:center;gap:7px;padding:3px 8px;min-height:30px;width:100%;min-width:0;${side==="output"?"justify-content:flex-end":"justify-content:flex-start"}`;
     const dot=this._dotEl(node,pin,side);
     const lbl=document.createElement("span");
     lbl.textContent=_NL(pin.label||"");
 
-    lbl.style.cssText="font-size:12px;color:var(--sd-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;line-height:1";
+    lbl.style.cssText="font-size:11px;color:var(--sd-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1;letter-spacing:0";
     if(side==="input"){wrap.appendChild(dot);wrap.appendChild(lbl);}
     else{wrap.appendChild(lbl);wrap.appendChild(dot);}
     return wrap;
@@ -11485,22 +11776,98 @@ export class FormulaGraph {
     return dot;
   }
 
+  async _editMessageComposerButtons(node) {
+    const buttons = _messageComposerButtons(node?.data);
+    const variants = [
+      ["primary", "Primary"],
+      ["secondary", "Secondary"],
+      ["success", "Success"],
+      ["danger", "Danger"],
+      ["warning", "Warning"]
+    ];
+    const rows = buttons.map((button, index) => `
+      <div class="sd-message-button-editor-row" data-index="${index}" style="display:grid;grid-template-columns:32px minmax(150px,1.3fr) minmax(150px,1fr) minmax(120px,.8fr);gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--sd-border)">
+        <input type="checkbox" name="enabled${index}" ${button.enabled ? "checked" : ""} aria-label="Enable button ${index + 1}" style="width:16px;height:16px;margin:auto;accent-color:var(--sd-accent)">
+        <input type="text" name="label${index}" value="${esc(button.label)}" placeholder="Button label" style="width:100%;height:30px;box-sizing:border-box;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:0 8px">
+        <input type="text" name="icon${index}" value="${esc(button.icon)}" placeholder="fas fa-check" style="width:100%;height:30px;box-sizing:border-box;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:0 8px;font-family:monospace">
+        <select name="variant${index}" style="width:100%;height:30px;box-sizing:border-box;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:0 6px">
+          ${variants.map(([value, label]) => `<option value="${value}" ${button.variant === value ? "selected" : ""}>${label}</option>`).join("")}
+        </select>
+      </div>`).join("");
+
+    const DialogV2 = foundry.applications.api.DialogV2;
+    const result = await DialogV2.wait({
+      window:{title:"Message Composer Buttons", resizable:true},
+      position:{width:700},
+      modal:true,
+      content:`
+        <div class="sd-message-button-editor" style="min-width:600px;padding:4px 2px">
+          <div style="display:grid;grid-template-columns:32px minmax(150px,1.3fr) minmax(150px,1fr) minmax(120px,.8fr);gap:8px;padding:0 0 5px;color:var(--sd-text-3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0">
+            <span>On</span><span>Label</span><span>Icon class</span><span>Style</span>
+          </div>
+          ${rows}
+        </div>`,
+      buttons:[
+        {
+          action:"save", label:"Save", icon:"fas fa-floppy-disk", default:true,
+          callback:(event, button, dialog) => {
+            const root = dialog?.element ?? dialog;
+            return buttons.map((existing, index) => ({
+              id:`btn${index}`,
+              enabled:!!root?.querySelector?.(`[name="enabled${index}"]`)?.checked,
+              label:root?.querySelector?.(`[name="label${index}"]`)?.value?.trim() || existing.label,
+              icon:root?.querySelector?.(`[name="icon${index}"]`)?.value?.trim() || existing.icon,
+              variant:root?.querySelector?.(`[name="variant${index}"]`)?.value || existing.variant
+            }));
+          }
+        },
+        {action:"cancel", label:"Cancel", callback:()=>null}
+      ],
+      rejectClose:false
+    }).catch(() => null);
+
+    if (!Array.isArray(result)) return;
+    node.data.buttons = result;
+    this._renderNode(node);
+    this._redrawEdges();
+    this._updatePreview();
+    this._pushHistory();
+  }
+
   _fldEl(node,field,opts){
     opts = opts || {};
     const wrap=document.createElement("div");
-    wrap.style.cssText="display:flex;align-items:center;gap:6px;padding:2px 4px;flex:1 1 auto;min-width:0;width:100%";
+    wrap.className = "gn-control";
+    wrap.style.cssText="display:flex;align-items:center;gap:6px;padding:3px 6px;min-height:30px;flex:1 1 auto;min-width:0;width:100%";
     if(field.label && !opts.hideLabel){
       const l=document.createElement("label");
       const lbl=_NL(field.label);
       l.textContent=lbl;
-      l.style.cssText="font-size:10px;color:var(--sd-label,var(--sd-text-2));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;flex-shrink:1;min-width:0;font-weight:600;letter-spacing:.03em;text-transform:uppercase;margin-right:4px";
+      l.style.cssText="font-size:10px;color:var(--sd-label,var(--sd-text-2));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;flex-shrink:1;min-width:0;font-weight:600;letter-spacing:0;text-transform:uppercase;margin-right:2px";
       l.title=lbl;
       wrap.appendChild(l);
     }
 
-    const IS="background:var(--sd-graph-field-bg,var(--sd-bg-3));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:6px;color:var(--sd-text);font-size:12px;padding:5px 10px;font-family:monospace;outline:none;min-width:80px;max-width:420px;width:auto;box-sizing:border-box;height:28px;field-sizing:content";
+    const IS="background:var(--sd-graph-field-bg,var(--sd-bg-3));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:6px;color:var(--sd-text);font-size:12px;padding:5px 8px;font-family:monospace;outline:none;min-width:0;max-width:100%;width:100%;box-sizing:border-box;height:28px";
     const SI=IS+";cursor:pointer";
     const idx=this._smartIndex??{slots:[],ownedItems:[],effects:[],widgets:[],invItemSlots:[]};
+
+    if (field.type === "message-buttons-editor") {
+      const buttons = _messageComposerButtons(node?.data);
+      const enabled = buttons.filter(button => button.enabled);
+      const control = document.createElement("button");
+      control.type = "button";
+      control.title = "Configure message buttons";
+      control.style.cssText = "width:100%;height:30px;display:flex;align-items:center;justify-content:center;gap:7px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text-2);cursor:pointer;font-size:11px";
+      control.innerHTML = `<i class="fas fa-sliders"></i><span>${enabled.length} button${enabled.length === 1 ? "" : "s"}</span>`;
+      control.addEventListener("mousedown", event => event.stopPropagation());
+      control.addEventListener("click", event => {
+        event.stopPropagation();
+        this._editMessageComposerButtons(node);
+      });
+      wrap.appendChild(control);
+      return wrap;
+    }
 
     if(field.type==="slot-picker"){
       const cur=node.data[field.key]??field.default??"slot1";
@@ -11780,17 +12147,6 @@ export class FormulaGraph {
         node.data.count = c;
         this._renderNode(node);
         this._scheduleEdges?.();
-      }
-      const _nodeEl = this.nodesEl?.querySelector(`[data-nid="${node.id}"]`);
-      if (_nodeEl) {
-        const _longestNow = Object.values(node.data ?? {}).reduce((max, v) => {
-          const len = typeof v === "string" ? v.length : 0;
-          return len > max ? len : max;
-        }, 0);
-        const def2 = NODE_DEFS[node.type] ?? {};
-        const W_BASE2 = def2.wideNode ? 400 : def2.isAttackBranch ? 340 : def2.isBranch ? 290 : def2.isAction ? 320 : (def2.isOutput||def2.isAttrOutput||def2.isSkillOutput) ? 240 : 260;
-        const W_NEW = Math.max(W_BASE2, _longestNow > 0 ? Math.min(520, 100 + Math.ceil(_longestNow * 7.5)) : 0);
-        _nodeEl.style.width = W_NEW + "px";
       }
     });
     wrap.appendChild(inp);
@@ -12313,14 +12669,14 @@ export class FormulaGraph {
     return null;
   }
 
-  _refreshPalette() {
+  _refreshPalette(bindOnboarding = true) {
     const palEl = this.win?.querySelector("#gpal");
     if (!palEl) return;
     palEl.innerHTML = this._buildPal();
-    this._wirePalette?.();
+    this._wirePalette?.(bindOnboarding);
   }
 
-  _wirePalette() {
+  _wirePalette(bindOnboarding = true) {
     const win = this.win;
     if (!win) return;
     win.querySelectorAll(".gpal").forEach(el => {
@@ -12335,7 +12691,7 @@ export class FormulaGraph {
     });
     win.querySelector("#gpalFnCreate")?.addEventListener("click", () => this._fnCreatePrompt?.());
     win.querySelector("#gpalFnManage")?.addEventListener("click", () => this._openManageFunctions?.());
-    SDOnboarding.bindGraph(win);
+    if (bindOnboarding) SDOnboarding.bindGraph(win);
   }
 
   _fnNewId() {
@@ -12797,6 +13153,12 @@ if(!document.getElementById("sd-graph-css")){
   s.textContent=`
     .sdgctx *,.sd-graph-win *{box-sizing:border-box}
     .gpin{transition:transform .12s ease,box-shadow .12s ease}
+    .gn-columns{display:grid;grid-template-columns:minmax(105px,.8fr) minmax(180px,1.6fr) minmax(105px,.8fr);align-items:start;min-width:0}
+    .gn-column{display:flex;flex-direction:column;min-width:0;padding:4px 0 6px}
+    .gn-column-controls{border-left:1px solid var(--sd-border);border-right:1px solid var(--sd-border);background:rgba(255,255,255,.018);padding-left:2px;padding-right:2px}
+    .gn-column:empty{min-height:38px}
+    .gn-control>input,.gn-control>select,.gn-control>textarea{min-width:0;max-width:100%;width:100%}
+    .gn-control textarea{height:auto!important;min-height:64px}
     .gnhdr{transition:opacity .15s}
     .gnhdr:active{cursor:grabbing!important;opacity:.9}
     .node-selected{outline:2px solid var(--sd-accent)!important;outline-offset:0}

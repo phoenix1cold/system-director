@@ -489,6 +489,28 @@ export class FormulaEngine {
     return Number.isFinite(n) ? n : fallback;
   }
 
+  static _resolveArrayArg(raw, doc, { template = false } = {}) {
+    const source = String(raw ?? "");
+    if (!source.startsWith("b64:")) return source;
+
+    const expr = this._b64decodeUtf8(source.slice(4));
+    return template
+      ? this._resolveArrayTemplate(expr, doc)
+      : this._evalSideForCompare(expr, doc);
+  }
+
+  static _resolveArrayTemplate(raw, doc) {
+    let expr = String(raw ?? "");
+    const placeholders = [
+      ["{__elem}", "__SD_ARRAY_ELEM__"],
+      ["{__elemIndex}", "__SD_ARRAY_INDEX__"]
+    ];
+    for (const [needle, replacement] of placeholders) expr = expr.replaceAll(needle, replacement);
+    let resolved = String(this._evalSideForCompare(expr, doc) ?? "");
+    for (const [needle, replacement] of placeholders) resolved = resolved.replaceAll(replacement, needle);
+    return resolved;
+  }
+
   static _evalSideForCompare(expr, doc) {
     if (expr === undefined || expr === null) return "";
     const s = String(expr).trim();
@@ -669,6 +691,22 @@ export class FormulaEngine {
   }
 
   static _resolveToken(token, doc) {
+    if (token.startsWith("__sdHasEffect:")) {
+      const parts = token.slice("__sdHasEffect:".length).split("|");
+      if (parts.length < 2) return 0;
+      const targetRef = this._resolveArrayArg(parts[0], doc);
+      const effectRef = String(this._resolveArrayArg(parts.slice(1).join("|"), doc) ?? "").trim();
+      if (!effectRef) return 0;
+      const actor = this._resolveActorFromBase(targetRef, doc);
+      if (!actor) return 0;
+      const effects = actor.effects?.contents ?? actor.effects ?? [];
+      for (const effect of effects) {
+        if (effect?.disabled === true) continue;
+        if (String(effect?.name ?? "") === effectRef || String(effect?.id ?? "") === effectRef) return 1;
+      }
+      return 0;
+    }
+
     if (token.startsWith("__sdEq:") || token.startsWith("__sdNeq:")) {
       const isNeq = token.startsWith("__sdNeq:");
       const rest  = token.slice(isNeq ? "__sdNeq:".length : "__sdEq:".length);
@@ -1103,15 +1141,15 @@ export class FormulaEngine {
     if (token.startsWith("arrayLength:")) {
       const rest = token.slice("arrayLength:".length);
       if (!rest) return 0;
-      return this._parseArrayList(rest).length;
+      return this._parseArrayList(this._resolveArrayArg(rest, doc)).length;
     }
 
     if (token.startsWith("arrayAt:")) {
       const rest = token.slice("arrayAt:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return "";
-      const list = this._parseArrayList(rest.slice(0, sep));
-      const idx  = Math.floor(Number(rest.slice(sep + 1)) || 0);
+      const list = this._parseArrayList(this._resolveArrayArg(rest.slice(0, sep), doc));
+      const idx  = Math.floor(Number(this._resolveArrayArg(rest.slice(sep + 1), doc)) || 0);
       return list[idx] ?? "";
     }
 
@@ -1119,8 +1157,8 @@ export class FormulaEngine {
       const rest = token.slice("arrayMapField:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return "";
-      const list = this._parseArrayList(rest.slice(0, sep));
-      const path = rest.slice(sep + 1);
+      const list = this._parseArrayList(this._resolveArrayArg(rest.slice(0, sep), doc));
+      const path = String(this._resolveArrayArg(rest.slice(sep + 1), doc) ?? "");
       if (!path) return "";
       const out = [];
       for (const tid of list) {
@@ -1309,9 +1347,9 @@ export class FormulaEngine {
     if (token.startsWith("arrayAgg:")) {
       const parts = token.slice("arrayAgg:".length).split("|");
       if (parts.length < 3) return 0;
-      const list = this._parseArrayList(parts[0]);
-      const path = parts[1];
-      const op   = parts[2];
+      const list = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const path = String(this._resolveArrayArg(parts[1], doc) ?? "");
+      const op   = String(this._resolveArrayArg(parts[2], doc) ?? "sum");
       const nums = [];
       for (const tid of list) {
         const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
@@ -1332,9 +1370,9 @@ export class FormulaEngine {
     if (token.startsWith("arrayFindExtreme:")) {
       const parts = token.slice("arrayFindExtreme:".length).split("|");
       if (parts.length < 3) return "";
-      const list = this._parseArrayList(parts[0]);
-      const path = parts[1];
-      const op   = parts[2];
+      const list = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const path = String(this._resolveArrayArg(parts[1], doc) ?? "");
+      const op   = String(this._resolveArrayArg(parts[2], doc) ?? "max");
       let bestId  = "";
       let bestVal = null;
       for (const tid of list) {
@@ -1354,9 +1392,9 @@ export class FormulaEngine {
     if (token.startsWith("arraySort:")) {
       const parts = token.slice("arraySort:".length).split("|");
       if (parts.length < 3) return "";
-      const list = this._parseArrayList(parts[0]);
-      const path = parts[1];
-      const op   = parts[2];
+      const list = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const path = String(this._resolveArrayArg(parts[1], doc) ?? "");
+      const op   = String(this._resolveArrayArg(parts[2], doc) ?? "desc");
       const annotated = list.map(tid => {
         const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
         const a  = tk?.actor;
@@ -1375,9 +1413,9 @@ export class FormulaEngine {
     if (token.startsWith("arraySlice:")) {
       const parts = token.slice("arraySlice:".length).split("|");
       if (parts.length < 3) return "";
-      const list  = this._parseArrayList(parts[0]);
-      const start = Math.max(0, Math.floor(Number(parts[1]) || 0));
-      const cnt   = Math.floor(Number(parts[2]));
+      const list  = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const start = Math.max(0, Math.floor(Number(this._resolveArrayArg(parts[1], doc)) || 0));
+      const cnt   = Math.floor(Number(this._resolveArrayArg(parts[2], doc)));
       const end   = (cnt < 0) ? list.length : Math.min(list.length, start + cnt);
       return list.slice(start, end).join(",");
     }
@@ -1385,16 +1423,16 @@ export class FormulaEngine {
     if (token.startsWith("arrayConcat:")) {
       const parts = token.slice("arrayConcat:".length).split("|");
       if (parts.length < 2) return "";
-      const a = this._parseArrayList(parts[0]);
-      const b = this._parseArrayList(parts[1]);
+      const a = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const b = this._parseArrayList(this._resolveArrayArg(parts[1], doc));
       return [...a, ...b].join(",");
     }
 
     if (token.startsWith("arrayUnion:")) {
       const parts = token.slice("arrayUnion:".length).split("|");
       if (parts.length < 2) return "";
-      const a = this._parseArrayList(parts[0]);
-      const b = this._parseArrayList(parts[1]);
+      const a = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const b = this._parseArrayList(this._resolveArrayArg(parts[1], doc));
       const seen = new Set();
       const out  = [];
       for (const id of [...a, ...b]) {
@@ -1408,8 +1446,8 @@ export class FormulaEngine {
     if (token.startsWith("arrayIntersect:")) {
       const parts = token.slice("arrayIntersect:".length).split("|");
       if (parts.length < 2) return "";
-      const a = this._parseArrayList(parts[0]);
-      const b = new Set(this._parseArrayList(parts[1]));
+      const a = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const b = new Set(this._parseArrayList(this._resolveArrayArg(parts[1], doc)));
       const seen = new Set();
       const out  = [];
       for (const id of a) {
@@ -1423,8 +1461,8 @@ export class FormulaEngine {
     if (token.startsWith("arrayDifference:")) {
       const parts = token.slice("arrayDifference:".length).split("|");
       if (parts.length < 2) return "";
-      const a = this._parseArrayList(parts[0]);
-      const b = new Set(this._parseArrayList(parts[1]));
+      const a = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const b = new Set(this._parseArrayList(this._resolveArrayArg(parts[1], doc)));
       const seen = new Set();
       const out  = [];
       for (const id of a) {
@@ -1438,14 +1476,14 @@ export class FormulaEngine {
     if (token.startsWith("arrayContains:")) {
       const parts = token.slice("arrayContains:".length).split("|");
       if (parts.length < 2) return 0;
-      const list = new Set(this._parseArrayList(parts[0]));
-      const id   = String(parts.slice(1).join("|")).trim();
+      const list = new Set(this._parseArrayList(this._resolveArrayArg(parts[0], doc)));
+      const id   = String(this._resolveArrayArg(parts.slice(1).join("|"), doc) ?? "").trim();
       return list.has(id) ? 1 : 0;
     }
 
     if (token.startsWith("arrayDistinct:")) {
       const rest = token.slice("arrayDistinct:".length);
-      const list = this._parseArrayList(rest);
+      const list = this._parseArrayList(this._resolveArrayArg(rest, doc));
       const seen = new Set();
       const out  = [];
       for (const id of list) {
@@ -1459,10 +1497,10 @@ export class FormulaEngine {
     if (token.startsWith("arrayFilter:")) {
       const parts = token.slice("arrayFilter:".length).split("|");
       if (parts.length < 4) return "";
-      const list   = this._parseArrayList(parts[0]);
-      const path   = parts[1];
-      const op     = parts[2];
-      const cmpRaw = parts.slice(3).join("|");
+      const list   = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const path   = String(this._resolveArrayArg(parts[1], doc) ?? "");
+      const op     = String(this._resolveArrayArg(parts[2], doc) ?? "==");
+      const cmpRaw = String(this._resolveArrayArg(parts.slice(3).join("|"), doc) ?? "");
       const cmpNum = Number(cmpRaw);
       const isNum  = cmpRaw.trim() !== "" && !isNaN(cmpNum);
       const out = [];
@@ -1496,7 +1534,11 @@ export class FormulaEngine {
 
     if (token.startsWith("arrayMake:")) {
       const rest = token.slice("arrayMake:".length);
-      const parts = rest === "" ? [] : rest.split("|").map(_b64dec);
+      const parts = rest === "" ? [] : rest.split("|").map(part =>
+        part.startsWith("b64:")
+          ? this._resolveArrayArg(part, doc)
+          : this._evalSideForCompare(_b64dec(part), doc)
+      );
 
       return parts.filter(s => String(s).trim() !== "").join(",");
     }
@@ -1505,8 +1547,12 @@ export class FormulaEngine {
       const rest = token.slice("arrayPush:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return rest;
-      const list = this._parseArrayList(rest.slice(0, sep));
-      const elem = _b64dec(rest.slice(sep + 1));
+      const arrayRaw = rest.slice(0, sep);
+      const elemRaw  = rest.slice(sep + 1);
+      const list = this._parseArrayList(this._resolveArrayArg(arrayRaw, doc));
+      const elem = elemRaw.startsWith("b64:")
+        ? this._resolveArrayArg(elemRaw, doc)
+        : this._evalSideForCompare(_b64dec(elemRaw), doc);
       if (String(elem).trim() !== "") list.push(String(elem));
       return list.join(",");
     }
@@ -1515,8 +1561,14 @@ export class FormulaEngine {
       const rest = token.slice("arraySplit:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return _b64dec(rest);
-      const s   = _b64dec(rest.slice(0, sep));
-      const sp  = _b64dec(rest.slice(sep + 1));
+      const sourceRaw = rest.slice(0, sep);
+      const sepRaw    = rest.slice(sep + 1);
+      const s = sourceRaw.startsWith("b64:")
+        ? this._resolveArrayArg(sourceRaw, doc)
+        : this._evalSideForCompare(_b64dec(sourceRaw), doc);
+      const sp = sepRaw.startsWith("b64:")
+        ? this._resolveArrayArg(sepRaw, doc)
+        : this._evalSideForCompare(_b64dec(sepRaw), doc);
       if (s == null || s === "") return "";
       const list = String(s).split(sp || ",").map(x => x.trim()).filter(Boolean);
       return list.join(",");
@@ -1526,16 +1578,23 @@ export class FormulaEngine {
       const rest = token.slice("arrayJoin:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return rest;
-      const list = this._parseArrayList(rest.slice(0, sep));
-      const sp   = _b64dec(rest.slice(sep + 1));
+      const arrayRaw = rest.slice(0, sep);
+      const sepRaw   = rest.slice(sep + 1);
+      const list = this._parseArrayList(this._resolveArrayArg(arrayRaw, doc));
+      const sp = sepRaw.startsWith("b64:")
+        ? this._resolveArrayArg(sepRaw, doc)
+        : this._evalSideForCompare(_b64dec(sepRaw), doc);
       return list.join(sp);
     }
 
     if (token.startsWith("arrayGet:")) {
       const parts = token.slice("arrayGet:".length).split("|");
-      const list  = this._parseArrayList(parts[0]);
-      const idxN  = Math.floor(Number(parts[1]) || 0);
-      const def   = _b64dec(parts.slice(2).join("|"));
+      const list  = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const idxN  = Math.floor(Number(this._resolveArrayArg(parts[1], doc)) || 0);
+      const defRaw = parts.slice(2).join("|");
+      const def = defRaw.startsWith("b64:")
+        ? this._resolveArrayArg(defRaw, doc)
+        : this._evalSideForCompare(_b64dec(defRaw), doc);
       const real  = idxN < 0 ? (list.length + idxN) : idxN;
       const v     = (real >= 0 && real < list.length) ? list[real] : undefined;
       return v ?? def ?? "";
@@ -1543,14 +1602,14 @@ export class FormulaEngine {
 
     if (token.startsWith("arrayHasIndex:")) {
       const parts = token.slice("arrayHasIndex:".length).split("|");
-      const list  = this._parseArrayList(parts[0]);
-      const idxN  = Math.floor(Number(parts[1]) || 0);
+      const list  = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const idxN  = Math.floor(Number(this._resolveArrayArg(parts[1], doc)) || 0);
       const real  = idxN < 0 ? (list.length + idxN) : idxN;
       return (real >= 0 && real < list.length) ? 1 : 0;
     }
 
     if (token.startsWith("arrayReverse:")) {
-      const list = this._parseArrayList(token.slice("arrayReverse:".length));
+      const list = this._parseArrayList(this._resolveArrayArg(token.slice("arrayReverse:".length), doc));
       return list.reverse().join(",");
     }
 
@@ -1558,8 +1617,8 @@ export class FormulaEngine {
       const rest = token.slice("arrayNum:".length);
       const sep  = rest.lastIndexOf("|");
       if (sep < 0) return 0;
-      const list = this._parseArrayList(rest.slice(0, sep));
-      const op   = rest.slice(sep + 1);
+      const list = this._parseArrayList(this._resolveArrayArg(rest.slice(0, sep), doc));
+      const op   = String(this._resolveArrayArg(rest.slice(sep + 1), doc) ?? "sum");
       const nums = list.map(Number).filter(n => !isNaN(n));
       if (op === "count") return nums.length;
       if (!nums.length)   return 0;
@@ -1572,8 +1631,8 @@ export class FormulaEngine {
 
     if (token.startsWith("arrayRandomPick:")) {
       const parts = token.slice("arrayRandomPick:".length).split("|");
-      const list  = this._parseArrayList(parts[0]);
-      const cnt   = Math.max(0, Math.floor(this._parseArrayNum(parts[1], 0)));
+      const list  = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const cnt   = Math.max(0, Math.floor(this._parseArrayNum(this._resolveArrayArg(parts[1], doc), 0)));
       if (!list.length || cnt <= 0) return "";
 
       const arr = list.slice();
@@ -1589,10 +1648,10 @@ export class FormulaEngine {
     if (token.startsWith("arrayRandomFrom:")) {
 
       const parts = token.slice("arrayRandomFrom:".length).split("|");
-      const cnt   = Math.max(0, Math.floor(this._parseArrayNum(parts[0], 0)));
+      const cnt   = Math.max(0, Math.floor(this._parseArrayNum(this._resolveArrayArg(parts[0], doc), 0)));
       const pool  = [];
       for (let k = 1; k < parts.length; k++) {
-        const seg = this._parseArrayList(parts[k]);
+        const seg = this._parseArrayList(this._resolveArrayArg(parts[k], doc));
         for (const el of seg) pool.push(el);
       }
       if (!pool.length || cnt <= 0) return "";
@@ -1608,9 +1667,12 @@ export class FormulaEngine {
 
     if (token.startsWith("arrayFilterGeneric:")) {
       const parts = token.slice("arrayFilterGeneric:".length).split("|");
-      const list  = this._parseArrayList(parts[0]);
-      const op    = parts[1] ?? "==";
-      const cmp   = _b64dec(parts.slice(2).join("|"));
+      const list  = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
+      const op    = String(this._resolveArrayArg(parts[1], doc) ?? "==");
+      const cmpRaw = parts.slice(2).join("|");
+      const cmp = cmpRaw.startsWith("b64:")
+        ? this._resolveArrayArg(cmpRaw, doc)
+        : this._evalSideForCompare(_b64dec(cmpRaw), doc);
       const cmpN  = Number(cmp);
       const isNum = String(cmp).trim() !== "" && !isNaN(cmpN);
       const out   = [];
@@ -1639,8 +1701,11 @@ export class FormulaEngine {
       const rest = token.slice("arrayMapFormula:".length);
       const sep  = rest.indexOf("|");
       if (sep < 0) return "";
-      const list = this._parseArrayList(rest.slice(0, sep));
-      const formula = _b64dec(rest.slice(sep + 1));
+      const list = this._parseArrayList(this._resolveArrayArg(rest.slice(0, sep), doc));
+      const formulaRaw = rest.slice(sep + 1);
+      const formula = formulaRaw.startsWith("b64:")
+        ? this._resolveArrayArg(formulaRaw, doc, { template: true })
+        : this._resolveArrayTemplate(_b64dec(formulaRaw), doc);
       const out = [];
       for (let i = 0; i < list.length; i++) {
         const el = list[i];

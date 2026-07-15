@@ -5,6 +5,7 @@ import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpe
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
+import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -294,6 +295,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       if (ev.target.dataset.deltab) { ev.stopPropagation(); this._deleteTab(tabId); return; }
       this._switchTab(tabId);
     });
+    if (!isSys) SheetTabReorder.attach(this, a, tabId);
     return a;
   }
 
@@ -2914,7 +2916,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
   async _addTab() {
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const id   = foundry.utils.randomID(8);
-    tabs.push({ id, label: "New Tab", rows: [] });
+    tabs.push({ id, label: "New Tab", order: tabs.length + 1, rows: [] });
     await this.document.update({ "system.customTabs": tabs });
     this._renameTab(id);
   }

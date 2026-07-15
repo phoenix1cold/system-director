@@ -35,6 +35,33 @@ export class GridManager {
     await doc.update({ "system.customTabs": next });
   }
 
+  static async moveTab(doc, tabId, targetTabId, placement = "before") {
+    const tabs = foundry.utils.deepClone(this.getTabs(doc));
+    const fromIndex = tabs.findIndex(tab => tab.id === tabId);
+    const originalTargetIndex = tabs.findIndex(tab => tab.id === targetTabId);
+    if (fromIndex < 0 || originalTargetIndex < 0 || tabId === targetTabId) return false;
+
+    const [moved] = tabs.splice(fromIndex, 1);
+    const targetIndex = tabs.findIndex(tab => tab.id === targetTabId);
+    const insertIndex = placement === "after" ? targetIndex + 1 : targetIndex;
+    tabs.splice(Math.max(0, Math.min(tabs.length, insertIndex)), 0, moved);
+    tabs.forEach((tab, index) => { tab.order = index + 1; });
+
+    const changed = tabs.some((tab, index) => tab.id !== this.getTabs(doc)[index]?.id);
+    if (!changed) return false;
+    await doc.update({ "system.customTabs": tabs });
+    return true;
+  }
+
+  static async shiftTab(doc, tabId, delta) {
+    const tabs = this.getTabs(doc);
+    const fromIndex = tabs.findIndex(tab => tab.id === tabId);
+    const toIndex = Math.max(0, Math.min(tabs.length - 1, fromIndex + Number(delta || 0)));
+    if (fromIndex < 0 || toIndex === fromIndex) return false;
+    const target = tabs[toIndex];
+    return this.moveTab(doc, tabId, target.id, delta > 0 ? "after" : "before");
+  }
+
   static async addRow(doc, tabId, afterRowId = null) {
     const tabs  = foundry.utils.deepClone(this.getTabs(doc));
     const tab   = tabs.find(t => t.id === tabId);

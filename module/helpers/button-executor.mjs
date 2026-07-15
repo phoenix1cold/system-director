@@ -15,6 +15,7 @@ function _writeRollMeta(buttonDef, {
   roll, formula,
   critOn = 20, critFormula = "", isCritOverride = null,
   fumbleOn = 1, fumbleFormula = "", isFumbleOverride = null,
+  minValueCount = 1, maxValueCount = 1,
   rollData = {}
 } = {}) {
   if (!buttonDef) return;
@@ -57,11 +58,27 @@ function _writeRollMeta(buttonDef, {
       const dice = [];
       for (const d of (roll?.dice ?? [])) {
         for (const r of (d?.results ?? [])) {
-          if (r && r.active !== false && !r.discarded) dice.push(Number(r.result));
+          const value = Number(r?.result);
+          if (r && r.active !== false && !r.discarded && Number.isFinite(value)) dice.push(value);
         }
       }
       buttonDef.__lastDice = dice.join(",");
-    } catch { buttonDef.__lastDice = ""; }
+      const lowestCount  = Math.max(1, Math.floor(Number(minValueCount) || 1));
+      const highestCount = Math.max(1, Math.floor(Number(maxValueCount) || 1));
+      const sorted = dice.slice().sort((a, b) => a - b);
+      const lowest  = sorted.slice(0, lowestCount);
+      const highest = sorted.slice(Math.max(0, sorted.length - highestCount)).reverse();
+      buttonDef.__lastMinValue = lowest.join(",");
+      buttonDef.__lastMaxValue = highest.join(",");
+      buttonDef.__lastMinValueTotal = lowest.reduce((sum, value) => sum + value, 0);
+      buttonDef.__lastMaxValueTotal = highest.reduce((sum, value) => sum + value, 0);
+    } catch {
+      buttonDef.__lastDice = "";
+      buttonDef.__lastMinValue = "";
+      buttonDef.__lastMaxValue = "";
+      buttonDef.__lastMinValueTotal = 0;
+      buttonDef.__lastMaxValueTotal = 0;
+    }
   } catch (e) {
     console.warn("SD | _writeRollMeta failed:", e);
   }
@@ -74,6 +91,40 @@ function _sdMsgMode() {
   } catch {}
   try { return game.settings.get("core", "rollMode"); } catch {}
   return "publicroll";
+}
+
+function _sdEscapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function _sdSafeIcon(value, fallback = "fas fa-circle") {
+  const classes = String(value ?? "").split(/\s+/).filter(token =>
+    /^(?:fa[bsrldkt]|fas|far|fab|fal|fad|fat|fa)-?[a-z0-9-]*$/i.test(token)
+  );
+  return classes.length ? classes.join(" ") : fallback;
+}
+
+function _sdSerializableClone(value, depth = 0, seen = new WeakSet()) {
+  if (value === null || value === undefined) return value;
+  if (["string", "number", "boolean"].includes(typeof value)) return value;
+  if (typeof value !== "object" || depth > 8 || seen.has(value)) return undefined;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.map(entry => _sdSerializableClone(entry, depth + 1, seen)).filter(entry => entry !== undefined);
+  }
+  const proto = Object.getPrototypeOf(value);
+  if (proto && proto !== Object.prototype) return undefined;
+  const out = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const cloned = _sdSerializableClone(entry, depth + 1, seen);
+    if (cloned !== undefined) out[key] = cloned;
+  }
+  return out;
 }
 
 const SD_AI_DIALOGUE_MARKER = "{__sdAiDialogueChoices:";
@@ -781,6 +832,18 @@ export class ButtonExecutor {
       if (buttonDef?.__lastDice !== undefined) {
         formula = formula.replace(/\{__lastDice\}/g, String(buttonDef.__lastDice));
       }
+      if (buttonDef?.__lastMinValue !== undefined) {
+        formula = formula.replace(/\{__lastMinValue\}/g, String(buttonDef.__lastMinValue));
+      }
+      if (buttonDef?.__lastMaxValue !== undefined) {
+        formula = formula.replace(/\{__lastMaxValue\}/g, String(buttonDef.__lastMaxValue));
+      }
+      if (buttonDef?.__lastMinValueTotal !== undefined) {
+        formula = formula.replace(/\{__lastMinValueTotal\}/g, String(buttonDef.__lastMinValueTotal));
+      }
+      if (buttonDef?.__lastMaxValueTotal !== undefined) {
+        formula = formula.replace(/\{__lastMaxValueTotal\}/g, String(buttonDef.__lastMaxValueTotal));
+      }
       if (buttonDef?.__dlgPicked !== undefined) {
         formula = formula.replace(/\{__dlgPicked\}/g, String(buttonDef.__dlgPicked));
       }
@@ -888,8 +951,9 @@ export class ButtonExecutor {
         formula = formula.replace(/\{__sdInputText\}/g, String(runtime.__sdInputText ?? ""));
       }
       formula = formula.replace(/\{__var:([A-Za-z0-9_]+)\|([^}]*)\}/g, (_, name, dflt) => {
-        const vars = foundry.utils.getProperty(actor ?? {}, "flags.sd.vars") ?? {};
-        const v = vars[name];
+        const localVars = (runtime.__vars && typeof runtime.__vars === "object") ? runtime.__vars : {};
+        const actorVars = foundry.utils.getProperty(actor ?? {}, "flags.sd.vars") ?? {};
+        const v = Object.prototype.hasOwnProperty.call(localVars, name) ? localVars[name] : actorVars[name];
         return v === undefined || v === null ? dflt : String(v);
       });
       formula = formula.replace(/\{__sdEqCount:([^}]*)\}/g, (_, cat) => {
@@ -901,6 +965,23 @@ export class ButtonExecutor {
           && (c === "" || c === "any" || i.system?.category === c)).length;
         return String(n);
       });
+
+      // Array nodes encode their arguments so separators and nested formulas stay intact.
+      // Inject runtime pins inside both the current `b64:` format and legacy encoded args.
+      formula = formula.replace(
+        /(^|[^A-Za-z0-9+/])([A-Za-z0-9+/]{4,}={0,2})(?=$|[^A-Za-z0-9+/=])/g,
+        (match, prefix, payload) => {
+          try {
+            const decoded = decodeURIComponent(escape(atob(payload)));
+            if (!decoded.includes("{__")) return match;
+            const injected = _injectRuntime(decoded);
+            const encoded = btoa(unescape(encodeURIComponent(String(injected ?? ""))));
+            return `${prefix}${encoded}`;
+          } catch {
+            return match;
+          }
+        }
+      );
       return formula;
     };
 
@@ -980,12 +1061,20 @@ export class ButtonExecutor {
         let formula    = _injectRuntime(action.formula    || "1d6");
         let advFormula = _injectRuntime(action.advFormula || "");
         let disFormula = _injectRuntime(action.disFormula || "");
+        let minValueCount = Math.max(1, Math.floor(Number(_injectRuntime(String(action.minValueCount ?? 1))) || 1));
+        let maxValueCount = Math.max(1, Math.floor(Number(_injectRuntime(String(action.maxValueCount ?? 1))) || 1));
         try {
           const { FormulaEngine } = await import("./formula-engine.mjs");
           const doc = safeItem ?? safeActor ?? {};
           formula    = FormulaEngine.resolveForRoll(formula,    doc);
           if (advFormula) advFormula = FormulaEngine.resolveForRoll(advFormula, doc);
           if (disFormula) disFormula = FormulaEngine.resolveForRoll(disFormula, doc);
+          minValueCount = Math.max(1, Math.floor(Number(FormulaEngine.evaluate(
+            _injectRuntime(String(action.minValueCount ?? 1)), doc
+          )) || 1));
+          maxValueCount = Math.max(1, Math.floor(Number(FormulaEngine.evaluate(
+            _injectRuntime(String(action.maxValueCount ?? 1)), doc
+          )) || 1));
         } catch(e) {}
         const _stripBraces = (s) => String(s ?? "")
           .replace(/\{[^{}]*\}/g, "0")
@@ -1013,7 +1102,7 @@ export class ButtonExecutor {
         if (buttonDef) buttonDef.__lastRoll = roll.total;
         if (rollData)  rollData.__lastRoll  = roll.total;
 
-        _writeRollMeta(buttonDef, { roll, formula, rollData });
+        _writeRollMeta(buttonDef, { roll, formula, rollData, minValueCount, maxValueCount });
         if (safeActor) {
           try {
             await safeActor.setFlag("sd", "lastRoll", {
@@ -2204,9 +2293,20 @@ export class ButtonExecutor {
       }
 
       case "forEachItem": {
-
-        const raw   = _injectRuntime(String(action.items ?? ""));
-        const items = String(raw).split(",").map(s => s.trim()).filter(Boolean);
+        let raw = _injectRuntime(String(action.items ?? ""));
+        if (typeof raw === "string" && raw.includes("{")) {
+          try {
+            const { FormulaEngine } = await import("./formula-engine.mjs");
+            raw = FormulaEngine._resolveRefs(raw, item ?? actor ?? {});
+          } catch {}
+        }
+        if (typeof raw === "string") {
+          const t = raw.trim();
+          if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+            try { raw = JSON.parse(t); } catch { raw = t.slice(1, -1); }
+          }
+        }
+        const items = String(raw ?? "").split(",").map(s => s.trim()).filter(Boolean);
         const _prevLI = runtime.__loopIndex;
         const _prevLT = runtime.__loopItem;
         for (let i = 0; i < items.length; i++) {
@@ -3014,6 +3114,149 @@ export class ButtonExecutor {
         break;
       }
 
+      case "messageComposer": {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        const doc = item ?? actor ?? {};
+        const resolveText = (raw) => {
+          let text = _injectRuntime(String(raw ?? ""));
+          text = text.replace(/\{([^{}]+)\}/g, (match, inner) => {
+            try {
+              const value = FormulaEngine.evaluate(`{${inner}}`, doc);
+              return (value === match || value === undefined || value === null) ? match : String(value);
+            } catch { return match; }
+          });
+          const trimmed = text.trim();
+          if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+            try {
+              const value = FormulaEngine.evaluate(trimmed, doc);
+              if (value !== undefined && value !== trimmed) text = String(value);
+            } catch {}
+          }
+          return String(_sdStripQuotedString(text));
+        };
+        const materialize = (value, depth = 0) => {
+          if (depth > 12 || value === null || value === undefined) return value;
+          if (typeof value === "string") return _injectRuntime(value);
+          if (Array.isArray(value)) return value.map(entry => materialize(entry, depth + 1));
+          if (typeof value === "object") {
+            const out = {};
+            for (const [key, entry] of Object.entries(value)) {
+              if (typeof entry === "function") continue;
+              out[key] = materialize(entry, depth + 1);
+            }
+            return out;
+          }
+          return value;
+        };
+
+        const styles = {
+          message: { accent:"#3b73a6", icon:"fas fa-message", valueLabel:"Result" },
+          damage:  { accent:"#b83232", icon:"fas fa-heart-crack", valueLabel:"Damage" },
+          healing: { accent:"#2e8b57", icon:"fas fa-heart", valueLabel:"Healing" },
+          check:   { accent:"#7652a8", icon:"fas fa-dice-d20", valueLabel:"Check" },
+          notice:  { accent:"#b06d20", icon:"fas fa-circle-info", valueLabel:"Notice" }
+        };
+        const styleKey = Object.prototype.hasOwnProperty.call(styles, action.style) ? action.style : "message";
+        const visual = styles[styleKey];
+        const title = resolveText(action.title || "Message");
+        const body = resolveText(action.message ?? "");
+        const value = resolveText(action.value ?? "");
+        const valueLabel = resolveText(action.valueLabel ?? "") || visual.valueLabel;
+        const image = resolveText(action.image ?? "") || actor?.img || item?.img || "";
+
+        let bodyHtml = _sdEscapeHtml(body).replace(/\r?\n/g, "<br>");
+        try {
+          const editor = globalThis.TextEditor?.implementation ?? globalThis.TextEditor;
+          if (body && typeof editor?.enrichHTML === "function") {
+            bodyHtml = await editor.enrichHTML(body, {
+              async:true,
+              documents:true,
+              links:true,
+              rolls:true,
+              secrets:!!actor?.isOwner,
+              relativeTo:item ?? actor ?? undefined
+            });
+          }
+        } catch {}
+
+        const variants = new Set(["primary", "secondary", "success", "danger", "warning"]);
+        const sourceButtons = Array.isArray(action.buttons) ? action.buttons.slice(0, 6) : [];
+        const flagButtons = sourceButtons.map((button, index) => {
+          const id = /^btn[0-5]$/.test(String(button?.id ?? "")) ? String(button.id) : `btn${index}`;
+          const variant = variants.has(String(button?.variant ?? "")) ? String(button.variant) : "secondary";
+          return {
+            id,
+            label:resolveText(button?.label ?? `Button ${index + 1}`),
+            icon:_sdSafeIcon(button?.icon, "fas fa-circle"),
+            variant,
+            actions:materialize(action[`${id}Actions`] ?? [])
+          };
+        });
+        const buttonsHtml = flagButtons.length ? `
+          <div class="sd-message-composer-actions">
+            ${flagButtons.map(button => `
+              <button type="button" class="sd-message-composer-btn is-${button.variant}" data-sd-message-button="${button.id}">
+                <i class="${button.icon}"></i><span>${_sdEscapeHtml(button.label)}</span>
+              </button>`).join("")}
+          </div>` : "";
+        const imageHtml = image ? `<img class="sd-message-composer-image" src="${_sdEscapeHtml(image)}" alt="">` : "";
+        const valueHtml = value !== "" ? `
+          <div class="sd-message-composer-value">
+            <strong>${_sdEscapeHtml(value)}</strong>
+            <span>${_sdEscapeHtml(valueLabel)}</span>
+          </div>` : "";
+        const content = `
+          <article class="sd-message-composer sd-message-composer--${styleKey}" style="--sd-message-accent:${visual.accent}">
+            <header class="sd-message-composer-header">
+              ${imageHtml}
+              <div class="sd-message-composer-heading">
+                <i class="${visual.icon}"></i>
+                <h3>${_sdEscapeHtml(title)}</h3>
+              </div>
+              ${valueHtml}
+            </header>
+            ${bodyHtml ? `<div class="sd-message-composer-body">${bodyHtml}</div>` : ""}
+            ${buttonsHtml}
+          </article>`;
+
+        const buttonSnapshot = {};
+        for (const [key, entry] of Object.entries(buttonDef ?? {})) {
+          if (!key.startsWith("__")) continue;
+          const cloned = _sdSerializableClone(entry);
+          if (cloned !== undefined) buttonSnapshot[key] = cloned;
+        }
+        const runtimeSnapshot = _sdSerializableClone(runtime) ?? {};
+        const visibility = ["public", "gm", "self"].includes(action.visibility) ? action.visibility : "public";
+        const access = ["actorOwner", "author", "gm", "everyone"].includes(action.access) ? action.access : "actorOwner";
+        const messageComposer = {
+          version:1,
+          actorId:actor?.id ?? "",
+          itemUuid:item?.uuid ?? "",
+          authorId:game.user?.id ?? "",
+          access,
+          reusable:action.buttonUse === "reusable",
+          usedButtons:[],
+          buttons:flagButtons,
+          buttonSnapshot,
+          runtimeSnapshot,
+          title
+        };
+        const chatData = {
+          speaker:ChatMessage.getSpeaker({actor:actor ?? null}),
+          content,
+          flags:{sd:{messageComposer}}
+        };
+        if (visibility === "gm") chatData.whisper = (game.users ?? []).filter(user => user.isGM).map(user => user.id);
+        else if (visibility === "self" && game.user?.id) chatData.whisper = [game.user.id];
+
+        const posted = await ChatMessage.create(chatData);
+        if (buttonDef && posted?.id) buttonDef.__lastMessageId = posted.id;
+        for (const subAction of (action.postedActions ?? [])) {
+          await this._runAction(subAction, item, actor, buttonDef, runtime);
+        }
+        break;
+      }
+
       case "message": {
         const rawParts = action.messageParts?.length
           ? action.messageParts
@@ -3748,7 +3991,10 @@ export class ButtonExecutor {
           }
         }
 
-        if (action.scope === "world") {
+        if (action.scope === "local") {
+          runtime.__vars = (runtime.__vars && typeof runtime.__vars === "object") ? runtime.__vars : {};
+          runtime.__vars[varName] = val;
+        } else if (action.scope === "world") {
           if (game.user.isGM) {
             const vars = game.settings.get("sd", "systemSettings")?.vars ?? {};
             vars[varName] = val;
@@ -4694,7 +4940,7 @@ export class ButtonExecutor {
           runtimeSnapshot:   (() => {
             if (!buttonDef) return null;
             const o = {};
-            for (const k of ["__lastRoll","__lastMargin","__lastSuccesses","__lastBotches","__progPrev","__opposedWinnerRoll","__lastDice","__lastIsCrit","__lastCritFormula","__lastIsFumble","__lastFumbleFormula","__lastNatural","__lastFormula","__lastMin","__lastMax","__lastAvg"]) {
+            for (const k of ["__lastRoll","__lastMargin","__lastSuccesses","__lastBotches","__progPrev","__opposedWinnerRoll","__lastDice","__lastMinValue","__lastMaxValue","__lastMinValueTotal","__lastMaxValueTotal","__lastIsCrit","__lastCritFormula","__lastIsFumble","__lastFumbleFormula","__lastNatural","__lastFormula","__lastMin","__lastMax","__lastAvg"]) {
               if (buttonDef[k] !== undefined) o[k] = buttonDef[k];
             }
             return Object.keys(o).length ? o : null;
@@ -4897,7 +5143,7 @@ export class ButtonExecutor {
         const _rtSnap = (() => {
           if (!buttonDef) return null;
           const o = {};
-          for (const k of ["__lastRoll","__lastMargin","__lastSuccesses","__lastBotches","__progPrev","__opposedWinnerRoll","__lastDice","__lastIsCrit","__lastCritFormula","__lastIsFumble","__lastFumbleFormula","__lastNatural","__lastFormula","__lastMin","__lastMax","__lastAvg"]) {
+          for (const k of ["__lastRoll","__lastMargin","__lastSuccesses","__lastBotches","__progPrev","__opposedWinnerRoll","__lastDice","__lastMinValue","__lastMaxValue","__lastMinValueTotal","__lastMaxValueTotal","__lastIsCrit","__lastCritFormula","__lastIsFumble","__lastFumbleFormula","__lastNatural","__lastFormula","__lastMin","__lastMax","__lastAvg"]) {
             if (buttonDef[k] !== undefined) o[k] = buttonDef[k];
           }
           return Object.keys(o).length ? o : null;

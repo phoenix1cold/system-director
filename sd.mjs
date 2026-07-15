@@ -453,6 +453,37 @@ Hooks.once("ready", async () => {
 
   game.socket.on("system.sd", async (data) => {
 
+    if (data.type === "messageComposer.used") {
+      const activeGM = game.users?.find?.(user => user.active && user.isGM) ?? null;
+      if (!game.user?.isGM || (activeGM && activeGM.id !== game.user.id)) return;
+
+      const message = game.messages?.get?.(data.messageId);
+      const config = message?.flags?.sd?.messageComposer;
+      const buttonId = String(data.buttonId ?? "");
+      const requestingUser = game.users?.get?.(data.userId);
+      const buttonExists = Array.isArray(config?.buttons)
+        && config.buttons.some(button => button?.id === buttonId);
+      if (!message || !config || config.reusable || !requestingUser || !buttonExists) return;
+
+      const actor = game.actors?.get?.(config.actorId) ?? null;
+      const ownerLevel = globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS?.OWNER ?? 3;
+      const actorOwner = requestingUser.isGM
+        || !!actor?.testUserPermission?.(requestingUser, ownerLevel)
+        || Number(actor?.ownership?.[requestingUser.id] ?? 0) >= ownerLevel;
+      const allowed = config.access === "everyone"
+        || (config.access === "gm" && requestingUser.isGM)
+        || (config.access === "author" && (requestingUser.isGM || requestingUser.id === config.authorId))
+        || (config.access === "actorOwner" && (actorOwner || (!actor && requestingUser.id === config.authorId)));
+      if (!allowed) return;
+
+      const usedButtons = Array.from(new Set([...(config.usedButtons ?? []), buttonId]));
+      try {
+        await message.update({"flags.sd.messageComposer.usedButtons": usedButtons});
+      } catch (error) {
+        console.warn("SD | Could not persist Message Composer button state:", error);
+      }
+    }
+
     if (data.type === "saveRequest" && data.targetUser === game.user.id) {
       const actor = game.actors.get(data.actorId);
       if (!actor) return;
@@ -820,6 +851,11 @@ Hooks.on("updateItem", (item, _changes, _opts, _userId) => _sdRerenderActorSheet
 
 Hooks.on("renderChatMessageHTML", (message, html) => {
 
+  const _sdChatText = (key, fallback) => {
+    const localized = game.i18n.localize(key);
+    return localized && localized !== key ? localized : fallback;
+  };
+
   function _liveTarget() {
     return game.user.targets?.first()?.actor
         ?? canvas?.tokens?.controlled?.[0]?.actor
@@ -846,6 +882,113 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     const newVal = Math.max(0, cur + delta);
     await actor.update({ [hpPath]: newVal });
     _markApplied(card, `${label} → ${actor.name}: ${cur} → ${newVal}`);
+  }
+
+  const composerConfig = message.flags?.sd?.messageComposer;
+  if (composerConfig && Array.isArray(composerConfig.buttons)) {
+    const usedButtons = new Set(composerConfig.usedButtons ?? []);
+    html.querySelectorAll(".sd-message-composer-btn").forEach(btn => {
+      const buttonId = String(btn.dataset.sdMessageButton ?? "");
+      const buttonConfig = composerConfig.buttons.find(button => button?.id === buttonId);
+      if (!buttonConfig) {
+        btn.disabled = true;
+        return;
+      }
+
+      if (!composerConfig.reusable && usedButtons.has(buttonId)) {
+        btn.disabled = true;
+        btn.classList.add("is-used");
+        btn.title = _sdChatText("SD.Chat.MessageButtonUsed", "Already used");
+      }
+
+      btn.addEventListener("click", async () => {
+        if (btn.disabled) return;
+        const actor = game.actors?.get?.(composerConfig.actorId) ?? null;
+        const allowed = composerConfig.access === "everyone"
+          || (composerConfig.access === "gm" && game.user.isGM)
+          || (composerConfig.access === "author" && (game.user.isGM || game.user.id === composerConfig.authorId))
+          || (composerConfig.access === "actorOwner" && (game.user.isGM || actor?.isOwner || (!actor && game.user.id === composerConfig.authorId)));
+        if (!allowed) {
+          ui.notifications.warn(_sdChatText("SD.Chat.MessageButtonNoPermission", "You cannot use this message button."));
+          return;
+        }
+
+        const icon = btn.querySelector("i");
+        const previousIcon = icon?.className ?? "";
+        btn.disabled = true;
+        btn.classList.add("is-running");
+        if (icon) icon.className = "fas fa-spinner fa-spin";
+
+        try {
+          if (!composerConfig.reusable) {
+            usedButtons.add(buttonId);
+            const nextUsed = Array.from(usedButtons);
+            const canUpdate = game.user.isGM || message.isOwner || message.canUserModify?.(game.user, "update");
+            if (canUpdate) {
+              try {
+                await message.update({"flags.sd.messageComposer.usedButtons": nextUsed});
+              } catch {
+                game.socket.emit("system.sd", {
+                  type:"messageComposer.used",
+                  messageId:message.id,
+                  buttonId,
+                  userId:game.user.id
+                });
+              }
+            } else {
+              game.socket.emit("system.sd", {
+                type:"messageComposer.used",
+                messageId:message.id,
+                buttonId,
+                userId:game.user.id
+              });
+            }
+          }
+
+          let item = null;
+          if (composerConfig.itemUuid) {
+            try { item = await fromUuid(composerConfig.itemUuid); }
+            catch { item = null; }
+          }
+          const actionActor = actor ?? item?.actor ?? null;
+          const { ButtonExecutor } = await import("./module/helpers/button-executor.mjs");
+          const buttonDef = {
+            ...(foundry.utils.deepClone(composerConfig.buttonSnapshot ?? {})),
+            label:composerConfig.title ?? buttonConfig.label ?? "Message"
+          };
+          const runtime = foundry.utils.deepClone(composerConfig.runtimeSnapshot ?? {});
+          for (const action of (buttonConfig.actions ?? [])) {
+            await ButtonExecutor._runAction(action, item, actionActor, buttonDef, runtime);
+          }
+
+          btn.classList.remove("is-running");
+          btn.classList.add("is-complete");
+          if (icon) icon.className = "fas fa-check";
+          if (composerConfig.reusable) {
+            window.setTimeout(() => {
+              btn.disabled = false;
+              btn.classList.remove("is-complete");
+              if (icon) icon.className = previousIcon;
+            }, 700);
+          } else {
+            btn.classList.add("is-used");
+            btn.title = _sdChatText("SD.Chat.MessageButtonUsed", "Already used");
+          }
+        } catch (error) {
+          console.error("SD | Message Composer button failed:", error);
+          btn.classList.remove("is-running", "is-complete");
+          if (icon) icon.className = previousIcon;
+          if (composerConfig.reusable) {
+            btn.disabled = false;
+          } else {
+            btn.disabled = true;
+            btn.classList.add("is-used");
+            btn.title = _sdChatText("SD.Chat.MessageButtonUsed", "Already used");
+          }
+          ui.notifications.error(_sdChatText("SD.Chat.MessageButtonFailed", "Message button action failed."));
+        }
+      });
+    });
   }
 
   html.querySelectorAll(".sd-apply-hp-btn").forEach(btn => {

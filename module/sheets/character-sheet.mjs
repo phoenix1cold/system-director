@@ -1,6 +1,7 @@
 import { TabManager } from "../helpers/tabs.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { GridManager }    from "../builder/grid-manager.mjs";
+import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
@@ -351,6 +352,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (ev.target.dataset.deltab) { ev.stopPropagation(); this._deleteTab(tab.id); return; }
         this._switchTab(tab.id);
       });
+
+      SheetTabReorder.attach(this, a, tab.id);
 
       nav.appendChild(a);
     });
@@ -2178,7 +2181,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   async _addTab(label = "New Tab") {
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const id   = foundry.utils.randomID(8);
-    tabs.push({ id, label, icon: "", rows: [] });
+    tabs.push({ id, label, icon: "", order: tabs.length + 1, rows: [] });
     await this.document.update({ "system.customTabs": tabs });
     this._renameTab(id);
   }
