@@ -11544,26 +11544,48 @@ export class FormulaGraph {
       activeExecOuts = activeExecOuts.slice(0, count);
     }
 
+    const logicalRows = [
+      ...inputPins.filter(p => p.type === "exec").map(inp => ({ inp, fld:null })),
+      ...rows.filter(row => row.inp),
+      ...rows.filter(row => !row.inp)
+    ];
+    const rightPins = [...activeExecOuts, ...valOuts];
+    const rowCount = Math.max(logicalRows.length, rightPins.length, 1);
     const layout = document.createElement("div");
     layout.className = "gn-columns";
-    const leftColumn = document.createElement("div");
-    leftColumn.className = "gn-column gn-column-inputs";
-    const centerColumn = document.createElement("div");
-    centerColumn.className = "gn-column gn-column-controls";
-    const rightColumn = document.createElement("div");
-    rightColumn.className = "gn-column gn-column-outputs";
 
-    for (const pin of [...inputPins.filter(p => p.type === "exec"), ...valIns]) {
-      leftColumn.appendChild(this._pinEl(node, pin, "input"));
-    }
-    for (const row of rows) {
-      if (row.fld) centerColumn.appendChild(this._fldEl(node, row.fld, { hideLabel: !!row.inp }));
-    }
-    for (const pin of [...activeExecOuts, ...valOuts]) {
-      rightColumn.appendChild(this._pinEl(node, pin, "output"));
-    }
+    // Each grid row owns its input pin (or a field label), matching control,
+    // and output pin. Exec rows retain their empty center cell, so controls
+    // never shift upward relative to the input they configure.
+    for (let index = 0; index < rowCount; index++) {
+      const gridRow = document.createElement("div");
+      gridRow.className = "gn-node-row";
+      const row = logicalRows[index];
 
-    layout.append(leftColumn, centerColumn, rightColumn);
+      const inputCell = document.createElement("div");
+      inputCell.className = "gn-row-cell gn-row-input";
+      if (row?.inp) {
+        inputCell.appendChild(this._pinEl(node, row.inp, "input"));
+      } else if (row?.fld?.label) {
+        const fieldLabel = document.createElement("div");
+        fieldLabel.className = "gn-field-label";
+        const label = _NL(row.fld.label);
+        fieldLabel.textContent = label;
+        fieldLabel.title = label;
+        inputCell.appendChild(fieldLabel);
+      }
+
+      const controlCell = document.createElement("div");
+      controlCell.className = "gn-row-cell gn-row-control";
+      if (row?.fld) controlCell.appendChild(this._fldEl(node, row.fld, { hideLabel:true }));
+
+      const outputCell = document.createElement("div");
+      outputCell.className = "gn-row-cell gn-row-output";
+      if (rightPins[index]) outputCell.appendChild(this._pinEl(node, rightPins[index], "output"));
+
+      gridRow.append(inputCell, controlCell, outputCell);
+      layout.appendChild(gridRow);
+    }
     body.appendChild(layout);
 
     el.querySelector(".ndel")?.addEventListener("click",ev=>{ev.stopPropagation();this._delNode(node.id);});
@@ -13153,10 +13175,14 @@ if(!document.getElementById("sd-graph-css")){
   s.textContent=`
     .sdgctx *,.sd-graph-win *{box-sizing:border-box}
     .gpin{transition:transform .12s ease,box-shadow .12s ease}
-    .gn-columns{display:grid;grid-template-columns:minmax(105px,.8fr) minmax(180px,1.6fr) minmax(105px,.8fr);align-items:start;min-width:0}
-    .gn-column{display:flex;flex-direction:column;min-width:0;padding:4px 0 6px}
-    .gn-column-controls{border-left:1px solid var(--sd-border);border-right:1px solid var(--sd-border);background:rgba(255,255,255,.018);padding-left:2px;padding-right:2px}
-    .gn-column:empty{min-height:38px}
+    .gn-columns{display:flex;flex-direction:column;min-width:0;padding:4px 0 6px}
+    .gn-node-row{display:grid;grid-template-columns:minmax(105px,.8fr) minmax(180px,1.6fr) minmax(105px,.8fr);align-items:stretch;min-width:0}
+    .gn-row-cell{display:flex;min-width:0;min-height:36px}
+    .gn-row-input{justify-content:flex-start}
+    .gn-row-output{justify-content:flex-end}
+    .gn-row-control{align-items:stretch;border-left:1px solid var(--sd-border);border-right:1px solid var(--sd-border);background:rgba(255,255,255,.018);padding:0 2px}
+    .gn-field-label{display:flex;align-items:center;gap:7px;width:100%;min-width:0;min-height:30px;padding:3px 8px;color:var(--sd-text-2);font-size:11px;line-height:1;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gn-field-label::before{width:13px;height:13px;flex:0 0 13px;content:""}
     .gn-control>input,.gn-control>select,.gn-control>textarea{min-width:0;max-width:100%;width:100%}
     .gn-control textarea{height:auto!important;min-height:64px}
     .gnhdr{transition:opacity .15s}
