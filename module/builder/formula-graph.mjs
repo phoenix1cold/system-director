@@ -10376,7 +10376,6 @@ export class FormulaGraph {
         <button id="gimport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Import template(s) from a JSON file"><i class="fas fa-file-import" style="margin-right:4px"></i>Import</button>
         <button id="gexport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Export current selection (or whole graph) as JSON template"><i class="fas fa-file-export" style="margin-right:4px"></i>Export</button>
         <button id="glint" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Validate this graph (unknown nodes, type mismatches, orphans, missing entry points)"><i class="fas fa-check-double" style="margin-right:4px"></i>Lint</button>
-        <button id="gaiassist" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Ask the AI assistant about this graph"><i class="fas fa-brain" style="margin-right:4px"></i>AI</button>
         <button id="gsave" style="background:var(--sd-accent);border:none;border-radius:8px;color:var(--sd-accent-text);cursor:pointer;font-size:11px;font-weight:800;padding:6px 16px;transition:.15s"><i class="fas fa-check" style="margin-right:5px"></i>Save & Apply</button>
         <button id="grefresh" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Re-scan document"><i class="fas fa-arrows-rotate" style="margin-right:4px"></i>Refresh Index</button>
         <button id="gclose" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s" title="Close" aria-label="Close graph editor"><i class="fas fa-xmark"></i></button>
@@ -10650,8 +10649,6 @@ export class FormulaGraph {
     win.querySelector("#gexport")?.addEventListener("click", () => this._exportSelectionAsFile());
 
     win.querySelector("#glint")?.addEventListener("click", () => this._runLint());
-
-    win.querySelector("#gaiassist")?.addEventListener("click", () => this._openAIAssistant());
 
     const palSearch = win.querySelector("#gpalsearch");
     palSearch?.addEventListener("input", () => {

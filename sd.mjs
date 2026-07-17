@@ -37,6 +37,7 @@ import { EFFECT_PATHS }        from "./module/helpers/effects.mjs";
 import { SystemConfig, applySettings, buildActorBaseDefaults } from "./module/helpers/system-config.mjs";
 import { installColorSchemeObserver } from "./module/helpers/color-schemes.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
+import { SDMarketApp }         from "./module/helpers/market-app.mjs";
 import { SDActionHUD, SDActionHUDConfig, registerActionHudSettings, mountActionHudHooks } from "./module/helpers/action-hud.mjs";
 import { SDTrade }             from "./module/helpers/trade.mjs";
 import { SDQuest }             from "./module/helpers/quest.mjs";
@@ -193,6 +194,24 @@ Hooks.once("init", () => {
       label:       "SD.Sheets.QuestLog"
     });
   }).catch(e => console.error("SD | failed to register QuestLog sheet:", e));
+
+  game.settings.registerMenu("sd", "marketMenu", {
+    name:   "SD.Market.MenuName",
+    label:  "SD.Market.MenuLabel",
+    hint:   "SD.Market.MenuHint",
+    icon:   "fa-solid fa-store",
+    type:   SDMarketApp,
+    restricted: true
+  });
+
+  game.settings.register("sd", "marketRegistryUrl", {
+    name:    "SD.Market.RegistrySettingName",
+    hint:    "SD.Market.RegistrySettingHint",
+    scope:   "world",
+    config:  true,
+    type:    String,
+    default: "https://raw.githubusercontent.com/phoenix1cold/sd-market/main/index.json"
+  });
 
   game.settings.registerMenu("sd", "systemConfig", {
     name:   "SD.Settings.SystemConfig",
