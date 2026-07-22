@@ -100,7 +100,11 @@ export class SDItem extends Item {
       }
       if (dirty) updates.push({ _id: parentItem.id, "system.slotContents": cloned });
     }
-    if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
+    const _live = updates.filter(u => actor.items?.has?.(u._id));
+    if (_live.length) {
+      try { await actor.updateEmbeddedDocuments("Item", _live); }
+      catch (e) { console.warn("SD | slot snapshot sync failed:", e); }
+    }
   }
 
   async use({ event } = {}) {

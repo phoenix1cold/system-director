@@ -33,7 +33,7 @@ const FIELD_DEFS = {
   richtext:  [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"]],
   attribute: [["Label","label"],["Widget Key","widgetKey","text"],["Score Path","path","path"],["Chat Flavor","flavor","text"]],
   skill:     [["Label","label"],["Widget Key","widgetKey","text"],["Rank Path","path","path"],["Attr Modifier","attrMod","number"],["Roll Formula Override","formula","formula"],["Chat Flavor","flavor","text"],["Pips count (Pips variant only)","pipMax","number"]],
-  slot:      [["Label","label"],["Widget Key","widgetKey","text"],["Slot ID","slotId","text"],["Max Items","maxCount","number"]],
+  slot:      [["Label","label"],["Widget Key","widgetKey","text"],["Slot ID","slotId","text"],["Max Items","maxCount","number"],["Auto-equip items added to slot","autoEquip","boolean"]],
   inventory: [["Label","label"],["Widget Key","widgetKey","text"],["Filter Categories","categories","array"],["Extra Columns (hidden field names)","columns","array"],["Show Currency Section","showCurrency","boolean"],["Currency Path (optional)","currencyPath","path"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   effects:   [["Label","label"],["Widget Key","widgetKey","text"],["Show Disabled","showDisabled","boolean"],["Show Passive","showPassive","boolean"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   spellbook: [["Label","label"],["Widget Key","widgetKey","text"],["Ability type filter (empty = all)","abilityType","text"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
@@ -735,6 +735,45 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     </div>`;
 
   document.body.appendChild(popup);
+
+  (function _wireDataFieldRefs(){
+    const panel = popup.querySelector("#wcfg-panel-fields");
+    if (!panel) return;
+    const wKey = String(w.widgetKey ?? "").trim() || String(w.label ?? "").trim();
+    const refs = [];
+    if (wKey) {
+      refs.push(["Value token", "{widget:" + wKey + "}"]);
+      refs.push(["System field (value)", "system.widgetFields." + wKey + ".value"]);
+      refs.push(["System field (label)", "system.widgetFields." + wKey + ".label"]);
+    }
+    if (w.path)      refs.push(["Bound path", String(w.path)]);
+    if (w.pathValue) refs.push(["Value path", String(w.pathValue)]);
+    if (w.pathMax)   refs.push(["Max path", String(w.pathMax)]);
+    if (wKey && ["inventory","spellbook","slot"].includes(String(w.type))) {
+      refs.push(["Items array (names)", "{widget:" + wKey + ".names}"]);
+      refs.push(["Items array (ids)",   "{widget:" + wKey + ".ids}"]);
+      refs.push(["Items array (uuids)", "{widget:" + wKey + ".uuids}"]);
+    }
+    if (!refs.length) return;
+    const esc2 = s => String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "margin-top:12px;padding-top:10px;border-top:1px solid var(--sd-border)";
+    wrap.innerHTML = `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sd-text-3);margin-bottom:6px"><i class="fas fa-copy" style="margin-right:6px"></i>Data fields (copy &amp; use in formulas)</div>` +
+      refs.map(([label, val]) => `
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <span style="font-size:10px;color:var(--sd-text-3);min-width:118px;flex-shrink:0">${esc2(label)}</span>
+          <code style="flex:1;font-size:10px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;padding:3px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc2(val)}</code>
+          <button type="button" data-copy-ref="${esc2(val)}" title="Copy" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:3px 7px"><i class="fas fa-copy"></i></button>
+        </div>`).join("");
+    panel.appendChild(wrap);
+    wrap.querySelectorAll("[data-copy-ref]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const txt = btn.dataset.copyRef ?? "";
+        try { await navigator.clipboard.writeText(txt); ui.notifications?.info?.("Copied: " + txt); }
+        catch { ui.notifications?.warn?.("Copy manually: " + txt); }
+      });
+    });
+  })();
 
   let _lastFocused = null;
 

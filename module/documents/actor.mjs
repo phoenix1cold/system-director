@@ -225,6 +225,20 @@ export class SDActor extends Actor {
     });
   }
 
+  /** Skip equip-gated effects (flags.sd.activateOnEquip) while the source item is unequipped. */
+  *allApplicableEffects() {
+    for (const effect of super.allApplicableEffects()) {
+      if (effect?.flags?.sd?.activateOnEquip) {
+        let src = effect.parent;
+        if (!(src instanceof Item) && typeof effect.origin === "string" && effect.origin.includes("Item.")) {
+          try { src = fromUuidSync(effect.origin); } catch { src = null; }
+        }
+        if (src instanceof Item && src !== this && src.system?.equippable && !src.system?.equipped) continue;
+      }
+      yield effect;
+    }
+  }
+
   applyActiveEffects(phase) {
     const isInitial = (phase === "initial" || phase === undefined || phase === null);
 
@@ -251,6 +265,32 @@ export class SDActor extends Actor {
         if (cur === undefined || cur === null) {
           foundry.utils.setProperty(this, key, 0);
         }
+      }
+    }
+
+    // SD fix: schemaless fields (hiddenFields, custom/widget-bound values) often
+    // store numbers as strings ("14"). Foundry's ADD mode is type-driven, so a
+    // string current value makes +2 CONCATENATE ("14" + "+2" = "14+2") instead of
+    // doing math (14 + 2 = 16). Coerce numeric-looking string targets of numeric
+    // AE changes to real numbers before core applies the changes.
+    {
+      const M = CONST.ACTIVE_EFFECT_MODES;
+      const numericModes = [M.ADD, M.MULTIPLY, M.UPGRADE, M.DOWNGRADE];
+      for (const [key, changes] of this._sdAeContext.changesByKey) {
+        const cur = foundry.utils.getProperty(this, key);
+        if (typeof cur !== "string") continue;
+        const trimmed = cur.trim();
+        const curNum = Number(trimmed);
+        const curIsNumeric = trimmed !== "" && Number.isFinite(curNum);
+        if (!curIsNumeric && trimmed !== "") continue;
+        const relevant = changes.filter(c => numericModes.includes(Number(c?.mode)));
+        if (!relevant.length) continue;
+        const allNumeric = relevant.every(c => {
+          const v = String(c?.value ?? "").trim();
+          return v !== "" && Number.isFinite(Number(v));
+        });
+        if (!allNumeric) continue;
+        foundry.utils.setProperty(this, key, curIsNumeric ? curNum : 0);
       }
     }
 

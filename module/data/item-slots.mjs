@@ -41,6 +41,20 @@ export function SlotContentField() {
 
 export class SlotManager {
 
+  static _slotAutoEquip(parentDoc, sid) {
+    const scan = (widgets) => {
+      for (const w of widgets ?? []) {
+        if (w?.type === "slot" && String(w.slotId ?? "") === sid && w.autoEquip) return true;
+        if (w?.type === "vsection" && scan(w.widgets)) return true;
+      }
+      return false;
+    };
+    for (const tab of parentDoc?.system?.customTabs ?? []) {
+      for (const row of tab.rows ?? []) if (scan(row.widgets)) return true;
+    }
+    return false;
+  }
+
   static async addToSlot(parentItem, slotId, droppedItem) {
     const sid = String(slotId ?? "");
     const def = this.getDefinition(parentItem, sid);
@@ -75,6 +89,14 @@ export class SlotManager {
       if (!pass) {
         ui.notifications.warn(`"${itemData.name}" blocked by slot filter: ${failed.join("; ")}`);
         return null;
+      }
+    }
+
+    if (this._slotAutoEquip(parentItem, sid) && itemData.type === "inventory" && itemData.system?.equippable && !itemData.system?.equipped) {
+      foundry.utils.setProperty(itemData, "system.equipped", true);
+      if (droppedItem instanceof Item && droppedItem.parent?.items?.has?.(droppedItem.id)) {
+        try { await droppedItem.update({ "system.equipped": true }); }
+        catch (e) { console.warn("SD | slot auto-equip failed:", e); }
       }
     }
 

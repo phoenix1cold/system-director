@@ -295,7 +295,7 @@ export const NODE_DEFS = {
   },
 
   branch: {
-    title:"Branch", color:"#8a2a8a", cat:"Flow",
+    title:"Branch", color:"#8a2a8a", cat:"Flow Control",
     desc:"If Condition is TRUE runs True path; otherwise False path",
     inputs:[
       {id:"exec",  label:"",         type:"exec"},
@@ -310,7 +310,7 @@ export const NODE_DEFS = {
   },
 
   if_node: {
-    title:"If Compare", color:"#8a2a8a", cat:"Flow",
+    title:"If Compare", color:"#8a2a8a", cat:"Flow Control",
     desc:"Exec passes through when A compares true against B/value. Handy for assistant-built simple checks like HP < 5 -> Message.",
     inputs:[
       {id:"exec", label:"", type:"exec"},
@@ -340,7 +340,7 @@ export const NODE_DEFS = {
   },
 
   on_click: {
-    title:"On Click", color:"#b05000", cat:"Flow",
+    title:"On Click", color:"#b05000", cat:"Events",
     desc:"Entry point - fired when the item's Use button is pressed. Connect its exec output to your action chain.",
     inputs:[],
     outputs:[{id:"exec", label:"Execute", type:"exec"}],
@@ -349,7 +349,7 @@ export const NODE_DEFS = {
   },
 
   sequence: {
-    title:"Sequence", color:"#8a2a8a", cat:"Flow",
+    title:"Sequence", color:"#8a2a8a", cat:"Flow Control",
     desc:"Run N exec branches in strict order (1 в†’ 2 в†’ вЂ¦ в†’ N). Set `count` to pick how many branches; connected + 1 is the smallest safe count.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[
@@ -373,13 +373,13 @@ export const NODE_DEFS = {
   },
 
   literal: {
-    title:"Number", color:"#2a4a6a", cat:"Sources",
+    title:"Number", color:"#2a4a6a", cat:"Values",
     inputs:[{id:"in",label:"In",type:"value.number"}], outputs:[{id:"v",label:"Out",type:"value.number"}],
     fields:[{key:"value",label:"",type:"number",default:0}],
     compile:(n,i)=> i.in !== undefined ? String(i.in) : String(n.data.value ?? 0)
   },
   literal_str: {
-    title:"Text", color:"#2a4a6a", cat:"Sources",
+    title:"Text", color:"#2a4a6a", cat:"Values",
     inputs:[{id:"in",label:"In",type:"value.string"}], outputs:[{id:"v",label:"Out",type:"value.string"}],
     fields:[{key:"value",label:"",type:"text",default:""}],
     compile:(n,i)=>{
@@ -388,28 +388,46 @@ export const NODE_DEFS = {
     }
   },
   get_path: {
-    title:"Get Field Value", color:"#1a4060", cat:"Sources",
-    desc:"Read any field from the actor or item by dot-path. Outputs the value at the given path.",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
-    fields:[{key:"path",label:"Path",type:"path",default:"system.resources.hp.value"}],
-    compile:(n)=>`{${n.data.path??""}}`
+    title:"Get Field", color:"#1a4060", cat:"Get Data", wideNode:true,
+    keywords:"target field token field uuid field get field value read",
+    desc:"Read any field by dot-path from a chosen Source: Self (this actor/item), First Target (first targeted token's actor), Token by Id (wire a Token Id, e.g. from For Each Token; defaults to the current loop token), or By UUID (wire an actor/item UUID into Ref). Replaces the old Target Field / Token Field nodes.",
+    inputs:[{id:"ref", label:"Token Id / UUID", type:"value.any"}],
+    outputs:[{id:"v",label:"Value",type:"value.any"}],
+    fields:[
+      {key:"source",label:"Source",type:"select",default:"self",options:["self","first target","token by id","by uuid"]},
+      {key:"path",label:"Path",type:"path",default:"system.resources.hp.value"}
+    ],
+    compile:(n,i)=>{
+      const p   = String(n.data.path ?? "").trim();
+      const src = String(n.data.source ?? "self");
+      if (src === "first target") return `{target.${p}}`;
+      if (src === "token by id") {
+        const tid = (i.ref != null && i.ref !== "") ? String(i.ref) : "{__currentTarget}";
+        return `{tokenField:${tid}.${p}}`;
+      }
+      if (src === "by uuid") {
+        const b64 = (x)=>{ try { return btoa(unescape(encodeURIComponent(String(x ?? "")))); } catch { return ""; } };
+        return `{uuidField:${_arrayArg(i.ref ?? "")}|0|${b64(p)}}`;
+      }
+      return (p.startsWith("{") && p.endsWith("}")) ? p : `{${p}}`;
+    }
   },
   get_widget: {
-    title:"Get Widget Value", color:"#1a4060", cat:"Sources",
+    title:"Get Widget Value", color:"#1a4060", cat:"Get Data",
     desc:"Read the current computed value of another widget by its Widget Key",
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"key",label:"Widget",type:"widget-picker",default:""}],
     compile:(n)=>`{widget:${n.data.key??""}}`
   },
   get_widget_path: {
-    title:"Get Widget Path", color:"#1a4060", cat:"Sources",
+    title:"Get Widget Path", color:"#1a4060", cat:"Get Data",
     desc:"Emits the data path bound to a widget (e.g. system.flags.hp). Feed into Set Field / Modify to change the widget's value from the graph.",
     inputs:[], outputs:[{id:"v",label:"Path",type:"value.path"}],
     fields:[{key:"key",label:"Widget",type:"widget-picker",default:""}],
     compile:(n)=>`{widgetPath:${n.data.key??""}}`
   },
   get_name: {
-    title:"Get Name", color:"#1a4060", cat:"Sources",
+    title:"Get Name", color:"#1a4060", cat:"Get Data",
     desc:"Returns the display name of an Item, Widget, Token, Actor or Sheet by UUID, ID, widget key, or name. Pick a Kind to constrain the lookup, or leave it on Auto to try each kind in order. The Ref pin (if connected) overrides the static reference.",
     inputs:[
       {id:"ref", label:"Ref", type:"value.any"}
@@ -450,14 +468,14 @@ export const NODE_DEFS = {
     }
   },
   actor_ref: {
-    title:"Actor @Ref", color:"#1a4060", cat:"Sources",
-    desc:"Shorthand from actor roll data: @attr1=attr1.mod, @level, @prof",
+    title:"Actor @Ref", color:"#1a4060", cat:"Get Data",
+    desc:"Reads DERIVED roll-data values computed at roll time (@attr1 = attribute MODIFIER, @level, @prof) which do not exist as raw system.* fields. Use Get Field Value for raw stored fields; use this node for modifiers and other derived stats.",
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"ref",label:"@name",type:"text",default:"attr1",placeholder:"attr1 / level / prof"}],
     compile:(n)=>`{@${n.data.ref??"attr1"}}`
   },
   slot_count: {
-    title:"Slot Count", color:"#1a4060", cat:"Sources",
+    title:"Slot Count", color:"#1a4060", cat:"Get Data",
     desc:"Count items in a slot across the source (this item / actor / wired Actor pin) and every nested item slot. Slot ID is plain text вЂ” type it or connect a string pin.",
     inputs:[
       {id:"slotId", label:"Slot ID", type:"value.string"},
@@ -472,7 +490,7 @@ export const NODE_DEFS = {
     }
   },
   slot_field: {
-    title:"Slot Item Field", color:"#1a4060", cat:"Sources",
+    title:"Slot Item Field", color:"#1a4060", cat:"Get Data",
     desc:"Read a field from the first item found in any slot named Slot ID. Search walks the source actor (self / wired Actor pin) and every nested item slot at any depth until the field is found.",
     inputs:[
       {id:"slotId", label:"Slot ID", type:"value.string"},
@@ -492,7 +510,7 @@ export const NODE_DEFS = {
     }
   },
   item_uuid: {
-    title:"Item by UUID", color:"#1a3050", cat:"Sources",
+    title:"Item by UUID", color:"#1a3050", cat:"Get Data",
     desc:"Drag an item from the sidebar here to get its UUID, then read a field",
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[
@@ -502,7 +520,8 @@ export const NODE_DEFS = {
     compile:(n)=>{ const p=n.data.path??""; const u=n.data.uuid??""; return `{item:id:${u}${p?"."+p:""}}`; }
   },
   target_field: {
-    title:"Target Field", color:"#1a4060", cat:"Sources",
+    title:"Target Field", color:"#1a4060", cat:"Get Data",
+    hidden:true, replacement:"get_path",
     desc:"Read a field from the first targeted/selected token's actor",
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}],
@@ -510,7 +529,7 @@ export const NODE_DEFS = {
   },
 
   fa_icon: {
-    title:"FA Icon", color:"#2a4060", cat:"Sources",
+    title:"FA Icon", color:"#2a4060", cat:"Values",
     desc:"Font Awesome icon picker вЂ” single text output containing a ready-to-render `<i class=\"вЂ¦\"></i>` HTML snippet. Drop it into Chat Output, a Richtext widget or a Text widget (sheet renders the icon for plain FA snippets) and it appears as an actual icon, not as the literal class text.",
     inputs:[
       {id:"icon", label:"Icon", type:"value.string"}
@@ -578,7 +597,7 @@ export const NODE_DEFS = {
   },
 
   dice: {
-    title:"Dice", color:"#7a4500", cat:"Dice",
+    title:"Dice", color:"#7a4500", cat:"Dice & Rolls",
     desc:"Build a dice formula `<count><die>`. Die accepts any size вЂ” type \"d5\", \"d87\", \"5\", \"87\" or a {ref}. Optional Min / Max clamp the rolled result to a [min..max] range (leave blank to skip). Outputs: `Formula` (string for rolling), `Min` / `Max` (theoretical extremes вЂ” handy for HUD ranges or branch logic), `Avg` (expected value).",
     inputs:[
       {id:"count",label:"Count",type:"value.number"},
@@ -640,7 +659,7 @@ export const NODE_DEFS = {
   },
 
   formula_range: {
-    title:"Formula Range", color:"#7a4500", cat:"Dice",
+    title:"Formula Range", color:"#7a4500", cat:"Dice & Rolls",
     desc:"Statically inspect a dice formula and emit its theoretical Min, Max and Average. `2d6+3` в†’ min=5, max=15, avg=10. Works with any formula string вЂ” useful for HUD ranges, IF branches, or feeding clamps.",
     inputs:[{id:"formula", label:"Formula", type:"value.string"}],
     outputs:[
@@ -660,7 +679,7 @@ export const NODE_DEFS = {
   },
 
   formula_clamp: {
-    title:"Formula Clamp", color:"#7a4500", cat:"Dice",
+    title:"Formula Clamp", color:"#7a4500", cat:"Dice & Rolls",
     desc:"Wrap a formula with `max(MIN, min(MAX, F))`. Either bound may be left empty (open on that side). Stack multiple Clamp nodes to apply tighter ranges in sequence.",
     inputs:[
       {id:"formula", label:"Formula", type:"value.string"},
@@ -687,7 +706,7 @@ export const NODE_DEFS = {
   },
 
   formula_mul: {
-    title:"Formula Г— N", color:"#7a4500", cat:"Dice",
+    title:"Formula Г— N", color:"#7a4500", cat:"Dice & Rolls",
     desc:"Wrap a formula in `(N)*(F)`. Common case: crit doubling (`Г—2`). Set N=2 + leave Formula pin connected = doubled total.",
     inputs:[
       {id:"formula", label:"Formula", type:"value.string"},
@@ -705,7 +724,7 @@ export const NODE_DEFS = {
   },
 
   to_formula: {
-    title:"To Formula", color:"#7a4500", cat:"Dice",
+    title:"To Formula", color:"#7a4500", cat:"Dice & Rolls",
     desc:"Strip surrounding quotes from a string and mark it to be inlined into a dice formula raw, without JSON quoting. Use this when a field contains a roll expression (e.g. `1d6`, `2d20+@mod`) that should be rolled as dice instead of being treated as a literal text term. Plain text values still work вЂ” they are simply emitted unquoted into the formula.",
     inputs:[{id:"in", label:"In", type:"value.string"}],
     outputs:[{id:"v", label:"Formula", type:"value.string"}],
@@ -730,7 +749,7 @@ export const NODE_DEFS = {
   },
 
   formula_add: {
-    title:"Formula + Mod", color:"#7a4500", cat:"Dice",
+    title:"Formula + Mod", color:"#7a4500", cat:"Dice & Rolls",
     desc:"Append a +/- modifier to a formula. Mod accepts numbers (`5`, `-3`) or expressions (`@mod`, `1d4`). Stack multiple of these to chain bonuses.",
     inputs:[
       {id:"formula", label:"Formula", type:"value.string"},
@@ -748,7 +767,7 @@ export const NODE_DEFS = {
   },
 
   roll_stat: {
-    title:"Roll Stat", color:"#7a4500", cat:"Dice",
+    title:"Roll Stat", color:"#7a4500", cat:"Dice & Rolls",
     desc:"Produce a percentile (0..1) showing where the roll landed inside its theoretical range, plus echo Min/Max/Avg of the formula. Useful for heatmap UI or `If pct >= 0.9 в†’ great hit`.",
     inputs:[
       {id:"formula", label:"Formula", type:"value.string"},
@@ -790,7 +809,7 @@ export const NODE_DEFS = {
          outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],
          compile:(n,i)=>_round(`max(${i.lo??"0"},min(${i.hi??"0"},${i.v??"0"}))`, n.data)},
 
-  eq: {title:"==",color:"#6a1a6a",cat:"Compare",desc:"Equality check. Works for both numbers (5 == 5) and text (\"hello\" == \"hello\", Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
+  eq: {title:"==",color:"#6a1a6a",cat:"Logic",desc:"Equality check. Works for both numbers (5 == 5) and text (\"hello\" == \"hello\", Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
     const a = (i.a !== undefined && i.a !== null && i.a !== "") ? i.a : "0";
     const b = (i.b !== undefined && i.b !== null && i.b !== "") ? i.b : "0";
     const _b64 = (s) => {
@@ -799,7 +818,7 @@ export const NODE_DEFS = {
     };
     return `{__sdEq:${_b64(a)}|${_b64(b)}}`;
   }},
-  neq:{title:"в‰ ", color:"#6a1a6a",cat:"Compare",desc:"Inequality check. Works for both numbers and text (Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
+  neq:{title:"в‰ ", color:"#6a1a6a",cat:"Logic",desc:"Inequality check. Works for both numbers and text (Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
     const a = (i.a !== undefined && i.a !== null && i.a !== "") ? i.a : "0";
     const b = (i.b !== undefined && i.b !== null && i.b !== "") ? i.b : "0";
     const _b64 = (s) => {
@@ -808,10 +827,10 @@ export const NODE_DEFS = {
     };
     return `{__sdNeq:${_b64(a)}|${_b64(b)}}`;
   }},
-  gt: {title:">", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>${i.b??"0"})`},
-  lt: {title:"<", color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<${i.b??"0"})`},
-  gte:{title:">=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>=${i.b??"0"})`},
-  lte:{title:"<=",color:"#6a1a6a",cat:"Compare",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<=${i.b??"0"})`},
+  gt: {title:">", color:"#6a1a6a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>${i.b??"0"})`},
+  lt: {title:"<", color:"#6a1a6a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<${i.b??"0"})`},
+  gte:{title:">=",color:"#6a1a6a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>=${i.b??"0"})`},
+  lte:{title:"<=",color:"#6a1a6a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<=${i.b??"0"})`},
 
   and:{title:"AND",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}&&${i.b??"0"})`},
   or: {title:"OR", color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}||${i.b??"0"})`},
@@ -920,7 +939,7 @@ export const NODE_DEFS = {
   },
 
   act_roll_value: {
-    title:"Roll -> Value", color:"#8a4400", cat:"Roll",
+    title:"Roll -> Value", color:"#8a4400", cat:"Dice & Rolls",
     desc:"Rolls dice and forwards the numeric result as a value output. Min / Max / Avg are theoretical formula bounds. Min Value and Max Value contain the selected lowest/highest active die results from the actual roll; configure their independent counts, and use the Sum outputs when a numeric total of the selected dice is needed. Dice Array contains every active die result.",
     inputs:[
       {id:"exec",             label:"",              type:"exec"},
@@ -983,7 +1002,7 @@ export const NODE_DEFS = {
   },
 
   act_damage: {
-    title:"Damage", color:"#8a1a1a", cat:"Damage", wideNode:true,
+    title:"Damage", color:"#8a1a1a", cat:"Combat", wideNode:true,
     desc:"Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=Г—0, resist=Г—0.5, vulnerable=Г—2, numeric factor used as-is). halfOnSave Г— savePassed halves damage when the preceding save passed. Three amount slots вЂ” Amount (base), Crit Amount (used when Is Crit? truthy), Fumble Amount (used when Is Fumble? truthy). Wire e.g. Roll Value's Is Crit / Crit Formula straight into Is Crit? / Crit Amount. Connect Targets pin from AoE Save / AoE Targets to apply to specific tokens.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
@@ -1040,7 +1059,7 @@ export const NODE_DEFS = {
   },
 
   act_heal: {
-    title:"Heal", color:"#1a7a2a", cat:"Damage", wideNode:true,
+    title:"Heal", color:"#1a7a2a", cat:"Combat", wideNode:true,
     desc:"Apply healing to target HP. postToChat:yes в†’ chat card with Apply button. autoApply:yes в†’ post to chat AND immediately heal (no click). postToChat:no в†’ silent direct HP write. Three amount slots вЂ” Amount (base), Crit Amount (used when Is Crit? truthy), Fumble Amount (used when Is Fumble? truthy). Connect Targets pin from AoE Save to apply to specific tokens.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
@@ -1162,7 +1181,7 @@ export const NODE_DEFS = {
   },
 
   for_each_target: {
-    title:"For Each Target", color:"#1a5a7a", cat:"Flow",
+    title:"For Each Target", color:"#1a5a7a", cat:"Flow Control",
     desc:"Execute loop body once per targeted token. Use Set Target (multi-target with T) before activating.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[
@@ -1174,7 +1193,7 @@ export const NODE_DEFS = {
   },
 
   act_for_each_token: {
-    title:"For Each Token", color:"#1a5a7a", cat:"Flow",
+    title:"For Each Token", color:"#1a5a7a", cat:"Flow Control",
     desc:"Execute loop body once per token id in a comma-joined list (e.g. Saved[]/Failed[]/All[] from Save Branch). On each iteration {__currentTarget} = current token id and {__loopIndex} = i; the current token's actor becomes the action context.",
     inputs:[
       {id:"exec",   label:"",        type:"exec"},
@@ -1195,7 +1214,8 @@ export const NODE_DEFS = {
   },
 
   tok_field: {
-    title:"Token Field", color:"#1a4060", cat:"Sources",
+    title:"Token Field", color:"#1a4060", cat:"Get Data",
+    hidden:true, replacement:"get_path",
     desc:"Read a field from the actor of a token by token id. Token Id defaults to {__currentTarget} (set by For Each Token / per-target iterators). Use to read e.g. system.resources.hp.value of a specific saved/failed token.",
     inputs:[{id:"tokenId", label:"Token Id", type:"value.any"}],
     outputs:[{id:"v", label:"Value", type:"value.any"}],
@@ -1548,8 +1568,49 @@ export const NODE_DEFS = {
     }
   },
 
+  arr_break: (() => {
+    const MAX_P = 10;
+    const _cnt = (d) => Math.max(1, Math.min(MAX_P, parseInt(d?.count) || 1));
+    const idxFields = [];
+    for (let k = 0; k < MAX_P; k++) {
+      idxFields.push({ key:`idx${k}`, label:`Pin ${k+1} — index`, type:"number", default:k, visibleIf:(d)=>_cnt(d) > k });
+    }
+    return {
+      title:"Break Array (Split Pins)", color:"#2a7a3a", cat:"Array", wideNode:true,
+      desc:"Splits one array into several value pins. Add pin = raise the Pins count (1-10); each pin has its own configurable index (negative counts from the end: -1 is last). Works with any array: actor UUIDs from Get Target/Selected Actors, item ids, numbers, strings.",
+      inputs:[{id:"a", label:"Array", type:"value.array"}],
+      outputs:[],
+      fields:[
+        {key:"count", label:"Pins (add pin = +1)", type:"number", default:2},
+        ...idxFields
+      ],
+      computeDynamicOutputs(node) {
+        const d = node?.data ?? {};
+        const c = _cnt(d);
+        const outs = [];
+        for (let k = 0; k < c; k++) {
+          const idx = (d[`idx${k}`] === undefined || d[`idx${k}`] === null || d[`idx${k}`] === "") ? k : d[`idx${k}`];
+          outs.push({ id:`out${k}`, label:`[${idx}]`, type:"value.any" });
+        }
+        return outs;
+      },
+      compile(n, i) {
+        const idx = (n.data?.idx0 === undefined || n.data?.idx0 === null || n.data?.idx0 === "") ? 0 : n.data.idx0;
+        return `{arrayGet:${_arrayArg(i.a ?? "")}|${_arrayArg(idx)}|${_arrayArg("")}}`;
+      },
+      compilePin(n, i, pin) {
+        const m = /^out(\d+)$/.exec(String(pin ?? ""));
+        const k = m ? parseInt(m[1]) : 0;
+        const raw = n.data?.[`idx${k}`];
+        const idx = (raw === undefined || raw === null || raw === "") ? k : raw;
+        return `{arrayGet:${_arrayArg(i.a ?? "")}|${_arrayArg(idx)}|${_arrayArg("")}}`;
+      }
+    };
+  })(),
+
   arr_first: {
     title:"Array First", color:"#2a7a3a", cat:"Array",
+    hidden:true, replacement:"arr_get",
     desc:"Return the first element of an array (`arr[0]`). Empty if the array is empty.",
     inputs:[{id:"a", label:"Array", type:"value.array"}],
     outputs:[{id:"v", label:"Value", type:"value.any"}],
@@ -1559,6 +1620,7 @@ export const NODE_DEFS = {
 
   arr_last: {
     title:"Array Last", color:"#2a7a3a", cat:"Array",
+    hidden:true, replacement:"arr_get",
     desc:"Return the last element of an array (`arr[-1]`). Empty if the array is empty.",
     inputs:[{id:"a", label:"Array", type:"value.array"}],
     outputs:[{id:"v", label:"Value", type:"value.any"}],
@@ -1739,7 +1801,7 @@ export const NODE_DEFS = {
   },
 
   arr_for_each: {
-    title:"For Each Element", color:"#1a5a7a", cat:"Flow",
+    title:"For Each Element", color:"#1a5a7a", cat:"Flow Control",
     desc:"Generic version of `For Each Token` вЂ” execute a body once per element of an arbitrary array (strings, numbers, anything). On each iteration `{__loopItem}` = current element, `{__loopIndex}` = i. After all iterations, exec goes to Done.",
     inputs:[
       {id:"exec", label:"",      type:"exec"},
@@ -1803,7 +1865,7 @@ export const NODE_DEFS = {
   },
 
   act_modify: {
-    title:"Modify Field", color:"#4a2a6a", cat:"Field Ops", wideNode:true,
+    title:"Modify Field", color:"#4a2a6a", cat:"Set Data", wideNode:true,
     desc:"Add / subtract / set any field on self, actor or target. The Actor pin (when wired) overrides the Where dropdown вЂ” feed it a UUID, a Get Actor / Get All Targets node, or any actor expression. An array of actors loops the change over each. Path / Where / Op can all be fed dynamically вЂ” when wired, the matching field hides UE-style.",
     inputs:[
       {id:"exec",  label:"",        type:"exec"},
@@ -1844,7 +1906,7 @@ export const NODE_DEFS = {
   },
 
   act_set_text_field: {
-    title:"Set Text Field", color:"#4a2a6a", cat:"Field Ops", wideNode:true,
+    title:"Set Text Field", color:"#4a2a6a", cat:"Set Data", wideNode:true,
     desc:"Write a string/text value to any path on self / actor / target. The Actor pin (when wired) overrides the Where dropdown. An array of actors loops the write over each. Use this for non-numeric writes вЂ” chat AI responses to a notes field, paste a label, fill a description, etc. Modify Field is for numbers; this is for text. Where can be fed dynamically (UE-style вЂ” when the Where pin is wired the dropdown hides). Value supports module tokens ({widget:KEY}, {@attr1}, {item:Sword.system.notes}) and runtime tokens ({__lastAiResponse}, {__lastAiError}, {__lastRoll}).",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
@@ -1881,8 +1943,42 @@ export const NODE_DEFS = {
     }
   },
 
+  act_cast_to: {
+    title:"Cast To", color:"#4a2a6a", cat:"Set Data", wideNode:true,
+    desc:"Casts (writes) a value into a field on an actor or item. Target: self (actor / this item) or wire a UUID into the Target pin. Value comes from the Value pin or the Formula field ({...} tokens and @refs like @hiddenFields.actor + 2 are supported, dice too). Cast Once: writes only the first time; afterwards the node just passes through Exec like a dot. Revert Cast by Bool + Revert pin: while the bool is false the cast is reverted (previous value restored) and Cast Once is re-armed. Exec always continues; Completed fires only when the value was actually written.",
+    inputs:[
+      {id:"exec",   label:"",              type:"exec"},
+      {id:"target", label:"Target (UUID)", type:"value.any"},
+      {id:"value",  label:"Value",         type:"value.any"},
+      {id:"revert", label:"Revert (bool)", type:"value.bool"}
+    ],
+    outputs:[
+      {id:"completed", label:"Completed →", type:"exec"},
+      {id:"exec",      label:"Exec →",      type:"exec"}
+    ],
+    fields:[
+      {key:"targetType",   label:"Cast to",             type:"select",   default:"actor", options:["actor","item"]},
+      {key:"path",         label:"Field path",          type:"path",     default:"system.hiddenFields.myField"},
+      {key:"formula",      label:"Formula",             type:"text",     default:""},
+      {key:"castOnce",     label:"Cast Once",           type:"checkbox", default:false},
+      {key:"revertByBool", label:"Revert Cast by Bool", type:"checkbox", default:false}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({
+      type:"castTo",
+      castId: n.id,
+      targetType: n.data.targetType ?? "actor",
+      path: n.data.path ?? "",
+      value: (inp.value != null && inp.value !== "") ? String(inp.value) : String(n.data.formula ?? ""),
+      targetRef: (inp.target != null && inp.target !== "") ? String(inp.target) : "",
+      castOnce: !!n.data.castOnce,
+      revertByBool: !!n.data.revertByBool,
+      revert: (inp.revert != null && inp.revert !== "") ? String(inp.revert) : ""
+    })
+  },
+
   act_set_initiative: {
-    title:"Set Initiative", color:"#4a2a6a", cat:"Field Ops",
+    title:"Set Initiative", color:"#4a2a6a", cat:"Set Data",
     desc:"Set or roll initiative for the target actor in the active combat. Mode `roll` rolls the system formula; `value` sets the exact number. If the actor isn't in combat, a combatant is created (only for the active combat). Mode can be fed via pin (UE-style: when wired the field hides).",
     inputs:[
       {id:"exec",   label:"",          type:"exec"},
@@ -2206,6 +2302,7 @@ export const NODE_DEFS = {
 
   act_use_slot_item: {
     title:"Use Slot Item", color:"#2a5a3a", cat:"Items",
+    hidden:true, replacement:"act_use_item",
     desc:"Calls item.use() on the first item found in a slot by Slot ID. Search walks the source (this item / actor / wired Actor pin) and every nested item slot.",
     inputs:[
       {id:"exec",   label:"",        type:"exec"},
@@ -2227,37 +2324,60 @@ export const NODE_DEFS = {
 
   act_use_item: {
     title:"Use Item", color:"#2a5a3a", cat:"Items",
-    desc:"Find an owned item by name and call item.use(). Item is auto-indexed from actor inventory.",
-    inputs:[{id:"exec",label:"",type:"exec"}],
+    keywords:"use slot item",
+    desc:"Call item.use() on an owned item. Find by: item = by name / UUID / category; slot = first item found in a slot by Slot ID (walks nested slots; Slot ID / Actor pins supported). Replaces the old Use Slot Item node.",
+    inputs:[
+      {id:"exec",   label:"",        type:"exec"},
+      {id:"slotId", label:"Slot ID", type:"value.string"},
+      {id:"actor",  label:"Actor",   type:"value.actor"}
+    ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
+      {key:"findBy",   label:"Find by",       type:"select",      default:"item", options:["item","slot"]},
       {key:"itemName", label:"Item",          type:"item-picker", default:""},
-      {key:"uuid",     label:"вЂ¦or UUID",      type:"text",        default:"", placeholder:"drag item here"},
-      {key:"category", label:"вЂ¦or Category",  type:"text",        default:"", placeholder:"first item of category"},
-      {key:"index",    label:"Category index",type:"number",      default:0}
+      {key:"uuid",     label:"…or UUID",      type:"text",        default:"", placeholder:"drag item here"},
+      {key:"category", label:"…or Category",  type:"text",        default:"", placeholder:"first item of category"},
+      {key:"index",    label:"Category index",type:"number",      default:0},
+      {key:"slotId",   label:"Slot ID (slot mode)", type:"text",  default:"slot1", placeholder:"slot1"}
     ],
     isAction:true, wideNode:true,
-    toAction:(n)=>({type:"useItem", itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0)})
+    toAction:(n,inp)=>{
+      if (String(n.data?.findBy ?? "item") === "slot") {
+        return {
+          type:   "useSlotItem",
+          slotId: (inp.slotId != null && inp.slotId !== "") ? String(inp.slotId) : (n.data.slotId ?? "slot1"),
+          index:  0,
+          actorOverride: (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) ? inp.actor : null
+        };
+      }
+      return {type:"useItem", itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0)};
+    }
   },
 
   act_equip: {
-    title:"Equip Item", color:"#2a5a7a", cat:"Items",
-    desc:"Mark an owned inventory item as equipped. Runs canEquip() requirements check; blocks on concentration conflict. If Force is on, skips the check.",
+    title:"Equip / Unequip Item", color:"#2a5a7a", cat:"Items",
+    keywords:"equip unequip equipment",
+    desc:"Equip or unequip an owned inventory item. Mode: equip runs the canEquip() requirements check (Force skips it, blocks on concentration conflict); unequip clears the equipped state. Replaces the old Unequip Item node.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
+      {key:"mode",     label:"Mode",          type:"select",      default:"equip", options:["equip","unequip"]},
       {key:"itemName", label:"Item",          type:"item-picker", default:""},
-      {key:"uuid",     label:"вЂ¦or UUID",      type:"text",        default:"", placeholder:"drag item here"},
-      {key:"category", label:"вЂ¦or Category",  type:"text",        default:"", placeholder:"first item of category"},
+      {key:"uuid",     label:"…or UUID",      type:"text",        default:"", placeholder:"drag item here"},
+      {key:"category", label:"…or Category",  type:"text",        default:"", placeholder:"first item of category"},
       {key:"index",    label:"Category index",type:"number",      default:0},
       {key:"force",    label:"Force (skip canEquip)", type:"checkbox", default:false}
     ],
     isAction:true, wideNode:true,
-    toAction:(n)=>({type:"equipItem", itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0), force:!!n.data.force})
+    toAction:(n)=>({
+      type: (String(n.data?.mode ?? "equip") === "unequip") ? "unequipItem" : "equipItem",
+      itemName:n.data.itemName??"", uuid:n.data.uuid??"", category:n.data.category??"", index:Number(n.data.index??0), force:!!n.data.force
+    })
   },
 
   act_unequip: {
     title:"Unequip Item", color:"#7a2a2a", cat:"Items",
+    hidden:true, replacement:"act_equip",
     desc:"Mark an owned inventory item as unequipped.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
@@ -2272,7 +2392,8 @@ export const NODE_DEFS = {
   },
 
   act_modify_slot_item_field: {
-    title:"Modify Slot Item Field", color:"#4a2a6a", cat:"Field Ops",
+    title:"Modify Slot Item Field", color:"#4a2a6a", cat:"Set Data",
+    hidden:true, replacement:"act_modify_item_field",
     desc:"Add / subtract / set a field on the first item found in a slot. Searches the source (this item / actor / wired Actor pin) and every nested item slot at any depth until an item carrying the field path is found. Path / Op / Slot ID can be fed via pins (UE-style).",
     inputs:[
       {id:"exec",   label:"",        type:"exec"},
@@ -2301,11 +2422,13 @@ export const NODE_DEFS = {
   },
 
   act_modify_item_field: {
-    title:"Modify Item Field", color:"#4a2a6a", cat:"Field Ops",
-    desc:"Add / subtract / set a field on a specific item resolved by its UUID. Same operation as Modify Field, but the target is an Item document or a slot snapshot, not an actor field. Feed UUID as a pin (e.g. from Slot Item UUID / Item by UUID / Get Owned Items) or paste a fixed UUID into the field. Path / Op / Amount can all be driven by pins (UE-style). Wire the Actor pin to scope the lookup to one or more specific actors (UUID / Get Actor / Get All Targets); the item is matched on each actor by UUID, by id, or by name resolved from the wired UUID. An array of actors loops the update over every actor. Search in: inventory = live actor items only (default); slot = slot snapshots only; slot_then_inventory = try slots first, fall back to inventory; inventory_then_slot = inventory first, fall back to slots.",
+    title:"Modify Item Field", color:"#4a2a6a", cat:"Set Data",
+    keywords:"modify inventory item field modify slot item field",
+    desc:"Add / subtract / set a field on an item. Find by: uuid = specific item by UUID (pin or field; 'Search in' picks inventory and/or slot snapshots); name = actor-owned item by name; category = first actor-owned item of a category (+ index); slot = first item found in a slot by Slot ID (walks nested slots at any depth). Path / Op / Amount / Slot ID can all be driven by pins (UE-style). Wire the Actor pin to run the update on other actors (single UUID or array loops over each). Replaces the old Modify Inventory Item Field and Modify Slot Item Field nodes.",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
       {id:"uuid",   label:"Item UUID", type:"value.string"},
+      {id:"slotId", label:"Slot ID", type:"value.string"},
       {id:"actor",  label:"Actor",  type:"value.actor"},
       {id:"amount", label:"Amount", type:"value.number"},
       {id:"path",   label:"Path",   type:"value.path"},
@@ -2316,31 +2439,60 @@ export const NODE_DEFS = {
       {id:"newValue",label:"New Value",type:"value.any"}
     ],
     fields:[
+      {key:"findBy",   label:"Find by",    type:"select", default:"uuid", options:["uuid","name","category","slot"]},
       {key:"uuid",     label:"Item UUID",  type:"text",   default:"", placeholder:"Item.xxxxx or drag item here"},
+      {key:"itemName", label:"Item (name mode)", type:"item-picker", default:""},
+      {key:"category", label:"Category (category mode)", type:"text", default:"", placeholder:"first item of category"},
+      {key:"index",    label:"Category index", type:"number", default:0},
+      {key:"slotId",   label:"Slot ID (slot mode)", type:"text", default:"slot1", placeholder:"slot1"},
       {key:"path",     label:"Field Path", type:"path",   default:"system.hiddenFields.field"},
       {key:"op",       label:"Operation",  type:"select", default:"add", options:["add","subtract","set"]},
-      {key:"searchIn", label:"Search in",  type:"select", default:"inventory",
+      {key:"searchIn", label:"Search in (uuid mode)",  type:"select", default:"inventory",
        options:["inventory","slot","slot_then_inventory","inventory_then_slot"]}
     ],
     isAction:true, wideNode:true,
     toAction:(n,inp)=>{
+      const findBy   = String(n.data?.findBy ?? "uuid");
+      const path     = (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path ?? "");
+      const op       = (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op   ?? "add");
+      const amount   = inp.amount ?? 0;
+      const hasActor = (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`);
+      if (findBy === "slot") {
+        const out = {
+          type:   "modifySlotItemField",
+          slotId: (inp.slotId != null && inp.slotId !== "") ? String(inp.slotId) : (n.data.slotId ?? "slot1"),
+          index:  0,
+          path, op, amount
+        };
+        if (hasActor) out.actorOverride = inp.actor;
+        return out;
+      }
+      if (findBy === "name" || findBy === "category") {
+        const out = {
+          type:     "modifyInvItemField",
+          itemName: findBy === "name" ? (n.data.itemName ?? "") : "",
+          uuid:     "",
+          category: findBy === "category" ? (n.data.category ?? "") : "",
+          index:    Number(n.data.index ?? 0),
+          path, op, amount
+        };
+        if (hasActor) out.actorOverride = inp.actor;
+        return out;
+      }
       const out = {
         type:     "modifyItemField",
         uuid:     (inp.uuid != null && inp.uuid !== "") ? String(inp.uuid) : (n.data.uuid ?? ""),
-        path:     (inp.path != null && inp.path !== "") ? String(inp.path) : (n.data.path ?? ""),
-        op:       (inp.op   != null && inp.op   !== "") ? String(inp.op)   : (n.data.op   ?? "add"),
-        amount:   inp.amount ?? 0,
+        path, op, amount,
         searchIn: String(n.data?.searchIn ?? "inventory")
       };
-      if (inp.actor != null && inp.actor !== "" && inp.actor !== "0" && inp.actor !== `"0"`) {
-        out.actorOverride = inp.actor;
-      }
+      if (hasActor) out.actorOverride = inp.actor;
       return out;
     }
   },
 
   act_modify_inv_item_field: {
-    title:"Modify Inventory Item Field", color:"#4a2a6a", cat:"Field Ops",
+    title:"Modify Inventory Item Field", color:"#4a2a6a", cat:"Set Data",
+    hidden:true, replacement:"act_modify_item_field",
     desc:"Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory. Wire the Actor pin to look up the item on a different actor (UUID / Get Actor / Get All Targets вЂ” array loops over each actor). Path / Op can be fed via pins (UE-style).",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
@@ -2378,7 +2530,7 @@ export const NODE_DEFS = {
   },
 
   inv_item_field: {
-    title:"Inventory Item Field", color:"#1a4060", cat:"Sources",
+    title:"Inventory Item Field", color:"#1a4060", cat:"Get Data",
     desc:"Read a field from an actor-owned item. Item is auto-indexed from actor inventory.",
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[
@@ -2397,7 +2549,7 @@ export const NODE_DEFS = {
   },
 
   slot_item_uuid: {
-    title:"Slot Item UUID", color:"#1a4060", cat:"Sources",
+    title:"Slot Item UUID", color:"#1a4060", cat:"Get Data",
     desc:"UUID of the first item found in any slot named Slot ID. Search walks the source (this item / actor / wired Actor pin) and every nested item slot.",
     inputs:[
       {id:"slotId", label:"Slot ID", type:"value.string"},
@@ -2415,7 +2567,7 @@ export const NODE_DEFS = {
   },
 
   get_actor_slot_id: {
-    title:"Get Actor Slot ID", color:"#1a4060", cat:"Sources",
+    title:"Get Actor Slot ID", color:"#1a4060", cat:"Get Data",
     desc:"Emit a slot ID as a string. Type the id in the field or connect a text pin to override.",
     inputs:[
       {id:"slotId", label:"Slot ID", type:"value.string"}
@@ -2430,7 +2582,7 @@ export const NODE_DEFS = {
   },
 
   inv_item_slot_count: {
-    title:"Inv Item Slot Count", color:"#1a4060", cat:"Sources",
+    title:"Inv Item Slot Count", color:"#1a4060", cat:"Get Data",
     desc:"Count of items in a slot. If Item is empty, totals every nested item slot named Slot ID on the source (this item / actor / wired Actor pin). Otherwise scoped to the referenced container.",
     inputs:[
       {id:"slotId", label:"Slot ID",  type:"value.string"},
@@ -2511,7 +2663,7 @@ export const NODE_DEFS = {
     })
   },
   act_attack_check: {
-    title:"Attack Check", color:"#8a3a00", cat:"Roll",
+    title:"Attack Check", color:"#8a3a00", cat:"Dice & Rolls",
     desc:"Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total в€’ AC. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic (e.g. Compare against natural d20 from a Roll Value). Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -2567,7 +2719,7 @@ export const NODE_DEFS = {
   },
 
   act_roll_check: {
-    title:"Roll Check", color:"#8a4400", cat:"Roll",
+    title:"Roll Check", color:"#8a4400", cat:"Dice & Rolls",
     desc:"Generic roll with a chosen comparison rule: roll_over (roll в‰Ґ DC), roll_under (в‰¤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes вЂ” after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator). Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",           label:"",           type:"exec"},
@@ -2652,7 +2804,7 @@ export const NODE_DEFS = {
   },
 
   act_tiered_roll: {
-    title:"Tiered Roll", color:"#8a4400", cat:"Roll",
+    title:"Tiered Roll", color:"#8a4400", cat:"Dice & Rolls",
     desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 в‰¤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result в‰Ґ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
@@ -2720,7 +2872,7 @@ export const NODE_DEFS = {
   },
 
   act_dice_pool: {
-    title:"Dice Pool", color:"#8a4400", cat:"Roll",
+    title:"Dice Pool", color:"#8a4400", cat:"Dice & Rolls",
     desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge в†’ count d10s that rolled в‰Ґ8. Botches = how many d10s equalled botchFace. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -2842,7 +2994,7 @@ export const NODE_DEFS = {
   },
 
   get_token_count: {
-    title:"Get Token Count", color:"#1a4060", cat:"Sources",
+    title:"Get Token Count", color:"#1a4060", cat:"Get Data",
     desc:"Pure source node: reads the current token count at the given resource path.",
     inputs:[], outputs:[{id:"v",label:"Count",type:"value.number"}],
     fields:[
@@ -2856,7 +3008,7 @@ export const NODE_DEFS = {
   },
 
   act_progression: {
-    title:"Progression Roll", color:"#8a4400", cat:"Roll",
+    title:"Progression Roll", color:"#8a4400", cat:"Dice & Rolls",
     desc:"Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
@@ -2914,7 +3066,7 @@ export const NODE_DEFS = {
   },
 
   act_throw_on_canvas: {
-    title:"Throw on Canvas", color:"#8a4400", cat:"Roll",
+    title:"Throw on Canvas", color:"#8a4400", cat:"Dice & Rolls",
     desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -2979,7 +3131,7 @@ export const NODE_DEFS = {
   },
 
   act_throw_on_sheet: {
-    title:"Throw on Sheet", color:"#8a4400", cat:"Roll",
+    title:"Throw on Sheet", color:"#8a4400", cat:"Dice & Rolls",
     desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -3252,7 +3404,7 @@ export const NODE_DEFS = {
   },
 
   switch_node: {
-    title:"Switch", color:"#8a2a8a", cat:"Flow",
+    title:"Switch", color:"#8a2a8a", cat:"Flow Control",
     desc:"Compare Value against each Case label and jump to the matching exec output. Falls through to Default if no match.",
     wideNode:true,
     inputs:[
@@ -3400,7 +3552,7 @@ export const NODE_DEFS = {
   })(),
 
   while_loop: {
-    title:"While Loop", color:"#1a5a7a", cat:"Flow",
+    title:"While Loop", color:"#1a5a7a", cat:"Flow Control",
     desc:"Execute Loop body while Condition is truthy. Re-evaluates the condition each iteration. Done fires when the condition becomes false or Max Iterations is reached.",
     inputs:[
       {id:"exec",      label:"",            type:"exec"},
@@ -3871,7 +4023,7 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_effect: {
-    title:"Chat AoE вЂ” With Effect", color:"#1a4a8a", cat:"AoE", wideNode:true,
+    title:"Chat AoE вЂ” With Effect", color:"#1a4a8a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside gain the named Active Effect (removed on leave, configurable).",
     inputs:[
       {id:"exec",  label:"",          type:"exec"},
@@ -3911,7 +4063,7 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_damage: {
-    title:"Chat AoE вЂ” Damage", color:"#7a3a1a", cat:"AoE", wideNode:true,
+    title:"Chat AoE вЂ” Damage", color:"#7a3a1a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, rolls damage against tokens inside (onEnter / eachTurn / both). Respects resistances.",
     inputs:[
       {id:"exec",       label:"",            type:"exec"},
@@ -3965,7 +4117,7 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_heal: {
-    title:"Chat AoE вЂ” Heal", color:"#1a6a3a", cat:"AoE", wideNode:true,
+    title:"Chat AoE вЂ” Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, heals tokens inside (onEnter / eachTurn / both).",
     inputs:[
       {id:"exec",    label:"",          type:"exec"},
@@ -4016,7 +4168,7 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_save_effect: {
-    title:"Chat AoE вЂ” Save в†’ Effect", color:"#6a2a8a", cat:"AoE", wideNode:true,
+    title:"Chat AoE вЂ” Save в†’ Effect", color:"#6a2a8a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside roll a save (onEnter / eachTurn / both); on failure, the named Active Effect is applied. On leave the effect is removed (configurable).",
     inputs:[
       {id:"exec",  label:"",          type:"exec"},
@@ -4075,7 +4227,7 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_targets: {
-    title:"Chat AoE вЂ” Targets", color:"#8a7a2a", cat:"AoE", wideNode:true,
+    title:"Chat AoE вЂ” Targets", color:"#8a7a2a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside is collected вЂ” no checks, no rolls. Connect Targets[] to downstream Damage / Heal / Effect nodes' Targets pin to apply effects to everyone in the area.",
     inputs:[
       {id:"exec", label:"",          type:"exec"},
@@ -4105,7 +4257,7 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_save_branch: {
-    title:"Chat AoE вЂ” Save", color:"#8a5a2a", cat:"AoE", wideNode:true,
+    title:"Chat AoE вЂ” Save", color:"#8a5a2a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside rolls a save. Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes.",
     inputs:[
       {id:"exec", label:"",          type:"exec"},
@@ -4174,7 +4326,7 @@ export const NODE_DEFS = {
   },
 
   gate: {
-    title:"Gate", color:"#5a2a8a", cat:"Flow",
+    title:"Gate", color:"#5a2a8a", cat:"Flow Control",
     desc:"Exec passes through only when Condition is truthy. Acts as an early-exit guard without needing a Branch.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
@@ -4187,7 +4339,7 @@ export const NODE_DEFS = {
   },
 
   reroute: {
-    title:"вЂў", color:"#2a2a3a", cat:"Flow",
+    title:"вЂў", color:"#2a2a3a", cat:"Flow Control",
     desc:"Visual wire re-routing point. No logic вЂ” just keeps graphs tidy.",
     inputs:[{id:"v",label:"",type:"value.any"}],
     outputs:[{id:"v",label:"",type:"value.any"}],
@@ -4197,7 +4349,7 @@ export const NODE_DEFS = {
   },
 
   ternary: {
-    title:"Ternary", color:"#6a1a6a", cat:"Sources",
+    title:"Ternary", color:"#6a1a6a", cat:"Values",
     desc:"Outputs True value when Condition is truthy, False value otherwise. Equivalent to (cond ? a : b). Eliminates common Branchв†’Output patterns.",
     inputs:[
       {id:"cond",  label:"Condition", type:"value.bool"},
@@ -4218,7 +4370,7 @@ export const NODE_DEFS = {
   },
 
   random_num: {
-    title:"Random", color:"#2a4a6a", cat:"Sources",
+    title:"Random", color:"#2a4a6a", cat:"Values",
     desc:"Output a uniformly random integer between Min and Max (inclusive). Re-evaluated each time the formula runs.",
     inputs:[
       {id:"min", label:"Min", type:"value.number"},
@@ -4374,7 +4526,7 @@ export const NODE_DEFS = {
   },
 
   act_roll_table: {
-    title:"Roll Table", color:"#7a4500", cat:"Tables",
+    title:"Roll Table", color:"#7a4500", cat:"Chat",
     desc:"Roll on a world RollTable. Foundв†’ fires when at least one result is drawn. Emptyв†’ fires when the table is empty or not found. Result text and index available as value outputs. Use drawCount > 1 to draw multiple entries вЂ” {__rollTableIndex} tracks the current draw (0-based).",
     inputs:[
       {id:"exec",      label:"",           type:"exec"},
@@ -4408,7 +4560,7 @@ export const NODE_DEFS = {
   },
 
   chat_save_button: {
-    title:"Save / Check Button", color:"#7a3a00", cat:"Roll",
+    title:"Save / Check Button", color:"#7a3a00", cat:"Dice & Rolls",
     desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the resulting roll message; Reroll Path / Reroll Cost optionally consume a numeric resource from the rolling actor each time they reroll.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -4663,6 +4815,7 @@ export const NODE_DEFS = {
   },
   get_target: {
     title:"Get Target", color:"#2a5a7a", cat:"Targeting",
+    hidden:true, replacement:"get_actor",
     desc:"First targeted token's actor. Use Get All Targets for multi-target workflows.",
     inputs:[], outputs:[{id:"v", label:"Target", type:"value.token"}],
     fields:[],
@@ -4670,6 +4823,7 @@ export const NODE_DEFS = {
   },
   get_selected_token: {
     title:"Get Selected Token", color:"#2a5a7a", cat:"Targeting",
+    hidden:true, replacement:"get_actor",
     desc:"First currently-selected token on the canvas. Falls back to self if none selected.",
     inputs:[], outputs:[{id:"v", label:"Token", type:"value.token"}],
     fields:[],
@@ -4696,14 +4850,124 @@ export const NODE_DEFS = {
 
   get_user_character: {
     title:"Get User's Character", color:"#2a5a7a", cat:"Targeting",
+    hidden:true, replacement:"get_actor",
     desc:"Returns the actor assigned to the current user (game.user.character). Empty if the user has no assigned character.",
     inputs:[], outputs:[{id:"v", label:"Actor", type:"value.actor"}],
     fields:[],
     compile:()=>`"user_character"`
   },
 
+  get_actors_array: {
+    title:"Get Target/Selected Actors", color:"#2a5a7a", cat:"Targeting", wideNode:true,
+    desc:"Modular source of multiple actors. Source: targeted tokens, selected tokens, or both (several different actors can be selected at once). Outputs: UUIDs (array), Count, First UUID and — when Field path is set — Values (that field read from every actor, same order as UUIDs). Feed UUIDs into Break Array (Split Pins), Get UUID From Array, Get Field By UUID, For Each Element or any array node.",
+    inputs:[],
+    outputs:[
+      {id:"uuids",  label:"UUIDs (array)",  type:"value.array"},
+      {id:"values", label:"Values (array)", type:"value.array"},
+      {id:"count",  label:"Count",          type:"value.number"},
+      {id:"first",  label:"First UUID",     type:"value.string"}
+    ],
+    fields:[
+      {key:"mode", label:"Source", type:"select", default:"targets", options:[
+        {value:"targets",  label:"Targeted tokens"},
+        {value:"selected", label:"Selected tokens"},
+        {value:"both",     label:"Targeted + selected"}
+      ]},
+      {key:"path", label:"Field path (for Values)", type:"path", default:""}
+    ],
+    compile:(n)=>`{targetUuids:${n.data.mode ?? "targets"}}`,
+    compilePin:(n,_i,pin)=>{
+      const mode = n.data.mode ?? "targets";
+      if (pin === "count") return `{targetCount:${mode}}`;
+      if (pin === "first") return `{targetFirst:${mode}}`;
+      if (pin === "values") {
+        const b64 = (s)=>{ try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+        return `{targetFields:${mode}|${b64(n.data.path ?? "")}}`;
+      }
+      return `{targetUuids:${mode}}`;
+    }
+  },
+
+  get_uuid_from_array: {
+    title:"Get UUID From Array", color:"#2a5a7a", cat:"Targeting",
+    desc:"Takes an array (e.g. UUIDs from Get Target/Selected Actors) and an index and returns the element at that index as UUID, plus the resolved document Name. Negative index counts from the end (-1 = last).",
+    inputs:[
+      {id:"a", label:"Array", type:"value.array"},
+      {id:"i", label:"Index", type:"value.number"}
+    ],
+    outputs:[
+      {id:"uuid", label:"UUID", type:"value.string"},
+      {id:"name", label:"Name", type:"value.string"}
+    ],
+    fields:[{key:"i", label:"Index", type:"number", default:0}],
+    compile:(n,i)=>{
+      const idx = (i.i != null && i.i !== "") ? i.i : (n.data.i ?? 0);
+      return `{arrayGet:${_arrayArg(i.a ?? "")}|${_arrayArg(idx)}|${_arrayArg("")}}`;
+    },
+    compilePin:(n,i,pin)=>{
+      const idx = (i.i != null && i.i !== "") ? i.i : (n.data.i ?? 0);
+      if (pin === "name") {
+        const b64 = (s)=>{ try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+        return `{uuidField:${_arrayArg(i.a ?? "")}|${_arrayArg(idx)}|${b64("name")}}`;
+      }
+      return `{arrayGet:${_arrayArg(i.a ?? "")}|${_arrayArg(idx)}|${_arrayArg("")}}`;
+    }
+  },
+
+  get_field_by_uuid: {
+    title:"Get Field By UUID", color:"#2a5a7a", cat:"Targeting", wideNode:true,
+    desc:"Reads any field (system.resources.hp.value, system.hiddenFields.x, name, uuid, system.widgetFields.<key>.value ...) from an actor or item. UUID/Array accepts a single UUID or a whole array + Index (negative = from the end). Also accepts mode strings (targets/selected/self) from targeting nodes. Works with tokens, world actors and items.",
+    inputs:[
+      {id:"u", label:"UUID / Array", type:"value.any"},
+      {id:"i", label:"Index",        type:"value.number"}
+    ],
+    outputs:[{id:"v", label:"Value", type:"value.any"}],
+    fields:[
+      {key:"i",    label:"Index",      type:"number", default:0},
+      {key:"path", label:"Field path", type:"path",   default:"system.resources.hp.value"}
+    ],
+    compile:(n,i)=>{
+      const b64 = (s)=>{ try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const idx = (i.i != null && i.i !== "") ? i.i : (n.data.i ?? 0);
+      return `{uuidField:${_arrayArg(i.u ?? "")}|${_arrayArg(idx)}|${b64(n.data.path ?? "")}}`;
+    }
+  },
+
+  get_fields_from_array: {
+    title:"Get Fields From Actors (map)", color:"#2a5a7a", cat:"Targeting", wideNode:true,
+    desc:"Maps an array of UUIDs to an array of field values: reads Field path from EVERY document in the array and outputs the values as an array in the same order. Chain: Get Target/Selected Actors → this node → any array node (Aggregate, Filter, Break Array...).",
+    inputs:[{id:"a", label:"UUIDs (array)", type:"value.array"}],
+    outputs:[{id:"v", label:"Values (array)", type:"value.array"}],
+    fields:[{key:"path", label:"Field path", type:"path", default:"system.resources.hp.value"}],
+    compile:(n,i)=>{
+      const b64 = (s)=>{ try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      return `{uuidsMapField:${_arrayArg(i.a ?? "")}|${b64(n.data.path ?? "")}}`;
+    }
+  },
+
+  get_field_by_actor_name: {
+    title:"Get Field By Actor Name", color:"#2a5a7a", cat:"Targeting", wideNode:true,
+    desc:"Finds a world actor by exact Name and reads any field from it (system.hiddenFields.x, system.resources.hp.value, uuid, name...). If several actors share the name, Index picks which one (negative = from the end). Name can also be wired in as a value pin.",
+    inputs:[
+      {id:"name", label:"Name",  type:"value.string"},
+      {id:"i",    label:"Index", type:"value.number"}
+    ],
+    outputs:[{id:"v", label:"Value", type:"value.any"}],
+    fields:[
+      {key:"name", label:"Actor name", type:"text",   default:""},
+      {key:"i",    label:"Index",      type:"number", default:0},
+      {key:"path", label:"Field path", type:"path",   default:"system.resources.hp.value"}
+    ],
+    compile:(n,i)=>{
+      const b64 = (s)=>{ try { return btoa(unescape(encodeURIComponent(String(s ?? "")))); } catch { return ""; } };
+      const nm  = (i.name != null && i.name !== "") ? i.name : `"${String(n.data.name ?? "").replace(/"/g, '\\"')}"`;
+      const idx = (i.i != null && i.i !== "") ? i.i : (n.data.i ?? 0);
+      return `{actorNameField:${_arrayArg(nm)}|${_arrayArg(idx)}|${b64(n.data.path ?? "")}}`;
+    }
+  },
+
   equipped_count: {
-    title:"Equipped Count", color:"#2e6e4a", cat:"Sources",
+    title:"Equipped Count", color:"#2e6e4a", cat:"Get Data",
     desc:"Returns the count of items with `system.equipped:true` on the owning actor, optionally filtered by category. Type a free-form category string (matches `system.category` on the item, Cyrillic / Latin / any text). Leave empty or `any` to count all equipped items.",
     inputs:[], outputs:[{id:"value", label:"N", type:"value.any"}],
     fields:[
@@ -4718,7 +4982,7 @@ export const NODE_DEFS = {
   },
 
   act_delay: {
-    title:"Delay", color:"#2a5a8a", cat:"Flow",
+    title:"Delay", color:"#2a5a8a", cat:"Flow Control",
     desc:"Waits the given number of milliseconds, then continues the exec chain.",
     inputs:[
       {id:"exec",     label:"",        type:"exec"},
@@ -4733,7 +4997,7 @@ export const NODE_DEFS = {
   },
 
   act_loop: {
-    title:"For Loop", color:"#2a5a8a", cat:"Flow",
+    title:"For Loop", color:"#2a5a8a", cat:"Flow Control",
     desc:"Runs Body N times. Current iteration index is available as {__loopIndex}. After all iterations, exec goes to Done.",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
@@ -4758,7 +5022,7 @@ export const NODE_DEFS = {
   },
 
   act_wait_for_event: {
-    title:"Wait For Event", color:"#2a5a8a", cat:"Flow",
+    title:"Wait For Event", color:"#2a5a8a", cat:"Flow Control",
     desc:"Pauses the exec chain until the first fire of a Foundry hook. Timeout is in milliseconds (0 = no timeout). Continues exec once the event fires.",
     inputs:[
       {id:"exec",    label:"",        type:"exec"},
@@ -4781,7 +5045,7 @@ export const NODE_DEFS = {
   },
 
   random_pick: {
-    title:"Random Pick", color:"#2a4a6a", cat:"Sources",
+    title:"Random Pick", color:"#2a4a6a", cat:"Values",
     desc:"Randomly returns one of the connected value inputs (up to 5). Empty inputs are skipped. Gives a uniform distribution.",
     inputs:[
       {id:"a", label:"A", type:"value.any"},
@@ -4807,7 +5071,7 @@ export const NODE_DEFS = {
   },
 
   resource_tier: {
-    title:"Resource Tier", color:"#2a4a6a", cat:"Sources",
+    title:"Resource Tier", color:"#2a4a6a", cat:"Get Data",
     desc:"Maps a number to a tier (e.g. HP в†’ 'critical / bloodied / healthy'). Thresholds are a list of values; tier labels are a list one longer.",
     inputs:[{id:"v", label:"Value", type:"value.number"}],
     outputs:[{id:"tier", label:"Tier", type:"value.string"}],
@@ -4830,7 +5094,7 @@ export const NODE_DEFS = {
   },
 
   get_combat_state: {
-    title:"Get Combat State", color:"#2a4a6a", cat:"Sources",
+    title:"Get Combat State", color:"#2a4a6a", cat:"Get Data",
     desc:"Value outputs about the current encounter: is combat active (0/1), current round, active combatant index, active combatant id/actor.",
     inputs:[],
     outputs:[
@@ -4863,7 +5127,7 @@ export const NODE_DEFS = {
   },
 
   get_compendium_uuids: {
-    title:"Compendium Item UUIDs", color:"#2a4a6a", cat:"Sources",
+    title:"Compendium Item UUIDs", color:"#2a4a6a", cat:"Get Data",
     desc:"Returns all item UUIDs in a compendium pack as an array. Drag a compendium from the sidebar into the Pack field or type its id (e.g. 'world.my-items' or 'system-director.weapons'). Feeds into Add Item Array, item array ops, etc.",
     inputs:[{id:"pack", label:"Pack Id", type:"value.string"}],
     outputs:[
@@ -4885,7 +5149,7 @@ export const NODE_DEFS = {
   },
 
   get_compendium_count: {
-    title:"Compendium Item Count", color:"#2a4a6a", cat:"Sources",
+    title:"Compendium Item Count", color:"#2a4a6a", cat:"Get Data",
     desc:"Returns the number of items in a compendium pack.",
     inputs:[{id:"pack", label:"Pack Id", type:"value.string"}],
     outputs:[{id:"v", label:"Count", type:"value.number"}],
@@ -4899,7 +5163,7 @@ export const NODE_DEFS = {
   },
 
   get_compendium_names: {
-    title:"Compendium Item Names", color:"#2a4a6a", cat:"Sources",
+    title:"Compendium Item Names", color:"#2a4a6a", cat:"Get Data",
     desc:"Returns the names of all items in a compendium pack as an array (comma-joined).",
     inputs:[{id:"pack", label:"Pack Id", type:"value.string"}],
     outputs:[
@@ -4998,7 +5262,7 @@ export const NODE_DEFS = {
   },
 
   cast_to_actor: {
-    title:"Cast to Actor", color:"#6a2a6a", cat:"Flow",
+    title:"Cast to Actor", color:"#6a2a6a", cat:"Flow Control",
     desc:"Attempts to cast Value (UUID string) to an Actor. On success, emits Cast Success with ActorId; otherwise Cast Failed.",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
@@ -5015,7 +5279,7 @@ export const NODE_DEFS = {
   },
 
   cast_to_item: {
-    title:"Cast to Item", color:"#6a2a6a", cat:"Flow",
+    title:"Cast to Item", color:"#6a2a6a", cat:"Flow Control",
     desc:"Attempts to cast Value (UUID string) to an Item. On success, emits Cast Success with ItemId; otherwise Cast Failed.",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
@@ -5090,7 +5354,7 @@ export const NODE_DEFS = {
   },
 
   act_show_journal: {
-    title:"Show Journal", color:"#3a5a8a", cat:"Journal",
+    title:"Show Journal", color:"#3a5a8a", cat:"Chat",
     desc:"Render a JournalEntry to the player. If 'Force show to all' is enabled, GM pushes the entry to every connected player.",
     inputs:[
       {id:"exec", label:"", type:"exec"},
@@ -5112,7 +5376,7 @@ export const NODE_DEFS = {
   },
 
   act_journal_show_page: {
-    title:"Show Journal Page", color:"#3a5a8a", cat:"Journal",
+    title:"Show Journal Page", color:"#3a5a8a", cat:"Chat",
     desc:"Open a specific JournalEntryPage. If the page is an image type вЂ” Foundry shows it as a popup handout; text/markdown opens the journal sheet at that page.",
     inputs:[
       {id:"exec",      label:"", type:"exec"},
@@ -5135,7 +5399,7 @@ export const NODE_DEFS = {
   },
 
   act_reset_roll_table: {
-    title:"Reset Roll Table", color:"#7a4500", cat:"Tables",
+    title:"Reset Roll Table", color:"#7a4500", cat:"Chat",
     desc:"Resets the 'drawn' state of all results in a RollTable. Useful for no-replacement tables вЂ” once exhausted, call this to make every result available again.",
     inputs:[{id:"exec", label:"", type:"exec"}],
     outputs:[{id:"exec", label:"", type:"exec"}],
@@ -5148,7 +5412,7 @@ export const NODE_DEFS = {
   },
 
   act_show_roll_table: {
-    title:"Show Roll Table", color:"#7a4500", cat:"Tables",
+    title:"Show Roll Table", color:"#7a4500", cat:"Chat",
     desc:"Open a RollTable's sheet for inspection. GM additionally pushes it to all players (handy for shared 'fortune' or 'omen' tables).",
     inputs:[{id:"exec", label:"", type:"exec"}],
     outputs:[{id:"exec", label:"", type:"exec"}],
@@ -5954,7 +6218,7 @@ export const NODE_DEFS = {
   },
 
   vision_visible_tokens: {
-    title:"Vision вЂ” Visible Tokens", color:"#2a6a7a", cat:"Vision", wideNode:true,
+    title:"Vision вЂ” Visible Tokens", color:"#2a6a7a", cat:"Scene", wideNode:true,
     desc:"Pure source. Returns either a comma-joined array of token ids (pin `v`) or actor UUIDs (pin `actors`) visible from the source within Distance feet and within a vision cone of Angle degrees (360 = full circle). Token-id output feeds into For Each Token / tokenField / Array nodes; actor-uuid output is portable across scenes and feeds straight into actor-accepting nodes (Modify Field, Apply Effect, Cast To Actor, вЂ¦). The Actor input accepts a Get Actor / Get Self / explicit Actor UUID (Actor.xxx) вЂ” UUIDs are resolved to the actor's first active token on the current scene. Optional Show draws a semi-transparent vision ray on the canvas every time the array is resolved (use sparingly).",
     inputs:[
       {id:"actor",    label:"Actor",        type:"value.actor"},
@@ -5991,7 +6255,7 @@ export const NODE_DEFS = {
   },
 
   act_vision_scan: {
-    title:"Vision Scan (Action)", color:"#2a6a7a", cat:"Vision", wideNode:true,
+    title:"Vision Scan (Action)", color:"#2a6a7a", cat:"Scene", wideNode:true,
     desc:"Action node вЂ” runs a one-shot vision scan when its exec input fires. Use the new `On Vision Detect` event node for hook-driven triggers; this node stays for on-demand scans (e.g. from an On Click button, or chained after another action). The Actor input accepts a Get Actor / Get Self / explicit Actor UUID (Actor.xxx) вЂ” UUIDs are resolved to the actor's first active token on the current scene. Outputs both the token-id array (`v`, also as {__visionLast}) and the actor-UUID array (`actors`, also as {__visionLastActors}). Optionally draws a semi-transparent vision ray on the canvas (configurable colour & duration).",
     wideNode:true,
     inputs:[
@@ -6039,7 +6303,7 @@ export const NODE_DEFS = {
   },
 
   on_vision_detect: {
-    title:"On Vision Detect", color:"#2a6a7a", cat:"Vision", wideNode:true,
+    title:"On Vision Detect", color:"#2a6a7a", cat:"Scene", wideNode:true,
     desc:"Event trigger вЂ” fires when this actor (the document the graph runs on) detects one or more new tokens in its vision cone. Re-evaluated whenever tokens move/spawn/disappear on the same scene as the actor; only NEW tokens (relative to the previous scan) trigger the event. Configure the scan with Distance (number or hidden field), Angle (deg), and Require LOS just like the Vision Scan node. Outputs expose: the detector actor's UUID, the comma-joined array of NEW detected actor UUIDs and token ids, and the first newly-detected actor's UUID for the common single-target case. Optional Show draws a brief vision ray on every detection (useful for debugging).",
     inputs:[],
     outputs:[
@@ -6063,7 +6327,7 @@ export const NODE_DEFS = {
   },
 
   tok_elevation: {
-    title:"Get Token Elevation", color:"#1a4060", cat:"Sources", wideNode:true,
+    title:"Get Token Elevation", color:"#1a4060", cat:"Scene", wideNode:true,
     desc:"Returns the elevation (vertical position) of a token. Source can be: \"self\" (this actor's first active token), \"selected_token\", \"token_target\", a token id, an Actor.xxxx UUID, or a wired Token / Actor pin. Optional rounding: floor, ceil, round (or none = raw value).",
     inputs:[{id:"token", label:"Token", type:"value.any"}],
     outputs:[{id:"v", label:"Elevation", type:"value.number"}],
@@ -6080,7 +6344,7 @@ export const NODE_DEFS = {
   },
 
   tok_walls_between: {
-    title:"Walls Between Tokens", color:"#1a4060", cat:"Sources", wideNode:true,
+    title:"Walls Between Tokens", color:"#1a4060", cat:"Scene", wideNode:true,
     desc:"Check walls on the straight line between two tokens. Source/Target accept: \"self\", \"selected_token\", \"token_target\", a token id, an Actor.xxxx UUID, or a wired Token / Actor pin. \"Wall blocks\" picks which wall property must restrict to count: move / sight / sound / any (any wall counts).",
     inputs:[
       {id:"source", label:"Source", type:"value.any"},
@@ -6114,7 +6378,7 @@ export const NODE_DEFS = {
   },
 
   tok_tiles_between: {
-    title:"Tiles Between Tokens", color:"#1a4060", cat:"Sources", wideNode:true,
+    title:"Tiles Between Tokens", color:"#1a4060", cat:"Scene", wideNode:true,
     desc:"Count tiles whose bounding rectangle is crossed by the straight line between two tokens. Source/Target accept: \"self\", \"selected_token\", \"token_target\", a token id, an Actor.xxxx UUID, or a wired Token / Actor pin. Filter: any / overhead / ground; hidden tiles are skipped unless explicitly included.",
     inputs:[
       {id:"source", label:"Source", type:"value.any"},
@@ -6151,7 +6415,7 @@ export const NODE_DEFS = {
   },
 
   act_set_elevation: {
-    title:"Set Token Elevation", color:"#2a4a8a", cat:"Movement", wideNode:true,
+    title:"Set Token Elevation", color:"#2a4a8a", cat:"Scene", wideNode:true,
     desc:"Change a token's elevation. Mode: set replaces the elevation with Value; add increments by Value (negative = descend). Token accepts the same options as Get Token Elevation. Value can be wired (Get Field Value / Literal) or typed inline.",
     inputs:[
       {id:"exec",  label:"",      type:"exec"},
@@ -6196,7 +6460,7 @@ export const NODE_DEFS = {
   },
 
   act_move_token: {
-    title:"Move Token", color:"#2a4a8a", cat:"Movement", wideNode:true,
+    title:"Move Token", color:"#2a4a8a", cat:"Scene", wideNode:true,
     desc:"Move a token by Distance feet in the given Direction.  Direction modes:  вЂў Degrees вЂ” Direction is a 0-360В° heading (0 = up / north, 90 = right / east, 180 = down, 270 = left).  вЂў Square вЂ” Direction is an index 0-7 starting at North then clockwise: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW (full 8-way including diagonals).  вЂў Hex вЂ” Direction is an index 0-5 along the scene's hex grid directions (auto-detects columnar / row-wise).  Wall passthrough: when off, the move is cancelled if walls block the path.",
     inputs:[
       {id:"exec",      label:"",             type:"exec"},
@@ -6228,7 +6492,7 @@ export const NODE_DEFS = {
   },
 
   act_tts: {
-    title:"TTS вЂ” Speak", color:"#7a4a8a", cat:"Audio", wideNode:true,
+    title:"TTS вЂ” Speak", color:"#7a4a8a", cat:"System", wideNode:true,
     desc:"Speak the input text out loud through every connected client using the browser's built-in Web Speech API (no external service, no API key, voices come from the operating system). Text input is also passed through to the Text output pin so you can chain it (e.g. also post to chat). Voice & language pickers are free-form вЂ” leave blank to use the browser default. Rate 0.1-10, Pitch 0-2, Volume 0-1. Target controls who speaks: all = everyone (default), gm = GM only, players = all non-GM clients, self = only the user who triggered it.",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
@@ -6355,7 +6619,7 @@ export const NODE_DEFS = {
   },
 
   get_self_uuid: {
-    title:"Get Object Self UUID", color:"#1a4060", cat:"Sources",
+    title:"Get Object Self UUID", color:"#1a4060", cat:"Get Data",
     isInteractableOnly:true,
     desc:"Returns the UUID of the scene placeable (Tile / Wall / Light / Token / Note / Token for Actor interactions) this Interactable Button is attached to. Only available in Interactable button graphs.",
     inputs:[],
@@ -6365,7 +6629,7 @@ export const NODE_DEFS = {
   },
 
   get_interactable_actor_uuid: {
-    title:"Get Interactable Actor UUID", color:"#1a4060", cat:"Sources",
+    title:"Get Interactable Actor UUID", color:"#1a4060", cat:"Get Data",
     isInteractableOnly:true,
     desc:"Returns the Actor UUID behind the current interactable, when the interaction is configured on an Actor or attached to a Token with an actor.",
     inputs:[],
@@ -6375,7 +6639,7 @@ export const NODE_DEFS = {
   },
 
   get_interactable_config_uuid: {
-    title:"Get Interactable Config UUID", color:"#1a4060", cat:"Sources",
+    title:"Get Interactable Config UUID", color:"#1a4060", cat:"Get Data",
     isInteractableOnly:true,
     desc:"Returns the UUID of the document that owns this interactable configuration. For character interactions this is the Actor; for tile/token interactions it is the placeable document.",
     inputs:[],
@@ -6385,7 +6649,7 @@ export const NODE_DEFS = {
   },
 
   actor_token_info: {
-    title:"Actor / Token Info", color:"#1a4060", cat:"Sources",
+    title:"Actor / Token Info", color:"#1a4060", cat:"Get Data",
     isInteractableOnly:true,
     desc:"Read the actor name, token name, actor portrait, and token image from the current character interaction in one node.",
     keywords:"get actor name token name portrait image texture avatar",
@@ -6780,7 +7044,7 @@ export const NODE_DEFS = {
   },
 
   act_set_doc_field: {
-    title:"Set Document Field by UUID", color:"#3a6a8a", cat:"Scene", wideNode:true,
+    title:"Set Document Field by UUID", color:"#3a6a8a", cat:"Set Data", wideNode:true,
     desc:"Generic update: set a single field at a dot-path on any document (Tile / Wall / Light / Token / Note / Scene / Item / Actor) by UUID. Value can be wired or typed. Use this when there is no dedicated node for the field you need.",
     inputs:[
       {id:"exec",  label:"",         type:"exec"},
@@ -7241,38 +7505,29 @@ const BRANCH_PIN_TOKENS = {
 };
 
 const CATS = [
-  {id:"Flow",       color:"#8a3a8a"},
-  {id:"Functions",  color:"#7a4abc"},
-  {id:"Events",     color:"#c04040"},
-  {id:"Quest",      color:"#a04060"},
-  {id:"Attribute",  color:"#7a4a1a"},
-  {id:"Sources",    color:"#2a6a9a"},
-  {id:"Dice",       color:"#9a6a1a"},
-  {id:"Math",       color:"#2a7a3a"},
-  {id:"Compare",    color:"#8a2a8a"},
-  {id:"Logic",      color:"#8a2a2a"},
-  {id:"Array",      color:"#2a7a3a"},
-  {id:"Variables",  color:"#2a6a9a"},
-  {id:"Macros",     color:"#1a8a4a"},
-
-  {id:"Roll",       color:"#8a4400"},
-  {id:"Damage",     color:"#8a1a1a"},
-  {id:"Effects",    color:"#1a4a8a"},
-  {id:"Resources",  color:"#5a2a6a"},
-  {id:"Field Ops",  color:"#4a2a6a"},
-  {id:"Items",      color:"#2a5a3a"},
-  {id:"Chat",       color:"#4a4a1a"},
-  {id:"Tables",     color:"#7a4500"},
-  {id:"AI",         color:"#4a4a8a"},
-  {id:"System",     color:"#4a2a7a"},
-  {id:"AoE",        color:"#7a3a8a"},
-  {id:"Targeting",  color:"#8a3a6a"},
-  {id:"Vision",     color:"#2a6a7a"},
-  {id:"Movement",   color:"#2a4a8a"},
-  {id:"Audio",      color:"#7a4a8a"},
-  {id:"Journal",    color:"#3a5a8a"},
-  {id:"Cards",      color:"#5a2a7a"},
-  {id:"Scene",      color:"#3a6a8a"}
+  {id:"Events",       color:"#c04040"},
+  {id:"Flow Control", color:"#8a3a8a"},
+  {id:"Functions",    color:"#7a4abc"},
+  {id:"Macros",       color:"#1a8a4a"},
+  {id:"Variables",    color:"#2a6a9a"},
+  {id:"Values",       color:"#3a7a9a"},
+  {id:"Get Data",     color:"#2a6a9a"},
+  {id:"Set Data",     color:"#4a2a6a"},
+  {id:"Targeting",    color:"#8a3a6a"},
+  {id:"Array",        color:"#2a7a3a"},
+  {id:"Logic",        color:"#8a2a2a"},
+  {id:"Math",         color:"#2a7a3a"},
+  {id:"Dice & Rolls", color:"#9a6a1a"},
+  {id:"Combat",       color:"#8a1a1a"},
+  {id:"Effects",      color:"#1a4a8a"},
+  {id:"Items",        color:"#2a5a3a"},
+  {id:"Resources",    color:"#5a2a6a"},
+  {id:"Chat",         color:"#4a4a1a"},
+  {id:"Scene",        color:"#3a6a8a"},
+  {id:"Cards",        color:"#5a2a7a"},
+  {id:"Quest",        color:"#a04060"},
+  {id:"Attribute",    color:"#7a4a1a"},
+  {id:"System",       color:"#4a2a7a"}
 ];
 
 export const SD_NODE_KIND_COLOURS = {
@@ -10376,7 +10631,7 @@ export class FormulaGraph {
         <button id="gimport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Import template(s) from a JSON file"><i class="fas fa-file-import" style="margin-right:4px"></i>Import</button>
         <button id="gexport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Export current selection (or whole graph) as JSON template"><i class="fas fa-file-export" style="margin-right:4px"></i>Export</button>
         <button id="glint" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Validate this graph (unknown nodes, type mismatches, orphans, missing entry points)"><i class="fas fa-check-double" style="margin-right:4px"></i>Lint</button>
-        <button id="gaiassist" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Ask the AI assistant about this graph"><i class="fas fa-brain" style="margin-right:4px"></i>AI</button>
+        <button id="gdebug" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Debug: dry-run the graph through every execution path and mark where each path ends, loops, or fails with an error"><i class="fas fa-bug" style="margin-right:4px"></i>Debug</button>
         <button id="gsave" style="background:var(--sd-accent);border:none;border-radius:8px;color:var(--sd-accent-text);cursor:pointer;font-size:11px;font-weight:800;padding:6px 16px;transition:.15s"><i class="fas fa-check" style="margin-right:5px"></i>Save & Apply</button>
         <button id="grefresh" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Re-scan document"><i class="fas fa-arrows-rotate" style="margin-right:4px"></i>Refresh Index</button>
         <button id="gclose" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s" title="Close" aria-label="Close graph editor"><i class="fas fa-xmark"></i></button>
@@ -10439,13 +10694,220 @@ export class FormulaGraph {
     SDOnboarding.bindGraph(win);
       }
 
+  // ============================== GRAPH DEBUG ==============================
+  // Dry-run: walks every execution path from every entry point, compiling each
+  // node on the way (no side effects), and marks OK / path end / error / loop.
+
+  _clearDebug() {
+    this.win?.querySelector?.("#gdebugpanel")?.remove();
+    this.nodesEl?.querySelectorAll?.(".gdbg-badge")?.forEach(el => el.remove());
+    this.nodesEl?.querySelectorAll?.("[data-nid]")?.forEach(el => {
+      if (el.dataset.gdbg) {
+        el.style.outline = "";
+        el.style.outlineOffset = "";
+        delete el.dataset.gdbg;
+      }
+    });
+  }
+
+  _dbgExecInPins(def) {
+    return new Set((def?.inputs ?? []).filter(p => p.type === "exec").map(p => p.id));
+  }
+
+  _dbgExecOutPins(node, def) {
+    let outs;
+    try { outs = def?.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def?.outputs ?? []); }
+    catch { outs = def?.outputs ?? []; }
+    return (outs ?? []).filter(p => p.type === "exec");
+  }
+
+  _debugEvalNode(node) {
+    const def = NODE_DEFS[node.type];
+    if (!def) return { ok: false, msg: `Unknown node type "${node.type}"` };
+    try {
+      const ins = {};
+      for (const pin of (def.inputs ?? [])) {
+        if (pin.type === "exec") continue;
+        const e = this._incomingEdge(node.id, pin.id);
+        if (e) {
+          const src = this.nodes.find(n => n.id === e.fromNode);
+          if (src) ins[pin.id] = this._compileValue(src, new Set(), e.fromPin);
+        }
+      }
+      if (typeof def.toAction === "function") def.toAction(node, ins);
+      else if (typeof def.compile === "function") def.compile(node, ins);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, msg: e?.message ?? String(e) };
+    }
+  }
+
+  _runDebug() {
+    this._clearDebug();
+    const MAX_PATHS = 300, MAX_STEPS = 400;
+    const nodeTitle = (n) => _NL(NODE_DEFS[n?.type]?.title ?? n?.type ?? "?");
+
+    // Entry points: events / triggers, plus exec-capable nodes without an incoming exec wire.
+    const entries = this.nodes.filter(n => {
+      const def = NODE_DEFS[n.type];
+      if (!def) return false;
+      if (!this._dbgExecOutPins(n, def).length) return false;
+      if (def.isEvent || def.isTrigger) return true;
+      const inIds = this._dbgExecInPins(def);
+      if (!inIds.size) return true;
+      return !this.edges.some(e => e.toNode === n.id && inIds.has(e.toPin));
+    });
+
+    const nodeState = new Map();
+    const RANK = { error: 3, end: 2, ok: 1 };
+    const bump = (nid, status, msg) => {
+      const prev = nodeState.get(nid);
+      if (!prev || RANK[status] > RANK[prev.status]) nodeState.set(nid, { status, msg });
+    };
+
+    const paths = [];
+    let budget = MAX_PATHS;
+
+    const walk = (nid, steps, inPath) => {
+      if (budget <= 0) return;
+      const node = this.nodes.find(n => n.id === nid);
+      if (!node) {
+        budget--;
+        paths.push({ steps, end: "error", endMsg: "Broken wire: target node not found", endNid: steps[steps.length - 1]?.nid });
+        return;
+      }
+      if (inPath.has(nid) || steps.length >= MAX_STEPS) {
+        budget--;
+        paths.push({ steps: [...steps, { nid, title: nodeTitle(node), ok: true }], end: "cycle", endNid: nid });
+        return;
+      }
+      const def = NODE_DEFS[node.type];
+      const ev = (def?.isEvent || def?.isTrigger) ? { ok: true } : this._debugEvalNode(node);
+      const steps2 = [...steps, { nid, title: nodeTitle(node), ok: ev.ok, msg: ev.msg }];
+      if (!ev.ok) {
+        bump(nid, "error", ev.msg);
+        budget--;
+        paths.push({ steps: steps2, end: "error", endMsg: ev.msg, endNid: nid });
+        return;
+      }
+      bump(nid, "ok");
+      const wired = [];
+      for (const pin of this._dbgExecOutPins(node, def)) {
+        for (const e of this.edges.filter(e => e.fromNode === nid && e.fromPin === pin.id)) {
+          wired.push(e.toNode);
+        }
+      }
+      if (!wired.length) {
+        bump(nid, "end");
+        budget--;
+        paths.push({ steps: steps2, end: "end", endNid: nid });
+        return;
+      }
+      const inPath2 = new Set(inPath); inPath2.add(nid);
+      for (const to of wired) walk(to, steps2, inPath2);
+    };
+
+    for (const entry of entries) walk(entry.id, [], new Set());
+
+    // Paint node badges.
+    const badge = (el, color, char, tip) => {
+      const b = document.createElement("div");
+      b.className = "gdbg-badge";
+      b.textContent = char;
+      b.title = tip;
+      b.style.cssText = `position:absolute;top:-9px;right:-9px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#111;background:${color};z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.4);pointer-events:auto`;
+      el.appendChild(b);
+    };
+    for (const n of this.nodes) {
+      const el = this.nodesEl?.querySelector(`[data-nid="${n.id}"]`);
+      if (!el) continue;
+      const def = NODE_DEFS[n.type];
+      const st = nodeState.get(n.id);
+      if (st) {
+        const color = st.status === "error" ? "#ff5d5d" : st.status === "end" ? "#ffb84d" : "#3ec46e";
+        el.style.outline = `2px solid ${color}`;
+        el.style.outlineOffset = "3px";
+        el.dataset.gdbg = st.status;
+        badge(el, color,
+          st.status === "error" ? "\u2716" : st.status === "end" ? "\u25a0" : "\u2714",
+          st.status === "error" ? `Debug: error - ${st.msg ?? ""}` : st.status === "end" ? "Debug: execution path ends here" : "Debug: compiled and passed OK");
+      } else if (def && this._dbgExecInPins(def).size) {
+        el.style.outline = "2px dashed rgba(160,160,175,.55)";
+        el.style.outlineOffset = "3px";
+        el.dataset.gdbg = "unreachable";
+        badge(el, "#9aa0ad", "?", "Debug: not reachable from any entry point");
+      }
+    }
+
+    this._renderDebugPanel(entries, paths);
+  }
+
+  _renderDebugPanel(entries, paths) {
+    const wrap = this.win?.querySelector?.("#gwrap");
+    if (!wrap) return;
+    const done = paths.filter(p => p.end === "end").length;
+    const errs = paths.filter(p => p.end === "error").length;
+    const cycs = paths.filter(p => p.end === "cycle").length;
+    const rows = paths.map((p, i) => {
+      const last = p.steps[p.steps.length - 1];
+      const chain = p.steps.map(s => s.ok ? esc(s.title) : `<span style="color:#ff5d5d">${esc(s.title)}</span>`).join(" \u2192 ");
+      const cfg = p.end === "error"
+        ? { icon: "\u2716", color: "#ff5d5d", label: `\u041e\u0448\u0438\u0431\u043a\u0430 \u043d\u0430 \u00ab${last?.title}\u00bb: ${p.endMsg ?? ""}` }
+        : p.end === "cycle"
+        ? { icon: "\u27f3", color: "#ffb84d", label: `\u0426\u0438\u043a\u043b \u2014 \u043f\u043e\u0432\u0442\u043e\u0440\u043d\u044b\u0439 \u0432\u0445\u043e\u0434 \u0432 \u00ab${last?.title}\u00bb` }
+        : { icon: "\u2714", color: "#3ec46e", label: `\u0417\u0430\u0432\u0435\u0440\u0448\u0451\u043d \u043d\u0430 \u00ab${last?.title}\u00bb` };
+      return `<div class="gdbg-row" data-focus="${esc(String(p.endNid ?? last?.nid ?? ""))}" style="padding:7px 10px;border-bottom:1px solid var(--sd-border);cursor:pointer">
+        <div style="display:flex;gap:6px;align-items:flex-start;font-size:11px;font-weight:700;color:${cfg.color}"><span>${cfg.icon}</span><span style="flex:1">\u041f\u0443\u0442\u044c ${i + 1}: ${esc(cfg.label)}</span></div>
+        <div style="font-size:10px;color:var(--sd-text-3);font-family:monospace;margin-top:3px;word-break:break-word;line-height:1.5">${chain}</div>
+      </div>`;
+    }).join("");
+    const panel = document.createElement("div");
+    panel.id = "gdebugpanel";
+    panel.style.cssText = "position:absolute;top:10px;right:10px;width:360px;max-height:72%;display:flex;flex-direction:column;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.5);z-index:20;overflow:hidden";
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--sd-bg-3);border-bottom:1px solid var(--sd-border)">
+        <i class="fas fa-bug" style="color:var(--sd-accent)"></i>
+        <b style="font-size:11px;flex:1">Graph Debug \u2014 dry run</b>
+        <button id="gdbgclose" title="Close debug" style="background:none;border:none;color:var(--sd-text-2);cursor:pointer;font-size:13px"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div style="padding:6px 12px;font-size:10px;color:var(--sd-text-2);border-bottom:1px solid var(--sd-border)">
+        \u0422\u043e\u0447\u0435\u043a \u0432\u0445\u043e\u0434\u0430: ${entries.length} \u00b7 \u043f\u0443\u0442\u0435\u0439: ${paths.length} \u00b7 <span style="color:#3ec46e">\u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u043e: ${done}</span> \u00b7 <span style="color:#ff5d5d">\u043e\u0448\u0438\u0431\u043e\u043a: ${errs}</span>${cycs ? ` \u00b7 <span style=\"color:#ffb84d\">\u0446\u0438\u043a\u043b\u043e\u0432: ${cycs}</span>` : ""}
+        ${entries.length ? "" : `<div style=\"color:#ff5d5d;margin-top:4px\">\u041d\u0435\u0442 \u0442\u043e\u0447\u0435\u043a \u0432\u0445\u043e\u0434\u0430 (\u0441\u043e\u0431\u044b\u0442\u0438\u0435 / \u0442\u0440\u0438\u0433\u0433\u0435\u0440 / \u043d\u0435\u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0451\u043d\u043d\u044b\u0439 exec-\u0441\u0442\u0430\u0440\u0442).</div>`}
+      </div>
+      <div style="flex:1;overflow-y:auto">${rows || `<div style=\"padding:12px;font-size:11px;color:var(--sd-text-3)\">\u041d\u0435\u0442 \u0438\u0441\u043f\u043e\u043b\u043d\u044f\u0435\u043c\u044b\u0445 \u043f\u0443\u0442\u0435\u0439. \u0414\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0441\u043e\u0431\u044b\u0442\u0438\u0435/\u0442\u0440\u0438\u0433\u0433\u0435\u0440 \u0438 \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u0435 exec-\u0432\u044b\u0445\u043e\u0434.</div>`}</div>`;
+    wrap.appendChild(panel);
+    panel.querySelector("#gdbgclose")?.addEventListener("click", () => this._clearDebug());
+    panel.querySelectorAll(".gdbg-row").forEach(row => {
+      row.addEventListener("click", () => this._debugFocus(row.dataset.focus));
+      row.addEventListener("mouseenter", () => { row.style.background = "rgba(116,167,255,.08)"; });
+      row.addEventListener("mouseleave", () => { row.style.background = "transparent"; });
+    });
+  }
+
+  _debugFocus(nid) {
+    const n = this.nodes.find(x => x.id === nid);
+    const wrap = this.win?.querySelector?.("#gwrap");
+    if (!n || !wrap) return;
+    const r = wrap.getBoundingClientRect();
+    this._pan.x = r.width / 2 - ((Number(n.x) || 0) + 110) * this._zoom;
+    this._pan.y = r.height / 2 - ((Number(n.y) || 0) + 40) * this._zoom;
+    this._applyTransform();
+    this._redrawEdges();
+    const el = this.nodesEl?.querySelector(`[data-nid="${nid}"]`);
+    if (el) {
+      const old = el.style.boxShadow;
+      el.style.boxShadow = "0 0 0 4px rgba(116,167,255,.7)";
+      setTimeout(() => { el.style.boxShadow = old; }, 900);
+    }
+  }
+
   _drawGrid() {
   }
 
   _nodeFilterContext() {
-    const ALLOWED_CONFIG_CATS = new Set(["Sources", "Math"]);
-    const ALLOWED_NUMBER_CATS = new Set(["Sources", "Math", "Compare", "Logic"]);
-    const ALLOWED_QUEST_CATS  = new Set(["Flow", "Quest", "Sources", "Math", "Compare", "Logic"]);
+    const ALLOWED_CONFIG_CATS = new Set(["Values", "Get Data", "Math"]);
+    const ALLOWED_NUMBER_CATS = new Set(["Values", "Get Data", "Math", "Logic"]);
+    const ALLOWED_QUEST_CATS  = new Set(["Flow Control", "Quest", "Values", "Get Data", "Math", "Logic"]);
     const ALLOWED_QUEST_SOURCES = new Set([
       "literal", "literal_str", "get_path", "actor_ref", "item_uuid", "fa_icon"
     ]);
@@ -10506,7 +10968,7 @@ export class FormulaGraph {
     }
     if (ctx.isQuestModeAny) {
       if (type === "output") return false;
-      if (d.cat === "Sources" && !ctx.ALLOWED_QUEST_SOURCES.has(type)) return false;
+      if ((d.cat === "Values" || d.cat === "Get Data") && !ctx.ALLOWED_QUEST_SOURCES.has(type)) return false;
       if (d.isEvent && d.cat !== "Quest") return false;
     }
     return true;
@@ -10650,8 +11112,6 @@ export class FormulaGraph {
     win.querySelector("#gexport")?.addEventListener("click", () => this._exportSelectionAsFile());
 
     win.querySelector("#glint")?.addEventListener("click", () => this._runLint());
-
-    win.querySelector("#gaiassist")?.addEventListener("click", () => this._openAIAssistant());
 
     const palSearch = win.querySelector("#gpalsearch");
     palSearch?.addEventListener("input", () => {
@@ -10888,6 +11348,7 @@ export class FormulaGraph {
       _zoomAt(r.left + cx, r.top + cy, parseFloat(b.dataset.d) < 0 ? 1 : -1);
     }));
     win.querySelector("#gfit").addEventListener("click", () => this._fitView());
+    win.querySelector("#gdebug")?.addEventListener("click", () => this._runDebug());
 
     wrap.addEventListener("wheel", ev => {
       ev.preventDefault();
@@ -11245,11 +11706,14 @@ export class FormulaGraph {
     el.dataset.cid = c.id;
     el.className = "gcmt";
     el.style.cssText = `position:absolute;left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px;background:${color}22;border:2px solid ${color};border-radius:10px;pointer-events:auto;box-shadow:0 6px 18px rgba(0,0,0,.35);outline:${selected?"2px solid #ffca6b":"none"};outline-offset:2px`;
+    const mode = (c.mode === "note") ? "note" : "frame";
     el.innerHTML = `
       <div class="gcmt-hdr" style="display:flex;align-items:center;gap:6px;padding:4px 10px;background:${color};border-radius:8px 8px 0 0;cursor:grab;user-select:none;font-family:Inter,'Segoe UI',Arial,sans-serif;color:#1a1a1a;font-weight:700;font-size:13px">
         <span class="gcmt-ttl" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.title || "Comment")}</span>
+        <span class="gcmt-mode" style="cursor:pointer;padding:0 6px;color:#1a1a1a;opacity:.55;font-size:13px" title="${mode === "note" ? "Switch to frame (group) mode" : "Switch to notepad mode"}">${mode === "note" ? "\u25a3" : "\u270e"}</span>
         <span class="gcmt-del" style="cursor:pointer;padding:0 6px;color:#1a1a1a;opacity:.55;font-size:14px" title="Delete comment">x</span>
       </div>
+      ${mode === "note" ? `<textarea class="gcmt-txt" placeholder="Type your note here..." style="position:absolute;top:30px;left:0;width:100%;height:calc(100% - 30px);box-sizing:border-box;background:transparent;border:none;outline:none;resize:none;padding:8px 10px;font-family:Inter,'Segoe UI',Arial,sans-serif;font-size:13px;line-height:1.45;color:var(--sd-text,#e8e8f0)">${esc(c.text ?? "")}</textarea>` : ""}
       <div class="gcmt-rsz" style="position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,${color} 50%);border-bottom-right-radius:10px"></div>
     `;
     this.commentsEl.appendChild(el);
@@ -11264,6 +11728,25 @@ export class FormulaGraph {
       ev.stopPropagation();
       this._deleteComment(c.id);
     });
+
+    const modeBtn = el.querySelector(".gcmt-mode");
+    modeBtn.addEventListener("mousedown", ev => ev.stopPropagation());
+    modeBtn.addEventListener("click", ev => {
+      ev.stopPropagation();
+      c.mode = (c.mode === "note") ? "frame" : "note";
+      this._renderComment(c);
+      this._pushHistory?.();
+    });
+
+    const txt = el.querySelector(".gcmt-txt");
+    if (txt) {
+      for (const t of ["mousedown", "pointerdown", "dblclick", "wheel", "contextmenu"]) {
+        txt.addEventListener(t, ev => ev.stopPropagation());
+      }
+      txt.addEventListener("keydown", ev => ev.stopPropagation());
+      txt.addEventListener("input", () => { c.text = txt.value; });
+      txt.addEventListener("change", () => { c.text = txt.value; this._pushHistory?.(); });
+    }
 
     hdr.addEventListener("dblclick", async ev => {
       ev.stopPropagation();
@@ -11761,27 +12244,11 @@ export class FormulaGraph {
     dot.addEventListener("contextmenu",ev=>{
       ev.preventDefault();
       ev.stopPropagation();
-      const before = this.edges.length;
-      const touched = new Set([node.id]);
-      if(side==="output") {
-        for (const e of this.edges) {
-          if (e.fromNode===node.id && e.fromPin===pin.id) touched.add(e.toNode);
-        }
-        this.edges = this.edges.filter(e=>!(e.fromNode===node.id&&e.fromPin===pin.id));
-      } else {
-        for (const e of this.edges) {
-          if (e.toNode===node.id && e.toPin===pin.id) touched.add(e.fromNode);
-        }
-        this.edges = this.edges.filter(e=>!(e.toNode===node.id&&e.toPin===pin.id));
-      }
-      if(this.edges.length !== before) {
-        for (const tid of touched) {
-          const tn = this.nodes.find(n => n.id === tid);
-          if (tn) this._renderNode(tn);
-        }
-        this._redrawEdges();
-        this._updatePreview();
-      }
+      const hasEdge = side==="output"
+        ? this.edges.some(e=>e.fromNode===node.id&&e.fromPin===pin.id)
+        : this.edges.some(e=>e.toNode===node.id&&e.toPin===pin.id);
+      if (isExec) { if (hasEdge) this._disconnectPin(node, pin, side); return; }
+      this._pinContextMenu(ev, node, pin, side, hasEdge);
     });
     dot.addEventListener("mouseenter",()=>{
       dot.style.transform="scale(1.2)";
@@ -11789,13 +12256,82 @@ export class FormulaGraph {
       const hasEdge = side==="output"
         ? this.edges.some(e=>e.fromNode===node.id&&e.fromPin===pin.id)
         : this.edges.some(e=>e.toNode===node.id&&e.toPin===pin.id);
-      dot.title = hasEdge ? "RMB: disconnect" : "";
+      dot.title = isExec ? (hasEdge ? "RMB: disconnect" : "") : "RMB: Promote to Var / Disconnect";
     });
     dot.addEventListener("mouseleave",()=>{
       dot.style.transform="";
       dot.style.boxShadow = (dot.dataset.connected === "1") ? "0 0 0 1px rgba(0,0,0,.35) inset" : "none";
     });
     return dot;
+  }
+
+  _disconnectPin(node, pin, side) {
+    const before = this.edges.length;
+    const touched = new Set([node.id]);
+    if (side === "output") {
+      for (const e of this.edges) if (e.fromNode===node.id && e.fromPin===pin.id) touched.add(e.toNode);
+      this.edges = this.edges.filter(e=>!(e.fromNode===node.id&&e.fromPin===pin.id));
+    } else {
+      for (const e of this.edges) if (e.toNode===node.id && e.toPin===pin.id) touched.add(e.fromNode);
+      this.edges = this.edges.filter(e=>!(e.toNode===node.id&&e.toPin===pin.id));
+    }
+    if (this.edges.length !== before) {
+      for (const tid of touched) { const tn = this.nodes.find(n => n.id === tid); if (tn) this._renderNode(tn); }
+      this._redrawEdges();
+      this._updatePreview();
+      this._pushHistory();
+    }
+  }
+
+  _pinContextMenu(ev, node, pin, side, hasEdge) {
+    document.querySelector(".sd-pin-menu")?.remove();
+    const menu = document.createElement("div");
+    menu.className = "sd-pin-menu";
+    menu.style.cssText = `position:fixed;left:${ev.clientX}px;top:${ev.clientY}px;z-index:100000;background:var(--sd-bg,#1e1e2a);border:1px solid var(--sd-accent,#7b68ee);border-radius:6px;padding:4px;min-width:190px;box-shadow:0 6px 24px rgba(0,0,0,.6);font-size:12px;color:var(--sd-text,#e0e0ee)`;
+    const mkItem = (label, icon, fn) => {
+      const it = document.createElement("div");
+      it.style.cssText = "padding:6px 10px;border-radius:4px;cursor:pointer;display:flex;gap:8px;align-items:center";
+      it.innerHTML = `<i class="fas ${icon}" style="width:14px;opacity:.75"></i>${label}`;
+      it.addEventListener("mouseenter",()=>it.style.background="rgba(123,104,238,.25)");
+      it.addEventListener("mouseleave",()=>it.style.background="");
+      it.addEventListener("click",()=>{ menu.remove(); fn(); });
+      menu.appendChild(it);
+    };
+    mkItem("Promote to Var (local)", "fa-square-plus", () => this._promotePinToVar(node, pin, side, "local"));
+    mkItem("Promote to Var (actor)", "fa-user-plus",   () => this._promotePinToVar(node, pin, side, "actor"));
+    if (hasEdge) mkItem("Disconnect", "fa-link-slash", () => this._disconnectPin(node, pin, side));
+    document.body.appendChild(menu);
+    const r = menu.getBoundingClientRect();
+    if (r.right  > window.innerWidth)  menu.style.left = Math.max(4, window.innerWidth  - r.width  - 8) + "px";
+    if (r.bottom > window.innerHeight) menu.style.top  = Math.max(4, window.innerHeight - r.height - 8) + "px";
+    const close = (e) => {
+      if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("mousedown", close, true); }
+    };
+    setTimeout(()=>document.addEventListener("mousedown", close, true), 0);
+  }
+
+  _promotePinToVar(node, pin, side, scope = "local") {
+    const base = String(pin.label || pin.id || "var").replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || "var";
+    const used = new Set(this.nodes.map(n => n?.data?.name).filter(Boolean));
+    let name = base, i = 1;
+    while (used.has(name)) name = `${base}_${i++}`;
+    if (side === "input") {
+      const vn = this._addNode("var_read", (node.x ?? 0) - 250, (node.y ?? 0) + 30);
+      if (!vn) return;
+      vn.data.name = name; vn.data.scope = scope;
+      this.edges = this.edges.filter(e => !(e.toNode === node.id && e.toPin === pin.id));
+      this._addEdge(vn.id, "v", node.id, pin.id);
+      this._renderNode(vn);
+    } else {
+      const vn = this._addNode("var_write", (node.x ?? 0) + 290, (node.y ?? 0) + 30);
+      if (!vn) return;
+      vn.data.name = name; vn.data.scope = scope;
+      this._addEdge(node.id, pin.id, vn.id, "value");
+      this._renderNode(vn);
+    }
+    this._scheduleEdges?.();
+    this._updatePreview();
+    ui.notifications?.info?.(`Variable "${name}" (${scope}) created`);
   }
 
   async _editMessageComposerButtons(node) {
@@ -12752,19 +13288,16 @@ export class FormulaGraph {
     }
   }
 
-  _promptText(label, defaultValue, title="Input") {
-    return new Promise(resolve => {
-      const v = window.prompt(`${title}\n${label}`, defaultValue ?? "");
-      resolve(v === null ? null : String(v));
-    });
-  }
-
   async _fnDelete(id) {
     if (!game?.user?.isGM) return;
     const lib = foundry.utils.deepClone(this._getFunctionLib());
     const fn  = lib.functions?.[id];
     if (!fn) return;
-    const confirmed = window.confirm(`Delete function "${fn.name}"?\nAll references in graphs will be marked as broken.`);
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: { title: "Delete function" },
+      content: `<p>Delete function "${esc(fn.name)}"?<br>All references in graphs will be marked as broken.</p>`,
+      rejectClose: false
+    }).catch(() => false);
     if (!confirmed) return;
     delete lib.functions[id];
     const ok = await this._saveFunctionLib(lib);
@@ -13094,7 +13627,12 @@ export class FormulaGraph {
         });
       });
       row.querySelector("[data-fnPinDel]")?.addEventListener("click", async () => {
-        if (!window.confirm("Delete this pin?")) return;
+        const okDel = await foundry.applications.api.DialogV2.confirm({
+          window: { title: "Delete pin" },
+          content: "<p>Delete this pin?</p>",
+          rejectClose: false
+        }).catch(() => false);
+        if (!okDel) return;
         await upd(f => {
           const arr = side === "inputs" ? f.inputs : f.outputs;
           if (!arr?.[idx]) return;

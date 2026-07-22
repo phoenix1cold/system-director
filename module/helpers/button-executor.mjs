@@ -1171,6 +1171,7 @@ export class ButtonExecutor {
               }
               if (action.clampMin !== null && action.clampMin !== undefined) newVal = Math.max(newVal, action.clampMin);
               if (action.clampMax !== null && action.clampMax !== undefined) newVal = Math.min(newVal, action.clampMax);
+              newVal = this._sdCoerceType(foundry.utils.getProperty(tActor, path), newVal);
               try { await tActor.update({ [path]: newVal }); } catch (e) { console.warn("SD modifyField (actorOverride) failed for", tActor?.name, e); }
             }
             break;
@@ -1190,6 +1191,7 @@ export class ButtonExecutor {
             const cur   = Number(foundry.utils.getProperty(tActor, path) ?? 0);
             newVal = cur + delta;
           }
+          newVal = this._sdCoerceType(foundry.utils.getProperty(tActor, path), newVal);
           await tActor.update({ [path]: newVal });
           if (action.chatButton) {
             const delta = action.delta != null ? await _resolveDelta(action.delta) : 0;
@@ -1237,7 +1239,7 @@ export class ButtonExecutor {
         if (sfTarget.startsWith("target.")) {
           const path   = sfTarget.slice(7);
           const tActor = game.user.targets?.first()?.actor ?? canvas.tokens?.controlled?.[0]?.actor;
-          if (tActor) await tActor.update({ [path]: newVal });
+          if (tActor) await tActor.update({ [path]: this._sdCoerceType(foundry.utils.getProperty(tActor, path), newVal) });
           else ui.notifications.warn("No token targeted.");
         } else {
           await this._setFieldValue(sfTarget, item, actor, newVal);
@@ -1462,7 +1464,11 @@ export class ButtonExecutor {
           if (allowedCats && allowedCats.length > 0 && !allowedCats.includes(candidate.system?.category)) continue;
           ids.add(candidate.id);
         }
-        if (ids.size) await actor.deleteEmbeddedDocuments("Item", [...ids]);
+        const _delIds = [...ids].filter(_i => actor.items?.has?.(_i));
+        if (_delIds.length) {
+          try { await actor.deleteEmbeddedDocuments("Item", _delIds); }
+          catch (e) { console.warn("SD | removeItem delete failed:", e); }
+        }
         break;
       }
 
@@ -1578,7 +1584,12 @@ export class ButtonExecutor {
             break;
           }
         }
-        await _eqTarget.update({ "system.equipped": _eqNext });
+        if (_eqTarget.parent && !_eqTarget.parent.items?.has?.(_eqTarget.id)) {
+          ui.notifications?.warn?.(`${action.type}: item no longer exists.`);
+          break;
+        }
+        try { await _eqTarget.update({ "system.equipped": _eqNext }); }
+        catch (e) { console.warn("SD | equip update failed:", e); }
         break;
       }
 
@@ -1675,13 +1686,14 @@ export class ButtonExecutor {
           return Number.isFinite(n) ? n : 0;
         };
         const _mAmt = await _mResolveNum(action.amount);
-        const _mCur = Number(foundry.utils.getProperty(_mMatch.entry, _mPath) ?? 0);
+        const _mRawCur = foundry.utils.getProperty(_mMatch.entry, _mPath);
+        const _mCur = Number(_mRawCur ?? 0);
         let _mResult;
         if      (_mOp === "subtract") _mResult = _mCur - _mAmt;
         else if (_mOp === "set")      _mResult = _mAmt;
         else                          _mResult = _mCur + _mAmt;
         try {
-          await SM2.updateSlottedField(_mMatch.host, _mSlotId, _mMatch.index, _mPath, _mResult);
+          await SM2.updateSlottedField(_mMatch.host, _mSlotId, _mMatch.index, _mPath, this._sdCoerceType(_mRawCur, _mResult));
         } catch (e) {
           console.warn("SD modifySlotItemField update failed", e);
           ui.notifications.warn(`modifySlotItemField: update failed (${e?.message ?? e}).`);
@@ -1792,11 +1804,13 @@ export class ButtonExecutor {
         const { SlotManager: _miSM } = await import("../data/item-slots.mjs");
 
         const _miApply = async (probeDoc, applyFn) => {
-          const cur = Number(foundry.utils.getProperty(probeDoc, _miPath) ?? 0);
+          const _miRawCur = foundry.utils.getProperty(probeDoc, _miPath);
+          const cur = Number(_miRawCur ?? 0);
           let res;
           if      (_miOp === "subtract") res = cur - _miAmt;
           else if (_miOp === "set")      res = _miAmt;
           else                           res = cur + _miAmt;
+          res = this._sdCoerceType(_miRawCur, res);
           try { await applyFn(res); }
           catch (e) {
             console.warn("SD modifyItemField update failed", e);
@@ -1883,12 +1897,14 @@ export class ButtonExecutor {
           }
 
           const _fPath = action.path ?? "";
-          const _fCur  = Number(foundry.utils.getProperty(_invItem, _fPath) ?? 0);
+          const _fRawCur = foundry.utils.getProperty(_invItem, _fPath);
+          const _fCur  = Number(_fRawCur ?? 0);
           const _fAmt  = Number(action.amount ?? 0);
           let   _fResult;
           if      (action.op === "subtract") _fResult = _fCur - _fAmt;
           else if (action.op === "set")      _fResult = _fAmt;
           else                               _fResult = _fCur + _fAmt;
+          _fResult = this._sdCoerceType(_fRawCur, _fResult);
           try { await _invItem.update({ [_fPath]: _fResult }); } catch (e) { console.warn("SD modifyInvItemField failed for", _srcActor?.name, e); }
         }
         break;
@@ -4147,6 +4163,81 @@ export class ButtonExecutor {
         });
         const branch = fired ? (action.doneActions ?? []) : (action.timedOutActions ?? []);
         for (const sub of branch) await this._runAction(sub, item, actor, buttonDef, runtime);
+        break;
+      }
+
+      case "castTo": {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        const _doc = item ?? actor ?? {};
+        const _evalExpr = (raw) => {
+          try {
+            const s = FormulaEngine.resolveForRoll(_injectRuntime(String(raw ?? "")), _doc);
+            return FormulaEngine.evaluate(s, _doc);
+          } catch { return String(raw ?? ""); }
+        };
+        let targetDoc = null;
+        const ref = String(action.targetRef ?? "").trim();
+        if (ref) {
+          let uuid = String(_evalExpr(ref) ?? "").trim();
+          if (uuid.length >= 2 && uuid.startsWith('"') && uuid.endsWith('"')) uuid = uuid.slice(1, -1);
+          try { targetDoc = uuid ? await fromUuid(uuid) : null; } catch { targetDoc = null; }
+          if (targetDoc?.documentName === "Token") targetDoc = targetDoc.actor ?? targetDoc;
+          if (String(action.targetType ?? "actor") === "actor" && targetDoc instanceof Item) targetDoc = targetDoc.actor ?? targetDoc;
+        }
+        if (!targetDoc) {
+          targetDoc = String(action.targetType ?? "actor") === "item"
+            ? (item ?? null)
+            : (actor ?? item?.actor ?? null);
+        }
+        const castPath = String(action.path ?? "").trim();
+        let didCast = false;
+        if (targetDoc && castPath) {
+          const _safeSeg = s => String(s).replace(/[^a-zA-Z0-9_-]/g, "_");
+          const stateKey = `castState.${_safeSeg(action.castId ?? "cast")}_${_safeSeg(castPath)}`;
+          const state = targetDoc.getFlag?.("sd", stateKey) ?? null;
+          let boolOk = true;
+          if (action.revertByBool) {
+            const b = _evalExpr(action.revert ?? "");
+            boolOk = !(b === false || b === 0 || b == null || b === "" || b === "0" || b === "false");
+          }
+          if (action.revertByBool && !boolOk) {
+            if (state?.done) {
+              try {
+                await targetDoc.update({ [castPath]: state.prev ?? null });
+                await targetDoc.unsetFlag("sd", stateKey);
+              } catch (err) { console.warn("SD | castTo revert failed", err); }
+            }
+          } else if (action.castOnce && state?.done) {
+            // already cast once -- pass through Exec only
+          } else {
+            let newVal = _evalExpr(action.value ?? "");
+            if (typeof newVal === "string" && /\b\d*d\d+\b/i.test(newVal)) {
+              try {
+                const r = new Roll(newVal, actor?.getRollData?.() ?? {});
+                await r.evaluate();
+                newVal = r.total;
+              } catch { /* keep string */ }
+            }
+            if (typeof newVal === "string") {
+              const t = newVal.trim();
+              if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) newVal = t.slice(1, -1);
+              else if (t !== "" && Number.isFinite(Number(t))) newVal = Number(t);
+              else newVal = t;
+            }
+            try {
+              const prev = foundry.utils.getProperty(targetDoc, castPath);
+              await targetDoc.update({ [castPath]: newVal });
+              didCast = true;
+              if (action.castOnce || action.revertByBool) {
+                await targetDoc.setFlag("sd", stateKey, { done: true, prev: (prev === undefined ? null : prev) });
+              }
+            } catch (err) { console.warn("SD | castTo failed", err); }
+          }
+        } else {
+          console.warn("SD | castTo: missing target or path", action);
+        }
+        if (didCast) for (const sub of (action.completedActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
+        for (const sub of (action.execActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
         break;
       }
 
@@ -6425,6 +6516,36 @@ export class ButtonExecutor {
     });
   }
 
+  /**
+   * Coerce a new value to match the type of the field's current value, so
+   * strings are converted to numbers, numbers to strings, booleans parsed,
+   * etc. Keeps saved data types stable regardless of what the graph passes.
+   */
+  static _sdCoerceType(currentRaw, value) {
+    try {
+      if (currentRaw === null || currentRaw === undefined) return value;
+      const curType = typeof currentRaw;
+      if (curType === "number") {
+        if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+        if (typeof value === "boolean") return value ? 1 : 0;
+        const n = parseFloat(String(value).trim().replace(",", "."));
+        return Number.isFinite(n) ? n : value;
+      }
+      if (curType === "string") {
+        if (typeof value === "string") return value;
+        if (value === null || value === undefined) return "";
+        return String(value);
+      }
+      if (curType === "boolean") {
+        if (typeof value === "boolean") return value;
+        if (typeof value === "number") return value !== 0;
+        const b = String(value).trim().toLowerCase();
+        return !(b === "" || b === "0" || b === "false" || b === "no" || b === "off" || b === "null");
+      }
+      return value;
+    } catch { return value; }
+  }
+
   static _getFieldValue(path, item, actor) {
     if (path.startsWith("slots."))       return SlotManager.resolveSlotPath(item, path);
     if (path.startsWith("self."))        return foundry.utils.getProperty(item, path.slice(5));
@@ -6433,6 +6554,7 @@ export class ButtonExecutor {
   }
 
   static async _setFieldValue(path, item, actor, value) {
+    try { value = this._sdCoerceType(this._getFieldValue(path, item, actor), value); } catch {}
     if (path.startsWith("slots.")) {
       await SlotManager.setSlotPath(item, path, value);
     } else if (path.startsWith("self.")) {

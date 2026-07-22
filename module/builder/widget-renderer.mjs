@@ -282,7 +282,7 @@ export class WidgetRenderer {
     <button type="button" class="num-btn" data-action="widgetNumStep"
             data-path="${e(w.path)}" data-step="-${e(stepAttr)}"
             data-min="${e(minAttr)}" data-max="${e(maxAttr)}">−</button>
-    <input type="number" name="${e(w.path)}" data-path="${e(w.path)}" value="${e(val)}"
+    <input type="number" name="${e(w.path)}" data-path="${e(w.path)}" value="${Number.isFinite(Number(val)) ? Number(val) : ""}"
            min="${e(minAttr)}" max="${e(maxAttr)}" step="${e(stepAttr)}">
     <button type="button" class="num-btn" data-action="widgetNumStep"
             data-path="${e(w.path)}" data-step="${e(stepAttr)}"
@@ -292,8 +292,8 @@ export class WidgetRenderer {
   }
 
   static _render_resource(w, doc) {
-    const val      = Number(this._get(doc, w.pathValue, 0));
-    const max      = Number(this._get(doc, w.pathMax,   0));
+    const val      = (n => Number.isFinite(n) ? n : 0)(Number(this._get(doc, w.pathValue, 0)));
+    const max      = (n => Number.isFinite(n) ? n : 0)(Number(this._get(doc, w.pathMax,   0)));
     const ratioRaw = max > 0 ? val / max : 0;
     const pct      = max > 0 ? Math.round(Math.clamp(ratioRaw, 0, 1) * 100) : 0;
     const pctReal  = max > 0 ? Math.round(ratioRaw * 100) : 0;
@@ -907,7 +907,7 @@ export class WidgetRenderer {
             ];
         let row = `<div class="currency-row currency-row--multi">`;
         for (const cur of _curList) {
-          const val = Number(c?.[cur.key] ?? 0);
+          const val = (n => Number.isFinite(n) ? n : 0)(Number(c?.[cur.key] ?? 0));
           row += `
     <label>${e(cur.label ?? cur.key)}</label>
     <input type="number" name="system.currency.${e(cur.key)}" value="${val}" placeholder="0">`;
@@ -986,7 +986,7 @@ export class WidgetRenderer {
   }
 
   static _render_attribute(w, doc) {
-    const score = Number(this._get(doc, w.path, 10));
+    const score = (n => Number.isFinite(n) ? n : 10)(Number(this._get(doc, w.path, 10)));
     const e     = this._esc;
 
     const compute = CONFIG?.SD?.computeModifier
@@ -2508,7 +2508,7 @@ export class WidgetRenderer {
       const b = _btnDataAttrs(it);
       return `<div class="attr-item" data-attr-key="${e(it.key)}">
     <span class="attr-item-name">${e(it.name)}</span>
-    <input type="number" class="attr-item-score" name="${e(it.path)}" value="${e(it.score)}">
+    <input type="number" class="attr-item-score" name="${e(it.path)}" value="${Number.isFinite(Number(it.score)) ? Number(it.score) : ""}">
     <button type="button" class="attr-item-mod" data-action="${b.action}"
             ${b.attrs}
             title="Roll ${e(it.name)} (${it.modStr})">${it.modStr}</button>

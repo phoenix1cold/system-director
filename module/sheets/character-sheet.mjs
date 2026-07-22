@@ -353,6 +353,29 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         this._switchTab(tab.id);
       });
 
+      a.addEventListener("dragover", ev => {
+        ev.preventDefault();
+        if (this.tabGroups.sheet === tab.id) return;
+        if (a._sdDragHoverT) return;
+        a._sdDragHoverT = setTimeout(() => { a._sdDragHoverT = null; this._switchTab(tab.id); }, 200);
+      });
+      a.addEventListener("dragleave", () => {
+        if (a._sdDragHoverT) { clearTimeout(a._sdDragHoverT); a._sdDragHoverT = null; }
+      });
+      a.addEventListener("drop", async ev => {
+        if (a._sdDragHoverT) { clearTimeout(a._sdDragHoverT); a._sdDragHoverT = null; }
+        let data = null;
+        try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch {}
+        if (data && (data.sdType === "widget-move" || data.sdType === "moveWidget")) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          this._switchTab(tab.id);
+          if (!data.srcDocUuid || data.srcDocUuid === this.document?.uuid) {
+            await this._moveWidget(data, { tabId: tab.id, rowId: null, parentVsId: null, toEnd: true });
+          }
+        }
+      });
+
       SheetTabReorder.attach(this, a, tab.id);
 
       nav.appendChild(a);

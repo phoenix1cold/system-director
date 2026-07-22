@@ -101,6 +101,15 @@ export class FormulaEngine {
   }
 
   static _readDocProperty(doc, path) {
+    if (typeof path === "string" && path.startsWith("system.widgetFields.")) {
+      const rest   = path.slice("system.widgetFields.".length);
+      const dotIdx = rest.indexOf(".");
+      const key    = dotIdx < 0 ? rest : rest.slice(0, dotIdx);
+      const prop   = dotIdx < 0 ? "value" : rest.slice(dotIdx + 1);
+      const w = this._findWidgetByKey(doc, key);
+      if (w) return this._readWidgetProp(w, prop, doc);
+      return undefined;
+    }
     if (!doc || !path) return undefined;
     const HF = "system.hiddenFields.";
     if (path.startsWith(HF)) {
@@ -262,12 +271,13 @@ export class FormulaEngine {
     if (!key) return null;
     const want = String(key);
 
-    const _walk = (list) => {
+    const _walk = (list, byLabel = false) => {
       if (!Array.isArray(list)) return null;
       for (const w of list) {
         if (!w) continue;
-        if (w.widgetKey === want) return w;
-        const nested = _walk(w.widgets);
+        if (!byLabel && w.widgetKey === want) return w;
+        if (byLabel && String(w.label ?? "") === want) return w;
+        const nested = _walk(w.widgets, byLabel);
         if (nested) return nested;
       }
       return null;
@@ -275,10 +285,12 @@ export class FormulaEngine {
 
     const _scan = (doc) => {
       const tabs = doc?.system?.customTabs ?? [];
-      for (const tab of tabs) {
-        for (const row of (tab.rows ?? [])) {
-          const hit = _walk(row.widgets);
-          if (hit) return hit;
+      for (const byLabel of [false, true]) {
+        for (const tab of tabs) {
+          for (const row of (tab.rows ?? [])) {
+            const hit = _walk(row.widgets, byLabel);
+            if (hit) return hit;
+          }
         }
       }
       return null;
@@ -305,9 +317,83 @@ export class FormulaEngine {
     return null;
   }
 
+  static _collectTargetUuids(mode) {
+    const m = String(mode ?? "targets");
+    const toks = [];
+    if (m === "selected" || m === "both") toks.push(...(canvas?.tokens?.controlled ?? []));
+    if (m === "targets" || m === "both" || m === "all_targets") toks.push(...(game?.user?.targets ?? []));
+    const seen = new Set(); const out = [];
+    for (const t of toks) {
+      const a = t?.actor;
+      if (!a) continue;
+      const u = a.uuid ?? a.id;
+      if (u && !seen.has(u)) { seen.add(u); out.push(u); }
+    }
+    return out;
+  }
+
+  static _docByUuidSync(uuid) {
+    const id = String(uuid ?? "").trim();
+    if (!id) return null;
+    let t = null;
+    try { t = (typeof fromUuidSync === "function") ? fromUuidSync(id) : null; } catch { t = null; }
+    if (!t) t = game?.actors?.get?.(id) ?? game?.actors?.getName?.(id) ?? null;
+    if (t?.documentName === "Token") t = t.actor ?? t;
+    return t ?? null;
+  }
+
+  static _readDocField(target, path) {
+    if (!target) return 0;
+    const p = String(path ?? "").trim();
+    if (!p || p === "uuid") return target.uuid ?? target.id ?? "";
+    if (p === "name") return target.name ?? "";
+    const v = this._readDocProperty(target, p);
+    if (v === undefined || v === null) return 0;
+    if (Array.isArray(v)) return v.join(",");
+    if (typeof v === "object") return 0;
+    return v;
+  }
+
+  static _readWidgetProp(w, prop, doc) {
+    if (!w) return 0;
+    if (prop === "value" || prop === "") return this._readWidgetValue(w, doc);
+    const owner = this._findWidgetOwner(w, doc) ?? doc;
+    if (prop === "max" && (w.pathMax || w.maxPath)) {
+      const mv = this._asScalar(this._readDocProperty(owner, w.pathMax ?? w.maxPath));
+      if (mv !== undefined && mv !== null && typeof mv !== "object") return mv;
+    }
+    if (prop === "names" || prop === "ids" || prop === "uuids") {
+      const t = String(w.type ?? "");
+      const actor = this._actorFor(owner);
+      let list = [];
+      if (t === "inventory" && actor) {
+        const cats = Array.isArray(w.categories) ? w.categories : [];
+        list = (actor.items?.contents ?? []).filter(i => i?.type === "inventory" && (!cats.length || cats.includes(i.system?.category)));
+      } else if (t === "spellbook" && actor) {
+        const filter = String(w.abilityType ?? "").trim();
+        list = (actor.items?.contents ?? []).filter(i => i?.type === "ability" && (filter === "" || i.system?.abilityType === filter));
+      } else if (t === "slot") {
+        const sc = this._readDocProperty(owner, `system.slotContents.${String(w.slotId ?? "")}`);
+        const ids = Array.isArray(sc?.contents) ? sc.contents : [];
+        if (prop === "ids") return ids.join(",");
+        list = ids.map(id => actor?.items?.get?.(id)).filter(Boolean);
+      }
+      if (prop === "ids")   return list.map(i => i.id).join(",");
+      if (prop === "uuids") return list.map(i => i.uuid ?? i.id).join(",");
+      return list.map(i => i.name).join(",");
+    }
+    const v = w[prop];
+    if (v === undefined || v === null) return 0;
+    if (Array.isArray(v)) return v.join(",");
+    if (typeof v === "object") return 0;
+    return v;
+  }
+
   static _resolveRefs(formula, doc, rollMode = false) {
     let prev = null;
     let cur  = String(formula);
+    // Tolerate accidentally double-wrapped tokens like {{widget:Key}}
+    cur = cur.replace(/\{\{([^{}]+)\}\}/g, "{$1}");
     let pass = 0;
     while (cur !== prev && pass++ < 8 && /\{[^{}]+\}/.test(cur)) {
       prev = cur;
@@ -878,9 +964,16 @@ export class FormulaEngine {
 
     if (token.startsWith("widget:")) {
       const key    = token.slice("widget:".length);
-      const w      = this._findWidgetByKey(doc, key);
-      if (!w) return 0;
-      return this._readWidgetValue(w, doc);
+      let w        = this._findWidgetByKey(doc, key);
+      if (w) return this._readWidgetValue(w, doc);
+      const dotIdx = key.lastIndexOf(".");
+      if (dotIdx > 0) {
+        const base = key.slice(0, dotIdx);
+        const prop = key.slice(dotIdx + 1);
+        w = this._findWidgetByKey(doc, base);
+        if (w) return this._readWidgetProp(w, prop, doc);
+      }
+      return 0;
     }
 
     if (token.startsWith("widgetPath:")) {
@@ -1600,6 +1693,63 @@ export class FormulaEngine {
       return v ?? def ?? "";
     }
 
+    if (token.startsWith("targetUuids:")) {
+      return this._collectTargetUuids(token.slice("targetUuids:".length)).join(",");
+    }
+
+    if (token.startsWith("targetCount:")) {
+      return this._collectTargetUuids(token.slice("targetCount:".length)).length;
+    }
+
+    if (token.startsWith("targetFirst:")) {
+      return this._collectTargetUuids(token.slice("targetFirst:".length))[0] ?? "";
+    }
+
+    if (token.startsWith("targetFields:")) {
+      const rest = token.slice("targetFields:".length);
+      const sep  = rest.indexOf("|");
+      const mode = sep < 0 ? rest : rest.slice(0, sep);
+      const path = sep < 0 ? "" : this._b64decodeUtf8(rest.slice(sep + 1));
+      return this._collectTargetUuids(mode)
+        .map(u => { const v = this._readDocField(this._docByUuidSync(u), path); return v == null ? "" : v; })
+        .join(",");
+    }
+
+    if (token.startsWith("uuidField:")) {
+      const parts = token.slice("uuidField:".length).split("|");
+      let arrRaw = String(this._resolveArrayArg(parts[0] ?? "", doc) ?? "").trim();
+      if (/^(targets|selected|both|all_targets)$/.test(arrRaw)) arrRaw = this._collectTargetUuids(arrRaw).join(",");
+      if (arrRaw === "self" || arrRaw === "actor") arrRaw = this._actorFor(doc)?.uuid ?? "";
+      const list = this._parseArrayList(arrRaw);
+      const idxN = Math.floor(Number(this._resolveArrayArg(parts[1] ?? "", doc)) || 0);
+      const real = idxN < 0 ? list.length + idxN : idxN;
+      const uuid = (real >= 0 && real < list.length) ? list[real] : (list.length === 1 ? list[0] : "");
+      const path = this._b64decodeUtf8(parts.slice(2).join("|"));
+      return this._readDocField(this._docByUuidSync(uuid), path);
+    }
+
+    if (token.startsWith("uuidsMapField:")) {
+      const rest = token.slice("uuidsMapField:".length);
+      const sep  = rest.lastIndexOf("|");
+      let arrRaw = String(this._resolveArrayArg(sep < 0 ? rest : rest.slice(0, sep), doc) ?? "").trim();
+      if (/^(targets|selected|both|all_targets)$/.test(arrRaw)) arrRaw = this._collectTargetUuids(arrRaw).join(",");
+      const path = sep < 0 ? "" : this._b64decodeUtf8(rest.slice(sep + 1));
+      return this._parseArrayList(arrRaw)
+        .map(u => { const v = this._readDocField(this._docByUuidSync(u), path); return v == null ? "" : v; })
+        .join(",");
+    }
+
+    if (token.startsWith("actorNameField:")) {
+      const parts = token.slice("actorNameField:".length).split("|");
+      const name  = String(this._resolveArrayArg(parts[0] ?? "", doc) ?? "").trim();
+      const idxN  = Math.floor(Number(this._resolveArrayArg(parts[1] ?? "", doc)) || 0);
+      const path  = this._b64decodeUtf8(parts.slice(2).join("|"));
+      const matches = (game?.actors?.contents ?? []).filter(a => a?.name === name);
+      const real = idxN < 0 ? matches.length + idxN : idxN;
+      const a = matches[real] ?? matches[0] ?? null;
+      return this._readDocField(a, path);
+    }
+
     if (token.startsWith("arrayHasIndex:")) {
       const parts = token.slice("arrayHasIndex:".length).split("|");
       const list  = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
@@ -2054,6 +2204,7 @@ export class FormulaEngine {
 
   static _evalMath(expr) {
     let e = expr
+      .replace(/\brandom\b/g, "Math.random()")
       .replace(/floor\s*\(/g, "Math.floor(")
       .replace(/ceil\s*\(/g,  "Math.ceil(")
       .replace(/round\s*\(/g, "Math.round(")
@@ -2078,7 +2229,7 @@ export class FormulaEngine {
       if (hasTopComma) return e;
     }
 
-    const isNumericMath = !/[^0-9+\-*/()., %MathflorceiabsundxN\s?:<>!=&|]/.test(e);
+    const isNumericMath = !/[^0-9+\-*/()., %MathflorceiabsundxNm\s?:<>!=&|]/.test(e);
     const hasStrings = e.includes('"') || e.includes("'");
 
     if (!isNumericMath && !hasStrings) {

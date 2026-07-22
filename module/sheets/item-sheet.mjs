@@ -295,6 +295,28 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       if (ev.target.dataset.deltab) { ev.stopPropagation(); this._deleteTab(tabId); return; }
       this._switchTab(tabId);
     });
+    if (!isSys) {
+      a.addEventListener("dragover", ev => {
+        ev.preventDefault();
+        if (this.tabGroups.sheet === tabId) return;
+        if (a._sdDragHoverT) return;
+        a._sdDragHoverT = setTimeout(() => { a._sdDragHoverT = null; this._switchTab(tabId); }, 200);
+      });
+      a.addEventListener("dragleave", () => {
+        if (a._sdDragHoverT) { clearTimeout(a._sdDragHoverT); a._sdDragHoverT = null; }
+      });
+      a.addEventListener("drop", async ev => {
+        if (a._sdDragHoverT) { clearTimeout(a._sdDragHoverT); a._sdDragHoverT = null; }
+        let data = null;
+        try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch {}
+        if (data && (data.sdType === "widget-move" || data.sdType === "moveWidget")) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          this._switchTab(tabId);
+          await this._moveWidget(data, { tabId, rowId: null, parentVsId: null, toEnd: true });
+        }
+      });
+    }
     if (!isSys) SheetTabReorder.attach(this, a, tabId);
     return a;
   }
@@ -446,9 +468,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     ov.style.cssText="display:none;position:absolute;top:2px;left:2px;right:2px;z-index:20;flex-direction:row;align-items:center;justify-content:space-between;gap:6px;pointer-events:none;";
     const spanBtn = parentVS ? ""
       : `<button type="button" data-wspan="1" style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Cycle width">↔${span}</button>`;
-    ov.innerHTML=`<div style="display:flex;flex-direction:row;gap:2px;align-items:center"><span title="Drag to move" style="pointer-events:auto;cursor:grab;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span><button type="button" data-wcfg="1" style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-accent);border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Configure">⚙</button>${spanBtn}</div><div style="display:flex;flex-direction:row;gap:2px;align-items:center"><button type="button" data-wdel="1" style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-hp);border-radius:3px;color:var(--sd-hp);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Remove">✕</button></div>`;
+    ov.innerHTML=`<div style="display:flex;flex-direction:row;gap:2px;align-items:center"><span title="Drag to move" style="pointer-events:auto;cursor:grab;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);font-size:10px;padding:0 5px;line-height:18px">⋮⋮</span><button type="button" data-wcfg="1" style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-accent);border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Configure">⚙</button>${spanBtn}<button type="button" data-wdup="1" style="pointer-events:auto;background:var(--sd-bg);border:1px solid #6a9a55;border-radius:3px;color:#9bd07f;cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Duplicate"><i class="fas fa-clone"></i></button></div><div style="display:flex;flex-direction:row;gap:2px;align-items:center"><button type="button" data-wdel="1" style="pointer-events:auto;background:var(--sd-bg);border:1px solid var(--sd-hp);border-radius:3px;color:var(--sd-hp);cursor:pointer;font-size:10px;padding:0 5px;line-height:18px" title="Remove">✕</button></div>`;
     ov.querySelector("[data-wcfg]").addEventListener("click",ev=>{ev.stopPropagation();this._configWidget(tab,row,w);});
     ov.querySelector("[data-wspan]")?.addEventListener("click",ev=>{ev.stopPropagation();this._cycleSpan(tab,row,w);});
+    ov.querySelector("[data-wdup]")?.addEventListener("click",ev=>{ev.stopPropagation();this._duplicateWidget(tab,row,w,parentVS);});
     ov.querySelector("[data-wdel]").addEventListener("click", ev=>{ev.stopPropagation();this._deleteWidget(tab,row,w);});
     cell.addEventListener("mouseenter",()=>ov.style.display="flex");
     cell.addEventListener("mouseleave",()=>ov.style.display="none");
@@ -1801,13 +1824,11 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       const disabled  = ef.disabled ? "effect-disabled" : "";
       const dur       = effectDurationLabel(ef);
       const eyeIcon   = ef.disabled ? "fa-eye-slash" : "fa-eye";
-      const transfers = ef.transfer !== false;
-      const tColor    = transfers ? "var(--sd-success)" : "var(--sd-warn)";
-      const tIcon     = transfers ? "fa-arrow-right-to-bracket" : "fa-lock";
-      const tTitle    = transfers ? "Transfers to actor when item is owned" : "Does NOT transfer to actor";
       const aoe       = !!(ef.flags?.sd?.activateOnEquip);
-      const aoeColor  = aoe ? "var(--sd-warn,#b58a2a)" : "var(--sd-text-3)";
-      const aoeTitle  = aoe ? "Active only while equipped" : "Toggle: Activate on Equip";
+      const transfers = ef.transfer !== false;
+      const tColor    = aoe ? "var(--sd-stamina,#d8a23a)" : (transfers ? "var(--sd-success)" : "var(--sd-warn)");
+      const tIcon     = aoe ? "fa-shield-halved" : (transfers ? "fa-arrow-right-to-bracket" : "fa-lock");
+      const tTitle    = aoe ? "Applies to the actor only while this item is equipped (click to cycle)" : (transfers ? "Always transfers to actor when item is owned (click to cycle)" : "Does NOT transfer to actor (click to cycle)");
       rows += `
       <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;background:var(--sd-bg-2);margin-bottom:5px;border-left:3px solid ${transfers ? "var(--sd-success)" : "var(--sd-border)"}">
         <img src="${e(ef.img ?? ef.icon ?? "icons/svg/aura.svg")}" alt="${e(ef.name)}"
@@ -1816,7 +1837,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           <div style="font-size:12px;color:${ef.disabled ? "var(--sd-text-3)" : "var(--sd-text)"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">${e(ef.name)}</div>
           <div style="display:flex;gap:6px;margin-top:2px;align-items:center">
             <span title="${tTitle}" style="font-size:9px;color:${tColor};display:flex;align-items:center;gap:3px;cursor:default">
-              <i class="fas ${tIcon}"></i>${transfers ? "transfers to actor" : "item only"}
+              <i class="fas ${tIcon}"></i>${aoe ? "on actor while equipped" : (transfers ? "transfers to actor" : "item only")}
             </span>
             ${dur ? `<span style="font-size:9px;color:var(--sd-text-3)">⏱ ${e(dur)}</span>` : ""}
             ${ef.changes?.length ? `<span style="font-size:9px;color:var(--sd-accent-2,var(--sd-accent))">${ef.changes.length} change${ef.changes.length!==1?"s":""}</span>` : ""}
@@ -1828,11 +1849,6 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
             style="background:none;border:none;color:${tColor};cursor:pointer;font-size:12px;padding:2px 5px">
             <i class="fas ${tIcon}"></i>
           </button>
-          ${isEquippable ? `<button type="button" data-action="sysEffectActivateOnEquip" data-effect-id="${e(ef.id)}"
-            title="${aoeTitle}"
-            style="background:none;border:none;color:${aoeColor};cursor:pointer;font-size:12px;padding:2px 5px">
-            <i class="fas fa-shield"></i>
-          </button>` : ""}
           <button type="button" data-action="sysEffectToggle" data-effect-id="${e(ef.id)}"
             title="${ef.disabled ? "Enable" : "Disable"}"
             style="background:none;border:none;color:${ef.disabled ? "var(--sd-text-3)" : "var(--sd-accent)"};cursor:pointer;font-size:12px;padding:2px 5px">
@@ -1898,7 +1914,17 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         }
         case "sysEffectTransfer": {
           const ef = doc.effects?.get(efId);
-          if (ef) await ef.update({ transfer: ef.transfer === false ? true : false });
+          if (!ef) break;
+          const t      = ef.transfer !== false;
+          const aoeOn  = !!(ef.flags?.sd?.activateOnEquip);
+          const canAoe = doc.type === "inventory" && doc.system?.equippable === true;
+          if (!t) {
+            await ef.update({ transfer: true, "flags.sd.activateOnEquip": false });
+          } else if (!aoeOn && canAoe) {
+            await ef.update({ transfer: true, "flags.sd.activateOnEquip": true, disabled: !doc.system?.equipped });
+          } else {
+            await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
+          }
           break;
         }
         case "sysEffectActivateOnEquip": {
@@ -2894,7 +2920,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     el.addEventListener("dragover", ev=>{ ev.preventDefault(); el.style.background="var(--sd-accent-glow)"; el.style.borderColor="var(--sd-accent)"; el.style.color="var(--sd-accent)"; });
     el.addEventListener("dragleave",()=>{ el.style.background=""; el.style.borderColor=""; el.style.color=""; });
     el.addEventListener("drop", async ev=>{
-      ev.preventDefault(); el.style.background=""; el.style.borderColor=""; el.style.color="";
+      ev.preventDefault(); ev.stopPropagation(); el.style.background=""; el.style.borderColor=""; el.style.color="";
       try { await handler(JSON.parse(ev.dataTransfer.getData("text/plain"))); }
       catch(e) { console.warn("SD|drop:",e); }
     });
@@ -2986,6 +3012,35 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     const ww = this._findWidgetDeep(r.widgets, w.id);
     if(ww){ww.span=s; await this.document.update({"system.customTabs":tabs});}
   }
+  _refreshWidgetIdsDeep(widget) {
+    if (!widget || typeof widget !== "object") return;
+    widget.id = foundry.utils.randomID(8);
+    if (Array.isArray(widget.widgets)) {
+      for (const child of widget.widgets) this._refreshWidgetIdsDeep(child);
+    }
+  }
+
+  async _duplicateWidget(tab, row, w, parentVS = null) {
+    const tabs     = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const freshTab = tabs.find(t => t.id === tab.id);
+    const freshRow = freshTab?.rows?.find(r => r.id === row.id);
+    if (!freshRow) return;
+
+    const container = parentVS
+      ? (this._findVs(freshRow.widgets, parentVS.id)?.widgets ?? null)
+      : freshRow.widgets;
+    if (!container) return;
+
+    const idx = container.findIndex(x => x.id === w.id);
+    if (idx < 0) return;
+
+    const clone = foundry.utils.deepClone(container[idx]);
+    this._refreshWidgetIdsDeep(clone);
+    container.splice(idx + 1, 0, clone);
+
+    await this.document.update({ "system.customTabs": tabs });
+  }
+
   async _deleteWidget(tab,row,w){
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]);
     const r=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);

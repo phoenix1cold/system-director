@@ -1,5 +1,6 @@
 import { editEffectViaStandardConfig as _sharedEditEffect, openItemSheetFromSnapshot as _sharedOpenItem } from "./effect-editor.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
+import { LevelUpWizard } from "./levelup-wizard.mjs";
 
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -592,6 +593,10 @@ export class ProgressionApp extends ApplicationV2 {
 
     let html = `<div class="sd-prog-levelup">`;
 
+    if (em && isGM) {
+      html += `<datalist id="sd-prog-paths-${this._actor.id}">${this._numericPathOptions()}</datalist>`;
+    }
+
     html += `<div class="sd-prog-lu-hdr">
       <div class="sd-prog-cur-level">
         <span class="sd-prog-cur-num">${curLevel}</span>
@@ -617,6 +622,10 @@ export class ProgressionApp extends ApplicationV2 {
     }
 
     html += `</div>`;
+
+    if (em && isGM) {
+      html += `<div class="sd-prog-editor-hint"><i class="fas fa-circle-info"></i> ${loc("SD.Progression.EditorHint")}</div>`;
+    }
 
     if (levels.length === 0) {
       html += `<p class="sd-prog-empty">${em ? loc("SD.Progression.EmptyClickAdd") : loc("SD.Progression.NoLevels")}</p>`;
@@ -646,8 +655,10 @@ export class ProgressionApp extends ApplicationV2 {
       html += `<div class="sd-prog-le-hdr-right">`;
 
       if (!em && isNext) {
-        html += `<button type="button" class="sd-prog-apply-btn" data-action="applyLevel" data-idx="${i}">
-          <i class="fas fa-check"></i> ${loc("SD.Progression.Apply")}
+        const hasChoices = Array.isArray(lv.choices) && lv.choices.some(c => Array.isArray(c.options) && c.options.length > 0);
+        html += `<button type="button" class="sd-prog-apply-btn" data-action="applyLevel" data-idx="${i}"
+          title="${hasChoices ? loc("SD.Progression.ApplyChooseHint") : ""}">
+          <i class="fas ${hasChoices ? "fa-list-check" : "fa-check"}"></i> ${hasChoices ? loc("SD.Progression.ApplyChoose") : loc("SD.Progression.Apply")}
         </button>`;
       } else if (!em && applied) {
         html += `<span class="sd-prog-applied-badge"><i class="fas fa-check-circle"></i> ${loc("SD.Progression.Applied")}</span>`;
@@ -686,7 +697,7 @@ export class ProgressionApp extends ApplicationV2 {
     let html = `<div class="sd-prog-le-col" data-col="items">
       <div class="sd-prog-le-sec-title">
         <i class="fas fa-backpack"></i> ${loc("SD.Progression.Items")}
-        ${em && isGM ? `<button type="button" class="sd-prog-mini-add" data-action="addChoice" data-level-idx="${i}" data-kind="items" title="${loc("SD.Progression.AddItemsChoice") || "Add items choice group"}"><i class="fas fa-code-branch"></i></button>` : ""}
+        ${em && isGM ? `<button type="button" class="sd-prog-mini-add labeled" data-action="addChoice" data-level-idx="${i}" data-kind="items" title="${loc("SD.Progression.AddItemsChoice") || "Add items choice group"}"><i class="fas fa-code-branch"></i> ${loc("SD.Progression.PlayerChoice")}</button>` : ""}
       </div>
       <div class="sd-prog-items-zone ${em ? "droppable" : ""}" data-drop-target="levelItem" data-level-idx="${i}">`;
 
@@ -720,8 +731,8 @@ export class ProgressionApp extends ApplicationV2 {
     let html = `<div class="sd-prog-le-col" data-col="fieldChanges">
       <div class="sd-prog-le-sec-title">
         <i class="fas fa-sliders-h"></i> ${loc("SD.Progression.FieldChanges")}
-        ${em ? `<button type="button" class="sd-prog-mini-add" data-action="addFieldChange" data-level-idx="${i}" title="${loc("SD.Progression.AddFieldChange")}"><i class="fas fa-plus"></i></button>` : ""}
-        ${em && isGM ? `<button type="button" class="sd-prog-mini-add" data-action="addChoice" data-level-idx="${i}" data-kind="fieldChanges" title="${loc("SD.Progression.AddFcChoice") || "Add field-change choice group"}"><i class="fas fa-code-branch"></i></button>` : ""}
+        ${em ? `<button type="button" class="sd-prog-mini-add labeled" data-action="addFieldChange" data-level-idx="${i}" title="${loc("SD.Progression.AddFieldChange")}"><i class="fas fa-plus"></i> ${loc("SD.Progression.BtnAdd")}</button>` : ""}
+        ${em && isGM ? `<button type="button" class="sd-prog-mini-add labeled" data-action="addChoice" data-level-idx="${i}" data-kind="fieldChanges" title="${loc("SD.Progression.AddFcChoice") || "Add field-change choice group"}"><i class="fas fa-code-branch"></i> ${loc("SD.Progression.PlayerChoice")}</button>` : ""}
       </div>`;
 
     if (fcs.length === 0 && !em) {
@@ -737,7 +748,7 @@ export class ProgressionApp extends ApplicationV2 {
           data-preview-kind="fc"
           data-preview-ref="level:${i}:fc:${j}">
           <input type="text" class="sd-prog-fc-path" value="${e(fc.path)}"
-                 placeholder="system.resources.hp.max"
+                 placeholder="system.resources.hp.max" list="sd-prog-paths-${this._actor.id}"
                  data-action="fcChangePath" data-level-idx="${i}" data-fc-idx="${j}">
           <select class="sd-prog-fc-mode" data-action="fcChangeMode" data-level-idx="${i}" data-fc-idx="${j}">
             <option value="add"      ${mAdd}>+</option>
@@ -775,8 +786,8 @@ export class ProgressionApp extends ApplicationV2 {
     let html = `<div class="sd-prog-le-col" data-col="effects">
       <div class="sd-prog-le-sec-title">
         <i class="fas fa-magic"></i> ${loc("SD.Progression.Effects")}
-        ${em ? `<button type="button" class="sd-prog-mini-add" data-action="addEffect" data-level-idx="${i}" title="${loc("SD.Progression.AddEffect") || "Add effect"}"><i class="fas fa-plus"></i></button>` : ""}
-        ${em && isGM ? `<button type="button" class="sd-prog-mini-add" data-action="addChoice" data-level-idx="${i}" data-kind="effects" title="${loc("SD.Progression.AddEffectsChoice") || "Add effects choice group"}"><i class="fas fa-code-branch"></i></button>` : ""}
+        ${em ? `<button type="button" class="sd-prog-mini-add labeled" data-action="addEffect" data-level-idx="${i}" title="${loc("SD.Progression.AddEffect") || "Add effect"}"><i class="fas fa-plus"></i> ${loc("SD.Progression.BtnAdd")}</button>` : ""}
+        ${em && isGM ? `<button type="button" class="sd-prog-mini-add labeled" data-action="addChoice" data-level-idx="${i}" data-kind="effects" title="${loc("SD.Progression.AddEffectsChoice") || "Add effects choice group"}"><i class="fas fa-code-branch"></i> ${loc("SD.Progression.PlayerChoice")}</button>` : ""}
       </div>`;
 
     if (effects.length === 0 && !em) {
@@ -789,7 +800,7 @@ export class ProgressionApp extends ApplicationV2 {
         data-preview-kind="effect"
         data-preview-ref="level:${i}:effects:${j}"
         title="${efTitle}">
-        <img src="${e(ef.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
+        <img src="${e(ef.img ?? ef.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
         <span class="sd-prog-effect-name">${e(ef.name ?? "Effect")}</span>
         ${ef.changes?.length ? `<span class="sd-prog-effect-count" title="${loc("SD.Progression.EffectChangesCount")}">${ef.changes.length}</span>` : ""}
         ${em ? `<button type="button" data-action="editEffect" data-level-idx="${i}" data-effect-idx="${j}" title="${loc("SD.Progression.EditEffect")}" data-stop-preview="1"><i class="fas fa-pen"></i></button>` : ""}
@@ -816,10 +827,12 @@ export class ProgressionApp extends ApplicationV2 {
         ? `<input type="text" class="sd-prog-choice-label" value="${e(ch.label ?? "")}"
                  placeholder="${loc("SD.Progression.ChoiceLabelPlaceholder") || "Variant label"}"
                  data-action="choiceChangeLabel" data-level-idx="${i}" data-choice-idx="${gi}">`
-        : `<span class="sd-prog-choice-inline-label">${e(ch.label || loc("SD.Progression.Variants") || "Variants")}</span>`}
-      <span class="sd-prog-choice-inline-meta">${loc("SD.Progression.Pick") || "Pick"} ${picks}</span>
+        : `<span class="sd-prog-choice-inline-label">${e(ch.label || loc("SD.Progression.PlayerChoice") || "Player choice")}</span>`}
+    </div>
+    <div class="sd-prog-choice-inline-sub">
+      <span class="sd-prog-choice-inline-meta">${(loc("SD.Progression.PlayerChoicePicks") || "Player picks {n} of {total}").replace("{n}", picks).replace("{total}", opts.length)}</span>
       ${em && isGM ? `<label class="sd-prog-choice-picks-mini" title="${loc("SD.Progression.Picks") || "Picks"}">
-        <i class="fas fa-hand-pointer"></i>
+        <i class="fas fa-hand-pointer"></i> <span>${loc("SD.Progression.Picks") || "Picks"}</span>
         <input type="number" min="1" step="1" value="${picks}"
                data-action="choiceChangePicks" data-level-idx="${i}" data-choice-idx="${gi}">
       </label>` : ""}
@@ -871,7 +884,7 @@ export class ProgressionApp extends ApplicationV2 {
           html += `<div class="sd-prog-effect-chip${ef.disabled ? " disabled" : ""}${active}"
             data-preview-kind="effect"
             data-preview-ref="choice:${i}:${gi}:${j}">
-            <img src="${e(ef.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
+            <img src="${e(ef.img ?? ef.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
             <span class="sd-prog-effect-name">${e(ef.name ?? "Effect")}</span>
             ${ef.changes?.length ? `<span class="sd-prog-effect-count">${ef.changes.length}</span>` : ""}
             <button type="button" data-action="editChoiceEffect" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}" title="${loc("SD.Progression.EditEffect")}" data-stop-preview="1"><i class="fas fa-pen"></i></button>
@@ -892,7 +905,7 @@ export class ProgressionApp extends ApplicationV2 {
             data-preview-kind="fc"
             data-preview-ref="choice:${i}:${gi}:${j}">
             <input type="text" class="sd-prog-fc-path" value="${e(fc.path ?? "")}"
-                   placeholder="system.resources.hp.max"
+                   placeholder="system.resources.hp.max" list="sd-prog-paths-${this._actor.id}"
                    data-action="choiceFcChangePath" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">
             <select class="sd-prog-fc-mode" data-action="choiceFcChangeMode" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">
               <option value="add"      ${mAdd}>+</option>
@@ -924,7 +937,7 @@ export class ProgressionApp extends ApplicationV2 {
         html += `<div class="sd-prog-effect-chip variant-display"
           data-preview-kind="effect"
           data-preview-ref="choice:${i}:${gi}:${sel}">
-          <img src="${e(opt.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
+          <img src="${e(opt.img ?? opt.icon ?? "icons/svg/aura.svg")}" style="width:16px;height:16px;border-radius:2px;margin-right:4px;">
           <span class="sd-prog-effect-name">${e(opt.name ?? "Effect")}</span>
           ${opt.changes?.length ? `<span class="sd-prog-effect-count">${opt.changes.length}</span>` : ""}
         </div>`;
@@ -943,7 +956,8 @@ export class ProgressionApp extends ApplicationV2 {
     html += `</div>`;
 
     if (opts.length > 1) {
-      html += `<div class="sd-prog-variant-switcher" data-level-idx="${i}" data-choice-idx="${gi}">`;
+      html += `<div class="sd-prog-variant-switcher" data-level-idx="${i}" data-choice-idx="${gi}">
+        <span class="sd-prog-variant-note" title="${loc("SD.Progression.PreviewOnlyHint")}"><i class="fas fa-eye"></i> ${loc("SD.Progression.PreviewOnly")}</span>`;
       for (let j = 0; j < opts.length; j++) {
         html += `<button type="button" class="sd-prog-variant-btn${j === sel ? " active" : ""}" data-action="pickVariant" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">${j + 1}</button>`;
       }
@@ -1719,7 +1733,7 @@ export class ProgressionApp extends ApplicationV2 {
     if (!levels[levelIdx]) return;
     levels[levelIdx].effects ??= [];
     levels[levelIdx].effects.push({
-      _id: rndId(), name, icon: "icons/svg/aura.svg",
+      _id: rndId(), name, img: "icons/svg/aura.svg",
       origin: this._actor.uuid, changes: [], disabled: false, duration: {}, flags: {}
     });
     await this._saveLevels(levels);
@@ -1867,19 +1881,10 @@ export class ProgressionApp extends ApplicationV2 {
     const lv     = levels[levelIdx];
     if (!lv) return;
 
-    const confirmed = await foundry.applications.api.DialogV2.confirm({
-      window:  { title: loc("SD.Progression.ConfirmApplyTitle") },
-      content: `<p>${loc("SD.Progression.ConfirmApplyMsg").replace("{level}", lv.level)}</p>`,
-      yes:     { label: loc("SD.Progression.Apply"), icon: "fas fa-check" }
-    });
-    if (!confirmed) return;
-
     const choiceGroups = Array.isArray(lv.choices) ? lv.choices.filter(c => Array.isArray(c.options) && c.options.length > 0) : [];
-    let pickedByGroup = null;
-    if (choiceGroups.length) {
-      pickedByGroup = await ProgressionApp._promptChoices(lv, choiceGroups);
-      if (!pickedByGroup) return;
-    }
+    const wizardResult = await LevelUpWizard.show(this._actor, lv, choiceGroups);
+    if (!wizardResult) return;
+    const pickedByGroup = choiceGroups.length ? wizardResult.picks : null;
 
     const actor = this._actor;
 
@@ -1930,7 +1935,7 @@ export class ProgressionApp extends ApplicationV2 {
       snapshot.grantedItemIds = (created ?? []).map(d => d.id);
     }
 
-    const effectDatas = [...(lv.effects ?? []), ...extraEffects].map(ef => { const d = dc(ef); delete d._id; return d; });
+    const effectDatas = [...(lv.effects ?? []), ...extraEffects].map(ef => { const d = dc(ef); delete d._id; if (d.icon && !d.img) d.img = d.icon; delete d.icon; return d; });
     if (effectDatas.length) {
       const created = await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
       snapshot.grantedEffectIds = (created ?? []).map(d => d.id);
@@ -1943,149 +1948,71 @@ export class ProgressionApp extends ApplicationV2 {
     await actor.setFlag("sd", "progression.state", state);
 
     ui.notifications.info(loc("SD.Progression.LevelApplied").replace("{level}", lv.level));
+    await this._postLevelUpChat(lv, {
+      items: itemDatas,
+      effects: effectDatas,
+      fieldChanges: Object.entries(updates).filter(([p]) => p !== "system.advancement.level").map(([path, to]) => ({ path, from: snapshot.prevValues[path], to })),
+      choiceGroups,
+      pickedByGroup
+    });
     this.render();
   }
 
-  static async _promptChoices(lv, choiceGroups) {
-    const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-
-    const groupsHtml = choiceGroups.map((ch, gi) => {
-      const picks = Math.max(1, Number(ch.picks) || 1);
-      const opts  = Array.isArray(ch.options) ? ch.options : [];
-      const kind  = ch.kind ?? "items";
-
-      const kindLabel = kind === "items" ? loc("SD.Progression.Items")
-                     : kind === "effects" ? loc("SD.Progression.Effects")
-                     : loc("SD.Progression.FieldChanges");
-
-      const cards = opts.map((opt, oi) => {
-        let title = "";
-        let icon  = "icons/svg/mystery-man.svg";
-        let body  = "";
-        if (kind === "items") {
-          title = opt.name ?? "Item";
-          icon  = opt.img ?? "icons/svg/item-bag.svg";
-          const t = opt.type ?? "";
-          if (t) body = `<div class="sd-prog-pick-card-sub">${escHtml(t)}</div>`;
-        } else if (kind === "effects") {
-          title = opt.name ?? "Effect";
-          icon  = opt.icon ?? opt.img ?? "icons/svg/aura.svg";
-          const cnt = Array.isArray(opt.changes) ? opt.changes.length : 0;
-          if (cnt) body = `<div class="sd-prog-pick-card-sub">${cnt} ${loc("SD.Progression.EffectChanges")}</div>`;
-        } else {
-          title = opt.path ?? "(field)";
-          const sym = opt.mode === "set" ? "=" : opt.mode === "multiply" ? "×" : "+";
-          body = `<div class="sd-prog-pick-card-sub"><code>${escHtml(opt.path ?? "")}</code> <strong>${escHtml(sym)} ${escHtml(opt.value ?? "")}</strong></div>`;
-          icon = "icons/svg/upgrade.svg";
+  async _postLevelUpChat(lv, { items = [], effects = [], fieldChanges = [], choiceGroups = [], pickedByGroup = null } = {}) {
+    try {
+      const actor = this._actor;
+      const chip = (img, name) => `<span class="sd-luw-chat-chip"><img src="${e(img)}"><span>${e(name)}</span></span>`;
+      let html = `<div class="sd-luw-chat">`;
+      html += `<div class="sd-luw-chat-hdr"><i class="fas fa-angles-up"></i> ${e((loc("SD.Progression.ChatAnnounce") || "{name} has reached level {level}!").replace("{name}", actor.name).replace("{level}", lv.level))}</div>`;
+      if (items.length || effects.length) {
+        html += `<div class="sd-luw-chat-sec">${loc("SD.Progression.ChatReceived") || "Received"}</div><div class="sd-luw-chat-chips">`;
+        for (const it of items) html += chip(it.img ?? "icons/svg/item-bag.svg", it.name ?? "Item");
+        for (const ef of effects) html += chip(ef.img ?? ef.icon ?? "icons/svg/aura.svg", ef.name ?? "Effect");
+        html += `</div>`;
+      }
+      if (fieldChanges.length) {
+        html += `<div class="sd-luw-chat-sec">${loc("SD.Progression.ChatStatChanges") || "Stat changes"}</div><ul class="sd-luw-chat-fcs">`;
+        for (const fc of fieldChanges) {
+          html += `<li><code>${e(fc.path)}</code> ${e(String(fc.from ?? "\u2014"))} <i class="fas fa-arrow-right"></i> <strong>${e(String(fc.to ?? "\u2014"))}</strong></li>`;
         }
-        return `<button type="button" class="sd-prog-pick-card" data-group="${gi}" data-opt="${oi}">
-          <img src="${escHtml(icon)}" alt="">
-          <div class="sd-prog-pick-card-name">${escHtml(title)}</div>
-          ${body}
-        </button>`;
-      }).join("");
-
-      const headerLabel = ch.label ? escHtml(ch.label) : `${kindLabel}`;
-      return `<section class="sd-prog-pick-group" data-group="${gi}" data-picks="${picks}" data-selected="0">
-        <header class="sd-prog-pick-group-hdr">
-          <div class="sd-prog-pick-group-title">
-            <i class="fas fa-code-branch"></i>
-            <span>${headerLabel}</span>
-            <span class="sd-prog-pick-group-kind">${kindLabel}</span>
-          </div>
-          <div class="sd-prog-pick-group-counter">
-            <span class="sd-prog-pick-cur">0</span> / <span class="sd-prog-pick-max">${picks}</span>
-          </div>
-        </header>
-        <div class="sd-prog-pick-grid">${cards}</div>
-      </section>`;
-    }).join("");
-
-    const content = `<div class="sd-prog-pick-dialog">
-      <div class="sd-prog-pick-intro">${loc("SD.Progression.PickIntro").replace("{level}", lv.level)}</div>
-      ${groupsHtml}
-    </div>`;
-
-    const result = await foundry.applications.api.DialogV2.wait({
-      window:  { title: loc("SD.Progression.PickTitle") },
-      classes: ["sd", "sd-progression-pick"],
-      content,
-      position: { width: 720 },
-      buttons: [
-        {
-          action: "ok",
-          label:  loc("SD.Progression.Apply"),
-          icon:   "fas fa-check",
-          default: true,
-          callback: (event, button, dialog) => {
-            const root = dialog.element;
-            const out  = {};
-            const groups = root.querySelectorAll(".sd-prog-pick-group");
-            for (const g of groups) {
-              const gi    = Number(g.dataset.group);
-              const picks = Number(g.dataset.picks);
-              const sel   = [...g.querySelectorAll(".sd-prog-pick-card.is-selected")].map(b => Number(b.dataset.opt));
-              if (sel.length !== picks) {
-                const msg = (loc("SD.Progression.PickMustChoose") || "Choose {n} options").replace("{n}", picks);
-                ui.notifications.warn(msg);
-                return false;
-              }
-              out[gi] = sel;
-            }
-            return out;
+        html += `</ul>`;
+      }
+      if (choiceGroups.length && pickedByGroup) {
+        html += `<div class="sd-luw-chat-sec">${loc("SD.Progression.ChatChosen") || "Choices made"}</div><ul class="sd-luw-chat-picks">`;
+        for (let gi = 0; gi < choiceGroups.length; gi++) {
+          const ch = choiceGroups[gi];
+          for (const oi of (pickedByGroup[gi] ?? [])) {
+            const opt = ch.options?.[oi];
+            if (!opt) continue;
+            const label = ch.kind === "fieldChanges"
+              ? `<code>${e(opt.path ?? "")}</code> <strong>${e(String(opt.value ?? ""))}</strong>`
+              : e(opt.name ?? "");
+            html += `<li><i class="fas fa-hand-pointer"></i> ${ch.label ? `<strong>${e(ch.label)}:</strong> ` : ""}${label}</li>`;
           }
         }
-      ],
-      render: (event, dialog) => {
-        const root = dialog.element;
+        html += `</ul>`;
+      }
+      html += `</div>`;
+      const MessageCls = getDocumentClass("ChatMessage") ?? ChatMessage;
+      await MessageCls.create({ content: html, speaker: MessageCls.getSpeaker({ actor }) });
+    } catch (err) {
+      console.error("SD | Failed to post level-up chat message", err);
+    }
+  }
 
-        const updateApplyState = () => {
-          let allValid = true;
-          for (const g of root.querySelectorAll(".sd-prog-pick-group")) {
-            const max = Number(g.dataset.picks);
-            const sel = g.querySelectorAll(".sd-prog-pick-card.is-selected").length;
-            if (sel !== max) { allValid = false; break; }
-          }
-          const okBtn = root.querySelector("button[data-action='ok']");
-          if (okBtn) {
-            okBtn.disabled = !allValid;
-            okBtn.classList.toggle("is-disabled", !allValid);
-          }
-        };
-
-        root.querySelectorAll(".sd-prog-pick-group").forEach(group => {
-          const max = Number(group.dataset.picks);
-          const cur = group.querySelector(".sd-prog-pick-cur");
-          group.querySelectorAll(".sd-prog-pick-card").forEach(btn => {
-            btn.addEventListener("click", (ev) => {
-              ev.preventDefault();
-              const selected = group.querySelectorAll(".sd-prog-pick-card.is-selected").length;
-              if (btn.classList.contains("is-selected")) {
-                btn.classList.remove("is-selected");
-              } else {
-                if (max === 1) {
-                  group.querySelectorAll(".sd-prog-pick-card.is-selected").forEach(b => b.classList.remove("is-selected"));
-                  btn.classList.add("is-selected");
-                } else if (selected < max) {
-                  btn.classList.add("is-selected");
-                }
-              }
-              const c = group.querySelectorAll(".sd-prog-pick-card.is-selected").length;
-              if (cur) cur.textContent = String(c);
-              group.dataset.selected = String(c);
-              updateApplyState();
-            });
-          });
-        });
-
-        updateApplyState();
-      },
-      rejectClose: false
-    }).catch(() => null);
-
-    if (result === null || result === undefined) return null;
-    if (result === false) return null;
-    return result;
+  _numericPathOptions(maxEntries = 300) {
+    const out = [];
+    const walk = (obj, prefix, depth) => {
+      if (!obj || typeof obj !== "object" || depth > 5 || out.length >= maxEntries) return;
+      for (const [k, v] of Object.entries(obj)) {
+        if (out.length >= maxEntries) return;
+        const path = `${prefix}.${k}`;
+        if (typeof v === "number") out.push(path);
+        else if (v && typeof v === "object" && !Array.isArray(v)) walk(v, path, depth + 1);
+      }
+    };
+    walk(this._actor?.system ?? {}, "system", 1);
+    return out.map(p => `<option value="${e(p)}"></option>`).join("");
   }
 
   async _rollbackLevel(levelIdx) {
@@ -2213,7 +2140,7 @@ export class ProgressionApp extends ApplicationV2 {
       await actor.createEmbeddedDocuments("Item", [d]);
     }
 
-    const effectDatas = (node.effects ?? []).map(ef => { const d = dc(ef); delete d._id; return d; });
+    const effectDatas = (node.effects ?? []).map(ef => { const d = dc(ef); delete d._id; if (d.icon && !d.img) d.img = d.icon; delete d.icon; return d; });
     if (effectDatas.length) await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
 
     state.acquiredNodes[nodeId] = count + 1;
