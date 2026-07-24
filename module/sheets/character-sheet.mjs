@@ -1154,6 +1154,23 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     });
 
+    cell.querySelectorAll("[data-action='wbElement']").forEach(el => {
+      el.addEventListener("click", ev => {
+        ev.stopPropagation();
+        const name = el.dataset.eventName ?? "";
+        if (!name) return;
+        try {
+          Hooks.callAll("sdCustomEvent", {
+            name,
+            scope: "actor",
+            actorId: doc?.id ?? "",
+            sourceUuid: doc?.uuid ?? "",
+            payload: ""
+          });
+        } catch (e) { console.error("SD | wbElement event failed:", e); }
+      });
+    });
+
     const _sdCardBusy = async (el, fn) => {
       if (!el) return;
       if (el.dataset.sdBusy === "1") return;
@@ -1750,6 +1767,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (ef) await ef.update({ disabled: !ef.disabled });
       });
     });
+    cell.querySelectorAll("[data-action='effectMode']").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const ef = await _resolveEffectForButton(btn);
+        if (ef) await _sdCycleEffectMode(ef);
+      });
+    });
     cell.querySelectorAll("[data-action='effectEdit']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const ef = await _resolveEffectForButton(btn);
@@ -2762,5 +2785,36 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         await SlotManager.removeFromSlot(srcActor, src.slotId, src.index);
       }
     }
+  }
+}
+
+
+/**
+ * Cycle an item-owned Active Effect between three modes:
+ *  1) transfers to actor (always active),
+ *  2) on actor only while the item is equipped (equippable inventory items),
+ *  3) item only (no transfer).
+ */
+async function _sdCycleEffectMode(ef) {
+  const item = ef?.parent;
+  if (!item || item.documentName !== "Item") {
+    ui.notifications?.warn?.("Effect modes can only be changed on effects that live on an item.");
+    return;
+  }
+  const transfers = ef.transfer !== false;
+  const aoe = !!(ef.flags?.sd?.activateOnEquip);
+  const canAoe = item.type === "inventory" && item.system?.equippable === true;
+  if (!transfers) {
+    await ef.update({ transfer: true, "flags.sd.activateOnEquip": false });
+    ui.notifications?.info?.(`"${ef.name}": transfers to the actor.`);
+  } else if (!aoe && canAoe) {
+    await ef.update({ transfer: true, "flags.sd.activateOnEquip": true, disabled: item.system?.equipped === true ? ef.disabled : true });
+    ui.notifications?.info?.(`"${ef.name}": applies to the actor only while "${item.name}" is equipped.`);
+  } else if (!aoe && !canAoe) {
+    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
+    ui.notifications?.info?.(`"${ef.name}": item only. (Mark the item as Equippable to unlock the equipped-only mode.)`);
+  } else {
+    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
+    ui.notifications?.info?.(`"${ef.name}": item only.`);
   }
 }

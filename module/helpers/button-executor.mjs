@@ -3088,6 +3088,37 @@ export class ButtonExecutor {
         break;
       }
 
+      case "remoteActivate": {
+        let evName = _sdStripQuotes(action.name ?? "");
+        if (evName.includes("{")) {
+          try {
+            const { FormulaEngine } = await import("./formula-engine.mjs");
+            evName = _sdStripQuotes(String(FormulaEngine.evaluate(evName, actor ?? item) ?? ""));
+          } catch (e) { console.warn("SD | remoteActivate: name resolve failed", e); }
+        }
+        evName = evName.trim();
+        if (!evName) {
+          ui.notifications?.warn?.("Remote Activate: event name is empty");
+          break;
+        }
+        let evPayload = action.payload ?? "";
+        if (typeof evPayload === "string" && evPayload.includes("{")) {
+          try {
+            const { FormulaEngine } = await import("./formula-engine.mjs");
+            evPayload = FormulaEngine.evaluate(evPayload, actor ?? item);
+          } catch (e) { evPayload = ""; }
+        }
+        const evScope = action.scope === "global" ? "global" : "actor";
+        Hooks.callAll("sdCustomEvent", {
+          name:       evName,
+          scope:      evScope,
+          actorId:    evScope === "global" ? "" : (actor?.id ?? ""),
+          sourceUuid: actor?.uuid ?? item?.uuid ?? "",
+          payload:    evPayload
+        });
+        break;
+      }
+
       case "runMacro": {
         const macro = game.macros.getName(action.macroName);
         if (macro) await macro.execute({ item, actor });

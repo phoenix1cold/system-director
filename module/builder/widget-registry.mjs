@@ -47,6 +47,7 @@ export const WIDGET_TYPES = {
     defaultSpan: 2,
     defaults: {
       label:     "Resource",
+      resourceMode: "classic",
       pathValue: "system.resources.hp.value",
       pathMax:   "system.resources.hp.max",
       color:     "#e05a5a"
@@ -111,6 +112,7 @@ export const WIDGET_TYPES = {
       allowedTypes:      [],
       allowedCategories: [],
       maxCount:          1,
+      autoEquip:         false,
       placeholderIcon:   "",
       accentColor:       ""
     },
@@ -118,6 +120,7 @@ export const WIDGET_TYPES = {
       { key: "label",             type: "text",   label: "Label" },
       { key: "slotId",            type: "text",   label: "Slot ID" },
       { key: "maxCount",          type: "number", label: "Max Items" },
+      { key: "autoEquip",         type: "checkbox", label: "Auto-equip items added to slot" },
       { key: "allowedTypes",      type: "tags",   label: "Allowed Types (inventory, ability)" },
       { key: "allowedCategories", type: "tags",   label: "Allowed Categories (weapon, armor, etc)" }
     ]
@@ -645,6 +648,26 @@ export const WIDGET_TYPES = {
       { key: "how",       type: "select", label: "Take from", options: ["top","bottom","random"] },
       { key: "showCount", type: "select", label: "Show count badge", options: ["yes","no"] }
     ]
+  },
+
+  widgetBuilder: {
+    id:    "widgetBuilder",
+    label: "Widget Builder",
+    icon:  "fa-shapes",
+    desc:  "Composite widget: named buttons, values, icons and images; elements can be clickable and fire per-element On Click custom events",
+    defaultSpan: 3,
+    defaults: {
+      label:    "",
+      columns:  3,
+      gap:      6,
+      formula:  "",
+      elements: [], wbLayout: "grid", canvasW: 0, canvasH: 140
+    },
+    configFields: [
+      { key: "label",   type: "text",   label: "Label" },
+      { key: "columns", type: "number", label: "Columns" },
+      { key: "gap",     type: "number", label: "Gap (px)" }
+    ]
   }
 };
 
@@ -739,7 +762,8 @@ export const WIDGET_PALETTE_ORDER = [
   "slot", "inventory", "effects", "spellbook",
   "select", "tags", "image", "section", "vsection", "richtext",
   "cardHand", "cardDrawButton",
-  "questMarker"
+  "questMarker",
+  "widgetBuilder"
 ];
 
 export function createWidget(type, overrides = {}) {

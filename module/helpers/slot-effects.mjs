@@ -20,6 +20,8 @@ export const SLOT_EFFECT_MODE_CHOICES = [
 
 function _buildExpectedEffects(parentItem) {
   const out = [];
+  // Slot-driven changes from an equippable parent item only apply while it is equipped.
+  if (parentItem?.type === "inventory" && parentItem.system?.equippable === true && parentItem.system?.equipped !== true) return out;
   const defs = parentItem?.system?.slotDefinitions ?? [];
   for (const def of defs) {
     const changes = (def.changes ?? []).filter(c => c?.itemFieldPath && c?.actorFieldPath);
@@ -56,6 +58,19 @@ function _buildExpectedEffects(parentItem) {
   return out;
 }
 
+// Foundry v14: ActiveEffect changes carry a string #type; the numeric #mode
+// getter is deprecated. Map the type back to the legacy numeric mode that the
+// slot-effect definitions store, reading .mode only as a v13 fallback.
+const _SD_TYPE_TO_LEGACY_MODE = { custom: 0, multiply: 1, add: 2, downgrade: 3, upgrade: 4, override: 5 };
+
+function _sdModeNum(c) {
+  const t = c?.type;
+  if (typeof t === "string" && t && _SD_TYPE_TO_LEGACY_MODE[t.toLowerCase()] !== undefined) {
+    return _SD_TYPE_TO_LEGACY_MODE[t.toLowerCase()];
+  }
+  return Number(c?.mode);
+}
+
 function _changesEqual(a, b) {
   if (!Array.isArray(a) || !Array.isArray(b)) return false;
   if (a.length !== b.length) return false;
@@ -75,7 +90,7 @@ export class SlotEffectSync {
     if (!parentItem) return;
     const actor = parentItem.actor;
     if (!actor) return;
-    if (!game?.user?.isGM) return;
+    if (!game?.user?.isGM && !actor.isOwner) return;
 
     const expected = _buildExpectedEffects(parentItem);
     const existing = actor.effects.filter(ae => ae.flags?.sd?.[SD_SLOT_EFFECT_FLAG]?.parentItemId === parentItem.id);
@@ -115,8 +130,8 @@ export class SlotEffectSync {
         continue;
       }
 
-      const dataChanges = (ae.changes ?? []).map(c => ({
-        key: String(c.key), mode: Number(c.mode), value: String(c.value), priority: Number(c.priority ?? 20)
+      const dataChanges = (ae.system?.changes ?? ae.changes ?? []).map(c => ({
+        key: String(c.key), mode: _sdModeNum(c), value: String(c.value), priority: Number(c.priority ?? 20)
       }));
       const nameMatches = ae.name === exp.name;
       const imgMatches  = (ae.img ?? ae.icon) === exp.img;
@@ -143,7 +158,7 @@ export class SlotEffectSync {
 
   static async cleanupFor(parentItem) {
     if (!parentItem?.actor) return;
-    if (!game?.user?.isGM) return;
+    if (!game?.user?.isGM && !parentItem.actor.isOwner) return;
     const existing = parentItem.actor.effects.filter(ae =>
       ae.flags?.sd?.[SD_SLOT_EFFECT_FLAG]?.parentItemId === parentItem.id);
     if (!existing.length) return;
@@ -156,7 +171,7 @@ export class SlotEffectSync {
 
   static async cleanupOrphans(actor) {
     if (!actor) return;
-    if (!game?.user?.isGM) return;
+    if (!game?.user?.isGM && !actor.isOwner) return;
     const orphans = actor.effects.filter(ae => {
       const tag = ae.flags?.sd?.[SD_SLOT_EFFECT_FLAG];
       if (!tag?.parentItemId) return false;
@@ -180,9 +195,21 @@ export class SlotEffectSync {
     await this.cleanupOrphans(actor);
   }
 
+  /**
+   * Decide which client performs slot-effect syncing for a change made by
+   * `userId`. Prefer the active GM client (players may lack permission to
+   * manage actor effects); without a connected GM, fall back to the client
+   * that made the change.
+   */
+  static _shouldRunSync(userId) {
+    const activeGM = game.users?.activeGM ?? null;
+    if (activeGM) return activeGM.isSelf === true;
+    return userId === game.user?.id;
+  }
+
   static install() {
     Hooks.on("updateItem", (item, _changes, _opts, userId) => {
-      if (userId !== game.user?.id) return;
+      if (!SlotEffectSync._shouldRunSync(userId)) return;
       if (!item?.actor) return;
       const defs = item.system?.slotDefinitions ?? [];
       if (!defs.some(d => (d.changes ?? []).length)) return;
@@ -190,7 +217,7 @@ export class SlotEffectSync {
     });
 
     Hooks.on("createItem", (item, _opts, userId) => {
-      if (userId !== game.user?.id) return;
+      if (!SlotEffectSync._shouldRunSync(userId)) return;
       if (!item?.actor) return;
       const defs = item.system?.slotDefinitions ?? [];
       if (!defs.some(d => (d.changes ?? []).length)) return;
@@ -199,7 +226,7 @@ export class SlotEffectSync {
 
     Hooks.on("preDeleteItem", (item) => {
       if (!item?.actor) return;
-      if (!game.user?.isGM) return;
+      if (game.users?.activeGM ? !game.users.activeGM.isSelf : !game.user?.isGM) return;
       const aes = item.actor.effects.filter(ae => ae.flags?.sd?.[SD_SLOT_EFFECT_FLAG]?.parentItemId === item.id);
       if (!aes.length) return;
       item.actor.deleteEmbeddedDocuments("ActiveEffect", aes.map(ae => ae.id))

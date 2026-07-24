@@ -7,6 +7,7 @@ import {
 } from "./formula-utils.mjs";
 import { WIDGET_VARIANTS } from "./widget-registry.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
+import { FormulaEngine } from "../helpers/formula-engine.mjs";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
@@ -4767,6 +4768,55 @@ export const NODE_DEFS = {
     isEvent:true, eventHook:"itemUnequipped"
   },
 
+  custom_event: {
+    title:"Custom Event", color:"#c04040", cat:"Events", wideNode:true,
+    desc:"Named custom event entry point. Fire it with the Remote Activate node or a clickable Widget Builder element (event name: On Click <Element Name>). Event names must be unique.",
+    inputs:[],
+    outputs:[
+      {id:"exec",        label:"Fire",         type:"exec"},
+      {id:"payload",     label:"Payload",      type:"value.number"},
+      {id:"sourceActor", label:"Source Actor", type:"value.actor"}
+    ],
+    fields:[
+      {key:"name", label:"Event Name", type:"text", default:"", placeholder:"MyEvent", uniqueEventName:true}
+    ],
+    isEvent:true,
+    eventHook:"sdCustomEvent"
+  },
+
+  remote_activate: {
+    title:"Remote Activate", color:"#7b4fd0", cat:"Events", wideNode:true,
+    desc:"Fire a Custom Event by name. Type the name or pick a discovered event from the dropdown. Scope: this actor only, or global (all actors).",
+    inputs:[
+      {id:"exec",    label:"",           type:"exec"},
+      {id:"name",    label:"Event Name", type:"value.string"},
+      {id:"payload", label:"Payload",    type:"value.number"}
+    ],
+    outputs:[{id:"exec", label:"", type:"exec"}],
+    fields:[
+      {key:"name",  label:"Custom Event name", type:"text", default:"", placeholder:"MyEvent", customEventDatalist:true},
+      {key:"scope", label:"Scope", type:"select", default:"actor",
+       options:[{value:"actor", label:"This actor"},{value:"global", label:"Global (all actors)"}]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"remoteActivate",
+      name:    (inp.name!=null && inp.name!=="" && inp.name!=="0") ? inp.name : (n.data.name ?? ""),
+      scope:   n.data.scope ?? "actor",
+      payload: inp.payload ?? ""
+    })
+  },
+
+  widget_output: {
+    title:"Custom Output", color:"#40a080", cat:"Widget", wideNode:true,
+    desc:"Named value output for a Widget Builder element. Wire any value into this node; the element whose name matches Element name displays it. Saved when the graph is saved.",
+    inputs:[{id:"value", label:"Value", type:"value.any"}],
+    outputs:[],
+    fields:[
+      {key:"name", label:"Element name", type:"text", default:"", placeholder:"Btn1", uniqueEventName:true, valueElementDatalist:true}
+    ]
+  },
+
   on_event: {
     title:"On Event", color:"#c04040", cat:"Events", wideNode:true,
     hidden:true, replacement:"specific On-* event nodes",
@@ -7398,7 +7448,20 @@ export const NODE_DEFS = {
   }
 })();
 
+function _sdCE_T(k, fallback) {
+  try {
+    const key = "SD.CustomEvents." + k;
+    const v = game.i18n?.localize?.(key);
+    if (v && v !== key) return v;
+  } catch (e) {}
+  return fallback;
+}
+
 const EVENT_PIN_TOKENS = {
+  custom_event: {
+    payload:     "{__customEventPayload}",
+    sourceActor: "{__customEventSourceUuid}"
+  },
   on_vision_detect: {
     actorUuid:  "{__visionDetectorUuid}",
     firstActor: "{__visionFirstActorUuid}",
@@ -7580,7 +7643,7 @@ const WIDGET_CONFIG_NODES = {
   },
   wcfg_slot:      { title:"Item Slot",       color:"#1a3a4a", isWidgetConfig:true, widgetType:"slot",
     inputs:[_mkPin("label","Label"),_mkPin("slotId","Slot ID"),_mkPin("maxCount","Max Items")],
-    outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Slot"},{key:"slotId",label:"Slot ID",type:"text",default:""},{key:"maxCount",label:"Max Items",type:"number",default:1},{key:"allowedTypes",label:"Allowed Types",type:"text",default:""},{key:"allowedCategories",label:"Allowed Categories",type:"text",default:""}]
+    outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Slot"},{key:"slotId",label:"Slot ID",type:"text",default:""},{key:"maxCount",label:"Max Items",type:"number",default:1},{key:"allowedTypes",label:"Allowed Types",type:"text",default:""},{key:"allowedCategories",label:"Allowed Categories",type:"text",default:""},{key:"autoEquip",label:"Auto-equip added items",type:"select",default:"no",options:["no","yes"]}]
   },
   wcfg_attribute: { title:"Attribute",       color:"#1a4060", isWidgetConfig:true, widgetType:"attribute",
     inputs:[_mkPin("label","Label"),_mkPin("path","Score Path")],
@@ -9588,14 +9651,18 @@ export class FormulaGraph {
           const src = this.nodes.find(n => n.id === edge.fromNode);
           return src ? this._compileValue(src, new Set(), edge.fromPin) : fallback;
         };
-        widget.numberMode  = "node";
+        if (String(widget.type ?? "") === "resource") {
+          widget.resourceMode = "node";
+        } else {
+          widget.numberMode = "node";
+          delete widget.min;
+          delete widget.max;
+          delete widget.step;
+        }
         widget.numberGraph = graphData;
         widget.minFormula  = compilePin("min", "");
         widget.maxFormula  = compilePin("max", "");
         widget.stepFormula = compilePin("step", "1");
-        delete widget.min;
-        delete widget.max;
-        delete widget.step;
         await doc.update({"system.customTabs": tabs});
       }
       return;
@@ -9674,6 +9741,40 @@ export class FormulaGraph {
           widget.attrGraphs[attrKey] = { graphData: data, modValueFormula, onClickFormula };
         } else {
           widget.graphData = data;
+          if (this.widget?.type === "widgetBuilder") {
+            const outs2 = {};
+            for (const on2 of this.nodes.filter(n => n.type === "widget_output")) {
+              const nm2 = String(on2.data?.name ?? "").trim();
+              if (!nm2) continue;
+              const vEdge2 = this._incomingEdge(on2.id, "value");
+              if (!vEdge2) continue;
+              const src2 = this.nodes.find(n => n.id === vEdge2.fromNode);
+              if (!src2) continue;
+              try { outs2[nm2] = this._compileValue(src2, new Set(), vEdge2.fromPin); } catch (err) { /* skip broken chain */ }
+            }
+            widget.wbOutputs = outs2;
+          }
+          const _sdWType = String(this.widget?.type ?? "");
+          if (_sdWType === "derived" || _sdWType === "calc" || _sdWType === "computed") {
+            // Persist the compiled Output value straight into widget.formula so the
+            // graph alone drives the widget: no second Save in the config popup needed.
+            const valOut = this.nodes.find(n => n.type === "output");
+            const vEdge = valOut ? this._incomingEdge(valOut.id, "value") : null;
+            const vSrc = vEdge ? this.nodes.find(n => n.id === vEdge.fromNode) : null;
+            if (vSrc) {
+              try {
+                let compiledVal = this._compileValue(vSrc, new Set(), vEdge.fromPin);
+                if (typeof compiledVal === "string") {
+                  const cs = compiledVal.trim();
+                  if (cs.length >= 2 && cs.startsWith(String.fromCharCode(34)) && cs.endsWith(String.fromCharCode(34))) {
+                    try { compiledVal = String(JSON.parse(cs)); } catch (err2) { compiledVal = cs.slice(1, -1); }
+                  }
+                }
+                widget.formula = String(compiledVal);
+                try { if (this.inputEl) this.inputEl.value = String(compiledVal); } catch (err2) {  }
+              } catch (err2) { console.warn("[sd] formula-graph: derived value compile failed", err2); }
+            }
+          }
           if (this.widget?.type === "attribute") {
             const attrOut = this.nodes.find(n => n.type === "attr_output");
             if (attrOut) {
@@ -10631,7 +10732,7 @@ export class FormulaGraph {
         <button id="gimport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Import template(s) from a JSON file"><i class="fas fa-file-import" style="margin-right:4px"></i>Import</button>
         <button id="gexport" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Export current selection (or whole graph) as JSON template"><i class="fas fa-file-export" style="margin-right:4px"></i>Export</button>
         <button id="glint" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Validate this graph (unknown nodes, type mismatches, orphans, missing entry points)"><i class="fas fa-check-double" style="margin-right:4px"></i>Lint</button>
-        <button id="gdebug" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Debug: dry-run the graph through every execution path and mark where each path ends, loops, or fails with an error"><i class="fas fa-bug" style="margin-right:4px"></i>Debug</button>
+        <button id="gdebug" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="${esc(this._dbgT("ButtonHint"))}"><i class="fas fa-bug" style="margin-right:4px"></i>${esc(this._dbgT("Button"))}</button>
         <button id="gsave" style="background:var(--sd-accent);border:none;border-radius:8px;color:var(--sd-accent-text);cursor:pointer;font-size:11px;font-weight:800;padding:6px 16px;transition:.15s"><i class="fas fa-check" style="margin-right:5px"></i>Save & Apply</button>
         <button id="grefresh" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:6px 10px" title="Re-scan document"><i class="fas fa-arrows-rotate" style="margin-right:4px"></i>Refresh Index</button>
         <button id="gclose" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);cursor:pointer;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s" title="Close" aria-label="Close graph editor"><i class="fas fa-xmark"></i></button>
@@ -10697,6 +10798,8 @@ export class FormulaGraph {
   // ============================== GRAPH DEBUG ==============================
   // Dry-run: walks every execution path from every entry point, compiling each
   // node on the way (no side effects), and marks OK / path end / error / loop.
+  // Pure value chains (no exec pins, e.g. Derived Value / widget-config graphs)
+  // are also dry-run, walking value wires upstream from every value output.
 
   _clearDebug() {
     this.win?.querySelector?.("#gdebugpanel")?.remove();
@@ -10708,6 +10811,45 @@ export class FormulaGraph {
         delete el.dataset.gdbg;
       }
     });
+  }
+
+  /** Localized debug-mode strings (SD.GraphDebug.*) with English fallback. */
+  _dbgT(key, data = null) {
+    const FB = {
+      Button: "Debug",
+      ButtonHint: "Debug: dry-run the graph through every execution path and value chain, and mark where each path ends, loops, or fails with an error",
+      Title: "Graph Debug \u2014 dry run",
+      Close: "Close debug",
+      SummaryEntries: "Entry points: {count}",
+      SummaryValueSinks: "value outputs: {count}",
+      SummaryPaths: "paths: {count}",
+      SummaryDone: "completed: {count}",
+      SummaryErrors: "errors: {count}",
+      SummaryCycles: "cycles: {count}",
+      NoEntries: "No entry points (event / trigger / unwired exec start) and no value outputs.",
+      NoPaths: "No executable paths or value chains. Add an event/trigger and connect an exec output, or wire nodes into a value output.",
+      Path: "Path {num}",
+      ValuePath: "Value chain {num}",
+      ErrorAt: "Error at \u201c{node}\u201d: {msg}",
+      CycleAt: "Cycle \u2014 re-entered \u201c{node}\u201d",
+      EndedAt: "Finished at \u201c{node}\u201d",
+      ValueOkAt: "Value chain evaluated up to \u201c{node}\u201d",
+      BrokenWire: "Broken wire: target node not found",
+      UnknownNodeType: "Unknown node type \u201c{type}\u201d",
+      BadgeError: "Debug: error \u2014 {msg}",
+      BadgeEnd: "Debug: execution path ends here",
+      BadgeOk: "Debug: compiled and passed OK",
+      BadgeValue: "Debug: value chain evaluated OK",
+      BadgeUnreachable: "Debug: not reachable from any entry point"
+    };
+    let out = null;
+    try {
+      const k = `SD.GraphDebug.${key}`;
+      if (game?.i18n?.has?.(k)) out = game.i18n.localize(k);
+    } catch {}
+    if (typeof out !== "string" || !out || out === `SD.GraphDebug.${key}`) out = FB[key] ?? key;
+    for (const [dk, dv] of Object.entries(data ?? {})) out = out.replaceAll(`{${dk}}`, String(dv));
+    return out;
   }
 
   _dbgExecInPins(def) {
@@ -10723,7 +10865,7 @@ export class FormulaGraph {
 
   _debugEvalNode(node) {
     const def = NODE_DEFS[node.type];
-    if (!def) return { ok: false, msg: `Unknown node type "${node.type}"` };
+    if (!def) return { ok: false, msg: this._dbgT("UnknownNodeType", { type: node.type }) };
     try {
       const ins = {};
       for (const pin of (def.inputs ?? [])) {
@@ -10759,7 +10901,7 @@ export class FormulaGraph {
     });
 
     const nodeState = new Map();
-    const RANK = { error: 3, end: 2, ok: 1 };
+    const RANK = { error: 4, end: 3, value: 2, ok: 1 };
     const bump = (nid, status, msg) => {
       const prev = nodeState.get(nid);
       if (!prev || RANK[status] > RANK[prev.status]) nodeState.set(nid, { status, msg });
@@ -10773,7 +10915,7 @@ export class FormulaGraph {
       const node = this.nodes.find(n => n.id === nid);
       if (!node) {
         budget--;
-        paths.push({ steps, end: "error", endMsg: "Broken wire: target node not found", endNid: steps[steps.length - 1]?.nid });
+        paths.push({ steps, end: "error", endMsg: this._dbgT("BrokenWire"), endNid: steps[steps.length - 1]?.nid });
         return;
       }
       if (inPath.has(nid) || steps.length >= MAX_STEPS) {
@@ -10809,6 +10951,61 @@ export class FormulaGraph {
 
     for (const entry of entries) walk(entry.id, [], new Set());
 
+    // ---- Pure value chains (no exec wires): Derived Value widgets, number/
+    // attribute outputs, widget-config graphs, etc. Walk value wires upstream
+    // from every value sink, dry-compiling each node on the way.
+    const VALUE_SINK_TYPES = new Set(["output", "number_output", "attr_output", "skill_output", "init_output"]);
+    const execCapable = new Set();
+    for (const n of this.nodes) {
+      const def = NODE_DEFS[n.type];
+      if (!def) continue;
+      if (this._dbgExecOutPins(n, def).length || this._dbgExecInPins(def).size) execCapable.add(n.id);
+    }
+    const valueSinks = this.nodes.filter(n => {
+      const def = NODE_DEFS[n.type];
+      if (!def) return false;
+      if (VALUE_SINK_TYPES.has(n.type) || def.isWidgetConfig) return true;
+      if (def.isEvent || def.isTrigger || execCapable.has(n.id)) return false;
+      // Terminal pure node: nothing consumes its outputs.
+      return !this.edges.some(e => e.fromNode === n.id);
+    });
+
+    const valuePaths = [];
+    const walkVal = (nid, downSteps, inPath) => {
+      if (budget <= 0) return;
+      const node = this.nodes.find(n => n.id === nid);
+      if (!node) {
+        budget--;
+        valuePaths.push({ steps: downSteps, end: "error", endMsg: this._dbgT("BrokenWire"), endNid: downSteps[downSteps.length - 1]?.nid });
+        return;
+      }
+      if (inPath.has(nid) || downSteps.length >= MAX_STEPS) {
+        budget--;
+        valuePaths.push({ steps: [{ nid, title: nodeTitle(node), ok: true }, ...downSteps], end: "cycle", endNid: nid });
+        return;
+      }
+      const def = NODE_DEFS[node.type];
+      const ev = (def?.isEvent || def?.isTrigger) ? { ok: true } : this._debugEvalNode(node);
+      const steps2 = [{ nid, title: nodeTitle(node), ok: ev.ok, msg: ev.msg }, ...downSteps];
+      if (!ev.ok) {
+        bump(nid, "error", ev.msg);
+        budget--;
+        valuePaths.push({ steps: steps2, end: "error", endMsg: ev.msg, endNid: nid });
+        return;
+      }
+      bump(nid, downSteps.length ? "ok" : "value");
+      const execIns = this._dbgExecInPins(def);
+      const incoming = this.edges.filter(e => e.toNode === nid && !execIns.has(e.toPin));
+      if (!incoming.length) {
+        budget--;
+        valuePaths.push({ steps: steps2, end: "value", endNid: steps2[steps2.length - 1]?.nid ?? nid });
+        return;
+      }
+      const inPath2 = new Set(inPath); inPath2.add(nid);
+      for (const e of incoming) walkVal(e.fromNode, steps2, inPath2);
+    };
+    for (const sink of valueSinks) walkVal(sink.id, [], new Set());
+
     // Paint node badges.
     const badge = (el, color, char, tip) => {
       const b = document.createElement("div");
@@ -10824,57 +11021,71 @@ export class FormulaGraph {
       const def = NODE_DEFS[n.type];
       const st = nodeState.get(n.id);
       if (st) {
-        const color = st.status === "error" ? "#ff5d5d" : st.status === "end" ? "#ffb84d" : "#3ec46e";
+        const color = st.status === "error" ? "#ff5d5d" : st.status === "end" ? "#ffb84d" : st.status === "value" ? "#74a7ff" : "#3ec46e";
         el.style.outline = `2px solid ${color}`;
         el.style.outlineOffset = "3px";
         el.dataset.gdbg = st.status;
         badge(el, color,
-          st.status === "error" ? "\u2716" : st.status === "end" ? "\u25a0" : "\u2714",
-          st.status === "error" ? `Debug: error - ${st.msg ?? ""}` : st.status === "end" ? "Debug: execution path ends here" : "Debug: compiled and passed OK");
+          st.status === "error" ? "\u2716" : st.status === "end" ? "\u25a0" : st.status === "value" ? "=" : "\u2714",
+          st.status === "error" ? this._dbgT("BadgeError", { msg: st.msg ?? "" }) : st.status === "end" ? this._dbgT("BadgeEnd") : st.status === "value" ? this._dbgT("BadgeValue") : this._dbgT("BadgeOk"));
       } else if (def && this._dbgExecInPins(def).size) {
         el.style.outline = "2px dashed rgba(160,160,175,.55)";
         el.style.outlineOffset = "3px";
         el.dataset.gdbg = "unreachable";
-        badge(el, "#9aa0ad", "?", "Debug: not reachable from any entry point");
+        badge(el, "#9aa0ad", "?", this._dbgT("BadgeUnreachable"));
       }
     }
 
-    this._renderDebugPanel(entries, paths);
+    this._renderDebugPanel(entries, paths, valueSinks, valuePaths);
   }
 
-  _renderDebugPanel(entries, paths) {
+  _renderDebugPanel(entries, paths, valueSinks = [], valuePaths = []) {
     const wrap = this.win?.querySelector?.("#gwrap");
     if (!wrap) return;
     const done = paths.filter(p => p.end === "end").length;
-    const errs = paths.filter(p => p.end === "error").length;
-    const cycs = paths.filter(p => p.end === "cycle").length;
-    const rows = paths.map((p, i) => {
+    const vals = valuePaths.filter(p => p.end === "value").length;
+    const errs = paths.filter(p => p.end === "error").length + valuePaths.filter(p => p.end === "error").length;
+    const cycs = paths.filter(p => p.end === "cycle").length + valuePaths.filter(p => p.end === "cycle").length;
+    const rowFor = (p, head) => {
       const last = p.steps[p.steps.length - 1];
-      const chain = p.steps.map(s => s.ok ? esc(s.title) : `<span style="color:#ff5d5d">${esc(s.title)}</span>`).join(" \u2192 ");
+      const chain = p.steps.map(x => x.ok ? esc(x.title) : `<span style="color:#ff5d5d">${esc(x.title)}</span>`).join(" \u2192 ");
       const cfg = p.end === "error"
-        ? { icon: "\u2716", color: "#ff5d5d", label: `\u041e\u0448\u0438\u0431\u043a\u0430 \u043d\u0430 \u00ab${last?.title}\u00bb: ${p.endMsg ?? ""}` }
+        ? { icon: "\u2716", color: "#ff5d5d", label: this._dbgT("ErrorAt", { node: last?.title ?? "?", msg: p.endMsg ?? "" }) }
         : p.end === "cycle"
-        ? { icon: "\u27f3", color: "#ffb84d", label: `\u0426\u0438\u043a\u043b \u2014 \u043f\u043e\u0432\u0442\u043e\u0440\u043d\u044b\u0439 \u0432\u0445\u043e\u0434 \u0432 \u00ab${last?.title}\u00bb` }
-        : { icon: "\u2714", color: "#3ec46e", label: `\u0417\u0430\u0432\u0435\u0440\u0448\u0451\u043d \u043d\u0430 \u00ab${last?.title}\u00bb` };
+        ? { icon: "\u27f3", color: "#ffb84d", label: this._dbgT("CycleAt", { node: last?.title ?? "?" }) }
+        : p.end === "value"
+        ? { icon: "=", color: "#74a7ff", label: this._dbgT("ValueOkAt", { node: last?.title ?? "?" }) }
+        : { icon: "\u2714", color: "#3ec46e", label: this._dbgT("EndedAt", { node: last?.title ?? "?" }) };
       return `<div class="gdbg-row" data-focus="${esc(String(p.endNid ?? last?.nid ?? ""))}" style="padding:7px 10px;border-bottom:1px solid var(--sd-border);cursor:pointer">
-        <div style="display:flex;gap:6px;align-items:flex-start;font-size:11px;font-weight:700;color:${cfg.color}"><span>${cfg.icon}</span><span style="flex:1">\u041f\u0443\u0442\u044c ${i + 1}: ${esc(cfg.label)}</span></div>
+        <div style="display:flex;gap:6px;align-items:flex-start;font-size:11px;font-weight:700;color:${cfg.color}"><span>${cfg.icon}</span><span style="flex:1">${esc(head)}: ${esc(cfg.label)}</span></div>
         <div style="font-size:10px;color:var(--sd-text-3);font-family:monospace;margin-top:3px;word-break:break-word;line-height:1.5">${chain}</div>
       </div>`;
-    }).join("");
+    };
+    const rows = paths.map((p, i) => rowFor(p, this._dbgT("Path", { num: i + 1 }))).join("")
+      + valuePaths.map((p, i) => rowFor(p, this._dbgT("ValuePath", { num: i + 1 }))).join("");
+    const noEntries = !entries.length && !valueSinks.length;
+    const summary = [
+      esc(this._dbgT("SummaryEntries", { count: entries.length })),
+      esc(this._dbgT("SummaryValueSinks", { count: valueSinks.length })),
+      esc(this._dbgT("SummaryPaths", { count: paths.length + valuePaths.length })),
+      `<span style="color:#3ec46e">${esc(this._dbgT("SummaryDone", { count: done + vals }))}</span>`,
+      `<span style="color:#ff5d5d">${esc(this._dbgT("SummaryErrors", { count: errs }))}</span>`
+    ];
+    if (cycs) summary.push(`<span style="color:#ffb84d">${esc(this._dbgT("SummaryCycles", { count: cycs }))}</span>`);
     const panel = document.createElement("div");
     panel.id = "gdebugpanel";
     panel.style.cssText = "position:absolute;top:10px;right:10px;width:360px;max-height:72%;display:flex;flex-direction:column;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.5);z-index:20;overflow:hidden";
     panel.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--sd-bg-3);border-bottom:1px solid var(--sd-border)">
         <i class="fas fa-bug" style="color:var(--sd-accent)"></i>
-        <b style="font-size:11px;flex:1">Graph Debug \u2014 dry run</b>
-        <button id="gdbgclose" title="Close debug" style="background:none;border:none;color:var(--sd-text-2);cursor:pointer;font-size:13px"><i class="fas fa-xmark"></i></button>
+        <b style="font-size:11px;flex:1">${esc(this._dbgT("Title"))}</b>
+        <button id="gdbgclose" title="${esc(this._dbgT("Close"))}" style="background:none;border:none;color:var(--sd-text-2);cursor:pointer;font-size:13px"><i class="fas fa-xmark"></i></button>
       </div>
       <div style="padding:6px 12px;font-size:10px;color:var(--sd-text-2);border-bottom:1px solid var(--sd-border)">
-        \u0422\u043e\u0447\u0435\u043a \u0432\u0445\u043e\u0434\u0430: ${entries.length} \u00b7 \u043f\u0443\u0442\u0435\u0439: ${paths.length} \u00b7 <span style="color:#3ec46e">\u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u043e: ${done}</span> \u00b7 <span style="color:#ff5d5d">\u043e\u0448\u0438\u0431\u043e\u043a: ${errs}</span>${cycs ? ` \u00b7 <span style=\"color:#ffb84d\">\u0446\u0438\u043a\u043b\u043e\u0432: ${cycs}</span>` : ""}
-        ${entries.length ? "" : `<div style=\"color:#ff5d5d;margin-top:4px\">\u041d\u0435\u0442 \u0442\u043e\u0447\u0435\u043a \u0432\u0445\u043e\u0434\u0430 (\u0441\u043e\u0431\u044b\u0442\u0438\u0435 / \u0442\u0440\u0438\u0433\u0433\u0435\u0440 / \u043d\u0435\u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0451\u043d\u043d\u044b\u0439 exec-\u0441\u0442\u0430\u0440\u0442).</div>`}
+        ${summary.join(" \u00b7 ")}
+        ${noEntries ? `<div style="color:#ff5d5d;margin-top:4px">${esc(this._dbgT("NoEntries"))}</div>` : ""}
       </div>
-      <div style="flex:1;overflow-y:auto">${rows || `<div style=\"padding:12px;font-size:11px;color:var(--sd-text-3)\">\u041d\u0435\u0442 \u0438\u0441\u043f\u043e\u043b\u043d\u044f\u0435\u043c\u044b\u0445 \u043f\u0443\u0442\u0435\u0439. \u0414\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0441\u043e\u0431\u044b\u0442\u0438\u0435/\u0442\u0440\u0438\u0433\u0433\u0435\u0440 \u0438 \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u0435 exec-\u0432\u044b\u0445\u043e\u0434.</div>`}</div>`;
+      <div style="flex:1;overflow-y:auto">${rows || `<div style="padding:12px;font-size:11px;color:var(--sd-text-3)">${esc(this._dbgT("NoPaths"))}</div>`}</div>`;
     wrap.appendChild(panel);
     panel.querySelector("#gdbgclose")?.addEventListener("click", () => this._clearDebug());
     panel.querySelectorAll(".gdbg-row").forEach(row => {
@@ -12152,7 +12363,8 @@ export class FormulaGraph {
         const doc = this.doc;
         const p = node.data.path ?? "";
         if (!doc || !p) { scoreDisplay.textContent = "-"; modDisplay.textContent = ""; return; }
-        const raw = foundry.utils.getProperty(doc, p);
+        let raw;
+        try { raw = FormulaEngine._readDocProperty(doc, p); } catch { raw = foundry.utils.getProperty(doc, p); }
         const score = raw !== undefined && raw !== null ? Number(raw) : null;
         if (score === null || isNaN(score)) { scoreDisplay.textContent = "?"; modDisplay.textContent = ""; return; }
         scoreDisplay.textContent = String(score);
@@ -12181,7 +12393,8 @@ export class FormulaGraph {
         const doc = this.doc;
         const p = node.data.path ?? "";
         if (!doc || !p) { rankDisplay.textContent = "-"; return; }
-        const raw = foundry.utils.getProperty(doc, p);
+        let raw;
+        try { raw = FormulaEngine._readDocProperty(doc, p); } catch { raw = foundry.utils.getProperty(doc, p); }
         const rank = raw !== undefined && raw !== null ? Number(raw) : null;
         if (rank === null || isNaN(rank)) { rankDisplay.textContent = "?"; return; }
         rankDisplay.textContent = String(rank);
@@ -12709,13 +12922,86 @@ export class FormulaGraph {
     });
     wrap.appendChild(inp);
 
+    if (field.valueElementDatalist) {
+      const dlId2 = "sd-wb-el-dl-" + node.id + "-" + field.key;
+      const dl2 = document.createElement("datalist");
+      dl2.id = dlId2;
+      const fillDl2 = () => {
+        dl2.innerHTML = "";
+        try {
+          const els2 = Array.isArray(this.widget?.elements) ? this.widget.elements : [];
+          for (const el3 of els2) {
+            if (String(el3?.kind ?? "") !== "value") continue;
+            const nm3 = String(el3?.name ?? "").trim();
+            if (!nm3) continue;
+            const o3 = document.createElement("option");
+            o3.value = nm3;
+            dl2.appendChild(o3);
+          }
+        } catch (err) { /* noop */ }
+      };
+      fillDl2();
+      inp.setAttribute("list", dlId2);
+      inp.addEventListener("focus", fillDl2);
+      wrap.appendChild(dl2);
+    }
+    if (field.customEventDatalist && typeof this._collectCustomEventNames === "function") {
+      try {
+        const dlId = "sd-ce-dl-" + String(node.id) + "-" + String(field.key);
+        const dl = document.createElement("datalist");
+        dl.id = dlId;
+        const fillDl = () => {
+          dl.innerHTML = "";
+          for (const nm of this._collectCustomEventNames()) {
+            const o = document.createElement("option");
+            o.value = nm;
+            dl.appendChild(o);
+          }
+        };
+        fillDl();
+        inp.setAttribute("list", dlId);
+        inp.addEventListener("focus", fillDl);
+        wrap.appendChild(dl);
+      } catch (e) {}
+    }
+    if (field.uniqueEventName) {
+      let dupWarnEl = null;
+      const _checkUniqueEventName = () => {
+        const val = String(node.data[field.key] ?? "").trim();
+        const dup = !!val && this.nodes.some(n2 =>
+          n2 !== node && n2.type === node.type &&
+          String(n2.data?.[field.key] ?? "").trim() === val);
+        if (dup) {
+          const msg = _sdCE_T("DupName", "This name is already used by another Custom Event node");
+          inp.style.borderColor = "var(--sd-danger, #e05555)";
+          inp.style.boxShadow = "0 0 0 1px rgba(224,85,85,.5)";
+          inp.title = msg;
+          if (!dupWarnEl) {
+            dupWarnEl = document.createElement("div");
+            dupWarnEl.style.cssText = "font-size:9px;color:#e05555;margin-top:2px;line-height:1.3;white-space:normal";
+            wrap.appendChild(dupWarnEl);
+          }
+          dupWarnEl.textContent = msg;
+        } else {
+          inp.style.borderColor = "#1a1a28";
+          inp.style.boxShadow = "";
+          inp.title = "";
+          if (dupWarnEl) { dupWarnEl.remove(); dupWarnEl = null; }
+        }
+      };
+      inp.addEventListener("input", _checkUniqueEventName);
+      inp.addEventListener("blur", () => _checkUniqueEventName());
+      _checkUniqueEventName();
+    }
+
     let liveBadge = null;
     const _refreshLiveBadge = () => {
       const doc = this.doc;
       if (!doc || !liveBadge) return;
       const p = node.data[field.key] ?? "";
       if (!p) { liveBadge.textContent = ""; return; }
-      const raw = foundry.utils.getProperty(doc, p);
+      let raw;
+        try { raw = FormulaEngine._readDocProperty(doc, p); } catch { raw = foundry.utils.getProperty(doc, p); }
       const v = raw !== undefined && raw !== null ? String(raw) : "?";
       liveBadge.textContent = "= " + v;
     };
@@ -12727,6 +13013,55 @@ export class FormulaGraph {
     }
 
     return wrap;
+  }
+
+  _collectCustomEventNames() {
+    const names = new Set();
+    const add = (v) => { const s = String(v ?? "").trim(); if (s) names.add(s); };
+    const scanGraphData = (gd) => {
+      for (const n of (gd?.nodes ?? [])) if (n?.type === "custom_event") add(n.data?.name);
+    };
+    const scanCompiled = (raw) => {
+      if (typeof raw !== "string" || !raw.includes("custom_event::")) return;
+      try {
+        const obj = JSON.parse(raw);
+        for (const [k, ev] of Object.entries(obj?._events ?? {})) {
+          if (k.startsWith("custom_event::")) add(ev?.data?.name);
+        }
+      } catch (e) {}
+    };
+    const scanWidget = (w) => {
+      if (!w || typeof w !== "object") return;
+      scanCompiled(w.formula);
+      scanCompiled(w.onClickFormula);
+      for (const v of Object.values(w)) {
+        if (!v || typeof v !== "object") continue;
+        if (Array.isArray(v?.nodes)) { scanGraphData(v); continue; }
+        for (const sub of Object.values(v)) {
+          if (sub && typeof sub === "object" && Array.isArray(sub.graphData?.nodes)) scanGraphData(sub.graphData);
+        }
+      }
+    };
+    const scanDoc = (d) => {
+      if (!d?.system) return;
+      for (const tab of (d.system.customTabs ?? []))
+        for (const row of (tab?.rows ?? []))
+          for (const w of (row?.widgets ?? [])) scanWidget(w);
+      const stg = d.system.sdTriggerGraph;
+      if (stg && typeof stg === "object") {
+        scanGraphData(stg._graphData);
+        try { scanCompiled(JSON.stringify(stg)); } catch (e) {}
+      } else if (typeof stg === "string") scanCompiled(stg);
+    };
+    for (const n of this.nodes) if (n?.type === "custom_event") add(n.data?.name);
+    try {
+      const doc = this.doc;
+      scanDoc(doc);
+      const actor = doc?.documentName === "Item" ? doc.actor : doc;
+      if (actor && actor !== doc) scanDoc(actor);
+      for (const it of (actor?.items ?? [])) { if (it !== doc) scanDoc(it); }
+    } catch (e) {}
+    return [...names].sort((a, b) => a.localeCompare(b));
   }
 
   _redrawEdges() {

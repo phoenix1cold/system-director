@@ -1,3 +1,5 @@
+import { FormulaEngine } from "../helpers/formula-engine.mjs";
+
 function _sdMsgMode() {
   try {
     const v = game.settings.get("core", "messageMode");
@@ -50,7 +52,7 @@ function _sdValuesEqual(a, b) {
   return false;
 }
 
-function _sdApplyChangesToValue(start, changes) {
+function _sdApplyChangesToValue(start, changes, doc = null) {
   const sorted = changes.map((c, i) => {
     const type = _sdResolveChangeType(c);
     return { c, type, p: _sdChangePriority(c, type), i };
@@ -62,7 +64,13 @@ function _sdApplyChangesToValue(start, changes) {
   if (!isNumeric) numeric = 0;
 
   for (const { c, type } of sorted) {
-    const raw = c.value;
+    let raw = c.value;
+    if (typeof raw === "string" && raw.includes("{") && doc) {
+      try {
+        const ev = FormulaEngine.evaluate(raw, doc);
+        if (ev !== undefined && ev !== null && !String(ev).startsWith("!err")) raw = ev;
+      } catch { /* keep raw */ }
+    }
     const num = Number(raw);
     const okNum = Number.isFinite(num) && raw !== "" && raw !== null && raw !== undefined;
 
@@ -247,7 +255,7 @@ export class SDActor extends Actor {
       for (const effect of this.allApplicableEffects()) {
         if (effect.disabled) continue;
         if (effect.isSuppressed) continue;
-        for (const change of (effect.changes ?? [])) {
+        for (const change of (effect.system?.changes ?? effect.changes ?? [])) {
           const k = String(change?.key ?? "");
           if (!k.startsWith("system.")) continue;
           if (!changesByKey.has(k)) changesByKey.set(k, []);
@@ -274,8 +282,10 @@ export class SDActor extends Actor {
     // doing math (14 + 2 = 16). Coerce numeric-looking string targets of numeric
     // AE changes to real numbers before core applies the changes.
     {
-      const M = CONST.ACTIVE_EFFECT_MODES;
-      const numericModes = [M.ADD, M.MULTIPLY, M.UPGRADE, M.DOWNGRADE];
+      // Foundry v14: numeric change.mode and CONST.ACTIVE_EFFECT_MODES are
+      // deprecated; changes carry a string #type. _sdResolveChangeType handles
+      // both v14 string types and v13 numeric modes without deprecation hits.
+      const numericTypes = ["add", "multiply", "upgrade", "downgrade"];
       for (const [key, changes] of this._sdAeContext.changesByKey) {
         const cur = foundry.utils.getProperty(this, key);
         if (typeof cur !== "string") continue;
@@ -283,10 +293,13 @@ export class SDActor extends Actor {
         const curNum = Number(trimmed);
         const curIsNumeric = trimmed !== "" && Number.isFinite(curNum);
         if (!curIsNumeric && trimmed !== "") continue;
-        const relevant = changes.filter(c => numericModes.includes(Number(c?.mode)));
+        const relevant = changes.filter(c => numericTypes.includes(_sdResolveChangeType(c)));
         if (!relevant.length) continue;
         const allNumeric = relevant.every(c => {
-          const v = String(c?.value ?? "").trim();
+          let v = String(c?.value ?? "").trim();
+          if (v.includes("{")) {
+            try { v = String(FormulaEngine.evaluate(v, this)).trim(); } catch { /* keep raw */ }
+          }
           return v !== "" && Number.isFinite(Number(v));
         });
         if (!allNumeric) continue;
@@ -318,7 +331,7 @@ export class SDActor extends Actor {
       const initialChanges = changes.filter(c => _sdChangePhase(c) === "initial");
       if (!initialChanges.length) continue;
 
-      const next = _sdApplyChangesToValue(current, initialChanges);
+      const next = _sdApplyChangesToValue(current, initialChanges, this);
       foundry.utils.setProperty(this, key, next);
     }
   }

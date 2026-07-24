@@ -55,6 +55,8 @@ const FIELD_DEFS = {
   image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
   derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]],
 
+  widgetBuilder: [["Label","label"],["Layout","wbLayout","select",["grid","free"]],["Columns (grid layout)","columns","number"],["Gap (px, grid layout)","gap","number"],["Canvas width (px, free layout; 0 = full width)","canvasW","number"],["Canvas height (px, free layout)","canvasH","number"],["On Click Graph","formula","formula"],["Elements","elements","wbElements"]],
+
   questMarker: [
     ["Label", "label", "text"],
     ["Widget Key", "widgetKey", "text"],
@@ -143,6 +145,7 @@ const STYLE_DEFS = {
   tags:      [["Width (px)","boxW","style-px"],["Background","boxBg","style-color"],["Pill color","color","style-color"],["Text color","tagFg","style-color"],["Border","boxBorder","style-color"]],
   image:     [["Width (px)","width","style-px"],["Height (px)","height","style-px"],["Border radius (px)","borderRadius","style-px"],["Border","boxBorder","style-color"],["Border width (px)","borderWidth","style-px"]],
   derived:   [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Value font size (px, 0 = default)","valueFontSize","style-px"]],
+  widgetBuilder: [["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
   cardHand:  [["Min height (px)","boxH","style-px"],["Background","boxBg","style-color"],["Text color","boxFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Padding (px)","boxPad","style-px"]],
   cardDrawButton:[["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]]
 };
@@ -185,9 +188,14 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
   }
 
   const _numberMode = w.type === "number" && w.numberMode === "node" ? "node" : "classic";
-  const _typeFields = w.type === "number" && _numberMode === "node"
-    ? [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"]]
-    : (FIELD_DEFS[w.type] ?? [["Label","label"]]);
+  const _resourceMode = w.type === "resource" && w.resourceMode === "node" ? "node" : "classic";
+  let _typeFields = FIELD_DEFS[w.type] ?? [["Label","label"]];
+  if (w.type === "number" && _numberMode === "node") {
+    _typeFields = [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"]];
+  }
+  if (w.type === "resource" && _resourceMode === "node") {
+    _typeFields = _typeFields.filter(f => Array.isArray(f) && f[1] !== "pathMax");
+  }
   const _commonFields = [
   ];
   const fields = [..._typeFields, ..._commonFields];
@@ -207,7 +215,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </button>
     </div>` : "";
 
-  const numberGraphRow = (w.type === "number" && _numberMode === "node") ? (() => {
+  const numberGraphRow = (w.type === "number" || w.type === "resource") ? (() => {
     const gd = w.numberGraph;
     const hasGraph = !!(gd && Array.isArray(gd.nodes) && gd.nodes.length);
     const status = hasGraph
@@ -216,7 +224,14 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     return `
     <div class="wcfg-f" style="margin-bottom:10px">
       <label class="wcfg-lbl">Node Graph</label>
-      <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.4">Wire Min, Max, and Step. This graph has no exec output.</div>
+      <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.4">${w.type === "resource" ? "Node mode: Max (and optional Min) come from the graph output instead of Max Path." : "Wire Min, Max, and Step. This graph has no exec output."}</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <span style="font-size:10px;color:var(--sd-text-3);flex-shrink:0">Mode</span>
+        <select data-field="${w.type === "resource" ? "resourceMode" : "numberMode"}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px">
+          <option value="classic" ${(w.type === "resource" ? _resourceMode : _numberMode) === "classic" ? "selected" : ""}>classic (manual values / paths)</option>
+          <option value="node" ${(w.type === "resource" ? _resourceMode : _numberMode) === "node" ? "selected" : ""}>node (graph Min/Max output)</option>
+        </select>
+      </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button type="button" id="wcfg-number-graph-btn"
           style="flex:1;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:5px;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:7px 12px;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s"
@@ -491,7 +506,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>
     </div>`;
 
-  const fieldRows = fields.map(([lbl, key, type="text", opts=[]]) => {
+  const _renderFieldRow = ([lbl, key, type="text", opts=[]]) => {
     let cur = w[key] ?? ""; if (Array.isArray(cur) && type !== "select") cur = cur.join(", ");
     const isPF = type === "path" || type === "formula";
     const hint = FIELD_HINTS[key] ?? FIELD_HINTS[type] ?? "";
@@ -610,6 +625,27 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>`;
     }
 
+    if (type === "wbElements") {
+      const els = Array.isArray(w[key]) ? w[key] : [];
+      return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(lbl)}</label>
+        <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:6px;line-height:1.4">
+          Give every element a unique name. Clickable elements fire the Custom Event "On Click &lt;Name&gt;" &mdash; press the bolt button to create the event node, then wire its exec chain in the graph. Value elements read their value from a Custom Output node with the same name in the shared widget graph - press the Output Node button to create it, wire any value into it and save the graph. The manual formula field below is a fallback.
+        </div>
+        <div id="wcfg-wb-canvas-wrap" style="margin-bottom:8px">
+          <div id="wcfg-wb-canvas-hint" style="font-size:10px;color:var(--sd-text-3);margin-bottom:4px"></div>
+          <div id="wcfg-wb-canvas" style="position:relative;background:var(--sd-bg);border:1px dashed var(--sd-border);border-radius:4px;overflow:auto;max-width:100%"></div>
+        </div>
+        <div id="wcfg-wb-rows"></div>
+        <button type="button" id="wcfg-wb-add"
+          style="margin-top:6px;background:var(--sd-bg);border:1px solid var(--sd-accent-2);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:3px 10px">
+          + Add Element
+        </button>
+        <input type="hidden" id="wcfg-wb-json" data-field="${esc(key)}" data-ftype="json" value="${esc(JSON.stringify(els))}">
+      </div>`;
+    }
+
     if (type === "slotconfig") {
       const rows = (Array.isArray(w[key]) ? w[key] : []).map((entry, i) => {
         const lvl  = esc(String(entry.level   ?? i + 1));
@@ -663,7 +699,33 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           ${isPF ? `<button type="button" data-clear-field="${esc(key)}" class="wcfg-clear-btn" title="Clear">✕</button>` : ""}
         </div>
       </div>`;
-  }).join("");
+  };
+
+  const _tabForField = (f) => {
+    const fKey = f?.[1];
+    const fType = f?.[2] ?? "text";
+    if (w.type === "widgetBuilder") {
+      if (fKey === "elements" || fKey === "wbLayout" || fKey === "columns" || fKey === "gap" || fKey === "canvasW" || fKey === "canvasH") return "elements";
+      if (fType === "formula" || fType === "actionGraph" || fKey === "animationTag") return "logic";
+      return "main";
+    }
+    if (fType === "formula" || fType === "actionGraph" || fKey === "animationTag" || fKey === "valueFormula") return "logic";
+    return "main";
+  };
+  const _rowsFor = (tabId) => fields.filter(f => _tabForField(f) === tabId).map(_renderFieldRow).join("");
+  const _mainRows = attrGraphRow + numberGraphRow + attrGroupGraphsRow + _rowsFor("main");
+  const _paneList = [
+    ["main",     w.type === "widgetBuilder" ? "General" : "Main", _mainRows],
+    ["elements", "Elements", _rowsFor("elements")],
+    ["logic",    "Logic",    _rowsFor("logic")],
+    ["style",    "Style",    slotTileRow + styleRow],
+    ["showif",   "Show If",  showIfRow]
+  ].filter(pn => String(pn[2]).trim() !== "");
+  const _tabBar = _paneList.length > 1 ? `
+    <div id="wcfg-tabs" style="display:flex;gap:2px;padding:0 12px;background:var(--sd-popover-bg,var(--sd-bg));border-bottom:1px solid var(--sd-border);flex-shrink:0;overflow-x:auto">
+      ${_paneList.map((pn, i) => `<button type="button" class="wcfg-tab-btn" data-cfg-tab="${pn[0]}" style="background:none;border:none;border-bottom:2px solid ${i === 0 ? "var(--sd-accent)" : "transparent"};color:${i === 0 ? "var(--sd-accent)" : "var(--sd-text-3)"};cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;white-space:nowrap">${pn[1]}</button>`).join("")}
+    </div>` : "";
+  const _panesHtml = _paneList.map((pn, i) => `<div class="wcfg-tabpane" data-cfg-tab="${pn[0]}" style="${i === 0 ? "" : "display:none"}">${pn[2]}</div>`).join("");
 
   const popup = document.createElement("div");
   popup.className = "sd sd-wcfg-popup";
@@ -715,15 +777,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       <button type="button" id="wcfg-x" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:16px;padding:0" aria-label="Close"><i class="fas fa-xmark"></i></button>
     </div>
 
+    ${_tabBar}
     <!-- Fields panel -->
     <div id="wcfg-panel-fields" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:0">
-      ${attrGraphRow}
-      ${numberGraphRow}
-      ${attrGroupGraphsRow}
-      ${fieldRows}
-      ${slotTileRow}
-      ${styleRow}
-      ${showIfRow}
+      ${_panesHtml}
     </div>
 
     <!-- Footer -->
@@ -736,15 +793,42 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
   document.body.appendChild(popup);
 
+  (function _wireCfgTabs(){
+    const tabBtns  = [...popup.querySelectorAll(".wcfg-tab-btn")];
+    const tabPanes = [...popup.querySelectorAll(".wcfg-tabpane")];
+    if (!tabBtns.length) return;
+    const showTab = (id) => {
+      tabPanes.forEach(p2 => { p2.style.display = (p2.dataset.cfgTab === id) ? "" : "none"; });
+      tabBtns.forEach(b2 => {
+        const on = b2.dataset.cfgTab === id;
+        b2.style.color = on ? "var(--sd-accent)" : "var(--sd-text-3)";
+        b2.style.borderBottomColor = on ? "var(--sd-accent)" : "transparent";
+      });
+    };
+    tabBtns.forEach(b2 => b2.addEventListener("click", () => showTab(b2.dataset.cfgTab)));
+  })();
+
   (function _wireDataFieldRefs(){
     const panel = popup.querySelector("#wcfg-panel-fields");
     if (!panel) return;
     const wKey = String(w.widgetKey ?? "").trim() || String(w.label ?? "").trim();
     const refs = [];
-    if (wKey) {
+    const _noValTypes = ["button", "rollButton", "cardDrawButton", "section", "vsection", "widgetBuilder"];
+    const _hasValue = !_noValTypes.includes(String(w.type ?? "")) || (w.valueFormula !== undefined && String(w.valueFormula ?? "").trim() !== "");
+    if (wKey && _hasValue) {
       refs.push(["Value token", "{widget:" + wKey + "}"]);
       refs.push(["System field (value)", "system.widgetFields." + wKey + ".value"]);
+    }
+    if (wKey) {
       refs.push(["System field (label)", "system.widgetFields." + wKey + ".label"]);
+    }
+    if (wKey && String(w.type ?? "") === "widgetBuilder") {
+      for (const wbEl of (Array.isArray(w.elements) ? w.elements : [])) {
+        if (String(wbEl?.kind ?? "") !== "value") continue;
+        const wbNm = String(wbEl?.name ?? "").trim();
+        if (!wbNm) continue;
+        refs.push(["Element value: " + wbNm, "system.widgetFields." + wKey + "." + wbNm + ".value"]);
+      }
     }
     if (w.path)      refs.push(["Bound path", String(w.path)]);
     if (w.pathValue) refs.push(["Value path", String(w.pathValue)]);
@@ -765,7 +849,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           <code style="flex:1;font-size:10px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;padding:3px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc2(val)}</code>
           <button type="button" data-copy-ref="${esc2(val)}" title="Copy" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:3px 7px"><i class="fas fa-copy"></i></button>
         </div>`).join("");
-    panel.appendChild(wrap);
+    (panel.querySelector('.wcfg-tabpane[data-cfg-tab="main"]') ?? panel).appendChild(wrap);
     wrap.querySelectorAll("[data-copy-ref]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const txt = btn.dataset.copyRef ?? "";
@@ -1038,6 +1122,347 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       <button type="button" class="wcfg-slot-del" style="background:none;border:none;color:var(--sd-danger-dim);cursor:pointer;font-size:13px;padding:0;line-height:1" title="Remove level">✕</button>`;
     slotRowsContainer.appendChild(div);
   });
+  const wbRowsEl = popup.querySelector("#wcfg-wb-rows");
+  const wbJsonEl = popup.querySelector("#wcfg-wb-json");
+  if (wbRowsEl && wbJsonEl) {
+    let wbEls = [];
+    try { wbEls = JSON.parse(wbJsonEl.value || "[]"); } catch (e) { wbEls = []; }
+    if (!Array.isArray(wbEls)) wbEls = [];
+
+    const wbSync = () => { wbJsonEl.value = JSON.stringify(wbEls); };
+    const wbNameDup = (name, idx) =>
+      !!name && wbEls.some((e2, i2) => i2 !== idx && String(e2?.name ?? "").trim() === name);
+
+    const wbCanvasWrap = popup.querySelector("#wcfg-wb-canvas-wrap");
+    const wbCanvasEl = popup.querySelector("#wcfg-wb-canvas");
+    const _wbSnap = (v2) => Math.round(v2 / 4) * 4;
+    const _wbFillBox = (box, el2, fs) => {
+      const nm = String(el2.name ?? "").trim() || "?";
+      const col = String(el2.color ?? "").trim();
+      const ic = String(el2.icon ?? "").trim();
+      const im = String(el2.img ?? "").trim();
+      const lb = String(el2.label ?? "").trim();
+      let inner = "";
+      if (im) inner += `<img src="${esc(im)}" style="max-width:90%;max-height:55%;object-fit:contain;pointer-events:none">`;
+      else if (ic) inner += `<i class="fas ${esc(ic)}" style="pointer-events:none${col ? ";color:" + esc(col) : ""}"></i>`;
+      inner += `<span style="pointer-events:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96%${fs > 0 ? ";font-size:" + fs + "px" : ""}">${esc(lb || nm)}</span>`;
+      inner += `<span style="pointer-events:none;font-size:8px;opacity:.55;line-height:1">${esc(String(el2.kind ?? "button"))}</span>`;
+      box.innerHTML = inner;
+      if (col) box.style.borderColor = col;
+    };
+    const _wbFocusRow = (idx2) => {
+      const rowEl2 = wbRowsEl.querySelector(`[data-wb-idx="${idx2}"]`);
+      if (!rowEl2) return;
+      rowEl2.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      rowEl2.style.borderColor = "var(--sd-accent)";
+      rowEl2.style.boxShadow = "0 0 0 1px var(--sd-accent)";
+      setTimeout(() => { rowEl2.style.borderColor = "var(--sd-border)"; rowEl2.style.boxShadow = "none"; }, 1200);
+    };
+    const wbCanvasRender = () => {
+      if (!wbCanvasWrap || !wbCanvasEl) return;
+      const isFree = (popup.querySelector('select[data-field="wbLayout"]')?.value ?? String(w.wbLayout ?? "grid")) === "free";
+      const hintEl2 = popup.querySelector("#wcfg-wb-canvas-hint");
+      if (hintEl2) hintEl2.textContent = isFree
+        ? "Visual editor (free layout): drag boxes to place them, drag the corner handle to resize (4px snap). Click a box to jump to its settings below."
+        : "Visual editor (grid preview): drag a box onto another one to reorder. Switch Layout to 'free' for pixel-perfect placement and sizing.";
+      wbCanvasEl.innerHTML = "";
+      if (!wbEls.length) {
+        wbCanvasEl.style.height = "";
+        wbCanvasEl.innerHTML = "<div style='padding:16px;text-align:center;font-size:10px;color:var(--sd-text-3);font-style:italic'>No elements yet - click + Add Element below</div>";
+        return;
+      }
+      if (isFree) {
+        const cwRaw = parseFloat(popup.querySelector('input[data-field="canvasW"]')?.value);
+        const availW = Math.max(120, (wbCanvasEl.clientWidth || 380) - 2);
+        const cw = cwRaw > 0 ? cwRaw : availW;
+        const ch2 = Math.max(60, parseFloat(popup.querySelector('input[data-field="canvasH"]')?.value) || 140);
+        wbCanvasEl.style.height = (ch2 + 2) + "px";
+        const inner2 = document.createElement("div");
+        inner2.style.cssText = "position:relative;width:" + Math.max(60, cw) + "px;height:" + ch2 + "px;" +
+          "background-image:linear-gradient(var(--sd-bg-3) 1px,transparent 1px),linear-gradient(90deg,var(--sd-bg-3) 1px,transparent 1px);background-size:16px 16px";
+        wbCanvasEl.appendChild(inner2);
+        wbEls.forEach((el2, idx2) => {
+          const box = document.createElement("div");
+          const bw2 = Number(el2.w) > 0 ? Number(el2.w) : 64;
+          const bh2 = Number(el2.h) > 0 ? Number(el2.h) : 28;
+          box.style.cssText = "position:absolute;left:" + (Number(el2.x) || 0) + "px;top:" + (Number(el2.y) || 0) + "px;width:" + bw2 + "px;height:" + bh2 + "px;" +
+            "border:1px solid var(--sd-accent-2);border-radius:4px;background:var(--sd-bg-4);color:var(--sd-text-2);font-size:10px;" +
+            "display:flex;flex-direction:column;gap:1px;align-items:center;justify-content:center;cursor:move;user-select:none;overflow:hidden;box-sizing:border-box;padding:2px";
+          _wbFillBox(box, el2, Number(el2.size) > 0 ? Number(el2.size) : 0);
+          const handle = document.createElement("div");
+          handle.style.cssText = "position:absolute;right:0;bottom:0;width:12px;height:12px;cursor:nwse-resize;background:var(--sd-accent);opacity:.75;border-radius:6px 0 4px 0";
+          box.appendChild(handle);
+          let dragMode = null, moved = false, sx = 0, sy = 0, ox = 0, oy = 0, ow2 = 0, oh2 = 0;
+          const onMove = (ev3) => {
+            const dx = ev3.clientX - sx, dy = ev3.clientY - sy;
+            if (dx || dy) moved = true;
+            if (dragMode === "move") {
+              el2.x = Math.max(0, _wbSnap(ox + dx));
+              el2.y = Math.max(0, _wbSnap(oy + dy));
+              box.style.left = el2.x + "px";
+              box.style.top = el2.y + "px";
+            } else if (dragMode === "resize") {
+              el2.w = Math.max(16, _wbSnap(ow2 + dx));
+              el2.h = Math.max(14, _wbSnap(oh2 + dy));
+              box.style.width = el2.w + "px";
+              box.style.height = el2.h + "px";
+            }
+          };
+          const onUp = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+            if (dragMode) {
+              dragMode = null;
+              wbSync();
+              if (moved) wbRender();
+              else _wbFocusRow(idx2);
+            }
+          };
+          box.addEventListener("mousedown", (ev3) => {
+            if (ev3.target === handle) return;
+            ev3.preventDefault();
+            dragMode = "move"; moved = false; sx = ev3.clientX; sy = ev3.clientY;
+            ox = Number(el2.x) || 0; oy = Number(el2.y) || 0;
+            window.addEventListener("mousemove", onMove);
+            window.addEventListener("mouseup", onUp);
+          });
+          handle.addEventListener("mousedown", (ev3) => {
+            ev3.preventDefault();
+            ev3.stopPropagation();
+            dragMode = "resize"; moved = false; sx = ev3.clientX; sy = ev3.clientY;
+            ow2 = bw2; oh2 = bh2;
+            window.addEventListener("mousemove", onMove);
+            window.addEventListener("mouseup", onUp);
+          });
+          inner2.appendChild(box);
+        });
+      } else {
+        const colsRaw = parseInt(popup.querySelector('input[data-field="columns"]')?.value);
+        const cols2 = Math.max(1, colsRaw > 0 ? colsRaw : (Number(w.columns) || 3));
+        const gvRaw = popup.querySelector('input[data-field="gap"]')?.value;
+        const gap2 = (gvRaw === "" || gvRaw == null) ? (Number(w.gap) || 6) : Math.max(0, parseFloat(gvRaw) || 0);
+        wbCanvasEl.style.height = "";
+        const inner2 = document.createElement("div");
+        inner2.style.cssText = "position:relative;display:grid;grid-template-columns:repeat(" + cols2 + ",1fr);gap:" + gap2 + "px;padding:8px";
+        wbCanvasEl.appendChild(inner2);
+        let dragFrom = -1;
+        wbEls.forEach((el2, idx2) => {
+          const box = document.createElement("div");
+          box.draggable = true;
+          box.style.cssText = "position:relative;min-height:34px;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg-4);color:var(--sd-text-2);font-size:10px;" +
+            "display:flex;flex-direction:column;gap:1px;align-items:center;justify-content:center;cursor:grab;user-select:none;overflow:hidden;box-sizing:border-box;padding:3px";
+          _wbFillBox(box, el2, Number(el2.size) > 0 ? Number(el2.size) : 0);
+          box.addEventListener("click", () => _wbFocusRow(idx2));
+          box.addEventListener("dragstart", (ev3) => {
+            dragFrom = idx2;
+            ev3.dataTransfer.effectAllowed = "move";
+            try { ev3.dataTransfer.setData("text/plain", String(idx2)); } catch (e2) {  }
+          });
+          box.addEventListener("dragover", (ev3) => {
+            ev3.preventDefault();
+            box.style.borderColor = "var(--sd-accent)";
+          });
+          box.addEventListener("dragleave", () => {
+            box.style.borderColor = String(el2.color ?? "").trim() || "var(--sd-border)";
+          });
+          box.addEventListener("drop", (ev3) => {
+            ev3.preventDefault();
+            if (dragFrom < 0 || dragFrom === idx2) { dragFrom = -1; return; }
+            const mv2 = wbEls.splice(dragFrom, 1)[0];
+            wbEls.splice(idx2, 0, mv2);
+            dragFrom = -1;
+            wbRender();
+          });
+          inner2.appendChild(box);
+        });
+      }
+    };
+
+    const wbRender = () => {
+      wbSync();
+      wbRowsEl.innerHTML = "";
+      if (!wbEls.length) {
+        wbRowsEl.innerHTML = "<div style='font-size:10px;color:var(--sd-text-3);font-style:italic'>No elements yet &mdash; click + Add Element</div>";
+        wbCanvasRender();
+        return;
+      }
+      wbEls.forEach((el2, idx) => {
+        const row2 = document.createElement("div");
+        row2.style.cssText = "border:1px solid var(--sd-border);border-radius:5px;padding:6px;margin-bottom:6px;background:var(--sd-bg)";
+        row2.dataset.wbIdx = String(idx);
+        const name = String(el2.name ?? "");
+        const dup = wbNameDup(name.trim(), idx);
+        row2.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 96px 22px;gap:4px;align-items:center;margin-bottom:4px">
+            <input type="text" class="wb-name" value="${esc(name)}" placeholder="Element name (required, unique)"
+              style="background:var(--sd-bg-4);border:1px solid ${dup ? "var(--sd-danger,#e05555)" : "var(--sd-border)"};border-radius:3px;color:var(--sd-text);font-size:11px;padding:3px 6px;width:100%"
+              title="${dup ? "This name is already used by another element" : ""}">
+            <select class="wb-kind" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
+              ${["button","value","icon","image","label"].map(k2 => `<option value="${k2}" ${String(el2.kind ?? "button") === k2 ? "selected" : ""}>${k2}</option>`).join("")}
+            </select>
+            <button type="button" class="wb-del" title="Remove element" style="background:none;border:none;color:var(--sd-danger-dim);cursor:pointer;font-size:13px;padding:0;line-height:1">&#10005;</button>
+          </div>
+          ${dup ? `<div style="font-size:9px;color:var(--sd-danger,#e05555);margin:-2px 0 4px 0">Duplicate name &mdash; element names must be unique</div>` : ""}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">
+            <input type="text" class="wb-label" value="${esc(String(el2.label ?? ""))}" placeholder="Label / text"
+              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;width:100%">
+            <input type="text" class="wb-icon" value="${esc(String(el2.icon ?? ""))}" placeholder="Icon (fa-bolt)"
+              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;width:100%">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">
+            <input type="text" class="wb-img" value="${esc(String(el2.img ?? ""))}" placeholder="Image path (icons/svg/aura.svg)"
+              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;width:100%">
+            <input type="text" class="wb-color" value="${esc(String(el2.color ?? ""))}" placeholder="Color (#7be07a)"
+              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;width:100%">
+          </div>
+          <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
+            <input type="text" class="wb-formula" value="${esc(String(el2.formula ?? ""))}" placeholder="Value formula, e.g. {system.resources.hp.value} (for value kind)"
+              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;flex:1;min-width:0;font-family:'Courier New',monospace">
+            ${String(el2.kind ?? "button") === "value" ? `<button type="button" class="wb-vout" title="Create a Custom Output node named after this element in the shared widget graph and open the graph. Wire any value into that node and save the graph - this element will display it."
+              style="flex-shrink:0;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:3px 8px;white-space:nowrap;line-height:1">&#8853; Output Node${(w.wbOutputs && Object.prototype.hasOwnProperty.call(w.wbOutputs, name.trim())) ? " &#10003;" : ""}</button>` : ""}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:4px">
+            <input type="number" class="wb-x" value="${esc(String(el2.x ?? ""))}" placeholder="X" title="X position (px, free layout)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
+            <input type="number" class="wb-y" value="${esc(String(el2.y ?? ""))}" placeholder="Y" title="Y position (px, free layout)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
+            <input type="number" class="wb-w" value="${esc(String(el2.w ?? ""))}" placeholder="W" title="Width (px, empty = auto)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
+            <input type="number" class="wb-h" value="${esc(String(el2.h ?? ""))}" placeholder="H" title="Height (px, empty = auto)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
+            <input type="number" class="wb-size" value="${esc(String(el2.size ?? ""))}" placeholder="Font" title="Font / icon size (px)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label style="display:flex;gap:4px;align-items:center;font-size:10px;color:var(--sd-text-2);cursor:pointer">
+              <input type="checkbox" class="wb-click" ${el2.clickable ? "checked" : ""}> Clickable
+            </label>
+            <button type="button" class="wb-event" ${el2.clickable && name.trim() ? "" : "disabled"}
+              style="background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:3px 8px;line-height:1;opacity:${el2.clickable && name.trim() ? "1" : ".4"}">
+              &#9889; Create On Click Event
+            </button>
+            <span style="font-size:9px;color:var(--sd-text-3);font-family:monospace">${el2.clickable && name.trim() ? esc("On Click " + name.trim()) : ""}</span>
+          </div>`;
+        const upd = (cls, keyName, isCheck) => {
+          const inpEl = row2.querySelector(cls);
+          if (!inpEl) return;
+          inpEl.addEventListener(isCheck ? "change" : "input", () => {
+            wbEls[idx][keyName] = isCheck ? inpEl.checked : inpEl.value;
+            wbSync();
+            if (isCheck) wbRender();
+          });
+          if (keyName === "name") inpEl.addEventListener("change", () => wbRender());
+        };
+        upd(".wb-name", "name", false);
+        upd(".wb-label", "label", false);
+        upd(".wb-icon", "icon", false);
+        upd(".wb-img", "img", false);
+        upd(".wb-color", "color", false);
+        upd(".wb-formula", "formula", false);
+        upd(".wb-click", "clickable", true);
+        const updNum = (cls, keyName) => {
+          const inpEl = row2.querySelector(cls);
+          if (!inpEl) return;
+          inpEl.addEventListener("input", () => {
+            const v2 = inpEl.value;
+            wbEls[idx][keyName] = v2 === "" ? "" : (parseFloat(v2) || 0);
+            wbSync();
+            wbCanvasRender();
+          });
+        };
+        updNum(".wb-x", "x");
+        updNum(".wb-y", "y");
+        updNum(".wb-w", "w");
+        updNum(".wb-h", "h");
+        updNum(".wb-size", "size");
+        row2.querySelector(".wb-kind")?.addEventListener("change", ev2 => {
+          wbEls[idx].kind = ev2.target.value;
+          wbSync();
+          wbRender();
+        });
+        row2.querySelector(".wb-del")?.addEventListener("click", () => {
+          wbEls.splice(idx, 1);
+          wbRender();
+        });
+        row2.querySelector(".wb-vout")?.addEventListener("click", () => {
+          const nm = String(wbEls[idx]?.name ?? "").trim();
+          if (!nm) { ui.notifications?.warn?.("Give the element a name first"); return; }
+          if (!w.graphData || !Array.isArray(w.graphData.nodes)) w.graphData = { nodes: [], edges: [], comments: [] };
+          const exists = w.graphData.nodes.some(n2 =>
+            n2?.type === "widget_output" && String(n2?.data?.name ?? "").trim() === nm);
+          if (!exists) {
+            const maxId = Math.max(0, ...w.graphData.nodes.map(n2 => {
+              const v2 = parseInt(String(n2?.id ?? "").replace(/[^0-9]/g, ""));
+              return isNaN(v2) ? 0 : v2;
+            }));
+            w.graphData.nodes.push({
+              id: String(maxId + 1),
+              type: "widget_output",
+              x: 460,
+              y: 80 + (w.graphData.nodes.length % 6) * 140,
+              data: { name: nm }
+            });
+            ui.notifications?.info?.(`Custom Output "${nm}" created - wire a value into it and save the graph`);
+          }
+          const formulaInp = popup.querySelector('input[data-field="formula"]');
+          const graph = new FormulaGraph(formulaInp, doc, w, { tab, row, w, doc });
+          graph.open();
+        });
+        row2.querySelector(".wb-event")?.addEventListener("click", () => {
+          const nm = String(wbEls[idx]?.name ?? "").trim();
+          if (!nm) return;
+          const evName = "On Click " + nm;
+          if (!w.graphData || !Array.isArray(w.graphData.nodes)) w.graphData = { nodes: [], edges: [], comments: [] };
+          const exists = w.graphData.nodes.some(n2 =>
+            n2?.type === "custom_event" && String(n2?.data?.name ?? "").trim() === evName);
+          if (!exists) {
+            const maxId = Math.max(0, ...w.graphData.nodes.map(n2 => {
+              const v2 = parseInt(String(n2?.id ?? "").replace(/[^0-9]/g, ""));
+              return isNaN(v2) ? 0 : v2;
+            }));
+            w.graphData.nodes.push({
+              id: String(maxId + 1),
+              type: "custom_event",
+              x: 80,
+              y: 80 + (w.graphData.nodes.length % 6) * 140,
+              data: { name: evName }
+            });
+            ui.notifications?.info?.(`Custom Event "${evName}" created - wire its exec chain in the graph and save it`);
+          }
+          const formulaInp = popup.querySelector('input[data-field="formula"]');
+          const graph = new FormulaGraph(formulaInp, doc, w, { tab, row, w, doc });
+          graph.open();
+        });
+        wbRowsEl.appendChild(row2);
+      });
+      wbCanvasRender();
+    };
+
+    popup.querySelector("#wcfg-wb-add")?.addEventListener("click", () => {
+      wbEls.push({
+        id: foundry.utils.randomID(6),
+        name: "Btn" + (wbEls.length + 1),
+        kind: "button",
+        label: "",
+        icon: "",
+        img: "",
+        color: "",
+        formula: "",
+        x: 8 + (wbEls.length % 4) * 76,
+        y: 8 + Math.floor(wbEls.length / 4) * 36,
+        w: "",
+        h: "",
+        size: "",
+        clickable: true
+      });
+      wbRender();
+    });
+
+    wbRender();
+
+    popup.querySelector('select[data-field="wbLayout"]')?.addEventListener("change", () => wbCanvasRender());
+    popup.querySelector('input[data-field="canvasW"]')?.addEventListener("input", () => wbCanvasRender());
+    popup.querySelector('input[data-field="canvasH"]')?.addEventListener("input", () => wbCanvasRender());
+    popup.querySelector('input[data-field="columns"]')?.addEventListener("input", () => wbCanvasRender());
+    popup.querySelector('input[data-field="gap"]')?.addEventListener("input", () => wbCanvasRender());
+    popup.querySelectorAll(".wcfg-tab-btn").forEach(b2 => b2.addEventListener("click", () => setTimeout(wbCanvasRender, 0)));
+  }
+
   popup.querySelectorAll("[data-open-graph]").forEach(btn => {
     btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-glow)");
     btn.addEventListener("mouseleave", () => btn.style.background = "var(--sd-bg-4)");
@@ -1176,6 +1601,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         delete widget.step;
       } else if (widget.type === "number") {
         widget.numberMode = "classic";
+      }
+      if (widget.type === "resource" && widget.resourceMode !== "node") {
+        widget.resourceMode = "classic";
       }
 
       if (widget.type === "slot" && widget.slotId != null && String(widget.slotId).trim() !== "") {

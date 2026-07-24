@@ -41,10 +41,17 @@ export function SlotContentField() {
 
 export class SlotManager {
 
+  /** Coerce checkbox/select-style config values ("yes"/"true"/1/true) to a boolean. */
+  static _coerceBool(v) {
+    if (v === true || v === 1) return true;
+    const s = String(v ?? "").trim().toLowerCase();
+    return s === "true" || s === "yes" || s === "on" || s === "1" || s === "checked";
+  }
+
   static _slotAutoEquip(parentDoc, sid) {
     const scan = (widgets) => {
       for (const w of widgets ?? []) {
-        if (w?.type === "slot" && String(w.slotId ?? "") === sid && w.autoEquip) return true;
+        if (w?.type === "slot" && String(w.slotId ?? "") === sid && SlotManager._coerceBool(w.autoEquip)) return true;
         if (w?.type === "vsection" && scan(w.widgets)) return true;
       }
       return false;

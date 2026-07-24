@@ -27,7 +27,7 @@ export class FormulaEngine {
       result = result.replace(/\b([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*){1,})\b/gi, (match) => {
         if (/^\d+d\d+/i.test(match)) return match;
         if (/^(Math|floor|ceil|round|abs|max|min)$/.test(match)) return match;
-        const val = this._asScalar(foundry.utils.getProperty(doc, match));
+        const val = this._asScalar(this._readDocProperty(doc, match));
         if (val !== undefined && val !== null && typeof val !== "object") {
           console.debug(`SD | Formula: bare path "${match}" resolved to ${val}. Wrap in {curly braces} for clarity.`);
           return this._safeLiteral(val, true);
@@ -133,6 +133,10 @@ export class FormulaEngine {
     }
 
     const t = String(w.type ?? "");
+
+    // Action / decoration widgets produce no value output: the
+    // system.widgetFields.<key>.value field does not exist for them.
+    if (t === "button" || t === "rollButton" || t === "cardDrawButton" || t === "section" || t === "vsection" || t === "widgetBuilder") return undefined;
 
     if (t === "derived" || t === "calc" || t === "computed") {
       const v = this.evaluate(w.formula ?? "0", owner);
@@ -269,15 +273,29 @@ export class FormulaEngine {
 
   static _findWidgetByKey(doc, key) {
     if (!key) return null;
-    const want = String(key);
+    const want = String(key).trim();
+    if (!want) return null;
+    const wantLc = want.toLowerCase();
 
-    const _walk = (list, byLabel = false) => {
+    // Match passes: 0 = exact widgetKey, 1 = exact label,
+    // 2 = case-insensitive widgetKey, 3 = case-insensitive label.
+    // The case-insensitive passes let {widget:derived2} and
+    // system.widgetFields.derived2.value find a widget labeled "Derived2".
+    const _match = (w, mode) => {
+      const k = String(w.widgetKey ?? "").trim();
+      const l = String(w.label ?? "").trim();
+      if (mode === 0) return k !== "" && k === want;
+      if (mode === 1) return l !== "" && l === want;
+      if (mode === 2) return k !== "" && k.toLowerCase() === wantLc;
+      return l !== "" && l.toLowerCase() === wantLc;
+    };
+
+    const _walk = (list, mode) => {
       if (!Array.isArray(list)) return null;
       for (const w of list) {
         if (!w) continue;
-        if (!byLabel && w.widgetKey === want) return w;
-        if (byLabel && String(w.label ?? "") === want) return w;
-        const nested = _walk(w.widgets, byLabel);
+        if (_match(w, mode)) return w;
+        const nested = _walk(w.widgets, mode);
         if (nested) return nested;
       }
       return null;
@@ -285,10 +303,10 @@ export class FormulaEngine {
 
     const _scan = (doc) => {
       const tabs = doc?.system?.customTabs ?? [];
-      for (const byLabel of [false, true]) {
+      for (const mode of [0, 1, 2, 3]) {
         for (const tab of tabs) {
           for (const row of (tab.rows ?? [])) {
-            const hit = _walk(row.widgets, byLabel);
+            const hit = _walk(row.widgets, mode);
             if (hit) return hit;
           }
         }
@@ -314,6 +332,36 @@ export class FormulaEngine {
         if (w) return w;
       }
     }
+
+    // Diagnostics: report once per missing key which widgets ARE visible, so
+    // broken {system.widgetFields...} / {widget:...} refs are easy to debug.
+    try {
+      const missed = FormulaEngine._sdMissWarned ?? (FormulaEngine._sdMissWarned = new Set());
+      const missKey = `${doc?.uuid ?? doc?.id ?? "?"}|${want}`;
+      if (!missed.has(missKey)) {
+        missed.add(missKey);
+        const names = [];
+        const _collect = (list) => {
+          if (!Array.isArray(list)) return;
+          for (const ww of list) {
+            if (!ww) continue;
+            const nm = String(ww.widgetKey ?? "").trim() || String(ww.label ?? "").trim();
+            if (nm) names.push(`"${nm}" (${String(ww.type ?? "?")})`);
+            _collect(ww.widgets);
+          }
+        };
+        const _collectDoc = (d) => {
+          for (const tab of (d?.system?.customTabs ?? [])) {
+            for (const row of (tab.rows ?? [])) _collect(row.widgets);
+          }
+        };
+        _collectDoc(doc);
+        if (doc?.actor && doc.actor !== doc) _collectDoc(doc.actor);
+        const items = Array.isArray(doc?.items) ? doc.items : (doc?.items?.contents ?? []);
+        for (const it of items) _collectDoc(it);
+        console.warn(`[sd] widgetFields: widget "${want}" not found on "${doc?.name ?? "?"}". Widgets visible here: ${names.join(", ") || "(none)"}`);
+      }
+    } catch (err) { /* never break formula resolution */ }
     return null;
   }
 
@@ -381,6 +429,31 @@ export class FormulaEngine {
       if (prop === "ids")   return list.map(i => i.id).join(",");
       if (prop === "uuids") return list.map(i => i.uuid ?? i.id).join(",");
       return list.map(i => i.name).join(",");
+    }
+    if (String(w.type ?? "") === "widgetBuilder") {
+      if (prop === "label") return String(w.label ?? "");
+      const outs = (w.wbOutputs && typeof w.wbOutputs === "object") ? w.wbOutputs : null;
+      let elKey = String(prop ?? "");
+      if (elKey.endsWith(".value")) elKey = elKey.slice(0, -".value".length);
+      let f = outs ? outs[elKey] : undefined;
+      if (f === undefined && outs) {
+        const elLc = elKey.trim().toLowerCase();
+        for (const k2 of Object.keys(outs)) {
+          if (String(k2).trim().toLowerCase() === elLc) { f = outs[k2]; break; }
+        }
+      }
+      if (typeof f === "string" && f.trim() !== "") {
+        let raw = f.trim();
+        if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
+          try { raw = String(JSON.parse(raw)); } catch (err) { raw = raw.slice(1, -1); }
+        }
+        try {
+          const v2 = this.evaluate(raw, owner);
+          if (v2 !== undefined && v2 !== null && !(typeof v2 === "string" && String(v2).startsWith("!err"))) return v2;
+        } catch (err) { /* fall through to text resolution */ }
+        try { return String(this._resolveRefs?.(raw, owner) ?? raw); } catch (err) { return raw; }
+      }
+      return undefined;
     }
     const v = w[prop];
     if (v === undefined || v === null) return 0;
@@ -990,7 +1063,7 @@ export class FormulaEngine {
       const path    = rest.slice(dotIdx + 1);
       const actor   = doc instanceof Actor ? doc : doc.actor;
       const item    = actor?.items?.get(itemId);
-      return item ? (foundry.utils.getProperty(item, path) ?? 0) : 0;
+      return item ? (this._readDocProperty(item, path) ?? 0) : 0;
     }
 
     if (token.startsWith("item:")) {
@@ -1001,7 +1074,7 @@ export class FormulaEngine {
       const path    = rest.slice(dotIdx + 1);
       const actor   = doc instanceof Actor ? doc : doc.actor;
       const item    = actor?.items?.find(i => i.name.toLowerCase() === name);
-      return item ? (foundry.utils.getProperty(item, path) ?? 0) : 0;
+      return item ? (this._readDocProperty(item, path) ?? 0) : 0;
     }
 
     if (token.startsWith("slotCount:")) {
@@ -1202,7 +1275,7 @@ export class FormulaEngine {
       if (!actor) return 0;
       const catItems = [...(actor.items ?? [])].filter(i => i.system?.category === category);
       const item     = catItems[idx];
-      return item ? (foundry.utils.getProperty(item, path) ?? 0) : 0;
+      return item ? (this._readDocProperty(item, path) ?? 0) : 0;
     }
 
     if (token.startsWith("target.")) {
@@ -1211,7 +1284,7 @@ export class FormulaEngine {
         ? (game.user?.targets?.first()?.actor ?? canvas?.tokens?.controlled?.[0]?.actor ?? null)
         : null;
       if (!tActor) return 0;
-      const v = foundry.utils.getProperty(tActor, path);
+      const v = this._readDocProperty(tActor, path);
       if (v === undefined || v === null || typeof v === "object") return 0;
       return v;
     }
@@ -1226,7 +1299,7 @@ export class FormulaEngine {
       const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tokenId) : null;
       const a  = tk?.actor;
       if (!a) return 0;
-      const v = foundry.utils.getProperty(a, path);
+      const v = this._readDocProperty(a, path);
       if (v === undefined || v === null || typeof v === "object") return 0;
       return v;
     }
@@ -1258,7 +1331,7 @@ export class FormulaEngine {
         const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
         const a  = tk?.actor;
         if (!a) { out.push(""); continue; }
-        const v = foundry.utils.getProperty(a, path);
+        const v = this._readDocProperty(a, path);
         out.push(v === undefined || v === null || typeof v === "object" ? "" : String(v));
       }
       return out.join(",");
@@ -2191,11 +2264,11 @@ export class FormulaEngine {
 
     if (token === "random") return Math.random();
 
-    const val = this._asScalar(foundry.utils.getProperty(doc, token));
+    const val = this._asScalar(this._readDocProperty(doc, token));
     if (val !== undefined && val !== null && typeof val !== "object") return val;
     const _actor2 = (doc instanceof Actor) ? null : (doc?.actor ?? null);
     if (_actor2) {
-      const val2 = this._asScalar(foundry.utils.getProperty(_actor2, token));
+      const val2 = this._asScalar(this._readDocProperty(_actor2, token));
       if (val2 !== undefined && val2 !== null && typeof val2 !== "object") return val2;
     }
     if (val !== undefined && val !== null) return 0;

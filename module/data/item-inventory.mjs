@@ -79,7 +79,7 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
       const cat = source.category ?? "gear";
       source.equippable = ["weapon","armor","shield","tool"].includes(cat);
     }
-    if (source?.equippable && !(source.hiddenFields?.equippable)) {
+    if (source?.equippable && source.hiddenFields?.equippable === undefined) {
       source.hiddenFields ??= {};
       source.hiddenFields.equippable = true;
     }
@@ -89,7 +89,7 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
   prepareDerivedData() {
     super.prepareDerivedData();
     const hfEq = this.hiddenFields?.equippable;
-    if (hfEq !== undefined) this.equippable = !!hfEq;
+    if (hfEq !== undefined) this.equippable = !(hfEq === false || hfEq === "false" || hfEq === 0 || hfEq === "0" || hfEq === "" || hfEq === null);
     this.totalWeight = this.weight * this.quantity;
     this.totalValue  = this.price  * this.quantity;
     for (const def of (this.slotDefinitions ?? [])) {

@@ -25,6 +25,7 @@ import { QuestLogData }        from "./module/data/item-questlog.mjs";
 
 import { SDActor }       from "./module/documents/actor.mjs";
 import { SDItem }        from "./module/documents/item.mjs";
+import { SDActiveEffect } from "./module/documents/active-effect.mjs";
 
 import { exposeAutoanimationsIntegration } from "./module/integrations/autoanimations.mjs";
 
@@ -138,6 +139,7 @@ Hooks.once("init", () => {
 
   CONFIG.Actor.documentClass = SDActor;
   CONFIG.Item.documentClass  = SDItem;
+  CONFIG.ActiveEffect.documentClass = SDActiveEffect;
 
   CONFIG.Actor.dataModels = {
     character: CharacterData,

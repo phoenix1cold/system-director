@@ -21,7 +21,9 @@ const HOOK_MAP = {
 
   sdVisionDetect:     ["sdVisionDetect"],
 
-  sdMacroUse:         ["sdMacroUse"]
+  sdMacroUse:         ["sdMacroUse"],
+
+  sdCustomEvent:      ["sdCustomEvent"]
 };
 
 function _installCombatHookBridge() {
@@ -287,6 +289,7 @@ class EventBus {
         || h === "createCard" || h === "combatTurnStart" || h === "combatTurnEnd"
         || h === "combatEncounterStart" || h === "combatEncounterEnd"
         || h === "sdMacroUse"
+        || h === "sdCustomEvent"
         || QUEST_HOOKS.has(h);
 
       for (const hookName of foundryHooks) {
@@ -432,6 +435,16 @@ class EventBus {
         if (!payload || payload.actorId !== entry.actorId) return false;
         return true;
       }
+      case "sdCustomEvent": {
+        const payload = firstDoc ?? {};
+        const want = String(entry.data?.name ?? "").trim();
+        if (!want || want !== String(payload?.name ?? "").trim()) return false;
+        if (payload?.scope === "global") return true;
+        const pActor = String(payload?.actorId ?? "");
+        if (!pActor) return true;
+        return String(entry.actorId ?? "") === pActor;
+      }
+
       case "sdMacroUse": {
         const payload = firstDoc ?? {};
         const filter = String(entry.data?.macroFilter ?? "").trim();
@@ -697,6 +710,14 @@ class EventBus {
         rt.__eventItemName = item?.name ?? "";
         break;
       }
+      case "sdCustomEvent": {
+        const payload = args[0] ?? {};
+        rt.__customEventName       = String(payload?.name ?? "");
+        rt.__customEventPayload    = payload?.payload ?? "";
+        rt.__customEventSourceUuid = String(payload?.sourceUuid ?? "");
+        break;
+      }
+
       case "sdMacroUse": {
         const payload = args[0] ?? {};
         rt.__macroId       = String(payload.macroId     ?? "");

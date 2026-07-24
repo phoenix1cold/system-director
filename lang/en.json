@@ -1,5 +1,35 @@
 {
   "SD": {
+    "CustomEvents": {
+      "DupName": "This name is already used by another Custom Event node"
+    },
+    "GraphDebug": {
+      "Button": "Debug",
+      "ButtonHint": "Debug: dry-run the graph through every execution path and value chain, and mark where each path ends, loops, or fails with an error",
+      "Title": "Graph Debug \u2014 dry run",
+      "Close": "Close debug",
+      "SummaryEntries": "Entry points: {count}",
+      "SummaryValueSinks": "value outputs: {count}",
+      "SummaryPaths": "paths: {count}",
+      "SummaryDone": "completed: {count}",
+      "SummaryErrors": "errors: {count}",
+      "SummaryCycles": "cycles: {count}",
+      "NoEntries": "No entry points (event / trigger / unwired exec start) and no value outputs.",
+      "NoPaths": "No executable paths or value chains. Add an event/trigger and connect an exec output, or wire nodes into a value output.",
+      "Path": "Path {num}",
+      "ValuePath": "Value chain {num}",
+      "ErrorAt": "Error at \u201c{node}\u201d: {msg}",
+      "CycleAt": "Cycle \u2014 re-entered \u201c{node}\u201d",
+      "EndedAt": "Finished at \u201c{node}\u201d",
+      "ValueOkAt": "Value chain evaluated up to \u201c{node}\u201d",
+      "BrokenWire": "Broken wire: target node not found",
+      "UnknownNodeType": "Unknown node type \u201c{type}\u201d",
+      "BadgeError": "Debug: error \u2014 {msg}",
+      "BadgeEnd": "Debug: execution path ends here",
+      "BadgeOk": "Debug: compiled and passed OK",
+      "BadgeValue": "Debug: value chain evaluated OK",
+      "BadgeUnreachable": "Debug: not reachable from any entry point"
+    },
     "ActorName": "Actor Name",
     "ItemName": "Item Name",
     "Equipped": "Equipped",

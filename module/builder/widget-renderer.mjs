@@ -292,9 +292,11 @@ export class WidgetRenderer {
   }
 
   static _render_resource(w, doc) {
+    const nodeMode = w.resourceMode === "node";
     const val      = (n => Number.isFinite(n) ? n : 0)(Number(this._get(doc, w.pathValue, 0)));
-    const max      = (n => Number.isFinite(n) ? n : 0)(Number(this._get(doc, w.pathMax,   0)));
-    const ratioRaw = max > 0 ? val / max : 0;
+    const max      = (n => Number.isFinite(n) ? n : 0)(Number(nodeMode ? this._numberSpec(w.maxFormula, doc, 0) : this._get(doc, w.pathMax, 0)));
+    const minB     = nodeMode ? (n => Number.isFinite(n) ? n : 0)(Number(this._numberSpec(w.minFormula, doc, 0))) : 0;
+    const ratioRaw = (max - minB) > 0 ? (val - minB) / (max - minB) : 0;
     const pct      = max > 0 ? Math.round(Math.clamp(ratioRaw, 0, 1) * 100) : 0;
     const pctReal  = max > 0 ? Math.round(ratioRaw * 100) : 0;
     const color    = w.color ?? "var(--sd-accent)";
@@ -1309,6 +1311,7 @@ export class WidgetRenderer {
         <span class="effect-name">${e(ef.name)}</span>
         ${dur ? `<span class="effect-dur">${e(dur)}</span>` : ""}
         <div class="effect-controls">
+          ${canEdit ? this._sdEffectModeBtn(ef, uuid, "effect-btn") : ""}
           ${canEdit ? `<button type="button" class="effect-btn" data-action="effectToggle" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
           <button type="button" class="effect-btn" data-action="effectEdit" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="Edit"><i class="fas fa-pen"></i></button>
           ${canEdit ? `<button type="button" class="effect-btn effect-btn-del" data-action="effectDelete" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="Delete"><i class="fas fa-trash"></i></button>` : ""}
@@ -1326,6 +1329,23 @@ export class WidgetRenderer {
     : `<div class="empty-list"><i class="fas fa-sparkles"></i><span>No effects</span></div>`
   }
 </div>`;
+  }
+
+  /**
+   * Build the transfer-mode cycle button for an item-owned Active Effect.
+   * Modes: transfers to actor -> on actor while equipped -> item only.
+   */
+  static _sdEffectModeBtn(ef, uuid, cls) {
+    if (ef?.parent?.documentName !== "Item") return "";
+    const aoe = !!(ef.flags?.sd?.activateOnEquip);
+    const transfers = ef.transfer !== false;
+    const m = aoe
+      ? { icon: "fa-shield-halved", color: "#d4a017", title: "Mode: on actor while equipped (click to cycle)" }
+      : transfers
+        ? { icon: "fa-arrow-right-to-bracket", color: "#3ec46e", title: "Mode: transfers to actor (click to cycle)" }
+        : { icon: "fa-lock", color: "", title: "Mode: item only (click to cycle)" };
+    const escFn = this._esc;
+    return `<button type="button" ${cls ? `class="${cls}" ` : ""}data-action="effectMode" data-effect-id="${escFn(ef.id)}" data-effect-uuid="${uuid ?? ""}" title="${m.title}"${m.color ? ` style="color:${m.color}"` : ""}><i class="fas ${m.icon}"></i></button>`;
   }
 
   static _render_spellbook(w, doc) {
@@ -1506,6 +1526,7 @@ export class WidgetRenderer {
         ${cardBody}
         ${metaPills}
         <div class="sd-item-card-actions">
+          ${canEdit ? this._sdEffectModeBtn(ef, uuid, "sd-card-btn") : ""}
           ${canEdit ? `<button type="button" class="sd-card-btn" data-action="effectToggle" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="${ef.disabled ? "Enable" : "Disable"}"><i class="fas ${eyeIcon}"></i></button>` : ""}
           <button type="button" class="sd-card-btn" data-action="effectEdit" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="Edit"><i class="fas fa-pen"></i></button>
           ${canEdit ? `<button type="button" class="sd-card-btn sd-card-btn-del" data-action="effectDelete" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="Delete"><i class="fas fa-trash"></i></button>` : ""}
@@ -1958,6 +1979,85 @@ export class WidgetRenderer {
 </div>`;
   }
 
+  static _render_widgetBuilder(w, doc) {
+    const e = (s) => this._esc(s);
+    const els = Array.isArray(w.elements) ? w.elements : [];
+    const cols = Math.max(1, Number(w.columns) || 3);
+    const gap = Number.isFinite(Number(w.gap)) ? Number(w.gap) : 6;
+    const layout = String(w.wbLayout ?? "grid") === "free" ? "free" : "grid";
+    const renderInner = (el2) => {
+      const name = String(el2?.name ?? "").trim();
+      const kind = String(el2?.kind ?? "button");
+      const lbl = e(String(el2?.label ?? "") || name);
+      const color = String(el2?.color ?? "").trim();
+      const size = Number(el2?.size) || 0;
+      const clickable = el2?.clickable === true || el2?.clickable === "true" || el2?.clickable === "yes";
+      const evName = "On Click " + name;
+      const clickAttrs = (clickable && name) ? ` data-action="wbElement" data-event-name="${e(evName)}"` : "";
+      const clickStyle = clickable ? "cursor:pointer;" : "";
+      const iconCls = e(this._faClass(String(el2?.icon ?? "")));
+      const img = String(el2?.img ?? "").trim();
+      let inner = "";
+      if (kind === "button") {
+        const accent = color || "var(--sd-accent)";
+        inner = `<button type="button"${clickAttrs} style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:transparent;border:1px solid ${e(accent)};border-radius:5px;color:${e(accent)};${clickable ? "cursor:pointer" : "cursor:default"};font-size:${size > 0 ? size : 12}px;font-weight:600">${el2?.icon ? `<i class="${iconCls}"></i>` : ""}${img ? `<img src="${e(img)}" style="width:16px;height:16px;object-fit:cover;border-radius:3px">` : ""}<span>${lbl}</span></button>`;
+      } else if (kind === "value") {
+        // Value graphs compile into a formula string; plain string results
+        // arrive as JSON literals ("123") - unwrap before evaluating.
+        const outMap = (w.wbOutputs && typeof w.wbOutputs === "object") ? w.wbOutputs : null;
+        const bound = (outMap && typeof outMap[name] === "string" && outMap[name].trim() !== "") ? outMap[name] : null;
+        let raw = bound !== null ? String(bound).trim() : String(el2?.formula ?? "").trim();
+        if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
+          try { raw = String(JSON.parse(raw)); } catch (err) { raw = raw.slice(1, -1); }
+        }
+        let val = "";
+        if (raw) {
+          let out = null;
+          try { out = FormulaEngine.evaluate(raw, doc); } catch (err) { out = null; }
+          val = (out === undefined || out === null) ? "" : String(out);
+          if (val === "" || val.startsWith("!err")) {
+            // Not numeric math - resolve {tokens} and show the text as-is.
+            let txt = raw;
+            try { txt = String(FormulaEngine._resolveRefs?.(raw, doc) ?? raw); } catch (err) { txt = raw; }
+            if (txt.length >= 2 && txt.startsWith('"') && txt.endsWith('"')) txt = txt.slice(1, -1);
+            val = txt;
+          }
+        }
+        inner = `<div${clickAttrs} style="${clickStyle}text-align:center">${lbl ? `<div class="widget-label">${lbl}</div>` : ""}<div style="font-size:${size > 0 ? size : 18}px;font-weight:700;color:${color ? e(color) : "var(--sd-text)"}">${e(val)}</div></div>`;
+      } else if (kind === "icon") {
+        inner = `<div${clickAttrs} style="${clickStyle}display:flex;flex-direction:column;align-items:center;gap:2px" title="${lbl}"><i class="${iconCls}" style="font-size:${size > 0 ? size : 20}px;color:${color ? e(color) : "var(--sd-accent)"}"></i>${el2?.label ? `<span class="widget-label">${lbl}</span>` : ""}</div>`;
+      } else if (kind === "image") {
+        const iw = Number(el2?.w) || 48;
+        const ih = Number(el2?.h) || 48;
+        inner = `<div${clickAttrs} style="${clickStyle}display:flex;flex-direction:column;align-items:center;gap:2px" title="${lbl}">${img ? `<img src="${e(img)}" style="width:${iw}px;height:${ih}px;object-fit:cover;border-radius:4px${color ? `;border:1px solid ${e(color)}` : ""}">` : `<div style="width:${iw}px;height:${ih}px;border:1px dashed var(--sd-border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--sd-border)"><i class="fas fa-image"></i></div>`}${el2?.label ? `<span class="widget-label">${lbl}</span>` : ""}</div>`;
+      } else {
+        inner = `<span${clickAttrs} style="${clickStyle}font-size:${size > 0 ? size : 12}px;color:${color ? e(color) : "var(--sd-text)"}">${lbl}</span>`;
+      }
+      return inner;
+    };
+    const emptyHint = `<div style="font-size:10px;color:var(--sd-text-3);font-style:italic">No elements yet - open the widget config and add elements</div>`;
+    if (layout === "free") {
+      const cw = Number(w.canvasW) || 0;
+      const chh = Math.max(24, Number(w.canvasH) || 140);
+      const cells = els.map(el2 => {
+        const x = Number(el2?.x) || 0;
+        const y = Number(el2?.y) || 0;
+        const ew = Number(el2?.w) || 0;
+        const eh = Number(el2?.h) || 0;
+        return `<div style="position:absolute;left:${x}px;top:${y}px;${ew > 0 ? `width:${ew}px;` : ""}${eh > 0 ? `height:${eh}px;` : ""}display:flex;align-items:center;justify-content:center;box-sizing:border-box">${renderInner(el2)}</div>`;
+      }).join("");
+      return `<div class="widget widget-builder">
+      ${w.label ? `<div class="widget-label">${e(w.label)}</div>` : ""}
+      <div style="position:relative;${cw > 0 ? `width:${cw}px;` : "width:100%;"}height:${chh}px;overflow:hidden">${els.length ? cells : emptyHint}</div>
+    </div>`;
+    }
+    const cells = els.map(el2 => `<div style="display:flex;align-items:center;justify-content:center;min-width:0">${renderInner(el2)}</div>`).join("");
+    return `<div class="widget widget-builder">
+      ${w.label ? `<div class="widget-label">${e(w.label)}</div>` : ""}
+      ${els.length ? `<div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${gap}px;align-items:center">${cells}</div>` : emptyHint}
+    </div>`;
+  }
+
   static _render_image(w, doc) {
     const esc = this._esc.bind(this);
     const fromPath = w.path ? String(this._get(doc, w.path, "")) : "";
@@ -2362,6 +2462,7 @@ export class WidgetRenderer {
       rows += `<li class="sd-hud-pop-row ${offCls}" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" data-sd-preview-ref="effect:${e(ef.id)}">
         <img src="${e(ef.img ?? ef.icon ?? 'icons/svg/aura.svg')}" alt="${e(ef.name)}">
         <span class="sd-hud-pop-name" title="${e(ef.name)}">${e(ef.name)}</span>
+        ${canEdit ? this._sdEffectModeBtn(ef, uuid, "") : ""}
         ${canEdit ? `<button type="button" data-action="effectToggle" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
       </li>`;
     }

@@ -12,6 +12,19 @@ function _loc(key, fallback) {
   return fallback;
 }
 
+// Foundry v14 deprecated the numeric #mode of ActiveEffect changes in favor of
+// the string #type. Resolve the legacy numeric mode without touching the
+// deprecated getter on v14+ (fall back to .mode only on v13 / plain objects).
+const _SD_TYPE_TO_LEGACY_MODE = { custom: 0, multiply: 1, add: 2, downgrade: 3, upgrade: 4, override: 5 };
+
+function _sdChangeModeNum(ch) {
+  const t = ch?.type;
+  if (typeof t === "string" && t && _SD_TYPE_TO_LEGACY_MODE[t.toLowerCase()] !== undefined) {
+    return _SD_TYPE_TO_LEGACY_MODE[t.toLowerCase()];
+  }
+  return Number(ch?.mode);
+}
+
 const POPUP_ID = "sd-item-preview-popup";
 
 export class ItemPreviewPopup {
@@ -453,7 +466,7 @@ export class ItemPreviewPopup {
       if (changes.length) {
         html += `<div class="sd-prog-preview-changes">`;
         for (const ch of changes) {
-          const m = Number(ch.mode);
+          const m = _sdChangeModeNum(ch);
           const sym = m === 5 ? "↑" : m === 4 ? "↓" : m === 3 ? "×" : m === 6 ? "=" : m === 1 ? "+" : m === 0 ? "⊕" : "?";
           html += `<div class="sd-prog-preview-change-row">
             <code>${_esc(ch.key ?? "")}</code>
@@ -491,7 +504,7 @@ export class ItemPreviewPopup {
         <div class="sd-prog-preview-section-title"><i class="fas fa-sliders-h"></i> ${_esc(_loc("SD.Progression.Changes", "Changes"))}</div>
         <div class="sd-prog-preview-changes">`;
       for (const ch of changes) {
-        const m = Number(ch.mode);
+        const m = _sdChangeModeNum(ch);
         const sym = m === 5 ? "↑" : m === 4 ? "↓" : m === 3 ? "×" : m === 6 ? "=" : m === 1 ? "+" : m === 0 ? "⊕" : "?";
         body += `<div class="sd-prog-preview-change-row">
           <code>${_esc(ch.key ?? "")}</code>
@@ -575,7 +588,7 @@ export class ItemPreviewPopup {
     if (changes.length) {
       body += `<div class="sd-prog-preview-changes">`;
       for (const ch of changes) {
-        const m = Number(ch.mode);
+        const m = _sdChangeModeNum(ch);
         const sym = m === 5 ? "↑" : m === 4 ? "↓" : m === 3 ? "×" : m === 6 ? "=" : m === 1 ? "+" : m === 0 ? "⊕" : "?";
         body += `<div class="sd-prog-preview-change-row">
           <code>${_esc(ch.key ?? "")}</code>
