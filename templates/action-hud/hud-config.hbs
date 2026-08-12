@@ -1,0 +1,120 @@
+<form class="sd-action-hud-config-form" autocomplete="off">
+
+  <div class="hud-type-tabs">
+    <button type="button" class="hud-type-tab {{#if isCharacter}}active{{/if}}"
+            data-action="switchType" data-type="character">
+      <i class="fas fa-user"></i> Character
+    </button>
+    <button type="button" class="hud-type-tab {{#if isNpc}}active{{/if}}"
+            data-action="switchType" data-type="npc">
+      <i class="fas fa-skull"></i> NPC
+    </button>
+  </div>
+
+  <p class="hud-help-text">
+    Each entry references an actor widget by <strong>Widget Key</strong> and is
+    placed at the absolute (X, Y) pixel position on the HUD canvas. Widget Key
+    must match the <em>Widget Key</em> field on the actor's widget for the
+    layout to pull live values. Leave Width / Height blank to use the widget's
+    default size.
+  </p>
+
+  {{#if keys.length}}
+    <details class="hud-keys-hint">
+      <summary>Available widget keys ({{keys.length}}) on existing {{activeType}} actors</summary>
+      <div class="hud-key-list">
+        {{#each keys}}
+          <code class="hud-key-pill">{{this}}</code>
+        {{/each}}
+      </div>
+    </details>
+  {{else}}
+    <div class="hud-help-warn">
+      <i class="fas fa-triangle-exclamation"></i>
+      No widget keys found on existing {{activeType}} actors yet. Open an actor
+      sheet, configure widgets in edit mode, and assign a <em>Widget Key</em>
+      to each one you want to surface on the HUD.
+    </div>
+  {{/if}}
+
+  <div class="hud-entries">
+    {{#each entries}}
+      <div class="hud-entry-row" data-idx="{{idx}}">
+        <div class="hud-entry-grid">
+          <label>Widget Key
+            <input type="text" name="entry_{{idx}}_widgetKey" value="{{widgetKey}}" list="hud-key-options"/>
+          </label>
+          <label>Label (optional)
+            <input type="text" name="entry_{{idx}}_label" value="{{label}}"/>
+          </label>
+          <label>X
+            <input type="number" name="entry_{{idx}}_x" value="{{x}}" step="1"/>
+          </label>
+          <label>Y
+            <input type="number" name="entry_{{idx}}_y" value="{{y}}" step="1"/>
+          </label>
+          <label>W
+            <input type="number" name="entry_{{idx}}_w" value="{{w}}" step="1" placeholder="auto"/>
+          </label>
+          <label>H
+            <input type="number" name="entry_{{idx}}_h" value="{{h}}" step="1" placeholder="auto"/>
+          </label>
+        </div>
+        <div class="hud-entry-opts">
+          <label class="hud-entry-scale">{{localize "SD.ActionHud.Cell.ScalePct"}}
+            <input type="number" name="entry_{{idx}}_scale" value="{{scale}}" min="25" max="400" step="5" placeholder="100"/>
+          </label>
+          {{#if hasVariants}}
+            <label class="hud-entry-variant" title="{{localize 'SD.ActionHud.Cell.VariantHint'}}">
+              {{localize "SD.ActionHud.Cell.Variant"}}
+              <select name="entry_{{idx}}_variant">
+                {{#each variantOptions}}
+                  <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                {{/each}}
+              </select>
+            </label>
+          {{else}}
+            <span class="hud-entry-variant-na" title="{{localize 'SD.ActionHud.Cell.VariantNAHint'}}">
+              <i class="fas fa-circle-info"></i> {{localize "SD.ActionHud.Cell.VariantNA"}}
+            </span>
+          {{/if}}
+          {{#if supportsHideLabel}}
+            <label class="hud-entry-hide-label">
+              <input type="hidden" name="entry_{{idx}}_hideLabel" value="0"/>
+              <input type="checkbox" name="entry_{{idx}}_hideLabel" value="1" {{#if hideLabel}}checked{{/if}}/>
+              {{localize "SD.ActionHud.Cell.HideLabel"}}
+            </label>
+          {{else}}
+            <span class="hud-entry-hide-label-na" title="{{localize 'SD.ActionHud.Cell.HideLabelNAHint'}}">
+              <i class="fas fa-circle-info"></i> {{localize "SD.ActionHud.Cell.HideLabelNA"}}
+            </span>
+          {{/if}}
+        </div>
+        <div class="hud-entry-actions">
+          <button type="button" data-action="moveUp" data-idx="{{idx}}" title="Move up">
+            <i class="fas fa-arrow-up"></i>
+          </button>
+          <button type="button" data-action="moveDown" data-idx="{{idx}}" title="Move down">
+            <i class="fas fa-arrow-down"></i>
+          </button>
+          <button type="button" data-action="removeEntry" data-idx="{{idx}}" title="Remove">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        {{#if inlineLabel}}<div class="hud-entry-inline-tag">{{inlineLabel}}</div>{{/if}}
+      </div>
+    {{/each}}
+  </div>
+
+  {{#if keys.length}}
+    <datalist id="hud-key-options">
+      {{#each keys}}<option value="{{this}}"></option>{{/each}}
+    </datalist>
+  {{/if}}
+
+  <div class="hud-config-toolbar">
+    <button type="button" data-action="addEntry"><i class="fas fa-plus"></i> Add widget</button>
+    <button type="button" data-action="save" class="btn-primary"><i class="fas fa-save"></i> Save</button>
+  </div>
+
+</form>

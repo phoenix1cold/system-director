@@ -1,0 +1,353 @@
+<section class="tab-content" data-group="sheet" data-tab="details">
+
+  {{#if isInventory}}
+
+  <div class="details-grid two-col">
+
+    <div class="detail-group">
+      <label>{{localize "SD.ItemCategories.label"}}</label>
+      <select name="system.category" {{#unless isEditable}}disabled{{/unless}}>
+        {{#each categories as |opt|}}
+        <option value="{{opt.value}}" {{#if (eq ../system.category opt.value)}}selected{{/if}}>
+          {{localize opt.label}}
+        </option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="detail-group">
+      <label>{{localize "SD.Rarity"}}</label>
+      <select name="system.rarity" {{#unless isEditable}}disabled{{/unless}}>
+        {{#each rarities as |opt|}}
+        <option value="{{opt.value}}" {{#if (eq ../system.rarity opt.value)}}selected{{/if}}>
+          {{localize opt.label}}
+        </option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="detail-group">
+      <label>{{localize "SD.Quantity"}}</label>
+      <input type="number" name="system.quantity" value="{{system.quantity}}" min="0"
+             {{#unless isEditable}}disabled{{/unless}} />
+    </div>
+
+    <div class="detail-group">
+      <label>{{localize "SD.Weight"}} (lb)</label>
+      <input type="number" name="system.weight" value="{{system.weight}}" min="0" step="0.1"
+             {{#unless isEditable}}disabled{{/unless}} />
+    </div>
+
+    <div class="detail-group">
+      <label>{{localize "SD.Price"}}</label>
+      <input type="number" name="system.price" value="{{system.price}}" min="0"
+             {{#unless isEditable}}disabled{{/unless}} />
+    </div>
+
+    <div class="detail-group checkboxes">
+      <label><input type="checkbox" name="system.equipped"
+             {{#if system.equipped}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Equipped"}}</label>
+      <label><input type="checkbox" name="system.identified"
+             {{#if system.identified}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Identified"}}</label>
+      <label><input type="checkbox" name="system.attuned"
+             {{#if system.attuned}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Attuned"}}</label>
+    </div>
+  </div>
+
+  <div class="subsection-block">
+    <div class="subsection-header">
+      <h4>{{localize "SD.Attack"}}</h4>
+      <label><input type="checkbox" name="system.attack.enabled"
+             {{#if system.attack.enabled}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Enable"}}</label>
+    </div>
+    {{#if system.attack.enabled}}
+    <div class="details-grid two-col">
+      <div class="detail-group">
+        <label>{{localize "SD.AttackType"}}</label>
+        <select name="system.attack.attackType" {{#unless isEditable}}disabled{{/unless}}>
+          <option value="melee"  {{#if (eq system.attack.attackType "melee")}}selected{{/if}}>Melee</option>
+          <option value="ranged" {{#if (eq system.attack.attackType "ranged")}}selected{{/if}}>Ranged</option>
+          <option value="thrown" {{#if (eq system.attack.attackType "thrown")}}selected{{/if}}>Thrown</option>
+        </select>
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.AttackBonus"}}</label>
+        <input type="number" name="system.attack.bonus" value="{{system.attack.bonus}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.AttackDie"}}</label>
+        <select name="system.attack.rollConfig.die" {{#unless isEditable}}disabled{{/unless}}>
+          {{#each dieOptions as |opt|}}
+          <option value="{{opt.value}}" {{#if (eq ../../system.attack.rollConfig.die opt.value)}}selected{{/if}}>{{opt.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.DamageDie"}}</label>
+        <select name="system.damage.primary.die" {{#unless isEditable}}disabled{{/unless}}>
+          {{#each dieOptions as |opt|}}
+          <option value="{{opt.value}}" {{#if (eq ../../system.damage.primary.die opt.value)}}selected{{/if}}>{{opt.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.DamageBonus"}}</label>
+        <input type="number" name="system.damage.primary.bonus"
+               value="{{system.damage.primary.bonus}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.DamageType"}}</label>
+        <input type="text" name="system.damage.type" value="{{system.damage.type}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="subsection-block">
+    <div class="subsection-header">
+      <h4>{{localize "SD.Armor"}}</h4>
+      <label><input type="checkbox" name="system.armor.enabled"
+             {{#if system.armor.enabled}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Enable"}}</label>
+    </div>
+    {{#if system.armor.enabled}}
+    <div class="details-grid two-col">
+      <div class="detail-group">
+        <label>{{localize "SD.BaseAC"}}</label>
+        <input type="number" name="system.armor.baseAC" value="{{system.armor.baseAC}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label><input type="checkbox" name="system.armor.stealthPenalty"
+               {{#if system.armor.stealthPenalty}}checked{{/if}}
+               {{#unless isEditable}}disabled{{/unless}} />
+          {{localize "SD.StealthPenalty"}}</label>
+      </div>
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="subsection-block">
+    <div class="subsection-header">
+      <h4>{{localize "SD.Uses"}}</h4>
+      <label><input type="checkbox" name="system.uses.enabled"
+             {{#if system.uses.enabled}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Enable"}}</label>
+    </div>
+    {{#if system.uses.enabled}}
+    <div class="details-grid two-col">
+      <div class="detail-group">
+        <label>{{localize "SD.UsesValue"}}</label>
+        <input type="number" name="system.uses.value" value="{{system.uses.value}}" min="0"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.UsesMax"}}</label>
+        <input type="number" name="system.uses.max" value="{{system.uses.max}}" min="0"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.RechargeOn"}}</label>
+        <select name="system.uses.per" {{#unless isEditable}}disabled{{/unless}}>
+          <option value="turn"  {{#if (eq system.uses.per "turn")}}selected{{/if}}>Turn</option>
+          <option value="round" {{#if (eq system.uses.per "round")}}selected{{/if}}>Round</option>
+          <option value="short" {{#if (eq system.uses.per "short")}}selected{{/if}}>Short Rest</option>
+          <option value="long"  {{#if (eq system.uses.per "long")}}selected{{/if}}>Long Rest</option>
+          <option value="day"   {{#if (eq system.uses.per "day")}}selected{{/if}}>Day</option>
+        </select>
+      </div>
+    </div>
+    {{/if}}
+  </div>
+
+  {{/if}}
+
+  {{#if isAbility}}
+
+  <div class="details-grid two-col">
+    <div class="detail-group">
+      <label>{{localize "SD.Category"}}</label>
+      <select name="system.category" {{#unless isEditable}}disabled{{/unless}}>
+        {{#each (array "active" "passive" "reaction" "free" "special") as |cat|}}
+        <option value="{{cat}}" {{#if (eq ../system.category cat)}}selected{{/if}}>{{capitalize cat}}</option>
+        {{/each}}
+      </select>
+    </div>
+    <div class="detail-group">
+      <label>{{localize "SD.Level"}}</label>
+      <input type="number" name="system.level.value" value="{{system.level.value}}" min="0"
+             {{#unless isEditable}}disabled{{/unless}} />
+    </div>
+    <div class="detail-group">
+      <label>{{localize "SD.Activation"}}</label>
+      <select name="system.activation.type" {{#unless isEditable}}disabled{{/unless}}>
+        {{#each (array "action" "bonus" "reaction" "minute" "hour" "special" "none") as |t|}}
+        <option value="{{t}}" {{#if (eq ../system.activation.type t)}}selected{{/if}}>{{capitalize t}}</option>
+        {{/each}}
+      </select>
+    </div>
+    <div class="detail-group">
+      <label>{{localize "SD.School"}}</label>
+      <input type="text" name="system.school" value="{{system.school}}"
+             {{#unless isEditable}}disabled{{/unless}} />
+    </div>
+  </div>
+
+  <div class="subsection-block">
+    <h4>{{localize "SD.RangeArea"}}</h4>
+    <div class="details-grid two-col">
+      <div class="detail-group">
+        <label>{{localize "SD.Range"}}</label>
+        <input type="number" name="system.range.value" value="{{system.range.value}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+        <select name="system.range.type" {{#unless isEditable}}disabled{{/unless}}>
+          {{#each (array "self" "touch" "ranged" "sight" "unlimited" "special") as |t|}}
+          <option value="{{t}}" {{#if (eq ../system.range.type t)}}selected{{/if}}>{{capitalize t}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.AreaType"}}</label>
+        <select name="system.area.type" {{#unless isEditable}}disabled{{/unless}}>
+          {{#each (array "" "cube" "cone" "cylinder" "line" "sphere" "square" "radius") as |t|}}
+          <option value="{{t}}" {{#if (eq ../system.area.type t)}}selected{{/if}}>{{#if t}}{{capitalize t}}{{else}}—{{/if}}</option>
+          {{/each}}
+        </select>
+        <input type="number" name="system.area.value" value="{{system.area.value}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection-block">
+    <h4>{{localize "SD.Duration"}}</h4>
+    <div class="details-grid two-col">
+      <div class="detail-group">
+        <input type="number" name="system.duration.value" value="{{system.duration.value}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+        <select name="system.duration.units" {{#unless isEditable}}disabled{{/unless}}>
+          {{#each (array "instant" "turn" "round" "minute" "hour" "day" "permanent" "special") as |u|}}
+          <option value="{{u}}" {{#if (eq ../system.duration.units u)}}selected{{/if}}>{{capitalize u}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="detail-group">
+        <label><input type="checkbox" name="system.duration.concentration"
+               {{#if system.duration.concentration}}checked{{/if}}
+               {{#unless isEditable}}disabled{{/unless}} />
+          {{localize "SD.Concentration"}}</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection-block">
+    <div class="subsection-header">
+      <h4>{{localize "SD.Roll.label"}}</h4>
+      <label><input type="checkbox" name="system.roll.enabled"
+             {{#if system.roll.enabled}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Enable"}}</label>
+    </div>
+    {{#if system.roll.enabled}}
+    <div class="details-grid two-col">
+      <div class="detail-group">
+        <label>{{localize "SD.Quantity"}}</label>
+        <input type="number" name="system.roll.config.quantity"
+               value="{{system.roll.config.quantity}}" min="1"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.DieType"}}</label>
+        <select name="system.roll.config.die" {{#unless isEditable}}disabled{{/unless}}>
+          {{#each dieOptions as |opt|}}
+          <option value="{{opt.value}}" {{#if (eq ../../system.roll.config.die opt.value)}}selected{{/if}}>{{opt.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.Bonus"}}</label>
+        <input type="number" name="system.roll.config.bonus"
+               value="{{system.roll.config.bonus}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.FormulaOverride"}}</label>
+        <input type="text" name="system.roll.config.formula"
+               value="{{system.roll.config.formula}}"
+               placeholder="e.g. @attr1 + 3"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="subsection-block">
+    <div class="subsection-header">
+      <h4>{{localize "SD.Damage"}}</h4>
+      <label><input type="checkbox" name="system.damage.enabled"
+             {{#if system.damage.enabled}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Enable"}}</label>
+    </div>
+    {{#if system.damage.enabled}}
+    <div class="details-grid two-col">
+      <div class="detail-group">
+        <label>{{localize "SD.DamageFormula"}}</label>
+        <input type="text" name="system.damage.formula" value="{{system.damage.formula}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.DamageType"}}</label>
+        <input type="text" name="system.damage.type" value="{{system.damage.type}}"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label><input type="checkbox" name="system.damage.healing"
+               {{#if system.damage.healing}}checked{{/if}}
+               {{#unless isEditable}}disabled{{/unless}} />
+          {{localize "SD.IsHealing"}}</label>
+      </div>
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="subsection-block">
+    <div class="subsection-header">
+      <h4>{{localize "SD.Uses"}}</h4>
+      <label><input type="checkbox" name="system.uses.enabled"
+             {{#if system.uses.enabled}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Enable"}}</label>
+    </div>
+    {{#if system.uses.enabled}}
+    <div class="details-grid two-col">
+      <div class="detail-group">
+        <label>{{localize "SD.UsesValue"}}</label>
+        <input type="number" name="system.uses.value" value="{{system.uses.value}}" min="0"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+      <div class="detail-group">
+        <label>{{localize "SD.UsesMax"}}</label>
+        <input type="number" name="system.uses.max" value="{{system.uses.max}}" min="0"
+               {{#unless isEditable}}disabled{{/unless}} />
+      </div>
+    </div>
+    {{/if}}
+  </div>
+
+  {{/if}}
+
+</section>

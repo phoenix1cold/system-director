@@ -1,0 +1,36 @@
+<section class="tab-content" data-group="sheet" data-tab="biography">
+
+  <div class="bio-columns">
+
+    <div class="bio-traits">
+      <h4 class="section-title">{{localize "SD.Biography.Appearance"}}</h4>
+      <div class="traits-grid">
+        {{#each (array "age" "gender" "height" "weight" "eyes" "hair" "skin" "faith") as |field|}}
+        <div class="trait-row">
+          <label>{{localize (concat "SD.Biography." (capitalize this))}}</label>
+          <input type="text"
+                 name="system.biography.{{this}}"
+                 value="{{lookup ../system.biography this}}"
+                 {{#unless ../isEditable}}disabled{{/unless}} />
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="bio-text">
+      <h4 class="section-title">{{localize "SD.Biography.Background"}}</h4>
+      {{editor system.biography.value
+               target="system.biography.value"
+               button=true
+               editable=isEditable
+               owner=true}}
+
+      <h4 class="section-title" style="margin-top: 1em;">{{localize "SD.Biography.Notes"}}</h4>
+      {{editor system.biography.notes
+               target="system.biography.notes"
+               button=true
+               editable=isEditable
+               owner=true}}
+    </div>
+  </div>
+</section>

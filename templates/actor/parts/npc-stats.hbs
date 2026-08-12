@@ -1,0 +1,135 @@
+<section class="tab-content" data-group="sheet" data-tab="stats">
+
+  <div class="two-col-layout">
+    <div class="col-left">
+
+      <div class="section-block">
+        <h4 class="section-title">{{localize "SD.Attributes"}}</h4>
+        <div class="attributes-grid compact">
+          {{#each attributes as |attr|}}
+          <div class="attribute-item" data-key="{{attr.key}}">
+            <label>{{attr.label}}</label>
+            <input type="number" name="system.attributes.{{attr.key}}.value"
+                   value="{{attr.value}}"
+                   {{#unless ../isEditable}}disabled{{/unless}} />
+            <div class="attr-mod" data-action="rollAttribute" data-key="{{attr.key}}">
+              {{attr.modFormatted}}
+            </div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+
+      <div class="section-block">
+        <h4 class="section-title">{{localize "SD.Combat"}}</h4>
+        <div class="combat-stats">
+          <div class="stat-group">
+            <label>{{localize "SD.Defense.Total"}}</label>
+            <span class="stat-value">{{defense.total}}</span>
+          </div>
+          <div class="stat-group">
+            <label>{{localize "SD.Initiative"}}</label>
+            <span class="stat-value">{{signedNumber system.initiative.total}}</span>
+          </div>
+        </div>
+
+        <div class="attacks-block">
+          <div class="sub-header">
+            {{localize "SD.Attacks"}}
+            {{#if isEditable}}
+            <button type="button" class="small-btn" data-action="createAttack">
+              <i class="fas fa-plus"></i>
+            </button>
+            {{/if}}
+          </div>
+          {{#each attacks as |atk|}}
+          <div class="attack-row" data-index="{{@index}}">
+            <input type="text" name="system.attacks.{{@index}}.name"
+                   value="{{atk.name}}" class="attack-name"
+                   {{#unless ../isEditable}}disabled{{/unless}} />
+            <input type="text" name="system.attacks.{{@index}}.formula"
+                   value="{{atk.formula}}" class="attack-formula"
+                   {{#unless ../isEditable}}disabled{{/unless}} />
+            <input type="number" name="system.attacks.{{@index}}.bonus"
+                   value="{{atk.bonus}}" class="attack-bonus"
+                   {{#unless ../isEditable}}disabled{{/unless}} />
+            {{#if ../isEditable}}
+            <button type="button" class="item-btn delete-btn" data-action="deleteAttack" data-index="{{@index}}">
+              <i class="fas fa-trash"></i>
+            </button>
+            {{/if}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-right">
+
+      <div class="section-block">
+        <h4 class="section-title">{{localize "SD.Classification"}}</h4>
+        <div class="classification-grid">
+          <label>{{localize "SD.CR"}}</label>
+          <input type="number" name="system.classification.cr"
+                 value="{{classification.cr}}" step="0.125" min="0"
+                 {{#unless isEditable}}disabled{{/unless}} />
+
+          <label>{{localize "SD.XPReward"}}</label>
+          <input type="number" name="system.classification.xpReward"
+                 value="{{classification.xpReward}}" min="0"
+                 {{#unless isEditable}}disabled{{/unless}} />
+
+          <label>{{localize "SD.Size"}}</label>
+          <select name="system.classification.size" {{#unless isEditable}}disabled{{/unless}}>
+            {{#each config.sizes as |label key|}}
+            <option value="{{key}}" {{#if (eq ../classification.size key)}}selected{{/if}}>
+              {{localize label}}
+            </option>
+            {{/each}}
+          </select>
+
+          <label>{{localize "SD.Type"}}</label>
+          <input type="text" name="system.classification.type"
+                 value="{{classification.type}}"
+                 {{#unless isEditable}}disabled{{/unless}} />
+
+          <label>{{localize "SD.Alignment"}}</label>
+          <input type="text" name="system.classification.alignment"
+                 value="{{classification.alignment}}"
+                 {{#unless isEditable}}disabled{{/unless}} />
+        </div>
+      </div>
+
+      <div class="section-block">
+        <h4 class="section-title">{{localize "SD.Traits"}}</h4>
+        <div class="traits-list">
+          <label>{{localize "SD.Senses"}}</label>
+          <input type="text" name="system.traits.senses"
+                 value="{{traits.senses}}"
+                 {{#unless isEditable}}disabled{{/unless}} />
+
+          <label>{{localize "SD.Languages"}}</label>
+          <div class="tag-list">
+            {{#each traits.languages as |lang|}}
+            <span class="tag">{{lang}}</span>
+            {{/each}}
+          </div>
+
+          <label>{{localize "SD.Resistances"}}</label>
+          <div class="tag-list">
+            {{#each traits.resistances as |r|}}
+            <span class="tag resistance">{{r}}</span>
+            {{/each}}
+          </div>
+
+          <label>{{localize "SD.Immunities"}}</label>
+          <div class="tag-list">
+            {{#each traits.immunities as |i|}}
+            <span class="tag immunity">{{i}}</span>
+            {{/each}}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

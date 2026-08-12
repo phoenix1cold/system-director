@@ -1,0 +1,239 @@
+.sd-chat-card,
+.sd-save-card,
+.sd-damage-card,
+.sd-heal-card,
+.sd-aoe-card,
+.sd-check-card {
+  background: #f0ebe4 !important;
+  background-image: none !important;
+  color: #191813 !important;
+  border: 1px solid #b5b3a4 !important;
+  border-top-width: 3px !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.15) !important;
+  font-family: "Signika", sans-serif !important;
+}
+
+.sd-chat-card *,
+.sd-save-card *,
+.sd-damage-card *,
+.sd-heal-card *,
+.sd-aoe-card *,
+.sd-check-card * {
+  color: #191813 !important;
+}
+
+.sd-chat-card small,
+.sd-save-card small,
+.sd-damage-card small,
+.sd-heal-card small,
+.sd-aoe-card small,
+.sd-check-card small,
+.sd-chat-card [style*="text-transform:uppercase"],
+.sd-save-card [style*="text-transform:uppercase"],
+.sd-damage-card [style*="text-transform:uppercase"],
+.sd-heal-card [style*="text-transform:uppercase"],
+.sd-aoe-card [style*="text-transform:uppercase"],
+.sd-check-card [style*="text-transform:uppercase"] {
+  color: #555 !important;
+}
+
+.sd-chat-card [style*="rgba(0,0,0,.25)"],
+.sd-save-card [style*="rgba(0,0,0,.25)"],
+.sd-damage-card [style*="rgba(0,0,0,.25)"],
+.sd-heal-card [style*="rgba(0,0,0,.25)"],
+.sd-aoe-card [style*="rgba(0,0,0,.25)"],
+.sd-check-card [style*="rgba(0,0,0,.25)"] {
+  background: rgba(0,0,0,.04) !important;
+}
+
+.sd-chat-card [style*="#2a2a3a"],
+.sd-save-card [style*="#2a2a3a"],
+.sd-damage-card [style*="#2a2a3a"],
+.sd-heal-card [style*="#2a2a3a"],
+.sd-aoe-card [style*="#2a2a3a"],
+.sd-check-card [style*="#2a2a3a"] {
+  border-color: #b5b3a4 !important;
+  background: transparent !important;
+}
+
+.sd-chat-card [style*="#1a1a2e"],
+.sd-chat-card [style*="#0d0d1a"],
+.sd-chat-card [style*="#14142a"],
+.sd-chat-card [style*="#1e1e3c"],
+.sd-chat-card [style*="#2a2a4a"],
+.sd-save-card [style*="#1a1a2e"],
+.sd-save-card [style*="#0d0d1a"],
+.sd-save-card [style*="#14142a"],
+.sd-save-card [style*="#1e1e3c"],
+.sd-save-card [style*="#2a2a4a"],
+.sd-damage-card [style*="#1a1a2e"],
+.sd-damage-card [style*="#0d0d1a"],
+.sd-damage-card [style*="#14142a"],
+.sd-damage-card [style*="#1e1e3c"],
+.sd-damage-card [style*="#2a2a4a"],
+.sd-heal-card [style*="#1a1a2e"],
+.sd-heal-card [style*="#0d0d1a"],
+.sd-heal-card [style*="#14142a"],
+.sd-heal-card [style*="#1e1e3c"],
+.sd-heal-card [style*="#2a2a4a"],
+.sd-aoe-card [style*="#1a1a2e"],
+.sd-aoe-card [style*="#0d0d1a"],
+.sd-aoe-card [style*="#14142a"],
+.sd-aoe-card [style*="#1e1e3c"],
+.sd-aoe-card [style*="#2a2a4a"],
+.sd-aoe-card [style*="#3a3a6a"],
+.sd-check-card [style*="#1a1a2e"],
+.sd-check-card [style*="#0d0d1a"],
+.sd-check-card [style*="#14142a"],
+.sd-check-card [style*="#1e1e3c"],
+.sd-check-card [style*="#2a2a4a"] {
+  background: rgba(0,0,0,.04) !important;
+  background-color: rgba(0,0,0,.04) !important;
+  border-color: #b5b3a4 !important;
+  color: #191813 !important;
+}
+
+.sd-chat-card button,
+.sd-save-card button,
+.sd-damage-card button,
+.sd-heal-card button,
+.sd-aoe-card button,
+.sd-check-card button {
+  background: #e0dcd4 !important;
+  color: #191813 !important;
+  border: 1px solid #7a7971 !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+  transition: background .12s !important;
+}
+.sd-chat-card button:hover,
+.sd-save-card button:hover,
+.sd-damage-card button:hover,
+.sd-heal-card button:hover,
+.sd-aoe-card button:hover,
+.sd-check-card button:hover {
+  background: #c9aa71 !important;
+  color: #191813 !important;
+}
+
+.sd-chat-card img,
+.sd-save-card img,
+.sd-damage-card img,
+.sd-heal-card img,
+.sd-aoe-card img,
+.sd-check-card img {
+  border-color: #7a7971 !important;
+}
+
+.dialog .sd-rdlg-mode {
+  background: #e0dcd4 !important;
+  border: 1px solid #7a7971 !important;
+  color: #191813 !important;
+}
+.dialog .sd-rdlg-mode[data-mode="normal"] {
+  border-color: #a57a4a !important;
+}
+.dialog .sd-rdlg-mode:hover {
+  background: #c9aa71 !important;
+}
+
+.dialog [id="sd-rdlg-formula"],
+.dialog [id="sd-rdlg-bonus"] {
+  color: #191813 !important;
+  background: #f0ebe4 !important;
+  border-color: #7a7971 !important;
+  font-family: monospace !important;
+}
+
+.sd-chat-aoe-card {
+  padding: 8px 10px !important;
+  border-radius: 4px !important;
+  min-width: 220px !important;
+  font-family: "Signika", sans-serif !important;
+}
+.sd-chat-aoe-header,
+.sd-chat-card header,
+.sd-save-card header,
+.sd-damage-card header,
+.sd-heal-card header,
+.sd-aoe-card header,
+.sd-check-card header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 0 6px 0 !important;
+  margin: 0 0 8px 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  background-color: transparent !important;
+  color: #191813 !important;
+  border-bottom: 1px solid #b5b3a4 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+.sd-chat-aoe-header i { opacity: .75; }
+
+.sd-chat-aoe-info {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 4px 12px !important;
+  font-size: 12px !important;
+  margin-bottom: 8px !important;
+}
+.sd-chat-aoe-info i   { width: 14px; opacity: .6; margin-right: 2px; }
+.sd-chat-aoe-half     { grid-column: span 2 !important; font-style: italic; opacity: .8; }
+
+.sd-chat-aoe-targets  {
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  margin-bottom: 8px !important;
+  max-height: 100px !important;
+  overflow-y: auto !important;
+}
+.sd-chat-aoe-results { margin-bottom: 8px !important; font-size: 12px !important; }
+
+.sd-chat-aoe-place-btn {
+  width: 100% !important;
+  padding: 8px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+}
+.sd-chat-aoe-place-btn:disabled {
+  opacity: .5 !important;
+  cursor: not-allowed !important;
+}
+
+.dialog .sd-dialog-body,
+.dialog .sd-local-save,
+.dialog .sd-check-body {
+  color: #191813 !important;
+}
+.dialog .sd-dialog-body *,
+.dialog .sd-local-save *,
+.dialog .sd-check-body * {
+  color: inherit !important;
+}
+
+.sd-chat-card,
+.sd-save-card,
+.sd-damage-card,
+.sd-heal-card,
+.sd-aoe-card,
+.sd-chat-aoe-card,
+.sd-check-card {
+  background: #f0ebe4 !important;
+  background-image: none !important;
+  background-color: #f0ebe4 !important;
+  color: #191813 !important;
+}
+.sd-chat-card [style*="linear-gradient"],
+.sd-save-card [style*="linear-gradient"],
+.sd-damage-card [style*="linear-gradient"],
+.sd-heal-card [style*="linear-gradient"],
+.sd-aoe-card [style*="linear-gradient"],
+.sd-chat-aoe-card [style*="linear-gradient"],
+.sd-check-card [style*="linear-gradient"] {
+  background: #f0ebe4 !important;
+  background-image: none !important;
+}

@@ -1,0 +1,389 @@
+<div class="sd system-config-window">
+<form class="config-form" autocomplete="off">
+
+  <div class="config-body">
+
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-chart-bar"></i> Attributes
+        <span class="section-hint">Character attributes - add, rename, or remove</span>
+        <button type="button" class="config-add-btn" data-action="addAttribute">
+          <i class="fas fa-plus"></i> Add
+        </button>
+      </h3>
+      <div class="attr-config-grid">
+        {{#each attrEntries as |attr|}}
+        <div class="attr-config-row">
+          <span class="attr-key-badge" title="Attribute key (used in data paths like system.attributes.{{attr.key}}.value)">{{attr.key}}</span>
+          <input type="text"
+                 name="attr_label_{{attr.key}}"
+                 value="{{attr.label}}"
+                 placeholder="Display name (e.g. Strength, Power, Might)"
+                 title="Custom display name for this attribute. The key ({{attr.key}}) is unchanged." />
+          <label class="number-wrap" title="Base score applied to NEW actors only">
+            <span class="initial-lbl">Base</span>
+            <input type="number" step="1"
+                   name="attr_initial_{{attr.key}}"
+                   value="{{attr.initial}}" />
+          </label>
+          <label class="toggle-wrap">
+            <input type="checkbox"
+                   name="attr_enabled_{{attr.key}}"
+                   {{#if attr.enabled}}checked{{/if}} />
+            On
+          </label>
+          <button type="button" class="config-remove-btn"
+                  data-action="removeAttribute" data-key="{{attr.key}}"
+                  title="Remove attribute">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        {{/each}}
+      </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        Base score is the default value seeded into newly created characters and NPCs.
+        Existing actors are never modified — change a stat on an existing sheet directly.
+      </p>
+    </div>
+
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-heart-pulse"></i> Resource Bars
+        <span class="section-hint">HP, MP, Stamina and custom bars</span>
+        <button type="button" class="config-add-btn" data-action="addResource">
+          <i class="fas fa-plus"></i> Add
+        </button>
+      </h3>
+      <div class="resource-config-table resource-config-table-with-base">
+        <div class="resource-config-header">
+          <span>Key</span>
+          <span>Display Name</span>
+          <span>Color</span>
+          <span title="Starting current value for NEW actors">Base Value</span>
+          <span title="Starting maximum for NEW actors">Base Max</span>
+          <span title="Lower bound for NEW actors">Base Min</span>
+          <span>Enabled</span>
+          <span></span>
+        </div>
+        {{#each resourceEntries as |res|}}
+        <div class="resource-config-row">
+          <span class="attr-key-badge">{{res.key}}</span>
+          <input type="text"
+                 name="res_label_{{res.key}}"
+                 value="{{res.label}}"
+                 placeholder="Resource name" />
+          <input type="color"
+                 name="res_color_{{res.key}}"
+                 value="{{res.color}}"
+                 class="color-picker" />
+          <input type="number" step="1"
+                 name="res_initial_value_{{res.key}}"
+                 value="{{res.initialValue}}"
+                 class="resource-initial-input"
+                 title="Starting current value for new actors" />
+          <input type="number" step="1" min="0"
+                 name="res_initial_max_{{res.key}}"
+                 value="{{res.initialMax}}"
+                 class="resource-initial-input"
+                 title="Starting maximum for new actors" />
+          <input type="number" step="1"
+                 name="res_initial_min_{{res.key}}"
+                 value="{{res.initialMin}}"
+                 class="resource-initial-input"
+                 title="Lower bound for new actors" />
+          <label class="toggle-wrap">
+            <input type="checkbox"
+                   name="res_enabled_{{res.key}}"
+                   {{#if res.enabled}}checked{{/if}} />
+            On
+          </label>
+          <button type="button" class="config-remove-btn"
+                  data-action="removeResource" data-key="{{res.key}}"
+                  title="Remove resource">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        {{/each}}
+      </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        Base values are applied only when a NEW actor is created.
+        Editing them later does not change existing actors' resources.
+      </p>
+    </div>
+
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-coins"></i> Currency
+        <span class="section-hint">Add as many as you need (Gold, Silver, Gems…)</span>
+        <button type="button" class="config-add-btn" data-action="addCurrency">
+          <i class="fas fa-plus"></i> Add
+        </button>
+      </h3>
+      <div class="resource-config-table">
+        <div class="resource-config-header">
+          <span>Key</span>
+          <span>Display Name</span>
+          <span></span>
+        </div>
+        {{#each currencyEntries as |cur|}}
+        <div class="resource-config-row currency-config-row">
+          <span class="attr-key-badge" title="Stored at system.currency.{{cur.key}}">{{cur.key}}</span>
+          <input type="text"
+                 name="currency_label_{{cur.key}}"
+                 value="{{cur.label}}"
+                 placeholder="Display name (Gold)" />
+          <button type="button" class="config-remove-btn"
+                  data-action="removeCurrency" data-key="{{cur.key}}"
+                  title="Remove currency">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-route"></i> System Paths
+        <span class="section-hint">Defense, Initiative, Movement and other calculated core paths</span>
+        <select name="systemPathAddSection"
+                style="margin-left:auto;max-width:130px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:3px 6px;">
+          {{#each systemPathSections as |section|}}
+          <option value="{{section.section}}" {{#if section.selected}}selected{{/if}}>{{section.label}}</option>
+          {{/each}}
+        </select>
+        <button type="button" class="config-add-btn"
+                data-action="addCalcEntry">
+          <i class="fas fa-plus"></i> Add
+        </button>
+      </h3>
+      <div class="calc-config-list">
+        {{#each systemPathEntries as |entry|}}
+        <div class="calc-config-entry" style="border:1px solid var(--sd-border);border-radius:6px;padding:8px;margin-bottom:8px;background:var(--sd-bg-2,rgba(255,255,255,0.02));">
+          <div class="calc-config-entry-header" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <select name="calc_{{entry.section}}_{{entry.index}}_section" title="Path group. Stored below system.<group>.<key>" style="width:110px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:3px 6px;">
+              <option value="defense" {{#if entry.isDefense}}selected{{/if}}>Defense</option>
+              <option value="initiative" {{#if entry.isInitiative}}selected{{/if}}>Initiative</option>
+              <option value="movement" {{#if entry.isMovement}}selected{{/if}}>Movement</option>
+              <option value="other" {{#if entry.isOther}}selected{{/if}}>Other</option>
+            </select>
+            <input type="text" name="calc_{{entry.section}}_{{entry.index}}_key" value="{{entry.key}}" placeholder="key" title="Field key. Stored at {{entry.path}}" style="width:120px;font-family:monospace;" />
+            <input type="text" name="calc_{{entry.section}}_{{entry.index}}_label" value="{{entry.label}}" placeholder="Display label" style="flex:1;min-width:140px;" />
+            <label class="number-wrap" title="Default value applied to NEW actors only ({{entry.path}})" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sd-text-3);">
+              <span class="initial-lbl">Base</span>
+              <input type="number" step="1" name="calc_{{entry.section}}_{{entry.index}}_default" value="{{entry.default}}" style="width:60px;" />
+            </label>
+            <code style="font-size:10px;color:var(--sd-accent);background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;padding:2px 6px;">{{entry.path}}</code>
+            <button type="button" class="config-add-btn" data-action="editCalcGraph" data-section="{{entry.section}}" data-index="{{entry.index}}" title="Open the node-graph editor for this entry" style="font-size:10px;padding:2px 8px;">
+              <i class="fas fa-diagram-project"></i> Edit graph{{#if entry.hasGraph}} ({{entry.graphNodeCount}}){{/if}}
+            </button>
+            <button type="button" class="config-remove-btn" data-action="removeCalcEntry" data-section="{{entry.section}}" data-index="{{entry.index}}" title="Remove this entry">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+          <div class="calc-graph-hint" style="font-size:10px;color:var(--sd-text-3);font-style:italic;padding:4px 2px;">
+            Using node graph &mdash; click "Edit graph" to configure. The compiled formula sets the value at <code>{{entry.path}}</code>.
+            {{#unless entry.hasGraph}}<span style="color:var(--sd-warning,#d8a44a);">Graph is empty &mdash; falling back to Base value.</span>{{/unless}}
+          </div>
+        </div>
+        {{/each}}
+        {{#unless systemPathEntries.length}}
+        <div style="font-size:11px;color:var(--sd-text-3);font-style:italic;padding:10px 2px;">No system paths configured.</div>
+        {{/unless}}
+      </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        <strong>Base</strong> = starting value for newly created actors (existing actors keep their values).
+        Each value is calculated entirely with its <strong>node graph</strong>. New graphs start with a Number node (value 0) wired into Output.
+        Click <strong>Edit graph</strong> to build the formula visually.
+      </p>
+    </div>
+
+    <div class="config-section" style="display:none;">
+      <h3 class="config-section-title">
+        <i class="fas fa-brain"></i> AI
+        <span class="section-hint">Provider, world knowledge, events and dialogue memory</span>
+        <button type="button" class="config-add-btn" data-action="openAISettings">
+          <i class="fas fa-wand-magic-sparkles"></i> AI Settings
+        </button>
+      </h3>
+      <div class="config-field-row" style="align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="flex-shrink:0;min-width:160px;">World Knowledge</label>
+        <div style="flex:1;min-width:220px;font-size:11px;line-height:1.4;color:var(--sd-text-3);">
+          {{#if ai.hasWorldKnowledge}}
+            <span style="color:var(--sd-text-2);">{{ai.worldKnowledgePreview}}</span>
+          {{else}}
+            <span>{{ai.worldKnowledgePreview}}</span>
+          {{/if}}
+        </div>
+      </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        AI Dialogue Choices sends the default provider settings, world knowledge, world events, actor AI Bio and saved memories with dialogue requests.
+      </p>
+    </div>
+
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-calculator"></i> Mechanics
+      </h3>
+      <div class="config-field-row">
+        <label>Attribute Modifier Formula</label>
+        <select name="modifierFormula">
+          <option value="halved" {{#if (eq cfg.modifierFormula "halved")}}selected{{/if}}>
+            Halved — floor((score − 10) / 2) — D&D style
+          </option>
+          <option value="direct" {{#if (eq cfg.modifierFormula "direct")}}selected{{/if}}>
+            Direct — score is used directly as modifier
+          </option>
+          <option value="none" {{#if (eq cfg.modifierFormula "none")}}selected{{/if}}>
+            None — modifier is always 0
+          </option>
+        </select>
+      </div>
+
+      <div class="config-field-row" style="align-items:center;gap:8px;flex-wrap:wrap;">
+        <label style="flex-shrink:0;min-width:160px;">{{localize "SD.Settings.InitiativeFormula"}}</label>
+        <input type="text"
+               name="initiativeFormula"
+               value="{{initiative.formula}}"
+               placeholder="1d20"
+               style="flex:1;min-width:120px;font-family:monospace;font-size:12px;"
+               {{#if initiative.useGraph}}disabled{{/if}} />
+        <label class="checkbox-wrap" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sd-text-3);"
+               title="{{localize "SD.Settings.InitiativeUseGraphHint"}}">
+          <input type="checkbox" name="initiativeUseGraph" {{#if initiative.useGraph}}checked{{/if}} />
+          <span>{{localize "SD.Settings.InitiativeUseGraph"}}</span>
+        </label>
+        <button type="button" class="config-add-btn"
+                data-action="editInitiativeGraph"
+                title="{{localize "SD.Settings.InitiativeEditGraph"}}"
+                style="font-size:10px;padding:2px 8px;">
+          <i class="fas fa-diagram-project"></i> {{localize "SD.Settings.InitiativeEditGraph"}}{{#if initiative.hasGraph}} ({{initiative.graphNodeCount}}){{/if}}
+        </button>
+      </div>
+      {{#if initiative.useGraph}}
+      <p class="section-hint-text" style="font-size:10px;color:var(--sd-text-3);font-style:italic;">
+        <i class="fas fa-info-circle"></i>
+        {{localize "SD.Settings.InitiativeGraphActive"}}
+        {{#if initiative.compiled}}<code>{{initiative.compiled}}</code>{{/if}}
+        {{#unless initiative.hasGraph}}<span style="color:var(--sd-warning,#d8a44a);">{{localize "SD.Settings.InitiativeGraphEmpty"}}</span>{{/unless}}
+      </p>
+      {{/if}}
+
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        Rolls are configured directly on character/item sheets using the Dice Button widget.
+        Drag items onto formula fields to reference their attributes.
+      </p>
+    </div>
+
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-expand-arrows-alt"></i> UI Appearance
+      </h3>
+
+      <div class="config-field-row" style="align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="flex-shrink:0;min-width:160px;">Interface Scale</label>
+
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:220px;">
+          <span style="font-size:11px;color:var(--sd-text-3);white-space:nowrap;">50%</span>
+          <input
+            type="range"
+            id="uiScaleSlider"
+            name="uiScale"
+            value="{{cfg.uiScale}}"
+            min="50" max="200" step="5"
+            style="flex:1;accent-color:var(--sd-accent,#9a50ff);cursor:pointer;" />
+          <span style="font-size:11px;color:var(--sd-text-3);white-space:nowrap;">200%</span>
+        </div>
+
+        <span
+          id="uiScaleOutput"
+          style="min-width:48px;text-align:center;font-size:13px;font-weight:700;
+                 color:var(--sd-accent,#9a50ff);font-family:monospace;">
+          {{cfg.uiScale}}%
+        </span>
+      </div>
+
+      <p class="section-hint-text" style="margin-top:6px;">
+        <i class="fas fa-info-circle"></i>
+        Scales all sheet elements: text, inputs, buttons, borders and layout. 100% = default.
+      </p>
+
+      <div class="config-field-row sd-theme-picker-row" style="align-items:flex-start;gap:12px;flex-wrap:wrap;margin-top:12px;">
+        <label style="flex-shrink:0;min-width:160px;padding-top:6px;">{{localize "SD.Theme.Label"}}</label>
+        <div class="sd-theme-picker" style="display:flex;flex-wrap:wrap;gap:10px;flex:1;">
+          {{#each schemeEntries as |scheme|}}
+          <button type="button"
+                  class="sd-theme-swatch {{#if scheme.selected}}is-active{{/if}}"
+                  data-scheme-id="{{scheme.id}}"
+                  title="{{scheme.label}}"
+                  style="display:flex;align-items:center;gap:8px;padding:6px 10px;
+                         border:2px solid {{#if scheme.selected}}var(--sd-accent){{else}}var(--sd-border){{/if}};
+                         border-radius:var(--sd-r,6px);
+                         background:{{scheme.bg}};color:{{scheme.text}};
+                         cursor:pointer;font-family:inherit;font-size:12px;
+                         min-width:110px;">
+            <span style="display:inline-block;width:14px;height:14px;border-radius:50%;
+                         background:{{scheme.accent}};border:1px solid {{scheme.text}};flex-shrink:0;"></span>
+            <span>{{scheme.label}}</span>
+          </button>
+          {{/each}}
+        </div>
+        <input type="hidden" name="colorScheme" value="{{currentScheme}}" />
+      </div>
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        {{localize "SD.Theme.Hint"}}
+      </p>
+
+    </div>
+
+    <div class="config-section" data-sd-tour="guidance-settings">
+      <h3 class="config-section-title">
+        <i class="fas fa-circle-question"></i> Guidance
+        <span class="section-hint">Short onboarding and hover helper tips</span>
+      </h3>
+
+      <div class="config-field-row" style="align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="flex-shrink:0;min-width:160px;">Quick onboarding</label>
+        <label class="checkbox-wrap" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sd-text-2);">
+          <input type="checkbox" name="onboardingEnabled" {{#if guidance.onboardingEnabled}}checked{{/if}} />
+          <span>Show short guided highlights</span>
+        </label>
+        <button type="button" class="config-add-btn" data-action="startOnboarding" style="font-size:10px;padding:2px 8px;">
+          <i class="fas fa-play"></i> Start guide
+        </button>
+      </div>
+
+      <div class="config-field-row" style="align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="flex-shrink:0;min-width:160px;">Helper tooltips</label>
+        <label class="checkbox-wrap" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sd-text-2);">
+          <input type="checkbox" name="helperTooltips" {{#if guidance.helperTooltips}}checked{{/if}} />
+          <span>Show compact hover tips on key controls</span>
+        </label>
+      </div>
+
+      <p class="section-hint-text">
+        <i class="fas fa-info-circle"></i>
+        Skip inside the guide disables onboarding for this client. You can enable it again here.
+      </p>
+    </div>
+
+  </div>
+
+  <footer class="config-footer">
+    <button type="button" class="config-btn danger" data-action="resetDefaults">
+      <i class="fas fa-rotate-left"></i> Reset to Defaults
+    </button>
+    <div class="spacer"></div>
+    <button type="button" class="config-btn primary" data-action="saveAndClose">
+      <i class="fas fa-save"></i> Save & Close
+    </button>
+  </footer>
+
+</form>
+</div>

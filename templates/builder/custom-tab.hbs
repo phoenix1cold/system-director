@@ -1,0 +1,87 @@
+{{#each tab.rows as |row rowIdx|}}
+<div class="widget-row {{#if ../editMode}}edit-mode{{/if}}"
+     data-tab-id="{{../tab.id}}"
+     data-row-id="{{row.id}}">
+
+  <div class="widget-row-controls">
+    <button type="button" class="row-ctrl-btn" data-action="moveRow"
+            data-tab-id="{{../tab.id}}" data-row-id="{{row.id}}" data-dir="up"
+            title="Move row up">↑</button>
+    <button type="button" class="row-ctrl-btn" data-action="moveRow"
+            data-tab-id="{{../tab.id}}" data-row-id="{{row.id}}" data-dir="down"
+            title="Move row down">↓</button>
+    <button type="button" class="row-ctrl-btn danger" data-action="removeRow"
+            data-tab-id="{{../tab.id}}" data-row-id="{{row.id}}"
+            title="Remove row">✕</button>
+  </div>
+
+  {{#if row.widgets.length}}
+    {{#each row.widgets as |widget wIdx|}}
+    <div class="widget-cell"
+         data-span="{{widget.span}}"
+         data-tab-id="{{../../tab.id}}"
+         data-row-id="{{../row.id}}"
+         data-widget-id="{{widget.id}}"
+         style="grid-column: span {{widget.span}}">
+
+      {{{widget.html}}}
+
+      {{#if ../../editMode}}
+      <div class="widget-overlay">
+        <button type="button" class="wo-btn" data-action="configWidget"
+                data-tab-id="{{../../tab.id}}"
+                data-row-id="{{../row.id}}"
+                data-widget-id="{{widget.id}}"
+                title="Configure">
+          <i class="fas fa-gear"></i>
+        </button>
+        <button type="button" class="wo-btn" data-action="changeWidgetSpan"
+                data-tab-id="{{../../tab.id}}"
+                data-row-id="{{../row.id}}"
+                data-widget-id="{{widget.id}}"
+                title="Change width (span)">
+          <i class="fas fa-arrows-left-right"></i>
+        </button>
+        <button type="button" class="wo-btn danger" data-action="removeWidget"
+                data-tab-id="{{../../tab.id}}"
+                data-row-id="{{../row.id}}"
+                data-widget-id="{{widget.id}}"
+                title="Remove widget">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+      {{/if}}
+    </div>
+    {{/each}}
+
+    {{#if ../editMode}}
+    <div class="widget-drop-zone"
+         data-drop-type="widget"
+         data-tab-id="{{../tab.id}}"
+         data-row-id="{{row.id}}">
+      <i class="fas fa-arrow-down-to-line"></i>
+    </div>
+    {{/if}}
+
+  {{else}}
+
+    {{#if ../editMode}}
+    <div class="widget-drop-zone" style="grid-column: span 3"
+         data-drop-type="widget"
+         data-tab-id="{{../tab.id}}"
+         data-row-id="{{row.id}}">
+      <i class="fas fa-arrow-down-to-line"></i> Drop widget here
+    </div>
+    {{else}}
+    <div style="grid-column:span 3;height:8px"></div>
+    {{/if}}
+  {{/if}}
+
+</div>
+{{/each}}
+
+<div class="add-row-btn"
+     data-action="addRow"
+     data-tab-id="{{tab.id}}">
+  <i class="fas fa-plus"></i> Add Row
+</div>

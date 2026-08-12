@@ -1,0 +1,75 @@
+<section class="tab-content" data-group="sheet" data-tab="attrs">
+
+  <div class="section-block">
+    <div class="section-title">
+      <i class="fas fa-eye-slash"></i> Hidden Fields
+      {{#if isEditable}}
+      <button type="button" class="create-btn" data-action="addHiddenField" style="margin-left:auto">
+        <i class="fas fa-plus"></i> Add Field
+      </button>
+      {{/if}}
+    </div>
+    <p class="section-hint-text">
+      Hidden fields are GM-only key/value pairs stored on this item.
+      They can be used as <strong>slot filters</strong> (drop an item on the slot's filter zone)
+      and referenced via <code style="font-size:10px;color:var(--sd-accent)">system.hiddenFields.field_name</code>.
+    </p>
+
+    {{#if hiddenFieldEntries.length}}
+    <div style="display:flex;flex-direction:column;gap:5px">
+      <div style="display:grid;grid-template-columns:130px 1fr auto;gap:7px;padding:3px 6px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--sd-text-3);letter-spacing:.06em">
+        <span>Field Name</span><span>Value</span><span></span>
+      </div>
+      {{#each hiddenFieldEntries as |hf|}}
+      <div style="display:grid;grid-template-columns:130px 1fr auto;gap:7px;align-items:center;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:5px;padding:5px 8px">
+        <div style="position:relative">
+          <input type="text" class="hf-key"
+                 data-action="updateHiddenFieldKey" data-old-key="{{hf.key}}"
+                 value="{{hf.key}}" placeholder="field_name"
+                 style="font-family:monospace;font-size:12px;width:100%"
+                 {{#unless ../isEditable}}disabled{{/unless}} />
+          <div style="font-size:9px;color:var(--sd-text-3);margin-top:2px;font-family:monospace;overflow:hidden;text-overflow:ellipsis">
+            system.hiddenFields.<strong style="color:var(--sd-accent)">{{hf.key}}</strong>
+          </div>
+        </div>
+        <input type="text" class="hf-val"
+               data-action="updateHiddenFieldValue" data-key="{{hf.key}}"
+               value="{{hf.value}}" placeholder="value"
+               style="font-size:13px"
+               {{#unless ../isEditable}}disabled{{/unless}} />
+        {{#if ../isEditable}}
+        <button type="button" class="item-btn delete-btn"
+                data-action="removeHiddenField" data-key="{{hf.key}}">
+          <i class="fas fa-trash"></i>
+        </button>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="empty-list" style="padding:16px">
+      <i class="fas fa-eye-slash"></i>
+      No hidden fields. Add fields to store custom attributes like <code>ammo.type</code>, <code>caliber</code>, etc.
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="section-block" style="background:rgba(123,104,238,.05);border-color:var(--sd-accent-2)">
+    <div class="section-title"><i class="fas fa-circle-info"></i> How to use Hidden Fields</div>
+    <div style="font-size:12px;color:var(--sd-text-2);line-height:1.7;display:flex;flex-direction:column;gap:8px">
+      <p style="margin:0">
+        <strong style="color:var(--sd-text-2)">1. Create a field</strong> — e.g. name: <code style="color:var(--sd-accent)">ammo_type</code>, value: <code style="color:var(--sd-accent)">9x18</code>
+      </p>
+      <p style="margin:0">
+        <strong style="color:var(--sd-text-2)">2. Display it</strong> — in the Sheet Builder, add a <em>Text</em> widget and set its path to <code style="color:var(--sd-accent)">system.hiddenFields.ammo_type</code>
+      </p>
+      <p style="margin:0">
+        <strong style="color:var(--sd-text-2)">3. Filter a slot</strong> — on a Magazine item, go to <em>Slots</em> tab → slot → drag this item onto the filter zone → pick <code style="color:var(--sd-accent)">ammo_type == 9x18</code>
+      </p>
+      <p style="margin:0">
+        <strong style="color:var(--sd-text-2)">4. Use in buttons</strong> — in button conditions, field path <code style="color:var(--sd-accent)">slots.ammo.0.system.hiddenFields.ammo_type</code>
+      </p>
+    </div>
+  </div>
+
+</section>
