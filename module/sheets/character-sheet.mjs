@@ -1,5 +1,6 @@
 import { TabManager } from "../helpers/tabs.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
+<<<<<<< HEAD
 import { GridManager }    from "../builder/grid-manager.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
@@ -7,6 +8,15 @@ import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
+=======
+import { GridManager }    from "../builder/grid-manager.mjs";
+import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
+import { ButtonExecutor } from "../helpers/button-executor.mjs";
+import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
+import { RichTextEditor } from "../helpers/richtext-editor.mjs";
+import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
+import { SDOnboarding } from "../helpers/onboarding.mjs";
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -97,6 +107,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     window: {
       resizable: true,
       controls: [
+<<<<<<< HEAD
         { icon: "fas fa-toolbox",     label: "Sheet Builder",    action: "openBuilder"      },
         { icon: "fas fa-bolt",        label: "Sheet Triggers",   action: "openSheetTriggers"},
         { icon: "fas fa-hand-sparkles", label: "Interactions",   action: "openInteractions" },
@@ -104,10 +115,20 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         { icon: "fas fa-pen-ruler",   label: "Toggle Edit Mode", action: "toggleEditMode"   }
       ]
     },
+=======
+        { icon: "fas fa-toolbox",     label: "Sheet Builder",    action: "openBuilder"      },
+        { icon: "fas fa-bolt",        label: "Sheet Triggers",   action: "openSheetTriggers"},
+        { icon: "fas fa-hand-sparkles", label: "Interactions",   action: "openInteractions" },
+        { icon: "fas fa-brain",       label: "AI Bio",           action: "openAIBio"        },
+        { icon: "fas fa-pen-ruler",   label: "Toggle Edit Mode", action: "toggleEditMode"   }
+      ]
+    },
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     actions: {
       editImage:         CharacterSheet._onEditImage,
       openRollDialog:    CharacterSheet._onOpenRollDialog,
       openProgression:   CharacterSheet._onOpenProgression,
+<<<<<<< HEAD
       openTrade:         CharacterSheet._onOpenTrade,
       openBuilder:       CharacterSheet._onOpenBuilder,
       openSheetTriggers: CharacterSheet._onOpenSheetTriggers,
@@ -115,6 +136,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       openAIBio:         CharacterSheet._onOpenAIBio,
       toggleEditMode:    CharacterSheet._onToggleEditMode
     },
+=======
+      openTrade:         CharacterSheet._onOpenTrade,
+      openBuilder:       CharacterSheet._onOpenBuilder,
+      openSheetTriggers: CharacterSheet._onOpenSheetTriggers,
+      openInteractions:  CharacterSheet._onOpenInteractions,
+      openAIBio:         CharacterSheet._onOpenAIBio,
+      toggleEditMode:    CharacterSheet._onToggleEditMode
+    },
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     form: { submitOnChange: true }
   };
 
@@ -159,21 +189,38 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     };
   }
 
+<<<<<<< HEAD
   _onRender(context, options) {
     this._captureScrollMemory();
     this._buildTabNav();
     this._buildTabPanels();
     this._wireHeaderInputs();
+=======
+  _onRender(context, options) {
+    this._captureScrollMemory();
+    this._buildTabNav();
+    this._buildTabPanels();
+    this._wireHeaderInputs();
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     this._showEditModeBadge();
     this._wireInventoryDropZones();
     this._wireTrackerDelegation();
     this._wireAnimationTagDelegation();
+<<<<<<< HEAD
     ItemPreviewPopup.attach(this.element, this.document);
     TabManager.activate(this);
     SDOnboarding.bindCharacterSheet(this.element);
     this._wireScrollMemory();
     this._restoreScrollMemory();
   }
+=======
+    ItemPreviewPopup.attach(this.element, this.document);
+    TabManager.activate(this);
+    SDOnboarding.bindCharacterSheet(this.element);
+    this._wireScrollMemory();
+    this._restoreScrollMemory();
+  }
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
   _wireAnimationTagDelegation() {
     const root = this.element;
@@ -197,11 +244,16 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }, true);
   }
 
+<<<<<<< HEAD
   _onChangeForm(formConfig, event) {
+=======
+  _onChangeForm(formConfig, event) {
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     const t = event?.target;
 
     if (t?.closest?.(".richtext-editor, .richtext-edit-wrap, .sd-wcfg-popup, prose-mirror, .sd-richtext-pm-target, .sd-richtext-editor, .editor.prosemirror, .ProseMirror, .prosemirror-menu")) return;
     if (t?.tagName?.toLowerCase?.() === "prose-mirror") return;
+<<<<<<< HEAD
     return super._onChangeForm(formConfig, event);
   }
 
@@ -248,6 +300,54 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     requestAnimationFrame(apply);
     window.setTimeout(apply, 50);
   }
+=======
+    return super._onChangeForm(formConfig, event);
+  }
+
+  _scrollKey(panel) {
+    return panel?.dataset?.tab ?? panel?.dataset?.tabId ?? this.tabGroups.sheet ?? "__default";
+  }
+
+  _captureScrollMemory() {
+    const root = this.element;
+    if (!root) return;
+    this._sdScrollMemory ??= {};
+    root.querySelectorAll(".sd-tab-panel").forEach(panel => {
+      const key = this._scrollKey(panel);
+      if (key) this._sdScrollMemory[key] = panel.scrollTop || 0;
+    });
+  }
+
+  _wireScrollMemory() {
+    const root = this.element;
+    if (!root) return;
+    this._sdScrollMemory ??= {};
+    root.querySelectorAll(".sd-tab-panel").forEach(panel => {
+      if (panel.dataset.sdScrollMemory === "1") return;
+      panel.dataset.sdScrollMemory = "1";
+      panel.addEventListener("scroll", () => {
+        const key = this._scrollKey(panel);
+        if (key) this._sdScrollMemory[key] = panel.scrollTop || 0;
+      }, { passive: true });
+    });
+  }
+
+  _restoreScrollMemory() {
+    const root = this.element;
+    const memory = this._sdScrollMemory;
+    if (!root || !memory) return;
+    const apply = () => {
+      root.querySelectorAll(".sd-tab-panel").forEach(panel => {
+        const key = this._scrollKey(panel);
+        const y = Number(memory[key] ?? 0);
+        if (!Number.isFinite(y) || y <= 0) return;
+        panel.scrollTop = Math.min(y, Math.max(0, panel.scrollHeight - panel.clientHeight));
+      });
+    };
+    requestAnimationFrame(apply);
+    window.setTimeout(apply, 50);
+  }
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
   _wireTrackerDelegation() {
     const root = this.element;
@@ -347,6 +447,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
              <span data-deltab="${tab.id}" style="opacity:.35;font-size:9px;cursor:pointer" title="Delete">✕</span>`
           : ""}`;
 
+<<<<<<< HEAD
       a.addEventListener("click", ev => {
         if (ev.target.dataset.rename) { ev.stopPropagation(); this._renameTab(tab.id); return; }
         if (ev.target.dataset.deltab) { ev.stopPropagation(); this._deleteTab(tab.id); return; }
@@ -379,6 +480,40 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       SheetTabReorder.attach(this, a, tab.id);
 
       nav.appendChild(a);
+=======
+      a.addEventListener("click", ev => {
+        if (ev.target.dataset.rename) { ev.stopPropagation(); this._renameTab(tab.id); return; }
+        if (ev.target.dataset.deltab) { ev.stopPropagation(); this._deleteTab(tab.id); return; }
+        this._switchTab(tab.id);
+      });
+
+      a.addEventListener("dragover", ev => {
+        ev.preventDefault();
+        if (this.tabGroups.sheet === tab.id) return;
+        if (a._sdDragHoverT) return;
+        a._sdDragHoverT = setTimeout(() => { a._sdDragHoverT = null; this._switchTab(tab.id); }, 200);
+      });
+      a.addEventListener("dragleave", () => {
+        if (a._sdDragHoverT) { clearTimeout(a._sdDragHoverT); a._sdDragHoverT = null; }
+      });
+      a.addEventListener("drop", async ev => {
+        if (a._sdDragHoverT) { clearTimeout(a._sdDragHoverT); a._sdDragHoverT = null; }
+        let data = null;
+        try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch {}
+        if (data && (data.sdType === "widget-move" || data.sdType === "moveWidget")) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          this._switchTab(tab.id);
+          if (!data.srcDocUuid || data.srcDocUuid === this.document?.uuid) {
+            await this._moveWidget(data, { tabId: tab.id, rowId: null, parentVsId: null, toEnd: true });
+          }
+        }
+      });
+
+      SheetTabReorder.attach(this, a, tab.id);
+
+      nav.appendChild(a);
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     });
 
     if (this._editMode) {
@@ -430,6 +565,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
   }
 
+<<<<<<< HEAD
   _buildTabPanels() {
     const root = this.element;
     if (!root) return;
@@ -444,6 +580,22 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     this._captureScrollMemory();
     container.innerHTML = "";
+=======
+  _buildTabPanels() {
+    const root = this.element;
+    if (!root) return;
+
+    let container = root.querySelector(".sd-panels-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.className = "sd-panels-container";
+      container.style.cssText = "flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;position:relative;";
+      root.querySelector(".window-content")?.appendChild(container);
+    }
+
+    this._captureScrollMemory();
+    container.innerHTML = "";
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
     const tabs = this.document.system.customTabs ?? [];
 
@@ -1712,6 +1864,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
     cell.querySelectorAll("[data-action='itemEquip']").forEach(btn => {
       btn.addEventListener("click", async () => {
+<<<<<<< HEAD
         // Slotted item: lives as a snapshot inside a slot, not as a live embedded document.
         const _slotId = btn.dataset.slotId;
         if (_slotId) {
@@ -1719,6 +1872,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           await SlotManager.toggleSlotEquip(doc, _slotId, parseInt(btn.dataset.slotIndex ?? "0"));
           return;
         }
+=======
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
         const item = doc.items?.get(btn.dataset.itemId);
         if (!item || item.type !== "inventory") return;
         if (!item.system?.equippable) {
@@ -1773,7 +1928,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const ef = await _resolveEffectForButton(btn);
         if (ef) await ef.update({ disabled: !ef.disabled });
       });
+<<<<<<< HEAD
     });
+=======
+    });
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     cell.querySelectorAll("[data-action='effectMode']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const ef = await _resolveEffectForButton(btn);
@@ -2151,10 +2310,17 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   _makeDropZone(tab, row, label = "Drop here", parentVS = null) {
     const rowCols = Math.max(1, Math.min(9, Number(row?.cols) || 3));
+<<<<<<< HEAD
     const dz = document.createElement("div");
     dz.dataset.sdTour = "sheet-drop-zone";
     dz.dataset.sdTip = parentVS ? "Drop a widget into this vertical section." : "Drop a widget here while edit mode is enabled.";
     dz.style.cssText = `
+=======
+    const dz = document.createElement("div");
+    dz.dataset.sdTour = "sheet-drop-zone";
+    dz.dataset.sdTip = parentVS ? "Drop a widget into this vertical section." : "Drop a widget here while edit mode is enabled.";
+    dz.style.cssText = `
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
       ${(row && !parentVS) ? "" : (parentVS ? "" : `grid-column:span ${rowCols};`)}
       border:1px dashed var(--sd-accent-dim); border-radius:5px;
       padding:8px; text-align:center; font-size:11px; color:var(--sd-text-3); cursor:pointer;
@@ -2213,10 +2379,17 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     return dz;
   }
 
+<<<<<<< HEAD
   _switchTab(tabId) {
     this._captureScrollMemory();
     this.tabGroups.sheet = tabId;
     const root = this.element;
+=======
+  _switchTab(tabId) {
+    this._captureScrollMemory();
+    this.tabGroups.sheet = tabId;
+    const root = this.element;
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
     root.querySelectorAll(".sd-tab-btn[data-tab-id]").forEach(a => {
       const active = a.dataset.tabId === tabId;
@@ -2225,16 +2398,28 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       a.style.borderColor = active ? "var(--sd-border) var(--sd-border) var(--sd-bg)" : "transparent";
     });
 
+<<<<<<< HEAD
     root.querySelectorAll(".sd-tab-panel").forEach(p => {
       p.style.display = p.dataset.tab === tabId ? "flex" : "none";
     });
     this._restoreScrollMemory();
   }
+=======
+    root.querySelectorAll(".sd-tab-panel").forEach(p => {
+      p.style.display = p.dataset.tab === tabId ? "flex" : "none";
+    });
+    this._restoreScrollMemory();
+  }
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
   async _addTab(label = "New Tab") {
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const id   = foundry.utils.randomID(8);
+<<<<<<< HEAD
     tabs.push({ id, label, icon: "", order: tabs.length + 1, rows: [] });
+=======
+    tabs.push({ id, label, icon: "", order: tabs.length + 1, rows: [] });
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     await this.document.update({ "system.customTabs": tabs });
     this._renameTab(id);
   }
@@ -2364,6 +2549,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   async _deleteWidget(tab, row, w, parentVS = null) {
+<<<<<<< HEAD
     const _ok = await foundry.applications.api.DialogV2.confirm({
       window: { title: game.i18n.localize("SD.Widget.RemoveTitle") },
       content: `<p>${game.i18n.localize("SD.Widget.RemoveBody")}</p>`,
@@ -2371,6 +2557,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       rejectClose: false
     }).catch(() => false);
     if (!_ok) return;
+=======
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const r    = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
     if (!r) return;
@@ -2448,9 +2636,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       dstContainer = newRow.widgets;
     }
 
+<<<<<<< HEAD
     if (clone.type === "vsection" && dst.parentVsId) {
       dst = { ...dst, parentVsId: null };
     }
+=======
+    if (clone.type === "vsection" && dst.parentVsId) {
+      dst = { ...dst, parentVsId: null };
+    }
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
     const insertIdx = dst.toEnd ? dstContainer.length : Math.max(0, Math.min(dstContainer.length, dst.index ?? dstContainer.length));
     dstContainer.splice(insertIdx, 0, clone);
@@ -2511,9 +2705,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const [moved] = srcContainer.splice(wIdx, 1);
     if (!moved) return;
 
+<<<<<<< HEAD
     if (moved.type === "vsection" && dst.parentVsId) {
       dst = { ...dst, parentVsId: null };
     }
+=======
+    if (moved.type === "vsection" && dst.parentVsId) {
+      dst = { ...dst, parentVsId: null };
+    }
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
     let dstContainer;
     if (dst.rowId) {
@@ -2649,6 +2849,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     Toolbox.toggle();
   }
 
+<<<<<<< HEAD
   static async _onOpenSheetTriggers(event, target) {
     const { FormulaGraph } = await import("../builder/formula-graph.mjs");
     const graph = new FormulaGraph(null, this.document, null, null, null,
@@ -2669,6 +2870,28 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static async _onToggleEditMode(event, target) {
     this._editMode = !this._editMode;
     this._buildTabNav();
+=======
+  static async _onOpenSheetTriggers(event, target) {
+    const { FormulaGraph } = await import("../builder/formula-graph.mjs");
+    const graph = new FormulaGraph(null, this.document, null, null, null,
+      { mode: "sheetTrigger" });
+    graph.open();
+  }
+
+  static async _onOpenInteractions(event, target) {
+    const { openInteractablesEditor } = await import("../helpers/interactables.mjs");
+    openInteractablesEditor(this.document);
+  }
+
+  static async _onOpenAIBio(event, target) {
+    const { openActorAIBioDialog } = await import("../helpers/ai-context.mjs");
+    await openActorAIBioDialog(this.document);
+  }
+
+  static async _onToggleEditMode(event, target) {
+    this._editMode = !this._editMode;
+    this._buildTabNav();
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     this._buildTabPanels();
     this._showEditModeBadge();
   }
@@ -2801,6 +3024,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
   }
 }
+<<<<<<< HEAD
 
 
 /**
@@ -2832,3 +3056,36 @@ async function _sdCycleEffectMode(ef) {
     ui.notifications?.info?.(`"${ef.name}": item only.`);
   }
 }
+=======
+
+
+/**
+ * Cycle an item-owned Active Effect between three modes:
+ *  1) transfers to actor (always active),
+ *  2) on actor only while the item is equipped (equippable inventory items),
+ *  3) item only (no transfer).
+ */
+async function _sdCycleEffectMode(ef) {
+  const item = ef?.parent;
+  if (!item || item.documentName !== "Item") {
+    ui.notifications?.warn?.("Effect modes can only be changed on effects that live on an item.");
+    return;
+  }
+  const transfers = ef.transfer !== false;
+  const aoe = !!(ef.flags?.sd?.activateOnEquip);
+  const canAoe = item.type === "inventory" && item.system?.equippable === true;
+  if (!transfers) {
+    await ef.update({ transfer: true, "flags.sd.activateOnEquip": false });
+    ui.notifications?.info?.(`"${ef.name}": transfers to the actor.`);
+  } else if (!aoe && canAoe) {
+    await ef.update({ transfer: true, "flags.sd.activateOnEquip": true, disabled: item.system?.equipped === true ? ef.disabled : true });
+    ui.notifications?.info?.(`"${ef.name}": applies to the actor only while "${item.name}" is equipped.`);
+  } else if (!aoe && !canAoe) {
+    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
+    ui.notifications?.info?.(`"${ef.name}": item only. (Mark the item as Equippable to unlock the equipped-only mode.)`);
+  } else {
+    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
+    ui.notifications?.info?.(`"${ef.name}": item only.`);
+  }
+}
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560

@@ -62,6 +62,7 @@ export class SlotManager {
     return false;
   }
 
+<<<<<<< HEAD
   /** Resolve the owning Actor for a slot host (which may be an Actor, an owned Item, or an unowned Item). */
   static _resolveHostActor(host) {
     if (host instanceof Actor) return host;
@@ -145,6 +146,8 @@ export class SlotManager {
     return res;
   }
 
+=======
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
   static async addToSlot(parentItem, slotId, droppedItem) {
     const sid = String(slotId ?? "");
     const def = this.getDefinition(parentItem, sid);
@@ -182,6 +185,7 @@ export class SlotManager {
       }
     }
 
+<<<<<<< HEAD
     let _autoEquippedSnapshot = false;
     if (this._slotAutoEquip(parentItem, sid) && itemData.type === "inventory" && itemData.system?.equippable && !itemData.system?.equipped) {
       foundry.utils.setProperty(itemData, "system.equipped", true);
@@ -192,10 +196,18 @@ export class SlotManager {
       } else {
         // Item only exists as a slot snapshot — fire the equip event ourselves after it is persisted.
         _autoEquippedSnapshot = true;
+=======
+    if (this._slotAutoEquip(parentItem, sid) && itemData.type === "inventory" && itemData.system?.equippable && !itemData.system?.equipped) {
+      foundry.utils.setProperty(itemData, "system.equipped", true);
+      if (droppedItem instanceof Item && droppedItem.parent?.items?.has?.(droppedItem.id)) {
+        try { await droppedItem.update({ "system.equipped": true }); }
+        catch (e) { console.warn("SD | slot auto-equip failed:", e); }
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
       }
     }
 
     const newContents = [...contents, itemData];
+<<<<<<< HEAD
     const _slotUpdateResult = await parentItem.update({
       [`system.slotContents.${sid}.contents`]: newContents,
       [`system.slotContents.${sid}.count`]:    newContents.length
@@ -203,6 +215,12 @@ export class SlotManager {
 
     if (_autoEquippedSnapshot) this.fireSlotEquipEvent(parentItem, itemData, true);
     return _slotUpdateResult;
+=======
+    return parentItem.update({
+      [`system.slotContents.${sid}.contents`]: newContents,
+      [`system.slotContents.${sid}.count`]:    newContents.length
+    });
+>>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
   }
 
   static async removeFromSlot(parentItem, slotId, index) {
