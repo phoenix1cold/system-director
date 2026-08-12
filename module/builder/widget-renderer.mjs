@@ -715,6 +715,7 @@ export class WidgetRenderer {
         <button type="button" class="slot-item-edit" data-action="slotItemEdit" data-slot-id="${e(w.slotId)}" data-slot-index="${i}" data-item-id="${e(c._id ?? "")}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? "")}" title="Edit">
           <i class="fas fa-pen"></i>
         </button>
+        ${(c.type === "inventory" && c.system?.equippable) ? `<button type="button" class="slot-item-equip${c.system?.equipped ? " on" : ""}" data-action="itemEquip" data-slot-id="${e(w.slotId)}" data-slot-index="${i}" data-item-id="${e(c._id ?? "")}" title="${c.system?.equipped ? "Unequip" : "Equip"}"><i class="fas ${c.system?.equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>` : ""}
         <button type="button" class="slot-item-remove" data-sd-slot-remove="${e(w.slotId)}" data-sd-slot-idx="${i}" title="Remove">
           <i class="fas fa-times"></i>
         </button>
@@ -749,6 +750,7 @@ export class WidgetRenderer {
           <span class="sd-hud-pop-name" title="${nm}">${nm}</span>
           <button type="button" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="Use"><i class="fas fa-play"></i></button>
           <button type="button" data-action="slotItemEdit" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUuid}" title="Edit"><i class="fas fa-pen"></i></button>
+          ${(c.type === "inventory" && c.system?.equippable) ? `<button type="button" class="sd-hud-pop-btn-equip${c.system?.equipped ? " is-on" : ""}" data-action="itemEquip" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" title="${c.system?.equipped ? "Unequip" : "Equip"}"><i class="fas ${c.system?.equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>` : ""}
           <button type="button" data-sd-slot-remove="${slotId}" data-sd-slot-idx="${i}" title="Remove"><i class="fas fa-times"></i></button>
         </li>`;
       }
@@ -822,6 +824,7 @@ export class WidgetRenderer {
           ${filled
             ? `<button type="button" class="sd-slot-tile-btn" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="Use"><i class="fas fa-play"></i></button>
                <button type="button" class="sd-slot-tile-btn" data-action="slotItemEdit" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUid}" title="Edit"><i class="fas fa-pen"></i></button>
+               ${(c.type === "inventory" && c.system?.equippable) ? `<button type="button" class="sd-slot-tile-btn${c.system?.equipped ? " sd-slot-tile-btn-on" : ""}" data-action="itemEquip" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" title="${c.system?.equipped ? "Unequip" : "Equip"}"><i class="fas ${c.system?.equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>` : ""}
                <button type="button" class="sd-slot-tile-btn sd-slot-tile-btn-danger" data-sd-slot-remove="${slotId}" data-sd-slot-idx="${i}" title="Remove"><i class="fas fa-times"></i></button>`
             : `<span class="sd-slot-tile-empty-label">${lbl}</span>`}
         </div>

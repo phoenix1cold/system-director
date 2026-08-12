@@ -1399,6 +1399,8 @@
   "SD.OK": "OK",
   "SD.Cancel": "Отмена",
   "SD.Delete": "Удалить",
+  "SD.Widget.RemoveTitle": "Удалить виджет",
+  "SD.Widget.RemoveBody": "Удалить этот виджет с листа? Действие нельзя отменить.",
   "SD.Equippable": "Носимый",
   "SD.InventoryFlags": "Инвентарь",
   "SD.Category": "Категория",

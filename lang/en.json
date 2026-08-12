@@ -1410,6 +1410,8 @@
   "SD.OK": "OK",
   "SD.Cancel": "Cancel",
   "SD.Delete": "Delete",
+  "SD.Widget.RemoveTitle": "Remove Widget",
+  "SD.Widget.RemoveBody": "Remove this widget from the sheet? This cannot be undone.",
   "SD.Equippable": "Equippable",
   "SD.InventoryFlags": "Inventory",
   "SD.Category": "Category",

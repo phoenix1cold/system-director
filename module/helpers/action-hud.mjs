@@ -372,6 +372,13 @@ function wireHudWidget(cell, widgetDef, actor) {
   cell.querySelectorAll("[data-action='itemEquip']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
+      // Slotted item: lives as a snapshot inside a slot, not as a live embedded document.
+      const _slotId = btn.dataset.slotId;
+      if (_slotId) {
+        const { SlotManager } = await import("../data/item-slots.mjs");
+        await SlotManager.toggleSlotEquip(actor, _slotId, parseInt(btn.dataset.slotIndex ?? "0"));
+        return;
+      }
       const item = actor.items?.get(btn.dataset.itemId);
       if (!item || item.type !== "inventory") return;
       if (!item.system?.equippable) {

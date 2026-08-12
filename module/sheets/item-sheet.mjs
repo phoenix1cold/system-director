@@ -3064,6 +3064,13 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
   }
 
   async _deleteWidget(tab,row,w){
+    const _ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("SD.Widget.RemoveTitle") },
+      content: `<p>${game.i18n.localize("SD.Widget.RemoveBody")}</p>`,
+      modal: true,
+      rejectClose: false
+    }).catch(() => false);
+    if (!_ok) return;
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]);
     const r=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
     if(!r) return;

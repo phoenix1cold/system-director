@@ -1712,6 +1712,13 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
     cell.querySelectorAll("[data-action='itemEquip']").forEach(btn => {
       btn.addEventListener("click", async () => {
+        // Slotted item: lives as a snapshot inside a slot, not as a live embedded document.
+        const _slotId = btn.dataset.slotId;
+        if (_slotId) {
+          const { SlotManager } = await import("../data/item-slots.mjs");
+          await SlotManager.toggleSlotEquip(doc, _slotId, parseInt(btn.dataset.slotIndex ?? "0"));
+          return;
+        }
         const item = doc.items?.get(btn.dataset.itemId);
         if (!item || item.type !== "inventory") return;
         if (!item.system?.equippable) {
@@ -2357,6 +2364,13 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   async _deleteWidget(tab, row, w, parentVS = null) {
+    const _ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("SD.Widget.RemoveTitle") },
+      content: `<p>${game.i18n.localize("SD.Widget.RemoveBody")}</p>`,
+      modal: true,
+      rejectClose: false
+    }).catch(() => false);
+    if (!_ok) return;
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const r    = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
     if (!r) return;

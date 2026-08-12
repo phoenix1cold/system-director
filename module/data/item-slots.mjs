@@ -62,6 +62,89 @@ export class SlotManager {
     return false;
   }
 
+  /** Resolve the owning Actor for a slot host (which may be an Actor, an owned Item, or an unowned Item). */
+  static _resolveHostActor(host) {
+    if (host instanceof Actor) return host;
+    if (host?.actor instanceof Actor) return host.actor;
+    if (host?.parent instanceof Actor) return host.parent;
+    return null;
+  }
+
+  /** Build a throw-away Item document from a slot snapshot so we can run canEquip() and carry equip events. */
+  static _buildTempItem(snapshot, hostActor) {
+    const ItemCls = foundry.utils.getDocumentClass("Item");
+    const data = foundry.utils.deepClone(snapshot);
+    try { return new ItemCls(data, { parent: hostActor instanceof Actor ? hostActor : null }); }
+    catch {
+      try { return new ItemCls(data, { parent: null }); }
+      catch (e) { console.warn("SD | slot equip: temp item build failed:", e); return null; }
+    }
+  }
+
+  /**
+   * Fire the same equip / unequip Foundry hook a live SDItem fires from its _onUpdate,
+   * so `on_equip` / `on_unequip` node graphs and event-bus triggers run for slotted items too.
+   * A slotted item is a plain snapshot (not a live embedded Document), so nothing fires it otherwise.
+   */
+  static fireSlotEquipEvent(host, snapshot, equipped) {
+    try {
+      const hostActor = this._resolveHostActor(host);
+      const temp = this._buildTempItem(snapshot, hostActor);
+      if (!temp) return;
+      try { foundry.utils.setProperty(temp, "system.equipped", equipped); } catch {}
+      Hooks.callAll(equipped ? "sdItemEquipped" : "sdItemUnequipped", temp, hostActor);
+    } catch (e) { console.warn("SD | slot equip event failed:", e); }
+  }
+
+  /**
+   * Toggle (or explicitly set via opts.equipped) the equipped state of an item that lives inside a slot
+   * as a snapshot. Mirrors the equip flow used for live items: validates equippable, runs canEquip()
+   * when equipping, persists the flag back into slotContents, and fires the equip/unequip event.
+   * Returns the update result, or null if nothing changed / was blocked.
+   */
+  static async toggleSlotEquip(host, slotId, index, opts = {}) {
+    const sid = String(slotId ?? "");
+    const idx = Number.isFinite(index) ? index : parseInt(index ?? "0", 10);
+    const snap = this.getContents(host, sid)[idx];
+    if (!snap) return null;
+
+    if (snap.type !== "inventory" || !snap.system?.equippable) {
+      ui.notifications?.warn(`"${snap.name ?? "Item"}" is not marked Equippable. Open the item \u2192 Hidden Fields and enable it.`);
+      return null;
+    }
+
+    const next = (typeof opts.equipped === "boolean") ? opts.equipped : !snap.system?.equipped;
+    if (next === Boolean(snap.system?.equipped)) return null;
+
+    const hostActor = this._resolveHostActor(host);
+
+    // Only enforce requirements when equipping (matches live-item behaviour).
+    if (next) {
+      const temp = this._buildTempItem(snap, hostActor);
+      if (temp && typeof temp.canEquip === "function") {
+        let res = { ok: true };
+        try { res = await temp.canEquip(); }
+        catch (e) { console.warn("SD | slot canEquip failed:", e); }
+        if (!res.ok) {
+          ui.notifications?.warn(res.reason ?? game.i18n?.localize?.("SD.EquipBlocked") ?? "Cannot equip.");
+          return null;
+        }
+      }
+    }
+
+    const fresh = foundry.utils.deepClone(this.getContents(host, sid));
+    if (!fresh[idx]) return null;
+    foundry.utils.setProperty(fresh[idx], "system.equipped", next);
+
+    const res = await host.update({
+      [`system.slotContents.${sid}.contents`]: fresh,
+      [`system.slotContents.${sid}.count`]:    fresh.length
+    });
+
+    this.fireSlotEquipEvent(host, fresh[idx], next);
+    return res;
+  }
+
   static async addToSlot(parentItem, slotId, droppedItem) {
     const sid = String(slotId ?? "");
     const def = this.getDefinition(parentItem, sid);
@@ -99,19 +182,27 @@ export class SlotManager {
       }
     }
 
+    let _autoEquippedSnapshot = false;
     if (this._slotAutoEquip(parentItem, sid) && itemData.type === "inventory" && itemData.system?.equippable && !itemData.system?.equipped) {
       foundry.utils.setProperty(itemData, "system.equipped", true);
       if (droppedItem instanceof Item && droppedItem.parent?.items?.has?.(droppedItem.id)) {
+        // Live source item still exists on an actor — its own update fires on_equip via SDItem._onUpdate.
         try { await droppedItem.update({ "system.equipped": true }); }
         catch (e) { console.warn("SD | slot auto-equip failed:", e); }
+      } else {
+        // Item only exists as a slot snapshot — fire the equip event ourselves after it is persisted.
+        _autoEquippedSnapshot = true;
       }
     }
 
     const newContents = [...contents, itemData];
-    return parentItem.update({
+    const _slotUpdateResult = await parentItem.update({
       [`system.slotContents.${sid}.contents`]: newContents,
       [`system.slotContents.${sid}.count`]:    newContents.length
     });
+
+    if (_autoEquippedSnapshot) this.fireSlotEquipEvent(parentItem, itemData, true);
+    return _slotUpdateResult;
   }
 
   static async removeFromSlot(parentItem, slotId, index) {
