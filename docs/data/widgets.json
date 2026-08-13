@@ -72,10 +72,12 @@
     "defaults": {
       "label": "Value",
       "path": "system.flags.myNumber",
+      "numberMode": "classic",
       "min": null,
       "max": null,
       "step": 1,
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -90,13 +92,13 @@
       },
       {
         "key": "min",
-        "type": "number",
-        "label": "Min"
+        "type": "text",
+        "label": "Min (number or path)"
       },
       {
         "key": "max",
-        "type": "number",
-        "label": "Max"
+        "type": "text",
+        "label": "Max (number or path)"
       },
       {
         "key": "step",
@@ -130,6 +132,12 @@
             "fallback": "framed"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -152,7 +160,8 @@
       "max": 99,
       "step": 1,
       "color": "#e0a020",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -212,6 +221,12 @@
             "fallback": "wheel"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -229,6 +244,7 @@
     "defaultSpan": 2,
     "defaults": {
       "label": "Resource",
+      "resourceMode": "classic",
       "pathValue": "system.resources.hp.value",
       "pathMax": "system.resources.hp.max",
       "color": "#e05a5a",
@@ -398,7 +414,8 @@
       "formula": "1d20",
       "icon": "fa-dice-d20",
       "flavor": "",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -449,6 +466,12 @@
             "fallback": "flat"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -471,7 +494,8 @@
       "btnId": "",
       "formula": "",
       "flavor": "",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -542,6 +566,12 @@
             "fallback": "soft"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -565,7 +595,8 @@
       "path": "system.flags.myToggle",
       "onLabel": "On",
       "offLabel": "Off",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -615,6 +646,12 @@
             "fallback": "led"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -633,7 +670,8 @@
     "defaults": {
       "label": "Attribute",
       "path": "system.attributes.attr1.value",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -678,6 +716,12 @@
             "fallback": "roll-button"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -697,7 +741,8 @@
     "defaults": {
       "label": "Attributes",
       "attributeKeys": "",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -743,6 +788,12 @@
             "fallback": "dice"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -763,7 +814,8 @@
       "path": "system.skills.skill1.rank",
       "attrMod": 0,
       "rollFormula": "",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -815,6 +867,12 @@
             "fallback": "pips"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -928,7 +986,8 @@
       "color": "#e04040",
       "bgColor": "#2a2a3a",
       "pipSize": 14,
-      "glow": true
+      "glow": true,
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -990,6 +1049,12 @@
         "key": "glow",
         "type": "boolean",
         "label": "Glow effect on filled pips"
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": []
@@ -1008,7 +1073,8 @@
       "icon": "fa-coins",
       "color": "#f0c040",
       "bgColor": "#2a2a3a",
-      "pipSize": 16
+      "pipSize": 16,
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -1065,6 +1131,12 @@
         "key": "pipSize",
         "type": "number",
         "label": "Token size (px, 10–24)"
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": []
@@ -1081,7 +1153,8 @@
       "segments": 4,
       "color": "#e0a020",
       "bgColor": "#1a1a2a",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -1136,6 +1209,12 @@
             "fallback": "fraction"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -1157,6 +1236,9 @@
       "allowedTypes": [],
       "allowedCategories": [],
       "maxCount": 1,
+      "autoEquip": false,
+      "placeholderIcon": "",
+      "accentColor": "",
       "variant": "default"
     },
     "configFields": [
@@ -1174,6 +1256,11 @@
         "key": "maxCount",
         "type": "number",
         "label": "Max Items"
+      },
+      {
+        "key": "autoEquip",
+        "type": "checkbox",
+        "label": "Auto-equip items added to slot"
       },
       {
         "key": "allowedTypes",
@@ -1210,6 +1297,11 @@
             "value": "ghost",
             "label": "SD.WidgetVariants.slot.ghost",
             "fallback": "ghost"
+          },
+          {
+            "value": "tile",
+            "label": "SD.WidgetVariants.slot.tile",
+            "fallback": "tile"
           }
         ]
       }
@@ -1218,7 +1310,8 @@
       "default",
       "framed",
       "round",
-      "ghost"
+      "ghost",
+      "tile"
     ]
   },
   "inventory": {
@@ -1801,7 +1894,8 @@
       "showActions": "yes",
       "cardWidth": 96,
       "maxVisible": 12,
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -1914,6 +2008,12 @@
             "fallback": "grid"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -1938,7 +2038,8 @@
       "count": 1,
       "how": "top",
       "showCount": "yes",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -2012,6 +2113,12 @@
             "fallback": "pile"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
@@ -2115,6 +2222,84 @@
       "ghost"
     ]
   },
+  "widgetBuilder": {
+    "id": "widgetBuilder",
+    "label": "Widget Builder",
+    "icon": "fa-shapes",
+    "desc": "Composite widget: named buttons, values, icons and images; elements can be clickable and fire per-element On Click custom events",
+    "defaultSpan": 3,
+    "defaults": {
+      "label": "",
+      "columns": 3,
+      "gap": 6,
+      "formula": "",
+      "elements": [],
+      "wbLayout": "grid",
+      "canvasW": 0,
+      "canvasH": 140,
+      "gridSize": 16,
+      "snap": 4,
+      "clipOverflow": true,
+      "customCss": ""
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "wbLayout",
+        "type": "select",
+        "label": "Layout",
+        "options": [
+          "grid",
+          "free"
+        ]
+      },
+      {
+        "key": "columns",
+        "type": "number",
+        "label": "Columns (grid)"
+      },
+      {
+        "key": "gap",
+        "type": "number",
+        "label": "Gap (px, grid)"
+      },
+      {
+        "key": "canvasW",
+        "type": "number",
+        "label": "Canvas width (px; 0 = full)"
+      },
+      {
+        "key": "canvasH",
+        "type": "number",
+        "label": "Canvas height (px)"
+      },
+      {
+        "key": "gridSize",
+        "type": "number",
+        "label": "Visual grid size (px)"
+      },
+      {
+        "key": "snap",
+        "type": "number",
+        "label": "Snap step (px; 0 = off)"
+      },
+      {
+        "key": "clipOverflow",
+        "type": "toggle",
+        "label": "Clip outside canvas"
+      },
+      {
+        "key": "customCss",
+        "type": "textarea",
+        "label": "Safe scoped CSS"
+      }
+    ],
+    "variants": []
+  },
   "rollButton": {
     "id": "rollButton",
     "label": "Roll Button",
@@ -2127,7 +2312,8 @@
       "flavor": "",
       "icon": "fa-dice-d20",
       "color": "#5a9ae0",
-      "variant": "default"
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -2184,6 +2370,12 @@
             "fallback": "stamp"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [

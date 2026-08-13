@@ -1,6 +1,7 @@
 import { FormulaEngine }   from "../helpers/formula-engine.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
-import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES } from "./widget-registry.mjs";
+import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES, createWidget } from "./widget-registry.mjs";
+import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 import { getConfiguredDataPathEntries, getSystemPathEntries, isConfiguredSettingsPath } from "../helpers/system-config.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
 
@@ -55,7 +56,7 @@ const FIELD_DEFS = {
   image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
   derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]],
 
-  widgetBuilder: [["Label","label"],["Layout","wbLayout","select",["grid","free"]],["Columns (grid layout)","columns","number"],["Gap (px, grid layout)","gap","number"],["Canvas width (px, free layout; 0 = full width)","canvasW","number"],["Canvas height (px, free layout)","canvasH","number"],["On Click Graph","formula","formula"],["Elements","elements","wbElements"]],
+  widgetBuilder: [["Label","label"],["Layout","wbLayout","select",["grid","free"]],["Columns (grid layout)","columns","number"],["Gap (px, grid layout)","gap","number"],["Canvas width (px, free layout; 0 = full width)","canvasW","number"],["Canvas height (px, free layout)","canvasH","number"],["Visual grid size (px)","gridSize","number"],["Snap step (px; 0 = off)","snap","number"],["Clip elements outside canvas","clipOverflow","boolean"],["On Click Graph","formula","formula"],["Elements","elements","wbElements"],["Scoped CSS","customCss","css"]],
 
   questMarker: [
     ["Label", "label", "text"],
@@ -177,7 +178,7 @@ const FIELD_HINTS = {
 let _wcfgOpenCount = 0;
 let _wcfgZTop      = 10000;
 
-export async function openWidgetConfigPopup(w, tab, row, doc) {
+export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
 
   const existingForSameWidget = [...document.querySelectorAll(".sd-wcfg-popup")]
     .find(el => el.dataset.wcfgWidgetId && w?.id && el.dataset.wcfgWidgetId === w.id);
@@ -625,6 +626,26 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       </div>`;
     }
 
+    if (type === "css") {
+      const scopeId = widgetBuilderScopeId(w.id);
+      const preview = sanitizeWidgetCss(cur, `[data-sd-wb="${scopeId}"]`);
+      return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(lbl)}</label>
+        <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.45">
+          CSS is automatically scoped to this Widget Builder. Use <code>:scope</code> for its root,
+          <code>[data-wb-element="Name"]</code> for an element, or normal descendants such as
+          <code>.sd-wb-button</code>. Global selectors, at-rules, external URLs and unsafe properties are blocked.
+        </div>
+        <textarea data-field="${esc(key)}" data-ftype="css" spellcheck="false"
+          placeholder=":scope { --sd-wb-accent: #7b68ee; }&#10;[data-wb-element=&quot;Attack&quot;] .sd-wb-button { border-radius: 12px; }"
+          style="${IS};min-height:170px;resize:vertical;font-family:'Courier New',monospace;font-size:11px;line-height:1.45">${esc(cur)}</textarea>
+        <div class="wcfg-css-status" style="font-size:9px;margin-top:4px;color:${preview.warnings.length ? 'var(--sd-warning,#d6a84b)' : 'var(--sd-success,#62c98a)'}">
+          ${preview.warnings.length ? esc(preview.warnings.join(" · ")) : "CSS passed the safe scoped parser"}
+        </div>
+      </div>`;
+    }
+
     if (type === "wbElements") {
       const els = Array.isArray(w[key]) ? w[key] : [];
       return `
@@ -636,6 +657,13 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         <div id="wcfg-wb-canvas-wrap" style="margin-bottom:8px">
           <div id="wcfg-wb-canvas-hint" style="font-size:10px;color:var(--sd-text-3);margin-bottom:4px"></div>
           <div id="wcfg-wb-canvas" style="position:relative;background:var(--sd-bg);border:1px dashed var(--sd-border);border-radius:4px;overflow:auto;max-width:100%"></div>
+        </div>
+        <div class="wcfg-wb-layer-panel" style="border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg);padding:6px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+            <strong style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--sd-text-2)"><i class="fas fa-layer-group" style="margin-right:5px"></i>Layers</strong>
+            <span style="font-size:9px;color:var(--sd-text-3)">front to back</span>
+          </div>
+          <div id="wcfg-wb-layers" style="display:flex;flex-direction:column;gap:3px;max-height:180px;overflow:auto"></div>
         </div>
         <div id="wcfg-wb-rows"></div>
         <button type="button" id="wcfg-wb-add"
@@ -705,7 +733,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     const fKey = f?.[1];
     const fType = f?.[2] ?? "text";
     if (w.type === "widgetBuilder") {
-      if (fKey === "elements" || fKey === "wbLayout" || fKey === "columns" || fKey === "gap" || fKey === "canvasW" || fKey === "canvasH") return "elements";
+      if (fKey === "elements" || fKey === "wbLayout" || fKey === "columns" || fKey === "gap" || fKey === "canvasW" || fKey === "canvasH" || fKey === "gridSize" || fKey === "snap" || fKey === "clipOverflow") return "elements";
+      if (fKey === "customCss") return "style";
       if (fType === "formula" || fType === "actionGraph" || fKey === "animationTag") return "logic";
       return "main";
     }
@@ -792,6 +821,20 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     </div>`;
 
   document.body.appendChild(popup);
+
+  const cssEditor = popup.querySelector('textarea[data-field="customCss"]');
+  if (cssEditor) {
+    const cssStatus = cssEditor.parentElement?.querySelector(".wcfg-css-status");
+    const validateCss = () => {
+      const scopeId = widgetBuilderScopeId(w.id);
+      const result = sanitizeWidgetCss(cssEditor.value, `[data-sd-wb="${scopeId}"]`);
+      if (cssStatus) {
+        cssStatus.textContent = result.warnings.length ? result.warnings.join(" · ") : "CSS passed the safe scoped parser";
+        cssStatus.style.color = result.warnings.length ? "var(--sd-warning,#d6a84b)" : "var(--sd-success,#62c98a)";
+      }
+    };
+    cssEditor.addEventListener("input", validateCss);
+  }
 
   (function _wireCfgTabs(){
     const tabBtns  = [...popup.querySelectorAll(".wcfg-tab-btn")];
@@ -1123,48 +1166,81 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     slotRowsContainer.appendChild(div);
   });
   const wbRowsEl = popup.querySelector("#wcfg-wb-rows");
+  const wbLayersEl = popup.querySelector("#wcfg-wb-layers");
   const wbJsonEl = popup.querySelector("#wcfg-wb-json");
   if (wbRowsEl && wbJsonEl) {
     let wbEls = [];
     try { wbEls = JSON.parse(wbJsonEl.value || "[]"); } catch (e) { wbEls = []; }
     if (!Array.isArray(wbEls)) wbEls = [];
+    wbEls = wbEls.map((el2, idx2) => ({
+      id: el2?.id || foundry.utils.randomID(6),
+      z: Number.isFinite(Number(el2?.z)) ? Math.round(Number(el2.z)) : idx2,
+      locked: el2?.locked === true || el2?.locked === "true",
+      hidden: el2?.hidden === true || el2?.hidden === "true",
+      ...el2
+    }));
 
     const wbSync = () => { wbJsonEl.value = JSON.stringify(wbEls); };
     const wbNameDup = (name, idx) =>
       !!name && wbEls.some((e2, i2) => i2 !== idx && String(e2?.name ?? "").trim() === name);
-
     const wbCanvasWrap = popup.querySelector("#wcfg-wb-canvas-wrap");
     const wbCanvasEl = popup.querySelector("#wcfg-wb-canvas");
-    const _wbSnap = (v2) => Math.round(v2 / 4) * 4;
+    const embeddedTypes = Object.values(WIDGET_TYPES)
+      .filter(def => def?.id && !["widgetBuilder", "vsection"].includes(def.id))
+      .sort((a, b) => String(a.label ?? a.id).localeCompare(String(b.label ?? b.id)));
+    const readNumField = (key, fallback) => {
+      const raw = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`)?.value;
+      const num = Number(raw);
+      return Number.isFinite(num) ? num : fallback;
+    };
+    const snapValue = value => {
+      const snap = Math.max(0, readNumField("snap", Number(w.snap) || 4));
+      return snap > 0 ? Math.round(value / snap) * snap : Math.round(value);
+    };
+    const wbNextZ = () => Math.max(-1, ...wbEls.map((e2, i2) => Number.isFinite(Number(e2.z)) ? Number(e2.z) : i2)) + 1;
+
     const _wbFillBox = (box, el2, fs) => {
       const nm = String(el2.name ?? "").trim() || "?";
       const col = String(el2.color ?? "").trim();
       const ic = String(el2.icon ?? "").trim();
       const im = String(el2.img ?? "").trim();
       const lb = String(el2.label ?? "").trim();
+      const kind = String(el2.kind ?? "button");
       let inner = "";
-      if (im) inner += `<img src="${esc(im)}" style="max-width:90%;max-height:55%;object-fit:contain;pointer-events:none">`;
-      else if (ic) inner += `<i class="fas ${esc(ic)}" style="pointer-events:none${col ? ";color:" + esc(col) : ""}"></i>`;
-      inner += `<span style="pointer-events:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96%${fs > 0 ? ";font-size:" + fs + "px" : ""}">${esc(lb || nm)}</span>`;
-      inner += `<span style="pointer-events:none;font-size:8px;opacity:.55;line-height:1">${esc(String(el2.kind ?? "button"))}</span>`;
+      if (kind === "widget") {
+        const def = WIDGET_TYPES[el2.widget?.type];
+        inner = `<i class="fas ${esc(def?.icon ?? "fa-puzzle-piece")}" style="pointer-events:none${col ? ";color:" + esc(col) : ""}"></i>`;
+        inner += `<span style="pointer-events:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:94%">${esc(el2.widget?.label || def?.label || "Select widget")}</span>`;
+      } else {
+        if (im) inner += `<img src="${esc(im)}" alt="" style="max-width:90%;max-height:55%;object-fit:contain;pointer-events:none">`;
+        else if (ic) inner += `<i class="fas ${esc(ic)}" style="pointer-events:none${col ? ";color:" + esc(col) : ""}"></i>`;
+        inner += `<span style="pointer-events:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96%${fs > 0 ? ";font-size:" + fs + "px" : ""}">${esc(lb || nm)}</span>`;
+      }
+      inner += `<span style="pointer-events:none;font-size:8px;opacity:.55;line-height:1">${esc(kind)} · z${esc(String(el2.z ?? 0))}</span>`;
+      if (el2.locked) inner += `<i class="fas fa-lock" style="position:absolute;left:3px;top:3px;font-size:8px;opacity:.8;pointer-events:none"></i>`;
+      if (el2.hidden) inner += `<i class="fas fa-eye-slash" style="position:absolute;right:3px;top:3px;font-size:8px;opacity:.8;pointer-events:none"></i>`;
       box.innerHTML = inner;
       if (col) box.style.borderColor = col;
     };
-    const _wbFocusRow = (idx2) => {
+
+    const _wbFocusRow = idx2 => {
       const rowEl2 = wbRowsEl.querySelector(`[data-wb-idx="${idx2}"]`);
       if (!rowEl2) return;
       rowEl2.scrollIntoView({ behavior: "smooth", block: "nearest" });
       rowEl2.style.borderColor = "var(--sd-accent)";
       rowEl2.style.boxShadow = "0 0 0 1px var(--sd-accent)";
-      setTimeout(() => { rowEl2.style.borderColor = "var(--sd-border)"; rowEl2.style.boxShadow = "none"; }, 1200);
+      setTimeout(() => { rowEl2.style.borderColor = "var(--sd-border)"; rowEl2.style.boxShadow = "none"; }, 900);
     };
+
     const wbCanvasRender = () => {
       if (!wbCanvasWrap || !wbCanvasEl) return;
       const isFree = (popup.querySelector('select[data-field="wbLayout"]')?.value ?? String(w.wbLayout ?? "grid")) === "free";
+      const snap = Math.max(0, readNumField("snap", Number(w.snap) || 4));
+      const gridSize = Math.max(4, readNumField("gridSize", Number(w.gridSize) || 16));
       const hintEl2 = popup.querySelector("#wcfg-wb-canvas-hint");
       if (hintEl2) hintEl2.textContent = isFree
-        ? "Visual editor (free layout): drag boxes to place them, drag the corner handle to resize (4px snap). Click a box to jump to its settings below."
-        : "Visual editor (grid preview): drag a box onto another one to reorder. Switch Layout to 'free' for pixel-perfect placement and sizing.";
+        ? `Free layout: drag to move, pull the lower-right handle to resize. Snap: ${snap || "off"} px. Locked layers cannot be moved.`
+        : "Grid preview: drag a box onto another one to reorder. Switch to free layout for pixel placement and layers.";
       wbCanvasEl.innerHTML = "";
       if (!wbEls.length) {
         wbCanvasEl.style.height = "";
@@ -1172,38 +1248,35 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         return;
       }
       if (isFree) {
-        const cwRaw = parseFloat(popup.querySelector('input[data-field="canvasW"]')?.value);
+        const cwRaw = readNumField("canvasW", 0);
         const availW = Math.max(120, (wbCanvasEl.clientWidth || 380) - 2);
-        const cw = cwRaw > 0 ? cwRaw : availW;
-        const ch2 = Math.max(60, parseFloat(popup.querySelector('input[data-field="canvasH"]')?.value) || 140);
+        const cw = cwRaw > 0 ? Math.max(60, cwRaw) : availW;
+        const ch2 = Math.max(60, readNumField("canvasH", Number(w.canvasH) || 140));
         wbCanvasEl.style.height = (ch2 + 2) + "px";
         const inner2 = document.createElement("div");
-        inner2.style.cssText = "position:relative;width:" + Math.max(60, cw) + "px;height:" + ch2 + "px;" +
-          "background-image:linear-gradient(var(--sd-bg-3) 1px,transparent 1px),linear-gradient(90deg,var(--sd-bg-3) 1px,transparent 1px);background-size:16px 16px";
+        inner2.style.cssText = `position:relative;width:${cw}px;height:${ch2}px;background-image:linear-gradient(var(--sd-bg-3) 1px,transparent 1px),linear-gradient(90deg,var(--sd-bg-3) 1px,transparent 1px);background-size:${gridSize}px ${gridSize}px`;
         wbCanvasEl.appendChild(inner2);
         wbEls.forEach((el2, idx2) => {
           const box = document.createElement("div");
-          const bw2 = Number(el2.w) > 0 ? Number(el2.w) : 64;
-          const bh2 = Number(el2.h) > 0 ? Number(el2.h) : 28;
-          box.style.cssText = "position:absolute;left:" + (Number(el2.x) || 0) + "px;top:" + (Number(el2.y) || 0) + "px;width:" + bw2 + "px;height:" + bh2 + "px;" +
-            "border:1px solid var(--sd-accent-2);border-radius:4px;background:var(--sd-bg-4);color:var(--sd-text-2);font-size:10px;" +
-            "display:flex;flex-direction:column;gap:1px;align-items:center;justify-content:center;cursor:move;user-select:none;overflow:hidden;box-sizing:border-box;padding:2px";
+          const bw2 = Number(el2.w) > 0 ? Number(el2.w) : (el2.kind === "widget" ? 140 : 64);
+          const bh2 = Number(el2.h) > 0 ? Number(el2.h) : (el2.kind === "widget" ? 64 : 28);
+          box.style.cssText = `position:absolute;left:${Number(el2.x) || 0}px;top:${Number(el2.y) || 0}px;width:${bw2}px;height:${bh2}px;z-index:${Number(el2.z) || 0};border:1px solid var(--sd-accent-2);border-radius:4px;background:var(--sd-bg-4);color:var(--sd-text-2);font-size:10px;display:flex;flex-direction:column;gap:1px;align-items:center;justify-content:center;cursor:${el2.locked ? "default" : "move"};user-select:none;overflow:hidden;box-sizing:border-box;padding:2px;opacity:${el2.hidden ? ".28" : "1"}`;
           _wbFillBox(box, el2, Number(el2.size) > 0 ? Number(el2.size) : 0);
           const handle = document.createElement("div");
-          handle.style.cssText = "position:absolute;right:0;bottom:0;width:12px;height:12px;cursor:nwse-resize;background:var(--sd-accent);opacity:.75;border-radius:6px 0 4px 0";
+          handle.style.cssText = `position:absolute;right:0;bottom:0;width:13px;height:13px;cursor:nwse-resize;background:var(--sd-accent);opacity:.8;border-radius:7px 0 4px 0;display:${el2.locked ? "none" : "block"}`;
           box.appendChild(handle);
           let dragMode = null, moved = false, sx = 0, sy = 0, ox = 0, oy = 0, ow2 = 0, oh2 = 0;
-          const onMove = (ev3) => {
+          const onMove = ev3 => {
             const dx = ev3.clientX - sx, dy = ev3.clientY - sy;
             if (dx || dy) moved = true;
             if (dragMode === "move") {
-              el2.x = Math.max(0, _wbSnap(ox + dx));
-              el2.y = Math.max(0, _wbSnap(oy + dy));
+              el2.x = Math.max(0, Math.min(Math.max(0, cw - bw2), snapValue(ox + dx)));
+              el2.y = Math.max(0, Math.min(Math.max(0, ch2 - bh2), snapValue(oy + dy)));
               box.style.left = el2.x + "px";
               box.style.top = el2.y + "px";
             } else if (dragMode === "resize") {
-              el2.w = Math.max(16, _wbSnap(ow2 + dx));
-              el2.h = Math.max(14, _wbSnap(oh2 + dy));
+              el2.w = Math.max(24, Math.min(Math.max(24, cw - (Number(el2.x) || 0)), snapValue(ow2 + dx)));
+              el2.h = Math.max(20, Math.min(Math.max(20, ch2 - (Number(el2.y) || 0)), snapValue(oh2 + dy)));
               box.style.width = el2.w + "px";
               box.style.height = el2.h + "px";
             }
@@ -1211,65 +1284,52 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
           const onUp = () => {
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
-            if (dragMode) {
-              dragMode = null;
-              wbSync();
-              if (moved) wbRender();
-              else _wbFocusRow(idx2);
-            }
+            if (!dragMode) return;
+            dragMode = null;
+            wbSync();
+            if (moved) wbRender(); else _wbFocusRow(idx2);
           };
-          box.addEventListener("mousedown", (ev3) => {
-            if (ev3.target === handle) return;
+          box.addEventListener("mousedown", ev3 => {
+            if (ev3.target === handle || el2.locked) return;
             ev3.preventDefault();
             dragMode = "move"; moved = false; sx = ev3.clientX; sy = ev3.clientY;
             ox = Number(el2.x) || 0; oy = Number(el2.y) || 0;
             window.addEventListener("mousemove", onMove);
             window.addEventListener("mouseup", onUp);
           });
-          handle.addEventListener("mousedown", (ev3) => {
-            ev3.preventDefault();
-            ev3.stopPropagation();
-            dragMode = "resize"; moved = false; sx = ev3.clientX; sy = ev3.clientY;
-            ow2 = bw2; oh2 = bh2;
+          box.addEventListener("click", () => _wbFocusRow(idx2));
+          handle.addEventListener("mousedown", ev3 => {
+            if (el2.locked) return;
+            ev3.preventDefault(); ev3.stopPropagation();
+            dragMode = "resize"; moved = false; sx = ev3.clientX; sy = ev3.clientY; ow2 = bw2; oh2 = bh2;
             window.addEventListener("mousemove", onMove);
             window.addEventListener("mouseup", onUp);
           });
           inner2.appendChild(box);
         });
       } else {
-        const colsRaw = parseInt(popup.querySelector('input[data-field="columns"]')?.value);
-        const cols2 = Math.max(1, colsRaw > 0 ? colsRaw : (Number(w.columns) || 3));
-        const gvRaw = popup.querySelector('input[data-field="gap"]')?.value;
-        const gap2 = (gvRaw === "" || gvRaw == null) ? (Number(w.gap) || 6) : Math.max(0, parseFloat(gvRaw) || 0);
+        const cols2 = Math.max(1, readNumField("columns", Number(w.columns) || 3));
+        const gap2 = Math.max(0, readNumField("gap", Number(w.gap) || 6));
         wbCanvasEl.style.height = "";
         const inner2 = document.createElement("div");
-        inner2.style.cssText = "position:relative;display:grid;grid-template-columns:repeat(" + cols2 + ",1fr);gap:" + gap2 + "px;padding:8px";
+        inner2.style.cssText = `position:relative;display:grid;grid-template-columns:repeat(${cols2},1fr);gap:${gap2}px;padding:8px`;
         wbCanvasEl.appendChild(inner2);
         let dragFrom = -1;
         wbEls.forEach((el2, idx2) => {
           const box = document.createElement("div");
-          box.draggable = true;
-          box.style.cssText = "position:relative;min-height:34px;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg-4);color:var(--sd-text-2);font-size:10px;" +
-            "display:flex;flex-direction:column;gap:1px;align-items:center;justify-content:center;cursor:grab;user-select:none;overflow:hidden;box-sizing:border-box;padding:3px";
+          box.draggable = !el2.locked;
+          box.style.cssText = `position:relative;min-height:38px;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg-4);color:var(--sd-text-2);font-size:10px;display:flex;flex-direction:column;gap:1px;align-items:center;justify-content:center;cursor:${el2.locked ? "default" : "grab"};user-select:none;overflow:hidden;box-sizing:border-box;padding:3px;opacity:${el2.hidden ? ".28" : "1"}`;
           _wbFillBox(box, el2, Number(el2.size) > 0 ? Number(el2.size) : 0);
           box.addEventListener("click", () => _wbFocusRow(idx2));
-          box.addEventListener("dragstart", (ev3) => {
-            dragFrom = idx2;
-            ev3.dataTransfer.effectAllowed = "move";
-            try { ev3.dataTransfer.setData("text/plain", String(idx2)); } catch (e2) {  }
-          });
-          box.addEventListener("dragover", (ev3) => {
-            ev3.preventDefault();
-            box.style.borderColor = "var(--sd-accent)";
-          });
-          box.addEventListener("dragleave", () => {
-            box.style.borderColor = String(el2.color ?? "").trim() || "var(--sd-border)";
-          });
-          box.addEventListener("drop", (ev3) => {
+          box.addEventListener("dragstart", ev3 => { dragFrom = idx2; ev3.dataTransfer.effectAllowed = "move"; });
+          box.addEventListener("dragover", ev3 => { ev3.preventDefault(); box.style.borderColor = "var(--sd-accent)"; });
+          box.addEventListener("dragleave", () => { box.style.borderColor = String(el2.color ?? "").trim() || "var(--sd-border)"; });
+          box.addEventListener("drop", ev3 => {
             ev3.preventDefault();
             if (dragFrom < 0 || dragFrom === idx2) { dragFrom = -1; return; }
             const mv2 = wbEls.splice(dragFrom, 1)[0];
             wbEls.splice(idx2, 0, mv2);
+            wbEls.forEach((entry, order) => { entry.z = order; });
             dragFrom = -1;
             wbRender();
           });
@@ -1278,8 +1338,61 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       }
     };
 
+    const renderLayers = () => {
+      if (!wbLayersEl) return;
+      if (!wbEls.length) {
+        wbLayersEl.innerHTML = `<div style="font-size:10px;color:var(--sd-text-3);font-style:italic;padding:4px">No layers</div>`;
+        return;
+      }
+      const ordered = wbEls.map((el2, idx2) => ({ el2, idx2 }))
+        .sort((a, b) => (Number(b.el2.z) || 0) - (Number(a.el2.z) || 0) || b.idx2 - a.idx2);
+      wbLayersEl.innerHTML = ordered.map(({ el2, idx2 }) => {
+        const def = el2.kind === "widget" ? WIDGET_TYPES[el2.widget?.type] : null;
+        const icon = def?.icon || ({ image:"fa-image", icon:"fa-icons", value:"fa-hashtag", label:"fa-font", button:"fa-square" }[el2.kind] || "fa-shapes");
+        return `<div class="wb-layer-row" data-wb-layer-idx="${idx2}" style="display:grid;grid-template-columns:22px 22px 1fr auto;gap:3px;align-items:center;border:1px solid var(--sd-border);border-radius:4px;padding:3px;background:var(--sd-bg-3);opacity:${el2.hidden ? ".55" : "1"}">
+          <button type="button" data-layer-action="visibility" title="Show / hide" class="wb-layer-btn"><i class="fas ${el2.hidden ? "fa-eye-slash" : "fa-eye"}"></i></button>
+          <button type="button" data-layer-action="lock" title="Lock / unlock" class="wb-layer-btn"><i class="fas ${el2.locked ? "fa-lock" : "fa-lock-open"}"></i></button>
+          <button type="button" data-layer-action="focus" title="Open element settings" style="min-width:0;background:none;border:none;color:var(--sd-text-2);text-align:left;cursor:pointer;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><i class="fas ${esc(icon)}" style="margin-right:5px;color:var(--sd-accent)"></i>${esc(el2.name || el2.label || def?.label || "Element")}</button>
+          <span style="display:flex;gap:2px">
+            <button type="button" data-layer-action="back" title="Send backward" class="wb-layer-btn"><i class="fas fa-arrow-down"></i></button>
+            <button type="button" data-layer-action="front" title="Bring forward" class="wb-layer-btn"><i class="fas fa-arrow-up"></i></button>
+          </span>
+        </div>`;
+      }).join("");
+      wbLayersEl.querySelectorAll(".wb-layer-row").forEach(layerRow => {
+        const idx2 = Number(layerRow.dataset.wbLayerIdx);
+        layerRow.querySelectorAll("[data-layer-action]").forEach(btn => btn.addEventListener("click", () => {
+          const el2 = wbEls[idx2]; if (!el2) return;
+          const action = btn.dataset.layerAction;
+          if (action === "visibility") el2.hidden = !el2.hidden;
+          else if (action === "lock") el2.locked = !el2.locked;
+          else if (action === "front") el2.z = wbNextZ();
+          else if (action === "back") el2.z = Math.min(0, ...wbEls.map((x, i) => Number(x.z) || i)) - 1;
+          else if (action === "focus") { _wbFocusRow(idx2); return; }
+          wbRender();
+        }));
+      });
+    };
+
+    const openElementGraph = (idx, kind) => {
+      const nm = String(wbEls[idx]?.name ?? "").trim();
+      if (!nm) { ui.notifications?.warn?.("Give the element a name first"); return; }
+      if (!w.graphData || !Array.isArray(w.graphData.nodes)) w.graphData = { nodes: [], edges: [], comments: [] };
+      const nodeType = kind === "value" ? "widget_output" : "custom_event";
+      const nodeName = kind === "value" ? nm : "On Click " + nm;
+      const exists = w.graphData.nodes.some(n2 => n2?.type === nodeType && String(n2?.data?.name ?? "").trim() === nodeName);
+      if (!exists) {
+        const maxId = Math.max(0, ...w.graphData.nodes.map(n2 => parseInt(String(n2?.id ?? "").replace(/[^0-9]/g, "")) || 0));
+        w.graphData.nodes.push({ id: String(maxId + 1), type: nodeType, x: kind === "value" ? 460 : 80, y: 80 + (w.graphData.nodes.length % 6) * 140, data: { name: nodeName } });
+      }
+      const formulaInp = popup.querySelector('input[data-field="formula"]');
+      const graph = new FormulaGraph(formulaInp, doc, w, { tab, row, w, doc });
+      graph.open();
+    };
+
     const wbRender = () => {
       wbSync();
+      renderLayers();
       wbRowsEl.innerHTML = "";
       if (!wbEls.length) {
         wbRowsEl.innerHTML = "<div style='font-size:10px;color:var(--sd-text-3);font-style:italic'>No elements yet &mdash; click + Add Element</div>";
@@ -1288,146 +1401,92 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       }
       wbEls.forEach((el2, idx) => {
         const row2 = document.createElement("div");
-        row2.style.cssText = "border:1px solid var(--sd-border);border-radius:5px;padding:6px;margin-bottom:6px;background:var(--sd-bg)";
+        row2.style.cssText = "border:1px solid var(--sd-border);border-radius:6px;padding:7px;margin-bottom:7px;background:var(--sd-bg)";
         row2.dataset.wbIdx = String(idx);
         const name = String(el2.name ?? "");
         const dup = wbNameDup(name.trim(), idx);
+        const isWidget = String(el2.kind ?? "button") === "widget";
+        const widgetType = String(el2.widget?.type ?? "text");
         row2.innerHTML = `
-          <div style="display:grid;grid-template-columns:1fr 96px 22px;gap:4px;align-items:center;margin-bottom:4px">
-            <input type="text" class="wb-name" value="${esc(name)}" placeholder="Element name (required, unique)"
-              style="background:var(--sd-bg-4);border:1px solid ${dup ? "var(--sd-danger,#e05555)" : "var(--sd-border)"};border-radius:3px;color:var(--sd-text);font-size:11px;padding:3px 6px;width:100%"
-              title="${dup ? "This name is already used by another element" : ""}">
-            <select class="wb-kind" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
-              ${["button","value","icon","image","label"].map(k2 => `<option value="${k2}" ${String(el2.kind ?? "button") === k2 ? "selected" : ""}>${k2}</option>`).join("")}
+          <div style="display:grid;grid-template-columns:1fr 104px 24px;gap:5px;align-items:center;margin-bottom:5px">
+            <input type="text" class="wb-name" value="${esc(name)}" placeholder="Unique layer name" style="background:var(--sd-bg-4);border:1px solid ${dup ? "var(--sd-danger,#e05555)" : "var(--sd-border)"};border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 7px;width:100%">
+            <select class="wb-kind" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:10px;padding:4px;width:100%">
+              ${["button","value","icon","image","label","widget"].map(k2 => `<option value="${k2}" ${String(el2.kind ?? "button") === k2 ? "selected" : ""}>${k2}</option>`).join("")}
             </select>
-            <button type="button" class="wb-del" title="Remove element" style="background:none;border:none;color:var(--sd-danger-dim);cursor:pointer;font-size:13px;padding:0;line-height:1">&#10005;</button>
+            <button type="button" class="wb-del wb-layer-btn" title="Remove element" style="background:none;border:none;color:var(--sd-danger-dim);cursor:pointer;font-size:13px;padding:0">&#10005;</button>
           </div>
-          ${dup ? `<div style="font-size:9px;color:var(--sd-danger,#e05555);margin:-2px 0 4px 0">Duplicate name &mdash; element names must be unique</div>` : ""}
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">
-            <input type="text" class="wb-label" value="${esc(String(el2.label ?? ""))}" placeholder="Label / text"
-              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;width:100%">
-            <input type="text" class="wb-icon" value="${esc(String(el2.icon ?? ""))}" placeholder="Icon (fa-bolt)"
-              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;width:100%">
+          ${dup ? `<div style="font-size:9px;color:var(--sd-danger,#e05555);margin:-2px 0 4px">Duplicate name — layer names must be unique</div>` : ""}
+          ${isWidget ? `<div class="wb-embedded-panel" style="display:grid;grid-template-columns:1fr auto;gap:5px;align-items:center;border:1px solid var(--sd-accent-dim,var(--sd-border));border-radius:5px;padding:6px;margin-bottom:5px;background:var(--sd-bg-3)">
+            <select class="wb-widget-type" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:10px;padding:4px;width:100%">${embeddedTypes.map(def => `<option value="${esc(def.id)}" ${widgetType === def.id ? "selected" : ""}>${esc(def.label || def.id)}</option>`).join("")}</select>
+            <button type="button" class="wb-widget-config" style="background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:4px 8px"><i class="fas fa-gear"></i> Configure</button>
+          </div>` : ""}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
+            <input type="text" class="wb-label" value="${esc(String(el2.label ?? ""))}" placeholder="Label / text" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:10px;padding:4px 7px;width:100%">
+            <input type="text" class="wb-icon" value="${esc(String(el2.icon ?? ""))}" placeholder="Icon (fa-bolt)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:10px;padding:4px 7px;width:100%">
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">
-            <input type="text" class="wb-img" value="${esc(String(el2.img ?? ""))}" placeholder="Image path (icons/svg/aura.svg)"
-              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;width:100%">
-            <input type="text" class="wb-color" value="${esc(String(el2.color ?? ""))}" placeholder="Color (#7be07a)"
-              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;width:100%">
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:5px;margin-bottom:5px">
+            <input type="text" class="wb-img" value="${esc(String(el2.img ?? ""))}" placeholder="Image path" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:10px;padding:4px 7px;width:100%">
+            <button type="button" class="wb-img-pick wb-layer-btn" title="Choose image"><i class="fas fa-folder-open"></i></button>
+            <input type="text" class="wb-color" value="${esc(String(el2.color ?? ""))}" placeholder="Color (#7be07a)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:10px;padding:4px 7px;width:100%">
           </div>
-          <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
-            <input type="text" class="wb-formula" value="${esc(String(el2.formula ?? ""))}" placeholder="Value formula, e.g. {system.resources.hp.value} (for value kind)"
-              style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 6px;flex:1;min-width:0;font-family:'Courier New',monospace">
-            ${String(el2.kind ?? "button") === "value" ? `<button type="button" class="wb-vout" title="Create a Custom Output node named after this element in the shared widget graph and open the graph. Wire any value into that node and save the graph - this element will display it."
-              style="flex-shrink:0;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:3px 8px;white-space:nowrap;line-height:1">&#8853; Output Node${(w.wbOutputs && Object.prototype.hasOwnProperty.call(w.wbOutputs, name.trim())) ? " &#10003;" : ""}</button>` : ""}
+          <div style="display:flex;gap:5px;align-items:center;margin-bottom:5px">
+            <input type="text" class="wb-formula" value="${esc(String(el2.formula ?? ""))}" placeholder="Value formula" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:10px;padding:4px 7px;flex:1;min-width:0;font-family:'Courier New',monospace">
+            ${String(el2.kind) === "value" ? `<button type="button" class="wb-vout wb-layer-btn" title="Create value output"><i class="fas fa-circle-nodes"></i></button>` : ""}
           </div>
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:4px">
-            <input type="number" class="wb-x" value="${esc(String(el2.x ?? ""))}" placeholder="X" title="X position (px, free layout)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
-            <input type="number" class="wb-y" value="${esc(String(el2.y ?? ""))}" placeholder="Y" title="Y position (px, free layout)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
-            <input type="number" class="wb-w" value="${esc(String(el2.w ?? ""))}" placeholder="W" title="Width (px, empty = auto)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
-            <input type="number" class="wb-h" value="${esc(String(el2.h ?? ""))}" placeholder="H" title="Height (px, empty = auto)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
-            <input type="number" class="wb-size" value="${esc(String(el2.size ?? ""))}" placeholder="Font" title="Font / icon size (px)" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:5px">
+            ${[["wb-x","x","X"],["wb-y","y","Y"],["wb-w","w","W"],["wb-h","h","H"],["wb-size","size","Font"],["wb-z","z","Layer"]].map(([cls,key2,ph]) => `<input type="number" class="${cls}" value="${esc(String(el2[key2] ?? ""))}" placeholder="${ph}" title="${ph}" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">`).join("")}
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <label style="display:flex;gap:4px;align-items:center;font-size:10px;color:var(--sd-text-2);cursor:pointer">
-              <input type="checkbox" class="wb-click" ${el2.clickable ? "checked" : ""}> Clickable
-            </label>
-            <button type="button" class="wb-event" ${el2.clickable && name.trim() ? "" : "disabled"}
-              style="background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:3px 8px;line-height:1;opacity:${el2.clickable && name.trim() ? "1" : ".4"}">
-              &#9889; Create On Click Event
-            </button>
-            <span style="font-size:9px;color:var(--sd-text-3);font-family:monospace">${el2.clickable && name.trim() ? esc("On Click " + name.trim()) : ""}</span>
+          <div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center">
+            <label class="wb-mini-check"><input type="checkbox" class="wb-click" ${el2.clickable ? "checked" : ""}> Clickable</label>
+            <label class="wb-mini-check"><input type="checkbox" class="wb-locked" ${el2.locked ? "checked" : ""}> Locked</label>
+            <label class="wb-mini-check"><input type="checkbox" class="wb-hidden" ${el2.hidden ? "checked" : ""}> Hidden</label>
+            <button type="button" class="wb-event" ${el2.clickable && name.trim() ? "" : "disabled"} style="margin-left:auto;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:3px 8px;opacity:${el2.clickable && name.trim() ? "1" : ".4"}"><i class="fas fa-bolt"></i> On Click</button>
           </div>`;
-        const upd = (cls, keyName, isCheck) => {
-          const inpEl = row2.querySelector(cls);
-          if (!inpEl) return;
+
+        const upd = (cls, keyName, isCheck = false) => {
+          const inpEl = row2.querySelector(cls); if (!inpEl) return;
           inpEl.addEventListener(isCheck ? "change" : "input", () => {
             wbEls[idx][keyName] = isCheck ? inpEl.checked : inpEl.value;
             wbSync();
-            if (isCheck) wbRender();
-          });
-          if (keyName === "name") inpEl.addEventListener("change", () => wbRender());
-        };
-        upd(".wb-name", "name", false);
-        upd(".wb-label", "label", false);
-        upd(".wb-icon", "icon", false);
-        upd(".wb-img", "img", false);
-        upd(".wb-color", "color", false);
-        upd(".wb-formula", "formula", false);
-        upd(".wb-click", "clickable", true);
-        const updNum = (cls, keyName) => {
-          const inpEl = row2.querySelector(cls);
-          if (!inpEl) return;
-          inpEl.addEventListener("input", () => {
-            const v2 = inpEl.value;
-            wbEls[idx][keyName] = v2 === "" ? "" : (parseFloat(v2) || 0);
-            wbSync();
-            wbCanvasRender();
+            if (isCheck) wbRender(); else wbCanvasRender();
           });
         };
-        updNum(".wb-x", "x");
-        updNum(".wb-y", "y");
-        updNum(".wb-w", "w");
-        updNum(".wb-h", "h");
-        updNum(".wb-size", "size");
+        ["name","label","icon","img","color","formula"].forEach(key2 => upd(`.wb-${key2}`, key2));
+        ["clickable","locked","hidden"].forEach(key2 => upd(`.wb-${key2 === "clickable" ? "click" : key2}`, key2, true));
+        for (const key2 of ["x","y","w","h","size","z"]) {
+          const inpEl = row2.querySelector(`.wb-${key2}`);
+          inpEl?.addEventListener("input", () => { wbEls[idx][key2] = inpEl.value === "" ? "" : (parseFloat(inpEl.value) || 0); wbSync(); wbCanvasRender(); renderLayers(); });
+        }
+        row2.querySelector(".wb-name")?.addEventListener("change", wbRender);
         row2.querySelector(".wb-kind")?.addEventListener("change", ev2 => {
           wbEls[idx].kind = ev2.target.value;
-          wbSync();
+          if (ev2.target.value === "widget" && (!wbEls[idx].widget || !WIDGET_TYPES[wbEls[idx].widget.type])) {
+            wbEls[idx].widget = createWidget("text", { label: wbEls[idx].label || "Text" });
+            if (!Number(wbEls[idx].w)) wbEls[idx].w = 160;
+            if (!Number(wbEls[idx].h)) wbEls[idx].h = 72;
+          }
           wbRender();
         });
-        row2.querySelector(".wb-del")?.addEventListener("click", () => {
-          wbEls.splice(idx, 1);
+        row2.querySelector(".wb-widget-type")?.addEventListener("change", ev2 => {
+          const oldLabel = wbEls[idx].widget?.label || wbEls[idx].label || "";
+          wbEls[idx].widget = createWidget(ev2.target.value, oldLabel ? { label: oldLabel } : {});
           wbRender();
         });
-        row2.querySelector(".wb-vout")?.addEventListener("click", () => {
-          const nm = String(wbEls[idx]?.name ?? "").trim();
-          if (!nm) { ui.notifications?.warn?.("Give the element a name first"); return; }
-          if (!w.graphData || !Array.isArray(w.graphData.nodes)) w.graphData = { nodes: [], edges: [], comments: [] };
-          const exists = w.graphData.nodes.some(n2 =>
-            n2?.type === "widget_output" && String(n2?.data?.name ?? "").trim() === nm);
-          if (!exists) {
-            const maxId = Math.max(0, ...w.graphData.nodes.map(n2 => {
-              const v2 = parseInt(String(n2?.id ?? "").replace(/[^0-9]/g, ""));
-              return isNaN(v2) ? 0 : v2;
-            }));
-            w.graphData.nodes.push({
-              id: String(maxId + 1),
-              type: "widget_output",
-              x: 460,
-              y: 80 + (w.graphData.nodes.length % 6) * 140,
-              data: { name: nm }
-            });
-            ui.notifications?.info?.(`Custom Output "${nm}" created - wire a value into it and save the graph`);
-          }
-          const formulaInp = popup.querySelector('input[data-field="formula"]');
-          const graph = new FormulaGraph(formulaInp, doc, w, { tab, row, w, doc });
-          graph.open();
+        row2.querySelector(".wb-widget-config")?.addEventListener("click", async () => {
+          if (!wbEls[idx].widget) wbEls[idx].widget = createWidget(widgetType || "text");
+          await openWidgetConfigPopup(wbEls[idx].widget, tab, row, doc, {
+            embedded: true,
+            onSave: updated => { wbEls[idx].widget = updated; wbSync(); wbRender(); }
+          });
         });
-        row2.querySelector(".wb-event")?.addEventListener("click", () => {
-          const nm = String(wbEls[idx]?.name ?? "").trim();
-          if (!nm) return;
-          const evName = "On Click " + nm;
-          if (!w.graphData || !Array.isArray(w.graphData.nodes)) w.graphData = { nodes: [], edges: [], comments: [] };
-          const exists = w.graphData.nodes.some(n2 =>
-            n2?.type === "custom_event" && String(n2?.data?.name ?? "").trim() === evName);
-          if (!exists) {
-            const maxId = Math.max(0, ...w.graphData.nodes.map(n2 => {
-              const v2 = parseInt(String(n2?.id ?? "").replace(/[^0-9]/g, ""));
-              return isNaN(v2) ? 0 : v2;
-            }));
-            w.graphData.nodes.push({
-              id: String(maxId + 1),
-              type: "custom_event",
-              x: 80,
-              y: 80 + (w.graphData.nodes.length % 6) * 140,
-              data: { name: evName }
-            });
-            ui.notifications?.info?.(`Custom Event "${evName}" created - wire its exec chain in the graph and save it`);
-          }
-          const formulaInp = popup.querySelector('input[data-field="formula"]');
-          const graph = new FormulaGraph(formulaInp, doc, w, { tab, row, w, doc });
-          graph.open();
+        row2.querySelector(".wb-img-pick")?.addEventListener("click", () => {
+          const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+          if (!FP) { ui.notifications?.error?.("FilePicker is not available"); return; }
+          new FP({ type: "image", current: String(wbEls[idx].img ?? ""), callback: src => { wbEls[idx].img = src || ""; wbRender(); } }).render(true);
         });
+        row2.querySelector(".wb-del")?.addEventListener("click", () => { wbEls.splice(idx, 1); wbRender(); });
+        row2.querySelector(".wb-vout")?.addEventListener("click", () => openElementGraph(idx, "value"));
+        row2.querySelector(".wb-event")?.addEventListener("click", () => openElementGraph(idx, "event"));
         wbRowsEl.appendChild(row2);
       });
       wbCanvasRender();
@@ -1435,31 +1494,63 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
 
     popup.querySelector("#wcfg-wb-add")?.addEventListener("click", () => {
       wbEls.push({
+        id: foundry.utils.randomID(6), name: "Element" + (wbEls.length + 1), kind: "button",
+        label: "", icon: "", img: "", color: "", formula: "",
+        x: 8 + (wbEls.length % 4) * 76, y: 8 + Math.floor(wbEls.length / 4) * 40,
+        w: 72, h: 32, size: "", z: wbNextZ(), clickable: true, locked: false, hidden: false
+      });
+      wbRender();
+    });
+
+    wbCanvasEl?.addEventListener("dragover", ev => {
+      // Browsers often hide dataTransfer payloads until drop. Accept the drag
+      // here and validate the System Director payload in the drop handler.
+      ev.preventDefault();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = "copy";
+      wbCanvasEl.style.borderColor = "var(--sd-accent)";
+    });
+    wbCanvasEl?.addEventListener("dragleave", () => { wbCanvasEl.style.borderColor = "var(--sd-border)"; });
+    wbCanvasEl?.addEventListener("drop", ev => {
+      wbCanvasEl.style.borderColor = "var(--sd-border)";
+      let data = null;
+      try { data = JSON.parse(ev.dataTransfer?.getData("text/plain") || "null"); } catch (err) { data = null; }
+      const type = data?.widgetType;
+      if (data?.sdType !== "widget" || !WIDGET_TYPES[type] || ["widgetBuilder", "vsection"].includes(type)) return;
+      ev.preventDefault();
+      const isFree = (popup.querySelector('select[data-field="wbLayout"]')?.value ?? "grid") === "free";
+      const surface = wbCanvasEl.firstElementChild ?? wbCanvasEl;
+      const rect = surface.getBoundingClientRect();
+      const def = WIDGET_TYPES[type];
+      const nested = createWidget(type);
+      const idx = wbEls.length;
+      wbEls.push({
         id: foundry.utils.randomID(6),
-        name: "Btn" + (wbEls.length + 1),
-        kind: "button",
+        name: `${def.label || type} ${idx + 1}`,
+        kind: "widget",
         label: "",
         icon: "",
         img: "",
         color: "",
         formula: "",
-        x: 8 + (wbEls.length % 4) * 76,
-        y: 8 + Math.floor(wbEls.length / 4) * 36,
-        w: "",
-        h: "",
+        x: isFree ? Math.max(0, snapValue(ev.clientX - rect.left)) : 0,
+        y: isFree ? Math.max(0, snapValue(ev.clientY - rect.top)) : 0,
+        w: 160,
+        h: 72,
         size: "",
-        clickable: true
+        z: wbNextZ(),
+        clickable: false,
+        locked: false,
+        hidden: false,
+        widget: nested
       });
       wbRender();
     });
 
     wbRender();
-
-    popup.querySelector('select[data-field="wbLayout"]')?.addEventListener("change", () => wbCanvasRender());
-    popup.querySelector('input[data-field="canvasW"]')?.addEventListener("input", () => wbCanvasRender());
-    popup.querySelector('input[data-field="canvasH"]')?.addEventListener("input", () => wbCanvasRender());
-    popup.querySelector('input[data-field="columns"]')?.addEventListener("input", () => wbCanvasRender());
-    popup.querySelector('input[data-field="gap"]')?.addEventListener("input", () => wbCanvasRender());
+    popup.querySelector('select[data-field="wbLayout"]')?.addEventListener("change", wbCanvasRender);
+    for (const key of ["canvasW","canvasH","columns","gap","gridSize","snap"]) {
+      popup.querySelector(`input[data-field="${key}"]`)?.addEventListener("input", wbCanvasRender);
+    }
     popup.querySelectorAll(".wcfg-tab-btn").forEach(b2 => b2.addEventListener("click", () => setTimeout(wbCanvasRender, 0)));
   }
 
@@ -1522,7 +1613,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
     }
 
     const changes = {};
-    popup.querySelectorAll("input[data-field]").forEach(el => {
+    popup.querySelectorAll("input[data-field], textarea[data-field]").forEach(el => {
       const key  = el.dataset.field;
       const type = el.dataset.ftype ?? el.type;
       let val;
@@ -1579,6 +1670,15 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
       }
     }
 
+    if (options?.embedded === true) {
+      Object.assign(w, changes);
+      if (Object.keys(_hfUpdates).length) await doc.update(_hfUpdates);
+      options.onSave?.(foundry.utils.deepClone(w));
+      ui.notifications?.info?.(`Embedded widget "${w.label || w.type}" updated.`);
+      popup.remove();
+      return;
+    }
+
     const tabs   = foundry.utils.deepClone(doc.system.customTabs ?? []);
     const _findWidgetDeep = (list, id) => {
       if (!Array.isArray(list)) return null;
@@ -1587,6 +1687,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc) {
         if (ww.type === "vsection") {
           const nested = _findWidgetDeep(ww.widgets, id);
           if (nested) return nested;
+        }
+        if (ww.type === "widgetBuilder") {
+          const embedded = _findWidgetDeep((ww.elements ?? []).map(el => el?.widget).filter(Boolean), id);
+          if (embedded) return embedded;
         }
       }
       return null;

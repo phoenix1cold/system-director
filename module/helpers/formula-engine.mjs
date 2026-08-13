@@ -253,6 +253,7 @@ export class FormulaEngine {
           if (!ww) continue;
           if (ww === w) return true;
           if (_walk(ww.widgets)) return true;
+          if (_walk((ww.elements ?? []).map(el => el?.widget).filter(Boolean))) return true;
         }
         return false;
       };
@@ -297,6 +298,8 @@ export class FormulaEngine {
         if (_match(w, mode)) return w;
         const nested = _walk(w.widgets, mode);
         if (nested) return nested;
+        const embedded = _walk((w.elements ?? []).map(el => el?.widget).filter(Boolean), mode);
+        if (embedded) return embedded;
       }
       return null;
     };
@@ -348,6 +351,7 @@ export class FormulaEngine {
             const nm = String(ww.widgetKey ?? "").trim() || String(ww.label ?? "").trim();
             if (nm) names.push(`"${nm}" (${String(ww.type ?? "?")})`);
             _collect(ww.widgets);
+            _collect((ww.elements ?? []).map(el => el?.widget).filter(Boolean));
           }
         };
         const _collectDoc = (d) => {

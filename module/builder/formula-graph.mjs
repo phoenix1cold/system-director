@@ -9606,6 +9606,10 @@ export class FormulaGraph {
         const nested = this._findWidgetDeepInRow(ww.widgets, id);
         if (nested) return nested;
       }
+      if (ww?.type === "widgetBuilder") {
+        const embedded = this._findWidgetDeepInRow((ww.elements ?? []).map(el => el?.widget).filter(Boolean), id);
+        if (embedded) return embedded;
+      }
     }
     return null;
   }
@@ -9899,6 +9903,7 @@ export class FormulaGraph {
         if (!w) continue;
         if (w.widgetKey) idx.widgets.push({ key: w.widgetKey, label: `${w.label || w.type} (${w.widgetKey})`, type: w.type });
         if (Array.isArray(w.widgets)) _collectWidgets(w.widgets);
+        if (Array.isArray(w.elements)) _collectWidgets(w.elements.map(el => el?.widget).filter(Boolean));
       }
     };
     const _indexDoc = (d) => {

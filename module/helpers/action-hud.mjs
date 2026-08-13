@@ -201,6 +201,7 @@ function collectActorWidgets(actor) {
       if (!w) continue;
       out.push(w);
       if (w.type === "vsection" && Array.isArray(w.widgets)) walk(w.widgets);
+      if (w.type === "widgetBuilder" && Array.isArray(w.elements)) walk(w.elements.map(el => el?.widget).filter(Boolean));
     }
   };
   for (const t of tabs) {
@@ -372,7 +373,6 @@ function wireHudWidget(cell, widgetDef, actor) {
   cell.querySelectorAll("[data-action='itemEquip']").forEach(btn => {
     btn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
-<<<<<<< HEAD
       // Slotted item: lives as a snapshot inside a slot, not as a live embedded document.
       const _slotId = btn.dataset.slotId;
       if (_slotId) {
@@ -380,8 +380,6 @@ function wireHudWidget(cell, widgetDef, actor) {
         await SlotManager.toggleSlotEquip(actor, _slotId, parseInt(btn.dataset.slotIndex ?? "0"));
         return;
       }
-=======
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
       const item = actor.items?.get(btn.dataset.itemId);
       if (!item || item.type !== "inventory") return;
       if (!item.system?.equippable) {

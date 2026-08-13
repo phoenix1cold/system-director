@@ -1,20 +1,11 @@
 import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
-<<<<<<< HEAD
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpers/effect-editor.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
-=======
-import { WidgetRenderer } from "../builder/widget-renderer.mjs";
-import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpers/effect-editor.mjs";
-import { effectDurationLabel } from "../helpers/effect-duration.mjs";
-import { RichTextEditor } from "../helpers/richtext-editor.mjs";
-import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
-import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -149,7 +140,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     return { ...base, item: this.document, system: this.document.system, isEditable: this.isEditable, editMode: this._editMode, isInventory: this.document.type === "inventory", isAbility: this.document.type === "ability" };
   }
 
-<<<<<<< HEAD
   _onRender(context, options) {
     this._captureScrollMemory();
     this._buildTabNav();
@@ -163,26 +153,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   _onChangeForm(formConfig, event) {
-=======
-  _onRender(context, options) {
-    this._captureScrollMemory();
-    this._buildTabNav();
-    this._buildTabPanels();
-    this._wireHeaderInputs();
-    this._showEditModeBadge();
-    this._wireAllDropZones();
-    this._wireAllInteractions();
-    this._wireScrollMemory();
-    this._restoreScrollMemory();
-  }
-
-  _onChangeForm(formConfig, event) {
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     const t = event?.target;
 
     if (t?.closest?.(".richtext-editor, .richtext-edit-wrap, .sd-wcfg-popup, prose-mirror, .sd-richtext-pm-target, .sd-richtext-editor, .editor.prosemirror, .ProseMirror, .prosemirror-menu")) return;
     if (t?.tagName?.toLowerCase?.() === "prose-mirror") return;
-<<<<<<< HEAD
     return super._onChangeForm(formConfig, event);
   }
 
@@ -229,54 +203,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     requestAnimationFrame(apply);
     window.setTimeout(apply, 50);
   }
-=======
-    return super._onChangeForm(formConfig, event);
-  }
-
-  _scrollKey(panel) {
-    return panel?.dataset?.tabId ?? panel?.dataset?.tab ?? this.tabGroups.sheet ?? "__default";
-  }
-
-  _captureScrollMemory() {
-    const root = this.element;
-    if (!root) return;
-    this._sdScrollMemory ??= {};
-    root.querySelectorAll(".sd-tab-panel").forEach(panel => {
-      const key = this._scrollKey(panel);
-      if (key) this._sdScrollMemory[key] = panel.scrollTop || 0;
-    });
-  }
-
-  _wireScrollMemory() {
-    const root = this.element;
-    if (!root) return;
-    this._sdScrollMemory ??= {};
-    root.querySelectorAll(".sd-tab-panel").forEach(panel => {
-      if (panel.dataset.sdScrollMemory === "1") return;
-      panel.dataset.sdScrollMemory = "1";
-      panel.addEventListener("scroll", () => {
-        const key = this._scrollKey(panel);
-        if (key) this._sdScrollMemory[key] = panel.scrollTop || 0;
-      }, { passive: true });
-    });
-  }
-
-  _restoreScrollMemory() {
-    const root = this.element;
-    const memory = this._sdScrollMemory;
-    if (!root || !memory) return;
-    const apply = () => {
-      root.querySelectorAll(".sd-tab-panel").forEach(panel => {
-        const key = this._scrollKey(panel);
-        const y = Number(memory[key] ?? 0);
-        if (!Number.isFinite(y) || y <= 0) return;
-        panel.scrollTop = Math.min(y, Math.max(0, panel.scrollHeight - panel.clientHeight));
-      });
-    };
-    requestAnimationFrame(apply);
-    window.setTimeout(apply, 50);
-  }
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
   _buildTabNav() {
     const root = this.element;
@@ -364,7 +290,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     if (this._editMode && !isSys) {
       a.innerHTML += ` <span data-rename="${tabId}" style="opacity:.3;font-size:9px;cursor:pointer" title="Rename">✎</span><span data-deltab="${tabId}" style="opacity:.3;font-size:9px;cursor:pointer" title="Delete">✕</span>`;
     }
-<<<<<<< HEAD
     a.addEventListener("click", ev => {
       if (ev.target.dataset.rename) { ev.stopPropagation(); this._renameTab(tabId); return; }
       if (ev.target.dataset.deltab) { ev.stopPropagation(); this._deleteTab(tabId); return; }
@@ -400,43 +325,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     this._captureScrollMemory();
     this.tabGroups.sheet = tabId;
     const root = this.element;
-=======
-    a.addEventListener("click", ev => {
-      if (ev.target.dataset.rename) { ev.stopPropagation(); this._renameTab(tabId); return; }
-      if (ev.target.dataset.deltab) { ev.stopPropagation(); this._deleteTab(tabId); return; }
-      this._switchTab(tabId);
-    });
-    if (!isSys) {
-      a.addEventListener("dragover", ev => {
-        ev.preventDefault();
-        if (this.tabGroups.sheet === tabId) return;
-        if (a._sdDragHoverT) return;
-        a._sdDragHoverT = setTimeout(() => { a._sdDragHoverT = null; this._switchTab(tabId); }, 200);
-      });
-      a.addEventListener("dragleave", () => {
-        if (a._sdDragHoverT) { clearTimeout(a._sdDragHoverT); a._sdDragHoverT = null; }
-      });
-      a.addEventListener("drop", async ev => {
-        if (a._sdDragHoverT) { clearTimeout(a._sdDragHoverT); a._sdDragHoverT = null; }
-        let data = null;
-        try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch {}
-        if (data && (data.sdType === "widget-move" || data.sdType === "moveWidget")) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          this._switchTab(tabId);
-          await this._moveWidget(data, { tabId, rowId: null, parentVsId: null, toEnd: true });
-        }
-      });
-    }
-    if (!isSys) SheetTabReorder.attach(this, a, tabId);
-    return a;
-  }
-
-  _switchTab(tabId) {
-    this._captureScrollMemory();
-    this.tabGroups.sheet = tabId;
-    const root = this.element;
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     root.querySelectorAll(".sd-tab-btn").forEach(a => {
       const on   = a.dataset.tabId === tabId;
       const isSys = a.classList.contains("sd-tab-sys");
@@ -444,7 +332,6 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       a.style.background  = on ? "var(--sd-bg)" : "transparent";
       a.style.borderColor = on ? "var(--sd-border)" : "transparent";
     });
-<<<<<<< HEAD
     root.querySelectorAll(".sd-tab-panel").forEach(p => {
       p.style.display = p.dataset.tabId===tabId ? "flex" : "none";
     });
@@ -454,34 +341,15 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   _buildTabPanels() {
     const root = this.element;
     if (!root) return;
-=======
-    root.querySelectorAll(".sd-tab-panel").forEach(p => {
-      p.style.display = p.dataset.tabId===tabId ? "flex" : "none";
-    });
-    this._restoreScrollMemory();
-  }
-
-  _buildTabPanels() {
-    const root = this.element;
-    if (!root) return;
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     let con = root.querySelector(".sd-panels-container");
     if (!con) {
       con = document.createElement("div");
       con.className = "sd-panels-container";
-<<<<<<< HEAD
       con.style.cssText = "flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;position:relative;";
       root.querySelector(".window-content")?.appendChild(con);
     }
     this._captureScrollMemory();
     con.innerHTML = "";
-=======
-      con.style.cssText = "flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;position:relative;";
-      root.querySelector(".window-content")?.appendChild(con);
-    }
-    this._captureScrollMemory();
-    con.innerHTML = "";
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
     const customTabs = this.document.system.customTabs ?? [];
     const active     = this.tabGroups.sheet;
@@ -1949,20 +1817,12 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     const e   = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     const effects = [...(doc.effects ?? [])];
 
-<<<<<<< HEAD
     const isEquippable = doc?.type === "inventory" && doc.system?.equippable === true;
-=======
-    const isEquippable = doc?.type === "inventory" && doc.system?.equippable === true;
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
 
     let rows = "";
     for (const ef of effects) {
       const disabled  = ef.disabled ? "effect-disabled" : "";
-<<<<<<< HEAD
       const dur       = effectDurationLabel(ef);
-=======
-      const dur       = effectDurationLabel(ef);
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
       const eyeIcon   = ef.disabled ? "fa-eye-slash" : "fa-eye";
       const aoe       = !!(ef.flags?.sd?.activateOnEquip);
       const transfers = ef.transfer !== false;
@@ -2200,16 +2060,13 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           const ef = await _resolveEffect();
           if (ef) await ef.update({ disabled: !ef.disabled });
           break;
-<<<<<<< HEAD
         }
-=======
-        }
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
         case "effectMode": {
           const ef = await _resolveEffect();
           if (ef) await _sdCycleEffectMode(ef);
           break;
-        }
+        }
+
         case "effectEdit": {
           const ef = await _resolveEffect();
           if (ef) ef.sheet.render(true);
@@ -3108,11 +2965,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
   async _addTab() {
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const id   = foundry.utils.randomID(8);
-<<<<<<< HEAD
     tabs.push({ id, label: "New Tab", order: tabs.length + 1, rows: [] });
-=======
-    tabs.push({ id, label: "New Tab", order: tabs.length + 1, rows: [] });
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     await this.document.update({ "system.customTabs": tabs });
     this._renameTab(id);
   }
@@ -3145,6 +2998,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     for (const w of widgets) {
       if (w.id === id) return w;
       if (w.type === "vsection") { const n = this._findWidgetDeep(w.widgets, id); if (n) return n; }
+      if (w.type === "widgetBuilder") { const n = this._findWidgetDeep((w.elements ?? []).map(el => el?.widget).filter(Boolean), id); if (n) return n; }
     }
     return null;
   }
@@ -3182,12 +3036,17 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     const ww = this._findWidgetDeep(r.widgets, w.id);
     if(ww){ww.span=s; await this.document.update({"system.customTabs":tabs});}
   }
-<<<<<<< HEAD
   _refreshWidgetIdsDeep(widget) {
     if (!widget || typeof widget !== "object") return;
     widget.id = foundry.utils.randomID(8);
     if (Array.isArray(widget.widgets)) {
       for (const child of widget.widgets) this._refreshWidgetIdsDeep(child);
+    }
+    if (Array.isArray(widget.elements)) {
+      for (const element of widget.elements) {
+        element.id = foundry.utils.randomID(6);
+        if (element?.widget) this._refreshWidgetIdsDeep(element.widget);
+      }
     }
   }
 
@@ -3220,38 +3079,6 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       rejectClose: false
     }).catch(() => false);
     if (!_ok) return;
-=======
-  _refreshWidgetIdsDeep(widget) {
-    if (!widget || typeof widget !== "object") return;
-    widget.id = foundry.utils.randomID(8);
-    if (Array.isArray(widget.widgets)) {
-      for (const child of widget.widgets) this._refreshWidgetIdsDeep(child);
-    }
-  }
-
-  async _duplicateWidget(tab, row, w, parentVS = null) {
-    const tabs     = foundry.utils.deepClone(this.document.system.customTabs ?? []);
-    const freshTab = tabs.find(t => t.id === tab.id);
-    const freshRow = freshTab?.rows?.find(r => r.id === row.id);
-    if (!freshRow) return;
-
-    const container = parentVS
-      ? (this._findVs(freshRow.widgets, parentVS.id)?.widgets ?? null)
-      : freshRow.widgets;
-    if (!container) return;
-
-    const idx = container.findIndex(x => x.id === w.id);
-    if (idx < 0) return;
-
-    const clone = foundry.utils.deepClone(container[idx]);
-    this._refreshWidgetIdsDeep(clone);
-    container.splice(idx + 1, 0, clone);
-
-    await this.document.update({ "system.customTabs": tabs });
-  }
-
-  async _deleteWidget(tab,row,w){
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]);
     const r=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
     if(!r) return;
@@ -3289,11 +3116,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     if (wIdx < 0) return;
     const [moved] = srcContainer.splice(wIdx, 1);
     if (!moved) return;
-<<<<<<< HEAD
     if (moved.type === "vsection" && dst.parentVsId) dst = { ...dst, parentVsId: null };
-=======
-    if (moved.type === "vsection" && dst.parentVsId) dst = { ...dst, parentVsId: null };
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
     let dstContainer;
     if (dst.rowId) {
       const dstRow = dstTab.rows?.find(r => r.id === dst.rowId);
@@ -3475,7 +3298,6 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     macro.sheet.render(true);
   }
 }
-<<<<<<< HEAD
 
 
 /**
@@ -3507,36 +3329,3 @@ async function _sdCycleEffectMode(ef) {
     ui.notifications?.info?.(`"${ef.name}": item only.`);
   }
 }
-=======
-
-
-/**
- * Cycle an item-owned Active Effect between three modes:
- *  1) transfers to actor (always active),
- *  2) on actor only while the item is equipped (equippable inventory items),
- *  3) item only (no transfer).
- */
-async function _sdCycleEffectMode(ef) {
-  const item = ef?.parent;
-  if (!item || item.documentName !== "Item") {
-    ui.notifications?.warn?.("Effect modes can only be changed on effects that live on an item.");
-    return;
-  }
-  const transfers = ef.transfer !== false;
-  const aoe = !!(ef.flags?.sd?.activateOnEquip);
-  const canAoe = item.type === "inventory" && item.system?.equippable === true;
-  if (!transfers) {
-    await ef.update({ transfer: true, "flags.sd.activateOnEquip": false });
-    ui.notifications?.info?.(`"${ef.name}": transfers to the actor.`);
-  } else if (!aoe && canAoe) {
-    await ef.update({ transfer: true, "flags.sd.activateOnEquip": true, disabled: item.system?.equipped === true ? ef.disabled : true });
-    ui.notifications?.info?.(`"${ef.name}": applies to the actor only while "${item.name}" is equipped.`);
-  } else if (!aoe && !canAoe) {
-    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
-    ui.notifications?.info?.(`"${ef.name}": item only. (Mark the item as Equippable to unlock the equipped-only mode.)`);
-  } else {
-    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
-    ui.notifications?.info?.(`"${ef.name}": item only.`);
-  }
-}
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560

@@ -7224,3 +7224,146 @@ button.sd-market-btn.primary:hover { filter: brightness(1.1); }
 .sd-market-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .sd-market-card-tags span { font-size: 10px; padding: 1px 8px; border-radius: 9px; background: rgba(128, 128, 128, .15); }
 .sd-market-card-actions { display: flex; gap: 6px; margin-top: auto; flex-wrap: wrap; }
+
+/* ── Widget Builder canvas, layers and embedded widgets ─────────────── */
+.sd .sd-wb-root {
+  --sd-wb-accent: var(--sd-accent);
+  position: relative;
+  min-width: 0;
+  isolation: isolate;
+}
+.sd .sd-wb-title { margin-bottom: 5px; }
+.sd .sd-wb-canvas {
+  position: relative;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.sd .sd-wb-element {
+  position: absolute;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+.sd .sd-wb-grid {
+  display: grid;
+  align-items: stretch;
+  min-width: 0;
+}
+.sd .sd-wb-grid-element {
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  min-width: 0;
+}
+.sd .sd-wb-content,
+.sd .sd-wb-content > .sd-wb-nested-widget,
+.sd .sd-wb-content > .sd-wb-nested-widget > .widget {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+.sd .sd-wb-content {
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+.sd .sd-wb-nested-widget {
+  display: flex;
+  overflow: auto;
+}
+.sd .sd-wb-button {
+  width: 100%;
+  height: 100%;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  color: var(--sd-wb-accent);
+  background: transparent;
+  border: 1px solid var(--sd-wb-accent);
+  border-radius: 5px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.sd .sd-wb-button img {
+  width: 18px;
+  height: 18px;
+  object-fit: cover;
+  border-radius: 3px;
+}
+.sd .sd-wb-value,
+.sd .sd-wb-icon,
+.sd .sd-wb-image {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.sd .sd-wb-value-text { font-weight: 700; }
+.sd .sd-wb-image img {
+  max-width: 100%;
+  max-height: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.sd .sd-wb-image-placeholder,
+.sd .sd-wb-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: var(--sd-text-3);
+  border: 1px dashed var(--sd-border);
+  border-radius: 4px;
+  font-size: 10px;
+  box-sizing: border-box;
+}
+.sd .sd-wb-missing { width: 100%; height: 100%; min-height: 28px; }
+.sd .sd-wb-empty {
+  padding: 12px;
+  color: var(--sd-text-3);
+  font-size: 10px;
+  font-style: italic;
+  text-align: center;
+}
+.sd-wcfg-popup .wb-layer-btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--sd-border);
+  border-radius: 4px;
+  color: var(--sd-text-3);
+  background: var(--sd-bg-4);
+  cursor: pointer;
+  font-size: 9px;
+}
+.sd-wcfg-popup .wb-layer-btn:hover,
+.sd-wcfg-popup .wb-layer-btn:focus-visible {
+  color: var(--sd-accent);
+  border-color: var(--sd-accent);
+}
+.sd-wcfg-popup .wb-mini-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--sd-text-2);
+  font-size: 10px;
+  cursor: pointer;
+}
+.sd-wcfg-popup .wb-mini-check input { accent-color: var(--sd-accent); }

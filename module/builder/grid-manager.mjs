@@ -136,6 +136,12 @@ export class GridManager {
     if (Array.isArray(widget.widgets)) {
       for (const child of widget.widgets) this._refreshWidgetIds(child);
     }
+    if (Array.isArray(widget.elements)) {
+      for (const element of widget.elements) {
+        element.id = foundry.utils.randomID(6);
+        if (element?.widget) this._refreshWidgetIds(element.widget);
+      }
+    }
     return widget;
   }
 

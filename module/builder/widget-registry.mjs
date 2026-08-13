@@ -661,12 +661,26 @@ export const WIDGET_TYPES = {
       columns:  3,
       gap:      6,
       formula:  "",
-      elements: [], wbLayout: "grid", canvasW: 0, canvasH: 140
+      elements: [],
+      wbLayout: "grid",
+      canvasW: 0,
+      canvasH: 140,
+      gridSize: 16,
+      snap: 4,
+      clipOverflow: true,
+      customCss: ""
     },
     configFields: [
-      { key: "label",   type: "text",   label: "Label" },
-      { key: "columns", type: "number", label: "Columns" },
-      { key: "gap",     type: "number", label: "Gap (px)" }
+      { key: "label",        type: "text",    label: "Label" },
+      { key: "wbLayout",     type: "select",  label: "Layout", options: ["grid", "free"] },
+      { key: "columns",      type: "number",  label: "Columns (grid)" },
+      { key: "gap",          type: "number",  label: "Gap (px, grid)" },
+      { key: "canvasW",      type: "number",  label: "Canvas width (px; 0 = full)" },
+      { key: "canvasH",      type: "number",  label: "Canvas height (px)" },
+      { key: "gridSize",     type: "number",  label: "Visual grid size (px)" },
+      { key: "snap",         type: "number",  label: "Snap step (px; 0 = off)" },
+      { key: "clipOverflow", type: "toggle",  label: "Clip outside canvas" },
+      { key: "customCss",    type: "textarea", label: "Safe scoped CSS" }
     ]
   }
 };

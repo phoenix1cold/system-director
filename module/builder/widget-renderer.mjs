@@ -1,6 +1,7 @@
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
+import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 
 export class WidgetRenderer {
 
@@ -715,10 +716,7 @@ export class WidgetRenderer {
         <button type="button" class="slot-item-edit" data-action="slotItemEdit" data-slot-id="${e(w.slotId)}" data-slot-index="${i}" data-item-id="${e(c._id ?? "")}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? "")}" title="Edit">
           <i class="fas fa-pen"></i>
         </button>
-<<<<<<< HEAD
         ${(c.type === "inventory" && c.system?.equippable) ? `<button type="button" class="slot-item-equip${c.system?.equipped ? " on" : ""}" data-action="itemEquip" data-slot-id="${e(w.slotId)}" data-slot-index="${i}" data-item-id="${e(c._id ?? "")}" title="${c.system?.equipped ? "Unequip" : "Equip"}"><i class="fas ${c.system?.equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>` : ""}
-=======
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
         <button type="button" class="slot-item-remove" data-sd-slot-remove="${e(w.slotId)}" data-sd-slot-idx="${i}" title="Remove">
           <i class="fas fa-times"></i>
         </button>
@@ -753,10 +751,7 @@ export class WidgetRenderer {
           <span class="sd-hud-pop-name" title="${nm}">${nm}</span>
           <button type="button" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="Use"><i class="fas fa-play"></i></button>
           <button type="button" data-action="slotItemEdit" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUuid}" title="Edit"><i class="fas fa-pen"></i></button>
-<<<<<<< HEAD
           ${(c.type === "inventory" && c.system?.equippable) ? `<button type="button" class="sd-hud-pop-btn-equip${c.system?.equipped ? " is-on" : ""}" data-action="itemEquip" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" title="${c.system?.equipped ? "Unequip" : "Equip"}"><i class="fas ${c.system?.equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>` : ""}
-=======
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
           <button type="button" data-sd-slot-remove="${slotId}" data-sd-slot-idx="${i}" title="Remove"><i class="fas fa-times"></i></button>
         </li>`;
       }
@@ -830,10 +825,7 @@ export class WidgetRenderer {
           ${filled
             ? `<button type="button" class="sd-slot-tile-btn" data-action="slotItemUse" data-slot-id="${slotId}" data-slot-index="${i}" title="Use"><i class="fas fa-play"></i></button>
                <button type="button" class="sd-slot-tile-btn" data-action="slotItemEdit" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" data-item-uuid="${itemUid}" title="Edit"><i class="fas fa-pen"></i></button>
-<<<<<<< HEAD
                ${(c.type === "inventory" && c.system?.equippable) ? `<button type="button" class="sd-slot-tile-btn${c.system?.equipped ? " sd-slot-tile-btn-on" : ""}" data-action="itemEquip" data-slot-id="${slotId}" data-slot-index="${i}" data-item-id="${itemId}" title="${c.system?.equipped ? "Unequip" : "Equip"}"><i class="fas ${c.system?.equipped ? "fa-shield-halved" : "fa-shield"}"></i></button>` : ""}
-=======
->>>>>>> c6e379dd3482bf8649e59bd491d5af4eeee2b560
                <button type="button" class="sd-slot-tile-btn sd-slot-tile-btn-danger" data-sd-slot-remove="${slotId}" data-sd-slot-idx="${i}" title="Remove"><i class="fas fa-times"></i></button>`
             : `<span class="sd-slot-tile-empty-label">${lbl}</span>`}
         </div>
@@ -1991,18 +1983,32 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  static _render_widgetBuilder(w, doc) {
+  static _render_widgetBuilder(w, doc, options = {}) {
     const e = (s) => this._esc(s);
     const els = Array.isArray(w.elements) ? w.elements : [];
-    const cols = Math.max(1, Number(w.columns) || 3);
-    const gap = Number.isFinite(Number(w.gap)) ? Number(w.gap) : 6;
+    const cols = Math.max(1, Math.min(24, Number(w.columns) || 3));
+    const gap = Math.max(0, Math.min(128, Number.isFinite(Number(w.gap)) ? Number(w.gap) : 6));
     const layout = String(w.wbLayout ?? "grid") === "free" ? "free" : "grid";
-    const renderInner = (el2) => {
-      const name = String(el2?.name ?? "").trim();
+    const scopeId = widgetBuilderScopeId(w.id);
+    const scopeSelector = `[data-sd-wb="${scopeId}"]`;
+    const scopedCss = sanitizeWidgetCss(w.customCss, scopeSelector);
+    const cssBlock = scopedCss.css ? `<style data-sd-wb-style="${scopeId}">${scopedCss.css}</style>` : "";
+    const clip = w.clipOverflow === false || w.clipOverflow === "false" ? "visible" : "hidden";
+
+    const layerNumber = (el2, fallback = 0) => {
+      const n = Number(el2?.z);
+      return Number.isFinite(n) ? Math.max(-1000, Math.min(1000, Math.round(n))) : fallback;
+    };
+    const safeElementName = (el2, index) => {
+      const raw = String(el2?.name ?? `element-${index + 1}`).trim();
+      return raw || `element-${index + 1}`;
+    };
+    const renderInner = (el2, index) => {
+      const name = safeElementName(el2, index);
       const kind = String(el2?.kind ?? "button");
       const lbl = e(String(el2?.label ?? "") || name);
       const color = String(el2?.color ?? "").trim();
-      const size = Number(el2?.size) || 0;
+      const size = Math.max(0, Math.min(512, Number(el2?.size) || 0));
       const clickable = el2?.clickable === true || el2?.clickable === "true" || el2?.clickable === "yes";
       const evName = "On Click " + name;
       const clickAttrs = (clickable && name) ? ` data-action="wbElement" data-event-name="${e(evName)}"` : "";
@@ -2010,12 +2016,24 @@ export class WidgetRenderer {
       const iconCls = e(this._faClass(String(el2?.icon ?? "")));
       const img = String(el2?.img ?? "").trim();
       let inner = "";
-      if (kind === "button") {
+      if (kind === "widget") {
+        const nested = el2?.widget;
+        if (!nested || typeof nested !== "object" || !nested.type) {
+          inner = `<div class="sd-wb-missing"><i class="fas fa-puzzle-piece"></i> Select a widget</div>`;
+        } else if (nested.type === "widgetBuilder") {
+          inner = `<div class="sd-wb-missing"><i class="fas fa-triangle-exclamation"></i> Nested Widget Builder is blocked</div>`;
+        } else {
+          try {
+            inner = `<div class="sd-wb-nested-widget" data-wb-widget-id="${e(nested.id ?? "")}">${this.render(nested, doc, false, options) ?? ""}</div>`;
+          } catch (err) {
+            console.warn("SD | Nested Widget Builder element failed:", err, nested);
+            inner = `<div class="sd-wb-missing"><i class="fas fa-triangle-exclamation"></i> Widget error</div>`;
+          }
+        }
+      } else if (kind === "button") {
         const accent = color || "var(--sd-accent)";
-        inner = `<button type="button"${clickAttrs} style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:transparent;border:1px solid ${e(accent)};border-radius:5px;color:${e(accent)};${clickable ? "cursor:pointer" : "cursor:default"};font-size:${size > 0 ? size : 12}px;font-weight:600">${el2?.icon ? `<i class="${iconCls}"></i>` : ""}${img ? `<img src="${e(img)}" style="width:16px;height:16px;object-fit:cover;border-radius:3px">` : ""}<span>${lbl}</span></button>`;
+        inner = `<button type="button"${clickAttrs} class="sd-wb-button" style="--sd-wb-accent:${e(accent)};font-size:${size > 0 ? size : 12}px">${el2?.icon ? `<i class="${iconCls}"></i>` : ""}${img ? `<img src="${e(img)}" alt="" draggable="false">` : ""}<span>${lbl}</span></button>`;
       } else if (kind === "value") {
-        // Value graphs compile into a formula string; plain string results
-        // arrive as JSON literals ("123") - unwrap before evaluating.
         const outMap = (w.wbOutputs && typeof w.wbOutputs === "object") ? w.wbOutputs : null;
         const bound = (outMap && typeof outMap[name] === "string" && outMap[name].trim() !== "") ? outMap[name] : null;
         let raw = bound !== null ? String(bound).trim() : String(el2?.formula ?? "").trim();
@@ -2028,46 +2046,53 @@ export class WidgetRenderer {
           try { out = FormulaEngine.evaluate(raw, doc); } catch (err) { out = null; }
           val = (out === undefined || out === null) ? "" : String(out);
           if (val === "" || val.startsWith("!err")) {
-            // Not numeric math - resolve {tokens} and show the text as-is.
             let txt = raw;
             try { txt = String(FormulaEngine._resolveRefs?.(raw, doc) ?? raw); } catch (err) { txt = raw; }
             if (txt.length >= 2 && txt.startsWith('"') && txt.endsWith('"')) txt = txt.slice(1, -1);
             val = txt;
           }
         }
-        inner = `<div${clickAttrs} style="${clickStyle}text-align:center">${lbl ? `<div class="widget-label">${lbl}</div>` : ""}<div style="font-size:${size > 0 ? size : 18}px;font-weight:700;color:${color ? e(color) : "var(--sd-text)"}">${e(val)}</div></div>`;
+        inner = `<div${clickAttrs} class="sd-wb-value" style="${clickStyle}">${lbl ? `<div class="widget-label">${lbl}</div>` : ""}<div class="sd-wb-value-text" style="font-size:${size > 0 ? size : 18}px;color:${color ? e(color) : "var(--sd-text)"}">${e(val)}</div></div>`;
       } else if (kind === "icon") {
-        inner = `<div${clickAttrs} style="${clickStyle}display:flex;flex-direction:column;align-items:center;gap:2px" title="${lbl}"><i class="${iconCls}" style="font-size:${size > 0 ? size : 20}px;color:${color ? e(color) : "var(--sd-accent)"}"></i>${el2?.label ? `<span class="widget-label">${lbl}</span>` : ""}</div>`;
+        inner = `<div${clickAttrs} class="sd-wb-icon" style="${clickStyle}" title="${lbl}"><i class="${iconCls}" style="font-size:${size > 0 ? size : 20}px;color:${color ? e(color) : "var(--sd-accent)"}"></i>${el2?.label ? `<span class="widget-label">${lbl}</span>` : ""}</div>`;
       } else if (kind === "image") {
-        const iw = Number(el2?.w) || 48;
-        const ih = Number(el2?.h) || 48;
-        inner = `<div${clickAttrs} style="${clickStyle}display:flex;flex-direction:column;align-items:center;gap:2px" title="${lbl}">${img ? `<img src="${e(img)}" style="width:${iw}px;height:${ih}px;object-fit:cover;border-radius:4px${color ? `;border:1px solid ${e(color)}` : ""}">` : `<div style="width:${iw}px;height:${ih}px;border:1px dashed var(--sd-border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--sd-border)"><i class="fas fa-image"></i></div>`}${el2?.label ? `<span class="widget-label">${lbl}</span>` : ""}</div>`;
+        const iw = Math.max(1, Math.min(4096, Number(el2?.w) || 48));
+        const ih = Math.max(1, Math.min(4096, Number(el2?.h) || 48));
+        const fit = ["contain", "cover", "fill", "scale-down", "none"].includes(String(el2?.fit)) ? String(el2.fit) : "cover";
+        inner = `<div${clickAttrs} class="sd-wb-image" style="${clickStyle}" title="${lbl}">${img ? `<img src="${e(img)}" alt="${lbl}" draggable="false" style="width:${iw}px;height:${ih}px;object-fit:${fit}${color ? `;border-color:${e(color)}` : ""}">` : `<div class="sd-wb-image-placeholder" style="width:${iw}px;height:${ih}px"><i class="fas fa-image"></i></div>`}${el2?.label ? `<span class="widget-label">${lbl}</span>` : ""}</div>`;
       } else {
-        inner = `<span${clickAttrs} style="${clickStyle}font-size:${size > 0 ? size : 12}px;color:${color ? e(color) : "var(--sd-text)"}">${lbl}</span>`;
+        inner = `<span${clickAttrs} class="sd-wb-label" style="${clickStyle}font-size:${size > 0 ? size : 12}px;color:${color ? e(color) : "var(--sd-text)"}">${lbl}</span>`;
       }
       return inner;
     };
-    const emptyHint = `<div style="font-size:10px;color:var(--sd-text-3);font-style:italic">No elements yet - open the widget config and add elements</div>`;
+
+    const visible = els.map((el2, index) => ({ el2, index })).filter(({ el2 }) => !(el2?.hidden === true || el2?.hidden === "true"));
+    const emptyHint = `<div class="sd-wb-empty">No elements yet - open the widget config and add elements</div>`;
+    const label = w.label ? `<div class="widget-label sd-wb-title">${e(w.label)}</div>` : "";
+
     if (layout === "free") {
-      const cw = Number(w.canvasW) || 0;
-      const chh = Math.max(24, Number(w.canvasH) || 140);
-      const cells = els.map(el2 => {
-        const x = Number(el2?.x) || 0;
-        const y = Number(el2?.y) || 0;
-        const ew = Number(el2?.w) || 0;
-        const eh = Number(el2?.h) || 0;
-        return `<div style="position:absolute;left:${x}px;top:${y}px;${ew > 0 ? `width:${ew}px;` : ""}${eh > 0 ? `height:${eh}px;` : ""}display:flex;align-items:center;justify-content:center;box-sizing:border-box">${renderInner(el2)}</div>`;
-      }).join("");
-      return `<div class="widget widget-builder">
-      ${w.label ? `<div class="widget-label">${e(w.label)}</div>` : ""}
-      <div style="position:relative;${cw > 0 ? `width:${cw}px;` : "width:100%;"}height:${chh}px;overflow:hidden">${els.length ? cells : emptyHint}</div>
-    </div>`;
+      const cw = Math.max(0, Math.min(8192, Number(w.canvasW) || 0));
+      const chh = Math.max(24, Math.min(8192, Number(w.canvasH) || 140));
+      const cells = visible
+        .sort((a, b) => layerNumber(a.el2, a.index) - layerNumber(b.el2, b.index) || a.index - b.index)
+        .map(({ el2, index }) => {
+          const x = Math.max(0, Number(el2?.x) || 0);
+          const y = Math.max(0, Number(el2?.y) || 0);
+          const ew = Math.max(0, Number(el2?.w) || 0);
+          const eh = Math.max(0, Number(el2?.h) || 0);
+          const z = layerNumber(el2, index);
+          const name = safeElementName(el2, index);
+          return `<div class="sd-wb-element sd-wb-kind-${e(String(el2?.kind ?? "button"))}" data-wb-element="${e(name)}" data-wb-layer="${z}" style="left:${x}px;top:${y}px;z-index:${z};${ew > 0 ? `width:${ew}px;` : ""}${eh > 0 ? `height:${eh}px;` : ""}"><div class="sd-wb-content">${renderInner(el2, index)}</div></div>`;
+        }).join("");
+      return `<div class="widget widget-builder sd-wb-root" data-sd-wb="${scopeId}">${cssBlock}${label}<div class="sd-wb-canvas" style="${cw > 0 ? `width:${cw}px;` : "width:100%;"}height:${chh}px;overflow:${clip}">${visible.length ? cells : emptyHint}</div></div>`;
     }
-    const cells = els.map(el2 => `<div style="display:flex;align-items:center;justify-content:center;min-width:0">${renderInner(el2)}</div>`).join("");
-    return `<div class="widget widget-builder">
-      ${w.label ? `<div class="widget-label">${e(w.label)}</div>` : ""}
-      ${els.length ? `<div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${gap}px;align-items:center">${cells}</div>` : emptyHint}
-    </div>`;
+
+    const cells = visible.map(({ el2, index }) => {
+      const name = safeElementName(el2, index);
+      const z = layerNumber(el2, index);
+      return `<div class="sd-wb-grid-element sd-wb-kind-${e(String(el2?.kind ?? "button"))}" data-wb-element="${e(name)}" data-wb-layer="${z}"><div class="sd-wb-content">${renderInner(el2, index)}</div></div>`;
+    }).join("");
+    return `<div class="widget widget-builder sd-wb-root" data-sd-wb="${scopeId}">${cssBlock}${label}${visible.length ? `<div class="sd-wb-grid" style="grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${gap}px">${cells}</div>` : emptyHint}</div>`;
   }
 
   static _render_image(w, doc) {
