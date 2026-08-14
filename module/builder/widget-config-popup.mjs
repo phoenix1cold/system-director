@@ -34,7 +34,7 @@ const FIELD_DEFS = {
   richtext:  [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"]],
   attribute: [["Label","label"],["Widget Key","widgetKey","text"],["Score Path","path","path"],["Chat Flavor","flavor","text"]],
   skill:     [["Label","label"],["Widget Key","widgetKey","text"],["Rank Path","path","path"],["Attr Modifier","attrMod","number"],["Roll Formula Override","formula","formula"],["Chat Flavor","flavor","text"],["Pips count (Pips variant only)","pipMax","number"]],
-  slot:      [["Label","label"],["Widget Key","widgetKey","text"],["Slot ID","slotId","text"],["Max Items","maxCount","number"],["Auto-equip items added to slot","autoEquip","boolean"]],
+  slot:      [["Label","label"],["Widget Key","widgetKey","text"],["Slot ID","slotId","text"],["Max Items","maxCount","number"],["SD.Slots.AutoEquip","autoEquip","boolean"]],
   inventory: [["Label","label"],["Widget Key","widgetKey","text"],["Filter Categories","categories","array"],["Extra Columns (hidden field names)","columns","array"],["Show Currency Section","showCurrency","boolean"],["Currency Path (optional)","currencyPath","path"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   effects:   [["Label","label"],["Widget Key","widgetKey","text"],["Show Disabled","showDisabled","boolean"],["Show Passive","showPassive","boolean"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   spellbook: [["Label","label"],["Widget Key","widgetKey","text"],["Ability type filter (empty = all)","abilityType","text"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
@@ -508,6 +508,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     </div>`;
 
   const _renderFieldRow = ([lbl, key, type="text", opts=[]]) => {
+    try {
+      const translated = game.i18n?.localize?.(lbl);
+      if (translated && translated !== lbl) lbl = translated;
+    } catch {}
     let cur = w[key] ?? ""; if (Array.isArray(cur) && type !== "select") cur = cur.join(", ");
     const isPF = type === "path" || type === "formula";
     const hint = FIELD_HINTS[key] ?? FIELD_HINTS[type] ?? "";

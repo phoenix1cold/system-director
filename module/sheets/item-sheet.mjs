@@ -10,6 +10,14 @@ import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
+function _sdLoc(key, fallback, data = null) {
+  try {
+    const value = data ? game.i18n?.format?.(key, data) : game.i18n?.localize?.(key);
+    if (value && value !== key) return value;
+  } catch {}
+  return fallback;
+}
+
 const SD_SLOT_ICON_PRESETS = [
   { name: "helmet",   label: "Helmet" },
   { name: "armor",    label: "Armor" },
@@ -1817,18 +1825,25 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     const e   = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     const effects = [...(doc.effects ?? [])];
 
-    const isEquippable = doc?.type === "inventory" && doc.system?.equippable === true;
-
     let rows = "";
     for (const ef of effects) {
       const disabled  = ef.disabled ? "effect-disabled" : "";
       const dur       = effectDurationLabel(ef);
       const eyeIcon   = ef.disabled ? "fa-eye-slash" : "fa-eye";
-      const aoe       = !!(ef.flags?.sd?.activateOnEquip);
-      const transfers = ef.transfer !== false;
+      const explicit  = ef.flags?.sd?.effectTransferMode;
+      const mode      = ["always", "equipped", "item"].includes(explicit)
+        ? explicit
+        : (ef.transfer === false ? "item" : (ef.flags?.sd?.activateOnEquip ? "equipped" : "always"));
+      const aoe       = mode === "equipped";
+      const transfers = mode !== "item";
       const tColor    = aoe ? "var(--sd-stamina,#d8a23a)" : (transfers ? "var(--sd-success)" : "var(--sd-warn)");
       const tIcon     = aoe ? "fa-shield-halved" : (transfers ? "fa-arrow-right-to-bracket" : "fa-lock");
-      const tTitle    = aoe ? "Applies to the actor only while this item is equipped (click to cycle)" : (transfers ? "Always transfers to actor when item is owned (click to cycle)" : "Does NOT transfer to actor (click to cycle)");
+      const tLabel    = aoe
+        ? _sdLoc("SD.Effects.ModeEquipped", "Transfer while equipped")
+        : (transfers ? _sdLoc("SD.Effects.ModeAlways", "Always transfer") : _sdLoc("SD.Effects.ModeItemOnly", "Item only"));
+      const tTitle    = aoe
+        ? _sdLoc("SD.Effects.ModeEquippedHint", "Applied only while the item is equipped.")
+        : (transfers ? _sdLoc("SD.Effects.ModeAlwaysHint", "Applied whenever the item is owned.") : _sdLoc("SD.Effects.ModeItemOnlyHint", "Never transferred to the actor."));
       rows += `
       <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;background:var(--sd-bg-2);margin-bottom:5px;border-left:3px solid ${transfers ? "var(--sd-success)" : "var(--sd-border)"}">
         <img src="${e(ef.img ?? ef.icon ?? "icons/svg/aura.svg")}" alt="${e(ef.name)}"
@@ -1837,7 +1852,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           <div style="font-size:12px;color:${ef.disabled ? "var(--sd-text-3)" : "var(--sd-text)"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">${e(ef.name)}</div>
           <div style="display:flex;gap:6px;margin-top:2px;align-items:center">
             <span title="${tTitle}" style="font-size:9px;color:${tColor};display:flex;align-items:center;gap:3px;cursor:default">
-              <i class="fas ${tIcon}"></i>${aoe ? "on actor while equipped" : (transfers ? "transfers to actor" : "item only")}
+              <i class="fas ${tIcon}"></i>${e(tLabel)}
             </span>
             ${dur ? `<span style="font-size:9px;color:var(--sd-text-3)">⏱ ${e(dur)}</span>` : ""}
             ${ef.changes?.length ? `<span style="font-size:9px;color:var(--sd-accent-2,var(--sd-accent))">${ef.changes.length} change${ef.changes.length!==1?"s":""}</span>` : ""}
@@ -1869,18 +1884,18 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     p.innerHTML = `
       <div style="background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:5px;padding:8px 10px;margin-bottom:10px;font-size:10px;color:var(--sd-text-3);line-height:1.6">
         <i class="fas fa-circle-info" style="color:var(--sd-accent);margin-right:4px"></i>
-        Effects marked <strong style="color:var(--sd-success)">transfers to actor</strong> are automatically applied to the owning actor when this item is in their inventory, and removed when the item is deleted.
+        ${e(_sdLoc("SD.Effects.Info", "Effect mode: always transfer, transfer only while equipped, or item only."))}
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <span style="font-size:11px;color:var(--sd-text-3)">${effects.length} effect${effects.length !== 1 ? "s" : ""}</span>
         <button type="button" data-action="sysEffectCreate"
           style="background:var(--sd-accent-glow);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:11px;font-weight:600;padding:4px 12px;display:flex;align-items:center;gap:5px">
-          <i class="fas fa-plus"></i> Add Effect
+          <i class="fas fa-plus"></i> ${e(_sdLoc("SD.AddEffect", "Add Effect"))}
         </button>
       </div>
       ${effects.length
         ? `<ul style="list-style:none;margin:0;padding:0">${rows}</ul>`
-        : `<div style="text-align:center;padding:24px 0;color:var(--sd-border);font-size:12px"><i class="fas fa-sparkles" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>No active effects</div>`
+        : `<div style="text-align:center;padding:24px 0;color:var(--sd-border);font-size:12px"><i class="fas fa-sparkles" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>${e(_sdLoc("SD.NoEffects", "No active effects."))}</div>`
       }`;
 
     this._wireSysEffectsPanel(p);
@@ -1915,16 +1930,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         case "sysEffectTransfer": {
           const ef = doc.effects?.get(efId);
           if (!ef) break;
-          const t      = ef.transfer !== false;
-          const aoeOn  = !!(ef.flags?.sd?.activateOnEquip);
-          const canAoe = doc.type === "inventory" && doc.system?.equippable === true;
-          if (!t) {
-            await ef.update({ transfer: true, "flags.sd.activateOnEquip": false });
-          } else if (!aoeOn && canAoe) {
-            await ef.update({ transfer: true, "flags.sd.activateOnEquip": true, disabled: !doc.system?.equipped });
-          } else {
-            await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
-          }
+          await _sdCycleEffectMode(ef);
           break;
         }
         case "sysEffectActivateOnEquip": {
@@ -3309,23 +3315,64 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
 async function _sdCycleEffectMode(ef) {
   const item = ef?.parent;
   if (!item || item.documentName !== "Item") {
-    ui.notifications?.warn?.("Effect modes can only be changed on effects that live on an item.");
+    ui.notifications?.warn?.(_sdLoc(
+      "SD.Effects.OnlyOnItems",
+      "Effect modes can only be changed on effects owned by an item."
+    ));
     return;
   }
-  const transfers = ef.transfer !== false;
-  const aoe = !!(ef.flags?.sd?.activateOnEquip);
-  const canAoe = item.type === "inventory" && item.system?.equippable === true;
-  if (!transfers) {
-    await ef.update({ transfer: true, "flags.sd.activateOnEquip": false });
-    ui.notifications?.info?.(`"${ef.name}": transfers to the actor.`);
-  } else if (!aoe && canAoe) {
-    await ef.update({ transfer: true, "flags.sd.activateOnEquip": true, disabled: item.system?.equipped === true ? ef.disabled : true });
-    ui.notifications?.info?.(`"${ef.name}": applies to the actor only while "${item.name}" is equipped.`);
-  } else if (!aoe && !canAoe) {
-    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
-    ui.notifications?.info?.(`"${ef.name}": item only. (Mark the item as Equippable to unlock the equipped-only mode.)`);
-  } else {
-    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
-    ui.notifications?.info?.(`"${ef.name}": item only.`);
+
+  const explicit = ef.flags?.sd?.effectTransferMode;
+  const current = ["always", "equipped", "item"].includes(explicit)
+    ? explicit
+    : (ef.transfer === false ? "item" : (ef.flags?.sd?.activateOnEquip ? "equipped" : "always"));
+  const canEquipGate = item.type === "inventory" && item.system?.equippable === true;
+
+  if (current === "item") {
+    await ef.update({
+      transfer: true,
+      disabled: false,
+      "flags.sd.activateOnEquip": false,
+      "flags.sd.effectTransferMode": "always"
+    });
+    ui.notifications?.info?.(_sdLoc(
+      "SD.Effects.ModeChangedAlways",
+      `“${ef.name}”: always transfers to the actor.`,
+      { name: ef.name }
+    ));
+    return;
+  }
+
+  if (current === "always" && canEquipGate) {
+    await ef.update({
+      transfer: true,
+      disabled: item.system?.equipped !== true,
+      "flags.sd.activateOnEquip": true,
+      "flags.sd.effectTransferMode": "equipped"
+    });
+    ui.notifications?.info?.(_sdLoc(
+      "SD.Effects.ModeChangedEquipped",
+      `“${ef.name}”: transfers only while “${item.name}” is equipped.`,
+      { name: ef.name, item: item.name }
+    ));
+    return;
+  }
+
+  await ef.update({
+    transfer: false,
+    disabled: false,
+    "flags.sd.activateOnEquip": false,
+    "flags.sd.effectTransferMode": "item"
+  });
+  ui.notifications?.info?.(_sdLoc(
+    "SD.Effects.ModeChangedItemOnly",
+    `“${ef.name}”: remains on the item and does not transfer.`,
+    { name: ef.name }
+  ));
+  if (current === "always" && !canEquipGate) {
+    ui.notifications?.warn?.(_sdLoc(
+      "SD.Effects.ItemOnlyWarning",
+      "Mark the item as Equippable to use the equipped-only mode."
+    ));
   }
 }

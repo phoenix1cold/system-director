@@ -5,6 +5,14 @@ import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 
 export class WidgetRenderer {
 
+  static _sdLoc(key, fallback, data = null) {
+    try {
+      const value = data ? game.i18n?.format?.(key, data) : game.i18n?.localize?.(key);
+      if (value && value !== key) return value;
+    } catch {}
+    return fallback;
+  }
+
   static render(widgetDef, doc, editMode = false, options = {}) {
 
     if (editMode && typeof editMode === "object" && !Array.isArray(editMode)) {
@@ -1341,13 +1349,15 @@ export class WidgetRenderer {
    */
   static _sdEffectModeBtn(ef, uuid, cls) {
     if (ef?.parent?.documentName !== "Item") return "";
-    const aoe = !!(ef.flags?.sd?.activateOnEquip);
-    const transfers = ef.transfer !== false;
-    const m = aoe
-      ? { icon: "fa-shield-halved", color: "#d4a017", title: "Mode: on actor while equipped (click to cycle)" }
-      : transfers
-        ? { icon: "fa-arrow-right-to-bracket", color: "#3ec46e", title: "Mode: transfers to actor (click to cycle)" }
-        : { icon: "fa-lock", color: "", title: "Mode: item only (click to cycle)" };
+    const explicit = ef.flags?.sd?.effectTransferMode;
+    const mode = ["always", "equipped", "item"].includes(explicit)
+      ? explicit
+      : (ef.transfer === false ? "item" : (ef.flags?.sd?.activateOnEquip ? "equipped" : "always"));
+    const m = mode === "equipped"
+      ? { icon: "fa-shield-halved", color: "#d4a017", title: this._sdLoc("SD.Effects.ModeEquippedHint", "Applied only while the item is equipped.") }
+      : mode === "always"
+        ? { icon: "fa-arrow-right-to-bracket", color: "#3ec46e", title: this._sdLoc("SD.Effects.ModeAlwaysHint", "Applied whenever the item is owned.") }
+        : { icon: "fa-lock", color: "", title: this._sdLoc("SD.Effects.ModeItemOnlyHint", "Never transferred to the actor.") };
     const escFn = this._esc;
     return `<button type="button" ${cls ? `class="${cls}" ` : ""}data-action="effectMode" data-effect-id="${escFn(ef.id)}" data-effect-uuid="${uuid ?? ""}" title="${m.title}"${m.color ? ` style="color:${m.color}"` : ""}><i class="fas ${m.icon}"></i></button>`;
   }

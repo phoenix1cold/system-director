@@ -11,6 +11,14 @@ import { SDOnboarding } from "../helpers/onboarding.mjs";
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
+function _sdLoc(key, fallback, data = null) {
+  try {
+    const value = data ? game.i18n?.format?.(key, data) : game.i18n?.localize?.(key);
+    if (value && value !== key) return value;
+  } catch {}
+  return fallback;
+}
+
 function _stripInvalidNumbers(obj, schemaField) {
   if (!obj || typeof obj !== "object" || !schemaField?.fields) return;
   for (const [key, sub] of Object.entries(schemaField.fields)) {
@@ -2823,23 +2831,64 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 async function _sdCycleEffectMode(ef) {
   const item = ef?.parent;
   if (!item || item.documentName !== "Item") {
-    ui.notifications?.warn?.("Effect modes can only be changed on effects that live on an item.");
+    ui.notifications?.warn?.(_sdLoc(
+      "SD.Effects.OnlyOnItems",
+      "Effect modes can only be changed on effects owned by an item."
+    ));
     return;
   }
-  const transfers = ef.transfer !== false;
-  const aoe = !!(ef.flags?.sd?.activateOnEquip);
-  const canAoe = item.type === "inventory" && item.system?.equippable === true;
-  if (!transfers) {
-    await ef.update({ transfer: true, "flags.sd.activateOnEquip": false });
-    ui.notifications?.info?.(`"${ef.name}": transfers to the actor.`);
-  } else if (!aoe && canAoe) {
-    await ef.update({ transfer: true, "flags.sd.activateOnEquip": true, disabled: item.system?.equipped === true ? ef.disabled : true });
-    ui.notifications?.info?.(`"${ef.name}": applies to the actor only while "${item.name}" is equipped.`);
-  } else if (!aoe && !canAoe) {
-    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
-    ui.notifications?.info?.(`"${ef.name}": item only. (Mark the item as Equippable to unlock the equipped-only mode.)`);
-  } else {
-    await ef.update({ transfer: false, "flags.sd.activateOnEquip": false, disabled: false });
-    ui.notifications?.info?.(`"${ef.name}": item only.`);
+
+  const explicit = ef.flags?.sd?.effectTransferMode;
+  const current = ["always", "equipped", "item"].includes(explicit)
+    ? explicit
+    : (ef.transfer === false ? "item" : (ef.flags?.sd?.activateOnEquip ? "equipped" : "always"));
+  const canEquipGate = item.type === "inventory" && item.system?.equippable === true;
+
+  if (current === "item") {
+    await ef.update({
+      transfer: true,
+      disabled: false,
+      "flags.sd.activateOnEquip": false,
+      "flags.sd.effectTransferMode": "always"
+    });
+    ui.notifications?.info?.(_sdLoc(
+      "SD.Effects.ModeChangedAlways",
+      `“${ef.name}”: always transfers to the actor.`,
+      { name: ef.name }
+    ));
+    return;
+  }
+
+  if (current === "always" && canEquipGate) {
+    await ef.update({
+      transfer: true,
+      disabled: item.system?.equipped !== true,
+      "flags.sd.activateOnEquip": true,
+      "flags.sd.effectTransferMode": "equipped"
+    });
+    ui.notifications?.info?.(_sdLoc(
+      "SD.Effects.ModeChangedEquipped",
+      `“${ef.name}”: transfers only while “${item.name}” is equipped.`,
+      { name: ef.name, item: item.name }
+    ));
+    return;
+  }
+
+  await ef.update({
+    transfer: false,
+    disabled: false,
+    "flags.sd.activateOnEquip": false,
+    "flags.sd.effectTransferMode": "item"
+  });
+  ui.notifications?.info?.(_sdLoc(
+    "SD.Effects.ModeChangedItemOnly",
+    `“${ef.name}”: remains on the item and does not transfer.`,
+    { name: ef.name }
+  ));
+  if (current === "always" && !canEquipGate) {
+    ui.notifications?.warn?.(_sdLoc(
+      "SD.Effects.ItemOnlyWarning",
+      "Mark the item as Equippable to use the equipped-only mode."
+    ));
   }
 }

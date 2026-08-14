@@ -2,7 +2,7 @@
   "id": "sd",
   "title": "System Director",
   "description": "System Director — pre-release",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "compatibility": {
     "minimum": "13",
     "verified": "14"

@@ -41,6 +41,14 @@ export function SlotContentField() {
 
 export class SlotManager {
 
+  static _loc(key, fallback, data = null) {
+    try {
+      const value = data ? game.i18n?.format?.(key, data) : game.i18n?.localize?.(key);
+      if (value && value !== key) return value;
+    } catch {}
+    return fallback;
+  }
+
   /** Coerce checkbox/select-style config values ("yes"/"true"/1/true) to a boolean. */
   static _coerceBool(v) {
     if (v === true || v === 1) return true;
@@ -110,7 +118,11 @@ export class SlotManager {
     if (!snap) return null;
 
     if (snap.type !== "inventory" || !snap.system?.equippable) {
-      ui.notifications?.warn(`"${snap.name ?? "Item"}" is not marked Equippable. Open the item \u2192 Hidden Fields and enable it.`);
+      ui.notifications?.warn(this._loc(
+        "SD.Slots.NotEquippable",
+        `“${snap.name ?? "Item"}” is not marked Equippable.`,
+        { name: snap.name ?? "Item" }
+      ));
       return null;
     }
 
@@ -155,7 +167,11 @@ export class SlotManager {
     const contents = this.getContents(parentItem, sid);
 
     if (contents.length >= def.maxCount) {
-      ui.notifications.warn(`Slot "${def.label}" is full (max ${def.maxCount}).`);
+      ui.notifications.warn(this._loc(
+        "SD.Slots.Full",
+        `Slot “${def.label}” is full (max ${def.maxCount}).`,
+        { slot: def.label, max: def.maxCount }
+      ));
       return null;
     }
 
@@ -165,12 +181,20 @@ export class SlotManager {
     }
 
     if (def.allowedTypes.length && !def.allowedTypes.includes(itemData.type)) {
-      ui.notifications.warn(`Slot "${def.label}" only accepts types: ${def.allowedTypes.join(", ")}`);
+      ui.notifications.warn(this._loc(
+        "SD.Slots.WrongType",
+        `Slot “${def.label}” only accepts types: ${def.allowedTypes.join(", ")}`,
+        { slot: def.label, types: def.allowedTypes.join(", ") }
+      ));
       return null;
     }
 
     if (def.allowedCategories.length && !def.allowedCategories.includes(itemData.system?.category)) {
-      ui.notifications.warn(`Slot "${def.label}" only accepts categories: ${def.allowedCategories.join(", ")}`);
+      ui.notifications.warn(this._loc(
+        "SD.Slots.WrongCategory",
+        `Slot “${def.label}” only accepts categories: ${def.allowedCategories.join(", ")}`,
+        { slot: def.label, cats: def.allowedCategories.join(", ") }
+      ));
       return null;
     }
 
@@ -178,21 +202,48 @@ export class SlotManager {
       const { AttrFilter } = await import("../builder/attr-ref.mjs");
       const { pass, failed } = AttrFilter.check(itemData, def);
       if (!pass) {
-        ui.notifications.warn(`"${itemData.name}" blocked by slot filter: ${failed.join("; ")}`);
+        ui.notifications.warn(this._loc(
+          "SD.Slots.FilterBlocked",
+          `“${itemData.name}” was blocked by the slot filter: ${failed.join("; ")}`,
+          { name: itemData.name, reason: failed.join("; ") }
+        ));
         return null;
       }
     }
 
     let _autoEquippedSnapshot = false;
-    if (this._slotAutoEquip(parentItem, sid) && itemData.type === "inventory" && itemData.system?.equippable && !itemData.system?.equipped) {
-      foundry.utils.setProperty(itemData, "system.equipped", true);
-      if (droppedItem instanceof Item && droppedItem.parent?.items?.has?.(droppedItem.id)) {
-        // Live source item still exists on an actor — its own update fires on_equip via SDItem._onUpdate.
-        try { await droppedItem.update({ "system.equipped": true }); }
-        catch (e) { console.warn("SD | slot auto-equip failed:", e); }
+    const _wantsAutoEquip = this._slotAutoEquip(parentItem, sid)
+      && itemData.type === "inventory"
+      && itemData.system?.equippable === true
+      && itemData.system?.equipped !== true;
+    if (_wantsAutoEquip) {
+      const hostActor = this._resolveHostActor(parentItem);
+      const temp = this._buildTempItem(itemData, hostActor);
+      let equipCheck = { ok: true };
+      if (temp && typeof temp.canEquip === "function") {
+        try { equipCheck = await temp.canEquip(); }
+        catch (error) { console.warn("SD | slot auto-equip check failed:", error); }
+      }
+
+      if (equipCheck?.ok === false) {
+        const reason = equipCheck.reason
+          ?? this._loc("SD.EquipBlocked", "Cannot equip this item right now.");
+        ui.notifications?.warn(this._loc(
+          "SD.Slots.AutoEquipBlocked",
+          `“${itemData.name ?? "Item"}” was added to the slot but could not be auto-equipped: ${reason}`,
+          { name: itemData.name ?? "Item", reason }
+        ));
       } else {
-        // Item only exists as a slot snapshot — fire the equip event ourselves after it is persisted.
-        _autoEquippedSnapshot = true;
+        foundry.utils.setProperty(itemData, "system.equipped", true);
+        if (droppedItem instanceof Item && droppedItem.parent?.items?.has?.(droppedItem.id)) {
+          // The live source still exists until the move completes. Keep it in sync;
+          // its normal SDItem update fires the equip event exactly once.
+          try { await droppedItem.update({ "system.equipped": true }); }
+          catch (error) { console.warn("SD | slot auto-equip failed:", error); }
+        } else {
+          // Snapshot-only sources have no Document update hook.
+          _autoEquippedSnapshot = true;
+        }
       }
     }
 

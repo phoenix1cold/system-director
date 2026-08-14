@@ -113,7 +113,20 @@
     "Effects": {
       "Temporary": "Temporary",
       "Passive": "Passive",
-      "Inactive": "Inactive"
+      "Inactive": "Inactive",
+      "ModeAlways": "Always transfer",
+      "ModeAlwaysHint": "Applied to the owning actor whenever the item is owned.",
+      "ModeEquipped": "Transfer while equipped",
+      "ModeEquippedHint": "Applied only while the item is equipped; removed or disabled when unequipped.",
+      "ModeItemOnly": "Item only",
+      "ModeItemOnlyHint": "Never transferred to the owning actor.",
+      "ModeCycle": "Click to cycle the effect transfer mode.",
+      "Info": "Effect mode: always transfer, transfer only while equipped, or item only.",
+      "OnlyOnItems": "Effect modes can only be changed on effects owned by an item.",
+      "ModeChangedAlways": "“{name}”: always transfers to the actor.",
+      "ModeChangedEquipped": "“{name}”: transfers only while “{item}” is equipped.",
+      "ModeChangedItemOnly": "“{name}”: remains on the item and does not transfer.",
+      "ItemOnlyWarning": "Mark the item as Equippable to use the equipped-only mode."
     },
     "Biography": {
       "Appearance": "Appearance",
@@ -512,7 +525,12 @@
       "DropAny": "Drop any item",
       "Full": "Slot \"{slot}\" is full (max {max}).",
       "WrongType": "Slot \"{slot}\" only accepts types: {types}",
-      "WrongCategory": "Slot \"{slot}\" only accepts categories: {cats}"
+      "WrongCategory": "Slot \"{slot}\" only accepts categories: {cats}",
+      "AutoEquip": "Auto-equip items added to this slot",
+      "AutoEquipHint": "Equippable items are equipped after a successful slot drop. Equip requirements are still checked.",
+      "NotEquippable": "“{name}” is not marked Equippable.",
+      "AutoEquipBlocked": "“{name}” was added to the slot but could not be auto-equipped: {reason}",
+      "FilterBlocked": "“{name}” was blocked by the slot filter: {reason}"
     },
     "Buttons": {
       "Hint": "Define custom action buttons. Buttons appear on the item row or sheet header based on Show In setting.",
