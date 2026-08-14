@@ -35,6 +35,7 @@
 }
 .sd-w-text.sd-v-inline input { flex: 1 !important; }
 
+/* Rich Text variants style both the wrapper and the native Foundry editor. */
 .sd-w-richtext.sd-v-boxed {
   padding: 10px 12px !important;
   border: 1px solid var(--sd-border) !important;
@@ -42,17 +43,41 @@
   background: var(--sd-bg-2) !important;
   box-shadow: var(--sd-shadow);
 }
+.sd-w-richtext.sd-v-boxed :is(.sd-richtext-native,.sd-richtext-editor,.richtext-display) {
+  background: var(--sd-bg, #1a1a24) !important;
+  border: 2px solid var(--sd-border-2, #4e4e70) !important;
+  border-radius: calc(var(--sd-r, 5px) + 1px) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.025), 0 3px 10px rgba(0,0,0,.22) !important;
+}
 .sd-w-richtext.sd-v-scroll {
   max-height: none !important;
   overflow: visible !important;
-  padding: 8px 12px !important;
-  background: var(--sd-bg-3) !important;
-  border: 1px solid var(--sd-border) !important;
-  border-radius: var(--sd-r) !important;
+  padding: 12px 16px !important;
+  background: linear-gradient(90deg, #8b6a3f 0 3px, #d7c39a 3px calc(100% - 3px), #8b6a3f calc(100% - 3px)) !important;
+  border: 1px solid #6f522f !important;
+  border-radius: 7px !important;
+  box-shadow: inset 0 0 18px rgba(82,53,24,.30), 0 4px 12px rgba(0,0,0,.30) !important;
+}
+.sd-w-richtext.sd-v-scroll > .widget-label { color: #4b341d !important; text-shadow: 0 1px rgba(255,255,255,.35); }
+.sd-w-richtext.sd-v-scroll :is(.sd-richtext-native,.sd-richtext-editor,.richtext-display) {
+  background: rgba(244,229,190,.72) !important;
+  color: #2d2115 !important;
+  border: 1px solid rgba(94,65,32,.72) !important;
+  border-radius: 3px !important;
+  box-shadow: inset 0 0 12px rgba(92,59,26,.16) !important;
+}
+.sd-w-richtext.sd-v-scroll :is(.ProseMirror,.editor-content[contenteditable="true"]) {
+  background: transparent !important;
+  color: #2d2115 !important;
+}
+.sd-w-richtext.sd-v-scroll :is(menu,.editor-menu,.editor-toolbar,.prosemirror-menu,.ProseMirror-menubar,[role="toolbar"]) {
+  background: rgba(39,31,24,.94) !important;
+  color: #f1e4c7 !important;
+  border-color: #785d38 !important;
 }
 .sd-w-richtext.sd-v-scroll:has(.sd-richtext-editor.editor-active),
-.sd-w-richtext.sd-v-scroll:has(.richtext-edit-wrap[style*="display: block"]),
-.sd-w-richtext.sd-v-scroll:has(.richtext-edit-wrap[style*="display:block"]) {
+.sd-w-richtext.sd-v-scroll:has(prose-mirror[open]),
+.sd-w-richtext.sd-v-scroll:has(prose-mirror[toggled="true"]) {
   max-height: none !important;
   overflow: visible !important;
 }

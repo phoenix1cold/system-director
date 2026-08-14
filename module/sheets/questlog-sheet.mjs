@@ -1,5 +1,6 @@
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
+import { FormulaEngine } from "../helpers/formula-engine.mjs";
 
 function _gid(prefix) {
   return `${prefix}${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36).slice(-3)}`;
@@ -21,11 +22,11 @@ function _i18n(key, fallback) {
 }
 
 const STATUS_OPTIONS = [
-  { value: "locked",    labelKey: "SD.QuestLog.Status.Locked",    fallback: "Locked",    color: "#7a7a8a" },
-  { value: "available", labelKey: "SD.QuestLog.Status.Available", fallback: "Available", color: "#5a8ad8" },
-  { value: "active",    labelKey: "SD.QuestLog.Status.Active",    fallback: "Active",    color: "#d8a83a" },
-  { value: "completed", labelKey: "SD.QuestLog.Status.Completed", fallback: "Completed", color: "#3aa860" },
-  { value: "failed",    labelKey: "SD.QuestLog.Status.Failed",    fallback: "Failed",    color: "#c04050" }
+  { value: "locked",    labelKey: "SD.QuestLog.Status.Locked",    fallback: "Locked",    color: "#626273", textColor: "#ffffff" },
+  { value: "available", labelKey: "SD.QuestLog.Status.Available", fallback: "Available", color: "#3f72bd", textColor: "#ffffff" },
+  { value: "active",    labelKey: "SD.QuestLog.Status.Active",    fallback: "Active",    color: "#d8a83a", textColor: "#211804" },
+  { value: "completed", labelKey: "SD.QuestLog.Status.Completed", fallback: "Completed", color: "#43b96b", textColor: "#07170d" },
+  { value: "failed",    labelKey: "SD.QuestLog.Status.Failed",    fallback: "Failed",    color: "#a92f43", textColor: "#ffffff" }
 ];
 
 const VIS_OPTIONS = [
@@ -56,6 +57,10 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
   tabGroups = { sheet: "quests" };
   _selectedId = null;
+  _advancedMode = false;
+  _questSearch = "";
+  _questStatusFilter = "all";
+  _questSearchTimer = null;
 
   get title() { return this.document.name; }
 
@@ -161,7 +166,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       .sd-questlog .sd-quest-row .qname { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .sd-questlog .sd-quest-row .qchip {
         font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-        padding: 1px 6px; border-radius: 999px; color: #fff; flex-shrink: 0;
+        padding: 1px 6px; border-radius: 999px; flex-shrink: 0;
       }
       .sd-questlog .sd-quest-row .qhid {
         font-size: 10px; color: var(--sd-text-2); flex-shrink: 0;
@@ -213,11 +218,16 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
       }
       .sd-questlog button.sd-btn {
-        background: var(--sd-bg-3); color: var(--sd-text); border: 1px solid var(--sd-border);
+        appearance: none; -webkit-appearance: none; background-image: none;
+        background: var(--sd-bg-3, #2a2a38); color: var(--sd-text, #e0e0ee);
+        border: 1px solid var(--sd-border, #3a3a52); box-shadow: none; text-shadow: none;
         border-radius: 4px; padding: 5px 10px; font-size: 11px; cursor: pointer;
-        display: inline-flex; align-items: center; gap: 5px;
+        display: inline-flex; align-items: center; justify-content: center; gap: 5px;
       }
-      .sd-questlog button.sd-btn:hover:not(:disabled) { background: var(--sd-accent); color: #fff; }
+      .sd-questlog button.sd-btn:hover:not(:disabled) {
+        background: var(--sd-accent, #7b68ee); border-color: var(--sd-accent, #7b68ee);
+        color: var(--sd-accent-text, #fff);
+      }
       .sd-questlog button.sd-btn:disabled { opacity: .5; cursor: not-allowed; }
       .sd-questlog button.sd-btn.danger { color: #d27c7c; }
       .sd-questlog button.sd-btn.danger:hover { background: #a83a3a; color: #fff; }
@@ -240,7 +250,8 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       
       .sd-questlog .sd-add-quest-btn {
         margin-top: auto; padding: 8px; text-align: center; cursor: pointer;
-        background: var(--sd-accent); color: #fff; border-radius: 6px;
+        background: var(--sd-accent, #7b68ee); color: var(--sd-accent-text, #fff);
+        border: 1px solid var(--sd-accent-2, #5a4ec0); border-radius: 6px;
         font-size: 12px; font-weight: 600;
       }
       .sd-questlog .sd-add-quest-btn:hover { filter: brightness(1.15); }
@@ -327,11 +338,39 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const isGM = this._isGM();
     const quests = this._quests();
 
+    const filters = document.createElement("div");
+    filters.style.cssText = "display:grid;grid-template-columns:1fr auto;gap:4px;margin-bottom:4px";
+    const search = document.createElement("input");
+    search.type = "text"; search.value = this._questSearch; search.dataset.questSearch = "";
+    search.placeholder = _i18n("SD.QuestLog.Search", "Search quests…");
+    search.addEventListener("input", () => {
+      this._questSearch = search.value;
+      clearTimeout(this._questSearchTimer);
+      this._questSearchTimer = setTimeout(() => {
+        this._renderQuestList(host);
+        const next = host.querySelector("input[data-quest-search]");
+        if (next) { next.focus(); next.setSelectionRange(next.value.length, next.value.length); }
+      }, 140);
+    });
+    filters.appendChild(search);
+    const statusFilter = document.createElement("select");
+    for (const opt of [{value:"all",label:_i18n("SD.QuestLog.FilterAll","All")}, ...STATUS_OPTIONS.map(x=>({value:x.value,label:_i18n(x.labelKey,x.fallback)}))]) {
+      const el = document.createElement("option"); el.value=opt.value; el.textContent=opt.label;
+      if (opt.value === this._questStatusFilter) el.selected = true;
+      statusFilter.appendChild(el);
+    }
+    statusFilter.addEventListener("change", () => { this._questStatusFilter=statusFilter.value; this._renderQuestList(host); });
+    filters.appendChild(statusFilter);
+    host.appendChild(filters);
+
     if (!this._selectedId || !quests.find(q => q.id === this._selectedId)) {
       this._selectedId = quests.find(q => isGM || this._canSee(q))?.id ?? null;
     }
 
-    const visible = quests.filter(q => isGM || this._canSee(q));
+    const query = this._questSearch.trim().toLowerCase();
+    const visible = quests.filter(q => (isGM || this._canSee(q))
+      && (this._questStatusFilter === "all" || q.status === this._questStatusFilter)
+      && (!query || String(q.name ?? "").toLowerCase().includes(query)));
     if (!visible.length) {
       const empty = document.createElement("div");
       empty.className = "sd-detail-empty";
@@ -339,8 +378,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       host.appendChild(empty);
     }
 
-    for (const q of quests) {
-      if (!isGM && !this._canSee(q)) continue;
+    for (const q of visible) {
 
       const row = document.createElement("div");
       row.className = "sd-quest-row";
@@ -354,7 +392,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         <i class="fas ${_esc(q.icon || "fa-flag")} qicon"></i>
         <span class="qname">${_esc(q.name || "—")}</span>
         ${q.visibility?.mode === "hidden" && isGM ? `<span class="qhid" title="${_esc(_i18n('SD.QuestLog.HiddenTip','Hidden from players'))}"><i class="fas fa-eye-slash"></i></span>` : ""}
-        <span class="qchip" style="background:${status.color}">${_esc(_i18n(status.labelKey, status.fallback))}</span>
+        <span class="qchip" style="background:${status.color};color:${status.textColor || "#fff"}">${_esc(_i18n(status.labelKey, status.fallback))}</span>
       `;
       row.addEventListener("click", () => {
         this._selectedId = q.id;
@@ -396,6 +434,13 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     nameRow.appendChild(name);
 
     if (isGM) {
+      const advanced = document.createElement("button");
+      advanced.className = "sd-btn";
+      advanced.title = _i18n("SD.QuestLog.AdvancedHint", "Show graphs, formulas, visibility overrides and path changes.");
+      advanced.innerHTML = `<i class="fas fa-sliders"></i> ${_esc(this._advancedMode ? _i18n("SD.QuestLog.SimpleMode","Simple") : _i18n("SD.QuestLog.AdvancedMode","Advanced"))}`;
+      advanced.addEventListener("click", () => { this._advancedMode = !this._advancedMode; this._buildTabPanels(); });
+      nameRow.appendChild(advanced);
+
       const iconBtn = document.createElement("button");
       iconBtn.className = "sd-btn";
       iconBtn.title = _i18n("SD.QuestLog.IconClass", "Icon class (Font Awesome)");
@@ -506,12 +551,19 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const h = document.createElement("h4");
       h.textContent = _i18n("SD.QuestLog.DescriptionLabel", "Description");
       sect.appendChild(h);
-      const ta = document.createElement("textarea");
-      ta.value = q.description ?? "";
-      ta.placeholder = _i18n("SD.QuestLog.DescriptionPlaceholder", "Describe the quest. HTML allowed.");
-      ta.disabled = !isGM;
-      ta.addEventListener("change", () => this._patchQuest(q.id, { description: ta.value }));
-      sect.appendChild(ta);
+      if (isGM) {
+        const ta = document.createElement("textarea");
+        ta.value = q.description ?? "";
+        ta.placeholder = _i18n("SD.QuestLog.DescriptionPlaceholder", "Describe the quest. HTML allowed.");
+        ta.addEventListener("change", () => this._patchQuest(q.id, { description: ta.value }));
+        sect.appendChild(ta);
+      } else {
+        const body = document.createElement("div");
+        body.className = "sd-quest-description";
+        body.style.cssText = "line-height:1.55;color:var(--sd-text);font-size:13px";
+        body.innerHTML = q.description || `<em>${_esc(_i18n("SD.QuestLog.NoDescription","No description."))}</em>`;
+        sect.appendChild(body);
+      }
       host.appendChild(sect);
     }
 
@@ -524,6 +576,20 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       sect.appendChild(h);
 
       const subs = q.subtasks ?? [];
+      const required = subs.filter(s => s.required !== false);
+      const doneCount = required.filter(s => s.done).length;
+      const progress = document.createElement("div");
+      progress.style.cssText = "font-size:11px;color:var(--sd-text-3);margin:-3px 0 6px";
+      progress.textContent = `${_i18n("SD.QuestLog.Progress","Progress")}: ${doneCount} / ${required.length}`;
+      sect.appendChild(progress);
+      if (isGM) {
+        const auto = document.createElement("label");
+        auto.style.cssText = "display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sd-text-2);margin-bottom:6px";
+        const cb = document.createElement("input"); cb.type="checkbox"; cb.checked=!!q.autoComplete;
+        cb.addEventListener("change",()=>this._patchQuest(q.id,{autoComplete:cb.checked}));
+        auto.append(cb, document.createTextNode(_i18n("SD.QuestLog.AutoComplete","Complete when all required tasks are done")));
+        sect.appendChild(auto);
+      }
       for (const s of subs) {
         if (!isGM && s.hidden && !s.done) continue;
         const row = document.createElement("div");
@@ -542,6 +608,18 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         row.appendChild(nm);
 
         if (isGM) {
+          if (this._advancedMode) {
+            const requiredBtn = document.createElement("button");
+            requiredBtn.className = "sd-btn";
+            requiredBtn.title = s.required === false ? _i18n("SD.QuestLog.OptionalTask","Optional task") : _i18n("SD.QuestLog.RequiredTask","Required task");
+            requiredBtn.innerHTML = `<i class="fas ${s.required === false ? "fa-star-half-stroke" : "fa-star"}"></i>`;
+            requiredBtn.addEventListener("click",()=>this._patchSubtask(q.id,s.id,{required:s.required === false}));
+            row.appendChild(requiredBtn);
+            const desc = document.createElement("input");
+            desc.type="text"; desc.value=s.description??""; desc.placeholder=_i18n("SD.QuestLog.SubtaskDescription","Task note");
+            desc.addEventListener("change",()=>this._patchSubtask(q.id,s.id,{description:desc.value}));
+            row.appendChild(desc);
+          }
           const hidBtn = document.createElement("button");
           hidBtn.className = "sd-btn";
           hidBtn.title = _i18n("SD.QuestLog.SubtaskHiddenHint", "Toggle hidden — only shown when done.");
@@ -569,6 +647,23 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       host.appendChild(sect);
     }
 
+
+    if (isGM) {
+      const sect = document.createElement("div");
+      sect.className = "sd-detail-section";
+      const h = document.createElement("h4"); h.textContent = _i18n("SD.QuestLog.Dependency","Unlock condition"); sect.appendChild(h);
+      const row = document.createElement("div"); row.className="sd-detail-row";
+      const label = document.createElement("label"); label.textContent = _i18n("SD.QuestLog.UnlockAfter","Unlock after"); row.appendChild(label);
+      const select = document.createElement("select");
+      const none = document.createElement("option"); none.value=""; none.textContent=_i18n("SD.QuestLog.NoDependency","No prerequisite"); select.appendChild(none);
+      for (const other of this._quests().filter(x=>x.id!==q.id)) {
+        const option=document.createElement("option"); option.value=other.id; option.textContent=other.name||other.id;
+        if ((q.prerequisites??[])[0]===other.id) option.selected=true;
+        select.appendChild(option);
+      }
+      select.addEventListener("change",()=>this._setPrerequisite(q.id,select.value));
+      row.appendChild(select); sect.appendChild(row); host.appendChild(sect);
+    }
 
     {
       const sect = document.createElement("div");
@@ -605,7 +700,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     }
 
 
-    if (isGM) {
+    if (isGM && this._advancedMode) {
       const sect = document.createElement("div");
       sect.className = "sd-detail-section";
       const h = document.createElement("h4");
@@ -660,13 +755,13 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const complete = document.createElement("button");
         complete.className = "sd-btn";
         complete.innerHTML = `<i class="fas fa-check"></i> ${_esc(_i18n("SD.QuestLog.MarkCompleted","Mark Completed"))}`;
-        complete.addEventListener("click", () => this._patchQuest(q.id, { status: "completed" }));
+        complete.addEventListener("click", () => this._setQuestState(q.id, "completed"));
         actions.appendChild(complete);
 
         const fail = document.createElement("button");
         fail.className = "sd-btn";
         fail.innerHTML = `<i class="fas fa-xmark"></i> ${_esc(_i18n("SD.QuestLog.MarkFailed","Mark Failed"))}`;
-        fail.addEventListener("click", () => this._patchQuest(q.id, { status: "failed" }));
+        fail.addEventListener("click", () => this._setQuestState(q.id, "failed"));
         actions.appendChild(fail);
 
         const del = document.createElement("button");
@@ -854,19 +949,60 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   async _addQuest() {
+    const draft = await SDQuestLogSheet._questWizard();
+    if (!draft) return;
     const id = _gid("q_");
     const newQ = {
-      id, name: _i18n("SD.QuestLog.NewQuestName", "New Quest"),
-      description: "", icon: "fa-flag",
-      status: "available",
-      visibility: { mode: "visible", players: [], gmRevealed: false },
-      subtasks: [], questGraph: {}, rewards: [],
+      id, name: draft.name || _i18n("SD.QuestLog.NewQuestName", "New Quest"),
+      description: draft.description || "", icon: "fa-flag",
+      status: draft.status || "available",
+      visibility: { mode: draft.visibility || "visible", players: [], gmRevealed: false },
+      subtasks: [], autoComplete: !!draft.autoComplete, prerequisites: [], questGraph: {}, rewards: [],
       chainCol: null, chainRow: null
     };
     const quests = foundry.utils.deepClone(this._quests());
     quests.push(newQ);
     this._selectedId = id;
     await this.document.update({ "system.quests": quests });
+  }
+
+  static async _questWizard() {
+    return new Promise(resolve => {
+      new foundry.applications.api.DialogV2({
+        modal:true,
+        window:{title:_i18n("SD.QuestLog.CreateQuest","Create quest")},
+        content:`<form class="sd-quest-wizard" style="display:flex;flex-direction:column;gap:10px;padding:6px">
+          <label>${_esc(_i18n("SD.QuestLog.QuestName","Quest name"))}<input name="name" type="text" required style="width:100%"></label>
+          <label>${_esc(_i18n("SD.QuestLog.DescriptionLabel","Description"))}<textarea name="description" rows="4" style="width:100%"></textarea></label>
+          <label>${_esc(_i18n("SD.QuestLog.VisibilityLabel","Visibility"))}<select name="visibility" style="width:100%"><option value="visible">${_esc(_i18n("SD.QuestLog.Vis.Visible","Visible to all"))}</option><option value="hidden">${_esc(_i18n("SD.QuestLog.Vis.Hidden","Hidden (GM only)"))}</option></select></label>
+          <label style="display:flex;align-items:center;gap:6px"><input name="autoComplete" type="checkbox">${_esc(_i18n("SD.QuestLog.AutoComplete","Complete when all required tasks are done"))}</label>
+        </form>`,
+        buttons:[
+          {action:"create",label:_i18n("SD.QuestLog.Create","Create"),icon:"fas fa-plus",default:true,callback:(ev,btn)=>{
+            const root=btn.closest("[data-application]")??btn.closest("dialog")??document;
+            const name=root.querySelector('[name="name"]')?.value?.trim()??"";
+            if(!name){ui.notifications?.warn(_i18n("SD.QuestLog.NameRequired","Quest name is required."));return false;}
+            resolve({name,description:root.querySelector('[name="description"]')?.value??"",visibility:root.querySelector('[name="visibility"]')?.value??"visible",autoComplete:!!root.querySelector('[name="autoComplete"]')?.checked});
+          }},
+          {action:"cancel",label:_i18n("SD.Cancel","Cancel"),icon:"fas fa-xmark",callback:()=>resolve(null)}
+        ], submit:()=>{}
+      }).render(true);
+    });
+  }
+
+  async _setQuestState(qid, state, actorRef = "") {
+    const op = ({active:"activate",completed:"complete",failed:"fail",locked:"lock",available:"available"})[state] ?? state;
+    const { SDQuest } = await import("../helpers/quest.mjs");
+    await SDQuest.applyAction({type:"questAction",op,questLogUuid:this.document.uuid,questId:qid,actorRef},{questLogUuid:this.document.uuid,questId:qid,actorId:actorRef,userId:game.user?.id??""});
+  }
+
+  async _setPrerequisite(qid, prerequisiteId) {
+    const quests=foundry.utils.deepClone(this._quests());
+    const q=quests.find(x=>x.id===qid); if(!q)return;
+    q.prerequisites=prerequisiteId?[prerequisiteId]:[];
+    if(prerequisiteId && q.status==="available") q.status="locked";
+    if(!prerequisiteId && q.status==="locked") q.status="available";
+    await this.document.update({"system.quests":quests});
   }
 
   async _deleteQuest(qid) {
@@ -881,6 +1017,10 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   async _patchQuest(qid, patch) {
+    if (patch?.status && Object.keys(patch).length === 1) {
+      await this._setQuestState(qid, patch.status);
+      return;
+    }
     const quests = foundry.utils.deepClone(this._quests());
     const q = quests.find(x => x.id === qid);
     if (!q) return;
@@ -908,7 +1048,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const q = quests.find(x => x.id === qid);
     if (!q) return;
     q.subtasks = q.subtasks ?? [];
-    q.subtasks.push({ id: _gid("s_"), name: _i18n("SD.QuestLog.NewSubtask","New subtask"), description: "", done: false, hidden: false });
+    q.subtasks.push({ id: _gid("s_"), name: _i18n("SD.QuestLog.NewSubtask","New subtask"), description: "", done: false, required: true, hidden: false });
     await this.document.update({ "system.quests": quests });
   }
 
@@ -933,6 +1073,10 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       try { Hooks.callAll("sdSubtaskDone", { questLogUuid: this.document.uuid, questId: qid, subtaskId: sid }); }
       catch (e) { console.warn("SD | sdSubtaskDone hook fire failed", e); }
     }
+    const required = (q.subtasks ?? []).filter(x => x.required !== false);
+    if (q.autoComplete && required.length && required.every(x => x.done) && q.status !== "completed") {
+      await this._setQuestState(qid, "completed");
+    }
   }
 
   async _setActive(qid) {
@@ -946,17 +1090,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       actor = await SDQuestLogSheet._pickActor(candidates);
       if (!actor) return;
     }
-    await actor.update({
-      "system.activeQuest": {
-        questLogUuid: this.document.uuid,
-        questId:      qid
-      }
-    });
-    try {
-      Hooks.callAll("sdQuestActivated", {
-        questLogUuid: this.document.uuid, questId: qid, actorId: actor.id, userId: game.user?.id ?? ""
-      });
-    } catch (_) {}
+    await this._setQuestState(qid, "active", actor.id);
     ui.notifications?.info(`${_i18n("SD.QuestLog.ActivatedFor","Active quest set on")} ${actor.name}`);
   }
 
@@ -973,9 +1107,8 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       try {
         const formula = String(r.conditionFormula ?? "").trim();
         if (!formula) return false;
-        if (typeof globalThis._SD_FE === "undefined") return false;
-        const { FormulaEngine } = globalThis._SD_FE;
-        const ev = FormulaEngine.evaluate(formula, this.document);
+        const actor = game.user?.character ?? null;
+        const ev = FormulaEngine.evaluate(formula, actor ?? this.document);
         const n = Number(ev);
         if (Number.isFinite(n)) return n !== 0;
         return Boolean(ev);
@@ -1084,15 +1217,15 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
          {v:"single",l:_i18n("SD.QuestLog.Reward.ModeSingle","Single (first claimer)")}],
         (v) => this._patchReward(q.id, r.id, { mode: v })));
 
-      config.appendChild(lbl(_i18n("SD.QuestLog.Reward.Visibility","Visibility")));
-      config.appendChild(sel(r.visibility ?? "visible",
+      if (this._advancedMode) config.appendChild(lbl(_i18n("SD.QuestLog.Reward.Visibility","Visibility")));
+      if (this._advancedMode) config.appendChild(sel(r.visibility ?? "visible",
         [{v:"visible",l:_i18n("SD.QuestLog.Reward.VisVisible","Visible")},
          {v:"hidden",l:_i18n("SD.QuestLog.Reward.VisHidden","Hidden")},
          {v:"onCompletion",l:_i18n("SD.QuestLog.Reward.VisOnComp","On quest completion")},
          {v:"conditional",l:_i18n("SD.QuestLog.Reward.VisCond","Conditional (formula)")}],
         (v) => this._patchReward(q.id, r.id, { visibility: v })));
 
-      config.appendChild(lbl(_i18n("SD.QuestLog.Reward.GrantOn","Grant on")));
+      config.appendChild(lbl(_i18n("SD.QuestLog.Reward.AvailableWhen","Claim available when")));
       config.appendChild(sel(r.grantOn ?? "manual",
         [{v:"manual",l:_i18n("SD.QuestLog.Reward.GrantManual","Manual (GM)")},
          {v:"questCompleted",l:_i18n("SD.QuestLog.Reward.GrantQC","Quest completed")},
@@ -1100,13 +1233,13 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         (v) => this._patchReward(q.id, r.id, { grantOn: v })));
 
       const subOptions = [{v:"",l:"—"}].concat((q.subtasks ?? []).map(s => ({ v:s.id, l: s.name || s.id })));
-      config.appendChild(lbl(_i18n("SD.QuestLog.Reward.Subtask","Subtask")));
-      config.appendChild(sel(r.subtaskId ?? "", subOptions,
+      if (this._advancedMode || (r.grantOn ?? "manual") === "subtaskCompleted") config.appendChild(lbl(_i18n("SD.QuestLog.Reward.Subtask","Subtask")));
+      if (this._advancedMode || (r.grantOn ?? "manual") === "subtaskCompleted") config.appendChild(sel(r.subtaskId ?? "", subOptions,
         (v) => this._patchReward(q.id, r.id, { subtaskId: v })));
 
       card.appendChild(config);
 
-      if ((r.visibility ?? "visible") === "conditional") {
+      if (this._advancedMode && (r.visibility ?? "visible") === "conditional") {
         const condRow = document.createElement("div");
         condRow.style.cssText = "display:flex;gap:6px;align-items:center";
         const lab = document.createElement("span");
@@ -1139,11 +1272,13 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     card.appendChild(curBlock);
 
 
-    const pcBlock = this._renderRewardPathChanges(q, r, isGM);
-    card.appendChild(pcBlock);
+    if (isGM && this._advancedMode) {
+      const pcBlock = this._renderRewardPathChanges(q, r, true);
+      card.appendChild(pcBlock);
+    }
 
 
-    if (isGM) {
+    if (isGM && this._advancedMode) {
       const customRow = document.createElement("div");
       customRow.style.cssText = "display:flex;flex-direction:column;gap:3px";
       const lab = document.createElement("span");
@@ -1169,6 +1304,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     actions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--sd-border);padding-top:8px";
 
     if (isGM) {
+      if (this._advancedMode) {
       const reveal = document.createElement("button");
       reveal.className = "sd-btn";
       reveal.style.cssText = "padding:4px 10px;font-size:11px";
@@ -1176,6 +1312,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       reveal.title = _i18n("SD.QuestLog.Reward.RevealHint","Toggle GM-revealed (overrides visibility hidden/onCompletion/conditional).");
       reveal.addEventListener("click", () => this._patchReward(q.id, r.id, { revealed: !r.revealed }));
       actions.appendChild(reveal);
+      }
 
       const claimable = document.createElement("button");
       claimable.className = "sd-btn";
@@ -1586,6 +1723,8 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   async _grantRewardToAll(qid, rid) {
+    const ok = await foundry.applications.api.DialogV2.confirm({window:{title:_i18n("SD.QuestLog.Reward.GrantAll","Grant to all")},content:`<p>${_esc(_i18n("SD.QuestLog.Reward.GrantAllConfirm","Grant this reward to every eligible character? Already granted characters will be skipped."))}</p>`}).catch(()=>false);
+    if (!ok) return;
     const { SDQuest } = await import("../helpers/quest.mjs");
     await SDQuest.applyAction(
       { type:"questAction", op:"rewardGrantAll", questLogUuid: this.document.uuid, questId: qid, rewardId: rid },

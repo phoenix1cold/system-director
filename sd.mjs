@@ -606,8 +606,8 @@ function registerSettings() {
   });
 
   game.settings.register("sd", "onboardingEnabled", {
-    name:    "SD Guide: show quick onboarding",
-    hint:    "Shows short highlighted walkthroughs for system settings, sheet building, and node graph basics.",
+    name:    "SD.Guide.ShowQuickOnboarding",
+    hint:    "SD.Guide.ShowQuickOnboardingHint",
     scope:   "client",
     config:  true,
     type:    Boolean,
@@ -615,8 +615,8 @@ function registerSettings() {
   });
 
   game.settings.register("sd", "helperTooltips", {
-    name:    "SD Guide: show helper tooltips",
-    hint:    "Shows compact hover hints on key SD controls.",
+    name:    "SD.Guide.ShowHelperTooltips",
+    hint:    "SD.Guide.ShowHelperTooltipsHint",
     scope:   "client",
     config:  true,
     type:    Boolean,
@@ -624,7 +624,7 @@ function registerSettings() {
   });
 
   game.settings.register("sd", "onboardingSeenTours", {
-    name:    "SD Guide Seen Tours",
+    name:    "SD.Guide.SeenTours",
     scope:   "client",
     config:  false,
     type:    Object,
@@ -1539,6 +1539,87 @@ html.querySelectorAll(".sd-chat-aoe-save-branch-btn").forEach(btn => {
   });
 });
 
+
+html.querySelectorAll(".sd-spell-v2-cast-btn[data-spell-v2-cfg]").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    if (btn.disabled) return;
+    let cfg;
+    try { cfg = JSON.parse(btn.dataset.spellV2Cfg ?? "{}"); } catch { return; }
+    const esc = (v) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    const templates = Array.isArray(cfg.templates) ? cfg.templates : [];
+    let selectedTemplate = templates[0] ?? null;
+
+    if (cfg.isAoe && templates.length > 1) {
+      const { DialogV2 } = foundry.applications.api;
+      const options = templates.map((t,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:7px;border-bottom:1px solid var(--color-border-light-2);cursor:pointer"><input type="radio" name="sd-spell-template" value="${i}" ${i===0?"checked":""}><strong>${esc(t.name ?? `Template ${i+1}`)}</strong><span style="margin-left:auto">${esc(t.t ?? "circle")} · ${Number(t.distance ?? 0)} ft</span></label>`).join("");
+      const picked = await DialogV2.wait({
+        window:{title:cfg.title ?? "Choose AOE Template"},modal:true,
+        content:`<div style="max-height:360px;overflow:auto">${options}</div>`,
+        buttons:[
+          {action:"ok",label:"Place",icon:"fas fa-crosshairs",default:true,callback:(ev,b,dlg)=>Number(dlg?.element?.querySelector?.('input[name="sd-spell-template"]:checked')?.value ?? 0)},
+          {action:"cancel",label:"Cancel",icon:"fas fa-times",callback:()=>null}
+        ],rejectClose:false
+      }).catch(()=>null);
+      if (picked === null) return;
+      selectedTemplate = templates[picked] ?? templates[0];
+    }
+
+    btn.disabled=true;btn.style.opacity="0.55";btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Working…';
+    let regionDoc=null;
+    let tokenIds=[];
+    try {
+      if (cfg.isAoe) {
+        if (!selectedTemplate) throw new Error("No AOE template supplied");
+        const { buildShape, placeRegionInteractive, getRegionTokens } = await import("./module/helpers/sd-region.mjs");
+        const shape = buildShape(selectedTemplate.t ?? selectedTemplate.shape ?? "circle", Number(selectedTemplate.distance ?? selectedTemplate.size ?? 20) || 20, Number(selectedTemplate.angle ?? 53.13) || 53.13);
+        regionDoc = await placeRegionInteractive({
+          name:selectedTemplate.name ?? cfg.title ?? "Spell AOE",
+          shape,
+          flags:{sd:{spellV2:true,templateSnapshot:selectedTemplate,srcActorId:cfg.srcActorId ?? ""}}
+        });
+        if (!regionDoc) {
+          btn.disabled=false;btn.style.opacity="1";btn.innerHTML=`<i class="fas fa-wand-magic-sparkles"></i> ${esc(cfg.buttonLabel ?? "Cast")}`;
+          return;
+        }
+        await new Promise(r=>setTimeout(r,250));
+        tokenIds=getRegionTokens(regionDoc).map(t=>t.id).filter(Boolean);
+        if (!cfg.persist) { try { await regionDoc.delete(); } catch {} }
+      } else if (cfg.hasTarget) {
+        const raw=String(cfg.targets ?? "").split(",").map(x=>x.trim()).filter(Boolean);
+        tokenIds=raw.length ? raw : [
+          ...(game.user?.targets ? [...game.user.targets].map(t=>t.id) : []),
+          ...(canvas?.tokens?.controlled ?? []).map(t=>t.id)
+        ];
+        tokenIds=[...new Set(tokenIds)];
+      }
+
+      const { ButtonExecutor } = await import("./module/helpers/button-executor.mjs");
+      const srcActor=cfg.srcActorId ? game.actors.get(cfg.srcActorId) : null;
+      let srcItem=null;
+      if(cfg.srcItemUuid){try{srcItem=await fromUuid(cfg.srcItemUuid);}catch{}}
+      const runtime={
+        savedTargets:[],failedTargets:[],allTargets:tokenIds,
+        __aoeTemplate:regionDoc ?? selectedTemplate ?? null,
+        __spellEffect:cfg.effect ?? null,
+        __spellValue:cfg.value ?? null,
+        __targetCount:tokenIds.length
+      };
+      const synthBtn={};
+      for(const sub of (cfg.postActions ?? [])){
+        try{await ButtonExecutor._runAction(sub,srcItem,srcActor,synthBtn,runtime);}
+        catch(err){console.warn("SD | Spell v2 post-action failed:",err);}
+      }
+      const result=btn.closest(".sd-spell-v2-card")?.querySelector(".sd-spell-v2-result");
+      if(result){result.style.display="block";result.innerHTML=`<i class="fas fa-check"></i> Resolved${tokenIds.length?` · ${tokenIds.length} target(s)`:""}`;}
+      btn.innerHTML='<i class="fas fa-check"></i> Resolved';
+    } catch(err) {
+      console.warn("SD | Spell v2 failed:",err);
+      ui.notifications?.warn?.(`SD | Spell: ${err?.message ?? err}`);
+      btn.disabled=false;btn.style.opacity="1";btn.innerHTML=`<i class="fas fa-wand-magic-sparkles"></i> ${esc(cfg.buttonLabel ?? "Cast")}`;
+    }
+  });
+});
+
 html.addEventListener("click", async (e) => {
   const btn = e.target.closest(".sd-save-roll-btn");
   if (!btn || btn.disabled) return;
@@ -1549,6 +1630,18 @@ html.addEventListener("click", async (e) => {
   const actorId      = btn.dataset.actorId              ?? card.dataset.saveActorId;
   const modifierPath = btn.dataset.saveModifierPath     ?? card.dataset.saveModifierPath;
   const dc           = Number(btn.dataset.saveDc        ?? card.dataset.saveDc    ?? 15);
+  const operator     = btn.dataset.saveOperator          ?? card.dataset.saveOperator ?? ">=";
+  const _sdPassCompare = (value, threshold, op) => {
+    switch (op) {
+      case ">":  return value > threshold;
+      case "<":  return value < threshold;
+      case "<=": return value <= threshold;
+      case "==": return value == threshold;
+      case "!=": return value != threshold;
+      case ">=":
+      default:   return value >= threshold;
+    }
+  };
   const flavor       = btn.dataset.saveFlavor           ?? card.dataset.saveFlavor ?? "Saving Throw";
   const rollMode     = btn.dataset.saveRollMode         ?? card.dataset.saveRollMode ?? "publicroll";
   const checkType    = btn.dataset.saveType             ?? card.dataset.saveType    ?? "save";
@@ -1615,7 +1708,7 @@ html.addEventListener("click", async (e) => {
   const roll = new Roll(finalFormula, _safeRollData);
   await roll.evaluate();
   rollTotal = roll.total;
-  const passMsg = rollTotal >= dc;
+  const passMsg = _sdPassCompare(rollTotal, dc, operator);
   const modeStr = modeTag ? ` [${modeTag}]` : "";
   await roll.toMessage({
     speaker: ChatMessage.getSpeaker({ actor: saveActor }),
@@ -1623,7 +1716,7 @@ html.addEventListener("click", async (e) => {
     rollMode
   });
 
-  const pass      = rollTotal >= dc;
+  const pass      = passMsg;
   const passLabel = pass ? "✅ Success" : "❌ Failure";
 
   const _rrEnabled = (card.dataset.saveRerollEnabled ?? "0") === "1";
@@ -1663,7 +1756,7 @@ html.addEventListener("click", async (e) => {
     resultEl.innerHTML = `
       <i class="fas fa-${pass ? "check" : "times"}"></i>
       <span style="flex:1">${passLabel}${modeTag ? ` [${modeTag}]` : ""}</span>
-      <span style="color:#a0a0c0">${rollTotal} vs DC ${dc}</span>`;
+      <span style="color:#a0a0c0">${rollTotal} ${operator} ${dc}</span>`;
     actorRow.after(resultEl);
   } else {
     const resultDiv = document.createElement("div");
@@ -1676,12 +1769,14 @@ html.addEventListener("click", async (e) => {
 
   const message = card.closest(".chat-message");
   let chatMsg = null;
+  let aggregateResults = {};
   if (message) {
     const msgId = message.dataset.messageId;
     chatMsg = game.messages.get(msgId);
     if (chatMsg) {
       const existing = chatMsg.getFlag("sd", "saveResult") ?? {};
       existing[saveActor.id] = { total: rollTotal, pass, actorId: saveActor.id, userId: game.user.id };
+      aggregateResults = existing;
       await chatMsg.setFlag("sd", "saveResult", existing);
     }
   }
@@ -1698,14 +1793,18 @@ html.addEventListener("click", async (e) => {
         __lastMargin:  rollTotal - dc,
         __lastDC:      dc
       };
+      const aggregateEntries = Object.values(aggregateResults ?? {});
+      const savedTargets = aggregateEntries.filter(r => r?.pass === true).map(r => r.actorId).filter(Boolean);
+      const failedTargets = aggregateEntries.filter(r => r?.pass === false).map(r => r.actorId).filter(Boolean);
+      const allTargets = [...new Set([...savedTargets, ...failedTargets])];
       const runtime = {
         __lastRoll:    rollTotal,
         __lastFormula: finalFormula,
         __lastMargin:  rollTotal - dc,
         __lastDC:      dc,
-        savedTargets:  pass ? [saveActor.id] : [],
-        failedTargets: pass ? [] : [saveActor.id],
-        allTargets:    [saveActor.id],
+        savedTargets:  savedTargets.length || failedTargets.length ? savedTargets : (pass ? [saveActor.id] : []),
+        failedTargets: savedTargets.length || failedTargets.length ? failedTargets : (pass ? [] : [saveActor.id]),
+        allTargets:    allTargets.length ? allTargets : [saveActor.id],
         currentTarget: saveActor.id
       };
       for (const sub of branch) {

@@ -4,6 +4,9 @@ export class RichTextEditor {
   static wire(cell, doc) {
     if (!cell || !doc) return;
 
+    cell.querySelectorAll('.widget-richtext').forEach(widget => this._wireAutoHeight(widget));
+    cell.querySelectorAll('prose-mirror.sd-richtext-native[data-path]').forEach(editorEl => this._wireNativeEditor(editorEl, doc));
+
     cell.querySelectorAll('.sd-richtext-editor[data-path]').forEach(editorEl => {
       if (editorEl.dataset.sdRichtextWired === "1") return;
       const path = editorEl.dataset.path;
@@ -38,6 +41,207 @@ export class RichTextEditor {
         this._openRawEditor(doc, display, editWrap);
       });
     });
+  }
+
+  static _wireNativeEditor(editorEl, doc) {
+    if (!editorEl || editorEl.dataset.sdRichtextNativeWired === "1") return;
+    const path = editorEl.dataset.path || editorEl.getAttribute("name");
+    if (!path) return;
+    editorEl.dataset.sdRichtextNativeWired = "1";
+    const resize = () => {
+      this._stabilizeNativeLayout(editorEl);
+      this._requestAutoHeight(editorEl);
+    };
+    for (const type of ["open", "close", "input", "change", "toggle"]) editorEl.addEventListener(type, resize);
+    editorEl.addEventListener("save", ev => {
+      ev.stopPropagation();
+      const value = String(editorEl.value ?? editorEl.getAttribute("value") ?? "");
+      Promise.resolve(doc.update({ [path]: value })).then(() => {
+        editorEl.setAttribute("value", value);
+        resize();
+      }).catch(err => {
+        console.error("SD | native richtext save failed:", err);
+        ui.notifications?.error?.("Failed to save Rich Text content.");
+      });
+    });
+
+    // Foundry builds the menu after the custom element is connected. Re-run
+    // layout when that DOM changes so the toolbar always occupies real space
+    // above the editable document instead of floating over its first lines.
+    if (typeof MutationObserver !== "undefined") {
+      const observer = new MutationObserver(resize);
+      observer.observe(editorEl, { childList: true, subtree: true, attributes: true, attributeFilter: ["open", "toggled"] });
+      if (editorEl.shadowRoot) observer.observe(editorEl.shadowRoot, { childList: true, subtree: true });
+      editorEl._sdRichtextNativeObserver = observer;
+    }
+    resize();
+  }
+
+  static _stabilizeNativeLayout(editorEl) {
+    if (!editorEl) return;
+    const roots = [editorEl];
+    if (editorEl.shadowRoot) roots.push(editorEl.shadowRoot);
+    const important = (el, name, value) => el?.style?.setProperty?.(name, value, "important");
+
+    for (const root of roots) {
+      const containers = root.querySelectorAll?.(".editor-container, .prosemirror-container") ?? [];
+      for (const container of containers) {
+        important(container, "position", "relative");
+        important(container, "display", "flex");
+        important(container, "flex-direction", "column");
+        important(container, "align-items", "stretch");
+        important(container, "width", "100%");
+        important(container, "height", "auto");
+        important(container, "overflow", "visible");
+      }
+
+      const menus = root.querySelectorAll?.([
+        "menu",
+        ".editor-menu",
+        ".editor-toolbar",
+        "menu.prosemirror-menu",
+        ".prosemirror-menu",
+        ".ProseMirror-menubar",
+        "[role='toolbar']"
+      ].join(",")) ?? [];
+      for (const menu of menus) {
+        important(menu, "position", "relative");
+        important(menu, "inset", "auto");
+        important(menu, "transform", "none");
+        important(menu, "float", "none");
+        important(menu, "display", "flex");
+        important(menu, "flex-wrap", "wrap");
+        important(menu, "align-items", "center");
+        important(menu, "align-content", "flex-start");
+        important(menu, "gap", "4px");
+        important(menu, "width", "100%");
+        important(menu, "max-width", "100%");
+        important(menu, "height", "auto");
+        important(menu, "min-height", "36px");
+        important(menu, "margin", "0 0 6px 0");
+        important(menu, "padding", "4px");
+        important(menu, "box-sizing", "border-box");
+      }
+
+      const documents = root.querySelectorAll?.(".ProseMirror, .editor-content[contenteditable='true']") ?? [];
+      for (const content of documents) {
+        important(content, "position", "relative");
+        important(content, "inset", "auto");
+        important(content, "transform", "none");
+        important(content, "float", "none");
+        important(content, "clear", "both");
+        important(content, "width", "100%");
+        important(content, "min-width", "0");
+        important(content, "max-width", "100%");
+        important(content, "height", "auto");
+        important(content, "margin", "0");
+        important(content, "box-sizing", "border-box");
+        important(content, "overflow-wrap", "anywhere");
+        important(content, "word-break", "break-word");
+        important(content, "white-space", "pre-wrap");
+      }
+    }
+  }
+
+  static _wireAutoHeight(widget) {
+    if (!widget || widget.dataset.sdRichtextAutoHeight === "1") return;
+    widget.dataset.sdRichtextAutoHeight = "1";
+
+    let scheduled = false;
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      const run = () => {
+        scheduled = false;
+        if (!widget.isConnected) return;
+
+        widget.style.setProperty("height", "auto", "important");
+        widget.style.setProperty("max-height", "none", "important");
+        widget.style.setProperty("overflow", "visible", "important");
+
+        const expandable = widget.querySelectorAll([
+          ".richtext-display",
+          ".sd-richtext-editor",
+          ".editor-content",
+          "prose-mirror",
+          ".ProseMirror",
+          ".richtext-edit-wrap"
+        ].join(","));
+        expandable.forEach(el => {
+          el.style.setProperty("height", "auto", "important");
+          el.style.setProperty("max-height", "none", "important");
+          el.style.setProperty("overflow", "visible", "important");
+        });
+
+        widget.querySelectorAll("textarea.richtext-editor").forEach(ta => {
+          ta.style.setProperty("height", "auto", "important");
+          const next = Math.max(80, Math.ceil(ta.scrollHeight || 0));
+          if (next) ta.style.setProperty("height", `${next}px`, "important");
+        });
+
+        const cell = widget.closest("[data-widget-id]");
+        if (cell) {
+          cell.style.setProperty("height", "auto", "important");
+          cell.style.setProperty("max-height", "none", "important");
+          cell.style.setProperty("overflow", "visible", "important");
+          cell.style.setProperty("align-self", "start");
+          cell.style.removeProperty("min-height");
+          const natural = Math.max(0, Math.ceil(widget.scrollHeight || widget.getBoundingClientRect?.().height || 0));
+          if (natural > 0) cell.style.setProperty("min-height", `${natural}px`);
+        }
+
+        // A nested Rich Text in a free-layout Widget Builder keeps the user's
+        // configured height as a minimum, then grows beyond it with content.
+        const freeElement = widget.closest(".sd-wb-element");
+        if (freeElement) {
+          if (!freeElement.dataset.sdRichtextBaseHeight) {
+            const inlineHeight = parseFloat(freeElement.style.height || "0") || 0;
+            freeElement.dataset.sdRichtextBaseHeight = String(inlineHeight);
+          }
+          const base = Number(freeElement.dataset.sdRichtextBaseHeight) || 0;
+          const natural = Math.max(base, Math.ceil(widget.scrollHeight || widget.getBoundingClientRect?.().height || 0));
+          freeElement.style.setProperty("height", "auto", "important");
+          if (natural > 0) freeElement.style.setProperty("min-height", `${natural}px`);
+          freeElement.style.setProperty("overflow", "visible", "important");
+
+          const canvas = freeElement.closest(".sd-wb-canvas");
+          if (canvas) {
+            if (!canvas.dataset.sdRichtextBaseHeight) {
+              const inlineHeight = parseFloat(canvas.style.height || "0") || 0;
+              canvas.dataset.sdRichtextBaseHeight = String(inlineHeight);
+            }
+            const baseCanvas = Number(canvas.dataset.sdRichtextBaseHeight) || 0;
+            const top = parseFloat(freeElement.style.top || "0") || 0;
+            const bottom = top + Math.max(natural, freeElement.scrollHeight || 0);
+            canvas.style.setProperty("min-height", `${Math.max(baseCanvas, Math.ceil(bottom))}px`);
+          }
+        }
+      };
+      if (typeof queueMicrotask === "function") queueMicrotask(run);
+      else Promise.resolve().then(run).catch(() => setTimeout(run, 0));
+    };
+
+    widget.addEventListener("input", schedule, true);
+    widget.addEventListener("change", schedule, true);
+    widget.addEventListener("sd-richtext-resize", schedule);
+
+    if (typeof MutationObserver !== "undefined") {
+      const mo = new MutationObserver(schedule);
+      mo.observe(widget, { childList: true, subtree: true, characterData: true });
+      widget._sdRichtextMutationObserver = mo;
+    }
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(schedule);
+      ro.observe(widget);
+      widget._sdRichtextResizeObserver = ro;
+    }
+    schedule();
+  }
+
+  static _requestAutoHeight(element) {
+    const widget = element?.closest?.(".widget-richtext");
+    if (!widget) return;
+    widget.dispatchEvent(new Event("sd-richtext-resize"));
   }
 
   static async _activateHtmlEditor(doc, path, editorEl) {
@@ -78,25 +282,14 @@ export class RichTextEditor {
       cleanup(value);
     };
 
-    const TextEditor = foundry?.applications?.ux?.TextEditor?.implementation
-                    ?? foundry?.applications?.ux?.TextEditor
-                    ?? globalThis.TextEditor;
+    // Foundry 13/14: create(targetHTMLElement, content, options).
+    // TextEditor.implementation resolves to the configured editor class.
+    const PMEditor = foundry?.applications?.ux?.ProseMirrorEditor
+                  ?? foundry?.applications?.ux?.TextEditor?.implementation
+                  ?? globalThis.ProseMirrorEditor;
 
     try {
-      if (TextEditor?.create) {
-        editor = await TextEditor.create({
-          target:        content,
-          fieldName:     path,
-          document:      doc,
-          collaborate:   false,
-          relativeLinks: true,
-          plugins:       {},
-          save
-        }, initial);
-      } else {
-        const PMEditor = foundry?.applications?.ux?.ProseMirrorEditor
-                      ?? globalThis.ProseMirrorEditor;
-        if (!PMEditor?.create) throw new Error("No ProseMirror editor available");
+      if (PMEditor?.create) {
         editor = await PMEditor.create(content, initial, {
           document:      doc,
           fieldName:     path,
@@ -105,6 +298,19 @@ export class RichTextEditor {
           plugins:       {},
           save
         });
+      } else {
+        // Compatibility for older legacy TextEditor implementations only.
+        const LegacyTextEditor = globalThis.TextEditor;
+        if (!LegacyTextEditor?.create) throw new Error("No ProseMirror editor available");
+        editor = await LegacyTextEditor.create({
+          target:        content,
+          fieldName:     path,
+          document:      doc,
+          collaborate:   false,
+          relativeLinks: true,
+          plugins:       {},
+          save
+        }, initial);
       }
     } catch (err) {
       console.error("SD | richtext editor creation failed:", err);
@@ -160,6 +366,7 @@ export class RichTextEditor {
       const pm = content.querySelector(".ProseMirror");
       pm?.focus?.();
     } catch {}
+    this._requestAutoHeight(editorEl);
   }
 
   static _esc(s) {
@@ -207,6 +414,7 @@ export class RichTextEditor {
     }
 
     this._sweepStrayEditorChrome(editorEl);
+    this._requestAutoHeight(editorEl);
 
   }
 
@@ -259,14 +467,16 @@ export class RichTextEditor {
     ta.setSelectionRange(ta.value.length, ta.value.length);
 
     const stopBubble = ev => ev.stopPropagation();
-    ta.addEventListener("input",  stopBubble);
-    ta.addEventListener("change", stopBubble);
+    ta.addEventListener("input",  ev => { stopBubble(ev); this._requestAutoHeight(ta); });
+    ta.addEventListener("change", ev => { stopBubble(ev); this._requestAutoHeight(ta); });
+    this._requestAutoHeight(ta);
 
     const close = () => {
       delete editWrap.dataset.sdRichtextOpen;
       editWrap.style.display = "none";
       editWrap.innerHTML = "";
       display.style.removeProperty("display");
+      this._requestAutoHeight(display);
     };
 
     const commit = async () => {

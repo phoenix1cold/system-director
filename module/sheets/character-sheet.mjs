@@ -901,8 +901,14 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   _attachWidgetOverlay(cell, tab, row, w, span, parentVS) {
     const ov = document.createElement("div");
-    ov.className = "sd-widget-ov";
-    ov.style.cssText = `
+    const richTextControls = w?.type === "richtext";
+    ov.className = `sd-widget-ov${richTextControls ? " sd-widget-ov--richtext" : ""}`;
+    if (richTextControls) cell.classList.add("sd-richtext-edit-cell");
+    ov.style.cssText = richTextControls ? `
+      display:flex; position:relative; inset:auto; z-index:20; width:100%;
+      flex-direction:row; align-items:center; justify-content:space-between; gap:6px;
+      margin:0 0 4px 0; pointer-events:none; box-sizing:border-box;
+    ` : `
       display:none; position:absolute; top:2px; left:2px; right:2px; z-index:20;
       flex-direction:row; align-items:center; justify-content:space-between; gap:6px;
       pointer-events:none;
@@ -930,9 +936,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ov.querySelector('[data-action="wspan"]')?.addEventListener("click", ev => { ev.stopPropagation(); this._cycleSpan(tab, row, w); });
     ov.querySelector('[data-action="wdel"]').addEventListener("click",  ev => { ev.stopPropagation(); this._deleteWidget(tab, row, w, parentVS); });
 
-    cell.addEventListener("mouseenter", () => ov.style.display = "flex");
-    cell.addEventListener("mouseleave", () => ov.style.display = "none");
-    cell.appendChild(ov);
+    if (richTextControls) {
+      // Keep edit controls in normal flow above the editor. They remain
+      // available without covering Foundry's toolbar or document text.
+      cell.insertBefore(ov, cell.firstChild);
+    } else {
+      cell.addEventListener("mouseenter", () => ov.style.display = "flex");
+      cell.addEventListener("mouseleave", () => ov.style.display = "none");
+      cell.appendChild(ov);
+    }
   }
 
   _widgetHTML(w) {
@@ -2628,7 +2640,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const windowHeader = root.querySelector(".window-header") ?? root.querySelector("header");
     const badge = document.createElement("div");
     badge.className = "sd-edit-badge";
-    badge.style.cssText = "position:absolute;top:4px;right:48px;background:var(--sd-accent);color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;z-index:100;pointer-events:none";
+    badge.style.cssText = "position:absolute;top:4px;right:48px;background:var(--sd-accent);color:var(--sd-accent-text,#fff);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;z-index:100;pointer-events:none";
     badge.textContent = "EDIT MODE";
 
     if (windowHeader) {

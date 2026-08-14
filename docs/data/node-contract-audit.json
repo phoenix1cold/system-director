@@ -1,0 +1,41 @@
+{
+  "sourceMtimes": {
+    "graphSource": 1785569908100.0857,
+    "executorSource": 1785483426013.5286
+  },
+  "summary": {
+    "actionNodes": 92,
+    "emittedActionTypes": 122,
+    "executorCaseLabels": 140,
+    "compileFailures": 0,
+    "missingExecutor": 0,
+    "executorOnly": 19,
+    "compilerSpecial": 1
+  },
+  "compileFailures": [],
+  "missingExecutor": [],
+  "executorOnly": [
+    "actorField",
+    "always",
+    "custom",
+    "field",
+    "gate",
+    "label",
+    "meet_and_beat",
+    "placeAura",
+    "roll",
+    "rollButton",
+    "roll_over",
+    "roll_under",
+    "saveCheck",
+    "section",
+    "sequence4",
+    "setField",
+    "slotHasItems",
+    "slotNotFull",
+    "troika"
+  ],
+  "compilerSpecial": [
+    "func_outputs: explicit _compileExecChain path"
+  ]
+}

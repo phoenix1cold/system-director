@@ -2435,7 +2435,7 @@ export const BLUEPRINT_NODES = [
     syntax: "{slot:slotId.0.system.hiddenFields.field}",  hint: "Field from slot contents[0]",
     desc: "Reads a field from the first item inside a slot." },
 
-  { cat: "Sources", id: "actor_data",  label: "Actor @Ref",     icon: "fa-user",            color: "#5a8ae0",
+  { cat: "Sources", id: "actor_data",  label: "Derived Actor Value",     icon: "fa-user",            color: "#5a8ae0",
     syntax: "{@attr1}",                hint: "Actor roll data shorthand (@attr1, @level…)",
     desc: "Uses Foundry roll data shorthands: @attr1=attr1.mod, @level, @prof." },
 
@@ -2452,11 +2452,11 @@ export const BLUEPRINT_NODES = [
   { cat: "Math", id: "mul",   label: "Multiply", icon: "fa-xmark",       color: "#5ae07a", syntax: " * ",             hint: "Multiplication" },
   { cat: "Math", id: "div",   label: "Divide",   icon: "fa-divide",      color: "#5ae07a", syntax: " / ",             hint: "Division" },
   { cat: "Math", id: "floor", label: "Floor",    icon: "fa-arrow-down",  color: "#5ae07a", syntax: "floor({|cursor|})", hint: "Round down" },
-  { cat: "Math", id: "ceil",  label: "Ceil",     icon: "fa-arrow-up",    color: "#5ae07a", syntax: "ceil({|cursor|})(",  hint: "Round up" },
+  { cat: "Math", id: "ceil",  label: "Ceil",     icon: "fa-arrow-up",    color: "#5ae07a", syntax: "ceil({|cursor|})",  hint: "Round up" },
   { cat: "Math", id: "round", label: "Round",    icon: "fa-arrows-up-down", color: "#5ae07a", syntax: "round({|cursor|})", hint: "Round to nearest" },
   { cat: "Math", id: "max",   label: "Max",      icon: "fa-angle-up",    color: "#5ae07a", syntax: "max({|cursor|}, 0)", hint: "Maximum of two values" },
   { cat: "Math", id: "min",   label: "Min",      icon: "fa-angle-down",  color: "#5ae07a", syntax: "min({|cursor|}, 0)", hint: "Minimum of two values" },
-  { cat: "Math", id: "abs",   label: "Abs",      icon: "fa-circle",      color: "#5ae07a", syntax: "abs({|cursor|})",    hint: "Absolute value" },
+  { cat: "Math", id: "abs",   label: "Absolute",      icon: "fa-circle",      color: "#5ae07a", syntax: "abs({|cursor|})",    hint: "Absolute value" },
 
   { cat: "Compare", id: "eq",  label: "Equals",     icon: "fa-equals",    color: "#ee68ee", syntax: " == ", hint: "Equal to" },
   { cat: "Compare", id: "neq", label: "Not Equal",  icon: "fa-not-equal", color: "#ee68ee", syntax: " != ", hint: "Not equal to" },

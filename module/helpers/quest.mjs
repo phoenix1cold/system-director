@@ -6,6 +6,8 @@ function _i18n(k, fb=k) { return game.i18n?.localize?.(k) ?? fb; }
 
 export class SDQuest {
 
+  static _rewardLocks = new Set();
+
   static init() {
     Hooks.once("ready", () => {
       game.socket.on(SOCKET_NS, async (data) => {
@@ -86,9 +88,11 @@ export class SDQuest {
     switch (op) {
       case "activate": {
         if (!quest) return;
-        if (quest.status === "active") return;
-        quest.status = "active";
-        await log.update({ "system.quests": quests });
+        const statusChanged = quest.status !== "active";
+        if (statusChanged) {
+          quest.status = "active";
+          await log.update({ "system.quests": quests });
+        }
 
         let actor = null;
         try { actor = await SDQuest.resolveActor(action.actorRef ?? "", ctx); } catch (_) {}
@@ -97,32 +101,41 @@ export class SDQuest {
             "system.activeQuest": { questLogUuid: logUuid, questId: qid }
           }).catch(() => {});
         }
-        Hooks.callAll("sdQuestActivated", {
+        if (statusChanged || actor) Hooks.callAll("sdQuestActivated", {
           questLogUuid: logUuid, questId: qid, actorId: actor?.id ?? "", userId: game.user?.id ?? ""
         });
         return;
       }
       case "complete": {
         if (!quest) return;
-        if (quest.status === "completed") return;
-        quest.status = "completed";
-        await log.update({ "system.quests": quests });
-        Hooks.callAll("sdQuestCompleted", { questLogUuid: logUuid, questId: qid });
+        const statusChanged = quest.status !== "completed";
+        if (statusChanged) {
+          quest.status = "completed";
+          SDQuest._unlockDependents(quests);
+          await log.update({ "system.quests": quests });
+        }
+        await SDQuest._clearActiveQuestReferences(logUuid, qid);
+        if (statusChanged) Hooks.callAll("sdQuestCompleted", { questLogUuid: logUuid, questId: qid });
         return;
       }
       case "fail": {
         if (!quest) return;
-        if (quest.status === "failed") return;
-        quest.status = "failed";
-        await log.update({ "system.quests": quests });
-        Hooks.callAll("sdQuestFailed", { questLogUuid: logUuid, questId: qid });
+        const statusChanged = quest.status !== "failed";
+        if (statusChanged) {
+          quest.status = "failed";
+          await log.update({ "system.quests": quests });
+        }
+        await SDQuest._clearActiveQuestReferences(logUuid, qid);
+        if (statusChanged) Hooks.callAll("sdQuestFailed", { questLogUuid: logUuid, questId: qid });
         return;
       }
       case "lock": {
         if (!quest) return;
-        if (quest.status === "locked") return;
-        quest.status = "locked";
-        await log.update({ "system.quests": quests });
+        if (quest.status !== "locked") {
+          quest.status = "locked";
+          await log.update({ "system.quests": quests });
+        }
+        await SDQuest._clearActiveQuestReferences(logUuid, qid);
         return;
       }
       case "available": {
@@ -139,9 +152,18 @@ export class SDQuest {
         const newDone = !!action.done;
         if (sub.done === newDone) return;
         sub.done = newDone;
+        const required = (quest.subtasks ?? []).filter(s => s.required !== false);
+        const autoCompleted = newDone && quest.autoComplete && required.length > 0
+          && required.every(s => s.done) && quest.status !== "completed";
+        if (autoCompleted) {
+          quest.status = "completed";
+          SDQuest._unlockDependents(quests);
+        }
         await log.update({ "system.quests": quests });
-        if (newDone) {
-          Hooks.callAll("sdSubtaskDone", { questLogUuid: logUuid, questId: qid, subtaskId: sid });
+        if (newDone) Hooks.callAll("sdSubtaskDone", { questLogUuid: logUuid, questId: qid, subtaskId: sid });
+        if (autoCompleted) {
+          await SDQuest._clearActiveQuestReferences(logUuid, qid);
+          Hooks.callAll("sdQuestCompleted", { questLogUuid: logUuid, questId: qid });
         }
         return;
       }
@@ -149,11 +171,15 @@ export class SDQuest {
         if (!quest) return;
         quest.visibility = quest.visibility ?? { mode: "visible", players: [], gmRevealed: false };
         let uid = action.userId;
-        if (!uid || uid === "this") uid = ctx?.userId ?? game.user?.id ?? "";
-        if (!uid) return;
-        quest.visibility.mode = "perPlayer";
-        quest.visibility.players = quest.visibility.players ?? [];
-        if (!quest.visibility.players.includes(uid)) quest.visibility.players.push(uid);
+        if (uid === "this") uid = ctx?.userId ?? game.user?.id ?? "";
+        if (!uid || uid === "all") {
+          quest.visibility.mode = "visible";
+          quest.visibility.players = [];
+        } else {
+          quest.visibility.mode = "perPlayer";
+          quest.visibility.players = quest.visibility.players ?? [];
+          if (!quest.visibility.players.includes(uid)) quest.visibility.players.push(uid);
+        }
         await log.update({ "system.quests": quests });
         return;
       }
@@ -199,27 +225,37 @@ export class SDQuest {
         if (!r) return;
 
         const userId = ctx?.userId ?? game.user?.id ?? "";
-        if (!userId) return;
-        if (!r.claimable) return;
-        if (r.mode === "single" && Object.keys(r.claimedBy ?? {}).length > 0) return;
-        if (r.mode !== "single" && r.claimedBy?.[userId]) return;
-
-        const claimerActor = (() => {
-          const u = game.users?.get(userId);
-          const charId = u?.character?.id;
-          if (charId) return game.actors?.get(charId);
-          return null;
-        })();
-        if (!claimerActor) {
-          ui.notifications?.warn(`SD | rewardClaim: user ${userId} has no character`);
+        if (!userId || !r.claimable) return;
+        const lockKey = `${logUuid}:${qid}:${r.id}`;
+        if (SDQuest._rewardLocks.has(lockKey)) {
+          ui.notifications?.warn(_i18n("SD.QuestLog.Reward.Busy", "Reward is already being processed."));
           return;
         }
+        SDQuest._rewardLocks.add(lockKey);
+        try {
+          if (r.mode === "single" && Object.keys(r.claimedBy ?? {}).length > 0) return;
+          if (r.mode !== "single" && r.claimedBy?.[userId]) return;
 
-        await SDQuest._payoutReward(r, claimerActor, "claim");
+          const u = game.users?.get(userId);
+          const claimerActor = u?.character?.id ? game.actors?.get(u.character.id) : null;
+          if (!claimerActor) {
+            ui.notifications?.warn(_i18n("SD.QuestLog.Reward.NoCharacter", "A character must be assigned before claiming a reward."));
+            return;
+          }
 
-        r.claimedBy = r.claimedBy ?? {};
-        r.claimedBy[userId] = { ts: Date.now(), actorId: claimerActor.id };
-        await log.update({ "system.quests": quests });
+          const payout = await SDQuest._payoutReward(r, claimerActor, "claim");
+          if (!payout.ok) {
+            console.warn("SD | reward payout incomplete", payout.errors);
+            ui.notifications?.error(`${_i18n("SD.QuestLog.Reward.PayoutFailed", "Reward payout failed")}: ${payout.errors.join("; ")}`);
+            return;
+          }
+
+          r.claimedBy = r.claimedBy ?? {};
+          r.claimedBy[userId] = { ts: Date.now(), actorId: claimerActor.id };
+          await log.update({ "system.quests": quests });
+        } finally {
+          SDQuest._rewardLocks.delete(lockKey);
+        }
         return;
       }
 
@@ -227,21 +263,41 @@ export class SDQuest {
         if (!quest) return;
         const r = (quest.rewards ?? []).find(x => x.id === action.rewardId);
         if (!r) return;
+        const lockKey = `${logUuid}:${qid}:${r.id}:all`;
+        if (SDQuest._rewardLocks.has(lockKey)) return;
+        SDQuest._rewardLocks.add(lockKey);
+        try {
+          const players = (game.users?.contents ?? []).filter(u => !u.isGM && u.character);
+          if (!players.length) {
+            ui.notifications?.warn(_i18n("SD.QuestLog.Reward.NoCharacters", "No players with assigned characters."));
+            return;
+          }
 
-        const players = (game.users?.contents ?? []).filter(u => !u.isGM && u.character);
-        if (!players.length) {
-          ui.notifications?.warn("SD | rewardGrantAll: no players with characters");
-          return;
-        }
-
-        for (const u of players) {
-          const a = game.actors?.get(u.character.id);
-          if (!a) continue;
-          await SDQuest._payoutReward(r, a, "grantAll");
+          const failures = [];
+          let granted = 0;
           r.claimedBy = r.claimedBy ?? {};
-          r.claimedBy[u.id] = { ts: Date.now(), actorId: a.id, mode: "grantAll" };
+          for (const u of players) {
+            if (r.claimedBy[u.id]) continue;
+            const a = game.actors?.get(u.character.id);
+            if (!a) continue;
+            const payout = await SDQuest._payoutReward(r, a, "grantAll");
+            if (!payout.ok) {
+              failures.push(`${a.name}: ${payout.errors.join(", ")}`);
+              continue;
+            }
+            r.claimedBy[u.id] = { ts: Date.now(), actorId: a.id, mode: "grantAll" };
+            granted++;
+          }
+          if (granted) await log.update({ "system.quests": quests });
+          if (failures.length) {
+            console.warn("SD | rewardGrantAll partial failures", failures);
+            ui.notifications?.error(`${_i18n("SD.QuestLog.Reward.PayoutFailed", "Reward payout failed")}: ${failures.join("; ")}`);
+          } else if (!granted) {
+            ui.notifications?.info(_i18n("SD.QuestLog.Reward.AlreadyGranted", "Reward was already granted to all eligible characters."));
+          }
+        } finally {
+          SDQuest._rewardLocks.delete(lockKey);
         }
-        await log.update({ "system.quests": quests });
         return;
       }
 
@@ -252,62 +308,56 @@ export class SDQuest {
 
 
   static async _payoutReward(reward, actor, source) {
-    if (!reward || !actor) return;
+    const errors = [];
+    if (!reward || !actor) return { ok:false, errors:["missing reward or actor"] };
 
     try {
-      const items = reward.items ?? [];
       const docs = [];
-      for (const it of items) {
+      for (const it of (reward.items ?? [])) {
         if (!it.uuid) continue;
         const src = await fromUuid(it.uuid).catch(() => null);
-        if (!src) continue;
+        if (!src) { errors.push(`item not found: ${it.name || it.uuid}`); continue; }
         const data = src.toObject();
+        const qty = Math.max(1, Math.floor(Number(it.qty) || 1));
         if (data.system && typeof data.system === "object" && "quantity" in data.system) {
-          data.system.quantity = Math.max(1, Math.floor(Number(it.qty) || 1));
+          data.system.quantity = qty;
+          docs.push(data);
+        } else {
+          for (let i = 0; i < qty; i++) docs.push(foundry.utils.deepClone(data));
         }
-        docs.push(data);
       }
+      if (errors.length) return { ok:false, errors };
       if (docs.length) await actor.createEmbeddedDocuments("Item", docs);
-    } catch (e) { console.warn("SD | reward items grant failed", e); }
+    } catch (e) { errors.push(`items: ${e?.message ?? e}`); }
 
-
-    try {
-      for (const c of (reward.currency ?? [])) {
+    for (const c of (reward.currency ?? [])) {
+      try {
         const path = String(c.path ?? "");
         if (!path) continue;
         const amount = await SDQuest._evaluateAmount(c.amount, actor);
-        if (!Number.isFinite(amount)) continue;
+        if (!Number.isFinite(amount)) { errors.push(`currency ${path}: invalid amount`); continue; }
         const cur = Number(foundry.utils.getProperty(actor, path) ?? 0);
         await actor.update({ [path]: cur + amount });
-      }
-    } catch (e) { console.warn("SD | reward currency grant failed", e); }
-
+      } catch (e) { errors.push(`currency: ${e?.message ?? e}`); }
+    }
 
     try {
-      const claimerOnly = (reward.pathChanges ?? []).filter(pc => pc.scope !== "all");
-      const allOnClaim  = (reward.pathChanges ?? []).filter(pc => pc.scope === "all");
-
-      for (const pc of claimerOnly) {
-        await SDQuest._applyPathChange(pc, actor);
-      }
-
-
-      if (allOnClaim.length && source === "claim") {
-        const players = (game.users?.contents ?? []).filter(u => !u.isGM && u.character);
-        for (const u of players) {
-          const a = game.actors?.get(u.character.id);
-          if (!a) continue;
-          for (const pc of allOnClaim) {
-            await SDQuest._applyPathChange(pc, a);
+      const changes = reward.pathChanges ?? [];
+      const selected = source === "grantAll" ? changes : changes.filter(pc => pc.scope !== "all");
+      for (const pc of selected) await SDQuest._applyPathChange(pc, actor);
+      if (source === "claim") {
+        const allOnClaim = changes.filter(pc => pc.scope === "all");
+        if (allOnClaim.length) {
+          for (const u of (game.users?.contents ?? []).filter(u => !u.isGM && u.character)) {
+            const target = game.actors?.get(u.character.id);
+            if (!target) continue;
+            for (const pc of allOnClaim) await SDQuest._applyPathChange(pc, target);
           }
         }
-      } else if (source === "grantAll") {
-
-        for (const pc of allOnClaim) {
-          await SDQuest._applyPathChange(pc, actor);
-        }
       }
-    } catch (e) { console.warn("SD | reward pathChange grant failed", e); }
+    } catch (e) { errors.push(`field changes: ${e?.message ?? e}`); }
+
+    return { ok: errors.length === 0, errors };
   }
 
   static async _evaluateAmount(raw, actor) {
@@ -341,6 +391,24 @@ export class SDQuest {
     await actor.update({ [path]: next });
   }
 
+
+  static _unlockDependents(quests) {
+    const completed = new Set((quests ?? []).filter(q => q?.status === "completed").map(q => q.id));
+    for (const q of (quests ?? [])) {
+      const req = Array.isArray(q?.prerequisites) ? q.prerequisites.filter(Boolean) : [];
+      if (q?.status === "locked" && req.length && req.every(id => completed.has(id))) q.status = "available";
+    }
+  }
+
+  static async _clearActiveQuestReferences(questLogUuid, questId) {
+    const updates = [];
+    for (const actor of (game.actors?.contents ?? [])) {
+      const active = actor?.system?.activeQuest;
+      if (active?.questLogUuid !== questLogUuid || active?.questId !== questId) continue;
+      updates.push(actor.update({ "system.activeQuest": {} }).catch(err => console.warn("SD | clear active quest failed", err)));
+    }
+    await Promise.all(updates);
+  }
 
   static initAutoClaimable() {
     Hooks.on("sdQuestCompleted", async ({ questLogUuid, questId }) => {

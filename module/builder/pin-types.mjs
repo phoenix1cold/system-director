@@ -11,7 +11,14 @@ export const PIN_SUBTYPE_COLORS = Object.freeze({
   "value.token":   "#3ec8e0",
   "value.array":   "#d0d0d0",
   "value.card":    "#ff9b3a",
-  "value.cards":   "#ffb877"
+  "value.cards":   "#ffb877",
+  "value.token_pool":    "#42d6c8",
+  "value.roll_result":   "#8ab4ff",
+  "value.effect":        "#c783ff",
+  "value.aoe_template":  "#ff9f68",
+  "value.aoe_templates": "#ffb58f",
+  "value.dialog_result": "#d89bff",
+  "value.object":        "#b8b8c8"
 });
 
 export function pinSubtype(t) {
@@ -27,7 +34,13 @@ export function subtypeColor(t) {
 }
 
 const _INTERCHANGEABLE = Object.freeze([
-  ["value.uuid", "value.string"]
+  ["value.uuid", "value.string"],
+  ["value.token_pool", "value.array"],
+  ["value.aoe_templates", "value.array"],
+  ["value.roll_result", "value.object"],
+  ["value.effect", "value.object"],
+  ["value.aoe_template", "value.object"],
+  ["value.dialog_result", "value.object"]
 ]);
 
 export function arePinsCompatible(outType, inType) {

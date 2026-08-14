@@ -351,7 +351,7 @@ export const NODE_DEFS = {
 
   sequence: {
     title:"Sequence", color:"#8a2a8a", cat:"Flow Control",
-    desc:"Run N exec branches in strict order (1 в†’ 2 в†’ вЂ¦ в†’ N). Set `count` to pick how many branches; connected + 1 is the smallest safe count.",
+    desc:"Run N exec branches in strict order (1 → 2 → … → N). Set `count` to pick how many branches; connected + 1 is the smallest safe count.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[
       {id:"a0", label:"Then 1",  type:"exec"},
@@ -375,12 +375,14 @@ export const NODE_DEFS = {
 
   literal: {
     title:"Number", color:"#2a4a6a", cat:"Values",
+    desc:"Numeric constant. A connected In value overrides the field.",
     inputs:[{id:"in",label:"In",type:"value.number"}], outputs:[{id:"v",label:"Out",type:"value.number"}],
     fields:[{key:"value",label:"",type:"number",default:0}],
     compile:(n,i)=> i.in !== undefined ? String(i.in) : String(n.data.value ?? 0)
   },
   literal_str: {
     title:"Text", color:"#2a4a6a", cat:"Values",
+    desc:"Text constant. A connected In value overrides the field.",
     inputs:[{id:"in",label:"In",type:"value.string"}], outputs:[{id:"v",label:"Out",type:"value.string"}],
     fields:[{key:"value",label:"",type:"text",default:""}],
     compile:(n,i)=>{
@@ -389,7 +391,7 @@ export const NODE_DEFS = {
     }
   },
   get_path: {
-    title:"Get Field", color:"#1a4060", cat:"Get Data", wideNode:true,
+    title:"Get Field Value", color:"#1a4060", cat:"Get Data", wideNode:true,
     keywords:"target field token field uuid field get field value read",
     desc:"Read any field by dot-path from a chosen Source: Self (this actor/item), First Target (first targeted token's actor), Token by Id (wire a Token Id, e.g. from For Each Token; defaults to the current loop token), or By UUID (wire an actor/item UUID into Ref). Replaces the old Target Field / Token Field nodes.",
     inputs:[{id:"ref", label:"Token Id / UUID", type:"value.any"}],
@@ -445,7 +447,7 @@ export const NODE_DEFS = {
           {value:"sheet",  label:"Sheet (uuid)"}
         ]},
       {key:"ref", label:"Ref / UUID / Key / Name", type:"text", default:"",
-        placeholder:"Actor.xxxxx, Scene.x.Token.y, widgetKey, item nameвЂ¦"}
+        placeholder:"Actor.xxxxx, Scene.x.Token.y, widgetKey, item name…"}
     ],
     isPure:true,
     compile:(n,i)=>{
@@ -469,7 +471,7 @@ export const NODE_DEFS = {
     }
   },
   actor_ref: {
-    title:"Actor @Ref", color:"#1a4060", cat:"Get Data",
+    title:"Get Derived Actor Value", color:"#1a4060", cat:"Get Data",
     desc:"Reads DERIVED roll-data values computed at roll time (@attr1 = attribute MODIFIER, @level, @prof) which do not exist as raw system.* fields. Use Get Field Value for raw stored fields; use this node for modifiers and other derived stats.",
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"ref",label:"@name",type:"text",default:"attr1",placeholder:"attr1 / level / prof"}],
@@ -477,7 +479,7 @@ export const NODE_DEFS = {
   },
   slot_count: {
     title:"Slot Count", color:"#1a4060", cat:"Get Data",
-    desc:"Count items in a slot across the source (this item / actor / wired Actor pin) and every nested item slot. Slot ID is plain text вЂ” type it or connect a string pin.",
+    desc:"Count items in a slot across the source (this item / actor / wired Actor pin) and every nested item slot. Slot ID is plain text — type it or connect a string pin.",
     inputs:[
       {id:"slotId", label:"Slot ID", type:"value.string"},
       {id:"actor",  label:"Actor",   type:"value.actor"}
@@ -531,7 +533,7 @@ export const NODE_DEFS = {
 
   fa_icon: {
     title:"FA Icon", color:"#2a4060", cat:"Values",
-    desc:"Font Awesome icon picker вЂ” single text output containing a ready-to-render `<i class=\"вЂ¦\"></i>` HTML snippet. Drop it into Chat Output, a Richtext widget or a Text widget (sheet renders the icon for plain FA snippets) and it appears as an actual icon, not as the literal class text.",
+    desc:"Font Awesome icon picker — single text output containing a ready-to-render `<i class=\"…\"></i>` HTML snippet. Drop it into Chat Output, a Richtext widget or a Text widget (sheet renders the icon for plain FA snippets) and it appears as an actual icon, not as the literal class text.",
     inputs:[
       {id:"icon", label:"Icon", type:"value.string"}
     ],
@@ -540,7 +542,7 @@ export const NODE_DEFS = {
     ],
     fields:[
       {key:"icon",  label:"FA Icon", type:"text",   default:"fa-heart",
-       placeholder:"fa-heart, fa-star, fa-skullвЂ¦"},
+       placeholder:"fa-heart, fa-star, fa-skull…"},
       {key:"style", label:"Style",   type:"select", default:"fas",
         options:[
           {value:"fas", label:"Solid"},
@@ -586,7 +588,7 @@ export const NODE_DEFS = {
 
   attr_mod: {
     title:"Attr Modifier", color:"#7a4a1a", cat:"Attribute",
-    desc:"Calculates the modifier from an attribute score using the world setting `modifierFormula` (halved / direct / none). Default: floor((score в€’ 10) / 2). Connect Attr Score в†’ score pin.",
+    desc:"Calculates the modifier from an attribute score using the world setting `modifierFormula` (halved / direct / none). Default: floor((score − 10) / 2). Connect Attr Score → score pin.",
     inputs:[{id:"score",label:"Score",type:"value.number"}],
     outputs:[{id:"mod",label:"Mod",type:"value.number"}],
     fields:[],
@@ -599,7 +601,7 @@ export const NODE_DEFS = {
 
   dice: {
     title:"Dice", color:"#7a4500", cat:"Dice & Rolls",
-    desc:"Build a dice formula `<count><die>`. Die accepts any size вЂ” type \"d5\", \"d87\", \"5\", \"87\" or a {ref}. Optional Min / Max clamp the rolled result to a [min..max] range (leave blank to skip). Outputs: `Formula` (string for rolling), `Min` / `Max` (theoretical extremes вЂ” handy for HUD ranges or branch logic), `Avg` (expected value).",
+    desc:"Build a dice formula `<count><die>`. Die accepts any size — type \"d5\", \"d87\", \"5\", \"87\" or a {ref}. Optional Min / Max clamp the rolled result to a [min..max] range (leave blank to skip). Outputs: `Formula` (string for rolling), `Min` / `Max` (theoretical extremes — handy for HUD ranges or branch logic), `Avg` (expected value).",
     inputs:[
       {id:"count",label:"Count",type:"value.number"},
       {id:"die",  label:"Die",  type:"value.string"},
@@ -661,7 +663,7 @@ export const NODE_DEFS = {
 
   formula_range: {
     title:"Formula Range", color:"#7a4500", cat:"Dice & Rolls",
-    desc:"Statically inspect a dice formula and emit its theoretical Min, Max and Average. `2d6+3` в†’ min=5, max=15, avg=10. Works with any formula string вЂ” useful for HUD ranges, IF branches, or feeding clamps.",
+    desc:"Statically inspect a dice formula and emit its theoretical Min, Max and Average. `2d6+3` → min=5, max=15, avg=10. Works with any formula string — useful for HUD ranges, IF branches, or feeding clamps.",
     inputs:[{id:"formula", label:"Formula", type:"value.string"}],
     outputs:[
       {id:"min", label:"Min", type:"value.number"},
@@ -707,8 +709,8 @@ export const NODE_DEFS = {
   },
 
   formula_mul: {
-    title:"Formula Г— N", color:"#7a4500", cat:"Dice & Rolls",
-    desc:"Wrap a formula in `(N)*(F)`. Common case: crit doubling (`Г—2`). Set N=2 + leave Formula pin connected = doubled total.",
+    title:"Formula × N", color:"#7a4500", cat:"Dice & Rolls",
+    desc:"Wrap a formula in `(N)*(F)`. Common case: crit doubling (`×2`). Set N=2 + leave Formula pin connected = doubled total.",
     inputs:[
       {id:"formula", label:"Formula", type:"value.string"},
       {id:"n",       label:"N",       type:"value.number"}
@@ -726,7 +728,7 @@ export const NODE_DEFS = {
 
   to_formula: {
     title:"To Formula", color:"#7a4500", cat:"Dice & Rolls",
-    desc:"Strip surrounding quotes from a string and mark it to be inlined into a dice formula raw, without JSON quoting. Use this when a field contains a roll expression (e.g. `1d6`, `2d20+@mod`) that should be rolled as dice instead of being treated as a literal text term. Plain text values still work вЂ” they are simply emitted unquoted into the formula.",
+    desc:"Strip surrounding quotes from a string and mark it to be inlined into a dice formula raw, without JSON quoting. Use this when a field contains a roll expression (e.g. `1d6`, `2d20+@mod`) that should be rolled as dice instead of being treated as a literal text term. Plain text values still work — they are simply emitted unquoted into the formula.",
     inputs:[{id:"in", label:"In", type:"value.string"}],
     outputs:[{id:"v", label:"Formula", type:"value.string"}],
     fields:[{key:"value", label:"", type:"text", default:"", placeholder:"e.g. 1d6, 2d20+@mod"}],
@@ -769,7 +771,7 @@ export const NODE_DEFS = {
 
   roll_stat: {
     title:"Roll Stat", color:"#7a4500", cat:"Dice & Rolls",
-    desc:"Produce a percentile (0..1) showing where the roll landed inside its theoretical range, plus echo Min/Max/Avg of the formula. Useful for heatmap UI or `If pct >= 0.9 в†’ great hit`.",
+    desc:"Produce a percentile (0..1) showing where the roll landed inside its theoretical range, plus echo Min/Max/Avg of the formula. Useful for heatmap UI or `If pct >= 0.9 → great hit`.",
     inputs:[
       {id:"formula", label:"Formula", type:"value.string"},
       {id:"roll",    label:"Roll",    type:"value.number"}
@@ -795,22 +797,53 @@ export const NODE_DEFS = {
     }
   },
 
-  add:  {title:"Add",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"",type:"value.any"}],fields:[{key:"sep",label:"Sep",type:"text",default:""},_ROUND_FIELD],compile:(n,i)=>{ const sep=n.data.sep??""; if (sep) return `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})`; return _round(`(${i.a??"0"}+${i.b??"0"})`, n.data); }},
-  sub:  {title:"Sub",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}-${i.b??"0"})`, n.data)},
-  mul:  {title:"Mul",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}*${i.b??"0"})`, n.data)},
-  div:  {title:"Div",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}/${i.b??"1"})`, n.data)},
-  floor:{title:"Floor", color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`floor(${i.a??"0"})`},
-  ceil: {title:"Ceil",  color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`ceil(${i.a??"0"})`},
-  round:{title:"Round", color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`round(${i.a??"0"})`},
-  max2: {title:"Max",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`max(${i.a??"0"},${i.b??"0"})`, n.data)},
-  min2: {title:"Min",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`min(${i.a??"0"},${i.b??"0"})`, n.data)},
-  abs:  {title:"Abs",   color:"#1a5c2a",cat:"Math",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`abs(${i.a??"0"})`, n.data)},
-  clamp:{title:"Clamp", color:"#1a5c2a",cat:"Math",
+  add:  {title:"Add",   color:"#1a5c2a",cat:"Math",desc:"Adds A and B. With Separator set, concatenates them as text.",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"",type:"value.any"}],fields:[{key:"sep",label:"Sep",type:"text",default:""},_ROUND_FIELD],compile:(n,i)=>{ const sep=n.data.sep??""; if (sep) return `(${i.a??""} + "${sep.replace(/"/g,'\\"')}" + ${i.b??""})`; return _round(`(${i.a??"0"}+${i.b??"0"})`, n.data); }},
+  sub:  {title:"Subtract",   color:"#1a5c2a",cat:"Math",desc:"Subtracts B from A.",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}-${i.b??"0"})`, n.data)},
+  mul:  {title:"Multiply",   color:"#1a5c2a",cat:"Math",desc:"Multiplies A by B.",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}*${i.b??"0"})`, n.data)},
+  div:  {title:"Divide",   color:"#1a5c2a",cat:"Math",desc:"Divides A by B. Keep B non-zero.",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`(${i.a??"0"}/${i.b??"1"})`, n.data)},
+  floor:{title:"Floor", color:"#1a5c2a",cat:"Math",desc:"Rounds Value down to the nearest integer.",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`floor(${i.a??"0"})`},
+  ceil: {title:"Ceil",  color:"#1a5c2a",cat:"Math",desc:"Rounds Value up to the nearest integer.",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`ceil(${i.a??"0"})`},
+  round:{title:"Round", color:"#1a5c2a",cat:"Math",desc:"Rounds Value to the nearest integer.",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[],compile:(_,i)=>`round(${i.a??"0"})`},
+  max2: {title:"Max",   color:"#1a5c2a",cat:"Math",desc:"Returns the larger of A and B.",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`max(${i.a??"0"},${i.b??"0"})`, n.data)},
+  min2: {title:"Min",   color:"#1a5c2a",cat:"Math",desc:"Returns the smaller of A and B.",inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`min(${i.a??"0"},${i.b??"0"})`, n.data)},
+  abs:  {title:"Absolute",   color:"#1a5c2a",cat:"Math",desc:"Returns the non-negative magnitude of Value.",inputs:[{id:"a",label:"A",type:"value.number"}],outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],compile:(n,i)=>_round(`abs(${i.a??"0"})`, n.data)},
+  clamp:{title:"Clamp", color:"#1a5c2a",cat:"Math",desc:"Limits Value to the inclusive Min..Max range.",
          inputs:[{id:"v",label:"Val",type:"value.number"},{id:"lo",label:"Min",type:"value.number"},{id:"hi",label:"Max",type:"value.number"}],
          outputs:[{id:"v",label:"",type:"value.number"}],fields:[_ROUND_FIELD],
          compile:(n,i)=>_round(`max(${i.lo??"0"},min(${i.hi??"0"},${i.v??"0"}))`, n.data)},
 
-  eq: {title:"==",color:"#6a1a6a",cat:"Logic",desc:"Equality check. Works for both numbers (5 == 5) and text (\"hello\" == \"hello\", Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
+  lerp: {title:"Lerp", color:"#1a5c2a", cat:"Math",
+    desc:"Linear interpolation: A + Alpha × (B − A). Alpha 0 returns A; Alpha 1 returns B.",
+    inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"},{id:"alpha",label:"Alpha",type:"value.number"}],
+    outputs:[{id:"v",label:"Result",type:"value.number"}], fields:[_ROUND_FIELD],
+    compile:(n,i)=>_round(`((${i.a??"0"})+((${i.b??"0"})-(${i.a??"0"}))*(${i.alpha??"0"}))`,n.data)},
+  map_range: {title:"Map Range", color:"#1a5c2a", cat:"Math",
+    desc:"Maps Value from input range In Min..In Max to output range Out Min..Out Max without clamping.",
+    inputs:[{id:"v",label:"Value",type:"value.number"},{id:"inMin",label:"In Min",type:"value.number"},{id:"inMax",label:"In Max",type:"value.number"},{id:"outMin",label:"Out Min",type:"value.number"},{id:"outMax",label:"Out Max",type:"value.number"}],
+    outputs:[{id:"v",label:"Result",type:"value.number"}], fields:[_ROUND_FIELD],
+    compile:(n,i)=>{const den=`((${i.inMax??"1"})-(${i.inMin??"0"}))`; return _round(`((${i.outMin??"0"})+(((${i.v??"0"})-(${i.inMin??"0"}))/(${den}))*(((${i.outMax??"1"})-(${i.outMin??"0"}))))`,n.data)}},
+  map_range_clamped: {title:"Map Range Clamped", color:"#1a5c2a", cat:"Math",
+    desc:"Maps Value between ranges and clamps it to the output range. Handles reversed output ranges.",
+    inputs:[{id:"v",label:"Value",type:"value.number"},{id:"inMin",label:"In Min",type:"value.number"},{id:"inMax",label:"In Max",type:"value.number"},{id:"outMin",label:"Out Min",type:"value.number"},{id:"outMax",label:"Out Max",type:"value.number"}],
+    outputs:[{id:"v",label:"Result",type:"value.number"}], fields:[_ROUND_FIELD],
+    compile:(n,i)=>{const raw=`((${i.outMin??"0"})+(((${i.v??"0"})-(${i.inMin??"0"}))/(((${i.inMax??"1"})-(${i.inMin??"0"}))))*(((${i.outMax??"1"})-(${i.outMin??"0"}))))`; return _round(`max(min(${i.outMin??"0"},${i.outMax??"1"}),min(max(${i.outMin??"0"},${i.outMax??"1"}),${raw}))`,n.data)}},
+  truncate: {title:"Truncate", color:"#1a5c2a", cat:"Math",
+    desc:"Removes the fractional part and rounds toward zero.", inputs:[{id:"a",label:"Value",type:"value.number"}], outputs:[{id:"v",label:"Result",type:"value.number"}], fields:[],
+    compile:(_,i)=>`((${i.a??"0"})<0?ceil(${i.a??"0"}):floor(${i.a??"0"}))`},
+  fraction: {title:"Fraction", color:"#1a5c2a", cat:"Math",
+    desc:"Returns the fractional part of Value with the same sign as the input.", inputs:[{id:"a",label:"Value",type:"value.number"}], outputs:[{id:"v",label:"Result",type:"value.number"}], fields:[],
+    compile:(_,i)=>`((${i.a??"0"})-((${i.a??"0"})<0?ceil(${i.a??"0"}):floor(${i.a??"0"})))`},
+  xor: {title:"XOR", color:"#6a1a1a", cat:"Logic",
+    desc:"True when exactly one input is true.", inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}], outputs:[{id:"v",label:"Bool",type:"value.bool"}], fields:[],
+    compile:(_,i)=>`((!!(${i.a??"0"}))!=(!!(${i.b??"0"})))`},
+  nearly_equal: {title:"Nearly Equal", color:"#6a1a6a", cat:"Logic",
+    desc:"True when the absolute difference between A and B is no greater than Tolerance.", inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"},{id:"tolerance",label:"Tolerance",type:"value.number"}], outputs:[{id:"v",label:"Bool",type:"value.bool"}], fields:[],
+    compile:(_,i)=>`(abs((${i.a??"0"})-(${i.b??"0"}))<=abs(${i.tolerance??"0.0001"}))`},
+  in_range: {title:"In Range", color:"#6a1a6a", cat:"Logic",
+    desc:"True when Value is between Min and Max, inclusive.", inputs:[{id:"v",label:"Value",type:"value.number"},{id:"min",label:"Min",type:"value.number"},{id:"max",label:"Max",type:"value.number"}], outputs:[{id:"v",label:"Bool",type:"value.bool"}], fields:[],
+    compile:(_,i)=>`((${i.v??"0"})>=(${i.min??"0"})&&(${i.v??"0"})<=(${i.max??"0"}))`},
+
+  eq: {title:"Equal",color:"#6a1a6a",cat:"Logic",desc:"Equality check. Works for both numbers (5 == 5) and text (\"hello\" == \"hello\", Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
     const a = (i.a !== undefined && i.a !== null && i.a !== "") ? i.a : "0";
     const b = (i.b !== undefined && i.b !== null && i.b !== "") ? i.b : "0";
     const _b64 = (s) => {
@@ -819,7 +852,7 @@ export const NODE_DEFS = {
     };
     return `{__sdEq:${_b64(a)}|${_b64(b)}}`;
   }},
-  neq:{title:"в‰ ", color:"#6a1a6a",cat:"Logic",desc:"Inequality check. Works for both numbers and text (Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
+  neq:{title:"Not Equal", color:"#6a1a6a",cat:"Logic",desc:"Inequality check. Works for both numbers and text (Cyrillic / Latin / Unicode).",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>{
     const a = (i.a !== undefined && i.a !== null && i.a !== "") ? i.a : "0";
     const b = (i.b !== undefined && i.b !== null && i.b !== "") ? i.b : "0";
     const _b64 = (s) => {
@@ -828,18 +861,18 @@ export const NODE_DEFS = {
     };
     return `{__sdNeq:${_b64(a)}|${_b64(b)}}`;
   }},
-  gt: {title:">", color:"#6a1a6a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>${i.b??"0"})`},
-  lt: {title:"<", color:"#6a1a6a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<${i.b??"0"})`},
-  gte:{title:">=",color:"#6a1a6a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>=${i.b??"0"})`},
-  lte:{title:"<=",color:"#6a1a6a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<=${i.b??"0"})`},
+  gt: {title:"Greater Than", color:"#6a1a6a",cat:"Logic",desc:"True when A is greater than B.",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>${i.b??"0"})`},
+  lt: {title:"Less Than", color:"#6a1a6a",cat:"Logic",desc:"True when A is less than B.",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<${i.b??"0"})`},
+  gte:{title:"Greater or Equal",color:"#6a1a6a",cat:"Logic",desc:"True when A is greater than or equal to B.",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}>=${i.b??"0"})`},
+  lte:{title:"Less or Equal",color:"#6a1a6a",cat:"Logic",desc:"True when A is less than or equal to B.",inputs:[{id:"a",label:"A",type:"value.any"},{id:"b",label:"B",type:"value.any"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}<=${i.b??"0"})`},
 
-  and:{title:"AND",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}&&${i.b??"0"})`},
-  or: {title:"OR", color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}||${i.b??"0"})`},
-  not:{title:"NOT",color:"#6a1a1a",cat:"Logic",inputs:[{id:"a",label:"A",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(!${i.a??"0"})`},
+  and:{title:"AND",color:"#6a1a1a",cat:"Logic",desc:"True only when both A and B are true.",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}&&${i.b??"0"})`},
+  or: {title:"OR", color:"#6a1a1a",cat:"Logic",desc:"True when A, B, or both are true.",inputs:[{id:"a",label:"A",type:"value.bool"},{id:"b",label:"B",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(${i.a??"0"}||${i.b??"0"})`},
+  not:{title:"NOT",color:"#6a1a1a",cat:"Logic",desc:"Inverts a boolean value.",inputs:[{id:"a",label:"A",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(!${i.a??"0"})`},
 
   match_num: {
-    title:"Match Number", color:"#6a1a1a", cat:"Logic",
-    desc:"Compare Value against each Case (topв†’bottom) by numeric equality and emit the matching Result. Cases and Results are independent input pins вЂ” wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
+    title:"Select by Number", color:"#6a1a1a", cat:"Logic",
+    desc:"Compare Value against each Case (top→bottom) by numeric equality and emit the matching Result. Cases and Results are independent input pins — wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
     wideNode:true,
     inputs:[
       {id:"value",   label:"Value",   type:"value.number"},
@@ -872,8 +905,8 @@ export const NODE_DEFS = {
   },
 
   match_str: {
-    title:"Match Text", color:"#6a1a1a", cat:"Logic",
-    desc:"Compare Value against each Case (topв†’bottom) by exact string equality and emit the matching Result. Cases and Results are independent input pins вЂ” wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
+    title:"Select by Text", color:"#6a1a1a", cat:"Logic",
+    desc:"Compare Value against each Case (top→bottom) by exact string equality and emit the matching Result. Cases and Results are independent input pins — wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
     wideNode:true,
     inputs:[
       {id:"value",   label:"Value",   type:"value.string"},
@@ -906,8 +939,8 @@ export const NODE_DEFS = {
   },
 
   match_arr: {
-    title:"Match Array", color:"#6a1a1a", cat:"Logic",
-    desc:"Compare Value against each Case (topв†’bottom) by exact CSV-string equality (\"a,b,c\") and emit the matching Result. Cases and Results are independent input pins вЂ” wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
+    title:"Select by Array", color:"#6a1a1a", cat:"Logic",
+    desc:"Compare Value against each Case (top→bottom) by exact CSV-string equality (\"a,b,c\") and emit the matching Result. Cases and Results are independent input pins — wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
     wideNode:true,
     inputs:[
       {id:"value",   label:"Value",   type:"value.array"},
@@ -940,6 +973,7 @@ export const NODE_DEFS = {
   },
 
   act_roll_value: {
+    hidden:true, replacement:"act_roll_v2 + act_analyze_roll + act_present_roll",
     title:"Roll -> Value", color:"#8a4400", cat:"Dice & Rolls",
     desc:"Rolls dice and forwards the numeric result as a value output. Min / Max / Avg are theoretical formula bounds. Min Value and Max Value contain the selected lowest/highest active die results from the actual roll; configure their independent counts, and use the Sum outputs when a numeric total of the selected dice is needed. Dice Array contains every active die result.",
     inputs:[
@@ -1003,8 +1037,9 @@ export const NODE_DEFS = {
   },
 
   act_damage: {
+    hidden:true, replacement:"act_damage_simple",
     title:"Damage", color:"#8a1a1a", cat:"Combat", wideNode:true,
-    desc:"Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=Г—0, resist=Г—0.5, vulnerable=Г—2, numeric factor used as-is). halfOnSave Г— savePassed halves damage when the preceding save passed. Three amount slots вЂ” Amount (base), Crit Amount (used when Is Crit? truthy), Fumble Amount (used when Is Fumble? truthy). Wire e.g. Roll Value's Is Crit / Crit Formula straight into Is Crit? / Crit Amount. Connect Targets pin from AoE Save / AoE Targets to apply to specific tokens.",
+    desc:"Apply damage to target HP. Reads target's system.resistances[damageType] and scales the amount (immune=×0, resist=×0.5, vulnerable=×2, numeric factor used as-is). halfOnSave × savePassed halves damage when the preceding save passed. Three amount slots — Amount (base), Crit Amount (used when Is Crit? truthy), Fumble Amount (used when Is Fumble? truthy). Wire e.g. Roll Value's Is Crit / Crit Formula straight into Is Crit? / Crit Amount. Connect Targets pin from AoE Save / AoE Targets to apply to specific tokens.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"amount",      label:"Amount",        type:"value.number"},
@@ -1022,7 +1057,7 @@ export const NODE_DEFS = {
       {key:"label",        label:"Label",       type:"text",   default:"Damage"},
       {key:"target",       label:"To",          type:"select", default:"token_target", options:["actor","token_target","selected_token","all_targets"]},
       {key:"hpPath",       label:"HP path",     type:"path",   default:"system.resources.hp.value"},
-      {key:"damageType",   label:"Damage type", type:"text",   default:"", placeholder:"fire / cold / physical вЂ¦"},
+      {key:"damageType",   label:"Damage type", type:"text",   default:"", placeholder:"fire / cold / physical …"},
       {key:"critAmount",   label:"Crit Amount (used when Is Crit? is true)",     type:"text", default:"", placeholder:"e.g. 2*(1d6+@mod) or 1d6+1d6+@mod"},
       {key:"fumbleAmount", label:"Fumble Amount (used when Is Fumble? is true)", type:"text", default:"", placeholder:"e.g. 1 or 1d4"},
       {key:"halfOnSave",   label:"Half on save", type:"select", default:"no", options:["no","yes"]},
@@ -1060,8 +1095,9 @@ export const NODE_DEFS = {
   },
 
   act_heal: {
+    hidden:true, replacement:"act_heal_simple",
     title:"Heal", color:"#1a7a2a", cat:"Combat", wideNode:true,
-    desc:"Apply healing to target HP. postToChat:yes в†’ chat card with Apply button. autoApply:yes в†’ post to chat AND immediately heal (no click). postToChat:no в†’ silent direct HP write. Three amount slots вЂ” Amount (base), Crit Amount (used when Is Crit? truthy), Fumble Amount (used when Is Fumble? truthy). Connect Targets pin from AoE Save to apply to specific tokens.",
+    desc:"Apply healing to target HP. postToChat:yes → chat card with Apply button. autoApply:yes → post to chat AND immediately heal (no click). postToChat:no → silent direct HP write. Three amount slots — Amount (base), Crit Amount (used when Is Crit? truthy), Fumble Amount (used when Is Fumble? truthy). Connect Targets pin from AoE Save to apply to specific tokens.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"amount",      label:"Amount",        type:"value.number"},
@@ -1124,6 +1160,7 @@ export const NODE_DEFS = {
   },
 
   act_effect: {
+    hidden:true, replacement:"act_effect_definition + act_effect_apply_v2",
     title:"Apply Effect", color:"#1a2a8a", cat:"Effects",
     desc:"Create or toggle an Active Effect on actor/target. Changes: JSON array [{key,value,mode}] where mode 2=Add 5=Override. Connect Target pin (single actor) or Targets pin (array) to override the field.",
     inputs:[
@@ -1155,8 +1192,9 @@ export const NODE_DEFS = {
   },
 
   act_effect_uuid: {
+    hidden:true, replacement:"act_effect_definition + act_effect_apply_v2",
     title:"Apply Effect (UUID)", color:"#1a2a8a", cat:"Effects",
-    desc:"Apply an existing Active Effect to actor/target by UUID. Pick from the dropdown вЂ” UUID is filled automatically. Connect Target pin (single actor) or Targets pin (array) to override the field.",
+    desc:"Apply an existing Active Effect to actor/target by UUID. Pick from the dropdown — UUID is filled automatically. Connect Target pin (single actor) or Targets pin (array) to override the field.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"duration",label:"Rounds",type:"value.number"},
@@ -1186,8 +1224,8 @@ export const NODE_DEFS = {
     desc:"Execute loop body once per targeted token. Use Set Target (multi-target with T) before activating.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[
-      {id:"loop", label:"Loop в†’", type:"exec"},
-      {id:"done", label:"Done в†’", type:"exec"}
+      {id:"loop", label:"Loop →", type:"exec"},
+      {id:"done", label:"Done →", type:"exec"}
     ],
     fields:[],
     isLoop: true
@@ -1201,8 +1239,8 @@ export const NODE_DEFS = {
       {id:"tokens", label:"Tokens",  type:"value.array"}
     ],
     outputs:[
-      {id:"loop",  label:"Loop в†’",  type:"exec"},
-      {id:"done",  label:"Done в†’",  type:"exec"},
+      {id:"loop",  label:"Loop →",  type:"exec"},
+      {id:"done",  label:"Done →",  type:"exec"},
       {id:"token", label:"Token",   type:"value.token"},
       {id:"index", label:"Index",   type:"value.number"}
     ],
@@ -1238,7 +1276,7 @@ export const NODE_DEFS = {
   },
 
   arr_at: {
-    title:"Token at Index", color:"#2a7a3a", cat:"Array",
+    title:"Get Token at Index", color:"#2a7a3a", cat:"Array",
     hidden:true, replacement:"arr_get",
     desc:"Returns the Nth token id (0-based) from a comma-joined list (Saved[]/Failed[]/All[] etc.). If Index is out of range, returns empty.",
     inputs:[
@@ -1313,16 +1351,16 @@ export const NODE_DEFS = {
 
   arr_compare_two: {
     title:"Compare Two Tokens", color:"#5a3a7a", cat:"Array",
-    desc:"Read the same field on two tokens and route exec into Greater / Less / Equal based on (A в€’ B). Diff outputs the numeric difference and Winner outputs the id of the higher token (empty on tie).",
+    desc:"Read the same field on two tokens and route exec into Greater / Less / Equal based on (A − B). Diff outputs the numeric difference and Winner outputs the id of the higher token (empty on tie).",
     inputs:[
       {id:"exec",   label:"",        type:"exec"},
       {id:"a",      label:"Token A", type:"value.token"},
       {id:"b",      label:"Token B", type:"value.token"}
     ],
     outputs:[
-      {id:"greater", label:"A > B в†’", type:"exec"},
-      {id:"less",    label:"A < B в†’", type:"exec"},
-      {id:"equal",   label:"A = B в†’", type:"exec"},
+      {id:"greater", label:"A > B →", type:"exec"},
+      {id:"less",    label:"A < B →", type:"exec"},
+      {id:"equal",   label:"A = B →", type:"exec"},
       {id:"diff",    label:"Diff",    type:"value.number"},
       {id:"winner",  label:"Winner",  type:"value.token"}
     ],
@@ -1413,7 +1451,7 @@ export const NODE_DEFS = {
       {id:"a", label:"A", type:"value.array"},
       {id:"b", label:"B", type:"value.array"}
     ],
-    outputs:[{id:"v", label:"A в€’ B", type:"value.array"}],
+    outputs:[{id:"v", label:"A − B", type:"value.array"}],
     fields:[],
     compile:(_,i)=>`{arrayDifference:${_arrayArg(i.a ?? "")}|${_arrayArg(i.b ?? "")}}`
   },
@@ -1440,7 +1478,7 @@ export const NODE_DEFS = {
   },
 
   arr_make: {
-    title:"Array Make", color:"#2a7a3a", cat:"Array",
+    title:"Make Array", color:"#2a7a3a", cat:"Array",
     desc:"Build a new array from up to 8 individual values. Empty / unconnected slots are skipped. Output is a comma-joined list compatible with all other Array nodes.",
     inputs:[
       {id:"v0", label:"#0", type:"value.any"},
@@ -1522,7 +1560,7 @@ export const NODE_DEFS = {
   },
 
   arr_push: {
-    title:"Array Push", color:"#2a7a3a", cat:"Array",
+    title:"Add to Array (Copy)", color:"#2a7a3a", cat:"Array",
     desc:"Append one element to an array and return the new array. Original array is not mutated. Empty Element is skipped (returns the array unchanged).",
     inputs:[
       {id:"a", label:"Array",   type:"value.array"},
@@ -1541,8 +1579,8 @@ export const NODE_DEFS = {
   },
 
   arr_get: {
-    title:"Array Get (generic)", color:"#2a7a3a", cat:"Array",
-    desc:"Generic version of `Token at Index` вЂ” works for ANY array (strings, numbers, ids). Supports negative indices: `-1` returns last, `-2` second-to-last, etc. If index is out of range and a Default is supplied, it is returned instead.",
+    title:"Get Array Element", color:"#2a7a3a", cat:"Array",
+    desc:"Generic version of `Token at Index` — works for ANY array (strings, numbers, ids). Supports negative indices: `-1` returns last, `-2` second-to-last, etc. If index is out of range and a Default is supplied, it is returned instead.",
     inputs:[
       {id:"a",   label:"Array",   type:"value.array"},
       {id:"i",   label:"Index",   type:"value.number"},
@@ -1722,7 +1760,7 @@ export const NODE_DEFS = {
 
   arr_random_from: {
     title:"Random from Array", color:"#2a7a3a", cat:"Array",
-    desc:"Pick `Count` random elements (no repetition) from one or more wired arrays вЂ” every wired source is concatenated first. Output is ALWAYS a comma-joined array (even when Count is 1), so it chains cleanly into any other Array node and works with every array type (tokens, items, UUIDs, names, strings, numbers, вЂ¦). Extra Array pins appear automatically as you connect them.",
+    desc:"Pick `Count` random elements (no repetition) from one or more wired arrays — every wired source is concatenated first. Output is ALWAYS a comma-joined array (even when Count is 1), so it chains cleanly into any other Array node and works with every array type (tokens, items, UUIDs, names, strings, numbers, …). Extra Array pins appear automatically as you connect them.",
     inputs:[
       {id:"n", label:"Count", type:"value.number"}
     ],
@@ -1803,14 +1841,14 @@ export const NODE_DEFS = {
 
   arr_for_each: {
     title:"For Each Element", color:"#1a5a7a", cat:"Flow Control",
-    desc:"Generic version of `For Each Token` вЂ” execute a body once per element of an arbitrary array (strings, numbers, anything). On each iteration `{__loopItem}` = current element, `{__loopIndex}` = i. After all iterations, exec goes to Done.",
+    desc:"Generic version of `For Each Token` — execute a body once per element of an arbitrary array (strings, numbers, anything). On each iteration `{__loopItem}` = current element, `{__loopIndex}` = i. After all iterations, exec goes to Done.",
     inputs:[
       {id:"exec", label:"",      type:"exec"},
       {id:"a",    label:"Array", type:"value.array"}
     ],
     outputs:[
-      {id:"loop",  label:"Loop в†’", type:"exec"},
-      {id:"done",  label:"Done в†’", type:"exec"},
+      {id:"loop",  label:"Loop →", type:"exec"},
+      {id:"done",  label:"Done →", type:"exec"},
       {id:"item",  label:"Item",   type:"value.any"},
       {id:"index", label:"Index",  type:"value.number"}
     ],
@@ -1845,7 +1883,7 @@ export const NODE_DEFS = {
   act_apply_effect_template: {
     title:"Apply Effect Template (legacy)", color:"#1a2a8a", cat:"Effects",
     hidden:true,
-    desc:"Legacy вЂ” use Create Effect or Chat Apply Effect instead.",
+    desc:"Legacy — use Create Effect or Chat Apply Effect instead.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"target",label:"Target",type:"value.actor"}
@@ -1867,7 +1905,7 @@ export const NODE_DEFS = {
 
   act_modify: {
     title:"Modify Field", color:"#4a2a6a", cat:"Set Data", wideNode:true,
-    desc:"Add / subtract / set any field on self, actor or target. The Actor pin (when wired) overrides the Where dropdown вЂ” feed it a UUID, a Get Actor / Get All Targets node, or any actor expression. An array of actors loops the change over each. Path / Where / Op can all be fed dynamically вЂ” when wired, the matching field hides UE-style.",
+    desc:"Add / subtract / set any field on self, actor or target. The Actor pin (when wired) overrides the Where dropdown — feed it a UUID, a Get Actor / Get All Targets node, or any actor expression. An array of actors loops the change over each. Path / Where / Op can all be fed dynamically — when wired, the matching field hides UE-style.",
     inputs:[
       {id:"exec",  label:"",        type:"exec"},
       {id:"actor", label:"Actor",   type:"value.actor"},
@@ -1908,7 +1946,7 @@ export const NODE_DEFS = {
 
   act_set_text_field: {
     title:"Set Text Field", color:"#4a2a6a", cat:"Set Data", wideNode:true,
-    desc:"Write a string/text value to any path on self / actor / target. The Actor pin (when wired) overrides the Where dropdown. An array of actors loops the write over each. Use this for non-numeric writes вЂ” chat AI responses to a notes field, paste a label, fill a description, etc. Modify Field is for numbers; this is for text. Where can be fed dynamically (UE-style вЂ” when the Where pin is wired the dropdown hides). Value supports module tokens ({widget:KEY}, {@attr1}, {item:Sword.system.notes}) and runtime tokens ({__lastAiResponse}, {__lastAiError}, {__lastRoll}).",
+    desc:"Write a string/text value to any path on self / actor / target. The Actor pin (when wired) overrides the Where dropdown. An array of actors loops the write over each. Use this for non-numeric writes — chat AI responses to a notes field, paste a label, fill a description, etc. Modify Field is for numbers; this is for text. Where can be fed dynamically (UE-style — when the Where pin is wired the dropdown hides). Value supports module tokens ({widget:KEY}, {@attr1}, {item:Sword.system.notes}) and runtime tokens ({__lastAiResponse}, {__lastAiError}, {__lastRoll}).",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
       {id:"actor", label:"Actor",  type:"value.actor"},
@@ -2105,7 +2143,7 @@ export const NODE_DEFS = {
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
-      {key:"uuid",            label:"Item UUID (drag here)",  type:"text",          default:"", placeholder:"drag item from sidebarвЂ¦"},
+      {key:"uuid",            label:"Item UUID (drag here)",  type:"text",          default:"", placeholder:"drag item from sidebar…"},
       {key:"qty",             label:"Qty",                    type:"number",         default:1},
       {key:"inventoryWidget", label:"Inventory Widget",       type:"widget-picker",  default:""}
     ],
@@ -2126,7 +2164,7 @@ export const NODE_DEFS = {
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"itemName", label:"Item name", type:"text", default:"", placeholder:"item name (optional)"},
-      {key:"uuid",     label:"вЂ¦or UUID", type:"text", default:"", placeholder:"Item.xxxxx"},
+      {key:"uuid",     label:"…or UUID", type:"text", default:"", placeholder:"Item.xxxxx"},
       {key:"slotId",   label:"Slot ID",  type:"text", default:"slot1", placeholder:"slot1"}
     ],
     isAction:true, wideNode:true,
@@ -2164,12 +2202,12 @@ export const NODE_DEFS = {
 
   act_remove_item: {
     title:"Remove Item", color:"#6a2a2a", cat:"Items",
-    desc:"Remove an owned item from actor inventory. Item is auto-indexed вЂ” pick from dropdown. Optionally scope to a widget.",
+    desc:"Remove an owned item from actor inventory. Item is auto-indexed — pick from dropdown. Optionally scope to a widget.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"itemName",        label:"Item",              type:"item-picker",   default:""},
-      {key:"uuid",            label:"вЂ¦or UUID",          type:"text",          default:"", placeholder:"drag item from sidebarвЂ¦"},
+      {key:"uuid",            label:"…or UUID",          type:"text",          default:"", placeholder:"drag item from sidebar…"},
       {key:"inventoryWidget", label:"Inventory Widget",  type:"widget-picker", default:""}
     ],
     isAction:true, wideNode:true,
@@ -2384,8 +2422,8 @@ export const NODE_DEFS = {
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"itemName", label:"Item",          type:"item-picker", default:""},
-      {key:"uuid",     label:"вЂ¦or UUID",      type:"text",        default:"", placeholder:"drag item here"},
-      {key:"category", label:"вЂ¦or Category",  type:"text",        default:"", placeholder:"first item of category"},
+      {key:"uuid",     label:"…or UUID",      type:"text",        default:"", placeholder:"drag item here"},
+      {key:"category", label:"…or Category",  type:"text",        default:"", placeholder:"first item of category"},
       {key:"index",    label:"Category index",type:"number",      default:0}
     ],
     isAction:true, wideNode:true,
@@ -2494,7 +2532,7 @@ export const NODE_DEFS = {
   act_modify_inv_item_field: {
     title:"Modify Inventory Item Field", color:"#4a2a6a", cat:"Set Data",
     hidden:true, replacement:"act_modify_item_field",
-    desc:"Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory. Wire the Actor pin to look up the item on a different actor (UUID / Get Actor / Get All Targets вЂ” array loops over each actor). Path / Op can be fed via pins (UE-style).",
+    desc:"Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory. Wire the Actor pin to look up the item on a different actor (UUID / Get Actor / Get All Targets — array loops over each actor). Path / Op can be fed via pins (UE-style).",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
       {id:"actor", label:"Actor",  type:"value.actor"},
@@ -2505,8 +2543,8 @@ export const NODE_DEFS = {
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"itemName", label:"Item",               type:"item-picker", default:""},
-      {key:"uuid",     label:"вЂ¦or UUID",           type:"text",        default:"", placeholder:"drag item here"},
-      {key:"category", label:"вЂ¦or Category+index", type:"text",        default:"", placeholder:"category name"},
+      {key:"uuid",     label:"…or UUID",           type:"text",        default:"", placeholder:"drag item here"},
+      {key:"category", label:"…or Category+index", type:"text",        default:"", placeholder:"category name"},
       {key:"index",    label:"Category index",     type:"number",      default:0},
       {key:"path",     label:"Field Path",         type:"path",        default:"system.hiddenFields.field"},
       {key:"op",       label:"Operation",          type:"select",      default:"add", options:["add","subtract","set"]}
@@ -2536,8 +2574,8 @@ export const NODE_DEFS = {
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[
       {key:"itemName", label:"Item",          type:"item-picker", default:""},
-      {key:"uuid",     label:"вЂ¦or UUID",      type:"text",        default:"", placeholder:"drag item here"},
-      {key:"category", label:"вЂ¦or Category",  type:"text",        default:"", placeholder:"first item of category"},
+      {key:"uuid",     label:"…or UUID",      type:"text",        default:"", placeholder:"drag item here"},
+      {key:"category", label:"…or Category",  type:"text",        default:"", placeholder:"first item of category"},
       {key:"index",    label:"Category index (0=first)", type:"number", default:0},
       {key:"path",     label:"Field Path",    type:"path",        default:"system.hiddenFields.field"}
     ],
@@ -2593,7 +2631,7 @@ export const NODE_DEFS = {
     outputs:[{id:"v",label:"Count",type:"value.number"}],
     fields:[
       {key:"itemName", label:"Item name",          type:"text", default:"", placeholder:"container name (optional)"},
-      {key:"uuid",     label:"вЂ¦or UUID",           type:"text", default:"", placeholder:"Item.xxxxx"},
+      {key:"uuid",     label:"…or UUID",           type:"text", default:"", placeholder:"Item.xxxxx"},
       {key:"slotId",   label:"Slot on that item",  type:"text", default:"slot1", placeholder:"slot1"}
     ],
     compile:(n,i)=>{
@@ -2614,12 +2652,12 @@ export const NODE_DEFS = {
       {id:"actor",  label:"Actor",   type:"value.actor"}
     ],
     outputs:[
-      {id:"exec",  label:"Done в†’", type:"exec"},
-      {id:"empty", label:"Empty в†’",type:"exec"}
+      {id:"exec",  label:"Done →", type:"exec"},
+      {id:"empty", label:"Empty →",type:"exec"}
     ],
     fields:[
       {key:"itemName", label:"Container name", type:"text", default:"", placeholder:"container name (optional)"},
-      {key:"uuid",     label:"вЂ¦or UUID",       type:"text", default:"", placeholder:"Item.xxxxx"},
+      {key:"uuid",     label:"…or UUID",       type:"text", default:"", placeholder:"Item.xxxxx"},
       {key:"slotId",   label:"Slot ID",        type:"text", default:"slot1", placeholder:"slot1"}
     ],
     isAction:true, wideNode:true,
@@ -2644,10 +2682,10 @@ export const NODE_DEFS = {
       {id:"itemUuid",  label:"Item UUID", type:"value.string"},
       {id:"actor",     label:"Actor",   type:"value.actor"}
     ],
-    outputs:[{id:"exec",label:"Done в†’",type:"exec"},{id:"full",label:"Full в†’",type:"exec"}],
+    outputs:[{id:"exec",label:"Done →",type:"exec"},{id:"full",label:"Full →",type:"exec"}],
     fields:[
       {key:"parentName", label:"Container name", type:"text", default:"", placeholder:"container name (optional)"},
-      {key:"parentUuid", label:"вЂ¦or UUID",       type:"text", default:"", placeholder:"Item.xxxxx"},
+      {key:"parentUuid", label:"…or UUID",       type:"text", default:"", placeholder:"Item.xxxxx"},
       {key:"slotId",     label:"Slot ID",        type:"text", default:"slot1", placeholder:"slot1"},
       {key:"itemUuid",   label:"Item to add UUID", type:"text", default:"", placeholder:"Item.xxxxx"}
     ],
@@ -2664,8 +2702,9 @@ export const NODE_DEFS = {
     })
   },
   act_attack_check: {
+    hidden:true, replacement:"act_roll_v2 + act_compare_roll + act_present_roll",
     title:"Attack Check", color:"#8a3a00", cat:"Dice & Rolls",
-    desc:"Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total в€’ AC. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic (e.g. Compare against natural d20 from a Roll Value). Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Roll attack vs target AC. Branches into Hit / Miss / Crit exec paths and posts result to chat. Roll Result carries the raw dice total; Margin = total − AC. Crit / Fumble are external bool inputs — wire them from your own comparison logic (e.g. Compare against natural d20 from a Roll Value). Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
       {id:"formula",       label:"Attack",         type:"value.string"},
@@ -2677,9 +2716,9 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"hit",         label:"Hit в†’",      type:"exec"},
-      {id:"miss",        label:"Miss в†’",     type:"exec"},
-      {id:"crit",        label:"Crit в†’",     type:"exec"},
+      {id:"hit",         label:"Hit →",      type:"exec"},
+      {id:"miss",        label:"Miss →",     type:"exec"},
+      {id:"crit",        label:"Crit →",     type:"exec"},
       {id:"result",      label:"Roll Result",type:"value.number"},
       {id:"margin",      label:"Margin",     type:"value.number"},
       {id:"formula",     label:"Formula",    type:"value.string"},
@@ -2720,8 +2759,9 @@ export const NODE_DEFS = {
   },
 
   act_roll_check: {
+    hidden:true, replacement:"act_roll_v2 + act_compare_roll + act_present_roll",
     title:"Roll Check", color:"#8a4400", cat:"Dice & Rolls",
-    desc:"Generic roll with a chosen comparison rule: roll_over (roll в‰Ґ DC), roll_under (в‰¤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes вЂ” after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator). Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Generic roll with a chosen comparison rule: roll_over (roll ≥ DC), roll_under (≤ DC), meet_and_beat (> DC, tie = fail), troika (success when roll is higher OR lower than target, depending on targetRule), custom (your own condition via {roll}/{dc}/{margin}). Branches into pass/fail and returns Roll / Margin. opposed:yes — after the initiator rolls, N 'Roll as Opponent' buttons appear in chat; the higher total wins (tie goes to the initiator). Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",           label:"",           type:"exec"},
       {id:"formula",        label:"Formula",    type:"value.string"},
@@ -2738,12 +2778,12 @@ export const NODE_DEFS = {
       {id:"rerollCost",     label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"pass",        label:"Pass в†’",    type:"exec"},
-      {id:"fail",        label:"Fail в†’",    type:"exec"},
+      {id:"pass",        label:"Pass →",    type:"exec"},
+      {id:"fail",        label:"Fail →",    type:"exec"},
       {id:"result",      label:"Roll",      type:"value.number"},
       {id:"margin",      label:"Margin",    type:"value.number"},
-      {id:"youWon",      label:"You Won в†’", type:"exec"},
-      {id:"youLost",     label:"You Lost в†’",type:"exec"},
+      {id:"youWon",      label:"You Won →", type:"exec"},
+      {id:"youLost",     label:"You Lost →",type:"exec"},
       {id:"winnerRoll",  label:"Winner Roll", type:"value.number"},
       {id:"formula",     label:"Formula",    type:"value.string"},
       {id:"min",         label:"Min",        type:"value.number"},
@@ -2805,8 +2845,9 @@ export const NODE_DEFS = {
   },
 
   act_tiered_roll: {
+    hidden:true, replacement:"act_roll_v2 + chained act_compare_roll",
     title:"Tiered Roll", color:"#8a4400", cat:"Dice & Rolls",
-    desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 в‰¤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result в‰Ґ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Rolls dice and routes exec into one of 4 tiers by thresholds. PbtA 2d6 example: T1 ≤6 (miss), T2 7-9 (partial), T3 10+ (full). Blades example: T1 crit fail, T2 partial, T3 full, T4 crit. Thresholds are arbitrary lower-bounds (inclusive). If result ≥ threshold of a tier, it takes that tier (top-down). Raw result is emitted on Roll. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -2818,10 +2859,10 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"tier0",       label:"Tier 1 в†’", type:"exec"},
-      {id:"tier1",       label:"Tier 2 в†’", type:"exec"},
-      {id:"tier2",       label:"Tier 3 в†’", type:"exec"},
-      {id:"tier3",       label:"Tier 4 в†’", type:"exec"},
+      {id:"tier0",       label:"Tier 1 →", type:"exec"},
+      {id:"tier1",       label:"Tier 2 →", type:"exec"},
+      {id:"tier2",       label:"Tier 3 →", type:"exec"},
+      {id:"tier3",       label:"Tier 4 →", type:"exec"},
       {id:"result",      label:"Roll",     type:"value.number"},
       {id:"formula",     label:"Formula",  type:"value.string"},
       {id:"min",         label:"Min",      type:"value.number"},
@@ -2835,13 +2876,13 @@ export const NODE_DEFS = {
     fields:[
       {key:"formula",  label:"Roll",          type:"text",   default:"2d6"},
       {key:"t1Label",  label:"Tier 1 label",  type:"text",   default:"Miss"},
-      {key:"t1Min",    label:"Tier 1 в‰Ґ",      type:"text",   default:"-999"},
+      {key:"t1Min",    label:"Tier 1 ≥",      type:"text",   default:"-999"},
       {key:"t2Label",  label:"Tier 2 label",  type:"text",   default:"Partial"},
-      {key:"t2Min",    label:"Tier 2 в‰Ґ",      type:"text",   default:"7"},
+      {key:"t2Min",    label:"Tier 2 ≥",      type:"text",   default:"7"},
       {key:"t3Label",  label:"Tier 3 label",  type:"text",   default:"Full"},
-      {key:"t3Min",    label:"Tier 3 в‰Ґ",      type:"text",   default:"10"},
+      {key:"t3Min",    label:"Tier 3 ≥",      type:"text",   default:"10"},
       {key:"t4Label",  label:"Tier 4 label",  type:"text",   default:"Crit"},
-      {key:"t4Min",    label:"Tier 4 в‰Ґ",      type:"text",   default:"12"},
+      {key:"t4Min",    label:"Tier 4 ≥",      type:"text",   default:"12"},
       {key:"flavor",   label:"Label",         type:"text",   default:"Roll"},
       {key:"toChat",   label:"To chat",       type:"select", default:"yes", options:["yes","no"]},
       {key:"rerollEnabled", label:"Reroll button",  type:"select", default:"no", options:["no","yes"]},
@@ -2873,8 +2914,9 @@ export const NODE_DEFS = {
   },
 
   act_dice_pool: {
+    hidden:true, replacement:"act_roll_v2 (pool mode) + act_compare_roll",
     title:"Dice Pool", color:"#8a4400", cat:"Dice & Rolls",
-    desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge в†’ count d10s that rolled в‰Ґ8. Botches = how many d10s equalled botchFace. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Rolls N dice of a chosen size and counts successes by comparison rule. Outputs: pass/fail based on `required`, Successes, Botches, Raw. WoD example: count=5, die=10, target=8, compare=ge → count d10s that rolled ≥8. Botches = how many d10s equalled botchFace. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
       {id:"count",         label:"Count",          type:"value.number"},
@@ -2886,8 +2928,8 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"pass",        label:"Pass в†’",      type:"exec"},
-      {id:"fail",        label:"Fail в†’",      type:"exec"},
+      {id:"pass",        label:"Pass →",      type:"exec"},
+      {id:"fail",        label:"Fail →",      type:"exec"},
       {id:"successes",   label:"Successes",   type:"value.number"},
       {id:"botches",     label:"Botches",     type:"value.number"},
       {id:"result",      label:"Total",       type:"value.any"},
@@ -2905,7 +2947,7 @@ export const NODE_DEFS = {
       {key:"die",       label:"Die faces",   type:"number", default:10},
       {key:"target",    label:"Target",      type:"text",   default:"8"},
       {key:"compare",   label:"Compare",     type:"select", default:"ge",  options:["ge","le","eq"]},
-      {key:"required",  label:"Pass if в‰Ґ",    type:"number", default:1},
+      {key:"required",  label:"Pass if ≥",    type:"number", default:1},
       {key:"botchFace", label:"Botch on face",type:"number", default:1},
       {key:"flavor",    label:"Label",       type:"text",   default:"Dice Pool"},
       {key:"toChat",    label:"To chat",     type:"select", default:"yes", options:["yes","no"]},
@@ -2938,7 +2980,7 @@ export const NODE_DEFS = {
 
   act_spend_token: {
     title:"Spend Token", color:"#4a2a6a", cat:"Resources",
-    desc:"Spends N tokens from the given resource. If there aren't enough tokens, exec takes the Empty branch. Works like Consume Resource but with branching. Where / Path / Label can be fed via pins (UE-style вЂ” when wired the matching field hides).",
+    desc:"Spends N tokens from the given resource. If there aren't enough tokens, exec takes the Empty branch. Works like Consume Resource but with branching. Where / Path / Label can be fed via pins (UE-style — when wired the matching field hides).",
     inputs:[
       {id:"exec",   label:"",       type:"exec"},
       {id:"amount", label:"Amount", type:"value.number"},
@@ -2947,8 +2989,8 @@ export const NODE_DEFS = {
       {id:"flavor", label:"Label",  type:"value.string"}
     ],
     outputs:[
-      {id:"ok",       label:"Spent в†’",   type:"exec"},
-      {id:"empty",    label:"Empty в†’",   type:"exec"},
+      {id:"ok",       label:"Spent →",   type:"exec"},
+      {id:"empty",    label:"Empty →",   type:"exec"},
       {id:"remaining",label:"Remaining", type:"value.number"}
     ],
     fields:[
@@ -3009,8 +3051,9 @@ export const NODE_DEFS = {
   },
 
   act_progression: {
+    hidden:true, replacement:"act_roll_v2 + Get Path + act_compare_roll + Set Path",
     title:"Progression Roll", color:"#8a4400", cat:"Dice & Rolls",
-    desc:"Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Catches a fresh roll, compares with the previous value stored at History Path, and branches on Higher / Lower / Equal / No History. Writes the new roll back into History Path so next call compares against it. Useful for escalating dice, PbtA session clocks, 'raise / see' mechanics, etc. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     wideNode:true,
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
@@ -3023,10 +3066,10 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"higher",      label:"Higher в†’",  type:"exec"},
-      {id:"lower",       label:"Lower в†’",   type:"exec"},
-      {id:"equal",       label:"Equal в†’",   type:"exec"},
-      {id:"noHistory",   label:"First в†’",   type:"exec"},
+      {id:"higher",      label:"Higher →",  type:"exec"},
+      {id:"lower",       label:"Lower →",   type:"exec"},
+      {id:"equal",       label:"Equal →",   type:"exec"},
+      {id:"noHistory",   label:"First →",   type:"exec"},
       {id:"value",       label:"Value",     type:"value.any"},
       {id:"previous",    label:"Previous",  type:"value.any"},
       {id:"formula",     label:"Formula",   type:"value.string"},
@@ -3067,8 +3110,9 @@ export const NODE_DEFS = {
   },
 
   act_throw_on_canvas: {
+    hidden:true, replacement:"act_roll_v2 + act_present_roll",
     title:"Throw on Canvas", color:"#8a4400", cat:"Dice & Rolls",
-    desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Rolls N dice and visually scatters them on the canvas (PIXI overlay on the active scene). Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
       {id:"count",         label:"Count",          type:"value.number"},
@@ -3080,8 +3124,8 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"pass",        label:"Pass в†’",     type:"exec"},
-      {id:"fail",        label:"Fail в†’",     type:"exec"},
+      {id:"pass",        label:"Pass →",     type:"exec"},
+      {id:"fail",        label:"Fail →",     type:"exec"},
       {id:"successes",   label:"Successes",  type:"value.number"},
       {id:"total",       label:"Total",      type:"value.number"},
       {id:"formula",     label:"Formula",    type:"value.string"},
@@ -3098,7 +3142,7 @@ export const NODE_DEFS = {
       {key:"die",      label:"Die faces",  type:"number", default:6},
       {key:"target",   label:"Target",     type:"text",   default:"4"},
       {key:"compare",  label:"Compare",    type:"select", default:"ge", options:["ge","le","eq"]},
-      {key:"required", label:"Pass if в‰Ґ",   type:"number", default:1},
+      {key:"required", label:"Pass if ≥",   type:"number", default:1},
       {key:"area",     label:"Area (px)",  type:"number", default:300},
       {key:"duration", label:"Duration (s)",type:"number", default:6},
       {key:"flavor",   label:"Label",      type:"text",   default:"Throw"},
@@ -3132,8 +3176,9 @@ export const NODE_DEFS = {
   },
 
   act_throw_on_sheet: {
+    hidden:true, replacement:"act_roll_v2 + act_present_roll",
     title:"Throw on Sheet", color:"#8a4400", cat:"Dice & Rolls",
-    desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
+    desc:"Rolls N dice and visually scatters them over the DOM of the current actor sheet. Results are available as successes/total and via {__lastSuccesses}/{__lastRoll}. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the chat card; Reroll Path / Reroll Cost optionally consume a numeric resource from the source actor each time the player rerolls.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
       {id:"count",         label:"Count",          type:"value.number"},
@@ -3145,8 +3190,8 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"pass",        label:"Pass в†’",     type:"exec"},
-      {id:"fail",        label:"Fail в†’",     type:"exec"},
+      {id:"pass",        label:"Pass →",     type:"exec"},
+      {id:"fail",        label:"Fail →",     type:"exec"},
       {id:"successes",   label:"Successes",  type:"value.number"},
       {id:"total",       label:"Total",      type:"value.number"},
       {id:"formula",     label:"Formula",    type:"value.string"},
@@ -3163,7 +3208,7 @@ export const NODE_DEFS = {
       {key:"die",      label:"Die faces",  type:"number", default:6},
       {key:"target",   label:"Target",     type:"text",   default:"4"},
       {key:"compare",  label:"Compare",    type:"select", default:"ge", options:["ge","le","eq"]},
-      {key:"required", label:"Pass if в‰Ґ",   type:"number", default:1},
+      {key:"required", label:"Pass if ≥",   type:"number", default:1},
       {key:"duration", label:"Duration (s)",type:"number", default:6},
       {key:"flavor",   label:"Label",      type:"text",   default:"Throw"},
       {key:"toChat",   label:"To chat",      type:"select", default:"yes", options:["yes","no"]},
@@ -3196,7 +3241,7 @@ export const NODE_DEFS = {
 
   act_ai_request: {
     title:"AI Request (OpenAI-compatible)", color:"#4a4a8a", cat:"AI",
-    desc:"POSTs an OpenAI-compatible chat-completion request to the given URL with Authorization: Bearer <key>. Compatible with api.openai.com, openrouter.ai, LM Studio (http://localhost:1234/v1/chat/completions), Ollama OAI compat, vLLM, etc. Output 'Response' carries choices[0].message.content as a string. Use {__lastAiResponse} in downstream formulas / text. SECURITY: API key is stored on the document where the graph lives вЂ” visible to all owners. Use 'API key setting' to read from a world setting (sd.<settingKey>) instead.",
+    desc:"POSTs an OpenAI-compatible chat-completion request to the given URL with Authorization: Bearer <key>. Compatible with api.openai.com, openrouter.ai, LM Studio (http://localhost:1234/v1/chat/completions), Ollama OAI compat, vLLM, etc. Output 'Response' carries choices[0].message.content as a string. Use {__lastAiResponse} in downstream formulas / text. SECURITY: API key is stored on the document where the graph lives — visible to all owners. Use 'API key setting' to read from a world setting (sd.<settingKey>) instead.",
     wideNode:true,
     hidden:true,
     inputs:[
@@ -3210,8 +3255,8 @@ export const NODE_DEFS = {
       {id:"maxTokens",    label:"Max Tokens",   type:"value.number"}
     ],
     outputs:[
-      {id:"exec",     label:"Done в†’",   type:"exec"},
-      {id:"error",    label:"Error в†’",  type:"exec"},
+      {id:"exec",     label:"Done →",   type:"exec"},
+      {id:"error",    label:"Error →",  type:"exec"},
       {id:"response", label:"Response", type:"value.string"},
       {id:"errorMsg", label:"Error",    type:"value.string"}
     ],
@@ -3222,9 +3267,9 @@ export const NODE_DEFS = {
       {key:"apiKey",       label:"API Key",        type:"text",   default:"",
         placeholder:"sk-... (leave empty if using API key setting)"},
       {key:"apiKeySetting",label:"API key setting (world)", type:"text", default:"",
-        placeholder:"e.g. openaiKey  в†’ reads game.settings.get('sd', '<this>')"},
+        placeholder:"e.g. openaiKey  → reads game.settings.get('sd', '<this>')"},
       {key:"model",        label:"Model",          type:"text",   default:"",
-        placeholder:"gpt-4o-mini, gpt-4o, claude-3-haiku, qwen2.5-7b-instructвЂ¦"},
+        placeholder:"gpt-4o-mini, gpt-4o, claude-3-haiku, qwen2.5-7b-instruct…"},
       {key:"systemPrompt", label:"System Prompt",  type:"text",   default:"",
         placeholder:"e.g. You are a helpful Foundry VTT NPC."},
       {key:"prompt",       label:"Prompt",         type:"text",   default:"",
@@ -3405,7 +3450,7 @@ export const NODE_DEFS = {
   },
 
   switch_node: {
-    title:"Switch", color:"#8a2a8a", cat:"Flow Control",
+    title:"Switch on Value", color:"#8a2a8a", cat:"Flow Control",
     desc:"Compare Value against each Case label and jump to the matching exec output. Falls through to Default if no match.",
     wideNode:true,
     inputs:[
@@ -3445,27 +3490,27 @@ export const NODE_DEFS = {
       const _isSel   = (d) => _exists(d) && _typeOf(d) === "select";
       const _isBtn   = (d) => _exists(d) && _typeOf(d) === "button";
       elFields.push(
-        {key:`el${i}_type`,    label:`Element ${i+1} вЂ” type`,        type:"select", default: i===0 ? "button" : "text",
+        {key:`el${i}_type`,    label:`Element ${i+1} — type`,        type:"select", default: i===0 ? "button" : "text",
           options: TYPE_OPTS, visibleIf: _exists},
-        {key:`el${i}_id`,      label:`Element ${i+1} вЂ” Id (pin)`,    type:"text",   default:`item${i+1}`,
+        {key:`el${i}_id`,      label:`Element ${i+1} — Id (pin)`,    type:"text",   default:`item${i+1}`,
           placeholder:"unique id, e.g. stance",                       visibleIf: _hasId},
-        {key:`el${i}_label`,   label:`Element ${i+1} вЂ” Label`,       type:"text",   default:`Element ${i+1}`,
+        {key:`el${i}_label`,   label:`Element ${i+1} — Label`,       type:"text",   default:`Element ${i+1}`,
           visibleIf: _exists},
-        {key:`el${i}_default`, label:`Element ${i+1} вЂ” Default`,     type:"text",   default:"",
+        {key:`el${i}_default`, label:`Element ${i+1} — Default`,     type:"text",   default:"",
           placeholder:"start value (text/number/select) or 'yes' for checkbox", visibleIf: _hasDef},
-        {key:`el${i}_options`, label:`Element ${i+1} вЂ” Options (CSV)`, type:"text", default:"",
-          placeholder:"a,b,c вЂ” only for select",                      visibleIf: _isSel},
-        {key:`el${i}_emit`,    label:`Element ${i+1} вЂ” Emit exec on click?`, type:"select", default:"no",
+        {key:`el${i}_options`, label:`Element ${i+1} — Options (CSV)`, type:"text", default:"",
+          placeholder:"a,b,c — only for select",                      visibleIf: _isSel},
+        {key:`el${i}_emit`,    label:`Element ${i+1} — Emit exec on click?`, type:"select", default:"no",
           options:["no","yes"],                                       visibleIf: _isBtn}
       );
     }
     return {
       title:"Dialog Builder", color:"#a04020", cat:"Flow", wideNode:true,
-      desc:"Visual form-dialog builder. Pick element count (1-8), then for each element choose its type (label/section/text/number/checkbox/select/button), a unique Id, a Label, optional default and options. Each element with an Id exposes an output value pin that resolves to the runtime token {__dlg.<id>} (use it anywhere downstream вЂ” paths, formulas, text). Buttons additionally expose a per-button exec output when 'Emit exec on click?' is set to yes; turning it off hides that exec pin. Picked outputs the id of the last button clicked. Submit fires after any button (or OK if no buttons exist); Cancel fires on close without confirm.",
+      desc:"Visual form-dialog builder. Pick element count (1-8), then for each element choose its type (label/section/text/number/checkbox/select/button), a unique Id, a Label, optional default and options. Each element with an Id exposes an output value pin that resolves to the runtime token {__dlg.<id>} (use it anywhere downstream — paths, formulas, text). Buttons additionally expose a per-button exec output when 'Emit exec on click?' is set to yes; turning it off hides that exec pin. Picked outputs the id of the last button clicked. Submit fires after any button (or OK if no buttons exist); Cancel fires on close without confirm.",
       inputs:[ {id:"exec", label:"", type:"exec"} ],
 
       outputs:[
-        {id:"submit",  label:"Submit в†’", type:"exec"},
+        {id:"submit",  label:"Submit →", type:"exec"},
         {id:"cancel",  label:"Cancel",   type:"exec"},
         {id:"picked",  label:"Picked",   type:"value.string"}
       ],
@@ -3494,11 +3539,11 @@ export const NODE_DEFS = {
             dynVals.push({ id:`el${i}_val`, label:`${lbl}`, type: pinType });
           }
           if (t === "button" && data[`el${i}_emit`] === "yes") {
-            dynExecs.push({ id:`el${i}_exec`, label:`${lbl} в†’`, type:"exec" });
+            dynExecs.push({ id:`el${i}_exec`, label:`${lbl} →`, type:"exec" });
           }
         }
         return [
-          {id:"submit", label:"Submit в†’", type:"exec"},
+          {id:"submit", label:"Submit →", type:"exec"},
           {id:"cancel", label:"Cancel",   type:"exec"},
           ...dynExecs,
           {id:"picked", label:"Picked",   type:"value.string"},
@@ -3561,9 +3606,9 @@ export const NODE_DEFS = {
       {id:"maxIter",   label:"Max Iter",    type:"value.number"}
     ],
     outputs:[
-      {id:"loop",  label:"Loop в†’",  type:"exec"},
+      {id:"loop",  label:"Loop →",  type:"exec"},
       {id:"index", label:"Index",   type:"value.number"},
-      {id:"done",  label:"Done в†’",  type:"exec"}
+      {id:"done",  label:"Done →",  type:"exec"}
     ],
     fields:[{key:"maxIter", label:"Max Iterations (safety)", type:"number", default:20}],
     isLoop: true,
@@ -3575,6 +3620,7 @@ export const NODE_DEFS = {
   },
 
   act_create_effect: {
+    hidden:true, replacement:"act_effect_definition + act_effect_apply_v2",
     title:"Create Effect", color:"#1a4a8a", cat:"Effects", wideNode:true,
     desc:"Creates an ActiveEffect on the target actor. Configure name, icon, duration, and attribute changes. Target resolves from pin or falls back to selected tokens / self.",
     inputs:[
@@ -3583,7 +3629,7 @@ export const NODE_DEFS = {
       {id:"duration", label:"Duration (rds)", type:"value.number"},
       {id:"name",     label:"Effect name",  type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"name",       label:"Effect name",       type:"text",   default:"New Effect"},
       {key:"icon",       label:"Icon path",          type:"text",   default:"icons/svg/aura.svg"},
@@ -3591,15 +3637,15 @@ export const NODE_DEFS = {
       {key:"target",     label:"Target",             type:"select", default:"token_target", options:["self","actor","token_target","selected_token","all_targets"]},
       {key:"disabled",   label:"Start disabled",     type:"select", default:"no",  options:["no","yes"]},
       {key:"transfer",   label:"Transfer to actor",  type:"select", default:"yes", options:["yes","no"]},
-      {key:"change0key", label:"Change 1 вЂ” key",     type:"text",   default:"", placeholder:"system.attributes.ac.bonus"},
-      {key:"change0val", label:"Change 1 вЂ” value",   type:"text",   default:"0"},
-      {key:"change0mode",label:"Change 1 вЂ” mode",    type:"select", default:"2", options:["0","1","2","3","4","5"]},
-      {key:"change1key", label:"Change 2 вЂ” key",     type:"text",   default:""},
-      {key:"change1val", label:"Change 2 вЂ” value",   type:"text",   default:"0"},
-      {key:"change1mode",label:"Change 2 вЂ” mode",    type:"select", default:"2", options:["0","1","2","3","4","5"]},
-      {key:"change2key", label:"Change 3 вЂ” key",     type:"text",   default:""},
-      {key:"change2val", label:"Change 3 вЂ” value",   type:"text",   default:"0"},
-      {key:"change2mode",label:"Change 3 вЂ” mode",    type:"select", default:"2", options:["0","1","2","3","4","5"]}
+      {key:"change0key", label:"Change 1 — key",     type:"text",   default:"", placeholder:"system.attributes.ac.bonus"},
+      {key:"change0val", label:"Change 1 — value",   type:"text",   default:"0"},
+      {key:"change0mode",label:"Change 1 — mode",    type:"select", default:"2", options:["0","1","2","3","4","5"]},
+      {key:"change1key", label:"Change 2 — key",     type:"text",   default:""},
+      {key:"change1val", label:"Change 2 — value",   type:"text",   default:"0"},
+      {key:"change1mode",label:"Change 2 — mode",    type:"select", default:"2", options:["0","1","2","3","4","5"]},
+      {key:"change2key", label:"Change 3 — key",     type:"text",   default:""},
+      {key:"change2val", label:"Change 3 — value",   type:"text",   default:"0"},
+      {key:"change2mode",label:"Change 3 — mode",    type:"select", default:"2", options:["0","1","2","3","4","5"]}
     ],
     isAction:true,
     toAction:(n,inp)=>{
@@ -3623,7 +3669,7 @@ export const NODE_DEFS = {
 
   act_apply_status: {
     title:"Apply Status", color:"#1a4a8a", cat:"Effects", wideNode:true,
-    desc:"Apply / remove / toggle a status condition (CONFIG.statusEffects). Status Id can be e.g. `dead`, `prone`, `poisoned`, etc. вЂ” anything the active system or world registers. Status Id / Mode / Overlay pins override the matching field (UE-style).",
+    desc:"Apply / remove / toggle a status condition (CONFIG.statusEffects). Status Id can be e.g. `dead`, `prone`, `poisoned`, etc. — anything the active system or world registers. Status Id / Mode / Overlay pins override the matching field (UE-style).",
     inputs:[
       {id:"exec",     label:"",         type:"exec"},
       {id:"target",   label:"Target",   type:"value.actor"},
@@ -3631,9 +3677,9 @@ export const NODE_DEFS = {
       {id:"mode",     label:"Mode",     type:"value.string"},
       {id:"overlay",  label:"Overlay",  type:"value.bool"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"statusId",label:"Status Id",   type:"text",   default:"poisoned", placeholder:"dead, prone, blinded, poisonedвЂ¦"},
+      {key:"statusId",label:"Status Id",   type:"text",   default:"poisoned", placeholder:"dead, prone, blinded, poisoned…"},
       {key:"target",  label:"Target",      type:"select", default:"token_target", options:["self","actor","token_target","selected_token","all_targets"]},
       {key:"mode",    label:"Mode",        type:"select", default:"apply",        options:["apply","remove","toggle"]},
       {key:"overlay", label:"Big overlay", type:"select", default:"no",           options:["no","yes"]}
@@ -3649,6 +3695,7 @@ export const NODE_DEFS = {
   },
 
   act_remove_effect: {
+    hidden:true, replacement:"act_effect_remove_v2",
     title:"Remove Effect", color:"#8a1a2a", cat:"Effects",
     desc:"Removes all ActiveEffects matching the given name from the target actor.",
     inputs:[
@@ -3656,7 +3703,7 @@ export const NODE_DEFS = {
       {id:"target", label:"Target",     type:"value.actor"},
       {id:"name",   label:"Effect name", type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"name",   label:"Effect name", type:"text",   default:""},
       {key:"target", label:"Target",      type:"select", default:"token_target", options:["self","actor","token_target","selected_token","all_targets"]}
@@ -3670,6 +3717,7 @@ export const NODE_DEFS = {
   },
 
   act_toggle_effect: {
+    hidden:true, replacement:"act_effect_toggle_v2",
     title:"Toggle Effect", color:"#4a4a8a", cat:"Effects",
     desc:"Toggles the disabled state of an ActiveEffect matching the given name on the target actor.",
     inputs:[
@@ -3677,7 +3725,7 @@ export const NODE_DEFS = {
       {id:"target", label:"Target",     type:"value.actor"},
       {id:"name",   label:"Effect name", type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"name",   label:"Effect name", type:"text",   default:""},
       {key:"target", label:"Target",      type:"select", default:"token_target", options:["self","actor","token_target","selected_token","all_targets"]},
@@ -3708,7 +3756,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aura: {
-    title:"Place Aura вЂ” With Effect", color:"#1a6a4a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_aura_definition + act_place_aura_zone",
+    title:"Place Aura — With Effect", color:"#1a6a4a", cat:"Effects", wideNode:true,
     desc:"Places a Scene Region attached to the owner token. Tokens inside receive the named Active Effect automatically (hook-based enter/exit); leaving tokens lose it (configurable).",
     inputs:[
       {id:"exec",     label:"",          type:"exec"},
@@ -3716,7 +3765,7 @@ export const NODE_DEFS = {
       {id:"size",     label:"Size (ft)", type:"value.number"},
       {id:"name",     label:"Effect",    type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",             label:"Shape",            type:"select",
        options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
@@ -3747,7 +3796,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aura_damage: {
-    title:"Place Aura вЂ” Damage", color:"#7a2a1a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_place_aura_zone + act_damage_simple",
+    title:"Place Aura — Damage", color:"#7a2a1a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; rolls damage against tokens inside (onEnter / eachTurn / both). Respects system.resistances[damageType]. Chat card + visibility configurable.",
     inputs:[
       {id:"exec",       label:"",            type:"exec"},
@@ -3758,7 +3808,7 @@ export const NODE_DEFS = {
       {id:"damageType", label:"Damage Type", type:"value.string"},
       {id:"rounds",     label:"Lifetime",    type:"value.number"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",            label:"Shape",              type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
       {key:"size",             label:"Size (ft)",          type:"number", default:10},
@@ -3806,7 +3856,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aura_heal: {
-    title:"Place Aura вЂ” Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_place_aura_zone + act_heal_simple",
+    title:"Place Aura — Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; heals tokens inside (onEnter / eachTurn / both). HP path configurable. Chat card + visibility configurable.",
     inputs:[
       {id:"exec",    label:"",          type:"exec"},
@@ -3816,7 +3867,7 @@ export const NODE_DEFS = {
       {id:"name",    label:"Name",      type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value.number"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",           label:"Shape",            type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
       {key:"size",            label:"Size (ft)",        type:"number", default:10},
@@ -3862,7 +3913,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aura_save_effect: {
-    title:"Place Aura вЂ” Save в†’ Effect", color:"#6a4a1a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_place_aura_zone + act_save_dc + act_effect_apply_v2",
+    title:"Place Aura — Save → Effect", color:"#6a4a1a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; tokens inside roll a save (onEnter / eachTurn / both). On failure the named Active Effect is applied. On leave the effect is removed (configurable).",
     inputs:[
       {id:"exec",   label:"",          type:"exec"},
@@ -3871,7 +3923,7 @@ export const NODE_DEFS = {
       {id:"dc",     label:"DC",        type:"value.number"},
       {id:"name",   label:"Name",      type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"shape",             label:"Shape",             type:"select", options:["emanation","circle","rectangle","ellipse","cone"], default:"emanation"},
       {key:"size",              label:"Size (ft)",         type:"number", default:10},
@@ -3923,15 +3975,16 @@ export const NODE_DEFS = {
   },
 
   act_place_aura_targets: {
-    title:"Place Aura вЂ” Targets", color:"#6a7a2a", cat:"Effects", wideNode:true,
-    desc:"Attaches a region to the owner; tokens inside are forwarded as targets вЂ” no save, no roll. Each token that enters (or sits in, if eachTurn is enabled) the area runs the postActions chain with itself as the only target. Connect the Targets[] output to a downstream Damage / Heal / Apply Effect node's Targets pin to apply to everyone in the aura.",
+    hidden:true, replacement:"act_place_aura_zone",
+    title:"Place Aura — Targets", color:"#6a7a2a", cat:"Effects", wideNode:true,
+    desc:"Attaches a region to the owner; tokens inside are forwarded as targets — no save, no roll. Each token that enters (or sits in, if eachTurn is enabled) the area runs the postActions chain with itself as the only target. Connect the Targets[] output to a downstream Damage / Heal / Apply Effect node's Targets pin to apply to everyone in the aura.",
     inputs:[
       {id:"exec",  label:"",          type:"exec"},
       {id:"owner", label:"Owner",     type:"value.actor"},
       {id:"size",  label:"Size (ft)", type:"value.number"}
     ],
     outputs:[
-      {id:"exec",    label:"в†’",         type:"exec"},
+      {id:"exec",    label:"→",         type:"exec"},
       {id:"targets", label:"Targets[]", type:"value.array"}
     ],
     fields:[
@@ -3964,7 +4017,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aura_save_branch: {
-    title:"Place Aura вЂ” Save Branch", color:"#8a5a2a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_place_aura_zone + act_save_dc",
+    title:"Place Aura — Save Branch", color:"#8a5a2a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; tokens inside roll a save (onEnter / eachTurn / both). Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes (per-tick, per-token).",
     inputs:[
       {id:"exec",  label:"",          type:"exec"},
@@ -3973,7 +4027,7 @@ export const NODE_DEFS = {
       {id:"dc",    label:"DC",        type:"value.number"}
     ],
     outputs:[
-      {id:"exec",   label:"в†’",        type:"exec"},
+      {id:"exec",   label:"→",        type:"exec"},
       {id:"saved",  label:"Saved[]",  type:"value.array"},
       {id:"failed", label:"Failed[]", type:"value.array"},
       {id:"all",    label:"All[]",    type:"value.array"}
@@ -4024,7 +4078,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_effect: {
-    title:"Chat AoE вЂ” With Effect", color:"#1a4a8a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_spell",
+    title:"Chat AoE — With Effect", color:"#1a4a8a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside gain the named Active Effect (removed on leave, configurable).",
     inputs:[
       {id:"exec",  label:"",          type:"exec"},
@@ -4032,7 +4087,7 @@ export const NODE_DEFS = {
       {id:"name",  label:"Name",      type:"value.string"},
       {id:"rounds",label:"Lifetime",  type:"value.number"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"cardTitle",         label:"Card title",       type:"text",   default:"Area of Effect"},
       {key:"shape",             label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
@@ -4064,7 +4119,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_damage: {
-    title:"Chat AoE вЂ” Damage", color:"#7a3a1a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_spell",
+    title:"Chat AoE — Damage", color:"#7a3a1a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, rolls damage against tokens inside (onEnter / eachTurn / both). Respects resistances.",
     inputs:[
       {id:"exec",       label:"",            type:"exec"},
@@ -4074,7 +4130,7 @@ export const NODE_DEFS = {
       {id:"damageType", label:"Damage Type", type:"value.string"},
       {id:"rounds",     label:"Lifetime",    type:"value.number"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"cardTitle",  label:"Card title",       type:"text",   default:"Damaging AoE"},
       {key:"shape",      label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
@@ -4118,7 +4174,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_heal: {
-    title:"Chat AoE вЂ” Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_spell",
+    title:"Chat AoE — Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, heals tokens inside (onEnter / eachTurn / both).",
     inputs:[
       {id:"exec",    label:"",          type:"exec"},
@@ -4127,7 +4184,7 @@ export const NODE_DEFS = {
       {id:"name",    label:"Name",      type:"value.string"},
       {id:"rounds",  label:"Lifetime",  type:"value.number"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"cardTitle",  label:"Card title",       type:"text",   default:"Healing AoE"},
       {key:"shape",      label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
@@ -4169,7 +4226,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_save_effect: {
-    title:"Chat AoE вЂ” Save в†’ Effect", color:"#6a2a8a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_spell",
+    title:"Chat AoE — Save → Effect", color:"#6a2a8a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. Once placed, tokens inside roll a save (onEnter / eachTurn / both); on failure, the named Active Effect is applied. On leave the effect is removed (configurable).",
     inputs:[
       {id:"exec",  label:"",          type:"exec"},
@@ -4178,7 +4236,7 @@ export const NODE_DEFS = {
       {id:"name",  label:"Name",      type:"value.string"},
       {id:"rounds",label:"Lifetime",  type:"value.number"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"cardTitle",         label:"Card title",       type:"text",   default:"AoE Save"},
       {key:"shape",             label:"Shape",            type:"select", options:["circle","cone","ray","rect","ellipse"], default:"circle"},
@@ -4228,14 +4286,15 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_targets: {
-    title:"Chat AoE вЂ” Targets", color:"#8a7a2a", cat:"Effects", wideNode:true,
-    desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside is collected вЂ” no checks, no rolls. Connect Targets[] to downstream Damage / Heal / Effect nodes' Targets pin to apply effects to everyone in the area.",
+    hidden:true, replacement:"act_place_aoe_template",
+    title:"Chat AoE — Targets", color:"#8a7a2a", cat:"Effects", wideNode:true,
+    desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside is collected — no checks, no rolls. Connect Targets[] to downstream Damage / Heal / Effect nodes' Targets pin to apply effects to everyone in the area.",
     inputs:[
       {id:"exec", label:"",          type:"exec"},
       {id:"size", label:"Size (ft)", type:"value.number"}
     ],
     outputs:[
-      {id:"exec",    label:"в†’",          type:"exec"},
+      {id:"exec",    label:"→",          type:"exec"},
       {id:"targets", label:"Targets[]",  type:"value.array"}
     ],
     fields:[
@@ -4258,7 +4317,8 @@ export const NODE_DEFS = {
   },
 
   act_place_aoe_save_branch: {
-    title:"Chat AoE вЂ” Save", color:"#8a5a2a", cat:"Effects", wideNode:true,
+    hidden:true, replacement:"act_save_dc",
+    title:"Chat AoE — Save", color:"#8a5a2a", cat:"Effects", wideNode:true,
     desc:"Posts a chat card with a 'Place Template' button. When placed, every token inside rolls a save. Connect Saved[]/Failed[]/All[] value outputs to the Targets pin of downstream Damage / Heal / Effect nodes.",
     inputs:[
       {id:"exec", label:"",          type:"exec"},
@@ -4266,7 +4326,7 @@ export const NODE_DEFS = {
       {id:"dc",   label:"DC",        type:"value.number"}
     ],
     outputs:[
-      {id:"exec",   label:"в†’",        type:"exec"},
+      {id:"exec",   label:"→",        type:"exec"},
       {id:"saved",  label:"Saved[]",  type:"value.array"},
       {id:"failed", label:"Failed[]", type:"value.array"},
       {id:"all",    label:"All[]",    type:"value.array"}
@@ -4313,7 +4373,7 @@ export const NODE_DEFS = {
       {id:"exec",  label:"",       type:"exec"},
       {id:"owner", label:"Owner",  type:"value.actor"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"auraKey", label:"Aura key", type:"text",   default:"aura"},
       {key:"owner",   label:"Owner",    type:"select", default:"self", options:["self","selected_token","token_target"]}
@@ -4327,21 +4387,21 @@ export const NODE_DEFS = {
   },
 
   gate: {
-    title:"Gate", color:"#5a2a8a", cat:"Flow Control",
-    desc:"Exec passes through only when Condition is truthy. Acts as an early-exit guard without needing a Branch.",
+    title:"Guard (Condition)", color:"#5a2a8a", cat:"Flow Control",
+    desc:"Runs Out only when Condition is true. This is a stateless guard, not Unreal Engine’s stateful Gate (Open/Close/Toggle).",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"cond",label:"Condition",type:"value.bool"}
     ],
-    outputs:[{id:"exec",label:"Pass в†’",type:"exec"}],
+    outputs:[{id:"exec",label:"Pass →",type:"exec"}],
     fields:[],
     isIfCompare:true,
     condition:(_,inp)=>inp.cond ?? "0"
   },
 
   reroute: {
-    title:"вЂў", color:"#2a2a3a", cat:"Flow Control",
-    desc:"Visual wire re-routing point. No logic вЂ” just keeps graphs tidy.",
+    title:"•", color:"#2a2a3a", cat:"Flow Control",
+    desc:"Visual wire re-routing point. No logic — just keeps graphs tidy.",
     inputs:[{id:"v",label:"",type:"value.any"}],
     outputs:[{id:"v",label:"",type:"value.any"}],
     fields:[],
@@ -4350,8 +4410,8 @@ export const NODE_DEFS = {
   },
 
   ternary: {
-    title:"Ternary", color:"#6a1a6a", cat:"Values",
-    desc:"Outputs True value when Condition is truthy, False value otherwise. Equivalent to (cond ? a : b). Eliminates common Branchв†’Output patterns.",
+    title:"Select (Boolean)", color:"#6a1a6a", cat:"Values",
+    desc:"Outputs True value when Condition is truthy, False value otherwise. Equivalent to (cond ? a : b). Eliminates common Branch→Output patterns.",
     inputs:[
       {id:"cond",  label:"Condition", type:"value.bool"},
       {id:"a",     label:"True val",  type:"value.any"},
@@ -4399,14 +4459,14 @@ export const NODE_DEFS = {
   },
 
   mod: {
-    title:"Mod %", color:"#1a5c2a", cat:"Math",
+    title:"Remainder", color:"#1a5c2a", cat:"Math",
     inputs:[{id:"a",label:"A",type:"value.number"},{id:"b",label:"B",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
-    fields:[_ROUND_FIELD], desc:"Integer remainder of A Г· B",
+    fields:[_ROUND_FIELD], desc:"Integer remainder of A ÷ B",
     compile:(n,i)=>_round(`(${i.a??"0"}%${i.b??"1"})`, n.data)
   },
 
   pow: {
-    title:"Pow ^", color:"#1a5c2a", cat:"Math",
+    title:"Power", color:"#1a5c2a", cat:"Math",
     inputs:[{id:"a",label:"Base",type:"value.number"},{id:"b",label:"Exp",type:"value.number"}], outputs:[{id:"v",label:"",type:"value.number"}],
     fields:[_ROUND_FIELD], desc:"A raised to the power of B",
     compile:(n,i)=>_round(`(${i.a??"0"}**${i.b??"2"})`, n.data)
@@ -4484,7 +4544,7 @@ export const NODE_DEFS = {
   act_set_var: {
     title:"Set Variable", color:"#2a3a6a", cat:"Field Ops",
     hidden:true, replacement:"var_write",
-    desc:"Store a value in actor.flags.sd.vars.NAME (or world settings) for retrieval later. Useful for persisting roll results between button presses. Name and Scope can be fed via pins (UE-style вЂ” when wired the matching field hides).",
+    desc:"Store a value in actor.flags.sd.vars.NAME (or world settings) for retrieval later. Useful for persisting roll results between button presses. Name and Scope can be fed via pins (UE-style — when wired the matching field hides).",
     inputs:[
       {id:"exec",  label:"",        type:"exec"},
       {id:"name",  label:"Name",    type:"value.string"},
@@ -4528,21 +4588,21 @@ export const NODE_DEFS = {
 
   act_roll_table: {
     title:"Roll Table", color:"#7a4500", cat:"Chat",
-    desc:"Roll on a world RollTable. Foundв†’ fires when at least one result is drawn. Emptyв†’ fires when the table is empty or not found. Result text and index available as value outputs. Use drawCount > 1 to draw multiple entries вЂ” {__rollTableIndex} tracks the current draw (0-based).",
+    desc:"Roll on a world RollTable. Found→ fires when at least one result is drawn. Empty→ fires when the table is empty or not found. Result text and index available as value outputs. Use drawCount > 1 to draw multiple entries — {__rollTableIndex} tracks the current draw (0-based).",
     inputs:[
       {id:"exec",      label:"",           type:"exec"},
       {id:"formula",   label:"Formula",    type:"value.string"},
       {id:"drawCount", label:"Draw count", type:"value.number"}
     ],
     outputs:[
-      {id:"found",  label:"Found в†’",      type:"exec"},
-      {id:"empty",  label:"Empty в†’",      type:"exec"},
+      {id:"found",  label:"Found →",      type:"exec"},
+      {id:"empty",  label:"Empty →",      type:"exec"},
       {id:"result", label:"Result text",  type:"value.any"},
       {id:"index",  label:"Draw index",   type:"value.number"}
     ],
     fields:[
       {key:"tableName",  label:"Table Name (exact)",  type:"text",   default:"",    placeholder:"exact table name"},
-      {key:"tableUuid",  label:"вЂ¦or Table UUID",      type:"text",   default:"",    placeholder:"RollTable.xxxx"},
+      {key:"tableUuid",  label:"…or Table UUID",      type:"text",   default:"",    placeholder:"RollTable.xxxx"},
       {key:"formula",    label:"Default formula",     type:"text",   default:"1d6", placeholder:"1d6"},
       {key:"drawCount",  label:"Draw count",          type:"number", default:1},
       {key:"toChat",     label:"Post to chat",        type:"select", default:"yes", options:["yes","no"]},
@@ -4561,8 +4621,9 @@ export const NODE_DEFS = {
   },
 
   chat_save_button: {
+    hidden:true, replacement:"act_save_dc",
     title:"Save / Check Button", color:"#7a3a00", cat:"Dice & Rolls",
-    desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field. Crit / Fumble are external bool inputs вЂ” wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the resulting roll message; Reroll Path / Reroll Cost optionally consume a numeric resource from the rolling actor each time they reroll.",
+    desc:"Posts a chat card with an interactive 'Roll Save' or 'Roll Check' button. The target player clicks it to roll 1d20 + modifier vs the configured DC. Works like dnd5e saving throw / ability check prompts in chat. Connect pass/fail exec branches for follow-up actions. The button supports any attribute path, skill path, or custom modifier field. Crit / Fumble are external bool inputs — wire them from your own comparison logic. Reroll button (yes/no) adds a Re-roll button to the resulting roll message; Reroll Path / Reroll Cost optionally consume a numeric resource from the rolling actor each time they reroll.",
     inputs:[
       {id:"exec",          label:"",              type:"exec"},
       {id:"dc",            label:"DC",             type:"value.number"},
@@ -4577,8 +4638,8 @@ export const NODE_DEFS = {
       {id:"rerollCost",    label:"Reroll Cost",    type:"value.number"}
     ],
     outputs:[
-      {id:"pass",        label:"Pass в†’",     type:"exec"},
-      {id:"fail",        label:"Fail в†’",     type:"exec"},
+      {id:"pass",        label:"Pass →",     type:"exec"},
+      {id:"fail",        label:"Fail →",     type:"exec"},
       {id:"result",      label:"Roll Result",type:"value.any"},
       {id:"formula",     label:"Formula",    type:"value.string"},
       {id:"min",         label:"Min",        type:"value.number"},
@@ -4636,11 +4697,500 @@ export const NODE_DEFS = {
     }
   },
 
+
+  act_damage_simple: {
+    title:"Damage", color:"#8a1a1a", cat:"Combat", wideNode:true,
+    desc:"Final damage delivery only. Supply an already-calculated Value and a Token Pool. This node does not select targets, calculate saves, critical hits, resistances, or damage types.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"amount",label:"Value",type:"value.number"},
+      {id:"targets",label:"Token Pool",type:"value.token_pool"}
+    ],
+    outputs:[{id:"exec",label:"Done →",type:"exec"}],
+    fields:[
+      {key:"label",label:"Title",type:"text",default:"Damage", noPin:true},
+      {key:"customText",label:"Custom text",type:"textarea",default:"",placeholder:"Optional text shown in the chat card", noPin:true},
+      {key:"buttonLabel",label:"Apply button text",type:"text",default:"Apply Damage", noPin:true},
+      {key:"hpPath",label:"HP path",type:"path",default:"system.resources.hp.value", noPin:true},
+      {key:"postToChat",label:"Post to chat",type:"select",default:"yes",options:["yes","no"]},
+      {key:"autoApply",label:"Apply automatically",type:"select",default:"no",options:["no","yes"]},
+      {key:"showApply",label:"Show Apply button",type:"select",default:"yes",options:["yes","no"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"chatDamage", amount:String(inp.amount ?? 0), targets:inp.targets ?? null,
+      target:"none", requireTargets:true, label:n.data.label ?? "Damage",
+      customText:n.data.customText ?? "", buttonLabel:n.data.buttonLabel ?? "Apply Damage",
+      hpPath:n.data.hpPath ?? "system.resources.hp.value",
+      silent:n.data.postToChat === "no", autoApply:n.data.autoApply === "yes",
+      showApply:n.data.showApply !== "no", simpleDelivery:true
+    })
+  },
+
+  act_heal_simple: {
+    title:"Heal", color:"#1a7a2a", cat:"Combat", wideNode:true,
+    desc:"Final healing delivery only. Supply an already-calculated Value and a Token Pool. All target selection and calculations stay in the graph.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"amount",label:"Value",type:"value.number"},
+      {id:"targets",label:"Token Pool",type:"value.token_pool"}
+    ],
+    outputs:[{id:"exec",label:"Done →",type:"exec"}],
+    fields:[
+      {key:"label",label:"Title",type:"text",default:"Healing", noPin:true},
+      {key:"customText",label:"Custom text",type:"textarea",default:"",placeholder:"Optional text shown in the chat card", noPin:true},
+      {key:"buttonLabel",label:"Apply button text",type:"text",default:"Apply Healing", noPin:true},
+      {key:"hpPath",label:"HP path",type:"path",default:"system.resources.hp.value", noPin:true},
+      {key:"postToChat",label:"Post to chat",type:"select",default:"yes",options:["yes","no"]},
+      {key:"autoApply",label:"Apply automatically",type:"select",default:"no",options:["no","yes"]},
+      {key:"showApply",label:"Show Apply button",type:"select",default:"yes",options:["yes","no"]}
+    ],
+    isAction:true,
+    toAction:(n,inp)=>({
+      type:"chatHeal", amount:String(inp.amount ?? 0), targets:inp.targets ?? null,
+      target:"none", requireTargets:true, label:n.data.label ?? "Healing",
+      customText:n.data.customText ?? "", buttonLabel:n.data.buttonLabel ?? "Apply Healing",
+      hpPath:n.data.hpPath ?? "system.resources.hp.value",
+      silent:n.data.postToChat === "no", autoApply:n.data.autoApply === "yes",
+      showApply:n.data.showApply !== "no", simpleDelivery:true
+    })
+  },
+
+  act_save_dc: {
+    title:"Save / DC", color:"#7a3a00", cat:"Dice & Rolls", wideNode:true,
+    desc:"Requests a roll for every token in Token Pool and compares it with DC. Passed? is an optional boolean override: when connected, no roll is requested and the whole pool follows that branch. The node only branches and returns token pools; all consequences are built downstream.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"passed",label:"Passed? (override)",type:"value.bool"},
+      {id:"dc",label:"DC",type:"value.number"},
+      {id:"rollFormula",label:"Roll Formula",type:"value.string"},
+      {id:"targets",label:"Token Pool",type:"value.token_pool"}
+    ],
+    outputs:[
+      {id:"pass",label:"Passed →",type:"exec"},
+      {id:"fail",label:"Failed →",type:"exec"},
+      {id:"passedTargets",label:"Passed Tokens[]",type:"value.token_pool"},
+      {id:"failedTargets",label:"Failed Tokens[]",type:"value.token_pool"},
+      {id:"allTargets",label:"All Tokens[]",type:"value.token_pool"},
+      {id:"result",label:"Last Roll",type:"value.any"}
+    ],
+    fields:[
+      {key:"operator",label:"Pass if",type:"select",default:">=",options:[">=",">","<=","<","==","!="]},
+      {key:"dc",label:"Default DC",type:"number",default:15},
+      {key:"rollFormula",label:"Default roll formula",type:"text",default:"1d20",placeholder:"1d20 + @mod"},
+      {key:"flavor",label:"Title",type:"text",default:"Saving Throw", noPin:true},
+      {key:"customText",label:"Custom text",type:"textarea",default:"",placeholder:"Describe the requested save", noPin:true},
+      {key:"buttonLabel",label:"Roll button text",type:"text",default:"Roll", noPin:true},
+      {key:"rollMode",label:"Roll mode",type:"select",default:"publicroll",options:["publicroll","gmroll","blindroll","selfroll"]},
+      {key:"rollDialogue",label:"Roll dialog",type:"select",default:"no",options:["no","yes"]},
+      {key:"postToChat",label:"Post request to chat",type:"select",default:"yes",options:["yes","no"]}
+    ],
+    isSaveBranch:true,
+    toAction:(n,inp)=>({
+      type:"chatSaveButtonV2",
+      passedOverride:inp.passed ?? null,
+      dc:inp.dc ?? n.data.dc ?? 15,
+      rollFormula:(inp.rollFormula != null && inp.rollFormula !== "") ? inp.rollFormula : (n.data.rollFormula ?? "1d20"),
+      targets:inp.targets ?? null,
+      operator:n.data.operator ?? ">=",
+      flavor:n.data.flavor ?? "Saving Throw",
+      customText:n.data.customText ?? "",
+      buttonLabel:n.data.buttonLabel ?? "Roll",
+      rollMode:n.data.rollMode ?? "publicroll",
+      rollDialogue:n.data.rollDialogue === "yes",
+      postToChat:n.data.postToChat !== "no"
+    })
+  },
+
+  act_aoe_template_saver: {
+    title:"AOE Template Saver", color:"#355a8a", cat:"Effects", wideNode:true,
+    desc:"Opens a dialog. Select a placed Measured Template on the canvas and add it to the list. Geometry and appearance are copied as portable snapshots; scene coordinates are not stored.",
+    inputs:[{id:"exec",label:"",type:"exec"}],
+    outputs:[
+      {id:"confirmed",label:"Confirmed →",type:"exec"},
+      {id:"cancelled",label:"Cancelled →",type:"exec"},
+      {id:"templates",label:"Templates[]",type:"value.aoe_templates"}
+    ],
+    fields:[
+      {key:"title",label:"Dialog title",type:"text",default:"AOE Templates", noPin:true},
+      {key:"allowEmpty",label:"Allow empty list",type:"select",default:"no",options:["no","yes"]}
+    ],
+    isGenericBranch:true,
+    toAction:(n)=>({type:"aoeTemplateSaver",title:n.data.title ?? "AOE Templates",allowEmpty:n.data.allowEmpty === "yes"})
+  },
+
+  act_choice_from_array: {
+    title:"Choice From Array", color:"#5a3a8a", cat:"Flow", wideNode:true,
+    desc:"Opens a dialog and lets the user choose one or more values from an array. Execution continues only after Confirm or Cancel.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"array",label:"Array",type:"value.array"}
+    ],
+    outputs:[
+      {id:"confirmed",label:"Confirmed →",type:"exec"},
+      {id:"cancelled",label:"Cancelled →",type:"exec"},
+      {id:"selected",label:"Selected",type:"value.any"},
+      {id:"selectedArray",label:"Selected[]",type:"value.array"},
+      {id:"index",label:"Index",type:"value.number"},
+      {id:"indices",label:"Indices[]",type:"value.array"}
+    ],
+    fields:[
+      {key:"title",label:"Dialog title",type:"text",default:"Choose", noPin:true},
+      {key:"text",label:"Description",type:"textarea",default:"", noPin:true},
+      {key:"multiple",label:"Multiple selection",type:"select",default:"no",options:["no","yes"]},
+      {key:"min",label:"Minimum choices",type:"number",default:1, noPin:true},
+      {key:"max",label:"Maximum choices (0 = unlimited)",type:"number",default:0, noPin:true},
+      {key:"labelPath",label:"Label property",type:"text",default:"name",placeholder:"name / label / title", noPin:true},
+      {key:"imagePath",label:"Image property",type:"text",default:"img",placeholder:"img / icon", noPin:true},
+      {key:"confirmLabel",label:"Confirm text",type:"text",default:"Confirm", noPin:true}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({
+      type:"choiceFromArray",array:inp.array ?? [],title:n.data.title ?? "Choose",text:n.data.text ?? "",
+      multiple:n.data.multiple === "yes",min:Math.max(0,Number(n.data.min ?? 1)||0),
+      max:Math.max(0,Number(n.data.max ?? 0)||0),labelPath:n.data.labelPath ?? "name",
+      imagePath:n.data.imagePath ?? "img",confirmLabel:n.data.confirmLabel ?? "Confirm"
+    })
+  },
+
+  act_place_aoe_template: {
+    title:"Place AOE Template", color:"#37698a", cat:"Effects", wideNode:true,
+    desc:"Chooses one portable template snapshot, places it interactively, and returns the tokens inside. It performs no save, damage, healing, or effect logic.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"templates",label:"Templates[]",type:"value.aoe_templates"}
+    ],
+    outputs:[
+      {id:"exec",label:"Placed →",type:"exec"},
+      {id:"targets",label:"Tokens Inside[]",type:"value.token_pool"},
+      {id:"template",label:"Placed Template",type:"value.aoe_template"}
+    ],
+    fields:[
+      {key:"title",label:"Chat title",type:"text",default:"Place Area Template", noPin:true},
+      {key:"buttonLabel",label:"Button text",type:"text",default:"Place Template", noPin:true},
+      {key:"persist",label:"Keep template on map",type:"select",default:"yes",options:["yes","no"]}
+    ],
+    isAoeSave:true,
+    toAction:(n,inp)=>({type:"placeAoeTemplateV2",templates:inp.templates ?? [],title:n.data.title ?? "Place Area Template",buttonLabel:n.data.buttonLabel ?? "Place Template",persist:n.data.persist !== "no"})
+  },
+
+  act_tokens_from_aoe: {
+    title:"Tokens From AOE", color:"#37698a", cat:"Effects", wideNode:true,
+    desc:"Reads the tokens currently inside an existing placed template or region.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"template",label:"Template",type:"value.aoe_template"}
+    ],
+    outputs:[
+      {id:"found",label:"Found →",type:"exec"},
+      {id:"missing",label:"Missing →",type:"exec"},
+      {id:"targets",label:"Tokens[]",type:"value.token_pool"},
+      {id:"count",label:"Count",type:"value.number"}
+    ],
+    fields:[],isGenericBranch:true,
+    toAction:(n,inp)=>({type:"tokensFromAoe",template:inp.template ?? null})
+  },
+
+  act_spell: {
+    title:"Spell", color:"#4a3a9a", cat:"Effects", wideNode:true,
+    desc:"Adaptive chat card. AOE?, Target?, and Effect? only control the card sections. The node presents and returns context; all save, damage, healing, and effect consequences are built downstream.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"isAoe",label:"AOE?",type:"value.bool"},
+      {id:"hasTarget",label:"Target?",type:"value.bool"},
+      {id:"hasEffect",label:"Effect?",type:"value.bool"},
+      {id:"targets",label:"Token Pool",type:"value.token_pool"},
+      {id:"templates",label:"Templates[]",type:"value.aoe_templates"},
+      {id:"effect",label:"Effect",type:"value.effect"},
+      {id:"value",label:"Value",type:"value.any"},
+      {id:"text",label:"Custom Text",type:"value.string"}
+    ],
+    outputs:[
+      {id:"exec",label:"Cast →",type:"exec"},
+      {id:"targets",label:"Tokens[]",type:"value.token_pool"},
+      {id:"template",label:"Template",type:"value.aoe_template"},
+      {id:"effect",label:"Effect",type:"value.effect"},
+      {id:"value",label:"Value",type:"value.any"}
+    ],
+    fields:[
+      {key:"title",label:"Spell title",type:"text",default:"Spell", noPin:true},
+      {key:"customText",label:"Default text",type:"textarea",default:"", noPin:true},
+      {key:"buttonLabel",label:"Cast button text",type:"text",default:"Cast", noPin:true},
+      {key:"persist",label:"Keep AOE template",type:"select",default:"yes",options:["yes","no"]}
+    ],
+    isAoeSave:true,
+    toAction:(n,inp)=>({
+      type:"spellCardV2",title:n.data.title ?? "Spell",buttonLabel:n.data.buttonLabel ?? "Cast",
+      text:(inp.text != null && inp.text !== "") ? inp.text : (n.data.customText ?? ""),
+      isAoe:inp.isAoe ?? 0,hasTarget:inp.hasTarget ?? 0,hasEffect:inp.hasEffect ?? 0,
+      targets:inp.targets ?? null,templates:inp.templates ?? [],effect:inp.effect ?? null,value:inp.value ?? null,
+      persist:n.data.persist !== "no"
+    })
+  },
+
+
+
+  // ── v0.15 composable Roll Result pipeline ──────────────────────────────
+  act_roll_v2: {
+    title:"Roll", color:"#8a4400", cat:"Dice & Rolls", wideNode:true,
+    desc:"Evaluates a formula or dice pool and returns one typed Roll Result. This node does not decide success and does not post to chat; connect Analyze, Compare and Present nodes.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"formula",label:"Formula",type:"value.string"},
+      {id:"count",label:"Pool Count",type:"value.number"},
+      {id:"successTarget",label:"Success Target",type:"value.number"},
+      {id:"advFormula",label:"Adv Formula",type:"value.string"},
+      {id:"disFormula",label:"Dis Formula",type:"value.string"}
+    ],
+    outputs:[
+      {id:"exec",label:"Rolled →",type:"exec"},
+      {id:"result",label:"Roll Result",type:"value.roll_result"},
+      {id:"total",label:"Total",type:"value.number"},
+      {id:"successes",label:"Successes",type:"value.number"},
+      {id:"botches",label:"Botches",type:"value.number"}
+    ],
+    fields:[
+      {key:"mode",label:"Mode",type:"select",default:"formula",options:["formula","pool"],noPin:true},
+      {key:"formula",label:"Formula",type:"text",default:"1d20"},
+      {key:"flavor",label:"Label",type:"text",default:"Roll",noPin:true},
+      {key:"rollDialogue",label:"Roll dialog",type:"select",default:"no",options:["no","yes"],noPin:true},
+      {key:"advFormula",label:"Advantage formula",type:"text",default:""},
+      {key:"disFormula",label:"Disadvantage formula",type:"text",default:""},
+      {key:"count",label:"Pool count",type:"text",default:"5"},
+      {key:"die",label:"Pool die faces",type:"number",default:10,noPin:true},
+      {key:"successTarget",label:"Success target",type:"text",default:"8"},
+      {key:"successCompare",label:"Success comparison",type:"select",default:">=",options:[">=",">","<=","<","==","!="],noPin:true},
+      {key:"botchFace",label:"Botch face",type:"number",default:1,noPin:true},
+      {key:"critOn",label:"Critical natural ≥",type:"number",default:20,noPin:true},
+      {key:"fumbleOn",label:"Fumble natural ≤",type:"number",default:1,noPin:true}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({
+      type:"rollResultV2",
+      mode:n.data.mode??"formula",
+      formula:inp.formula??n.data.formula??"1d20",
+      count:inp.count??n.data.count??"5",
+      die:Number(n.data.die??10),
+      successTarget:inp.successTarget??n.data.successTarget??"8",
+      successCompare:n.data.successCompare??">=",
+      botchFace:Number(n.data.botchFace??1),
+      flavor:n.data.flavor??"Roll",
+      rollDialogue:n.data.rollDialogue==="yes",
+      advFormula:inp.advFormula??n.data.advFormula??"",
+      disFormula:inp.disFormula??n.data.disFormula??"",
+      critOn:Number(n.data.critOn??20),
+      fumbleOn:Number(n.data.fumbleOn??1)
+    })
+  },
+
+  act_analyze_roll: {
+    title:"Analyze Roll", color:"#315b89", cat:"Dice & Rolls", wideNode:true,
+    desc:"Breaks a typed Roll Result into reusable values without rolling again.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"result",label:"Roll Result",type:"value.roll_result"}],
+    outputs:[
+      {id:"exec",label:"Analyzed →",type:"exec"},
+      {id:"result",label:"Roll Result",type:"value.roll_result"},
+      {id:"total",label:"Total",type:"value.number"},
+      {id:"formula",label:"Formula",type:"value.string"},
+      {id:"dice",label:"Dice",type:"value.array"},
+      {id:"natural",label:"Natural",type:"value.number"},
+      {id:"min",label:"Minimum",type:"value.number"},
+      {id:"max",label:"Maximum",type:"value.number"},
+      {id:"avg",label:"Average",type:"value.number"},
+      {id:"successes",label:"Successes",type:"value.number"},
+      {id:"botches",label:"Botches",type:"value.number"},
+      {id:"isCrit",label:"Critical",type:"value.bool"},
+      {id:"isFumble",label:"Fumble",type:"value.bool"}
+    ],
+    fields:[], isGenericBranch:true,
+    toAction:(n,inp)=>({type:"analyzeRollResult",result:inp.result??"{__rollResult}"})
+  },
+
+  act_compare_roll: {
+    title:"Compare Roll", color:"#6b3e8e", cat:"Dice & Rolls", wideNode:true,
+    desc:"Compares one property of a Roll Result with a value and routes execution to Passed or Failed.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"result",label:"Roll Result",type:"value.roll_result"},
+      {id:"value",label:"Compare With",type:"value.number"}
+    ],
+    outputs:[
+      {id:"pass",label:"Passed →",type:"exec"},
+      {id:"fail",label:"Failed →",type:"exec"},
+      {id:"result",label:"Roll Result",type:"value.roll_result"},
+      {id:"compared",label:"Compared Value",type:"value.number"},
+      {id:"target",label:"Target",type:"value.number"},
+      {id:"margin",label:"Margin",type:"value.number"},
+      {id:"passed",label:"Passed",type:"value.bool"}
+    ],
+    fields:[
+      {key:"source",label:"Result property",type:"select",default:"total",options:["total","natural","successes","botches","min","max","avg"],noPin:true},
+      {key:"operator",label:"Pass if",type:"select",default:">=",options:[">=",">","<=","<","==","!="],noPin:true},
+      {key:"value",label:"Compare with",type:"text",default:"10"}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({type:"compareRollResult",result:inp.result??"{__rollResult}",value:inp.value??n.data.value??"10",source:n.data.source??"total",operator:n.data.operator??">="})
+  },
+
+  act_present_roll: {
+    title:"Present Roll", color:"#31705a", cat:"Dice & Rolls", wideNode:true,
+    desc:"Displays an existing Roll Result in chat, on the canvas, or over the current actor sheet. It never rolls again.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"result",label:"Roll Result",type:"value.roll_result"}],
+    outputs:[{id:"exec",label:"Presented →",type:"exec"},{id:"result",label:"Roll Result",type:"value.roll_result"}],
+    fields:[
+      {key:"destination",label:"Destination",type:"select",default:"chat",options:["chat","canvas","sheet"],noPin:true},
+      {key:"label",label:"Label override",type:"text",default:"",noPin:true},
+      {key:"rollMode",label:"Chat visibility",type:"select",default:"default",options:["default","publicroll","gmroll","blindroll","selfroll"],noPin:true},
+      {key:"area",label:"Canvas area (px)",type:"number",default:300,noPin:true},
+      {key:"duration",label:"Overlay duration (s)",type:"number",default:6,noPin:true}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({type:"presentRollResult",result:inp.result??"{__rollResult}",destination:n.data.destination??"chat",label:n.data.label??"",rollMode:n.data.rollMode??"default",area:Number(n.data.area??300),duration:Number(n.data.duration??6)})
+  },
+
+  act_aura_definition: {
+    title:"Aura Definition", color:"#39735b", cat:"Effects", wideNode:true,
+    desc:"Builds a portable Aura definition. It does not place anything or apply consequences; connect it to Place Aura.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"owner",label:"Owner",type:"value.actor"},
+      {id:"size",label:"Size",type:"value.number"}
+    ],
+    outputs:[
+      {id:"exec",label:"Built →",type:"exec"},
+      {id:"aura",label:"Aura",type:"value.object"}
+    ],
+    fields:[
+      {key:"name",label:"Name",type:"text",default:"Aura",noPin:true},
+      {key:"shape",label:"Shape",type:"select",default:"emanation",options:["emanation","circle","cone","ray","rect","ellipse"]},
+      {key:"size",label:"Size (ft)",type:"number",default:10},
+      {key:"angle",label:"Cone angle",type:"number",default:53.13,noPin:true},
+      {key:"owner",label:"Owner fallback",type:"select",default:"actor",options:["actor","selected_token","token_target"]},
+      {key:"tickMode",label:"Trigger",type:"select",default:"onEnter",options:["onEnter","eachTurn","onEnter+eachTurn"]},
+      {key:"skipOwner",label:"Exclude owner",type:"select",default:"yes",options:["yes","no"]},
+      {key:"rounds",label:"Lifetime (rounds, 0 = permanent)",type:"number",default:0,noPin:true},
+      {key:"auraKey",label:"Aura key",type:"text",default:"composable-aura",noPin:true}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({
+      type:"buildAuraDefinition",name:n.data.name??"Aura",shape:n.data.shape??"emanation",
+      size:inp.size??n.data.size??10,angle:n.data.angle??53.13,
+      owner:(inp.owner!=null&&inp.owner!==""&&inp.owner!=="0")?inp.owner:(n.data.owner??"actor"),
+      tickMode:n.data.tickMode??"onEnter",skipOwner:n.data.skipOwner!=="no",
+      rounds:Number(n.data.rounds??0)||0,auraKey:n.data.auraKey??"composable-aura"
+    })
+  },
+
+  act_place_aura_zone: {
+    title:"Place Aura", color:"#2f7d5c", cat:"Effects", wideNode:true,
+    desc:"Places an Aura definition on its owner. Each matching enter/turn event forwards a Token Pool to the downstream graph; it does not roll, damage, heal, or apply effects.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"aura",label:"Aura",type:"value.object"}
+    ],
+    outputs:[
+      {id:"exec",label:"Token Event →",type:"exec"},
+      {id:"targets",label:"Token Pool",type:"value.token_pool"},
+      {id:"aura",label:"Placed Aura",type:"value.object"}
+    ],
+    fields:[],isAoeSave:true,
+    toAction:(n,inp)=>({type:"placeAuraComposite",definition:inp.aura??null})
+  },
+
+  act_tokens_from_aura: {
+    title:"Tokens From Aura", color:"#2f7d5c", cat:"Effects", wideNode:true,
+    desc:"Returns the tokens currently inside an existing Aura region.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"aura",label:"Aura",type:"value.object"}
+    ],
+    outputs:[
+      {id:"found",label:"Found →",type:"exec"},
+      {id:"missing",label:"Missing →",type:"exec"},
+      {id:"targets",label:"Token Pool",type:"value.token_pool"},
+      {id:"count",label:"Count",type:"value.number"}
+    ],
+    fields:[],isGenericBranch:true,
+    toAction:(n,inp)=>({type:"tokensFromAura",aura:inp.aura??null})
+  },
+
+  act_effect_definition: {
+    title:"Effect Definition", color:"#68449a", cat:"Effects", wideNode:true,
+    desc:"Builds an Active Effect definition without applying it. Add any number of Effect Change nodes, then pass it to Apply/Remove/Toggle Effect.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"name",label:"Name",type:"value.string"},
+      {id:"icon",label:"Icon",type:"value.string"},
+      {id:"duration",label:"Duration",type:"value.number"}
+    ],
+    outputs:[
+      {id:"exec",label:"Built →",type:"exec"},
+      {id:"effect",label:"Effect",type:"value.effect"}
+    ],
+    fields:[
+      {key:"name",label:"Default name",type:"text",default:"Effect"},
+      {key:"icon",label:"Default icon",type:"text",default:"icons/svg/aura.svg"},
+      {key:"duration",label:"Default rounds",type:"number",default:0},
+      {key:"disabled",label:"Start disabled",type:"select",default:"no",options:["no","yes"]},
+      {key:"transfer",label:"Transfer",type:"select",default:"no",options:["no","yes"]}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({type:"buildEffectDefinition",name:inp.name??n.data.name??"Effect",icon:inp.icon??n.data.icon??"icons/svg/aura.svg",duration:inp.duration??n.data.duration??0,disabled:n.data.disabled==="yes",transfer:n.data.transfer==="yes"})
+  },
+
+  act_effect_add_change: {
+    title:"Add Effect Change", color:"#7650a8", cat:"Effects", wideNode:true,
+    desc:"Adds one path/mode/value change to an Effect definition and returns the updated definition.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"effect",label:"Effect",type:"value.effect"},
+      {id:"path",label:"Path",type:"value.path"},
+      {id:"value",label:"Value",type:"value.any"},
+      {id:"priority",label:"Priority",type:"value.number"}
+    ],
+    outputs:[
+      {id:"exec",label:"Added →",type:"exec"},
+      {id:"effect",label:"Effect",type:"value.effect"}
+    ],
+    fields:[
+      {key:"path",label:"Default path",type:"path",default:"system.attributes.ac.bonus"},
+      {key:"value",label:"Default value",type:"text",default:"0"},
+      {key:"mode",label:"Mode",type:"select",default:"2",options:["0","1","2","3","4","5"]},
+      {key:"priority",label:"Default priority",type:"number",default:20}
+    ],
+    isGenericBranch:true,
+    toAction:(n,inp)=>({type:"addEffectDefinitionChange",effect:inp.effect??null,path:inp.path??n.data.path??"",value:inp.value??n.data.value??"0",mode:Number(n.data.mode??2),priority:inp.priority??n.data.priority??20})
+  },
+
+  act_effect_apply_v2: {
+    title:"Apply Effect", color:"#4f3b91", cat:"Effects", wideNode:true,
+    desc:"Applies a prepared Effect definition to a Token Pool.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"effect",label:"Effect",type:"value.effect"},{id:"targets",label:"Token Pool",type:"value.token_pool"}],
+    outputs:[{id:"exec",label:"Done →",type:"exec"}],fields:[],isAction:true,
+    toAction:(n,inp)=>({type:"applyEffectDefinition",operation:"apply",effect:inp.effect??null,targets:inp.targets??null})
+  },
+
+  act_effect_remove_v2: {
+    title:"Remove Effect", color:"#8a334d", cat:"Effects", wideNode:true,
+    desc:"Removes effects matching a prepared Effect definition from a Token Pool.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"effect",label:"Effect",type:"value.effect"},{id:"targets",label:"Token Pool",type:"value.token_pool"}],
+    outputs:[{id:"exec",label:"Done →",type:"exec"}],fields:[],isAction:true,
+    toAction:(n,inp)=>({type:"applyEffectDefinition",operation:"remove",effect:inp.effect??null,targets:inp.targets??null})
+  },
+
+  act_effect_toggle_v2: {
+    title:"Toggle Effect", color:"#5a4a9a", cat:"Effects", wideNode:true,
+    desc:"Toggles effects matching a prepared Effect definition on a Token Pool.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"effect",label:"Effect",type:"value.effect"},{id:"targets",label:"Token Pool",type:"value.token_pool"}],
+    outputs:[{id:"exec",label:"Done →",type:"exec"}],fields:[],isAction:true,
+    toAction:(n,inp)=>({type:"applyEffectDefinition",operation:"toggle",effect:inp.effect??null,targets:inp.targets??null})
+  },
+
   on_update: {
     title:"On Update", color:"#c04040", cat:"Events",
     desc:"Fires whenever this document (actor/item) is updated. Useful for reacting to HP / resource changes.",
     inputs:[], outputs:[
-      {id:"exec",     label:"в†’ On Update", type:"exec"},
+      {id:"exec",     label:"→ On Update", type:"exec"},
       {id:"path",     label:"Changed Path",type:"value.path"},
       {id:"oldValue", label:"Old Value",   type:"value.any"},
       {id:"newValue", label:"New Value",   type:"value.any"}
@@ -4652,7 +5202,7 @@ export const NODE_DEFS = {
   on_create: {
     title:"On Create", color:"#c04040", cat:"Events",
     desc:"Fires once when this document is created.",
-    inputs:[], outputs:[{id:"exec",label:"в†’ On Create",type:"exec"}],
+    inputs:[], outputs:[{id:"exec",label:"→ On Create",type:"exec"}],
     fields:[],
     isEvent:true, eventHook:"createDocument"
   },
@@ -4660,7 +5210,7 @@ export const NODE_DEFS = {
   on_delete: {
     title:"On Delete", color:"#c04040", cat:"Events",
     desc:"Fires when this document is about to be deleted.",
-    inputs:[], outputs:[{id:"exec",label:"в†’ On Delete",type:"exec"}],
+    inputs:[], outputs:[{id:"exec",label:"→ On Delete",type:"exec"}],
     fields:[],
     isEvent:true, eventHook:"deleteDocument"
   },
@@ -4669,7 +5219,7 @@ export const NODE_DEFS = {
     title:"On Turn Start", color:"#c04040", cat:"Events",
     desc:"Fires at the start of this actor's combat turn.",
     inputs:[], outputs:[
-      {id:"exec",       label:"в†’ On Turn Start",type:"exec"},
+      {id:"exec",       label:"→ On Turn Start",type:"exec"},
       {id:"round",      label:"Round",           type:"value.number"},
       {id:"combatantId",label:"Combatant Id",    type:"value.string"}
     ],
@@ -4681,7 +5231,7 @@ export const NODE_DEFS = {
     title:"On Turn End", color:"#c04040", cat:"Events",
     desc:"Fires at the end of this actor's combat turn.",
     inputs:[], outputs:[
-      {id:"exec",       label:"в†’ On Turn End",type:"exec"},
+      {id:"exec",       label:"→ On Turn End",type:"exec"},
       {id:"round",      label:"Round",         type:"value.number"},
       {id:"combatantId",label:"Combatant Id",  type:"value.string"}
     ],
@@ -4693,7 +5243,7 @@ export const NODE_DEFS = {
     title:"On Start Combat", color:"#c04040", cat:"Events",
     desc:"Fires once when a combat encounter begins (this actor must be one of the combatants).",
     inputs:[], outputs:[
-      {id:"exec",  label:"в†’ On Combat Start", type:"exec"},
+      {id:"exec",  label:"→ On Combat Start", type:"exec"},
       {id:"round", label:"Round",             type:"value.number"}
     ],
     fields:[],
@@ -4704,7 +5254,7 @@ export const NODE_DEFS = {
     title:"On End Combat", color:"#c04040", cat:"Events",
     desc:"Fires when a combat encounter is deleted/ends (this actor must be one of the combatants).",
     inputs:[], outputs:[
-      {id:"exec",  label:"в†’ On Combat End", type:"exec"},
+      {id:"exec",  label:"→ On Combat End", type:"exec"},
       {id:"round", label:"Final Round",     type:"value.number"}
     ],
     fields:[],
@@ -4715,7 +5265,7 @@ export const NODE_DEFS = {
     title:"On Effect Apply", color:"#c04040", cat:"Events",
     desc:"Fires when an Active Effect is applied to this actor.",
     inputs:[], outputs:[
-      {id:"exec",      label:"в†’ On Effect",type:"exec"},
+      {id:"exec",      label:"→ On Effect",type:"exec"},
       {id:"effectName",label:"Name",        type:"value.string"}
     ],
     fields:[{key:"nameFilter",label:"Only name (optional)",type:"text",default:""}],
@@ -4726,7 +5276,7 @@ export const NODE_DEFS = {
     title:"On Damage Taken", color:"#c04040", cat:"Events",
     desc:"Fires when this actor's HP path decreases. Configure the HP path below.",
     inputs:[], outputs:[
-      {id:"exec",   label:"в†’ On Damage",type:"exec"},
+      {id:"exec",   label:"→ On Damage",type:"exec"},
       {id:"amount", label:"Damage",      type:"value.number"},
       {id:"newHp",  label:"New HP",      type:"value.number"}
     ],
@@ -4738,7 +5288,7 @@ export const NODE_DEFS = {
     title:"On Rest", color:"#c04040", cat:"Events",
     desc:"Fires when a rest flag is set on this actor (configurable flag path).",
     inputs:[], outputs:[
-      {id:"exec", label:"в†’ On Rest",type:"exec"},
+      {id:"exec", label:"→ On Rest",type:"exec"},
       {id:"type", label:"Rest Type",  type:"value.string"}
     ],
     fields:[{key:"flagPath",label:"Rest Flag Path",type:"path",default:"system.flags.rest"}],
@@ -4749,7 +5299,7 @@ export const NODE_DEFS = {
     title:"On Equip", color:"#c04040", cat:"Events",
     desc:"Fires when an item on this actor (or this item specifically) is equipped.",
     inputs:[], outputs:[
-      {id:"exec",   label:"в†’ On Equip", type:"exec"},
+      {id:"exec",   label:"→ On Equip", type:"exec"},
       {id:"itemId", label:"Item Id",    type:"value.string"},
       {id:"itemName",label:"Item Name", type:"value.string"}
     ],
@@ -4760,7 +5310,7 @@ export const NODE_DEFS = {
     title:"On Unequip", color:"#c04040", cat:"Events",
     desc:"Fires when an item on this actor (or this item specifically) is unequipped.",
     inputs:[], outputs:[
-      {id:"exec",   label:"в†’ On Unequip",type:"exec"},
+      {id:"exec",   label:"→ On Unequip",type:"exec"},
       {id:"itemId", label:"Item Id",     type:"value.string"},
       {id:"itemName",label:"Item Name",  type:"value.string"}
     ],
@@ -4822,7 +5372,7 @@ export const NODE_DEFS = {
     hidden:true, replacement:"specific On-* event nodes",
     desc:"Declarative event trigger: pick the event type from the dropdown. Equivalent to the specific On-* nodes but keeps the graph compact when you only need a single exec chain.",
     inputs:[], outputs:[
-      {id:"exec", label:"в†’ Fire", type:"exec"}
+      {id:"exec", label:"→ Fire", type:"exec"}
     ],
     fields:[
       {key:"event", label:"Event", type:"select", default:"update",
@@ -4835,21 +5385,35 @@ export const NODE_DEFS = {
   },
 
   get_self: {
+    hidden:true, replacement:"get_self_actor / get_self_item",
     title:"Get Self", color:"#2a5a7a", cat:"Targeting",
     desc:"Reference to the document the graph runs on (actor for sheet graphs, item for item graphs).",
     inputs:[], outputs:[{id:"v", label:"Self", type:"value.actor"}],
     fields:[],
     compile:()=>`"self"`
   },
+  get_self_actor: {
+    title:"Self (Actor)", color:"#2a5a7a", cat:"Targeting",
+    desc:"The current actor. In an item graph this resolves to the item's owning actor.",
+    inputs:[], outputs:[{id:"v", label:"Actor", type:"value.actor"}],
+    fields:[], compile:()=>`"actor"`
+  },
+  get_self_item: {
+    title:"Self (Item)", color:"#6a5420", cat:"Targeting",
+    desc:"The item document the graph is running from. Actor-only graphs do not invent an item.",
+    inputs:[], outputs:[{id:"v", label:"Item", type:"value.item"}],
+    fields:[], compile:()=>`"self"`
+  },
   get_actor: {
     title:"Get Actor", color:"#2a5a7a", cat:"Targeting",
-    desc:"Reference to one or more actors. If a UUID is filled in, it takes priority and the Mode dropdown is ignored. Otherwise the Mode resolves at runtime: self/actor (the graph's owner), targeted/selected token, all targets (array), or the user's character.",
-    inputs:[], outputs:[{id:"v", label:"Actor(s)", type:"value.actor"}],
+    desc:"Reference to an actor or item context. Self (Actor) resolves the current/owning actor; Self (Item) resolves the item the graph belongs to. If a UUID is filled in, it takes priority and the Mode dropdown is ignored. Targeted/selected token modes return actors; All Targets returns an array.",
+    inputs:[], outputs:[{id:"v", label:"Actor / Item", type:"value.any"}],
     fields:[
       {key:"uuid", label:"UUID", type:"text", default:"",
-        placeholder:"Actor.abc123 (priority вЂ” Mode is ignored when filled)"},
+        placeholder:"Actor.abc123 or Item.abc123 (priority — Mode is ignored when filled)"},
       {key:"mode", label:"Mode", type:"select", default:"actor", options:[
-        {value:"actor",          label:"Self / context actor"},
+        {value:"actor",          label:"Self (Actor)"},
+        {value:"self",           label:"Self (Item)"},
         {value:"token_target",   label:"First targeted token"},
         {value:"selected_token", label:"First selected token"},
         {value:"all_targets",    label:"All targeted tokens (array)"},
@@ -5038,7 +5602,7 @@ export const NODE_DEFS = {
       {id:"exec",     label:"",        type:"exec"},
       {id:"duration", label:"ms",      type:"value.number"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"duration", label:"Duration (ms)", type:"text", default:"500"}
     ],
@@ -5046,17 +5610,27 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({ type:"delay", duration: inp.duration ?? n.data.duration ?? "500" })
   },
 
+  for_loop_range: {
+    title:"For Loop (Range)", color:"#2a5a8a", cat:"Flow Control",
+    desc:"Unreal-style inclusive loop from First Index through Last Index. If First is greater than Last, Body is skipped. A 1,000-iteration safety cap prevents accidental freezes.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"first",label:"First Index",type:"value.number"},{id:"last",label:"Last Index",type:"value.number"},{id:"delay",label:"Delay ms",type:"value.number"}],
+    outputs:[{id:"loop",label:"Loop Body",type:"exec"},{id:"done",label:"Completed",type:"exec"},{id:"index",label:"Index",type:"value.number"}],
+    fields:[{key:"first",label:"First Index",type:"text",default:"0"},{key:"last",label:"Last Index",type:"text",default:"3"},{key:"delay",label:"Delay ms",type:"text",default:"0"}],
+    isLoop:true,
+    toAction:(n,inp)=>({type:"forLoopRange",first:inp.first??n.data.first??"0",last:inp.last??n.data.last??"3",delay:inp.delay??n.data.delay??"0"})
+  },
+
   act_loop: {
-    title:"For Loop", color:"#2a5a8a", cat:"Flow Control",
-    desc:"Runs Body N times. Current iteration index is available as {__loopIndex}. After all iterations, exec goes to Done.",
+    title:"Repeat N Times", color:"#2a5a8a", cat:"Flow Control",
+    desc:"Runs Body exactly Count times, from index 0 to Count - 1. This node keeps its original ID and behavior for saved graphs; use For Loop (Range) when First/Last Index semantics are needed.",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
       {id:"count", label:"Count",  type:"value.number"},
       {id:"delay", label:"Delay ms",type:"value.number"}
     ],
     outputs:[
-      {id:"body", label:"Body в†’", type:"exec"},
-      {id:"done", label:"Done в†’", type:"exec"},
+      {id:"body", label:"Body →", type:"exec"},
+      {id:"done", label:"Done →", type:"exec"},
       {id:"index",label:"Index",  type:"value.number"}
     ],
     fields:[
@@ -5079,8 +5653,8 @@ export const NODE_DEFS = {
       {id:"timeout", label:"Timeout", type:"value.number"}
     ],
     outputs:[
-      {id:"done",    label:"Fired в†’",    type:"exec"},
-      {id:"timedOut",label:"Timed out в†’",type:"exec"}
+      {id:"done",    label:"Fired →",    type:"exec"},
+      {id:"timedOut",label:"Timed out →",type:"exec"}
     ],
     fields:[
       {key:"hook",    label:"Hook name", type:"text",   default:"updateCombat"},
@@ -5122,7 +5696,7 @@ export const NODE_DEFS = {
 
   resource_tier: {
     title:"Resource Tier", color:"#2a4a6a", cat:"Get Data",
-    desc:"Maps a number to a tier (e.g. HP в†’ 'critical / bloodied / healthy'). Thresholds are a list of values; tier labels are a list one longer.",
+    desc:"Maps a number to a tier (e.g. HP → 'critical / bloodied / healthy'). Thresholds are a list of values; tier labels are a list one longer.",
     inputs:[{id:"v", label:"Value", type:"value.number"}],
     outputs:[{id:"tier", label:"Tier", type:"value.string"}],
     fields:[
@@ -5236,7 +5810,7 @@ export const NODE_DEFS = {
 
   var_read: {
     title:"Read Variable", color:"#2a6a9a", cat:"Variables",
-    desc:"Reads a variable by scope. Local вЂ” within a single press. Actor вЂ” on the actor (persists). World вЂ” in system settings.",
+    desc:"Reads a variable by scope. Local — within a single press. Actor — on the actor (persists). World — in system settings.",
     inputs:[],
     outputs:[{id:"v", label:"Value", type:"value.any"}],
     fields:[
@@ -5263,7 +5837,7 @@ export const NODE_DEFS = {
       {id:"value", label:"Value", type:"value.any"},
       {id:"scope", label:"Scope", type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"scope", label:"Scope", type:"select", default:"local", options:["local","actor","world"]},
       {key:"name",  label:"Name",  type:"text",   default:"myVar"}
@@ -5298,7 +5872,7 @@ export const NODE_DEFS = {
       {id:"exec",  label:"",     type:"exec"},
       {id:"value", label:"Value",type:"value.any"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
       {key:"name", label:"Name", type:"text", default:"myVar"}
     ],
@@ -5319,8 +5893,8 @@ export const NODE_DEFS = {
       {id:"value", label:"Value",type:"value.any"}
     ],
     outputs:[
-      {id:"ok",      label:"Cast Success в†’",type:"exec"},
-      {id:"fail",    label:"Cast Failed в†’",  type:"exec"},
+      {id:"ok",      label:"Cast Success →",type:"exec"},
+      {id:"fail",    label:"Cast Failed →",  type:"exec"},
       {id:"actorId", label:"Actor ID",       type:"value.string"}
     ],
     fields:[],
@@ -5336,8 +5910,8 @@ export const NODE_DEFS = {
       {id:"value", label:"Value",type:"value.any"}
     ],
     outputs:[
-      {id:"ok",     label:"Cast Success в†’",type:"exec"},
-      {id:"fail",   label:"Cast Failed в†’",  type:"exec"},
+      {id:"ok",     label:"Cast Success →",type:"exec"},
+      {id:"fail",   label:"Cast Failed →",  type:"exec"},
       {id:"itemId", label:"Item ID",         type:"value.string"}
     ],
     fields:[],
@@ -5350,7 +5924,7 @@ export const NODE_DEFS = {
     desc:"Entry point for a nested graph (macro). Macro ID must match the ID in macro_call. Exec and up to 4 value pins are forwarded from macro_call.",
     inputs:[],
     outputs:[
-      {id:"exec", label:"в†’",     type:"exec"},
+      {id:"exec", label:"→",     type:"exec"},
       {id:"a",    label:"Arg 1", type:"value.any"},
       {id:"b",    label:"Arg 2", type:"value.any"},
       {id:"c",    label:"Arg 3", type:"value.any"},
@@ -5388,7 +5962,7 @@ export const NODE_DEFS = {
       {id:"d",    label:"Arg 4", type:"value.any"}
     ],
     outputs:[
-      {id:"exec",   label:"в†’",        type:"exec"},
+      {id:"exec",   label:"→",        type:"exec"},
       {id:"retA",   label:"Return 1", type:"value.any"},
       {id:"retB",   label:"Return 2", type:"value.any"}
     ],
@@ -5427,7 +6001,7 @@ export const NODE_DEFS = {
 
   act_journal_show_page: {
     title:"Show Journal Page", color:"#3a5a8a", cat:"Chat",
-    desc:"Open a specific JournalEntryPage. If the page is an image type вЂ” Foundry shows it as a popup handout; text/markdown opens the journal sheet at that page.",
+    desc:"Open a specific JournalEntryPage. If the page is an image type — Foundry shows it as a popup handout; text/markdown opens the journal sheet at that page.",
     inputs:[
       {id:"exec",      label:"", type:"exec"},
       {id:"entryUuid", label:"Journal UUID", type:"value.uuid"},
@@ -5436,7 +6010,7 @@ export const NODE_DEFS = {
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"entryUuid", label:"Journal UUID", type:"text", default:"", placeholder:"JournalEntry.xxxx"},
-      {key:"pageId",    label:"Page id", type:"text", default:"", placeholder:"page _id (leave blank в†’ first page)"},
+      {key:"pageId",    label:"Page id", type:"text", default:"", placeholder:"page _id (leave blank → first page)"},
       {key:"force",     label:"Force show to all", type:"select", default:"no", options:["yes","no"]}
     ],
     isAction:true, wideNode:true,
@@ -5450,12 +6024,12 @@ export const NODE_DEFS = {
 
   act_reset_roll_table: {
     title:"Reset Roll Table", color:"#7a4500", cat:"Chat",
-    desc:"Resets the 'drawn' state of all results in a RollTable. Useful for no-replacement tables вЂ” once exhausted, call this to make every result available again.",
+    desc:"Resets the 'drawn' state of all results in a RollTable. Useful for no-replacement tables — once exhausted, call this to make every result available again.",
     inputs:[{id:"exec", label:"", type:"exec"}],
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"tableName", label:"Table name (exact)", type:"text", default:"", placeholder:"exact table name"},
-      {key:"tableUuid", label:"вЂ¦or Table UUID",    type:"text", default:"", placeholder:"RollTable.xxxx"}
+      {key:"tableUuid", label:"…or Table UUID",    type:"text", default:"", placeholder:"RollTable.xxxx"}
     ],
     isAction:true,
     toAction:(n)=>({ type:"rollTableReset", tableName:n.data.tableName ?? "", tableUuid:n.data.tableUuid ?? "" })
@@ -5468,7 +6042,7 @@ export const NODE_DEFS = {
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"tableName", label:"Table name (exact)", type:"text", default:"", placeholder:"exact table name"},
-      {key:"tableUuid", label:"вЂ¦or Table UUID",    type:"text", default:"", placeholder:"RollTable.xxxx"}
+      {key:"tableUuid", label:"…or Table UUID",    type:"text", default:"", placeholder:"RollTable.xxxx"}
     ],
     isAction:true,
     toAction:(n)=>({ type:"rollTableShow", tableName:n.data.tableName ?? "", tableUuid:n.data.tableUuid ?? "" })
@@ -5481,7 +6055,7 @@ export const NODE_DEFS = {
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"name",   label:"Stack name (exact)", type:"text", default:"", placeholder:"e.g. Tarot Deck"},
-      {key:"uuid",   label:"вЂ¦or Cards UUID",    type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"uuid",   label:"…or Cards UUID",    type:"text", default:"", placeholder:"Cards.xxxx"},
       {key:"toChat", label:"Post to chat",       type:"select", default:"yes", options:["yes","no"]}
     ],
     isAction:true, wideNode:true,
@@ -5490,22 +6064,22 @@ export const NODE_DEFS = {
 
   act_card_draw: {
     title:"Draw Cards", color:"#5a2a7a", cat:"Cards",
-    desc:"Draw N cards from one stack (deck) into another (hand). Foundв†’ fires when at least one card was drawn вЂ” exposes {__lastDrawnCard} and {__lastDrawnCards}. Emptyв†’ fires when the source stack has no available cards.",
+    desc:"Draw N cards from one stack (deck) into another (hand). Found→ fires when at least one card was drawn — exposes {__lastDrawnCard} and {__lastDrawnCards}. Empty→ fires when the source stack has no available cards.",
     inputs:[
       {id:"exec",  label:"",      type:"exec"},
       {id:"count", label:"Count", type:"value.number"}
     ],
     outputs:[
-      {id:"found", label:"Drawn в†’", type:"exec"},
-      {id:"empty", label:"Empty в†’", type:"exec"},
+      {id:"found", label:"Drawn →", type:"exec"},
+      {id:"empty", label:"Empty →", type:"exec"},
       {id:"card",  label:"Card",    type:"value.any"},
       {id:"cards", label:"Cards",   type:"value.any"}
     ],
     fields:[
       {key:"fromName", label:"From (deck name)",  type:"text", default:"", placeholder:"e.g. Tarot Deck"},
-      {key:"fromUuid", label:"вЂ¦or From UUID",     type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"fromUuid", label:"…or From UUID",     type:"text", default:"", placeholder:"Cards.xxxx"},
       {key:"toName",   label:"To (hand name)",    type:"text", default:"", placeholder:"e.g. Aelyn's Hand"},
-      {key:"toUuid",   label:"вЂ¦or To UUID",       type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"toUuid",   label:"…or To UUID",       type:"text", default:"", placeholder:"Cards.xxxx"},
       {key:"count",    label:"Default count",     type:"number", default:1},
       {key:"how",      label:"Take from",         type:"select", default:"top", options:["top","bottom","random"]},
       {key:"toChat",   label:"Post to chat",      type:"select", default:"yes", options:["yes","no"]}
@@ -5533,7 +6107,7 @@ export const NODE_DEFS = {
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"stackName",    label:"Hand name (exact)", type:"text", default:"", placeholder:"e.g. Aelyn's Hand"},
-      {key:"stackUuid",    label:"вЂ¦or Hand UUID",     type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"stackUuid",    label:"…or Hand UUID",     type:"text", default:"", placeholder:"Cards.xxxx"},
       {key:"cardSelector", label:"Which card",        type:"select", default:"top", options:["top","random","first","by_name","specific"]},
       {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""},
       {key:"cardId",       label:"Card id (if specific)",  type:"text", default:""}
@@ -5559,7 +6133,7 @@ export const NODE_DEFS = {
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"stackName",    label:"Hand name (exact)", type:"text", default:""},
-      {key:"stackUuid",    label:"вЂ¦or Hand UUID",     type:"text", default:""},
+      {key:"stackUuid",    label:"…or Hand UUID",     type:"text", default:""},
       {key:"cardSelector", label:"Which card",        type:"select", default:"top", options:["top","random","first","by_name","specific"]},
       {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""},
       {key:"toChat",       label:"Post to chat",      type:"select", default:"no", options:["yes","no"]}
@@ -5586,7 +6160,7 @@ export const NODE_DEFS = {
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"stackName",    label:"Stack name (exact)", type:"text", default:""},
-      {key:"stackUuid",    label:"вЂ¦or Stack UUID",     type:"text", default:""},
+      {key:"stackUuid",    label:"…or Stack UUID",     type:"text", default:""},
       {key:"cardSelector", label:"Which card",         type:"select", default:"top", options:["top","random","first","by_name","specific"]},
       {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""}
     ],
@@ -5611,9 +6185,9 @@ export const NODE_DEFS = {
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"fromName",     label:"From stack name", type:"text", default:""},
-      {key:"fromUuid",     label:"вЂ¦or From UUID",   type:"text", default:""},
+      {key:"fromUuid",     label:"…or From UUID",   type:"text", default:""},
       {key:"toName",       label:"To stack name",   type:"text", default:""},
-      {key:"toUuid",       label:"вЂ¦or To UUID",     type:"text", default:""},
+      {key:"toUuid",       label:"…or To UUID",     type:"text", default:""},
       {key:"cardSelector", label:"Which card",      type:"select", default:"top", options:["top","random","first","by_name","specific"]},
       {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""},
       {key:"toChat",       label:"Post to chat",    type:"select", default:"yes", options:["yes","no"]}
@@ -5634,12 +6208,12 @@ export const NODE_DEFS = {
 
   act_card_recall: {
     title:"Recall Cards", color:"#5a2a7a", cat:"Cards",
-    desc:"Return all cards (from hands and piles) back to this deck вЂ” Foundry's Cards.recall(). Use to reset the game between sessions or shuffle a fresh starting deck.",
+    desc:"Return all cards (from hands and piles) back to this deck — Foundry's Cards.recall(). Use to reset the game between sessions or shuffle a fresh starting deck.",
     inputs:[{id:"exec", label:"", type:"exec"}],
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"name",   label:"Deck name (exact)", type:"text", default:""},
-      {key:"uuid",   label:"вЂ¦or Deck UUID",     type:"text", default:""},
+      {key:"uuid",   label:"…or Deck UUID",     type:"text", default:""},
       {key:"toChat", label:"Post to chat",      type:"select", default:"yes", options:["yes","no"]}
     ],
     isAction:true, wideNode:true,
@@ -5656,7 +6230,7 @@ export const NODE_DEFS = {
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"fromName", label:"From (deck name)", type:"text", default:""},
-      {key:"fromUuid", label:"вЂ¦or From UUID",    type:"text", default:""},
+      {key:"fromUuid", label:"…or From UUID",    type:"text", default:""},
       {key:"toList",   label:"To stacks (CSV of names or UUIDs)", type:"text", default:"", placeholder:"Hand A, Hand B, Cards.xxxx"},
       {key:"count",    label:"Cards per target", type:"number", default:1},
       {key:"how",      label:"Take from",        type:"select", default:"top", options:["top","bottom","random"]},
@@ -5684,10 +6258,10 @@ export const NODE_DEFS = {
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
       {key:"stackName",    label:"Stack name (exact)", type:"text", default:""},
-      {key:"stackUuid",    label:"вЂ¦or Stack UUID",     type:"text", default:""},
+      {key:"stackUuid",    label:"…or Stack UUID",     type:"text", default:""},
       {key:"cardSelector", label:"Which card",         type:"select", default:"top", options:["top","random","first","by_name","specific","all"]},
       {key:"cardName",     label:"Card name (if by_name)", type:"text", default:""},
-      {key:"face",         label:"Target face index (blank в†’ toggle)", type:"number", default:null}
+      {key:"face",         label:"Target face index (blank → toggle)", type:"number", default:null}
     ],
     isAction:true, wideNode:true,
     toAction:(n,inp)=>({
@@ -5703,7 +6277,7 @@ export const NODE_DEFS = {
 
   get_card: {
     title:"Get Card", color:"#5a2a7a", cat:"Cards", wideNode:true,
-    desc:"Pure source вЂ” read properties of a single card from a Cards stack. Pick the stack by name or UUID and choose which card to read via the selector. All outputs reflect the same card. cardId field is used only when selector=specific; cardName when selector=by_name.",
+    desc:"Pure source — read properties of a single card from a Cards stack. Pick the stack by name or UUID and choose which card to read via the selector. All outputs reflect the same card. cardId field is used only when selector=specific; cardName when selector=by_name.",
     inputs:[],
     outputs:[
       {id:"cardId",  label:"Card Id",   type:"value.string"},
@@ -5719,7 +6293,7 @@ export const NODE_DEFS = {
     ],
     fields:[
       {key:"stackName", label:"Stack name (exact)", type:"text", default:"", placeholder:"e.g. Tarot Deck / Aelyn's Hand"},
-      {key:"stackUuid", label:"вЂ¦or Stack UUID",     type:"text", default:"", placeholder:"Cards.xxxx"},
+      {key:"stackUuid", label:"…or Stack UUID",     type:"text", default:"", placeholder:"Cards.xxxx"},
       {key:"selector",  label:"Which card",         type:"select", default:"top", options:["top","first","bottom","random","by_name","specific"]},
       {key:"cardName",  label:"Card name (by_name)", type:"text", default:""},
       {key:"cardId",    label:"Card id (specific)",  type:"text", default:""}
@@ -5745,7 +6319,7 @@ export const NODE_DEFS = {
 
   stack_info: {
     title:"Stack Info", color:"#5a2a7a", cat:"Cards", wideNode:true,
-    desc:"Pure source вЂ” read statistics for a Cards stack. count = total cards, availableCount = cards with drawn=false, drawnCount = drawn=true count, isEmpty = 1 when nothing available, topCardId / bottomCardId = current first/last available card id.",
+    desc:"Pure source — read statistics for a Cards stack. count = total cards, availableCount = cards with drawn=false, drawnCount = drawn=true count, isEmpty = 1 when nothing available, topCardId / bottomCardId = current first/last available card id.",
     inputs:[],
     outputs:[
       {id:"count",          label:"Count",          type:"value.number"},
@@ -5759,7 +6333,7 @@ export const NODE_DEFS = {
     ],
     fields:[
       {key:"stackName", label:"Stack name (exact)", type:"text", default:"", placeholder:"e.g. Tarot Deck"},
-      {key:"stackUuid", label:"вЂ¦or Stack UUID",     type:"text", default:"", placeholder:"Cards.xxxx"}
+      {key:"stackUuid", label:"…or Stack UUID",     type:"text", default:"", placeholder:"Cards.xxxx"}
     ],
     compilePin:(n, _i, fromPin) => {
       const payload = {
@@ -5781,7 +6355,7 @@ export const NODE_DEFS = {
     desc:"Fires when a Card document is created in the configured Cards stack (i.e. when a card is drawn into this hand / pile). Filter by stack name or UUID. Outputs expose the drawn card's id, name, face index, value, and parent stack info.",
     inputs:[],
     outputs:[
-      {id:"exec",      label:"в†’ On Drawn",  type:"exec"},
+      {id:"exec",      label:"→ On Drawn",  type:"exec"},
       {id:"cardId",    label:"Card Id",     type:"value.string"},
       {id:"name",      label:"Name",        type:"value.string"},
       {id:"face",      label:"Face Idx",    type:"value.number"},
@@ -5790,8 +6364,8 @@ export const NODE_DEFS = {
       {id:"stackName", label:"Stack Name",  type:"value.string"}
     ],
     fields:[
-      {key:"stackName", label:"Filter вЂ” stack name (exact)", type:"text", default:"", placeholder:"e.g. Aelyn's Hand"},
-      {key:"stackUuid", label:"вЂ¦or stack UUID",              type:"text", default:"", placeholder:"Cards.xxxx"}
+      {key:"stackName", label:"Filter — stack name (exact)", type:"text", default:"", placeholder:"e.g. Aelyn's Hand"},
+      {key:"stackUuid", label:"…or stack UUID",              type:"text", default:"", placeholder:"Cards.xxxx"}
     ],
     isEvent:true, eventHook:"cardDrawn"
   },
@@ -5801,13 +6375,13 @@ export const NODE_DEFS = {
     desc:"Fires when a quest in this QuestLog becomes active on any actor. Outputs the actor and quest involved.",
     inputs:[],
     outputs:[
-      {id:"exec",         label:"в†’ On Activated",  type:"exec"},
+      {id:"exec",         label:"→ On Activated",  type:"exec"},
       {id:"questId",      label:"Quest Id",         type:"value.string"},
       {id:"questLogUuid", label:"QuestLog Uuid",    type:"value.string"},
       {id:"actorId",      label:"Actor Id",         type:"value.string"}
     ],
     fields:[
-      {key:"questIdFilter", label:"Only quest id (optional, blank = any)", type:"text", default:""}
+      {key:"questIdFilter", label:"Only quest id (optional, blank = any)", type:"quest-id", default:""}
     ],
     isEvent:true, eventHook:"sdQuestActivated"
   },
@@ -5817,12 +6391,12 @@ export const NODE_DEFS = {
     desc:"Fires when a quest in this QuestLog is marked Completed.",
     inputs:[],
     outputs:[
-      {id:"exec",         label:"в†’ On Completed",  type:"exec"},
+      {id:"exec",         label:"→ On Completed",  type:"exec"},
       {id:"questId",      label:"Quest Id",         type:"value.string"},
       {id:"questLogUuid", label:"QuestLog Uuid",    type:"value.string"}
     ],
     fields:[
-      {key:"questIdFilter", label:"Only quest id (optional)", type:"text", default:""}
+      {key:"questIdFilter", label:"Only quest id (optional)", type:"quest-id", default:""}
     ],
     isEvent:true, eventHook:"sdQuestCompleted"
   },
@@ -5832,12 +6406,12 @@ export const NODE_DEFS = {
     desc:"Fires when a quest in this QuestLog is marked Failed.",
     inputs:[],
     outputs:[
-      {id:"exec",         label:"в†’ On Failed",      type:"exec"},
+      {id:"exec",         label:"→ On Failed",      type:"exec"},
       {id:"questId",      label:"Quest Id",         type:"value.string"},
       {id:"questLogUuid", label:"QuestLog Uuid",    type:"value.string"}
     ],
     fields:[
-      {key:"questIdFilter", label:"Only quest id (optional)", type:"text", default:""}
+      {key:"questIdFilter", label:"Only quest id (optional)", type:"quest-id", default:""}
     ],
     isEvent:true, eventHook:"sdQuestFailed"
   },
@@ -5847,13 +6421,13 @@ export const NODE_DEFS = {
     desc:"Fires when a subtask of a quest in this QuestLog is marked done.",
     inputs:[],
     outputs:[
-      {id:"exec",         label:"в†’ On Subtask Done",type:"exec"},
+      {id:"exec",         label:"→ On Subtask Done",type:"exec"},
       {id:"questId",      label:"Quest Id",         type:"value.string"},
       {id:"subtaskId",    label:"Subtask Id",       type:"value.string"}
     ],
     fields:[
-      {key:"questIdFilter",   label:"Only quest id (optional)",   type:"text", default:""},
-      {key:"subtaskIdFilter", label:"Only subtask id (optional)", type:"text", default:""}
+      {key:"questIdFilter",   label:"Only quest id (optional)",   type:"quest-id", default:""},
+      {key:"subtaskIdFilter", label:"Only subtask id (optional)", type:"subtask-id", default:""}
     ],
     isEvent:true, eventHook:"sdSubtaskDone"
   },
@@ -5863,7 +6437,7 @@ export const NODE_DEFS = {
     desc:"Fires when GM toggles 'Reveal' on a quest in this QuestLog (visible-to-players override).",
     inputs:[],
     outputs:[
-      {id:"exec",      label:"в†’ On Reveal",  type:"exec"},
+      {id:"exec",      label:"→ On Reveal",  type:"exec"},
       {id:"questId",   label:"Quest Id",      type:"value.string"},
       {id:"revealed",  label:"Revealed?",     type:"value.bool"}
     ],
@@ -5889,7 +6463,7 @@ export const NODE_DEFS = {
         {value:"fail",      label:"Quest failed"},
         {value:"lock",      label:"Quest locked"}
       ]},
-      {key:"questId",  label:"Quest Id", type:"text", default:"this"},
+      {key:"questId",  label:"Quest Id", type:"quest-id", default:"this"},
       {key:"actorRef", label:"Actor for Active state", type:"text", default:"", placeholder:"id, UUID, this, or blank"}
     ],
     toAction:(n,inp)=>({
@@ -5910,9 +6484,9 @@ export const NODE_DEFS = {
       {id:"questId",  label:"Quest Id",   type:"value.string"},
       {id:"actorRef", label:"Actor (id/uuid/this/triggering)", type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’",       type:"exec"}],
+    outputs:[{id:"exec", label:"→",       type:"exec"}],
     fields:[
-      {key:"questId",  label:"Quest Id (default вЂ” this quest's id, or filter)", type:"text", default:"this"},
+      {key:"questId",  label:"Quest Id (default — this quest's id, or filter)", type:"quest-id", default:"this"},
       {key:"actorRef", label:"Actor (id, uuid, 'this'=triggering, blank=current user's char)", type:"text", default:""}
     ],
     toAction:(n,inp)=>({
@@ -5931,9 +6505,9 @@ export const NODE_DEFS = {
       {id:"exec",    label:"",         type:"exec"},
       {id:"questId", label:"Quest Id", type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+      {key:"questId", label:"Quest Id (default 'this')", type:"quest-id", default:"this"}
     ],
     toAction:(n,inp)=>({
       type:"questAction", op:"complete",
@@ -5950,9 +6524,9 @@ export const NODE_DEFS = {
       {id:"exec",    label:"",         type:"exec"},
       {id:"questId", label:"Quest Id", type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+      {key:"questId", label:"Quest Id (default 'this')", type:"quest-id", default:"this"}
     ],
     toAction:(n,inp)=>({
       type:"questAction", op:"fail",
@@ -5969,9 +6543,9 @@ export const NODE_DEFS = {
       {id:"exec",    label:"",         type:"exec"},
       {id:"questId", label:"Quest Id", type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+      {key:"questId", label:"Quest Id (default 'this')", type:"quest-id", default:"this"}
     ],
     toAction:(n,inp)=>({
       type:"questAction", op:"lock",
@@ -5988,9 +6562,9 @@ export const NODE_DEFS = {
       {id:"exec",    label:"",         type:"exec"},
       {id:"questId", label:"Quest Id", type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+      {key:"questId", label:"Quest Id (default 'this')", type:"quest-id", default:"this"}
     ],
     toAction:(n,inp)=>({
       type:"questAction", op:"available",
@@ -6008,10 +6582,10 @@ export const NODE_DEFS = {
       {id:"subtaskId",  label:"Subtask Id", type:"value.string"},
       {id:"done",       label:"Done",       type:"value.bool"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId",   label:"Quest Id (default 'this')",   type:"text", default:"this"},
-      {key:"subtaskId", label:"Subtask Id",                  type:"text", default:""},
+      {key:"questId",   label:"Quest Id (default 'this')",   type:"quest-id", default:"this"},
+      {key:"subtaskId", label:"Subtask Id",                  type:"subtask-id", default:""},
       {key:"done",      label:"Done value (when no input)",  type:"select", default:"true", options:["true","false"]}
     ],
     toAction:(n,inp)=>({
@@ -6033,10 +6607,10 @@ export const NODE_DEFS = {
       {id:"questId", label:"Quest Id", type:"value.string"},
       {id:"userId",  label:"User Id",  type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"},
-      {key:"userId",  label:"User Id ('this'=triggering, blank=all)", type:"text", default:""}
+      {key:"questId", label:"Quest Id (default 'this')", type:"quest-id", default:"this"},
+      {key:"userId",  label:"User Id ('this'=triggering, blank/all=everyone)", type:"text", default:""}
     ],
     toAction:(n,inp)=>({
       type:"questAction", op:"showToPlayer",
@@ -6054,9 +6628,9 @@ export const NODE_DEFS = {
       {id:"questId", label:"Quest Id", type:"value.string"},
       {id:"on",      label:"On (bool, blank=toggle)", type:"value.bool"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"},
+      {key:"questId", label:"Quest Id (default 'this')", type:"quest-id", default:"this"},
       {key:"on",      label:"On (true/false, blank=toggle)", type:"select", default:"toggle", options:["toggle","true","false"]}
     ],
     toAction:(n,inp)=>{
@@ -6077,17 +6651,17 @@ export const NODE_DEFS = {
 
   reward_reveal: {
     title:"Reveal Reward", color:"#d8a83a", cat:"Quest", wideNode:true,
-    desc:"Toggle GM-reveal on a reward вЂ” overrides hidden/onCompletion/conditional visibility so players can see it.",
+    desc:"Toggle GM-reveal on a reward — overrides hidden/onCompletion/conditional visibility so players can see it.",
     inputs:[
       {id:"exec",     label:"",          type:"exec"},
       {id:"questId",  label:"Quest Id",  type:"value.string"},
       {id:"rewardId", label:"Reward Id", type:"value.string"},
       {id:"on",       label:"On (blank=toggle)", type:"value.bool"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId",  label:"Quest Id (default 'this')",  type:"text", default:"this"},
-      {key:"rewardId", label:"Reward Id (required)",       type:"text", default:""},
+      {key:"questId",  label:"Quest Id (default 'this')",  type:"quest-id", default:"this"},
+      {key:"rewardId", label:"Reward Id (required)",       type:"reward-id", default:""},
       {key:"on",       label:"On (true/false, blank=toggle)", type:"select", default:"toggle", options:["toggle","true","false"]}
     ],
     toAction:(n,inp)=>{
@@ -6116,10 +6690,10 @@ export const NODE_DEFS = {
       {id:"rewardId", label:"Reward Id", type:"value.string"},
       {id:"on",       label:"On (blank=true)", type:"value.bool"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId",  label:"Quest Id (default 'this')",  type:"text", default:"this"},
-      {key:"rewardId", label:"Reward Id (required)",       type:"text", default:""},
+      {key:"questId",  label:"Quest Id (default 'this')",  type:"quest-id", default:"this"},
+      {key:"rewardId", label:"Reward Id (required)",       type:"reward-id", default:""},
       {key:"on",       label:"On (true/false, blank=true)", type:"select", default:"true", options:["true","false"]}
     ],
     toAction:(n,inp)=>{
@@ -6147,10 +6721,10 @@ export const NODE_DEFS = {
       {id:"questId",  label:"Quest Id",  type:"value.string"},
       {id:"rewardId", label:"Reward Id", type:"value.string"}
     ],
-    outputs:[{id:"exec", label:"в†’", type:"exec"}],
+    outputs:[{id:"exec", label:"→", type:"exec"}],
     fields:[
-      {key:"questId",  label:"Quest Id (default 'this')", type:"text", default:"this"},
-      {key:"rewardId", label:"Reward Id (required)",      type:"text", default:""}
+      {key:"questId",  label:"Quest Id (default 'this')", type:"quest-id", default:"this"},
+      {key:"rewardId", label:"Reward Id (required)",      type:"reward-id", default:""}
     ],
     toAction:(n,inp)=>({
       type:"questAction", op:"rewardGrantAll",
@@ -6162,7 +6736,7 @@ export const NODE_DEFS = {
 
   quest_status: {
     title:"Quest Status", color:"#5a4ec0", cat:"Quest", wideNode:true,
-    desc:"Pure source вЂ” read the current status of a quest as a string ('locked'/'available'/'active'/'completed'/'failed').",
+    desc:"Pure source — read the current status of a quest as a string ('locked'/'available'/'active'/'completed'/'failed').",
     inputs:[],
     outputs:[
       {id:"status",     label:"Status",      type:"value.string"},
@@ -6171,7 +6745,7 @@ export const NODE_DEFS = {
       {id:"isActive",   label:"Active?",     type:"value.bool"}
     ],
     fields:[
-      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+      {key:"questId", label:"Quest Id (default 'this')", type:"quest-id", default:"this"}
     ],
     compilePin:(n, _i, fromPin) => {
       const raw = String(n.data?.questId ?? "this");
@@ -6183,11 +6757,11 @@ export const NODE_DEFS = {
 
   quest_is_active: {
     title:"Quest Is Active?", color:"#5a4ec0", cat:"Quest",
-    desc:"Pure source вЂ” true if a quest's status is 'active' (regardless of which actor).",
+    desc:"Pure source — true if a quest's status is 'active' (regardless of which actor).",
     inputs:[],
     outputs:[{id:"value", label:"Active?", type:"value.bool"}],
     fields:[
-      {key:"questId", label:"Quest Id (default 'this')", type:"text", default:"this"}
+      {key:"questId", label:"Quest Id (default 'this')", type:"quest-id", default:"this"}
     ],
     compilePin:(n)=>{
       const raw = String(n.data?.questId ?? "this");
@@ -6198,12 +6772,12 @@ export const NODE_DEFS = {
 
   subtask_done: {
     title:"Subtask Done?", color:"#5a4ec0", cat:"Quest", wideNode:true,
-    desc:"Pure source вЂ” true if a subtask is marked done.",
+    desc:"Pure source — true if a subtask is marked done.",
     inputs:[],
     outputs:[{id:"value", label:"Done?", type:"value.bool"}],
     fields:[
-      {key:"questId",   label:"Quest Id (default 'this')", type:"text", default:"this"},
-      {key:"subtaskId", label:"Subtask Id (default 'this')", type:"text", default:"this"}
+      {key:"questId",   label:"Quest Id (default 'this')", type:"quest-id", default:"this"},
+      {key:"subtaskId", label:"Subtask Id (default 'this')", type:"subtask-id", default:"this"}
     ],
     compilePin:(n)=>{
       const rawQ = String(n.data?.questId ?? "this");
@@ -6216,7 +6790,7 @@ export const NODE_DEFS = {
 
   current_user_id: {
     title:"Current User", color:"#5a4ec0", cat:"Quest",
-    desc:"Pure source вЂ” id and role of the user the script runs for.",
+    desc:"Pure source — id and role of the user the script runs for.",
     inputs:[],
     outputs:[
       {id:"id",   label:"User Id",  type:"value.string"},
@@ -6233,7 +6807,7 @@ export const NODE_DEFS = {
 
   actor_on_scene: {
     title:"Actor On Scene?", color:"#5a4ec0", cat:"Quest", wideNode:true,
-    desc:"Pure source вЂ” true if the given actor (by id or name) has at least one token on the currently viewed scene.",
+    desc:"Pure source — true if the given actor (by id or name) has at least one token on the currently viewed scene.",
     inputs:[],
     outputs:[{id:"value", label:"On Scene?", type:"value.bool"}],
     fields:[
@@ -6247,7 +6821,7 @@ export const NODE_DEFS = {
 
   field_equals: {
     title:"Field Value Equals?", color:"#5a4ec0", cat:"Quest", wideNode:true,
-    desc:"Pure source вЂ” true if a path on a referenced actor equals the given value (string compare). Use to gate quest progress on actor stats / flags.",
+    desc:"Pure source — true if a path on a referenced actor equals the given value (string compare). Use to gate quest progress on actor stats / flags.",
     inputs:[],
     outputs:[
       {id:"value", label:"Equals?", type:"value.bool"},
@@ -6268,8 +6842,8 @@ export const NODE_DEFS = {
   },
 
   vision_visible_tokens: {
-    title:"Vision вЂ” Visible Tokens", color:"#2a6a7a", cat:"Scene", wideNode:true,
-    desc:"Pure source. Returns either a comma-joined array of token ids (pin `v`) or actor UUIDs (pin `actors`) visible from the source within Distance feet and within a vision cone of Angle degrees (360 = full circle). Token-id output feeds into For Each Token / tokenField / Array nodes; actor-uuid output is portable across scenes and feeds straight into actor-accepting nodes (Modify Field, Apply Effect, Cast To Actor, вЂ¦). The Actor input accepts a Get Actor / Get Self / explicit Actor UUID (Actor.xxx) вЂ” UUIDs are resolved to the actor's first active token on the current scene. Optional Show draws a semi-transparent vision ray on the canvas every time the array is resolved (use sparingly).",
+    title:"Vision — Visible Tokens", color:"#2a6a7a", cat:"Scene", wideNode:true,
+    desc:"Pure source. Returns either a comma-joined array of token ids (pin `v`) or actor UUIDs (pin `actors`) visible from the source within Distance feet and within a vision cone of Angle degrees (360 = full circle). Token-id output feeds into For Each Token / tokenField / Array nodes; actor-uuid output is portable across scenes and feeds straight into actor-accepting nodes (Modify Field, Apply Effect, Cast To Actor, …). The Actor input accepts a Get Actor / Get Self / explicit Actor UUID (Actor.xxx) — UUIDs are resolved to the actor's first active token on the current scene. Optional Show draws a semi-transparent vision ray on the canvas every time the array is resolved (use sparingly).",
     inputs:[
       {id:"actor",    label:"Actor",        type:"value.actor"},
       {id:"distance", label:"Distance (ft)",type:"value.number"},
@@ -6306,7 +6880,7 @@ export const NODE_DEFS = {
 
   act_vision_scan: {
     title:"Vision Scan (Action)", color:"#2a6a7a", cat:"Scene", wideNode:true,
-    desc:"Action node вЂ” runs a one-shot vision scan when its exec input fires. Use the new `On Vision Detect` event node for hook-driven triggers; this node stays for on-demand scans (e.g. from an On Click button, or chained after another action). The Actor input accepts a Get Actor / Get Self / explicit Actor UUID (Actor.xxx) вЂ” UUIDs are resolved to the actor's first active token on the current scene. Outputs both the token-id array (`v`, also as {__visionLast}) and the actor-UUID array (`actors`, also as {__visionLastActors}). Optionally draws a semi-transparent vision ray on the canvas (configurable colour & duration).",
+    desc:"Action node — runs a one-shot vision scan when its exec input fires. Use the new `On Vision Detect` event node for hook-driven triggers; this node stays for on-demand scans (e.g. from an On Click button, or chained after another action). The Actor input accepts a Get Actor / Get Self / explicit Actor UUID (Actor.xxx) — UUIDs are resolved to the actor's first active token on the current scene. Outputs both the token-id array (`v`, also as {__visionLast}) and the actor-UUID array (`actors`, also as {__visionLastActors}). Optionally draws a semi-transparent vision ray on the canvas (configurable colour & duration).",
     wideNode:true,
     inputs:[
       {id:"exec",     label:"",             type:"exec"},
@@ -6354,10 +6928,10 @@ export const NODE_DEFS = {
 
   on_vision_detect: {
     title:"On Vision Detect", color:"#2a6a7a", cat:"Scene", wideNode:true,
-    desc:"Event trigger вЂ” fires when this actor (the document the graph runs on) detects one or more new tokens in its vision cone. Re-evaluated whenever tokens move/spawn/disappear on the same scene as the actor; only NEW tokens (relative to the previous scan) trigger the event. Configure the scan with Distance (number or hidden field), Angle (deg), and Require LOS just like the Vision Scan node. Outputs expose: the detector actor's UUID, the comma-joined array of NEW detected actor UUIDs and token ids, and the first newly-detected actor's UUID for the common single-target case. Optional Show draws a brief vision ray on every detection (useful for debugging).",
+    desc:"Event trigger — fires when this actor (the document the graph runs on) detects one or more new tokens in its vision cone. Re-evaluated whenever tokens move/spawn/disappear on the same scene as the actor; only NEW tokens (relative to the previous scan) trigger the event. Configure the scan with Distance (number or hidden field), Angle (deg), and Require LOS just like the Vision Scan node. Outputs expose: the detector actor's UUID, the comma-joined array of NEW detected actor UUIDs and token ids, and the first newly-detected actor's UUID for the common single-target case. Optional Show draws a brief vision ray on every detection (useful for debugging).",
     inputs:[],
     outputs:[
-      {id:"exec",        label:"в†’ On Detect",       type:"exec"},
+      {id:"exec",        label:"→ On Detect",       type:"exec"},
       {id:"actorUuid",   label:"Detector Actor UUID", type:"value.string"},
       {id:"firstActor",  label:"First Detected Actor UUID", type:"value.string"},
       {id:"actors",      label:"Detected Actor UUIDs",     type:"value.array"},
@@ -6497,7 +7071,7 @@ export const NODE_DEFS = {
     desc:"Fires whenever a Macro is executed (chat command, hotbar click or any code-driven .execute()). Optionally filter by macro id, UUID or exact name; leave blank to react to ANY macro. Outputs expose the executed macro and the speaker actor / token at the moment of the call.",
     inputs:[],
     outputs:[
-      {id:"exec",      label:"в†’ On Macro Use", type:"exec"},
+      {id:"exec",      label:"→ On Macro Use", type:"exec"},
       {id:"macroId",   label:"Macro Id",        type:"value.string"},
       {id:"macroName", label:"Macro Name",      type:"value.string"},
       {id:"actorId",   label:"Actor Id",        type:"value.string"},
@@ -6511,7 +7085,7 @@ export const NODE_DEFS = {
 
   act_move_token: {
     title:"Move Token", color:"#2a4a8a", cat:"Scene", wideNode:true,
-    desc:"Move a token by Distance feet in the given Direction.  Direction modes:  вЂў Degrees вЂ” Direction is a 0-360В° heading (0 = up / north, 90 = right / east, 180 = down, 270 = left).  вЂў Square вЂ” Direction is an index 0-7 starting at North then clockwise: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW (full 8-way including diagonals).  вЂў Hex вЂ” Direction is an index 0-5 along the scene's hex grid directions (auto-detects columnar / row-wise).  Wall passthrough: when off, the move is cancelled if walls block the path.",
+    desc:"Move a token by Distance feet in the given Direction.  Direction modes:  • Degrees — Direction is a 0-360В° heading (0 = up / north, 90 = right / east, 180 = down, 270 = left).  • Square — Direction is an index 0-7 starting at North then clockwise: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW (full 8-way including diagonals).  • Hex — Direction is an index 0-5 along the scene's hex grid directions (auto-detects columnar / row-wise).  Wall passthrough: when off, the move is cancelled if walls block the path.",
     inputs:[
       {id:"exec",      label:"",             type:"exec"},
       {id:"actor",     label:"Actor",        type:"value.actor"},
@@ -6542,8 +7116,8 @@ export const NODE_DEFS = {
   },
 
   act_tts: {
-    title:"TTS вЂ” Speak", color:"#7a4a8a", cat:"System", wideNode:true,
-    desc:"Speak the input text out loud through every connected client using the browser's built-in Web Speech API (no external service, no API key, voices come from the operating system). Text input is also passed through to the Text output pin so you can chain it (e.g. also post to chat). Voice & language pickers are free-form вЂ” leave blank to use the browser default. Rate 0.1-10, Pitch 0-2, Volume 0-1. Target controls who speaks: all = everyone (default), gm = GM only, players = all non-GM clients, self = only the user who triggered it.",
+    title:"TTS — Speak", color:"#7a4a8a", cat:"System", wideNode:true,
+    desc:"Speak the input text out loud through every connected client using the browser's built-in Web Speech API (no external service, no API key, voices come from the operating system). Text input is also passed through to the Text output pin so you can chain it (e.g. also post to chat). Voice & language pickers are free-form — leave blank to use the browser default. Rate 0.1-10, Pitch 0-2, Volume 0-1. Target controls who speaks: all = everyone (default), gm = GM only, players = all non-GM clients, self = only the user who triggered it.",
     inputs:[
       {id:"exec",  label:"",     type:"exec"},
       {id:"text",  label:"Text", type:"value.string"}
@@ -6554,7 +7128,7 @@ export const NODE_DEFS = {
     ],
     fields:[
       {key:"text",   label:"Text (used if Text pin is empty)", type:"text",   default:""},
-      {key:"voice",  label:"Voice name (blank = default)",     type:"text",   default:"",  placeholder:"Microsoft David вЂ” English (US)"},
+      {key:"voice",  label:"Voice name (blank = default)",     type:"text",   default:"",  placeholder:"Microsoft David — English (US)"},
       {key:"lang",   label:"Language tag (BCP-47)",            type:"text",   default:"",  placeholder:"en-US / ru-RU / de-DE"},
       {key:"rate",   label:"Rate (0.1 - 10)",                  type:"number", default:1},
       {key:"pitch",  label:"Pitch (0 - 2)",                    type:"number", default:1},
@@ -6595,8 +7169,8 @@ export const NODE_DEFS = {
     fields: [],
     computeDynamicOutputs(node) {
       const sig = node?.__sig;
-      if (!sig) return [{id:"_exec",label:"в†’",type:"exec"}];
-      const out = [{id:"_exec",label:"в†’",type:"exec"}];
+      if (!sig) return [{id:"_exec",label:"→",type:"exec"}];
+      const out = [{id:"_exec",label:"→",type:"exec"}];
       for (const p of (sig.inputs ?? [])) {
         out.push({id:p.id,label:p.label||p.id,type:p.type||"value.any"});
       }
@@ -6624,8 +7198,8 @@ export const NODE_DEFS = {
     fields: [],
     computeDynamicInputs(node) {
       const sig = node?.__sig;
-      if (!sig) return [{id:"_exec",label:"в†’",type:"exec"}];
-      const out = [{id:"_exec",label:"в†’",type:"exec"}];
+      if (!sig) return [{id:"_exec",label:"→",type:"exec"}];
+      const out = [{id:"_exec",label:"→",type:"exec"}];
       for (const p of (sig.outputs ?? [])) {
         out.push({id:p.id,label:p.label||p.id,type:p.type||"value.any"});
       }
@@ -6645,7 +7219,7 @@ export const NODE_DEFS = {
     fields: [],
     computeDynamicInputs(node) {
       const sig = node?.__sig;
-      const out = [{id:"_exec",label:"в†’",type:"exec"}];
+      const out = [{id:"_exec",label:"→",type:"exec"}];
       if (sig) {
         for (const p of (sig.inputs ?? [])) {
           out.push({id:p.id,label:p.label||p.id,type:p.type||"value.any"});
@@ -6655,7 +7229,7 @@ export const NODE_DEFS = {
     },
     computeDynamicOutputs(node) {
       const sig = node?.__sig;
-      const out = [{id:"_exec",label:"в†’",type:"exec"}];
+      const out = [{id:"_exec",label:"→",type:"exec"}];
       if (sig) {
         for (const p of (sig.outputs ?? [])) {
           out.push({id:p.id,label:p.label||p.id,type:p.type||"value.any"});
@@ -7516,6 +8090,21 @@ const _ROLL_META = {
   isFumble:      "{__lastIsFumble}"
 };
 const BRANCH_PIN_TOKENS = {
+  act_roll_v2: { result:"{__rollResult}", total:"{__rollTotal}", successes:"{__rollSuccesses}", botches:"{__rollBotches}" },
+  act_analyze_roll: { result:"{__rollResult}", total:"{__rollTotal}", formula:"{__rollFormula}", dice:"{__rollDice}", natural:"{__rollNatural}", min:"{__rollMin}", max:"{__rollMax}", avg:"{__rollAvg}", successes:"{__rollSuccesses}", botches:"{__rollBotches}", isCrit:"{__rollIsCrit}", isFumble:"{__rollIsFumble}" },
+  act_compare_roll: { result:"{__rollResult}", compared:"{__rollCompared}", target:"{__rollTarget}", margin:"{__rollMargin}", passed:"{__rollPassed}" },
+  act_present_roll: { result:"{__rollResult}" },
+  act_aura_definition: { aura:"{__auraDefinition}" },
+  act_place_aura_zone: { targets:"{__allTargets}", aura:"{__auraRegion}" },
+  act_tokens_from_aura: { targets:"{__allTargets}", count:"{__targetCount}" },
+  act_effect_definition: { effect:"{__effectDefinition}" },
+  act_effect_add_change: { effect:"{__effectDefinition}" },
+  act_save_dc: { result:"{__lastRoll}", passedTargets:"{__savedTargets}", failedTargets:"{__failedTargets}", allTargets:"{__allTargets}" },
+  act_aoe_template_saver: { templates:"{__aoeTemplates}" },
+  act_choice_from_array: { selected:"{__choiceSelected}", selectedArray:"{__choiceSelectedArray}", index:"{__choiceIndex}", indices:"{__choiceIndices}" },
+  act_place_aoe_template: { targets:"{__allTargets}", template:"{__aoeTemplate}" },
+  act_tokens_from_aoe: { targets:"{__allTargets}", count:"{__targetCount}" },
+  act_spell: { targets:"{__allTargets}", template:"{__aoeTemplate}", effect:"{__spellEffect}", value:"{__spellValue}" },
   act_roll_value:   { result: "{__lastRoll}", ..._ROLL_META_BASIC },
   act_attack_check: { result: "{__lastRoll}", margin: "{__lastMargin}", ..._ROLL_META },
   act_roll_check:   { result: "{__lastRoll}", margin: "{__lastMargin}", winnerRoll: "{__opposedWinnerRoll}", ..._ROLL_META },
@@ -7530,6 +8119,7 @@ const BRANCH_PIN_TOKENS = {
   act_ai_assistant:    { response: "{__lastAiResponse}", errorMsg: "{__lastAiError}" },
   act_ai_memory_update:{ memoryCount: "{__aiMemoryCount}", errorMsg: "{__lastAiError}" },
   act_loop:            { index: "{__loopIndex}" },
+  for_loop_range:      { index: "{__loopIndex}" },
   cast_to_actor:       { actorId: "{__castActorId}" },
   cast_to_item:        { itemId: "{__castItemId}" },
   macro_call:          { retA: "{__macroRetA}", retB: "{__macroRetB}" },
@@ -7609,8 +8199,8 @@ export function getNodeKind(def) {
 }
 
 export const SD_TARGET_MODES = [
-  { id:"self",            label:"Self (this document)" },
-  { id:"actor",            label:"Owning actor" },
+  { id:"actor",            label:"Self (Actor)" },
+  { id:"self",             label:"Self (Item)" },
   { id:"token_target",     label:"First targeted token" },
   { id:"selected_token",   label:"First selected token" },
   { id:"all_targets",      label:"All targeted tokens" },
@@ -7625,7 +8215,7 @@ const WIDGET_CONFIG_NODES = {
     inputs:[_mkPin("label","Label"),_mkPin("path","Path"),_mkPin("placeholder","Placeholder")],
     outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Label"},{key:"path",label:"Data Path",type:"path",default:"system.flags.myField"},{key:"placeholder",label:"Placeholder",type:"text",default:""}]
   },
-  wcfg_number:    { title:"Number В±",        color:"#2a4060", isWidgetConfig:true, widgetType:"number",
+  wcfg_number:    { title:"Number ±",        color:"#2a4060", isWidgetConfig:true, widgetType:"number",
     inputs:[_mkPin("label","Label"),_mkPin("path","Path"),_mkPin("min","Min"),_mkPin("max","Max"),_mkPin("step","Step")],
     outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Value"},{key:"path",label:"Data Path",type:"path",default:"system.flags.myNumber"},{key:"min",label:"Min",type:"text",default:""},{key:"max",label:"Max",type:"text",default:""},{key:"step",label:"Step",type:"number",default:1}]
   },
@@ -7712,7 +8302,7 @@ const WIDGET_CONFIG_NODES = {
     inputs:[_mkPin("label","Label")],
     outputs:[], fields:[{key:"label",label:"Title",type:"text",default:"Section"}]
   },
-  wcfg_counter:   { title:"Counter В±",        color:"#4a3a1a", isWidgetConfig:true, widgetType:"counter",
+  wcfg_counter:   { title:"Counter ±",        color:"#4a3a1a", isWidgetConfig:true, widgetType:"counter",
     inputs:[_mkPin("label","Label"),_mkPin("path","Path"),_mkPin("min","Min"),_mkPin("max","Max"),_mkPin("step","Step"),_mkPin("color","Color")],
     outputs:[], fields:[
       {key:"label",label:"Label",type:"text",default:"Counter"},
@@ -8092,19 +8682,45 @@ export class FormulaGraph {
     });
   }
 
-  _serialiseSubgraph(nodeIds) {
+  _serialiseComment(c) {
+    return {
+      id:    c.id,
+      x:     Number(c.x) || 0,
+      y:     Number(c.y) || 0,
+      w:     Math.max(120, Number(c.w) || 120),
+      h:     Math.max(80, Number(c.h) || 80),
+      title: String(c.title ?? "Comment"),
+      color: String(c.color ?? "#ffd94a"),
+      mode:  c.mode === "note" ? "note" : "frame",
+      text:  String(c.text ?? "")
+    };
+  }
+
+  _serialiseSubgraph(nodeIds, commentIds = []) {
     const ids = new Set(nodeIds);
     const nodes = this.nodes
       .filter(n => ids.has(n.id))
       .map(n => ({ id: n.id, type: n.type, x: n.x, y: n.y, data: foundry.utils.deepClone(n.data ?? {}) }));
     if (!nodes.length) return null;
-    const minX = Math.min(...nodes.map(n => n.x));
-    const minY = Math.min(...nodes.map(n => n.y));
-    for (const n of nodes) { n.x -= minX; n.y -= minY; }
+
+    // Explicitly selected comments are always included. Comment frames which
+    // contain any selected node are included as well, so selecting a documented
+    // group of nodes is enough to preserve its frame/note in a template.
+    const selectedCommentIds = new Set(commentIds ?? []);
+    const comments = this.comments
+      .filter(c => selectedCommentIds.has(c.id) || nodes.some(n =>
+        n.x >= c.x && n.x <= c.x + c.w && n.y >= c.y && n.y <= c.y + c.h
+      ))
+      .map(c => this._serialiseComment(c));
+
+    const minX = Math.min(...nodes.map(n => n.x), ...comments.map(c => c.x));
+    const minY = Math.min(...nodes.map(n => n.y), ...comments.map(c => c.y));
+    for (const n of nodes)    { n.x -= minX; n.y -= minY; }
+    for (const c of comments) { c.x -= minX; c.y -= minY; }
     const edges = this.edges
       .filter(e => ids.has(e.fromNode) && ids.has(e.toNode))
       .map(e => ({ id: e.id, fromNode: e.fromNode, fromPin: e.fromPin, toNode: e.toNode, toPin: e.toPin }));
-    return { nodes, edges };
+    return { nodes, edges, comments };
   }
 
   _insertTemplate(tpl, gx = 80, gy = 80) {
@@ -8131,10 +8747,22 @@ export class FormulaGraph {
         toNode:   idMap[e.toNode],   toPin:   e.toPin
       }));
     this.edges.push(...newEdges);
+    const newComments = (tpl.comments ?? []).map(c => ({
+      ...this._serialiseComment(c),
+      id: `c${this._id++}`,
+      x:  Math.round(gx + (Number(c.x) || 0)),
+      y:  Math.round(gy + (Number(c.y) || 0))
+    }));
+    this.comments.push(...newComments);
     this._selected.clear();
+    this._selectedComments.clear();
     for (const n of valid) {
       this._renderNode(n);
       this._selected.add(n.id);
+    }
+    for (const c of newComments) {
+      this._renderComment(c);
+      this._selectedComments.add(c.id);
     }
     this._refreshSelectionHighlights();
     this._scheduleEdges?.();
@@ -8153,10 +8781,14 @@ export class FormulaGraph {
   }
 
   async _saveSelectionAsTemplate() {
+    const hasSelection = this._selected.size || this._selectedComments.size;
     const ids = this._selected.size
       ? Array.from(this._selected)
       : this.nodes.map(n => n.id);
-    const tpl = this._serialiseSubgraph(ids);
+    const commentIds = hasSelection
+      ? Array.from(this._selectedComments)
+      : this.comments.map(c => c.id);
+    const tpl = this._serialiseSubgraph(ids, commentIds);
     if (!tpl || !tpl.nodes.length) {
       ui.notifications?.warn?.("Nothing to save. Shift-click nodes to select them first.");
       return;
@@ -8168,10 +8800,12 @@ export class FormulaGraph {
       name,
       nodes:   tpl.nodes,
       edges:   tpl.edges,
+      comments: tpl.comments,
       created: Date.now()
     };
     await this._writeNodeTemplates(store);
-    ui.notifications?.info?.(`Template "${name}" saved (${tpl.nodes.length} node${tpl.nodes.length===1?"":"s"}).`);
+    const notes = tpl.comments?.length ?? 0;
+    ui.notifications?.info?.(`Template "${name}" saved (${tpl.nodes.length} node${tpl.nodes.length===1?"":"s"}, ${notes} note${notes===1?"":"s"}).`);
   }
 
   _openTemplatesMenu(anchorEl) {
@@ -8206,7 +8840,7 @@ export class FormulaGraph {
       main.style.cssText = "flex:1;min-width:0";
       main.innerHTML = `
         <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tpl.name)}</div>
-        <div style="font-size:9px;color:var(--sd-text-3)">${(tpl.nodes??[]).length} nodes - ${(tpl.edges??[]).length} edges</div>`;
+        <div style="font-size:9px;color:var(--sd-text-3)">${(tpl.nodes??[]).length} nodes - ${(tpl.edges??[]).length} edges - ${(tpl.comments??[]).length} notes</div>`;
       main.addEventListener("click", () => {
         const wrap = this.win?.querySelector("#gwrap");
         let gx = 120, gy = 120;
@@ -8304,10 +8938,14 @@ export class FormulaGraph {
   }
 
   _exportSelectionAsFile() {
+    const hasSelection = this._selected.size || this._selectedComments.size;
     const ids = this._selected.size
       ? Array.from(this._selected)
       : this.nodes.map(n => n.id);
-    const tpl = this._serialiseSubgraph(ids);
+    const commentIds = hasSelection
+      ? Array.from(this._selectedComments)
+      : this.comments.map(c => c.id);
+    const tpl = this._serialiseSubgraph(ids, commentIds);
     if (!tpl || !tpl.nodes.length) {
       ui.notifications?.warn?.("Nothing to export.");
       return;
@@ -8316,6 +8954,7 @@ export class FormulaGraph {
       name:    this._selected.size ? `Selection (${tpl.nodes.length})` : `Full graph (${tpl.nodes.length})`,
       nodes:   tpl.nodes,
       edges:   tpl.edges,
+      comments: tpl.comments,
       created: Date.now()
     };
     this._downloadTemplateJSON(payload, `node-template.json`);
@@ -8362,7 +9001,7 @@ export class FormulaGraph {
       let n = 0;
       for (const [k, v] of Object.entries(parsed.templates)) {
         if (!v?.nodes?.length) continue;
-        store[k] = { name: v.name ?? k, nodes: v.nodes, edges: v.edges ?? [], created: v.created ?? Date.now() };
+        store[k] = { name: v.name ?? k, nodes: v.nodes, edges: v.edges ?? [], comments: v.comments ?? [], created: v.created ?? Date.now() };
         n++;
       }
       await this._writeNodeTemplates(store);
@@ -8395,7 +9034,7 @@ export class FormulaGraph {
       const store = this._readNodeTemplates();
       const name  = parsed.name?.trim() || (await this._promptText("Template name:", "Imported template"));
       if (!name) return;
-      store[name] = { name, nodes: parsed.nodes, edges: parsed.edges ?? [], created: Date.now() };
+      store[name] = { name, nodes: parsed.nodes, edges: parsed.edges ?? [], comments: parsed.comments ?? [], created: Date.now() };
       await this._writeNodeTemplates(store);
       ui.notifications?.info?.(`Template "${name}" added to the library.`);
     }
@@ -8619,7 +9258,7 @@ export class FormulaGraph {
       "on_click", "branch", "if_node", "gate", "sequence",
       "get_path", "literal", "literal_str",
       "lt", "lte", "gt", "gte", "eq", "neq", "and", "or", "not",
-      "act_message", "act_message_composer", "act_notify", "act_roll_value", "act_damage", "act_heal", "act_modify",
+      "act_message", "act_message_composer", "act_notify", "act_roll_v2", "act_analyze_roll", "act_compare_roll", "act_present_roll", "act_damage_simple", "act_heal_simple", "act_save_dc", "act_spell", "act_aura_definition", "act_place_aura_zone", "act_effect_definition", "act_effect_add_change", "act_effect_apply_v2", "act_modify",
       "act_ai_request", "act_ai_assistant", "ai_dialogue_choices", "act_dialog_builder",
       "actor_token_info", "arr_get", "arr_aggregate", "arr_random_from",
       "var_read", "var_write", "quest_set_state"
@@ -8644,8 +9283,26 @@ export class FormulaGraph {
       act_message: ["chat output", "send chat", "act_send_chat", "message", "чат", "сообщение", "вывести в чат"],
       act_notify: ["notification", "toast", "уведомление"],
       act_roll_value: ["roll value", "roll -> value", "бросок", "ролл"],
-      act_damage: ["damage", "урон"],
-      act_heal: ["heal", "healing", "лечение"],
+      act_damage_simple: ["damage", "урон"],
+      act_heal_simple: ["heal", "healing", "лечение"],
+      act_save_dc: ["save", "dc", "saving throw", "спасбросок", "проверка сложности"],
+      act_spell: ["spell", "aoe spell", "заклинание"],
+      act_aoe_template_saver: ["aoe template saver", "template array", "шаблоны aoe"],
+      act_choice_from_array: ["choice from array", "array dialog", "выбор из массива"],
+      act_roll_v2: ["roll", "dice roll", "бросок", "бросить кубы"],
+      act_analyze_roll: ["analyze roll", "break roll result", "разобрать бросок"],
+      act_compare_roll: ["compare roll", "roll dc", "сравнить бросок"],
+      act_present_roll: ["present roll", "show roll", "показать бросок"],
+      get_self_actor: ["self actor", "context actor", "свой актор"],
+      get_self_item: ["self item", "context item", "свой предмет"],
+      act_aura_definition: ["aura definition", "make aura", "создать ауру"],
+      act_place_aura_zone: ["place aura", "aura token pool", "разместить ауру"],
+      act_tokens_from_aura: ["tokens from aura", "aura targets", "токены в ауре"],
+      act_effect_definition: ["effect definition", "make effect", "создать эффект"],
+      act_effect_add_change: ["effect change", "add effect change", "изменение эффекта"],
+      act_effect_apply_v2: ["apply effect", "применить эффект"],
+      act_effect_remove_v2: ["remove effect", "снять эффект"],
+      act_effect_toggle_v2: ["toggle effect", "переключить эффект"],
       act_modify: ["modify field", "change field", "изменить поле"],
       act_dialog_builder: ["dialogue builder", "dialog builder", "диалог"],
       ai_dialogue_choices: ["ai dialogue choices", "ai choices", "варианты ответов"],
@@ -8791,9 +9448,29 @@ export class FormulaGraph {
       notification: "act_notify",
       roll_value: "act_roll_value",
       roll: "act_roll_value",
-      damage: "act_damage",
-      heal: "act_heal",
-      healing: "act_heal",
+      damage: "act_damage_simple",
+      heal: "act_heal_simple",
+      healing: "act_heal_simple",
+      save: "act_save_dc",
+      save_dc: "act_save_dc",
+      dc: "act_save_dc",
+      spell: "act_spell",
+      choice_from_array: "act_choice_from_array",
+      roll: "act_roll_v2",
+      dice_roll: "act_roll_v2",
+      analyze_roll: "act_analyze_roll",
+      compare_roll: "act_compare_roll",
+      present_roll: "act_present_roll",
+      self_actor: "get_self_actor",
+      self_item: "get_self_item",
+      aura: "act_aura_definition",
+      aura_definition: "act_aura_definition",
+      place_aura: "act_place_aura_zone",
+      effect: "act_effect_definition",
+      effect_definition: "act_effect_definition",
+      apply_effect: "act_effect_apply_v2",
+      remove_effect: "act_effect_remove_v2",
+      toggle_effect: "act_effect_toggle_v2",
       modify: "act_modify",
       modify_field: "act_modify",
       dialogue_builder: "act_dialog_builder",
@@ -9619,7 +10296,7 @@ export class FormulaGraph {
       const graphData = {
         nodes:    this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges:    this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
-        comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
+        comments: this.comments.map(c => this._serialiseComment(c))
       };
       let compiled = "0";
       try { compiled = this.compile(); } catch(e) { console.warn("[sd] formula-graph: compile failed", e); }
@@ -9640,7 +10317,7 @@ export class FormulaGraph {
       const graphData = {
         nodes: this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
-        comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
+        comments: this.comments.map(c => this._serialiseComment(c))
       };
       const tabs = foundry.utils.deepClone(doc.system?.customTabs ?? []);
       const _row = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
@@ -9676,7 +10353,7 @@ export class FormulaGraph {
       const graphData = {
         nodes: this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
-        comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
+        comments: this.comments.map(c => this._serialiseComment(c))
       };
       const cfgNode = this.nodes.find(n => NODE_DEFS[n.type]?.isWidgetConfig);
       const tabs = foundry.utils.deepClone(doc.system?.customTabs ?? []);
@@ -9724,7 +10401,7 @@ export class FormulaGraph {
       const data = {
         nodes: this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
-        comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
+        comments: this.comments.map(c => this._serialiseComment(c))
       };
       const tabs   = foundry.utils.deepClone(doc.system.customTabs??[]);
       const _row   = tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
@@ -9808,7 +10485,7 @@ export class FormulaGraph {
       const data = {
         nodes: this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
-        comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
+        comments: this.comments.map(c => this._serialiseComment(c))
       };
       const compiled = this.compile();
       await doc.update({"system.onClickGraph": data, "system.onClickFormula": compiled});
@@ -9818,7 +10495,7 @@ export class FormulaGraph {
       const data = {
         nodes: this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
         edges: this.edges.map(e=>({id:e.id,fromNode:e.fromNode,fromPin:e.fromPin,toNode:e.toNode,toPin:e.toPin})),
-        comments: this.comments.map(c=>({id:c.id,x:c.x,y:c.y,w:c.w,h:c.h,title:c.title,color:c.color}))
+        comments: this.comments.map(c => this._serialiseComment(c))
       };
       const compiledStr = this.compile();
       let compiledObj = {};
@@ -12829,6 +13506,37 @@ export class FormulaGraph {
       });
 
       container.appendChild(selItem); container.appendChild(dropZone); wrap.appendChild(container); return wrap;
+    }
+
+    if (["quest-id","subtask-id","reward-id"].includes(field.type)) {
+      const select = document.createElement("select");
+      select.style.cssText = IS + ";cursor:pointer";
+      const current = String(node.data[field.key] ?? field.default ?? "");
+      const addOption = (value, label, group = null) => {
+        const option = document.createElement("option");
+        option.value = String(value ?? ""); option.textContent = _NL(label);
+        if (option.value === current) option.selected = true;
+        (group ?? select).appendChild(option);
+      };
+      if (field.allowBlank !== false) addOption("", field.blankLabel ?? "Any");
+      if (field.allowThis !== false) addOption("this", field.thisLabel ?? "Current");
+      const quests = (this.doc?.type === "questlog" && Array.isArray(this.doc?.system?.quests)) ? this.doc.system.quests : [];
+      if (field.type === "quest-id") {
+        for (const quest of quests) addOption(quest.id, quest.name || quest.id);
+      } else {
+        for (const quest of quests) {
+          const list = field.type === "subtask-id" ? (quest.subtasks ?? []) : (quest.rewards ?? []);
+          if (!list.length) continue;
+          const group = document.createElement("optgroup"); group.label = quest.name || quest.id;
+          for (const entry of list) addOption(entry.id, entry.name || entry.id, group);
+          select.appendChild(group);
+        }
+      }
+      if (current && ![...select.options].some(option => option.value === current)) addOption(current, `${current} (saved)`);
+      select.addEventListener("mousedown", ev => ev.stopPropagation());
+      select.addEventListener("change", () => { node.data[field.key] = select.value; this._updatePreview(); });
+      wrap.appendChild(select);
+      return wrap;
     }
 
     let inp;

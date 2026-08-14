@@ -1189,8 +1189,9 @@ export class WidgetRenderer {
     const e        = this._esc;
     const readOnly = !!options.readOnly;
     const rawVal   = w.path ? this._get(doc, w.path, "") : (w.staticHtml ?? "");
-    const isHidden = this._isHiddenFieldPath(w.path);
-    const display  = this._richtextToDisplayHTML(rawVal, isHidden);
+    // A Rich Text widget remains rich text regardless of where it is stored.
+    // hiddenFields is a valid storage path, not a request for a raw textarea.
+    const display  = this._richtextToDisplayHTML(rawVal, false);
 
     const isStatic = !w.path;
     if (isStatic || readOnly) {
@@ -1207,17 +1208,17 @@ export class WidgetRenderer {
     const path = e(w.path);
     const wid  = e(w.id ?? "");
 
-    if (isHidden) {
+    const NativeProseMirror = globalThis.customElements?.get?.("prose-mirror");
+    if (NativeProseMirror) {
       const safeVal = e(String(rawVal ?? ""));
-      return `<div class="widget widget-richtext widget-richtext--hidden" data-richtext-widget="1" data-richtext-mode="raw">
+      const empty = `<span class="sd-richtext-empty" style="opacity:.35;font-style:italic">${e(w.label || "Click to edit…")}</span>`;
+      return `<div class="widget widget-richtext widget-richtext--native" data-richtext-widget="1" data-richtext-mode="native">
   <div class="widget-label">${e(w.label)}</div>
-  <div class="richtext-display" data-path="${path}" data-widget-id="${wid}" data-mode="raw"
-       style="min-height:60px;cursor:text;padding:6px 8px;background:var(--sd-w-bg,var(--sd-bg));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;font-size:12px;color:var(--sd-w-fg,var(--sd-text-2));line-height:1.6;word-break:break-word">
-    ${display || "<span style='opacity:.35;font-style:italic'>Click to edit…</span>"}
-  </div>
-  <div class="richtext-edit-wrap" data-path="${path}" data-widget-id="${wid}" data-mode="raw" data-raw-value="${safeVal}" style="display:none;position:relative;min-height:160px"></div>
+  <prose-mirror class="sd-richtext-native" name="${path}" data-path="${path}" data-widget-id="${wid}"
+      button="true" editable="true" toggled="true" value="${safeVal}">${display || empty}</prose-mirror>
 </div>`;
     }
+
 
     return `<div class="widget widget-richtext" data-richtext-widget="1" data-richtext-mode="html">
   <div class="widget-label">${e(w.label)}</div>

@@ -9,6 +9,7 @@ export function QuestSubtaskField() {
     name:        new StringField({ initial: "Subtask", blank: true }),
     description: new StringField({ initial: "", blank: true }),
     done:        new BooleanField({ initial: false }),
+    required:    new BooleanField({ initial: true }),
     hidden:      new BooleanField({ initial: false })
   });
 }
@@ -115,6 +116,8 @@ export function QuestField() {
 
 
     subtasks: new ArrayField(QuestSubtaskField(), { initial: [] }),
+    autoComplete: new BooleanField({ initial: false }),
+    prerequisites: new ArrayField(new StringField({ blank: false }), { initial: [] }),
 
 
     questGraph: new ObjectField({ initial: {} }),

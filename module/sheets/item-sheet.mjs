@@ -1637,7 +1637,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
             ${hasGraph ? `Graph configured (${sys.onClickGraph.nodes.length} nodes)` : 'No graph configured — uses default roll behaviour'}
           </div>
           <button type="button" data-sys-action="openOnClickGraph"
-            style="padding:8px 20px;background:var(--sd-accent-2);border:1px solid var(--sd-accent);border-radius:5px;color:#fff;cursor:pointer;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px">
+            style="padding:8px 20px;background:var(--sd-accent-2);border:1px solid var(--sd-accent);border-radius:5px;color:var(--sd-accent-text,#fff);cursor:pointer;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px">
             <i class="fas fa-project-diagram"></i>
             ${hasGraph ? 'Edit On Click Graph' : 'Create On Click Graph'}
           </button>
@@ -3162,7 +3162,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     root.querySelector(".sd-edit-badge")?.remove(); if(!this._editMode) return;
     const header=root.querySelector(".window-header")??root.querySelector("header");
     const badge=document.createElement("div"); badge.className="sd-edit-badge";
-    badge.style.cssText="position:absolute;top:4px;right:48px;background:var(--sd-accent);color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;z-index:100;pointer-events:none"; badge.textContent="EDIT MODE";
+    badge.style.cssText="position:absolute;top:4px;right:48px;background:var(--sd-accent);color:var(--sd-accent-text,#fff);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;z-index:100;pointer-events:none"; badge.textContent="EDIT MODE";
     if(header){header.style.position="relative";header.appendChild(badge);}
   }
 

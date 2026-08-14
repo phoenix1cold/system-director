@@ -514,6 +514,10 @@ function _regionSourceActor(regionDoc, fallbackActor = null) {
 async function _runRegionPostActions(regionDoc, tokenDoc, rt, label = "post-actions") {
   const cfg = regionDoc?.flags?.sd?.applyEffect;
   if (!cfg) return;
+  rt = rt && typeof rt === "object" ? rt : {};
+  rt.__auraRegion = regionDoc;
+  rt.__auraDefinition = cfg.definitionSnapshot ?? null;
+  rt.__targetCount = Array.isArray(rt.allTargets) ? rt.allTargets.length : 0;
   const subs = Array.isArray(cfg.postActions) ? cfg.postActions : [];
   if (!subs.length) return;
 
@@ -521,7 +525,10 @@ async function _runRegionPostActions(regionDoc, tokenDoc, rt, label = "post-acti
   let srcItem = null;
   if (cfg.srcItemUuid) { try { srcItem = await fromUuid(cfg.srcItemUuid); } catch {} }
 
-  const synthBtn = {};
+  const synthBtn = {
+    __auraRegion: regionDoc,
+    __auraDefinition: cfg.definitionSnapshot ?? null
+  };
   if (cfg.runtimeSnapshot && typeof cfg.runtimeSnapshot === "object") {
     Object.assign(synthBtn, cfg.runtimeSnapshot);
   }

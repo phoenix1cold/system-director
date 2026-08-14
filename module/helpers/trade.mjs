@@ -1176,7 +1176,7 @@ export class SDAutoTradeShop extends ApplicationV2 {
         </div>
         <div style="font-size:12px;font-weight:600;color:var(--sd-accent);min-width:80px;text-align:right">${sale.price} ${_esc(curLbl)}</div>
         <input type="number" min="1" max="${Number(item.system?.quantity ?? 1)}" value="1" class="sd-shop-buy-qty" data-id="${_esc(item.id)}" style="width:54px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;color:var(--sd-text);text-align:center;padding:2px 4px">
-        <button type="button" class="sd-shop-buy" data-id="${_esc(item.id)}" style="background:var(--sd-accent);border:none;color:#fff;border-radius:5px;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:600">
+        <button type="button" class="sd-shop-buy" data-id="${_esc(item.id)}" style="background:var(--sd-accent);border:none;color:var(--sd-accent-text,#fff);border-radius:5px;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:600">
           <i class="fas fa-cart-arrow-down"></i> ${_esc(_i18n("SD.Trade.Buy","Buy"))}
         </button>
       </div>`;
@@ -1198,7 +1198,7 @@ export class SDAutoTradeShop extends ApplicationV2 {
           ${_esc(_i18n("SD.Trade.Listed","Listed"))} ${list} → <strong style="color:var(--sd-accent)">${offered} ${_esc(curLbl)}</strong>
         </div>
         <input type="number" min="1" max="${Number(item.system?.quantity ?? 1)}" value="1" class="sd-shop-sell-qty" data-id="${_esc(item.id)}" style="width:54px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;color:var(--sd-text);text-align:center;padding:2px 4px">
-        <button type="button" class="sd-shop-sell" data-id="${_esc(item.id)}" style="background:var(--sd-stamina);border:none;color:#fff;border-radius:5px;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:600">
+        <button type="button" class="sd-shop-sell" data-id="${_esc(item.id)}" style="background:var(--sd-stamina);border:none;color:var(--sd-accent-text,#fff);border-radius:5px;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:600">
           <i class="fas fa-cart-arrow-up"></i> ${_esc(_i18n("SD.Trade.Sell","Sell"))}
         </button>
       </div>`;

@@ -664,7 +664,7 @@ export function BuilderMixin(Base) {
             <button type="button" class="btn btn-cancel" id="popup-cancel" style="padding:8px 16px;font-size:12px;font-weight:600;border-radius:4px;cursor:pointer;border:1px solid var(--sd-border);background:var(--sd-bg-3);color:var(--sd-text-2)">
               <i class="fas fa-times"></i> Cancel
             </button>
-            <button type="button" class="btn btn-primary" id="popup-save" style="padding:8px 16px;font-size:12px;font-weight:600;border-radius:4px;cursor:pointer;border:none;background:var(--sd-accent);color:#fff">
+            <button type="button" class="btn btn-primary" id="popup-save" style="padding:8px 16px;font-size:12px;font-weight:600;border-radius:4px;cursor:pointer;border:none;background:var(--sd-accent);color:var(--sd-accent-text,#fff)">
               <i class="fas fa-check"></i> Save
             </button>
           </div>

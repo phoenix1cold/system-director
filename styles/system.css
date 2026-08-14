@@ -1,30 +1,32 @@
 :root {
-  --sd-bg:            var(--sd-bg);
-  --sd-bg-2:          var(--sd-bg-2);
-  --sd-bg-3:          var(--sd-bg-3);
-  --sd-bg-4:          var(--sd-bg-4);
-  --sd-border:        var(--sd-border);
-  --sd-border-2:      var(--sd-border-2);
+  /* Real fallbacks are required before the selected theme is attached. */
+  --sd-bg:            #1a1a24;
+  --sd-bg-2:          #22222e;
+  --sd-bg-3:          #2a2a38;
+  --sd-bg-4:          #323244;
+  --sd-border:        #3a3a52;
+  --sd-border-2:      #4e4e70;
 
-  --sd-text:          var(--sd-text);
-  --sd-text-2:        var(--sd-text-2);
-  --sd-text-3:        var(--sd-text-3);
-  --sd-label:         var(--sd-label);
+  --sd-text:          #e0e0ee;
+  --sd-text-2:        #a0a0c0;
+  --sd-text-3:        #666688;
+  --sd-label:         #8888aa;
 
-  --sd-accent:        var(--sd-accent);
-  --sd-accent-2:      var(--sd-accent-2);
+  --sd-accent:        #7b68ee;
+  --sd-accent-2:      #5a4ec0;
   --sd-accent-dim:    rgba(123,104,238,.45);
   --sd-accent-glow:   rgba(123,104,238,.18);
-  --sd-accent-text:   #fff;
+  --sd-accent-text:   #ffffff;
+  --prog-accent-text: var(--sd-accent-text, #ffffff);
 
-  --sd-danger:        var(--sd-hp);
+  --sd-danger:        #e05a5a;
   --sd-danger-dim:    rgba(224,90,90,.15);
-  --sd-success:       var(--sd-stamina);
-  --sd-warn:          var(--sd-warn);
+  --sd-success:       #5ae07a;
+  --sd-warn:          #e0b45a;
 
-  --sd-hp:            var(--sd-hp);
-  --sd-mp:            var(--sd-mp);
-  --sd-stamina:       var(--sd-stamina);
+  --sd-hp:            #e05a5a;
+  --sd-mp:            #5a8ae0;
+  --sd-stamina:       #5ae07a;
 
   --sd-r:             5px;
   --sd-r-lg:          9px;
@@ -58,10 +60,38 @@
   color: var(--sd-text);
 }
 
+/* Stable button baseline for System Director applications. Component styles
+   remain more specific and can safely override this neutral control skin. */
+/* Window-header controls are owned by Foundry. They inherit Foundry's icon
+   font and may use background/mask assets, so the system button skin must not
+   touch them. This includes close, controls/settings, pin and minimize. */
+:where(.sd, .application[class*="sd-"], .sd-wcfg-popup, #sd-formula-graph-win, #sd-action-hud, #sd-action-hud-floating)
+button:not(:where(.window-header button, .window-controls button, .header-control, [class*="fa-"], [class~="icon"])) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--sd-bg-3, #2a2a38);
+  background-image: none;
+  border: 1px solid var(--sd-border, #3a3a52);
+  border-radius: var(--sd-r, 5px);
+  color: var(--sd-text, #e0e0ee);
+  text-shadow: none;
+  box-shadow: none;
+}
+:where(.sd, .application[class*="sd-"], .sd-wcfg-popup, #sd-formula-graph-win, #sd-action-hud, #sd-action-hud-floating)
+button:not(:where(.window-header button, .window-controls button, .header-control, [class*="fa-"], [class~="icon"])):hover:not(:disabled) {
+  background-color: var(--sd-bg-4, #323244);
+  border-color: var(--sd-border-2, #4e4e70);
+  color: var(--sd-text, #e0e0ee);
+}
+:where(.sd, .application[class*="sd-"], .sd-wcfg-popup, #sd-formula-graph-win, #sd-action-hud, #sd-action-hud-floating)
+button:not(:where(.window-header button, .window-controls button, .header-control, [class*="fa-"], [class~="icon"])):disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
 .sd .window-content input,
 .sd .window-content select,
 .sd .window-content textarea,
-.sd .window-content button,
 .sd .window-content label,
 .sd .window-content span:not([class*="fa"]),
 .sd .window-content div,
@@ -2040,6 +2070,28 @@
   color: var(--sd-danger);
 }
 
+/* Rich Text widget controls belong above the Foundry editor in sheet edit mode. */
+.sd .widget-cell.sd-richtext-edit-cell,
+.sd .sd-richtext-edit-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: visible !important;
+}
+.sd .sd-widget-ov--richtext {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  min-height: 22px;
+  flex: 0 0 auto;
+  margin: 0 0 4px !important;
+  box-sizing: border-box;
+}
+.sd .sd-widget-ov--richtext + .widget-richtext {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
 .sd .path-picker {
   background: var(--sd-bg-3);
   border: 1px solid var(--sd-border);
@@ -3396,7 +3448,139 @@
   max-height: none;
   overflow: visible;
   align-self: stretch;
+  min-width: 0 !important;
+  width: 100%;
+  box-sizing: border-box;
 }
+
+/* Rich text may contain long IDs, URLs, generated text, or user input with no
+   spaces. Never let the browser use that token's min-content width to enlarge
+   the widget or push text beyond its border. */
+.sd .widget-richtext :is(
+  .richtext-display,
+  .sd-richtext-editor,
+  .sd-richtext-native,
+  prose-mirror,
+  .editor-container,
+  .editor-content,
+  .ProseMirror,
+  .prosemirror
+) {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  box-sizing: border-box !important;
+}
+.sd .widget-richtext :is(.richtext-display,.editor-content,.ProseMirror,.prosemirror),
+.sd .widget-richtext :is(.richtext-display,.editor-content,.ProseMirror,.prosemirror) :is(p,div,span,a,li,blockquote,h1,h2,h3,h4,h5,h6,code,pre) {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+}
+.sd .widget-richtext :is(.ProseMirror,.editor-content[contenteditable="true"],.prosemirror[contenteditable="true"]) {
+  white-space: pre-wrap !important;
+}
+.sd .widget-richtext :is(.richtext-display,.ProseMirror,.editor-content,.prosemirror) pre {
+  white-space: pre-wrap !important;
+}
+
+/* Foundry v14 native rich-text element. It owns the full editor DOM, so
+   ProseMirror content cannot be mounted as a sibling outside the bordered box. */
+.sd .widget-richtext--native,
+.sd .widget-richtext--native .sd-richtext-native { width:100%; height:auto !important; max-height:none !important; overflow:visible !important; box-sizing:border-box; }
+.sd .widget-richtext--native .sd-richtext-native { display:block; position:relative; min-height:60px; padding:6px 8px; background:var(--sd-w-bg,var(--sd-bg,#1a1a24)); color:var(--sd-w-fg,var(--sd-text,#e0e0ee)); border:1px solid var(--sd-w-bd,var(--sd-border,#3a3a52)); border-radius:var(--sd-r,5px); }
+.sd .widget-richtext--native .sd-richtext-native :is(.editor-content,.ProseMirror,.prosemirror,.editor-container) { position:relative !important; inset:auto !important; width:100% !important; height:auto !important; min-height:0; max-height:none !important; overflow:visible !important; box-sizing:border-box; }
+.sd .widget-richtext--native .sd-richtext-native :is(.editor-container,.prosemirror-container) {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+.sd .widget-richtext--native .sd-richtext-native :is(.editor-content,.ProseMirror)>:first-child { margin-top:0; }
+.sd .widget-richtext--native .sd-richtext-native :is(.editor-content,.ProseMirror)>:last-child { margin-bottom:0; }
+.sd .widget-richtext--native .sd-richtext-native button { color:var(--sd-text,#e0e0ee); background:var(--sd-bg-3,#2a2a38); border-color:var(--sd-border,#3a3a52); }
+.sd .widget-richtext--native .sd-richtext-native :is(menu,.editor-menu,.editor-toolbar,menu.prosemirror-menu,.prosemirror-menu,.ProseMirror-menubar,[role="toolbar"]) {
+  position: relative !important;
+  inset: auto !important;
+  transform: none !important;
+  float: none !important;
+  display: flex !important;
+  flex-flow: row wrap !important;
+  align-items: center !important;
+  align-content: flex-start !important;
+  gap: 4px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 36px !important;
+  margin: 0 0 6px !important;
+  padding: 4px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  z-index: 2;
+}
+.sd .widget-richtext--native .sd-richtext-native :is(menu,.editor-menu,.editor-toolbar,menu.prosemirror-menu,.prosemirror-menu,.ProseMirror-menubar,[role="toolbar"]) > * {
+  flex: 0 0 auto;
+  margin: 0 !important;
+}
+.sd .widget-richtext--native .sd-richtext-native :is(.ProseMirror,.editor-content[contenteditable="true"]) {
+  position: relative !important;
+  inset: auto !important;
+  transform: none !important;
+  float: none !important;
+  clear: both !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 8px 10px !important;
+  box-sizing: border-box !important;
+}
+
+/* Rich Text is content-sized by default. boxH remains an optional minimum. */
+.sd [data-widget-id]:has(.widget-richtext) {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  align-self: start;
+  min-width: 0 !important;
+}
+.sd .widget-richtext,
+.sd .widget-richtext .sd-richtext-editor,
+.sd .widget-richtext .editor-content,
+.sd .widget-richtext prose-mirror,
+.sd .widget-richtext .ProseMirror,
+.sd .widget-richtext .richtext-display,
+.sd .widget-richtext .richtext-edit-wrap {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.sd .widget-richtext prose-mirror {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+}
+.sd .widget-richtext .ProseMirror {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.sd .widget-richtext :is(.editor-content, .richtext-display, .ProseMirror) > :first-child { margin-top: 0; }
+.sd .widget-richtext :is(.editor-content, .richtext-display, .ProseMirror) > :last-child { margin-bottom: 0; }
+.sd .sd-wb-grid-element:has(.widget-richtext),
+.sd .sd-wb-grid-element:has(.widget-richtext) > .sd-wb-content,
+.sd .sd-wb-nested-widget:has(.widget-richtext) {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  align-self: start;
+}
+.sd .sd-wb-element:has(.widget-richtext) {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
 .sd .widget-richtext .richtext-display {
   min-height: 60px;
   height: auto !important;
@@ -3497,7 +3681,7 @@
 .sd .widget-richtext .sd-richtext-editor.editor-active {
   border-color: var(--sd-accent);
   box-shadow: 0 0 0 2px var(--sd-accent-glow);
-  min-height: 320px;
+  min-height: 120px;
 }
 .sd .widget-richtext .sd-richtext-editor.editor-active .editor-content {
   padding: 0;
@@ -6397,7 +6581,7 @@
 .sd-prog-variant-btn.active {
   background: var(--prog-accent, #7b68ee);
   border-color: var(--prog-accent, #7b68ee);
-  color: #fff;
+  color: var(--prog-accent-text, var(--sd-accent-text, #fff));
 }
 
 .sd-prog-mini-add.wide {
@@ -6884,7 +7068,7 @@
   background: rgba(128, 128, 128, .25);
   flex: 0 0 auto;
 }
-.sd-luw-step.active .sd-luw-step-dot { background: var(--prog-accent, #7b68ee); color: #fff; box-shadow: 0 0 0 3px rgba(123, 104, 238, .25); }
+.sd-luw-step.active .sd-luw-step-dot { background: var(--prog-accent, #7b68ee); color: var(--prog-accent-text, var(--sd-accent-text, #fff)); box-shadow: 0 0 0 3px rgba(123, 104, 238, .25); }
 .sd-luw-step.done .sd-luw-step-dot { background: var(--prog-green, #4caf50); color: #fff; }
 .sd-luw-step-lbl { font-size: 12px; font-weight: 600; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
 .sd-luw-step-sep { flex: 0 0 20px; height: 2px; border-radius: 1px; background: currentColor; opacity: .25; }
@@ -6973,7 +7157,7 @@
 .sd-luw-card-check {
   position: absolute; top: 7px; right: 7px;
   width: 18px; height: 18px; border-radius: 50%;
-  background: var(--prog-accent, #7b68ee); color: #fff;
+  background: var(--prog-accent, #7b68ee); color: var(--prog-accent-text, var(--sd-accent-text, #fff));
   display: none; align-items: center; justify-content: center;
   font-size: 9px;
 }
@@ -6996,7 +7180,7 @@
   transition: background .12s, border-color .12s;
 }
 .sd-luw-btn:hover { background: rgba(128, 128, 128, .22); }
-.sd-luw-btn.primary { background: var(--prog-accent, #7b68ee); border-color: var(--prog-accent, #7b68ee); color: #fff; }
+.sd-luw-btn.primary { background: var(--prog-accent, #7b68ee); border-color: var(--prog-accent, #7b68ee); color: var(--prog-accent-text, var(--sd-accent-text, #fff)); }
 .sd-luw-btn.primary:hover { filter: brightness(1.1); }
 .sd-luw-btn:disabled { opacity: .45; cursor: not-allowed; }
 
@@ -7194,7 +7378,7 @@ button.sd-market-btn, a.sd-market-btn {
   cursor: pointer; text-decoration: none; color: inherit;
 }
 button.sd-market-btn:hover, a.sd-market-btn:hover { background: rgba(128, 128, 128, .22); }
-button.sd-market-btn.primary { background: var(--prog-accent, #7b68ee); border-color: var(--prog-accent, #7b68ee); color: #fff; }
+button.sd-market-btn.primary { background: var(--prog-accent, #7b68ee); border-color: var(--prog-accent, #7b68ee); color: var(--prog-accent-text, var(--sd-accent-text, #fff)); }
 button.sd-market-btn.primary:hover { filter: brightness(1.1); }
 
 .sd-market-body { flex: 1 1 auto; overflow-y: auto; padding: 14px 16px; min-height: 0; }

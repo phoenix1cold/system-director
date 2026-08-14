@@ -768,6 +768,34 @@ export class ButtonExecutor {
 
     const _injectRuntime = (formula) => {
       if (typeof formula !== "string") return formula;
+      const _rr = runtime.__rollResult ?? buttonDef?.__rollResult ?? null;
+      const _exactRollValues = {
+        "{__rollResult}": _rr,
+        "{__rollTotal}": _rr?.total ?? 0,
+        "{__rollFormula}": _rr?.formula ?? "",
+        "{__rollDice}": _rr?.dice ?? [],
+        "{__rollNatural}": _rr?.natural ?? 0,
+        "{__rollMin}": _rr?.min ?? 0,
+        "{__rollMax}": _rr?.max ?? 0,
+        "{__rollAvg}": _rr?.avg ?? 0,
+        "{__rollSuccesses}": _rr?.successes ?? 0,
+        "{__rollBotches}": _rr?.botches ?? 0,
+        "{__rollIsCrit}": _rr?.isCrit ? 1 : 0,
+        "{__rollIsFumble}": _rr?.isFumble ? 1 : 0,
+        "{__rollCompared}": runtime.__rollCompared ?? 0,
+        "{__rollTarget}": runtime.__rollTarget ?? 0,
+        "{__rollMargin}": runtime.__rollMargin ?? 0,
+        "{__rollPassed}": runtime.__rollPassed ? 1 : 0
+      };
+      if (Object.prototype.hasOwnProperty.call(_exactRollValues, formula)) return _exactRollValues[formula];
+      if (_rr) {
+        const inline = {
+          __rollTotal:_rr.total??0, __rollFormula:_rr.formula??"", __rollDice:Array.isArray(_rr.dice)?_rr.dice.join(","):"",
+          __rollNatural:_rr.natural??0, __rollMin:_rr.min??0, __rollMax:_rr.max??0, __rollAvg:_rr.avg??0,
+          __rollSuccesses:_rr.successes??0, __rollBotches:_rr.botches??0, __rollIsCrit:_rr.isCrit?1:0, __rollIsFumble:_rr.isFumble?1:0
+        };
+        for (const [key,value] of Object.entries(inline)) formula = formula.replace(new RegExp(`\\{${key}\\}`,"g"),String(value));
+      }
       if (buttonDef?.__placeableUuid !== undefined) {
         formula = formula.replace(/\{__sdSelfUuid\}/g, String(buttonDef.__placeableUuid));
       }
@@ -922,6 +950,42 @@ export class ButtonExecutor {
       }
       if (runtime.currentTarget !== undefined) {
         formula = formula.replace(/\{__currentTarget\}/g, String(runtime.currentTarget ?? ""));
+      }
+      if (runtime.__aoeTemplates !== undefined) {
+        formula = formula.replace(/\{__aoeTemplates\}/g, _tokList(runtime.__aoeTemplates));
+      }
+      if (runtime.__choiceSelected !== undefined) {
+        formula = formula.replace(/\{__choiceSelected\}/g, String(runtime.__choiceSelected ?? ""));
+      }
+      if (runtime.__choiceSelectedArray !== undefined) {
+        formula = formula.replace(/\{__choiceSelectedArray\}/g, _tokList(runtime.__choiceSelectedArray));
+      }
+      if (runtime.__choiceIndex !== undefined) {
+        formula = formula.replace(/\{__choiceIndex\}/g, String(runtime.__choiceIndex ?? -1));
+      }
+      if (runtime.__choiceIndices !== undefined) {
+        formula = formula.replace(/\{__choiceIndices\}/g, _tokList(runtime.__choiceIndices));
+      }
+      if (runtime.__aoeTemplate !== undefined) {
+        formula = formula.replace(/\{__aoeTemplate\}/g, String(runtime.__aoeTemplate?.uuid ?? runtime.__aoeTemplate?.id ?? runtime.__aoeTemplate ?? ""));
+      }
+      if (runtime.__targetCount !== undefined) {
+        formula = formula.replace(/\{__targetCount\}/g, String(runtime.__targetCount ?? 0));
+      }
+      if (runtime.__spellEffect !== undefined) {
+        formula = formula.replace(/\{__spellEffect\}/g, String(runtime.__spellEffect ?? ""));
+      }
+      if (runtime.__spellValue !== undefined) {
+        formula = formula.replace(/\{__spellValue\}/g, String(runtime.__spellValue ?? ""));
+      }
+      if (runtime.__auraDefinition !== undefined) {
+        formula = formula.replace(/\{__auraDefinition\}/g, String(runtime.__auraDefinition?.name ?? "Aura"));
+      }
+      if (runtime.__auraRegion !== undefined) {
+        formula = formula.replace(/\{__auraRegion\}/g, String(runtime.__auraRegion?.uuid ?? runtime.__auraRegion?.id ?? ""));
+      }
+      if (runtime.__effectDefinition !== undefined) {
+        formula = formula.replace(/\{__effectDefinition\}/g, String(runtime.__effectDefinition?.name ?? "Effect"));
       }
       if (runtime.__castActorId !== undefined) {
         formula = formula.replace(/\{__castActorId\}/g, String(runtime.__castActorId));
@@ -2158,7 +2222,8 @@ export class ButtonExecutor {
         const changes = (action.changes ?? []).map(c => ({
           key:   c.key   ?? "",
           value: String(c.value ?? "0"),
-          mode:  Number(c.mode  ?? 2)
+          mode:  Number(c.mode  ?? 2),
+          priority: Number(c.priority ?? 20)
         }));
 
         for (const effectActor of _aeTargets) {
@@ -3951,6 +4016,10 @@ export class ButtonExecutor {
           tActors = _resolveAllTargets(tMode, actor);
         }
 
+        if (action.requireTargets && !tActors.length) {
+          ui.notifications?.warn?.(`SD | ${isHeal ? "Heal" : "Damage"}: Token Pool is empty.`);
+          break;
+        }
         const targets = tActors.length ? tActors : [null];
 
         for (const tActor of targets) {
@@ -3989,7 +4058,9 @@ export class ButtonExecutor {
             showApply:   !autoApply && (action.showApply !== false && action.showApply !== "no"),
             rollFormula: /\d*d\d+/i.test(String(_amtForRoll)) ? String(_amtForRoll) : null,
             srcActorId:  actor?.id ?? null,
-            autoApplied: autoApply
+            autoApplied: autoApply,
+            buttonLabel: action.buttonLabel ?? null,
+            customText: action.customText ?? ""
           });
           await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content });
         }
@@ -4132,6 +4203,29 @@ export class ButtonExecutor {
 
         runtime.__lastRollTableResult = allResults[0] ?? "";
         runtime.__rollTableIndex = undefined;
+        break;
+      }
+
+      case "forLoopRange": {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        const _evalInt = (raw, fb = 0) => {
+          try {
+            let value = _injectRuntime(String(raw ?? fb));
+            value = FormulaEngine.resolveForRoll(value, item ?? actor ?? {});
+            return Math.round(Number(FormulaEngine.evaluate(value, item ?? actor ?? {})) || 0);
+          } catch { return fb; }
+        };
+        const first = _evalInt(action.first, 0);
+        const last = _evalInt(action.last, 0);
+        const delay = Math.max(0, Math.min(60000, _evalInt(action.delay, 0)));
+        const count = first <= last ? Math.min(1000, last - first + 1) : 0;
+        for (let offset = 0; offset < count; offset++) {
+          runtime.__loopIndex = first + offset;
+          for (const sub of (action.loopActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
+          if (delay > 0 && offset < count - 1) await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        runtime.__loopIndex = undefined;
+        for (const sub of (action.doneActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
         break;
       }
 
@@ -4860,6 +4954,274 @@ export class ButtonExecutor {
         break;
       }
 
+
+
+      case "rollResultV2": {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        const doc = item ?? actor ?? {};
+        const rollData = _sanitizeRollData(actor?.getRollData?.() ?? {});
+        const mode = action.mode === "pool" ? "pool" : "formula";
+        let formula = String(_injectRuntime(action.formula ?? "1d20") || "1d20");
+        let advFormula = String(_injectRuntime(action.advFormula ?? "") || "");
+        let disFormula = String(_injectRuntime(action.disFormula ?? "") || "");
+        try { formula = FormulaEngine.resolveForRoll(formula, doc); } catch {}
+        try { if (advFormula) advFormula = FormulaEngine.resolveForRoll(advFormula, doc); } catch {}
+        try { if (disFormula) disFormula = FormulaEngine.resolveForRoll(disFormula, doc); } catch {}
+        const strip = value => String(value ?? "").replace(/\{[^{}]*\}/g,"0").replace(/[{}]/g,"");
+        formula=strip(formula); advFormula=strip(advFormula); disFormula=strip(disFormula);
+
+        let successTarget = 0;
+        let dieFaces = 0;
+        if (mode === "pool") {
+          const count = Math.max(0, Math.floor(Number(FormulaEngine.evaluate(String(_injectRuntime(action.count ?? "0")),doc)) || 0));
+          dieFaces = Math.max(2, Math.floor(Number(action.die ?? 10) || 10));
+          successTarget = Number(FormulaEngine.evaluate(String(_injectRuntime(action.successTarget ?? "0")),doc)) || 0;
+          formula = `${count}d${dieFaces}`;
+        } else if (action.rollDialogue) {
+          const dlg = await ButtonExecutor._showRollDialogue({flavor:action.flavor??"Roll",baseFormula:formula,advFormula,disFormula,actor});
+          if (dlg.cancelled) break;
+          formula=dlg.formula;
+        }
+
+        let roll=null;
+        if (mode !== "pool" || !formula.startsWith("0d")) {
+          roll = new Roll(formula, rollData);
+          await roll.evaluate();
+        }
+        const dice=[];
+        const diceTerms=[];
+        for (const die of (roll?.dice ?? [])) {
+          const values=[];
+          for (const entry of (die?.results ?? [])) {
+            const value=Number(entry?.result);
+            if (entry?.active !== false && !entry?.discarded && Number.isFinite(value)) { dice.push(value); values.push(value); }
+          }
+          diceTerms.push({faces:Number(die?.faces)||0,results:values});
+          dieFaces=Math.max(dieFaces,Number(die?.faces)||0);
+        }
+        const compare=(a,op,b)=>op===">"?a>b:op==="<"?a<b:op==="<="?a<=b:op==="=="?a===b:op==="!="?a!==b:a>=b;
+        const successes=mode==="pool"?dice.filter(value=>compare(value,action.successCompare??">=",successTarget)).length:0;
+        const botchFace=Number(action.botchFace??1);
+        const botches=mode==="pool"?dice.filter(value=>value===botchFace).length:0;
+        const total=Number(roll?.total) || 0;
+        const bounds=formulaBounds(formula,rollData??{});
+        const natural=leadingD20Natural(roll) ?? ((roll?.dice?.length===1 && Number(roll.dice[0]?.number??1)===1) ? (dice[0]??0) : 0);
+        const isCrit=natural!==0 && natural>=Number(action.critOn??20);
+        const isFumble=natural!==0 && natural<=Number(action.fumbleOn??1) && !isCrit;
+        const result={
+          type:"sd.roll-result",mode,formula,total,flavor:String(action.flavor??"Roll"),dice,diceTerms,natural,
+          min:Number(bounds?.min)||0,max:Number(bounds?.max)||0,avg:Number(bounds?.avg)||0,
+          successes,botches,successTarget,successCompare:String(action.successCompare??">="),botchFace,dieFaces,
+          isCrit,isFumble,actorUuid:actor?.uuid??null,itemUuid:item?.uuid??null,createdAt:Date.now(),roll
+        };
+        runtime.__rollResult=result;
+        if (buttonDef) {
+          buttonDef.__rollResult=result;
+          buttonDef.__lastRoll=total;
+          buttonDef.__lastSuccesses=successes;
+          buttonDef.__lastBotches=botches;
+          _writeRollMeta(buttonDef,{roll,formula,critOn:action.critOn??20,fumbleOn:action.fumbleOn??1,rollData});
+        }
+        for (const sub of (action.execActions??[])) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+
+      case "analyzeRollResult": {
+        const result=_injectRuntime(action.result??"{__rollResult}");
+        if (!result || typeof result!=="object") { ui.notifications?.warn?.("SD | Analyze Roll requires a Roll Result."); break; }
+        runtime.__rollResult=result;
+        if (buttonDef) buttonDef.__rollResult=result;
+        for (const sub of (action.execActions??[])) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+
+      case "compareRollResult": {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        const result=_injectRuntime(action.result??"{__rollResult}");
+        if (!result || typeof result!=="object") { ui.notifications?.warn?.("SD | Compare Roll requires a Roll Result."); break; }
+        const source=String(action.source??"total");
+        const compared=Number(result[source])||0;
+        let target=Number(FormulaEngine.evaluate(String(_injectRuntime(action.value??"0")),item??actor??{}));
+        if (!Number.isFinite(target)) target=0;
+        const op=String(action.operator??">=");
+        const passed=op===">"?compared>target:op==="<"?compared<target:op==="<="?compared<=target:op==="=="?compared===target:op==="!="?compared!==target:compared>=target;
+        runtime.__rollResult=result;
+        runtime.__rollCompared=compared;
+        runtime.__rollTarget=target;
+        runtime.__rollMargin=compared-target;
+        runtime.__rollPassed=passed;
+        if (buttonDef) { buttonDef.__rollResult=result; buttonDef.__lastMargin=runtime.__rollMargin; }
+        const branch=passed?(action.passActions??[]):(action.failActions??[]);
+        for (const sub of branch) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+
+      case "presentRollResult": {
+        const result=_injectRuntime(action.result??"{__rollResult}");
+        if (!result || typeof result!=="object") { ui.notifications?.warn?.("SD | Present Roll requires a Roll Result."); break; }
+        runtime.__rollResult=result;
+        const destination=String(action.destination??"chat");
+        const label=String(action.label||result.flavor||"Roll");
+        if (destination==="canvas" || destination==="sheet") {
+          const { ThrowOverlay } = await import("./throw-overlay.mjs");
+          const faces=Array.isArray(result.dice)?result.dice:[];
+          const die=Math.max(2,Number(result.dieFaces)||Math.max(2,...faces));
+          if (destination==="canvas") ThrowOverlay.scatterOnCanvas(faces,die,{area:Number(action.area??300),duration:Number(action.duration??6),actor});
+          else ThrowOverlay.scatterOnSheet(faces,die,{duration:Number(action.duration??6),actor});
+        } else if (result.roll?.toMessage) {
+          await result.roll.toMessage({speaker:ChatMessage.getSpeaker({actor}),flavor:label,rollMode:action.rollMode&&action.rollMode!=="default"?action.rollMode:_sdMsgMode()});
+        } else {
+          await ChatMessage.create({speaker:ChatMessage.getSpeaker({actor}),content:`<div class="sd-chat-card"><strong>${_sdEscapeHtml(label)}</strong><div>${_sdEscapeHtml(result.formula)} = <strong>${Number(result.total)||0}</strong></div></div>`});
+        }
+        for (const sub of (action.execActions??[])) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+
+      case "buildAuraDefinition": {
+        const owner = _sdStripQuotes(_injectRuntime(String(action.owner ?? "actor"))) || "actor";
+        const definition = {
+          name:String(_injectRuntime(String(action.name ?? "Aura"))),
+          shape:String(action.shape ?? "emanation"),
+          size:Number(_injectRuntime(String(action.size ?? 10))) || 10,
+          angle:Number(action.angle ?? 53.13) || 53.13,
+          owner,
+          tickMode:String(action.tickMode ?? "onEnter"),
+          skipOwner:action.skipOwner !== false,
+          rounds:Number(action.rounds ?? 0) || 0,
+          auraKey:String(action.auraKey ?? "composable-aura")
+        };
+        runtime.__auraDefinition=definition;
+        if(buttonDef)buttonDef.__auraDefinition=definition;
+        for(const sub of (action.execActions ?? [])) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+
+      case "placeAuraComposite": {
+        let definition = action.definition;
+        if(definition === "{__auraDefinition}") definition=runtime.__auraDefinition;
+        if(!definition && buttonDef?.__auraDefinition) definition=buttonDef.__auraDefinition;
+        if(typeof definition === "string") {
+          try { definition=JSON.parse(definition); } catch { definition=null; }
+        }
+        if(!definition || typeof definition !== "object") {
+          ui.notifications?.warn?.("SD | Place Aura: connect an Aura Definition.");
+          break;
+        }
+        runtime.__auraDefinition=definition;
+        await this._runAction({
+          type:"placeAuraTargets",
+          name:definition.name ?? "Aura",
+          shape:definition.shape ?? "emanation",
+          size:definition.size ?? 10,
+          angle:definition.angle ?? 53.13,
+          owner:definition.owner ?? "actor",
+          auraKey:definition.auraKey ?? "composable-aura",
+          tickMode:definition.tickMode ?? "onEnter",
+          skipOwner:definition.skipOwner !== false,
+          rounds:Number(definition.rounds ?? 0) || 0,
+          definitionSnapshot:definition,
+          postActions:action.postActions ?? []
+        },item,actor,buttonDef,runtime);
+        break;
+      }
+
+      case "tokensFromAura": {
+        let aura=action.aura;
+        if(aura === "{__auraRegion}") aura=runtime.__auraRegion;
+        if(!aura && runtime.__auraRegion) aura=runtime.__auraRegion;
+        if(typeof aura === "string") {
+          const raw=_injectRuntime(aura);
+          try { aura=await fromUuid(raw); } catch { aura=null; }
+          if(!aura) {
+            const id=String(raw).replace(/^.*\\./,"");
+            aura=canvas?.scene?.regions?.get?.(id) ?? null;
+          }
+        }
+        let ids=[];
+        if(aura) {
+          const {getRegionTokens}=await import("./sd-region.mjs");
+          ids=getRegionTokens(aura).map(t=>t.id).filter(Boolean);
+        }
+        runtime.__auraRegion=aura ?? null;
+        runtime.allTargets=ids;
+        runtime.__targetCount=ids.length;
+        const branch=aura ? (action.foundActions ?? []) : (action.missingActions ?? []);
+        for(const sub of branch) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+
+      case "buildEffectDefinition": {
+        const definition={
+          name:String(_injectRuntime(String(action.name ?? "Effect"))),
+          icon:String(_injectRuntime(String(action.icon ?? "icons/svg/aura.svg"))),
+          duration:Number(_injectRuntime(String(action.duration ?? 0))) || 0,
+          disabled:action.disabled === true,
+          transfer:action.transfer === true,
+          changes:[]
+        };
+        runtime.__effectDefinition=definition;
+        if(buttonDef)buttonDef.__effectDefinition=definition;
+        for(const sub of (action.execActions ?? [])) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+
+      case "addEffectDefinitionChange": {
+        let definition=action.effect;
+        if(definition === "{__effectDefinition}") definition=runtime.__effectDefinition;
+        if(!definition && buttonDef?.__effectDefinition) definition=buttonDef.__effectDefinition;
+        if(typeof definition === "string") { try{definition=JSON.parse(definition);}catch{definition=null;} }
+        definition=foundry.utils.deepClone(definition && typeof definition === "object" ? definition : {name:"Effect",icon:"icons/svg/aura.svg",duration:0,disabled:false,transfer:false,changes:[]});
+        definition.changes=Array.isArray(definition.changes)?definition.changes:[];
+        const key=_sdStripQuotes(_injectRuntime(String(action.path ?? "")));
+        if(key) definition.changes.push({
+          key,
+          value:String(_injectRuntime(String(action.value ?? "0"))),
+          mode:Number(action.mode ?? 2),
+          priority:Number(_injectRuntime(String(action.priority ?? 20))) || 20
+        });
+        runtime.__effectDefinition=definition;
+        if(buttonDef)buttonDef.__effectDefinition=definition;
+        for(const sub of (action.execActions ?? [])) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+
+      case "applyEffectDefinition": {
+        let definition=action.effect;
+        if(definition === "{__effectDefinition}") definition=runtime.__effectDefinition;
+        if(!definition && buttonDef?.__effectDefinition) definition=buttonDef.__effectDefinition;
+        if(typeof definition === "string") { try{definition=JSON.parse(definition);}catch{definition=null;} }
+        if(!definition || typeof definition !== "object") {
+          ui.notifications?.warn?.("SD | Effect: connect an Effect Definition.");
+          break;
+        }
+        const rawTargets=action.targets != null ? _injectRuntime(String(action.targets)) : "";
+        let targets=_sdResolveActorsList(rawTargets,actor);
+        if(!targets.length && rawTargets) {
+          targets=String(rawTargets).split(",").map(id=>canvas?.tokens?.get?.(id)?.actor ?? game.actors?.get?.(id)).filter(Boolean);
+        }
+        if(!targets.length) { ui.notifications?.warn?.("SD | Effect: Token Pool is empty."); break; }
+        const op=action.operation ?? "apply";
+        if(op === "apply") {
+          await this._runAction({
+            type:"applyEffect",effectName:definition.name ?? "Effect",icon:definition.icon ?? "icons/svg/aura.svg",
+            duration:Number(definition.duration ?? 0)||0,changes:(definition.changes ?? []).map(c=>({...c,value:String(_injectRuntime(String(c.value ?? "0")))})),
+            targets:rawTargets,toggleMode:"create"
+          },item,actor,buttonDef,runtime);
+          break;
+        }
+        for(const tActor of targets) {
+          if(!tActor || (!game.user.isGM && !tActor.isOwner)) continue;
+          const matches=(tActor.effects ?? []).filter(e=>e.name === definition.name);
+          if(op === "remove") {
+            const ids=matches.map(e=>e.id).filter(Boolean);
+            if(ids.length) await tActor.deleteEmbeddedDocuments("ActiveEffect",ids);
+          } else if(op === "toggle") {
+            for(const ef of matches) await ef.update({disabled:!ef.disabled});
+          }
+        }
+        break;
+      }
+
       case "createEffect": {
         const _ceSpec = action.target != null ? _injectRuntime(String(action.target)) : null;
         const targets = _resolveAllTargets(_ceSpec ?? "token_target", actor);
@@ -5042,6 +5404,7 @@ export class ButtonExecutor {
           deactivateOnLeave: action.deactivateOnLeave !== false,
           conditionEffect:   action.conditionEffect ?? "",
           roundsRemaining:   rounds,
+          definitionSnapshot: action.definitionSnapshot ?? null,
 
           formula:           action.formula      ?? "",
           bonusFormula:      action.bonusFormula ?? "",
@@ -5070,7 +5433,7 @@ export class ButtonExecutor {
         };
 
         try {
-          await placeAuraRegion({
+          const auraRegion = await placeAuraRegion({
             ownerToken,
             shape,
             name: effName || "SD Aura",
@@ -5086,6 +5449,11 @@ export class ButtonExecutor {
               }
             }
           });
+          if (auraRegion) {
+            runtime.__auraRegion = auraRegion;
+            runtime.__auraDefinition = action.definitionSnapshot ?? runtime.__auraDefinition ?? null;
+            if (buttonDef) buttonDef.__auraRegion = auraRegion;
+          }
         } catch (e) {
           console.error("SD | placeAura failed:", e);
         }
@@ -5699,9 +6067,203 @@ export class ButtonExecutor {
         break;
       }
 
+
+    case "chatSaveButtonV2": {
+      const { FormulaEngine } = await import("./formula-engine.mjs");
+      const _resolvePool = (raw) => {
+        if (Array.isArray(raw)) return _sdResolveActorsList(raw, actor);
+        const injected = typeof raw === "string" ? _injectRuntime(raw) : raw;
+        return _sdResolveActorsList(injected, actor);
+      };
+      const saveActors = _resolvePool(action.targets);
+      if (!saveActors.length) {
+        ui.notifications?.warn?.("SD | Save / DC: Token Pool is empty.");
+        break;
+      }
+
+      if (action.passedOverride !== null && action.passedOverride !== undefined && action.passedOverride !== "") {
+        let passed = false;
+        try {
+          const raw = _injectRuntime(String(action.passedOverride));
+          const value = FormulaEngine.evaluate(raw, item ?? actor ?? {});
+          passed = value === true || value === 1 || value === "1" || String(value).toLowerCase() === "true";
+        } catch {
+          const raw = String(action.passedOverride).trim().toLowerCase();
+          passed = raw === "1" || raw === "true" || raw === "yes";
+        }
+        const ids = saveActors.map(a => a.id).filter(Boolean);
+        runtime.savedTargets = passed ? ids : [];
+        runtime.failedTargets = passed ? [] : ids;
+        runtime.allTargets = ids;
+        runtime.currentTarget = ids[0] ?? "";
+        if (buttonDef) buttonDef.__lastRoll = passed ? 1 : 0;
+        const branch = passed ? (action.passActions ?? []) : (action.failActions ?? []);
+        for (const sub of branch) await this._runAction(sub, item, actor, buttonDef, runtime);
+        break;
+      }
+
+      await this._runAction({
+        ...action,
+        type:"chatSaveButton",
+        target:action.targets,
+        modifierPath:"",
+        checkType:"custom",
+        operator:action.operator ?? ">=",
+        simpleV2:true
+      }, item, actor, buttonDef, runtime);
+      break;
+    }
+
+    case "aoeTemplateSaver": {
+      const { DialogV2 } = foundry.applications.api;
+      const templates = [];
+      const esc = (v) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      let confirmed = false;
+      while (true) {
+        const rows = templates.length ? templates.map((t,i)=>`<li style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--color-border-light-2);"><strong style="flex:1">${esc(t.name)}</strong><span>${esc(t.t)} · ${Number(t.distance||0)} ft</span><span>#${i+1}</span></li>`).join("") : `<li style="opacity:.65;padding:8px 0">No templates added.</li>`;
+        const choice = await DialogV2.wait({
+          window:{title:action.title ?? "AOE Templates"},modal:true,
+          content:`<div class="sd-aoe-template-saver"><p>Select one placed template on the canvas, then click <b>Add selected</b>.</p><ol style="max-height:260px;overflow:auto;padding-left:22px">${rows}</ol></div>`,
+          buttons:[
+            {action:"add",label:"Add selected",icon:"fas fa-plus"},
+            {action:"remove",label:"Remove last",icon:"fas fa-trash"},
+            {action:"confirm",label:"Confirm",icon:"fas fa-check",default:true},
+            {action:"cancel",label:"Cancel",icon:"fas fa-times"}
+          ],rejectClose:false
+        }).catch(()=>"cancel");
+        if (choice === "add") {
+          const placeable = canvas?.templates?.controlled?.[0]
+            ?? canvas?.templates?.placeables?.find?.(x => x.controlled)
+            ?? null;
+          const d = placeable?.document ?? placeable;
+          if (!d) { ui.notifications?.warn?.("Select a placed template first."); continue; }
+          templates.push({
+            id:foundry.utils.randomID(12),name:d.name || `Template ${templates.length+1}`,
+            t:d.t ?? d.type ?? "circle",distance:Number(d.distance ?? 0)||0,
+            angle:Number(d.angle ?? 53.13)||53.13,width:Number(d.width ?? 0)||0,
+            direction:Number(d.direction ?? 0)||0,texture:d.texture ?? null,
+            fillColor:d.fillColor ?? "#ff0000",borderColor:d.borderColor ?? "#000000"
+          });
+          continue;
+        }
+        if (choice === "remove") { templates.pop(); continue; }
+        if (choice === "confirm") {
+          if (!templates.length && !action.allowEmpty) { ui.notifications?.warn?.("Add at least one template."); continue; }
+          confirmed = true;
+        }
+        break;
+      }
+      runtime.__aoeTemplates = templates;
+      if (buttonDef) buttonDef.__aoeTemplates = templates;
+      const branch = confirmed ? (action.confirmedActions ?? []) : (action.cancelledActions ?? []);
+      for (const sub of branch) await this._runAction(sub,item,actor,buttonDef,runtime);
+      break;
+    }
+
+    case "choiceFromArray": {
+      const { DialogV2 } = foundry.applications.api;
+      const readArray = (raw) => {
+        if (Array.isArray(raw)) return raw;
+        if (raw === "{__aoeTemplates}" && Array.isArray(runtime.__aoeTemplates)) return runtime.__aoeTemplates;
+        if (raw === "{__choiceSelectedArray}" && Array.isArray(runtime.__choiceSelectedArray)) return runtime.__choiceSelectedArray;
+        const v = typeof raw === "string" ? _injectRuntime(raw) : raw;
+        if (Array.isArray(v)) return v;
+        try { const j=JSON.parse(String(v)); if(Array.isArray(j)) return j; } catch {}
+        return String(v ?? "").split(",").map(x=>x.trim()).filter(Boolean);
+      };
+      const arr = readArray(action.array);
+      const esc = (v) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      const labelOf = (v,i) => {
+        if (v && typeof v === "object") return foundry.utils.getProperty(v,action.labelPath || "name") ?? v.name ?? v.label ?? `Option ${i+1}`;
+        return String(v);
+      };
+      const imageOf = (v) => v && typeof v === "object" ? (foundry.utils.getProperty(v,action.imagePath || "img") ?? "") : "";
+      const type = action.multiple ? "checkbox" : "radio";
+      const rows = arr.map((v,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:7px;border-bottom:1px solid var(--color-border-light-2);cursor:pointer"><input type="${type}" name="sd-choice" value="${i}">${imageOf(v)?`<img src="${esc(imageOf(v))}" style="width:30px;height:30px;object-fit:cover">`:""}<span>${esc(labelOf(v,i))}</span></label>`).join("");
+      const result = await DialogV2.wait({
+        window:{title:action.title ?? "Choose"},modal:true,
+        content:`<div class="sd-choice-array">${action.text?`<p>${esc(action.text)}</p>`:""}<div style="max-height:360px;overflow:auto">${rows || "<p>No options.</p>"}</div></div>`,
+        buttons:[
+          {action:"confirm",label:action.confirmLabel ?? "Confirm",icon:"fas fa-check",default:true,callback:(ev,btn,dlg)=>{
+            const root=dlg?.element ?? dlg; return [...(root?.querySelectorAll?.('input[name="sd-choice"]:checked') ?? [])].map(x=>Number(x.value));
+          }},
+          {action:"cancel",label:"Cancel",icon:"fas fa-times",callback:()=>null}
+        ],rejectClose:false
+      }).catch(()=>null);
+      const indices = Array.isArray(result) ? result.filter(i=>Number.isInteger(i)&&i>=0&&i<arr.length) : [];
+      const min = Math.max(0,Number(action.min ?? 1)||0); const max=Math.max(0,Number(action.max ?? 0)||0);
+      if (result !== null && (indices.length < min || (max && indices.length > max))) {
+        ui.notifications?.warn?.(`Choose between ${min} and ${max || "any"} options.`);
+        for (const sub of (action.cancelledActions ?? [])) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+      const selected = indices.map(i=>arr[i]);
+      runtime.__choiceIndices=indices; runtime.__choiceIndex=indices[0] ?? -1;
+      runtime.__choiceSelectedArray=selected; runtime.__choiceSelected=selected[0] ?? null;
+      if(buttonDef){buttonDef.__choiceIndices=indices;buttonDef.__choiceIndex=runtime.__choiceIndex;buttonDef.__choiceSelectedArray=selected;buttonDef.__choiceSelected=runtime.__choiceSelected;}
+      const branch = result === null ? (action.cancelledActions ?? []) : (action.confirmedActions ?? []);
+      for (const sub of branch) await this._runAction(sub,item,actor,buttonDef,runtime);
+      break;
+    }
+
+    case "tokensFromAoe": {
+      let tpl = action.template;
+      if (tpl === "{__aoeTemplate}") tpl = runtime.__aoeTemplate;
+      if (typeof tpl === "string") {
+        const id = _injectRuntime(tpl).replace(/^.*\./,"");
+        tpl = canvas?.templates?.get?.(id) ?? canvas?.scene?.templates?.get?.(id) ?? null;
+      }
+      const placeable = tpl?.object ?? tpl;
+      const tokenIds=[];
+      if (placeable?.shape && Number.isFinite(placeable.x) && Number.isFinite(placeable.y)) {
+        for (const tok of (canvas?.tokens?.placeables ?? [])) {
+          const c=tok.center ?? {x:tok.x+(tok.w||0)/2,y:tok.y+(tok.h||0)/2};
+          try { if(placeable.shape.contains(c.x-placeable.x,c.y-placeable.y)) tokenIds.push(tok.id); } catch {}
+        }
+      }
+      runtime.allTargets=tokenIds;runtime.__targetCount=tokenIds.length;
+      if(buttonDef)buttonDef.__targetCount=tokenIds.length;
+      const branch=tpl ? (action.foundActions ?? []) : (action.missingActions ?? []);
+      for(const sub of branch)await this._runAction(sub,item,actor,buttonDef,runtime);
+      break;
+    }
+
+    case "placeAoeTemplateV2":
+    case "spellCardV2": {
+      const boolValue = async (v) => {
+        if (typeof v === "boolean") return v;
+        try { const {FormulaEngine}=await import("./formula-engine.mjs"); const x=FormulaEngine.evaluate(_injectRuntime(String(v ?? 0)),item??actor??{}); return x===true||x===1||x==="1"||String(x).toLowerCase()==="true"; } catch { return false; }
+      };
+      const isSpell=action.type === "spellCardV2";
+      const isAoe=isSpell ? await boolValue(action.isAoe) : true;
+      const hasTarget=isSpell ? await boolValue(action.hasTarget) : true;
+      const hasEffect=isSpell ? await boolValue(action.hasEffect) : false;
+      const templates = action.templates === "{__aoeTemplates}" && Array.isArray(runtime.__aoeTemplates)
+        ? runtime.__aoeTemplates
+        : action.templates === "{__choiceSelectedArray}" && Array.isArray(runtime.__choiceSelectedArray)
+          ? runtime.__choiceSelectedArray
+          : Array.isArray(action.templates) ? action.templates : [];
+      const targetsRaw = action.targets != null ? _injectRuntime(String(action.targets)) : "";
+      const effectValue = action.effect === "{__choiceSelected}" ? runtime.__choiceSelected
+        : action.effect === "{__spellEffect}" ? runtime.__spellEffect : action.effect;
+      const spellValue = action.value === "{__choiceSelected}" ? runtime.__choiceSelected
+        : action.value === "{__spellValue}" ? runtime.__spellValue : action.value;
+      const cfg=JSON.stringify({
+        type:isSpell?"spellV2":"aoeTemplateV2",title:action.title ?? (isSpell?"Spell":"Place Area Template"),
+        buttonLabel:action.buttonLabel ?? (isSpell?"Cast":"Place Template"),text:action.text ?? "",
+        isAoe,hasTarget,hasEffect,templates,targets:targetsRaw,effect:effectValue ?? null,value:spellValue ?? null,
+        persist:action.persist !== false,postActions:action.postActions ?? [],srcActorId:actor?.id ?? "",srcItemUuid:item?.uuid ?? ""
+      }).replace(/'/g,"&#39;");
+      const sections=[isAoe?"AOE":null,hasTarget?"Targets":null,hasEffect?"Effect":null].filter(Boolean).join(" · ");
+      const text=String(action.text ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const card=`<div class="sd-chat-card sd-spell-v2-card" style="border:1px solid #6b5bb5;border-top:3px solid #6b5bb5;border-radius:6px;background:#f0ebe4;color:#191813;padding:10px"><header style="display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #b5b3a4;padding-bottom:7px"><strong>${action.title ?? (isSpell?"Spell":"Area Template")}</strong><small>${sections}</small></header>${text?`<div style="white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0">${text}</div>`:""}<button type="button" class="sd-spell-v2-cast-btn" data-spell-v2-cfg='${cfg}' style="width:100%;padding:7px;margin-top:8px"><i class="fas fa-wand-magic-sparkles"></i> ${action.buttonLabel ?? (isSpell?"Cast":"Place Template")}</button><div class="sd-spell-v2-result" style="display:none;margin-top:7px"></div></div>`;
+      await ChatMessage.create({speaker:ChatMessage.getSpeaker({actor}),content:card,flags:{sd:{spellV2:true}}});
+      break;
+    }
+
     case "chatSaveButton": {
       const { FormulaEngine } = await import("./formula-engine.mjs");
-      const _csbRaw = action.target ?? "token_target";
+      const _csbRaw = action.targets ?? action.target ?? "token_target";
       const tMode = typeof _csbRaw === "string" ? _injectRuntime(_csbRaw) : _csbRaw;
 
       let saveActors = [];
@@ -5748,6 +6310,8 @@ export class ButtonExecutor {
       const advFormula   = action.advFormula ?? "";
       const disFormula   = action.disFormula ?? "";
       const rollFormula  = action.rollFormula  || "1d20";
+      const operator     = action.operator ?? ">=";
+      const customText   = action.customText ?? "";
       const timeout = Number(action.timeout ?? 0);
 
       const checkTypeLabel = {
@@ -5788,6 +6352,8 @@ export class ButtonExecutor {
                     data-actor-id="${tActor.id}"
                     data-save-modifier-path="${modifierPath.replace(/"/g,"&quot;")}"
                     data-save-dc="${resolvedDC}"
+             data-save-operator="${operator}"
+                    data-save-operator="${operator}"
                     data-save-flavor="${flavor.replace(/"/g,"&quot;")}"
                     data-save-roll-mode="${rollMode}"
                     data-save-roll-dialogue="${rollDialogue}"
@@ -5855,6 +6421,8 @@ export class ButtonExecutor {
             </div>
           </div>
 
+          ${customText ? `<div class="sd-save-custom-text" style="padding:8px 12px;color:#191813;white-space:pre-wrap;overflow-wrap:anywhere;border-bottom:1px solid #e0dcd4">${String(customText).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</div>` : ""}
+
           <!-- Per-actor roll rows -->
           <div class="sd-save-actors-list" style="padding:4px 12px 4px;">
             ${multiNote}
@@ -5914,6 +6482,7 @@ export class ButtonExecutor {
             rollMode,
             timeout,
             checkType,
+            operator,
             passActions:   action.passActions ?? [],
             failActions:   action.failActions ?? []
           }
@@ -6368,7 +6937,7 @@ export class ButtonExecutor {
   }
   static _buildChatCard({ type, label, amount, srcName, srcImg, tActor, hpPath,
                            showApply = true, rollFormula = null, srcActorId = null,
-                           autoApplied = false }) {
+                           autoApplied = false, buttonLabel = null, customText = "" }) {
     const isDamage    = type === "damage";
     const accentColor = isDamage ? "#b83232" : "#2e8b46";
     const dimColor    = isDamage ? "#7a2020" : "#1e6030";
@@ -6414,7 +6983,7 @@ export class ButtonExecutor {
           style="flex:2;background:${accentColor};border:1px solid ${dimColor};border-radius:5px;
                  color:#fff;cursor:pointer;font-size:11px;font-weight:700;padding:5px 4px;
                  display:flex;align-items:center;justify-content:center;gap:5px;transition:.12s">
-          <i class="fas ${iconClass}"></i> Apply ${amount}
+          <i class="fas ${iconClass}"></i> ${buttonLabel || `Apply ${amount}`}
         </button>` : ""}
         <button type="button" class="sd-apply-selected-btn"
           data-hp-path="${safeHpPath}"
@@ -6521,6 +7090,7 @@ export class ButtonExecutor {
       <i class="fas fa-crosshairs" style="color:${accentColor}"></i>
       <span>Target: <strong style="color:#c0c0d8">${targetName}</strong></span>
     </div>
+    ${customText ? `<div class="sd-card-custom-text" style="margin:7px 0;padding:7px 8px;border:1px solid #b5b3a4;border-radius:4px;color:#191813;white-space:pre-wrap;overflow-wrap:anywhere;">${String(customText).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</div>` : ""}
     ${hpBar}
     ${multBtns}
     ${applyBtns}
