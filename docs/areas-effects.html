@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="System Director documentation for Foundry VTT">
+  <title>AoE, Aura and Effects — System Director Wiki</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page wiki-page">
+  <div class="page-heading">
+    <span class="release-badge">System Director 0.15.2 · Foundry v13/v14</span>
+    <h1 data-bilingual data-en="AoE, Aura and Effects" data-ru="AoE, ауры и эффекты"></h1>
+    <p class="lead" data-bilingual data-en="Measured Templates, Regions, token pools and composable Active Effects." data-ru="Measured Templates, Regions, пулы токенов и составные Active Effects."></p>
+  </div>
+
+<section><h2 data-bilingual data-en="Save placed templates" data-ru="Сохранение размещённых шаблонов"></h2><ol class="flow-steps"><li data-bilingual data-en="Place a Measured Template on the scene." data-ru="Разместите Measured Template на сцене."></li><li data-bilingual data-en="Open the graph containing AOE Template Saver and run it." data-ru="Запустите граф с AOE Template Saver."></li><li data-bilingual data-en="The saver window is non-modal: leave it open and select a template on the canvas, or select one before opening." data-ru="Окно Saver немодальное: оставьте его открытым и выделите шаблон на canvas либо выделите заранее."></li><li data-bilingual data-en="Click Add selected. Repeat for more templates, then click Confirm." data-ru="Нажмите Add selected. Повторите для других шаблонов и нажмите Confirm."></li></ol></section>
+<section><h2 data-bilingual data-en="AOE workflow" data-ru="AOE workflow"></h2><div class="node-chain"><span>AOE Template Saver</span><i>Templates[]</i><span>Choice From Array</span><i>Template</i><span>Place AOE Template</span><i>Token Pool</i><span>Damage / Heal</span></div><p data-bilingual data-en="Place AOE Template creates the scene area. Tokens From AOE converts its contents into a typed Token Pool for Save/DC, Damage, Heal or Effect nodes." data-ru="Place AOE Template создаёт область на сцене. Tokens From AOE преобразует её содержимое в типизированный Token Pool для Save/DC, Damage, Heal или Effect."></p></section>
+<section><h2 data-bilingual data-en="Composable Aura" data-ru="Составная Aura"></h2><div class="node-chain"><span>Aura Definition</span><i>Aura</i><span>Place Aura</span><i>Token Event</i><span>Tokens From Aura</span><i>Token Pool</i><span>Effect</span></div><ul><li data-bilingual data-en="Aura Definition stores shape, size, owner, tick mode and lifetime." data-ru="Aura Definition хранит форму, размер, владельца, tick mode и время жизни."></li><li data-bilingual data-en="Place Aura creates the Region and emits enter/turn events." data-ru="Place Aura создаёт Region и отдаёт события входа/хода."></li><li data-bilingual data-en="Downstream nodes decide whether to save, damage, heal or apply an effect." data-ru="Следующие ноды решают, выполнять ли save, damage, heal или effect."></li></ul></section>
+<section><h2 data-bilingual data-en="Composable Effect" data-ru="Составной Effect"></h2><div class="node-chain"><span>Effect Definition</span><i>Effect</i><span>Add Effect Change</span><i>Effect</i><span>Apply / Remove / Toggle</span></div><p data-bilingual data-en="Add one change node per data path. Configure key, value, Active Effect mode and priority, then apply the finished definition to a Token Pool." data-ru="Добавьте по одной Add Effect Change на каждый путь. Укажите key, value, режим Active Effect и priority, затем примените готовое определение к Token Pool."></p></section>
+
+</main>
+<footer class="site">System Director Wiki · v0.15.2</footer>
+<script type="module">import { bootPage } from './js/main.js'; await bootPage();</script>
+</body>
+</html>

@@ -569,3 +569,31 @@ table.doc-table tr:last-child td { border-bottom:0; }
 .cat-summary .chips a { font-family:"JetBrains Mono",Consolas,monospace; font-size:11px; background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--fg-mut); }
 .node-detail .runtime-note { color:var(--fg-mut); font-size:12px; margin:8px 0 0; }
 .node-detail .doc-desc { color:var(--fg); font-size:13px; }
+
+/* Hand-written wiki layout */
+.site-header { flex-wrap: wrap; }
+.site-header nav { overflow-x:auto; scrollbar-width:thin; }
+.site-header nav a { white-space:nowrap; }
+.page-heading { margin-bottom:24px; }
+.release-badge { display:inline-flex; padding:4px 10px; border:1px solid #5dd6a866; border-radius:999px; background:#5dd6a815; color:#8be8c4; font-size:12px; font-weight:800; margin-bottom:10px; }
+.wiki-hero { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(260px,.8fr); gap:24px; padding:26px; border:1px solid var(--line); border-radius:18px; background:linear-gradient(135deg,#191f35,#121b28); }
+.wiki-hero h2 { border:0; margin:0 0 10px; padding:0; font-size:28px; }
+.hero-panel { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border:1px solid #ffffff18; border-radius:14px; background:#0e131c88; padding:20px; color:#c9c3ff; }
+.hero-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+.btn { display:inline-block; padding:8px 14px; border-radius:8px; background:var(--accent); color:#fff; font-weight:800; }
+.btn:hover { text-decoration:none; color:#fff; filter:brightness(1.12); }
+.btn.secondary { background:transparent; border:1px solid var(--line); }
+.quick-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px; }
+.guide-card { display:flex; flex-direction:column; gap:5px; padding:16px; border:1px solid var(--line); border-radius:12px; background:linear-gradient(180deg,var(--panel),var(--bg-2)); color:var(--fg); }
+.guide-card:hover { text-decoration:none; border-color:var(--accent); transform:translateY(-1px); }
+.guide-card span { color:var(--fg-mut); font-size:13px; }
+.node-chain { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:14px; margin:12px 0; border:1px solid var(--line); border-radius:12px; background:#0b1019; }
+.node-chain span { padding:7px 10px; border-radius:8px; border:1px solid #7b68ee77; background:#7b68ee1c; font-weight:800; }
+.node-chain i { color:#ffca6b; font-size:11px; font-style:normal; }
+.state-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0; }
+.state-row span { padding:6px 10px; border-radius:8px; background:var(--panel); border:1px solid var(--line); }
+.path-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:8px; }
+.path-grid code { display:block; padding:10px; background:#0b1019; border:1px solid var(--line); border-radius:8px; }
+.toc { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:12px; background:var(--panel); border:1px solid var(--line); border-radius:10px; }
+.toc a { padding:3px 8px; }
+@media(max-width:760px){ .wiki-hero{grid-template-columns:1fr}.site-header{padding:8px}.site-header .brand{width:100%}.site-header nav{order:3;width:100%}.page{padding:22px 12px 60px} }

@@ -6118,40 +6118,58 @@ export class ButtonExecutor {
       const { DialogV2 } = foundry.applications.api;
       const templates = [];
       const esc = (v) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      const selectedTemplate = () => {
+        const layer = globalThis.canvas?.templates;
+        const active = globalThis.canvas?.activeLayer;
+        return layer?.controlled?.[0]
+          ?? layer?.placeables?.find?.(x => x?.controlled || x?._controlled || x?.document?.object?.controlled)
+          ?? active?.controlled?.find?.(x => x?.document?.documentName === "MeasuredTemplate")
+          ?? null;
+      };
+      // Keep the canvas interactive and remember selections made before or while the picker is open.
+      let lastSelectedTemplate = selectedTemplate();
+      const controlHook = globalThis.Hooks?.on?.("controlMeasuredTemplate", (placeable, controlled) => {
+        if (controlled && placeable) lastSelectedTemplate = placeable;
+      });
       let confirmed = false;
-      while (true) {
-        const rows = templates.length ? templates.map((t,i)=>`<li style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--color-border-light-2);"><strong style="flex:1">${esc(t.name)}</strong><span>${esc(t.t)} · ${Number(t.distance||0)} ft</span><span>#${i+1}</span></li>`).join("") : `<li style="opacity:.65;padding:8px 0">No templates added.</li>`;
-        const choice = await DialogV2.wait({
-          window:{title:action.title ?? "AOE Templates"},modal:true,
-          content:`<div class="sd-aoe-template-saver"><p>Select one placed template on the canvas, then click <b>Add selected</b>.</p><ol style="max-height:260px;overflow:auto;padding-left:22px">${rows}</ol></div>`,
-          buttons:[
-            {action:"add",label:"Add selected",icon:"fas fa-plus"},
-            {action:"remove",label:"Remove last",icon:"fas fa-trash"},
-            {action:"confirm",label:"Confirm",icon:"fas fa-check",default:true},
-            {action:"cancel",label:"Cancel",icon:"fas fa-times"}
-          ],rejectClose:false
-        }).catch(()=>"cancel");
-        if (choice === "add") {
-          const placeable = canvas?.templates?.controlled?.[0]
-            ?? canvas?.templates?.placeables?.find?.(x => x.controlled)
-            ?? null;
-          const d = placeable?.document ?? placeable;
-          if (!d) { ui.notifications?.warn?.("Select a placed template first."); continue; }
-          templates.push({
-            id:foundry.utils.randomID(12),name:d.name || `Template ${templates.length+1}`,
-            t:d.t ?? d.type ?? "circle",distance:Number(d.distance ?? 0)||0,
-            angle:Number(d.angle ?? 53.13)||53.13,width:Number(d.width ?? 0)||0,
-            direction:Number(d.direction ?? 0)||0,texture:d.texture ?? null,
-            fillColor:d.fillColor ?? "#ff0000",borderColor:d.borderColor ?? "#000000"
-          });
-          continue;
+      try {
+        while (true) {
+          const rows = templates.length ? templates.map((t,i)=>`<li style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--color-border-light-2);"><strong style="flex:1">${esc(t.name)}</strong><span>${esc(t.t)} · ${Number(t.distance||0)} ft</span><span>#${i+1}</span></li>`).join("") : `<li style="opacity:.65;padding:8px 0">No templates added.</li>`;
+          const choice = await DialogV2.wait({
+            window:{title:action.title ?? "AOE Templates"},modal:false,
+            content:`<div class="sd-aoe-template-saver"><p>This window does not block the canvas. Select a placed template, then click <b>Add selected</b>. A template selected before opening is also accepted.</p><ol style="max-height:260px;overflow:auto;padding-left:22px">${rows}</ol></div>`,
+            buttons:[
+              {action:"add",label:"Add selected",icon:"fas fa-plus"},
+              {action:"remove",label:"Remove last",icon:"fas fa-trash"},
+              {action:"confirm",label:"Confirm",icon:"fas fa-check",default:true},
+              {action:"cancel",label:"Cancel",icon:"fas fa-times"}
+            ],rejectClose:false
+          }).catch(()=>"cancel");
+          if (choice === "add") {
+            const placeable = selectedTemplate() ?? lastSelectedTemplate;
+            const d = placeable?.document ?? placeable;
+            if (placeable) lastSelectedTemplate = placeable;
+            if (!d) { ui.notifications?.warn?.("Select a placed template first."); continue; }
+            templates.push({
+              id:foundry.utils.randomID(12),name:d.name || `Template ${templates.length+1}`,
+              t:d.t ?? d.type ?? "circle",distance:Number(d.distance ?? 0)||0,
+              angle:Number(d.angle ?? 53.13)||53.13,width:Number(d.width ?? 0)||0,
+              direction:Number(d.direction ?? 0)||0,texture:d.texture ?? null,
+              fillColor:d.fillColor ?? "#ff0000",borderColor:d.borderColor ?? "#000000"
+            });
+            continue;
+          }
+          if (choice === "remove") { templates.pop(); continue; }
+          if (choice === "confirm") {
+            if (!templates.length && !action.allowEmpty) { ui.notifications?.warn?.("Add at least one template."); continue; }
+            confirmed = true;
+          }
+          break;
         }
-        if (choice === "remove") { templates.pop(); continue; }
-        if (choice === "confirm") {
-          if (!templates.length && !action.allowEmpty) { ui.notifications?.warn?.("Add at least one template."); continue; }
-          confirmed = true;
+      } finally {
+        if (controlHook !== undefined && controlHook !== null) {
+          try { globalThis.Hooks?.off?.("controlMeasuredTemplate", controlHook); } catch {}
         }
-        break;
       }
       runtime.__aoeTemplates = templates;
       if (buttonDef) buttonDef.__aoeTemplates = templates;

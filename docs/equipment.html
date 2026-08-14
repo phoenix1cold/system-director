@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="System Director documentation for Foundry VTT">
+  <title>Equipment and effects — System Director Wiki</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page wiki-page">
+  <div class="page-heading">
+    <span class="release-badge">System Director 0.15.2 · Foundry v13/v14</span>
+    <h1 data-bilingual data-en="Equipment and effects" data-ru="Экипировка и эффекты"></h1>
+    <p class="lead" data-bilingual data-en="Inventory, slots, auto-equip and effects controlled by equipped state." data-ru="Инвентарь, слоты, автоэкипировка и эффекты, зависящие от надевания."></p>
+  </div>
+
+<section><h2 data-bilingual data-en="Prepare an inventory item" data-ru="Подготовьте предмет"></h2><ol class="flow-steps"><li data-bilingual data-en="Create an Inventory item and enable Equippable." data-ru="Создайте Inventory item и включите Equippable."></li><li data-bilingual data-en="Choose category, quantity, weight and the slot it may occupy." data-ru="Укажите категорию, количество, вес и подходящий слот."></li><li data-bilingual data-en="Add Active Effects and choose an equipment behavior for each effect." data-ru="Добавьте Active Effects и выберите режим экипировки для каждого эффекта."></li></ol></section>
+<section><h2 data-bilingual data-en="Effect equipment modes" data-ru="Режимы эффектов экипировки"></h2><div class="quick-grid"><div class="card"><h3>Always</h3><p data-bilingual data-en="Uses normal transfer behavior and is not controlled by equipped state." data-ru="Использует обычный transfer и не зависит от состояния equipped."></p></div><div class="card"><h3>Equipped</h3><p data-bilingual data-en="The effect is applied to the actor only while the item is equipped and removed or disabled when unequipped." data-ru="Эффект применяется к Actor только пока предмет надет и снимается или выключается после снятия."></p></div><div class="card"><h3>Item</h3><p data-bilingual data-en="The effect remains on the item and follows its equipped state; unequipping disables it instead of transferring another copy." data-ru="Эффект остаётся на Item и следует его equipped-состоянию; при снятии выключается без создания лишней transferred-копии."></p></div></div></section>
+<section><h2 data-bilingual data-en="Item Slots and auto-equip" data-ru="Item Slots и автоэкипировка"></h2><ol class="flow-steps"><li data-bilingual data-en="Add an Item Slot widget or configure slot definitions on the actor." data-ru="Добавьте Item Slot или настройте определения слотов на Actor."></li><li data-bilingual data-en="Set allowed item types/categories and capacity." data-ru="Укажите разрешённые типы/категории и вместимость."></li><li data-bilingual data-en="Enable auto-equip only when dropping an item into a slot should equip it." data-ru="Включайте auto-equip, только если перенос в слот должен надевать предмет."></li><li data-bilingual data-en="The slot manager and equipment effect modes share the same equipped transition, preventing duplicate application." data-ru="Slot Manager и режимы эффектов используют один переход equipped, поэтому эффект не применяется дважды."></li></ol></section>
+<section><h2 data-bilingual data-en="Equipment graph example" data-ru="Пример графа экипировки"></h2><div class="node-chain"><span>On Equip</span><i>Exec</i><span>Effect Definition</span><i>Effect</i><span>Apply Effect</span></div><div class="node-chain"><span>On Unequip</span><i>Exec</i><span>Effect Definition</span><i>Effect</i><span>Remove Effect</span></div><p data-bilingual data-en="Prefer the built-in Equipped effect mode for ordinary bonuses. Use event graphs when equipping must also send chat, spend resources or trigger other rules." data-ru="Для обычных бонусов используйте встроенный режим Equipped. Event-графы нужны, если надевание также пишет в чат, тратит ресурс или запускает другие правила."></p></section>
+
+</main>
+<footer class="site">System Director Wiki · v0.15.2</footer>
+<script type="module">import { bootPage } from './js/main.js'; await bootPage();</script>
+</body>
+</html>

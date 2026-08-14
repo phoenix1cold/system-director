@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="System Director documentation for Foundry VTT">
+  <title>Macros — System Director Wiki</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page wiki-page">
+  <div class="page-heading">
+    <span class="release-badge">System Director 0.15.2 · Foundry v13/v14</span>
+    <h1 data-bilingual data-en="Macros" data-ru="Макросы"></h1>
+    <p class="lead" data-bilingual data-en="Copy widget actions to the hotbar and reuse graph logic safely." data-ru="Копирование действий виджетов на хотбар и безопасное переиспользование графов."></p>
+  </div>
+
+<section><h2 data-bilingual data-en="Copy a widget to a Macro" data-ru="Копирование виджета в Macro"></h2><ol class="flow-steps"><li data-bilingual data-en="Open an Actor or Item sheet in normal mode." data-ru="Откройте лист Actor или Item в обычном режиме."></li><li data-bilingual data-en="Click the scroll icon next to a Dice or Skill widget." data-ru="Нажмите значок свитка рядом с Dice или Skill."></li><li data-bilingual data-en="Create a Foundry Macro and set Type to Script." data-ru="Создайте Foundry Macro и выберите Type: Script."></li><li data-bilingual data-en="Paste the copied script, save it and drag the Macro to the hotbar." data-ru="Вставьте скрипт, сохраните и перенесите Macro на хотбар."></li></ol><div class="callout tip" data-bilingual data-en="Copied scripts contain normal line breaks and a safe encoded widget configuration. Do not manually replace \n sequences." data-ru="Скопированные скрипты содержат обычные переносы строк и безопасно закодированную конфигурацию. Не заменяйте \n вручную."></div></section>
+<section><h2 data-bilingual data-en="Which Actor is used" data-ru="Как выбирается Actor"></h2><ol><li data-bilingual data-en="The token supplied by Foundry to the Macro, when available." data-ru="Токен, переданный Foundry в Macro, если доступен."></li><li data-bilingual data-en="The first controlled canvas token." data-ru="Первый выделенный токен на canvas."></li><li data-bilingual data-en="The current user's assigned character." data-ru="Назначенный персонаж текущего пользователя."></li><li data-bilingual data-en="The source document from which the Macro was copied." data-ru="Исходный документ, из которого был скопирован Macro."></li></ol></section>
+<section><h2 data-bilingual data-en="Skill macros" data-ru="Макросы навыков"></h2><p data-bilingual data-en="A Skill macro reads the current actor rank as a number, adds Attr Mod or evaluates Mod Value Formula, resolves document references and rolls once. If the widget uses an Action Graph, the Macro executes that action list instead of replacing it with a generic d20 roll." data-ru="Skill Macro читает rank текущего актора как число, добавляет Attr Mod или вычисляет Mod Value Formula, разрешает ссылки на документ и делает один бросок. Если виджет использует Action Graph, Macro выполняет этот список действий вместо подмены обычным d20."></p></section>
+<section><h2 data-bilingual data-en="Reusable graph macros" data-ru="Переиспользуемые macro-графы"></h2><div class="node-chain"><span>Macro Input</span><i>Arguments</i><span>Reusable logic</span><i>Values</i><span>Macro Output</span></div><p data-bilingual data-en="Use Macro Input, Macro Output and Macro Call when the logic should stay inside the Node Graph. This is preferable for repeated saves, damage formulas and target processing." data-ru="Используйте Macro Input, Macro Output и Macro Call, если логика должна оставаться в Node Graph. Это удобно для повторяющихся save, формул урона и обработки целей."></p></section>
+<section><h2 data-bilingual data-en="Troubleshooting" data-ru="Если Macro не работает"></h2><ul><li data-bilingual data-en="Confirm that the Macro type is Script, not Chat." data-ru="Проверьте Type: Script, а не Chat."></li><li data-bilingual data-en="Select a token or assign a character to the user." data-ru="Выделите токен или назначьте пользователю персонажа."></li><li data-bilingual data-en="Copy the script again after changing widget paths or formulas." data-ru="Скопируйте скрипт заново после изменения путей или формул виджета."></li><li data-bilingual data-en="Check the browser console for the resolved formula if Foundry rejects a roll." data-ru="Если Foundry отклоняет бросок, проверьте resolved formula в консоли браузера."></li></ul></section>
+
+</main>
+<footer class="site">System Director Wiki · v0.15.2</footer>
+<script type="module">import { bootPage } from './js/main.js'; await bootPage();</script>
+</body>
+</html>

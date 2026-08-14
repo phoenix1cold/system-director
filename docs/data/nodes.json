@@ -2558,6 +2558,8 @@
     "id": "match_arr"
   },
   "act_roll_value": {
+    "hidden": true,
+    "replacement": "act_roll_v2 + act_analyze_roll + act_present_roll",
     "title": "Roll -> Value",
     "color": "#8a4400",
     "cat": "Dice & Rolls",
@@ -2762,6 +2764,8 @@
     "id": "act_roll_value"
   },
   "act_damage": {
+    "hidden": true,
+    "replacement": "act_damage_simple",
     "title": "Damage",
     "color": "#8a1a1a",
     "cat": "Combat",
@@ -2932,6 +2936,8 @@
     "id": "act_damage"
   },
   "act_heal": {
+    "hidden": true,
+    "replacement": "act_heal_simple",
     "title": "Heal",
     "color": "#1a7a2a",
     "cat": "Combat",
@@ -3075,6 +3081,8 @@
     "id": "act_heal"
   },
   "act_effect": {
+    "hidden": true,
+    "replacement": "act_effect_definition + act_effect_apply_v2",
     "title": "Apply Effect",
     "color": "#1a2a8a",
     "cat": "Effects",
@@ -3180,6 +3188,8 @@
     "id": "act_effect"
   },
   "act_effect_uuid": {
+    "hidden": true,
+    "replacement": "act_effect_definition + act_effect_apply_v2",
     "title": "Apply Effect (UUID)",
     "color": "#1a2a8a",
     "cat": "Effects",
@@ -7283,6 +7293,8 @@
     "id": "act_add_to_inv_item_slot"
   },
   "act_attack_check": {
+    "hidden": true,
+    "replacement": "act_roll_v2 + act_compare_roll + act_present_roll",
     "title": "Attack Check",
     "color": "#8a3a00",
     "cat": "Dice & Rolls",
@@ -7464,6 +7476,8 @@
     "id": "act_attack_check"
   },
   "act_roll_check": {
+    "hidden": true,
+    "replacement": "act_roll_v2 + act_compare_roll + act_present_roll",
     "title": "Roll Check",
     "color": "#8a4400",
     "cat": "Dice & Rolls",
@@ -7764,6 +7778,8 @@
     "id": "act_roll_check"
   },
   "act_tiered_roll": {
+    "hidden": true,
+    "replacement": "act_roll_v2 + chained act_compare_roll",
     "title": "Tiered Roll",
     "color": "#8a4400",
     "cat": "Dice & Rolls",
@@ -8029,6 +8045,8 @@
     "id": "act_tiered_roll"
   },
   "act_dice_pool": {
+    "hidden": true,
+    "replacement": "act_roll_v2 (pool mode) + act_compare_roll",
     "title": "Dice Pool",
     "color": "#8a4400",
     "cat": "Dice & Rolls",
@@ -8466,6 +8484,8 @@
     "id": "get_token_count"
   },
   "act_progression": {
+    "hidden": true,
+    "replacement": "act_roll_v2 + Get Path + act_compare_roll + Set Path",
     "title": "Progression Roll",
     "color": "#8a4400",
     "cat": "Dice & Rolls",
@@ -8651,6 +8671,8 @@
     "id": "act_progression"
   },
   "act_throw_on_canvas": {
+    "hidden": true,
+    "replacement": "act_roll_v2 + act_present_roll",
     "title": "Throw on Canvas",
     "color": "#8a4400",
     "cat": "Dice & Rolls",
@@ -8884,6 +8906,8 @@
     "id": "act_throw_on_canvas"
   },
   "act_throw_on_sheet": {
+    "hidden": true,
+    "replacement": "act_roll_v2 + act_present_roll",
     "title": "Throw on Sheet",
     "color": "#8a4400",
     "cat": "Dice & Rolls",
@@ -11105,6 +11129,8 @@
     "id": "while_loop"
   },
   "act_create_effect": {
+    "hidden": true,
+    "replacement": "act_effect_definition + act_effect_apply_v2",
     "title": "Create Effect",
     "color": "#1a4a8a",
     "cat": "Effects",
@@ -11410,6 +11436,8 @@
     "id": "act_apply_status"
   },
   "act_remove_effect": {
+    "hidden": true,
+    "replacement": "act_effect_remove_v2",
     "title": "Remove Effect",
     "color": "#8a1a2a",
     "cat": "Effects",
@@ -11466,6 +11494,8 @@
     "id": "act_remove_effect"
   },
   "act_toggle_effect": {
+    "hidden": true,
+    "replacement": "act_effect_toggle_v2",
     "title": "Toggle Effect",
     "color": "#4a4a8a",
     "cat": "Effects",
@@ -11582,6 +11612,8 @@
     "id": "has_effect"
   },
   "act_place_aura": {
+    "hidden": true,
+    "replacement": "act_aura_definition + act_place_aura_zone",
     "title": "Place Aura — With Effect",
     "color": "#1a6a4a",
     "cat": "Effects",
@@ -11731,6 +11763,8 @@
     "id": "act_place_aura"
   },
   "act_place_aura_damage": {
+    "hidden": true,
+    "replacement": "act_place_aura_zone + act_damage_simple",
     "title": "Place Aura — Damage",
     "color": "#7a2a1a",
     "cat": "Effects",
@@ -11977,6 +12011,8 @@
     "id": "act_place_aura_damage"
   },
   "act_place_aura_heal": {
+    "hidden": true,
+    "replacement": "act_place_aura_zone + act_heal_simple",
     "title": "Place Aura — Heal",
     "color": "#1a6a3a",
     "cat": "Effects",
@@ -12212,6 +12248,8 @@
     "id": "act_place_aura_heal"
   },
   "act_place_aura_save_effect": {
+    "hidden": true,
+    "replacement": "act_place_aura_zone + act_save_dc + act_effect_apply_v2",
     "title": "Place Aura — Save → Effect",
     "color": "#6a4a1a",
     "cat": "Effects",
@@ -12488,6 +12526,8 @@
     "id": "act_place_aura_save_effect"
   },
   "act_place_aura_targets": {
+    "hidden": true,
+    "replacement": "act_place_aura_zone",
     "title": "Place Aura — Targets",
     "color": "#6a7a2a",
     "cat": "Effects",
@@ -12648,6 +12688,8 @@
     "id": "act_place_aura_targets"
   },
   "act_place_aura_save_branch": {
+    "hidden": true,
+    "replacement": "act_place_aura_zone + act_save_dc",
     "title": "Place Aura — Save Branch",
     "color": "#8a5a2a",
     "cat": "Effects",
@@ -12913,6 +12955,8 @@
     "id": "act_place_aura_save_branch"
   },
   "act_place_aoe_effect": {
+    "hidden": true,
+    "replacement": "act_spell",
     "title": "Chat AoE — With Effect",
     "color": "#1a4a8a",
     "cat": "Effects",
@@ -13068,6 +13112,8 @@
     "id": "act_place_aoe_effect"
   },
   "act_place_aoe_damage": {
+    "hidden": true,
+    "replacement": "act_spell",
     "title": "Chat AoE — Damage",
     "color": "#7a3a1a",
     "cat": "Effects",
@@ -13284,6 +13330,8 @@
     "id": "act_place_aoe_damage"
   },
   "act_place_aoe_heal": {
+    "hidden": true,
+    "replacement": "act_spell",
     "title": "Chat AoE — Heal",
     "color": "#1a6a3a",
     "cat": "Effects",
@@ -13489,6 +13537,8 @@
     "id": "act_place_aoe_heal"
   },
   "act_place_aoe_save_effect": {
+    "hidden": true,
+    "replacement": "act_spell",
     "title": "Chat AoE — Save → Effect",
     "color": "#6a2a8a",
     "cat": "Effects",
@@ -13746,6 +13796,8 @@
     "id": "act_place_aoe_save_effect"
   },
   "act_place_aoe_targets": {
+    "hidden": true,
+    "replacement": "act_place_aoe_template",
     "title": "Chat AoE — Targets",
     "color": "#8a7a2a",
     "cat": "Effects",
@@ -13841,6 +13893,8 @@
     "id": "act_place_aoe_targets"
   },
   "act_place_aoe_save_branch": {
+    "hidden": true,
+    "replacement": "act_save_dc",
     "title": "Chat AoE — Save",
     "color": "#8a5a2a",
     "cat": "Effects",
@@ -14795,6 +14849,8 @@
     "id": "act_roll_table"
   },
   "chat_save_button": {
+    "hidden": true,
+    "replacement": "act_save_dc",
     "title": "Save / Check Button",
     "color": "#7a3a00",
     "cat": "Dice & Rolls",
@@ -15067,6 +15123,1712 @@
       "__fn": true
     },
     "id": "chat_save_button"
+  },
+  "act_damage_simple": {
+    "title": "Damage",
+    "color": "#8a1a1a",
+    "cat": "Combat",
+    "wideNode": true,
+    "desc": "Final damage delivery only. Supply an already-calculated Value and a Token Pool. This node does not select targets, calculate saves, critical hits, resistances, or damage types.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Value",
+        "type": "value.number"
+      },
+      {
+        "id": "targets",
+        "label": "Token Pool",
+        "type": "value.token_pool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Done →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "label",
+        "label": "Title",
+        "type": "text",
+        "default": "Damage",
+        "noPin": true
+      },
+      {
+        "key": "customText",
+        "label": "Custom text",
+        "type": "textarea",
+        "default": "",
+        "placeholder": "Optional text shown in the chat card",
+        "noPin": true
+      },
+      {
+        "key": "buttonLabel",
+        "label": "Apply button text",
+        "type": "text",
+        "default": "Apply Damage",
+        "noPin": true
+      },
+      {
+        "key": "hpPath",
+        "label": "HP path",
+        "type": "path",
+        "default": "system.resources.hp.value",
+        "noPin": true
+      },
+      {
+        "key": "postToChat",
+        "label": "Post to chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "autoApply",
+        "label": "Apply automatically",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "showApply",
+        "label": "Show Apply button",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_damage_simple"
+  },
+  "act_heal_simple": {
+    "title": "Heal",
+    "color": "#1a7a2a",
+    "cat": "Combat",
+    "wideNode": true,
+    "desc": "Final healing delivery only. Supply an already-calculated Value and a Token Pool. All target selection and calculations stay in the graph.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "amount",
+        "label": "Value",
+        "type": "value.number"
+      },
+      {
+        "id": "targets",
+        "label": "Token Pool",
+        "type": "value.token_pool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Done →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "label",
+        "label": "Title",
+        "type": "text",
+        "default": "Healing",
+        "noPin": true
+      },
+      {
+        "key": "customText",
+        "label": "Custom text",
+        "type": "textarea",
+        "default": "",
+        "placeholder": "Optional text shown in the chat card",
+        "noPin": true
+      },
+      {
+        "key": "buttonLabel",
+        "label": "Apply button text",
+        "type": "text",
+        "default": "Apply Healing",
+        "noPin": true
+      },
+      {
+        "key": "hpPath",
+        "label": "HP path",
+        "type": "path",
+        "default": "system.resources.hp.value",
+        "noPin": true
+      },
+      {
+        "key": "postToChat",
+        "label": "Post to chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "autoApply",
+        "label": "Apply automatically",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "showApply",
+        "label": "Show Apply button",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_heal_simple"
+  },
+  "act_save_dc": {
+    "title": "Save / DC",
+    "color": "#7a3a00",
+    "cat": "Dice & Rolls",
+    "wideNode": true,
+    "desc": "Requests a roll for every token in Token Pool and compares it with DC. Passed? is an optional boolean override: when connected, no roll is requested and the whole pool follows that branch. The node only branches and returns token pools; all consequences are built downstream.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "passed",
+        "label": "Passed? (override)",
+        "type": "value.bool"
+      },
+      {
+        "id": "dc",
+        "label": "DC",
+        "type": "value.number"
+      },
+      {
+        "id": "rollFormula",
+        "label": "Roll Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "targets",
+        "label": "Token Pool",
+        "type": "value.token_pool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "pass",
+        "label": "Passed →",
+        "type": "exec"
+      },
+      {
+        "id": "fail",
+        "label": "Failed →",
+        "type": "exec"
+      },
+      {
+        "id": "passedTargets",
+        "label": "Passed Tokens[]",
+        "type": "value.token_pool"
+      },
+      {
+        "id": "failedTargets",
+        "label": "Failed Tokens[]",
+        "type": "value.token_pool"
+      },
+      {
+        "id": "allTargets",
+        "label": "All Tokens[]",
+        "type": "value.token_pool"
+      },
+      {
+        "id": "result",
+        "label": "Last Roll",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "operator",
+        "label": "Pass if",
+        "type": "select",
+        "default": ">=",
+        "options": [
+          ">=",
+          ">",
+          "<=",
+          "<",
+          "==",
+          "!="
+        ]
+      },
+      {
+        "key": "dc",
+        "label": "Default DC",
+        "type": "number",
+        "default": 15
+      },
+      {
+        "key": "rollFormula",
+        "label": "Default roll formula",
+        "type": "text",
+        "default": "1d20",
+        "placeholder": "1d20 + @mod"
+      },
+      {
+        "key": "flavor",
+        "label": "Title",
+        "type": "text",
+        "default": "Saving Throw",
+        "noPin": true
+      },
+      {
+        "key": "customText",
+        "label": "Custom text",
+        "type": "textarea",
+        "default": "",
+        "placeholder": "Describe the requested save",
+        "noPin": true
+      },
+      {
+        "key": "buttonLabel",
+        "label": "Roll button text",
+        "type": "text",
+        "default": "Roll",
+        "noPin": true
+      },
+      {
+        "key": "rollMode",
+        "label": "Roll mode",
+        "type": "select",
+        "default": "publicroll",
+        "options": [
+          "publicroll",
+          "gmroll",
+          "blindroll",
+          "selfroll"
+        ]
+      },
+      {
+        "key": "rollDialogue",
+        "label": "Roll dialog",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "postToChat",
+        "label": "Post request to chat",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isSaveBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_save_dc"
+  },
+  "act_aoe_template_saver": {
+    "title": "AOE Template Saver",
+    "color": "#355a8a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Opens a dialog. Select a placed Measured Template on the canvas and add it to the list. Geometry and appearance are copied as portable snapshots; scene coordinates are not stored.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "confirmed",
+        "label": "Confirmed →",
+        "type": "exec"
+      },
+      {
+        "id": "cancelled",
+        "label": "Cancelled →",
+        "type": "exec"
+      },
+      {
+        "id": "templates",
+        "label": "Templates[]",
+        "type": "value.aoe_templates"
+      }
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Dialog title",
+        "type": "text",
+        "default": "AOE Templates",
+        "noPin": true
+      },
+      {
+        "key": "allowEmpty",
+        "label": "Allow empty list",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_aoe_template_saver"
+  },
+  "act_choice_from_array": {
+    "title": "Choice From Array",
+    "color": "#5a3a8a",
+    "cat": "Flow",
+    "wideNode": true,
+    "desc": "Opens a dialog and lets the user choose one or more values from an array. Execution continues only after Confirm or Cancel.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "array",
+        "label": "Array",
+        "type": "value.array"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "confirmed",
+        "label": "Confirmed →",
+        "type": "exec"
+      },
+      {
+        "id": "cancelled",
+        "label": "Cancelled →",
+        "type": "exec"
+      },
+      {
+        "id": "selected",
+        "label": "Selected",
+        "type": "value.any"
+      },
+      {
+        "id": "selectedArray",
+        "label": "Selected[]",
+        "type": "value.array"
+      },
+      {
+        "id": "index",
+        "label": "Index",
+        "type": "value.number"
+      },
+      {
+        "id": "indices",
+        "label": "Indices[]",
+        "type": "value.array"
+      }
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Dialog title",
+        "type": "text",
+        "default": "Choose",
+        "noPin": true
+      },
+      {
+        "key": "text",
+        "label": "Description",
+        "type": "textarea",
+        "default": "",
+        "noPin": true
+      },
+      {
+        "key": "multiple",
+        "label": "Multiple selection",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "min",
+        "label": "Minimum choices",
+        "type": "number",
+        "default": 1,
+        "noPin": true
+      },
+      {
+        "key": "max",
+        "label": "Maximum choices (0 = unlimited)",
+        "type": "number",
+        "default": 0,
+        "noPin": true
+      },
+      {
+        "key": "labelPath",
+        "label": "Label property",
+        "type": "text",
+        "default": "name",
+        "placeholder": "name / label / title",
+        "noPin": true
+      },
+      {
+        "key": "imagePath",
+        "label": "Image property",
+        "type": "text",
+        "default": "img",
+        "placeholder": "img / icon",
+        "noPin": true
+      },
+      {
+        "key": "confirmLabel",
+        "label": "Confirm text",
+        "type": "text",
+        "default": "Confirm",
+        "noPin": true
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_choice_from_array"
+  },
+  "act_place_aoe_template": {
+    "title": "Place AOE Template",
+    "color": "#37698a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Chooses one portable template snapshot, places it interactively, and returns the tokens inside. It performs no save, damage, healing, or effect logic.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "templates",
+        "label": "Templates[]",
+        "type": "value.aoe_templates"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Placed →",
+        "type": "exec"
+      },
+      {
+        "id": "targets",
+        "label": "Tokens Inside[]",
+        "type": "value.token_pool"
+      },
+      {
+        "id": "template",
+        "label": "Placed Template",
+        "type": "value.aoe_template"
+      }
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Chat title",
+        "type": "text",
+        "default": "Place Area Template",
+        "noPin": true
+      },
+      {
+        "key": "buttonLabel",
+        "label": "Button text",
+        "type": "text",
+        "default": "Place Template",
+        "noPin": true
+      },
+      {
+        "key": "persist",
+        "label": "Keep template on map",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isAoeSave": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_place_aoe_template"
+  },
+  "act_tokens_from_aoe": {
+    "title": "Tokens From AOE",
+    "color": "#37698a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Reads the tokens currently inside an existing placed template or region.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "template",
+        "label": "Template",
+        "type": "value.aoe_template"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "found",
+        "label": "Found →",
+        "type": "exec"
+      },
+      {
+        "id": "missing",
+        "label": "Missing →",
+        "type": "exec"
+      },
+      {
+        "id": "targets",
+        "label": "Tokens[]",
+        "type": "value.token_pool"
+      },
+      {
+        "id": "count",
+        "label": "Count",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_tokens_from_aoe"
+  },
+  "act_spell": {
+    "title": "Spell",
+    "color": "#4a3a9a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Adaptive chat card. AOE?, Target?, and Effect? only control the card sections. The node presents and returns context; all save, damage, healing, and effect consequences are built downstream.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "isAoe",
+        "label": "AOE?",
+        "type": "value.bool"
+      },
+      {
+        "id": "hasTarget",
+        "label": "Target?",
+        "type": "value.bool"
+      },
+      {
+        "id": "hasEffect",
+        "label": "Effect?",
+        "type": "value.bool"
+      },
+      {
+        "id": "targets",
+        "label": "Token Pool",
+        "type": "value.token_pool"
+      },
+      {
+        "id": "templates",
+        "label": "Templates[]",
+        "type": "value.aoe_templates"
+      },
+      {
+        "id": "effect",
+        "label": "Effect",
+        "type": "value.effect"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      },
+      {
+        "id": "text",
+        "label": "Custom Text",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Cast →",
+        "type": "exec"
+      },
+      {
+        "id": "targets",
+        "label": "Tokens[]",
+        "type": "value.token_pool"
+      },
+      {
+        "id": "template",
+        "label": "Template",
+        "type": "value.aoe_template"
+      },
+      {
+        "id": "effect",
+        "label": "Effect",
+        "type": "value.effect"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "label": "Spell title",
+        "type": "text",
+        "default": "Spell",
+        "noPin": true
+      },
+      {
+        "key": "customText",
+        "label": "Default text",
+        "type": "textarea",
+        "default": "",
+        "noPin": true
+      },
+      {
+        "key": "buttonLabel",
+        "label": "Cast button text",
+        "type": "text",
+        "default": "Cast",
+        "noPin": true
+      },
+      {
+        "key": "persist",
+        "label": "Keep AOE template",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      }
+    ],
+    "isAoeSave": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_spell"
+  },
+  "act_roll_v2": {
+    "title": "Roll",
+    "color": "#8a4400",
+    "cat": "Dice & Rolls",
+    "wideNode": true,
+    "desc": "Evaluates a formula or dice pool and returns one typed Roll Result. This node does not decide success and does not post to chat; connect Analyze, Compare and Present nodes.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "count",
+        "label": "Pool Count",
+        "type": "value.number"
+      },
+      {
+        "id": "successTarget",
+        "label": "Success Target",
+        "type": "value.number"
+      },
+      {
+        "id": "advFormula",
+        "label": "Adv Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "disFormula",
+        "label": "Dis Formula",
+        "type": "value.string"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Rolled →",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll Result",
+        "type": "value.roll_result"
+      },
+      {
+        "id": "total",
+        "label": "Total",
+        "type": "value.number"
+      },
+      {
+        "id": "successes",
+        "label": "Successes",
+        "type": "value.number"
+      },
+      {
+        "id": "botches",
+        "label": "Botches",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "mode",
+        "label": "Mode",
+        "type": "select",
+        "default": "formula",
+        "options": [
+          "formula",
+          "pool"
+        ],
+        "noPin": true
+      },
+      {
+        "key": "formula",
+        "label": "Formula",
+        "type": "text",
+        "default": "1d20"
+      },
+      {
+        "key": "flavor",
+        "label": "Label",
+        "type": "text",
+        "default": "Roll",
+        "noPin": true
+      },
+      {
+        "key": "rollDialogue",
+        "label": "Roll dialog",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ],
+        "noPin": true
+      },
+      {
+        "key": "advFormula",
+        "label": "Advantage formula",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "disFormula",
+        "label": "Disadvantage formula",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "count",
+        "label": "Pool count",
+        "type": "text",
+        "default": "5"
+      },
+      {
+        "key": "die",
+        "label": "Pool die faces",
+        "type": "number",
+        "default": 10,
+        "noPin": true
+      },
+      {
+        "key": "successTarget",
+        "label": "Success target",
+        "type": "text",
+        "default": "8"
+      },
+      {
+        "key": "successCompare",
+        "label": "Success comparison",
+        "type": "select",
+        "default": ">=",
+        "options": [
+          ">=",
+          ">",
+          "<=",
+          "<",
+          "==",
+          "!="
+        ],
+        "noPin": true
+      },
+      {
+        "key": "botchFace",
+        "label": "Botch face",
+        "type": "number",
+        "default": 1,
+        "noPin": true
+      },
+      {
+        "key": "critOn",
+        "label": "Critical natural ≥",
+        "type": "number",
+        "default": 20,
+        "noPin": true
+      },
+      {
+        "key": "fumbleOn",
+        "label": "Fumble natural ≤",
+        "type": "number",
+        "default": 1,
+        "noPin": true
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_roll_v2"
+  },
+  "act_analyze_roll": {
+    "title": "Analyze Roll",
+    "color": "#315b89",
+    "cat": "Dice & Rolls",
+    "wideNode": true,
+    "desc": "Breaks a typed Roll Result into reusable values without rolling again.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll Result",
+        "type": "value.roll_result"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Analyzed →",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll Result",
+        "type": "value.roll_result"
+      },
+      {
+        "id": "total",
+        "label": "Total",
+        "type": "value.number"
+      },
+      {
+        "id": "formula",
+        "label": "Formula",
+        "type": "value.string"
+      },
+      {
+        "id": "dice",
+        "label": "Dice",
+        "type": "value.array"
+      },
+      {
+        "id": "natural",
+        "label": "Natural",
+        "type": "value.number"
+      },
+      {
+        "id": "min",
+        "label": "Minimum",
+        "type": "value.number"
+      },
+      {
+        "id": "max",
+        "label": "Maximum",
+        "type": "value.number"
+      },
+      {
+        "id": "avg",
+        "label": "Average",
+        "type": "value.number"
+      },
+      {
+        "id": "successes",
+        "label": "Successes",
+        "type": "value.number"
+      },
+      {
+        "id": "botches",
+        "label": "Botches",
+        "type": "value.number"
+      },
+      {
+        "id": "isCrit",
+        "label": "Critical",
+        "type": "value.bool"
+      },
+      {
+        "id": "isFumble",
+        "label": "Fumble",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_analyze_roll"
+  },
+  "act_compare_roll": {
+    "title": "Compare Roll",
+    "color": "#6b3e8e",
+    "cat": "Dice & Rolls",
+    "wideNode": true,
+    "desc": "Compares one property of a Roll Result with a value and routes execution to Passed or Failed.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll Result",
+        "type": "value.roll_result"
+      },
+      {
+        "id": "value",
+        "label": "Compare With",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "pass",
+        "label": "Passed →",
+        "type": "exec"
+      },
+      {
+        "id": "fail",
+        "label": "Failed →",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll Result",
+        "type": "value.roll_result"
+      },
+      {
+        "id": "compared",
+        "label": "Compared Value",
+        "type": "value.number"
+      },
+      {
+        "id": "target",
+        "label": "Target",
+        "type": "value.number"
+      },
+      {
+        "id": "margin",
+        "label": "Margin",
+        "type": "value.number"
+      },
+      {
+        "id": "passed",
+        "label": "Passed",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [
+      {
+        "key": "source",
+        "label": "Result property",
+        "type": "select",
+        "default": "total",
+        "options": [
+          "total",
+          "natural",
+          "successes",
+          "botches",
+          "min",
+          "max",
+          "avg"
+        ],
+        "noPin": true
+      },
+      {
+        "key": "operator",
+        "label": "Pass if",
+        "type": "select",
+        "default": ">=",
+        "options": [
+          ">=",
+          ">",
+          "<=",
+          "<",
+          "==",
+          "!="
+        ],
+        "noPin": true
+      },
+      {
+        "key": "value",
+        "label": "Compare with",
+        "type": "text",
+        "default": "10"
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_compare_roll"
+  },
+  "act_present_roll": {
+    "title": "Present Roll",
+    "color": "#31705a",
+    "cat": "Dice & Rolls",
+    "wideNode": true,
+    "desc": "Displays an existing Roll Result in chat, on the canvas, or over the current actor sheet. It never rolls again.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll Result",
+        "type": "value.roll_result"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Presented →",
+        "type": "exec"
+      },
+      {
+        "id": "result",
+        "label": "Roll Result",
+        "type": "value.roll_result"
+      }
+    ],
+    "fields": [
+      {
+        "key": "destination",
+        "label": "Destination",
+        "type": "select",
+        "default": "chat",
+        "options": [
+          "chat",
+          "canvas",
+          "sheet"
+        ],
+        "noPin": true
+      },
+      {
+        "key": "label",
+        "label": "Label override",
+        "type": "text",
+        "default": "",
+        "noPin": true
+      },
+      {
+        "key": "rollMode",
+        "label": "Chat visibility",
+        "type": "select",
+        "default": "default",
+        "options": [
+          "default",
+          "publicroll",
+          "gmroll",
+          "blindroll",
+          "selfroll"
+        ],
+        "noPin": true
+      },
+      {
+        "key": "area",
+        "label": "Canvas area (px)",
+        "type": "number",
+        "default": 300,
+        "noPin": true
+      },
+      {
+        "key": "duration",
+        "label": "Overlay duration (s)",
+        "type": "number",
+        "default": 6,
+        "noPin": true
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_present_roll"
+  },
+  "act_aura_definition": {
+    "title": "Aura Definition",
+    "color": "#39735b",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Builds a portable Aura definition. It does not place anything or apply consequences; connect it to Place Aura.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.actor"
+      },
+      {
+        "id": "size",
+        "label": "Size",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Built →",
+        "type": "exec"
+      },
+      {
+        "id": "aura",
+        "label": "Aura",
+        "type": "value.object"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "text",
+        "default": "Aura",
+        "noPin": true
+      },
+      {
+        "key": "shape",
+        "label": "Shape",
+        "type": "select",
+        "default": "emanation",
+        "options": [
+          "emanation",
+          "circle",
+          "cone",
+          "ray",
+          "rect",
+          "ellipse"
+        ]
+      },
+      {
+        "key": "size",
+        "label": "Size (ft)",
+        "type": "number",
+        "default": 10
+      },
+      {
+        "key": "angle",
+        "label": "Cone angle",
+        "type": "number",
+        "default": 53.13,
+        "noPin": true
+      },
+      {
+        "key": "owner",
+        "label": "Owner fallback",
+        "type": "select",
+        "default": "actor",
+        "options": [
+          "actor",
+          "selected_token",
+          "token_target"
+        ]
+      },
+      {
+        "key": "tickMode",
+        "label": "Trigger",
+        "type": "select",
+        "default": "onEnter",
+        "options": [
+          "onEnter",
+          "eachTurn",
+          "onEnter+eachTurn"
+        ]
+      },
+      {
+        "key": "skipOwner",
+        "label": "Exclude owner",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "rounds",
+        "label": "Lifetime (rounds, 0 = permanent)",
+        "type": "number",
+        "default": 0,
+        "noPin": true
+      },
+      {
+        "key": "auraKey",
+        "label": "Aura key",
+        "type": "text",
+        "default": "composable-aura",
+        "noPin": true
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_aura_definition"
+  },
+  "act_place_aura_zone": {
+    "title": "Place Aura",
+    "color": "#2f7d5c",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Places an Aura definition on its owner. Each matching enter/turn event forwards a Token Pool to the downstream graph; it does not roll, damage, heal, or apply effects.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "aura",
+        "label": "Aura",
+        "type": "value.object"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Token Event →",
+        "type": "exec"
+      },
+      {
+        "id": "targets",
+        "label": "Token Pool",
+        "type": "value.token_pool"
+      },
+      {
+        "id": "aura",
+        "label": "Placed Aura",
+        "type": "value.object"
+      }
+    ],
+    "fields": [],
+    "isAoeSave": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_place_aura_zone"
+  },
+  "act_tokens_from_aura": {
+    "title": "Tokens From Aura",
+    "color": "#2f7d5c",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Returns the tokens currently inside an existing Aura region.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "aura",
+        "label": "Aura",
+        "type": "value.object"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "found",
+        "label": "Found →",
+        "type": "exec"
+      },
+      {
+        "id": "missing",
+        "label": "Missing →",
+        "type": "exec"
+      },
+      {
+        "id": "targets",
+        "label": "Token Pool",
+        "type": "value.token_pool"
+      },
+      {
+        "id": "count",
+        "label": "Count",
+        "type": "value.number"
+      }
+    ],
+    "fields": [],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_tokens_from_aura"
+  },
+  "act_effect_definition": {
+    "title": "Effect Definition",
+    "color": "#68449a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Builds an Active Effect definition without applying it. Add any number of Effect Change nodes, then pass it to Apply/Remove/Toggle Effect.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "value.string"
+      },
+      {
+        "id": "icon",
+        "label": "Icon",
+        "type": "value.string"
+      },
+      {
+        "id": "duration",
+        "label": "Duration",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Built →",
+        "type": "exec"
+      },
+      {
+        "id": "effect",
+        "label": "Effect",
+        "type": "value.effect"
+      }
+    ],
+    "fields": [
+      {
+        "key": "name",
+        "label": "Default name",
+        "type": "text",
+        "default": "Effect"
+      },
+      {
+        "key": "icon",
+        "label": "Default icon",
+        "type": "text",
+        "default": "icons/svg/aura.svg"
+      },
+      {
+        "key": "duration",
+        "label": "Default rounds",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "key": "disabled",
+        "label": "Start disabled",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "key": "transfer",
+        "label": "Transfer",
+        "type": "select",
+        "default": "no",
+        "options": [
+          "no",
+          "yes"
+        ]
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_effect_definition"
+  },
+  "act_effect_add_change": {
+    "title": "Add Effect Change",
+    "color": "#7650a8",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Adds one path/mode/value change to an Effect definition and returns the updated definition.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "effect",
+        "label": "Effect",
+        "type": "value.effect"
+      },
+      {
+        "id": "path",
+        "label": "Path",
+        "type": "value.path"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      },
+      {
+        "id": "priority",
+        "label": "Priority",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Added →",
+        "type": "exec"
+      },
+      {
+        "id": "effect",
+        "label": "Effect",
+        "type": "value.effect"
+      }
+    ],
+    "fields": [
+      {
+        "key": "path",
+        "label": "Default path",
+        "type": "path",
+        "default": "system.attributes.ac.bonus"
+      },
+      {
+        "key": "value",
+        "label": "Default value",
+        "type": "text",
+        "default": "0"
+      },
+      {
+        "key": "mode",
+        "label": "Mode",
+        "type": "select",
+        "default": "2",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ]
+      },
+      {
+        "key": "priority",
+        "label": "Default priority",
+        "type": "number",
+        "default": 20
+      }
+    ],
+    "isGenericBranch": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_effect_add_change"
+  },
+  "act_effect_apply_v2": {
+    "title": "Apply Effect",
+    "color": "#4f3b91",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Applies a prepared Effect definition to a Token Pool.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "effect",
+        "label": "Effect",
+        "type": "value.effect"
+      },
+      {
+        "id": "targets",
+        "label": "Token Pool",
+        "type": "value.token_pool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Done →",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_effect_apply_v2"
+  },
+  "act_effect_remove_v2": {
+    "title": "Remove Effect",
+    "color": "#8a334d",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Removes effects matching a prepared Effect definition from a Token Pool.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "effect",
+        "label": "Effect",
+        "type": "value.effect"
+      },
+      {
+        "id": "targets",
+        "label": "Token Pool",
+        "type": "value.token_pool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Done →",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_effect_remove_v2"
+  },
+  "act_effect_toggle_v2": {
+    "title": "Toggle Effect",
+    "color": "#5a4a9a",
+    "cat": "Effects",
+    "wideNode": true,
+    "desc": "Toggles effects matching a prepared Effect definition on a Token Pool.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "effect",
+        "label": "Effect",
+        "type": "value.effect"
+      },
+      {
+        "id": "targets",
+        "label": "Token Pool",
+        "type": "value.token_pool"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Done →",
+        "type": "exec"
+      }
+    ],
+    "fields": [],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "act_effect_toggle_v2"
   },
   "on_update": {
     "title": "On Update",
@@ -15679,6 +17441,8 @@
     "id": "on_event"
   },
   "get_self": {
+    "hidden": true,
+    "replacement": "get_self_actor / get_self_item",
     "title": "Get Self",
     "color": "#2a5a7a",
     "cat": "Targeting",
@@ -15697,11 +17461,49 @@
     },
     "id": "get_self"
   },
+  "get_self_actor": {
+    "title": "Self (Actor)",
+    "color": "#2a5a7a",
+    "cat": "Targeting",
+    "desc": "The current actor. In an item graph this resolves to the item's owning actor.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Actor",
+        "type": "value.actor"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    },
+    "id": "get_self_actor"
+  },
+  "get_self_item": {
+    "title": "Self (Item)",
+    "color": "#6a5420",
+    "cat": "Targeting",
+    "desc": "The item document the graph is running from. Actor-only graphs do not invent an item.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Item",
+        "type": "value.item"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    },
+    "id": "get_self_item"
+  },
   "get_actor": {
     "title": "Get Actor",
     "color": "#2a5a7a",
     "cat": "Targeting",
-    "desc": "Reference to one or more actors. If a UUID is filled in, it takes priority and the Mode dropdown is ignored. Otherwise the Mode resolves at runtime: self/actor (the graph's owner), targeted/selected token, all targets (array), or the user's character.",
+    "desc": "Reference to an actor or item context. Self (Actor) resolves the current/owning actor; Self (Item) resolves the item the graph belongs to. If a UUID is filled in, it takes priority and the Mode dropdown is ignored. Targeted/selected token modes return actors; All Targets returns an array.",
     "inputs": [
       {
         "id": "uuid",
@@ -15713,8 +17515,8 @@
     "outputs": [
       {
         "id": "v",
-        "label": "Actor(s)",
-        "type": "value.actor"
+        "label": "Actor / Item",
+        "type": "value.any"
       }
     ],
     "fields": [
@@ -15723,7 +17525,7 @@
         "label": "UUID",
         "type": "text",
         "default": "",
-        "placeholder": "Actor.abc123 (priority — Mode is ignored when filled)"
+        "placeholder": "Actor.abc123 or Item.abc123 (priority — Mode is ignored when filled)"
       },
       {
         "key": "mode",
@@ -15733,7 +17535,11 @@
         "options": [
           {
             "value": "actor",
-            "label": "Self / context actor"
+            "label": "Self (Actor)"
+          },
+          {
+            "value": "self",
+            "label": "Self (Item)"
           },
           {
             "value": "token_target",

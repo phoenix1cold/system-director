@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="System Director documentation for Foundry VTT">
+  <title>Node Graph guide — System Director Wiki</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page wiki-page">
+  <div class="page-heading">
+    <span class="release-badge">System Director 0.15.2 · Foundry v13/v14</span>
+    <h1 data-bilingual data-en="Node Graph guide" data-ru="Руководство по нодам"></h1>
+    <p class="lead" data-bilingual data-en="Exec flow, typed pins and the current composable node architecture." data-ru="Exec-цепочки, типизированные пины и текущая составная архитектура нод."></p>
+  </div>
+
+<section><h2 data-bilingual data-en="How execution works" data-ru="Как выполняется граф"></h2><div class="quick-grid"><div class="card"><h3>Exec</h3><p data-bilingual data-en="Yellow pins control action order. Start from On Click or an event node." data-ru="Жёлтые пины задают порядок действий. Начинайте с On Click или event-ноды."></p></div><div class="card"><h3>Values</h3><p data-bilingual data-en="Colored pins carry numbers, strings, actors, items, token pools and structured results." data-ru="Цветные пины передают числа, строки, акторов, предметы, пулы токенов и структурированные результаты."></p></div><div class="card"><h3 data-bilingual data-en="Branches" data-ru="Ветвления"></h3><p data-bilingual data-en="Branch, Compare Roll, Save/DC and validity nodes select the next exec path." data-ru="Branch, Compare Roll, Save/DC и проверки выбирают следующую exec-ветку."></p></div></div></section>
+<section><h2 data-bilingual data-en="Typed data" data-ru="Типизированные данные"></h2><div class="pin-legend"><span class="pin-tag"><span class="dot" style="--c:#5dd6a8"></span>Actor</span><span class="pin-tag"><span class="dot" style="--c:#ffd94a"></span>Item</span><span class="pin-tag"><span class="dot" style="--c:#42d6c8"></span>Token Pool</span><span class="pin-tag"><span class="dot" style="--c:#8ab4ff"></span>Roll Result</span><span class="pin-tag"><span class="dot" style="--c:#c783ff"></span>Effect</span><span class="pin-tag"><span class="dot" style="--c:#ff9f68"></span>AOE Template</span></div><p data-bilingual data-en="Use Self (Actor) for the current actor and Self (Item) for the item owning the graph. Do not use an untyped array where a Token Pool pin is available." data-ru="Используйте Self (Actor) для текущего актора и Self (Item) для предмета, которому принадлежит граф. Не подменяйте Token Pool обычным массивом без необходимости."></p></section>
+<section><h2 data-bilingual data-en="Composable roll pipeline" data-ru="Составной pipeline броска"></h2><div class="node-chain"><span>Roll</span><i>Roll Result</i><span>Analyze Roll</span><i>Total</i><span>Compare Roll</span><i>Passed</i><span>Present Roll</span></div><ul><li data-bilingual data-en="Roll evaluates a formula or dice pool once." data-ru="Roll один раз вычисляет формулу или dice pool."></li><li data-bilingual data-en="Analyze Roll exposes total, natural, dice, min/max/average, successes and botches." data-ru="Analyze Roll отдаёт total, natural, dice, min/max/average, successes и botches."></li><li data-bilingual data-en="Compare Roll compares one property and branches." data-ru="Compare Roll сравнивает выбранное свойство и ветвится."></li><li data-bilingual data-en="Present Roll displays the same result in chat, on the canvas or on the sheet without rolling again." data-ru="Present Roll показывает тот же результат в чате, на canvas или листе без повторного броска."></li></ul></section>
+<section><h2 data-bilingual data-en="Where to click" data-ru="Что и где нажимать"></h2><ol class="flow-steps"><li data-bilingual data-en="Open a widget settings menu and choose Action Graph." data-ru="Откройте настройки виджета и выберите Action Graph."></li><li data-bilingual data-en="Right-click empty graph space or use the node palette to add a node." data-ru="Нажмите ПКМ по пустому месту или используйте палитру нод."></li><li data-bilingual data-en="Drag from an output pin to a compatible input pin." data-ru="Потяните провод от выходного пина к совместимому входному."></li><li data-bilingual data-en="Use Search for node names such as Roll, Damage, Save/DC or Effect Definition." data-ru="Ищите ноды по именам Roll, Damage, Save/DC или Effect Definition."></li><li data-bilingual data-en="Save, close the graph and test from the normal sheet mode." data-ru="Сохраните, закройте граф и проверяйте в обычном режиме листа."></li></ol></section>
+<section><h2 data-bilingual data-en="Reference" data-ru="Справочник"></h2><p><a class="btn" href="nodes.html" data-bilingual data-en="Open all nodes" data-ru="Открыть все ноды"></a> <a class="btn secondary" href="examples.html" data-bilingual data-en="Open recipes" data-ru="Открыть рецепты"></a></p></section>
+
+</main>
+<footer class="site">System Director Wiki · v0.15.2</footer>
+<script type="module">import { bootPage } from './js/main.js'; await bootPage();</script>
+</body>
+</html>

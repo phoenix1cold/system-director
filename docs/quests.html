@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="System Director documentation for Foundry VTT">
+  <title>Quest system — System Director Wiki</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page wiki-page">
+  <div class="page-heading">
+    <span class="release-badge">System Director 0.15.2 · Foundry v13/v14</span>
+    <h1 data-bilingual data-en="Quest system" data-ru="Квестовая система"></h1>
+    <p class="lead" data-bilingual data-en="A practical workflow for quest logs, objectives, dependencies, visibility and rewards." data-ru="Практическая работа с журналами, задачами, зависимостями, видимостью и наградами."></p>
+  </div>
+
+<section><h2 data-bilingual data-en="Create a Quest Log" data-ru="Создание Quest Log"></h2><ol class="flow-steps"><li data-bilingual data-en="Items sidebar → Create Item → Quest Log." data-ru="Панель Items → Create Item → Quest Log."></li><li data-bilingual data-en="Open it and click Add quest." data-ru="Откройте его и нажмите Add quest."></li><li data-bilingual data-en="Enter name, description and visibility, then save." data-ru="Введите название, описание и видимость, затем сохраните."></li><li data-bilingual data-en="Add objectives. Mark required objectives when they should control auto-completion." data-ru="Добавьте задачи. Отметьте обязательные, если от них зависит автоматическое завершение."></li></ol></section>
+<section><h2 data-bilingual data-en="Quest states" data-ru="Состояния квеста"></h2><div class="state-row"><span>Locked</span><i>→</i><span>Available</span><i>→</i><span>Active</span><i>→</i><span>Completed</span><span>Failed</span></div><ul><li data-bilingual data-en="Locked is unavailable until dependencies are satisfied." data-ru="Locked недоступен до выполнения зависимостей."></li><li data-bilingual data-en="Available can be accepted by the player or activated by a graph." data-ru="Available можно принять вручную или активировать графом."></li><li data-bilingual data-en="Active is shown by Quest Marker and receives objective updates." data-ru="Active показывается Quest Marker и получает обновления задач."></li><li data-bilingual data-en="Completed and Failed stop normal objective progress." data-ru="Completed и Failed прекращают обычный прогресс задач."></li></ul></section>
+<section><h2 data-bilingual data-en="Dependencies and automatic completion" data-ru="Зависимости и автозавершение"></h2><ol class="flow-steps"><li data-bilingual data-en="Open the quest dependency section." data-ru="Откройте раздел зависимостей квеста."></li><li data-bilingual data-en="Add required quest IDs from the same Quest Log." data-ru="Добавьте ID требуемых квестов из того же Quest Log."></li><li data-bilingual data-en="Choose whether every dependency or any dependency is enough." data-ru="Выберите, должны ли выполниться все зависимости или достаточно одной."></li><li data-bilingual data-en="Enable Auto-complete when all required objectives should finish the quest." data-ru="Включите Auto-complete, если выполнение обязательных задач должно завершить квест."></li></ol></section>
+<section><h2 data-bilingual data-en="Rewards" data-ru="Награды"></h2><p data-bilingual data-en="Rewards can grant items, currency and configured values. Add rewards inside the quest, then use manual Grant or a Quest Grant Reward node. Granting is idempotent per eligible character, so already received rewards are skipped." data-ru="Награды могут выдавать предметы, валюту и настроенные значения. Добавьте награды в квест, затем используйте ручную выдачу или ноду Quest Grant Reward. Повторно получившие награду персонажи пропускаются."></p></section>
+<section><h2 data-bilingual data-en="Show quests on an Actor sheet" data-ru="Показ квестов на листе Actor"></h2><ol class="flow-steps"><li data-bilingual data-en="Give players Observer permission on the Quest Log item." data-ru="Выдайте игрокам Observer на Item Quest Log."></li><li data-bilingual data-en="Add a Quest Marker widget to the actor sheet." data-ru="Добавьте Quest Marker на лист актора."></li><li data-bilingual data-en="Set the Quest Log UUID in the widget settings." data-ru="Укажите UUID Quest Log в настройках виджета."></li><li data-bilingual data-en="Activate a quest. The widget opens its objectives and current status." data-ru="Активируйте квест. Виджет покажет его задачи и текущий статус."></li></ol></section>
+<section><h2 data-bilingual data-en="Quest nodes" data-ru="Квестовые ноды"></h2><div class="node-chain"><span>On Click / Event</span><i>Exec</i><span>Quest Set State</span><i>Quest hook</i><span>Quest Marker</span></div><ul><li><b>Quest Set State</b> — activate, complete, fail, lock or make available.</li><li><b>Quest Mark Objective</b> — change objective progress.</li><li><b>Quest Reveal Reward</b> — make a hidden reward visible.</li><li><b>Quest Grant Reward</b> — deliver configured rewards.</li><li><b>On Quest Activated/Completed/Failed</b> — react from event graphs.</li></ul></section>
+
+</main>
+<footer class="site">System Director Wiki · v0.15.2</footer>
+<script type="module">import { bootPage } from './js/main.js'; await bootPage();</script>
+</body>
+</html>

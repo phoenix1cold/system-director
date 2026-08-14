@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="System Director documentation for Foundry VTT">
+  <title>Progression — System Director Wiki</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
+<body>
+<header class="site-header"></header>
+<main class="page wiki-page">
+  <div class="page-heading">
+    <span class="release-badge">System Director 0.15.2 · Foundry v13/v14</span>
+    <h1 data-bilingual data-en="Progression" data-ru="Прогрессия"></h1>
+    <p class="lead" data-bilingual data-en="Class levels, choices, field changes and skill trees." data-ru="Уровни класса, выборы, изменения полей и деревья навыков."></p>
+  </div>
+
+<section><h2 data-bilingual data-en="Class progression" data-ru="Прогрессия класса"></h2><ol class="flow-steps"><li data-bilingual data-en="Create an Item of type Class and open its progression editor." data-ru="Создайте Item типа Class и откройте редактор прогрессии."></li><li data-bilingual data-en="Add levels in ascending order." data-ru="Добавьте уровни по порядку."></li><li data-bilingual data-en="For each level, configure granted items, effects, field changes and choices." data-ru="Для каждого уровня настройте выдаваемые предметы, эффекты, изменения полей и выборы."></li><li data-bilingual data-en="Assign the class to an Actor and use the level-up flow to preview changes before applying them." data-ru="Назначьте класс Actor и используйте level-up flow, чтобы просмотреть изменения перед применением."></li></ol></section>
+<section><h2 data-bilingual data-en="Level rewards" data-ru="Награды уровня"></h2><div class="table-wrap"><table class="doc-table"><thead><tr><th data-bilingual data-en="Reward" data-ru="Награда"></th><th data-bilingual data-en="Use" data-ru="Назначение"></th><th data-bilingual data-en="Example" data-ru="Пример"></th></tr></thead><tbody><tr><td>Item</td><td data-bilingual data-en="Grant ability or equipment" data-ru="Выдать способность или снаряжение"></td><td>Item UUID</td></tr><tr><td>Effect</td><td data-bilingual data-en="Apply an Active Effect" data-ru="Применить Active Effect"></td><td>Movement +5</td></tr><tr><td>Field change</td><td data-bilingual data-en="Modify a document path" data-ru="Изменить путь документа"></td><td><code>system.resources.hp.max + 5</code></td></tr><tr><td>Choice</td><td data-bilingual data-en="Let the player select one or more grants" data-ru="Дать игроку выбор одной или нескольких наград"></td><td>Choose a talent</td></tr></tbody></table></div></section>
+<section><h2 data-bilingual data-en="Skill trees" data-ru="Деревья навыков"></h2><ol class="flow-steps"><li data-bilingual data-en="Create a Skill Tree item." data-ru="Создайте Item типа Skill Tree."></li><li data-bilingual data-en="Set grid size and place nodes." data-ru="Задайте размер сетки и разместите узлы."></li><li data-bilingual data-en="Connect prerequisites and configure costs." data-ru="Соедините prerequisites и настройте стоимость."></li><li data-bilingual data-en="Add effects, field changes or granted items to each node." data-ru="Добавьте к каждому узлу эффекты, изменения полей или предметы."></li><li data-bilingual data-en="Test unlock order on a copy of the actor before publishing the tree." data-ru="Проверьте порядок открытия на копии актора перед публикацией дерева."></li></ol></section>
+<section><h2 data-bilingual data-en="Progression nodes" data-ru="Ноды прогрессии"></h2><p data-bilingual data-en="Use Get Path and Set/Modify Field for custom XP and levels. Use Compare Roll or regular Compare nodes for thresholds. The legacy Progression Roll remains compatible with old graphs, but new graphs should compose Roll, Analyze Roll, Get Path, Compare and Set Path." data-ru="Для собственных XP и уровней используйте Get Path и Set/Modify Field. Для порогов используйте Compare Roll или обычные Compare-ноды. Legacy Progression Roll сохраняется для старых графов, но новые лучше собирать из Roll, Analyze Roll, Get Path, Compare и Set Path."></p><div class="node-chain"><span>Gain XP</span><i>Value</i><span>Modify Field</span><i>Exec</i><span>Compare</span><i>Reached</i><span>Open Level Up</span></div></section>
+
+</main>
+<footer class="site">System Director Wiki · v0.15.2</footer>
+<script type="module">import { bootPage } from './js/main.js'; await bootPage();</script>
+</body>
+</html>

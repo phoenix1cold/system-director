@@ -1,4 +1,5 @@
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
+import { buildWidgetMacroScript, encodeMacroScript } from "../helpers/widget-macro.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
@@ -624,7 +625,7 @@ export class WidgetRenderer {
     if (typeof w.btnBorder === "string" && w.btnBorder.trim()) btnParts.push(`border-color:${e(w.btnBorder)}`);
     const btnStyle = btnParts.join(";");
     const iconStyle = (typeof w.iconColor === "string" && w.iconColor.trim()) ? ` style="color:${e(w.iconColor)}"` : "";
-    const macroBtn  = this._copyMacroBtn_dice(w);
+    const macroBtn  = this._copyMacroBtn_dice(w, doc);
     return `<div class="widget widget-dice">
   <div class="widget-label">${e(w.label)}${hasRefs ? ` <span style="color:var(--sd-accent-2);font-size:9px" title="Formula with refs">ƒ</span>` : ""}</div>
   <div class="dice-row" style="display:flex;align-items:center;gap:4px">
@@ -642,18 +643,16 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  static _copyMacroBtn_dice(w) {
+  static _copyMacroBtn_dice(w, doc = null) {
     const e = this._esc;
-    const formula = w.formula ?? "1d20";
-    const flavor  = w.flavor ?? w.label ?? "Roll";
-
-    const script  =
-      `// ${flavor}\\n` +
-      `const actor = token?.actor ?? game.user.character;\\n` +
-      `const roll  = new Roll("${formula}", actor?.getRollData() ?? {});\\n` +
-      `await roll.evaluate();\\n` +
-      `await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${flavor}" });`;
-    return `<button type="button" class="widget-copy-macro" data-copy-macro="${e(script)}" title="Copy as Macro" tabindex="-1"
+    const script = buildWidgetMacroScript({
+      kind: "roll",
+      formula: String(w.formula ?? "1d20"),
+      flavor: String(w.flavor ?? w.label ?? "Roll"),
+      sourceUuid: doc?.uuid ?? null
+    });
+    const payload = encodeMacroScript(script);
+    return `<button type="button" class="widget-copy-macro" data-copy-macro-b64="${e(payload)}" title="Copy as Macro" tabindex="-1"
       style="background:none;border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:4px 6px;flex-shrink:0;transition:color .15s,border-color .15s"
       onmouseover="this.style.color='var(--sd-accent)';this.style.borderColor='var(--sd-accent)'"
       onmouseout="this.style.color='';this.style.borderColor=''">
@@ -1076,7 +1075,7 @@ export class WidgetRenderer {
       : `data-formula="${e(dispFml)}" data-formula-raw="${e(rawFml)}" data-flavor="${e(flavor)}"`;
 
     const action = onClickFml ? "attrModClick" : "widgetRoll";
-    const macroBtn = this._copyMacroBtn_skill(w);
+    const macroBtn = this._copyMacroBtn_skill(w, doc);
 
     const variant = w.variant || "default";
 
@@ -1125,30 +1124,25 @@ export class WidgetRenderer {
 </div>`;
   }
 
-  static _copyMacroBtn_skill(w) {
+  static _copyMacroBtn_skill(w, doc = null) {
     const e = this._esc;
-    const path    = w.path ?? "";
-    const attrMod = Number(w.attrMod ?? 0);
-    const flavor  = w.flavor || w.label || "Skill";
-    const rawFml  = (w.rollFormula && String(w.rollFormula).trim())
+    const rawFormula = (w.rollFormula && String(w.rollFormula).trim())
       ? String(w.rollFormula).trim()
       : (w.formula && String(w.formula).trim())
         ? String(w.formula).trim()
         : "";
-    const formulaLine = rawFml
-      ? `const formula = "${rawFml}";`
-      : "const formula = `1d20+${bonus}`;";
-    const script  =
-      `// ${flavor} skill roll\\n` +
-      `const actor = token?.actor ?? game.user.character;\\n` +
-      `if (!actor) return ui.notifications.warn("No actor selected");\\n` +
-      `const rank   = foundry.utils.getProperty(actor, "${path}") ?? 0;\\n` +
-      `const bonus  = rank + ${attrMod};\\n` +
-      `${formulaLine}\\n` +
-      `const roll   = new Roll(formula, actor.getRollData());\\n` +
-      `await roll.evaluate();\\n` +
-      `await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: "${flavor}" });`;
-    return `<button type="button" class="widget-copy-macro skill-copy-macro" data-copy-macro="${e(script)}" title="Copy as Macro" tabindex="-1"
+    const script = buildWidgetMacroScript({
+      kind: "skill",
+      path: String(w.path ?? ""),
+      attrMod: Number(w.attrMod ?? 0),
+      modValueFormula: String(w.modValueFormula ?? ""),
+      formula: rawFormula,
+      onClickFormula: String(w.onClickFormula ?? ""),
+      flavor: String(w.flavor || w.label || "Skill"),
+      sourceUuid: doc?.uuid ?? null
+    });
+    const payload = encodeMacroScript(script);
+    return `<button type="button" class="widget-copy-macro skill-copy-macro" data-copy-macro-b64="${e(payload)}" title="Copy as Macro" tabindex="-1"
       style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:9px;padding:1px 3px;flex-shrink:0;border-radius:3px;transition:color .15s"
       onmouseover="this.style.color='var(--sd-accent)'"
       onmouseout="this.style.color=''">

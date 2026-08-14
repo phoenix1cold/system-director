@@ -1,51 +1,30 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Getting started — System Director</title><link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/widgets.css"></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="System Director documentation for Foundry VTT">
+  <title>Getting started — System Director Wiki</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/widgets.css">
+</head>
 <body>
 <header class="site-header"></header>
-<main class="page">
-  <h1 data-i18n="ui.nav.start">Getting started</h1>
-  <p class="lead" data-bilingual data-en="Install System Director, create your first sheet and connect a first automation graph." data-ru="Установите System Director, соберите первый лист и подключите первый граф автоматизации."></p>
-
-  <div class="toc"><strong data-bilingual data-en="On this page" data-ru="На странице"></strong><ul>
-    <li><a href="#install" data-bilingual data-en="Install" data-ru="Установка"></a></li><li><a href="#first-sheet" data-bilingual data-en="First sheet" data-ru="Первый лист"></a></li><li><a href="#first-graph" data-bilingual data-en="First graph" data-ru="Первый граф"></a></li><li><a href="#publish" data-bilingual data-en="GitHub Pages" data-ru="GitHub Pages"></a></li>
-  </ul></div>
-
-  <h2 id="install" data-bilingual data-en="1. Installation" data-ru="1. Установка"></h2>
-  <ol class="flow-steps">
-    <li data-bilingual data-en="In Foundry Setup, install the System Director system from the manifest URL published by the package/repository." data-ru="В Foundry Setup установите систему System Director по manifest URL из package/repository."></li>
-    <li data-bilingual data-en="Create a world with game system “System Director” and enable the world." data-ru="Создайте мир с game system “System Director” и запустите его."></li>
-    <li data-bilingual data-en="Use Foundry v13 or v14. SD relies on TypeDataModel, ApplicationV2/DialogV2 where available, ActiveEffect, ChatMessage, Regions and Cards APIs." data-ru="Используйте Foundry v13 или v14. SD опирается на TypeDataModel, ApplicationV2/DialogV2 там где доступно, ActiveEffect, ChatMessage, Regions и Cards API."></li>
-  </ol>
-
-  <h2 id="first-sheet" data-bilingual data-en="2. Build the first actor sheet" data-ru="2. Соберите первый лист актора"></h2>
-  <ol class="flow-steps">
-    <li data-bilingual data-en="Create an Actor, usually type character or npc. The default schema already includes attributes, resources, defense, movement, advancement, skills, currency, encumbrance, slots, hiddenFields and activeQuest." data-ru="Создайте Actor, обычно type character или npc. В схеме уже есть attributes, resources, defense, movement, advancement, skills, currency, encumbrance, slots, hiddenFields и activeQuest."></li>
-    <li data-bilingual data-en="Open the sheet builder and create tabs/rows/cells. Layout is stored in system.customTabs, so it travels with the document." data-ru="Откройте sheet builder и создайте вкладки/ряды/ячейки. Layout хранится в system.customTabs и переносится вместе с документом."></li>
-    <li data-bilingual data-en="Drag widgets: Resource Bar for HP, Attribute for attributes, Skill for ranks, Inventory/Slot for items, Effects for Active Effects and Button/Roll Button for actions." data-ru="Перетащите виджеты: Resource Bar для HP, Attribute для характеристик, Skill для ranks, Inventory/Slot для предметов, Effects для Active Effects и Button/Roll Button для действий."></li>
-    <li data-bilingual data-en="Use stable document paths. Example: system.resources.hp.value, system.attributes.attr1.value, system.skills.skill1.rank, system.hiddenFields.stress." data-ru="Используйте стабильные document paths. Примеры: system.resources.hp.value, system.attributes.attr1.value, system.skills.skill1.rank, system.hiddenFields.stress."></li>
-  </ol>
-
-  <div class="callout tip" data-bilingual data-en="Rule of thumb: visible fields belong in system.resources/system.attributes/system.skills when they are part of the game rules; temporary/custom counters usually belong in system.flags or system.hiddenFields." data-ru="Правило: видимые поля правил лучше держать в system.resources/system.attributes/system.skills; временные/custom счётчики — в system.flags или system.hiddenFields."></div>
-
-  <h2 id="first-graph" data-bilingual data-en="3. Connect the first node graph" data-ru="3. Подключите первый node graph"></h2>
-  <div class="two-col">
-    <div class="card"><h3 data-bilingual data-en="Simple roll button" data-ru="Простая кнопка броска"></h3><ol><li data-bilingual data-en="Add a Button or Roll Button widget." data-ru="Добавьте виджет Button или Roll Button."></li><li data-bilingual data-en="Open its action graph." data-ru="Откройте его action graph."></li><li data-bilingual data-en="Wire On Click → Roll Value → Message/Output." data-ru="Соедините On Click → Roll Value → Message/Output."></li><li data-bilingual data-en="Use Sources/Get Path or Attribute/Attr Mod for bonuses." data-ru="Для бонусов используйте Sources/Get Path или Attribute/Attr Mod."></li></ol></div>
-    <div class="card"><h3 data-bilingual data-en="Attack + damage" data-ru="Атака + урон"></h3><ol><li data-bilingual data-en="On Click starts the exec chain." data-ru="On Click запускает exec-цепочку."></li><li data-bilingual data-en="Attack Check rolls against AC/DC and exposes hit/crit/fumble." data-ru="Attack Check бросает против AC/DC и отдаёт hit/crit/fumble."></li><li data-bilingual data-en="Branch/attack outputs split hit and miss paths." data-ru="Branch/attack outputs разделяют hit и miss paths."></li><li data-bilingual data-en="Damage receives amount, crit amount, damage type and target(s)." data-ru="Damage получает amount, crit amount, damage type и target(s)."></li></ol></div>
+<main class="page wiki-page">
+  <div class="page-heading">
+    <span class="release-badge">System Director 0.15.2 · Foundry v13/v14</span>
+    <h1 data-bilingual data-en="Getting started" data-ru="С чего начать"></h1>
+    <p class="lead" data-bilingual data-en="Installation, the first actor sheet and a working node graph." data-ru="Установка, первый лист актора и рабочий нодовый граф."></p>
   </div>
 
-  <h2 data-bilingual data-en="4. Core workflow checklist" data-ru="4. Чеклист базового workflow"></h2>
-  <ul>
-    <li data-bilingual data-en="Use value pins for data and exec pins for action order; pure value nodes do not run by themselves." data-ru="Value-пины передают данные, exec-пины — порядок действий; чистые value-ноды сами не исполняются."></li>
-    <li data-bilingual data-en="When a node writes data, confirm the path and the target actor/item/token source." data-ru="Если нода пишет данные, проверьте path и источник target actor/item/token."></li>
-    <li data-bilingual data-en="For player-triggered GM-only actions (quests, some document changes), SD can route through its socket helpers." data-ru="Для GM-only действий, запущенных игроком (квесты, часть document changes), SD может использовать socket helpers."></li>
-    <li data-bilingual data-en="Use chat cards for user-visible rolls/damage/healing; use silent writes for background state changes." data-ru="Для видимых бросков/урона/лечения используйте chat cards; для фоновых изменений — silent writes."></li>
-  </ul>
+<div class="toc"><b data-bilingual data-en="On this page" data-ru="На странице"></b><a href="#install">1. Install</a><a href="#actor">2. First actor</a><a href="#sheet">3. First sheet</a><a href="#graph">4. First graph</a></div>
+<section id="install"><h2 data-bilingual data-en="1. Install the system" data-ru="1. Установите систему"></h2><ol class="flow-steps"><li data-bilingual data-en="Foundry Setup → Game Systems → Install System." data-ru="Foundry Setup → Игровые системы → Установить систему."></li><li data-bilingual data-en="Paste the manifest URL from the latest GitHub release and click Install." data-ru="Вставьте manifest URL последнего GitHub Release и нажмите «Установить»."></li><li data-bilingual data-en="Create a world using System Director. Supported Foundry versions: 13 and 14." data-ru="Создайте мир на System Director. Поддерживаются Foundry 13 и 14."></li></ol></section>
+<section id="actor"><h2 data-bilingual data-en="2. Create the first Actor" data-ru="2. Создайте первого Actor"></h2><ol class="flow-steps"><li data-bilingual data-en="Actors sidebar → Create Actor → Character." data-ru="Панель Actors → Create Actor → Character."></li><li data-bilingual data-en="Open the actor and use the sheet menu to enable editing." data-ru="Откройте актора и включите редактирование через меню листа."></li><li data-bilingual data-en="Create a tab, then add a row and one or more cells." data-ru="Создайте вкладку, затем строку и одну или несколько ячеек."></li></ol></section>
+<section id="sheet"><h2 data-bilingual data-en="3. Add useful widgets" data-ru="3. Добавьте полезные виджеты"></h2><div class="table-wrap"><table class="doc-table"><thead><tr><th>Widget</th><th>Path / configuration</th><th data-bilingual data-en="Use" data-ru="Назначение"></th></tr></thead><tbody><tr><td>Resource</td><td><code>system.resources.hp.value</code></td><td>HP, mana, stamina</td></tr><tr><td>Attribute</td><td><code>system.attributes.attr1.value</code></td><td data-bilingual data-en="Scores and modifiers" data-ru="Характеристики и модификаторы"></td></tr><tr><td>Skill</td><td><code>system.skills.skill1.rank</code></td><td data-bilingual data-en="Rank and roll button" data-ru="Ранг и кнопка броска"></td></tr><tr><td>Inventory</td><td>Item categories</td><td data-bilingual data-en="Actor items" data-ru="Предметы актора"></td></tr><tr><td>Quest Marker</td><td>Quest Log UUID</td><td data-bilingual data-en="Current objective" data-ru="Текущая задача"></td></tr></tbody></table></div></section>
+<section id="graph"><h2 data-bilingual data-en="4. Build the first roll" data-ru="4. Соберите первый бросок"></h2><div class="node-chain"><span>On Click</span><i>Exec</i><span>Roll</span><i>Roll Result</i><span>Analyze Roll</span><i>Exec</i><span>Present Roll</span></div><ol class="flow-steps"><li data-bilingual data-en="Open the button or skill Action Graph." data-ru="Откройте Action Graph кнопки или навыка."></li><li data-bilingual data-en="Place On Click, Roll, Analyze Roll and Present Roll." data-ru="Разместите On Click, Roll, Analyze Roll и Present Roll."></li><li data-bilingual data-en="Connect the yellow Exec pins and connect Roll Result to the typed Roll Result input." data-ru="Соедините жёлтые Exec-пины и передайте Roll Result в одноимённый типизированный вход."></li><li data-bilingual data-en="Set Formula on Roll, set Present Roll destination to Chat, then Save." data-ru="Задайте Formula в Roll, выберите Chat в Present Roll и сохраните."></li></ol><div class="callout tip" data-bilingual data-en="Value pins carry data. Exec pins decide when an action runs. A value node does nothing until an action reads it." data-ru="Value-пины передают данные. Exec-пины задают порядок действий. Value-нода не исполняется сама, пока её не прочитает action-нода."></div></section>
 
-  <h2 id="publish" data-bilingual data-en="5. GitHub Pages documentation" data-ru="5. Документация GitHub Pages"></h2>
-  <p data-bilingual data-en="The wiki is a static site in docs/. GitHub Pages can serve it directly without a build step. Data-driven pages fetch JSON from docs/data/*.json; if node/widget source changes, regenerate these JSON files before publishing." data-ru="Wiki — статический сайт в docs/. GitHub Pages может отдавать его напрямую без build step. Data-driven страницы читают JSON из docs/data/*.json; если исходники нод/виджетов менялись, обновите эти JSON перед публикацией."></p>
 </main>
-<footer class="site">System Director Wiki</footer>
+<footer class="site">System Director Wiki · v0.15.2</footer>
 <script type="module">import { bootPage } from './js/main.js'; await bootPage();</script>
 </body>
 </html>

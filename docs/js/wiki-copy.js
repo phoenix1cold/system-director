@@ -44,8 +44,8 @@ export const categoryDocs = {
     ru: "Булева логика и match-хелперы. Объединяют проверки или классифицируют числа, строки и массивы."
   },
   "Roll": {
-    en: "Imperative roll actions. They post rolls/checks to chat, expose result metadata, crit/fumble flags, margins and branch outputs for hit/fail/tier logic.",
-    ru: "Императивные броски. Пишут броски/проверки в чат и отдают результат, crit/fumble, margin и ветки hit/fail/tier."
+    en: "Roll actions and typed Roll Result tools. Compose Roll, Analyze Roll, Compare Roll and Present Roll for checks and dice pools.",
+    ru: "Броски и инструменты типизированного Roll Result. Для проверок и dice pool соединяйте Roll, Analyze Roll, Compare Roll и Present Roll."
   },
   "Damage": {
     en: "HP-changing actions. Damage reads resistances/immunities/vulnerabilities; Heal can be direct or chat-confirmed.",
@@ -77,7 +77,7 @@ export const categoryDocs = {
   },
   "AI": {
     en: "Optional AI request action. Use only when the table workflow expects generated text; always keep GM/player review in the loop.",
-    ru: "Опциональный AI-запрос. Используйте только там, где нужен сгенерированный текст, и оставляйте проверку GM/игроком."
+    ru: "Опциональный AI-запрос. Используйте для текстового ответа модели и оставляйте проверку GM/игроком."
   },
   "AoE": {
     en: "Place Foundry Regions for area effects, collect affected targets, apply damage/heal/effects and split save success/failure arrays.",
@@ -120,8 +120,8 @@ export const categoryDocs = {
     ru: "Автоматика quest log: активировать/завершить/провалить/заблокировать квесты, отмечать subtasks, раскрывать/выдавать rewards и реагировать на quest hooks."
   },
   "Widget Config": {
-    en: "Nodes generated for widget configuration graphs. They expose widget fields so graphs can configure UI state declaratively.",
-    ru: "Ноды, сгенерированные для графов конфигурации виджетов. Они дают доступ к полям виджета, чтобы граф мог декларативно настраивать UI."
+    en: "Configuration nodes used by Widget Builder graphs. They expose widget fields so graphs can configure UI state declaratively.",
+    ru: "Ноды конфигурации виджетов. Они дают доступ к полям виджета, чтобы граф мог декларативно настраивать UI."
   }
 };
 

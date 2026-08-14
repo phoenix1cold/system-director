@@ -128,7 +128,7 @@
     },
     "act_ai_request": {
       "en": "Calls the optional AI request pipeline and returns generated text for later chat/field use.",
-      "ru": "Вызывает опциональный AI request pipeline и возвращает сгенерированный текст для chat/field use."
+      "ru": "Вызывает опциональный AI request pipeline и возвращает текстовый ответ для chat/field use."
     }
   }
 }

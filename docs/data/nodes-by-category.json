@@ -107,7 +107,12 @@
     "act_progression",
     "act_throw_on_canvas",
     "act_throw_on_sheet",
-    "chat_save_button"
+    "chat_save_button",
+    "act_save_dc",
+    "act_roll_v2",
+    "act_analyze_roll",
+    "act_compare_roll",
+    "act_present_roll"
   ],
   "Math": [
     "add",
@@ -149,7 +154,9 @@
   ],
   "Combat": [
     "act_damage",
-    "act_heal"
+    "act_heal",
+    "act_damage_simple",
+    "act_heal_simple"
   ],
   "Effects": [
     "act_effect",
@@ -172,7 +179,19 @@
     "act_place_aoe_save_effect",
     "act_place_aoe_targets",
     "act_place_aoe_save_branch",
-    "act_remove_aura"
+    "act_remove_aura",
+    "act_aoe_template_saver",
+    "act_place_aoe_template",
+    "act_tokens_from_aoe",
+    "act_spell",
+    "act_aura_definition",
+    "act_place_aura_zone",
+    "act_tokens_from_aura",
+    "act_effect_definition",
+    "act_effect_add_change",
+    "act_effect_apply_v2",
+    "act_effect_remove_v2",
+    "act_effect_toggle_v2"
   ],
   "Array": [
     "arr_length",
@@ -272,7 +291,8 @@
     "act_ai_memory_update"
   ],
   "Flow": [
-    "act_dialog_builder"
+    "act_dialog_builder",
+    "act_choice_from_array"
   ],
   "System": [
     "act_play_sound",
@@ -287,6 +307,8 @@
   ],
   "Targeting": [
     "get_self",
+    "get_self_actor",
+    "get_self_item",
     "get_actor",
     "get_target",
     "get_selected_token",

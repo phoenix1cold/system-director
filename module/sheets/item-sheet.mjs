@@ -1,5 +1,6 @@
 import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
+import { decodeMacroScript } from "../helpers/widget-macro.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpers/effect-editor.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
@@ -2599,7 +2600,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
             return;
           }
         }
-        let formula = btn.dataset.attrRoll || "1d20";
+        let formula = onClickFml || btn.dataset.attrRoll || "1d20";
         try {
           const { FormulaEngine } = await import("../helpers/formula-engine.mjs");
           formula = FormulaEngine.resolveForRoll(formula, doc);
@@ -2612,10 +2613,10 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       });
     });
 
-    con.querySelectorAll("[data-copy-macro]").forEach(btn => {
+    con.querySelectorAll("[data-copy-macro], [data-copy-macro-b64]").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
-        const script = btn.dataset.copyMacro;
+        const script = decodeMacroScript(btn);
         if (!script) return;
         try {
           await navigator.clipboard.writeText(script);
@@ -2627,11 +2628,12 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           }
           ui.notifications.info("Macro script copied to clipboard!");
         } catch {
+          const safeScript = script.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
           await foundry.applications.api.DialogV2.prompt({
             window:  { title: "Macro Script" },
             content: `<p style="font-size:11px;color:var(--sd-w-label, var(--sd-text-3));margin-bottom:6px">Copy the script below into a new Macro (type: Script):</p>
               <textarea style="width:100%;height:160px;font-family:monospace;font-size:11px;background:var(--sd-bg);color:#c0c0e0;border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:4px;padding:6px;box-sizing:border-box;resize:vertical"
-                readonly onclick="this.select()">${script}</textarea>`,
+                readonly onclick="this.select()">${safeScript}</textarea>`,
             ok: { label: "Close" }
           });
         }
