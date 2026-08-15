@@ -92,6 +92,8 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
 
       customTabs: new ArrayField(new ObjectField()),
 
+      widgetFields: new ObjectField({ initial: {} }),
+
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
       resistances: new ObjectField({ initial: {} }),

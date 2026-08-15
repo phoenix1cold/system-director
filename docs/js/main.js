@@ -5,6 +5,7 @@ const NAV = [
   { href:"getting-started.html", en:"Start", ru:"Начало" },
   { href:"sheets.html", en:"Sheets", ru:"Листы" },
   { href:"node-graph.html", en:"Node Graph", ru:"Ноды" },
+  { href:"database.html", en:"Database", ru:"База данных" },
   { href:"quests.html", en:"Quests", ru:"Квесты" },
   { href:"progression.html", en:"Progression", ru:"Прогрессия" },
   { href:"equipment.html", en:"Equipment", ru:"Экипировка" },

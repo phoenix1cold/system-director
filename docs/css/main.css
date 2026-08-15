@@ -214,16 +214,24 @@ kbd {
 }
 .node .pin.right { flex-direction: row-reverse; }
 .node .pin .dot {
-  width: 10px; height: 10px; border-radius: 50%;
+  position: relative; display: inline-grid; place-items: center;
+  width: 16px; height: 16px; border-radius: 50%;
   background: var(--pc, #9aa1b2);
-  box-shadow: 0 0 0 2px rgba(0,0,0,.3) inset, 0 0 4px var(--pc, #9aa1b2);
+  border: 2px solid var(--pc, #9aa1b2);
+  box-shadow: 0 0 0 2px rgba(0,0,0,.25) inset, 0 0 4px var(--pc, #9aa1b2);
   flex-shrink: 0;
 }
-.node .pin.exec .dot {
-  border-radius: 2px; transform: rotate(45deg);
-  background: var(--pin-exec);
-  box-shadow: 0 0 4px var(--pin-exec);
-}
+.node .pin .pin-glyph { color: #10131b; font-size: 7px; font-weight: 900; line-height: 1; letter-spacing: -1px; }
+.node .pin .pin-kind { padding: 1px 4px; border: 1px solid color-mix(in srgb,var(--pc) 55%,transparent); border-radius: 999px; color: var(--pc); font-size: 7px; font-weight: 800; }
+.node .pin-shape-exec .dot { border-radius: 3px; }
+.node .pin-shape-square .dot { border-radius: 3px; }
+.node .pin-shape-capsule .dot { border-radius: 8px 3px 8px 3px; }
+.node .pin-shape-diamond .dot { border-radius: 3px; transform: rotate(45deg) scale(.82); }
+.node .pin-shape-diamond .pin-glyph { transform: rotate(-45deg); }
+.node .pin-shape-hex .dot { border-radius: 2px; clip-path: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); }
+.node .pin-shape-array .dot { border-radius: 4px; margin-right: 2px; }
+.node .pin-shape-array .dot::after { content:""; position:absolute; inset:2px -4px -4px 2px; border:1px solid var(--pc); border-radius:4px; }
+.node .pin-shape-target .dot::after { content:""; width:6px; height:6px; border:1px solid #10131b; border-radius:50%; }
 
 .node .field {
   display: flex; align-items: center; gap: 6px;

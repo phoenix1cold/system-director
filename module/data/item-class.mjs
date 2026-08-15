@@ -61,6 +61,7 @@ export class ClassData extends foundry.abstract.TypeDataModel {
       ),
 
       customTabs: new ArrayField(new ObjectField(), { initial: [] }),
+      widgetFields: new ObjectField({ initial: {} }),
       slotDefs:   new ArrayField(SlotDefinitionField(),  { initial: [] }),
       slotContents: new ObjectField({ initial: {} }),
       buttons:    new ArrayField(ButtonDefinitionField(), { initial: [] }),

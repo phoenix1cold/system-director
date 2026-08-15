@@ -7,6 +7,7 @@ import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
+import { persistWidgetValue } from "../helpers/widget-fields.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -119,12 +120,14 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       controls: [
         { icon: "fas fa-toolbox",   label: "Sheet Builder",    action: "openBuilder"       },
         { icon: "fas fa-bolt",      label: "Sheet Triggers",   action: "openSheetTriggers" },
+        { icon: "fas fa-database",    label: "Database",         action: "openDatabase"     },
         { icon: "fas fa-pen-ruler", label: "Toggle Edit Mode", action: "toggleEditMode"    }
       ]
     },
     actions: {
       openBuilder:       SDItemSheet._onOpenBuilder,
       openSheetTriggers: SDItemSheet._onOpenSheetTriggers,
+      openDatabase:      SDItemSheet._onOpenDatabase,
       toggleEditMode:    SDItemSheet._onToggleEditMode,
       editImage:         SDItemSheet._onEditImage,
       useItem:           SDItemSheet._onUseItem,
@@ -2293,8 +2296,8 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         ev.stopPropagation();
         const path = el.dataset.path;
         const val  = el.dataset.value ?? el.value ?? "";
-        if (!path) return;
-        await this.document.update({ [path]: val });
+        if (!path && !w.widgetKey) return;
+        await persistWidgetValue(this.document, w, val);
       };
       el.addEventListener(el.tagName === "INPUT" ? "change" : "click", handler);
     });
@@ -2371,7 +2374,8 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           const n = Number(inp.value);
           val = Number.isFinite(n) ? n : 0;
         } else val = inp.value;
-        await this.document.update({ [path]: val });
+        if (String(w.type ?? "") === "select") await persistWidgetValue(this.document, w, val);
+        else await this.document.update({ [path]: val });
       });
     });
 
@@ -3169,6 +3173,12 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
   }
 
   static async _onOpenBuilder() { const{Toolbox}=await import("../builder/toolbox-app.mjs"); Toolbox.toggle(); }
+
+
+  static async _onOpenDatabase() {
+    const { openSharedDatabaseApp } = await import("../helpers/shared-database.mjs");
+    openSharedDatabaseApp(this.document);
+  }
 
   static async _onOpenSheetTriggers() {
     const { FormulaGraph } = await import("../builder/formula-graph.mjs");

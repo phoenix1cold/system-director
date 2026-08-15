@@ -2,7 +2,7 @@
   "id": "sd",
   "title": "System Director",
   "description": "System Director — visual sheets, typed node graphs, quests and progression for Foundry VTT.",
-  "version": "1.1.2",
+  "version": "0.16.5",
   "compatibility": {
     "minimum": "13",
     "verified": "14"
@@ -21,7 +21,8 @@
     "styles/sd-themes.css",
     "styles/sd-theme-fx.css",
     "styles/sd-widget-variants.css",
-    "styles/sd-native-ui.css"
+    "styles/sd-native-ui.css",
+    "styles/shared-database.css"
   ],
   "packs": [
     {

@@ -36,6 +36,7 @@ import { SDItemSheet }         from "./module/sheets/item-sheet.mjs";
 import { runMigrations }       from "./module/helpers/migrations.mjs";
 import { EFFECT_PATHS }        from "./module/helpers/effects.mjs";
 import { SystemConfig, applySettings, buildActorBaseDefaults } from "./module/helpers/system-config.mjs";
+import { SharedDatabaseApp, registerSharedDatabaseSettings } from "./module/helpers/shared-database.mjs";
 import { installColorSchemeObserver } from "./module/helpers/color-schemes.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 import { SDMarketApp }         from "./module/helpers/market-app.mjs";
@@ -224,6 +225,16 @@ Hooks.once("init", () => {
     restricted: true
   });
 
+
+  game.settings.registerMenu("sd", "databaseManager", {
+    name:   "Database",
+    label:  "Open Database",
+    hint:   "Configure shared typed databases and world values.",
+    icon:   "fa-solid fa-database",
+    type:   SharedDatabaseApp,
+    restricted: true
+  });
+
   game.settings.register("sd", "systemSettings", {
     name:   "System Settings Data",
     scope:  "world",
@@ -348,6 +359,8 @@ Hooks.once("init", () => {
     default: { functions: {} }
   });
 
+  registerSharedDatabaseSettings();
+
   game.settings.register("sd", "nodeGraphLanguage", {
     name:    "SD.Settings.NodeGraphLanguage",
     hint:    "SD.Settings.NodeGraphLanguageHint",
@@ -386,6 +399,7 @@ Hooks.once("init", () => {
   installColorSchemeObserver();
 
   CONFIG.SD.Toolbox = Toolbox;
+  CONFIG.SD.SharedDatabaseApp = SharedDatabaseApp;
 
   console.log("SD | Initialisation complete.");
 });
@@ -1551,7 +1565,7 @@ html.querySelectorAll(".sd-spell-v2-cast-btn[data-spell-v2-cfg]").forEach(btn =>
 
     if (cfg.isAoe && templates.length > 1) {
       const { DialogV2 } = foundry.applications.api;
-      const options = templates.map((t,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:7px;border-bottom:1px solid var(--color-border-light-2);cursor:pointer"><input type="radio" name="sd-spell-template" value="${i}" ${i===0?"checked":""}><strong>${esc(t.name ?? `Template ${i+1}`)}</strong><span style="margin-left:auto">${esc(t.t ?? "circle")} · ${Number(t.distance ?? 0)} ft</span></label>`).join("");
+      const options = templates.map((t,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:7px;border-bottom:1px solid var(--color-border-light-2);cursor:pointer"><input type="radio" name="sd-spell-template" value="${i}" ${i===0?"checked":""}><strong>${esc(t.name ?? `Template ${i+1}`)}</strong><span style="margin-left:auto">${t.kind === "region-v14" ? `Region · ${Number(t.shapeCount ?? t.shapes?.length ?? 0)} shape(s)` : `${esc(t.t ?? "circle")} · ${Number(t.distance ?? 0)} ft`}</span></label>`).join("");
       const picked = await DialogV2.wait({
         window:{title:cfg.title ?? "Choose AOE Template"},modal:true,
         content:`<div style="max-height:360px;overflow:auto">${options}</div>`,
@@ -1571,10 +1585,13 @@ html.querySelectorAll(".sd-spell-v2-cast-btn[data-spell-v2-cfg]").forEach(btn =>
       if (cfg.isAoe) {
         if (!selectedTemplate) throw new Error("No AOE template supplied");
         const { buildShape, placeRegionInteractive, getRegionTokens } = await import("./module/helpers/sd-region.mjs");
-        const shape = buildShape(selectedTemplate.t ?? selectedTemplate.shape ?? "circle", Number(selectedTemplate.distance ?? selectedTemplate.size ?? 20) || 20, Number(selectedTemplate.angle ?? 53.13) || 53.13);
+        const isV14Region = selectedTemplate.kind === "region-v14" && Array.isArray(selectedTemplate.shapes) && selectedTemplate.shapes.length;
+        const shape = isV14Region ? null : buildShape(selectedTemplate.t ?? selectedTemplate.shape ?? "circle", Number(selectedTemplate.distance ?? selectedTemplate.size ?? 20) || 20, Number(selectedTemplate.angle ?? 53.13) || 53.13);
         regionDoc = await placeRegionInteractive({
           name:selectedTemplate.name ?? cfg.title ?? "Spell AOE",
           shape,
+          shapes:isV14Region ? selectedTemplate.shapes : null,
+          appearance:isV14Region ? (selectedTemplate.appearance ?? {}) : {},
           flags:{sd:{spellV2:true,templateSnapshot:selectedTemplate,srcActorId:cfg.srcActorId ?? ""}}
         });
         if (!regionDoc) {

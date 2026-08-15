@@ -4,6 +4,7 @@ import { FormulaEngine }   from "./formula-engine.mjs";
 import { ButtonExecutor }  from "./button-executor.mjs";
 import { openInlineWidgetEditor } from "./action-hud-inline-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
+import { persistWidgetValue } from "./widget-fields.mjs";
 
 function _sanitizeHudVariant(raw, widgetType) {
   const v = String(raw ?? "").trim().toLowerCase();
@@ -272,7 +273,10 @@ function wireHudWidget(cell, widgetDef, actor) {
         v = Number.isFinite(n) ? n : 0;
       }
       else v = inp.value;
-      try { await actor.update({ [path]: v }); } catch(e) {}
+      try {
+        if (String(widgetDef?.type ?? "") === "select") await persistWidgetValue(actor, widgetDef, v);
+        else await actor.update({ [path]: v });
+      } catch(e) {}
     });
   });
 
@@ -280,7 +284,7 @@ function wireHudWidget(cell, widgetDef, actor) {
     sel.addEventListener("change", async () => {
       const path = sel.dataset.path || sel.getAttribute("name");
       if (!path) return;
-      try { await actor.update({ [path]: sel.value }); } catch(e) {}
+      try { await persistWidgetValue(actor, widgetDef, sel.value); } catch(e) {}
     });
   });
 
@@ -297,8 +301,8 @@ function wireHudWidget(cell, widgetDef, actor) {
       ev.stopPropagation();
       const path = btn.dataset.path;
       const value = btn.dataset.value ?? "";
-      if (!path) return;
-      try { await actor.update({ [path]: value }); } catch(e) {}
+      if (!path && !widgetDef?.widgetKey) return;
+      try { await persistWidgetValue(actor, widgetDef, value); } catch(e) {}
     });
   });
 

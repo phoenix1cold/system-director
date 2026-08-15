@@ -6,18 +6,27 @@ const KIND_COLOURS = {
   event:       "#d04040"
 };
 
-const PIN_COLOURS = {
-  "exec":         "#ffca6b",
-  "value.any":    "#9aa1b2",
-  "value.number": "#74c0ff",
-  "value.string": "#e06bff",
-  "value.bool":   "#ff7b7b",
-  "value.path":   "#c8a268",
-  "value.uuid":   "#a76bff",
-  "value.actor":  "#5dd6a8",
-  "value.item":   "#ffd94a",
-  "value.token":  "#3ec8e0",
-  "value.array":  "#d0d0d0"
+const PIN_META = {
+  "exec":                { color:"#F5C451", glyph:"▶", short:"Exec", shape:"exec" },
+  "value.any":           { color:"#8B93A7", glyph:"?", short:"Any", shape:"circle" },
+  "value.number":        { color:"#42A5F5", glyph:"#", short:"Num", shape:"circle" },
+  "value.string":        { color:"#E052D1", glyph:"T", short:"Text", shape:"circle" },
+  "value.bool":          { color:"#EF5350", glyph:"✓", short:"Bool", shape:"diamond" },
+  "value.path":          { color:"#C49A6C", glyph:"/", short:"Path", shape:"diamond" },
+  "value.uuid":          { color:"#7E57C2", glyph:"◇", short:"UUID", shape:"diamond" },
+  "value.actor":         { color:"#35C98A", glyph:"A", short:"Actor", shape:"capsule" },
+  "value.item":          { color:"#F2B84B", glyph:"I", short:"Item", shape:"square" },
+  "value.token":         { color:"#26C6DA", glyph:"●", short:"Token", shape:"diamond" },
+  "value.array":         { color:"#7C8CFF", glyph:"[]",short:"Array", shape:"array" },
+  "value.card":          { color:"#F57C3D", glyph:"C", short:"Card", shape:"square" },
+  "value.cards":         { color:"#FFAB5A", glyph:"≡", short:"Cards", shape:"array" },
+  "value.token_pool":    { color:"#00BFA5", glyph:"••",short:"Pool", shape:"array" },
+  "value.roll_result":   { color:"#3D7DFF", glyph:"⚄", short:"Roll", shape:"hex" },
+  "value.effect":        { color:"#B05CFF", glyph:"✦", short:"Effect", shape:"diamond" },
+  "value.aoe_template":  { color:"#FF7043", glyph:"◎", short:"AOE", shape:"target" },
+  "value.aoe_templates": { color:"#FF8A65", glyph:"◉", short:"AOEs", shape:"array" },
+  "value.dialog_result": { color:"#D65DB1", glyph:"▣", short:"Dialog", shape:"square" },
+  "value.object":        { color:"#9AA4B8", glyph:"{}",short:"Object", shape:"hex" }
 };
 
 export function nodeKind(def) {
@@ -28,11 +37,9 @@ export function nodeKind(def) {
   return "pure";
 }
 
-function pinColor(t) {
-  if (!t) return PIN_COLOURS["value.any"];
-  if (t === "exec") return PIN_COLOURS.exec;
-  if (t === "value") return PIN_COLOURS["value.any"];
-  return PIN_COLOURS[t] ?? PIN_COLOURS["value.any"];
+function pinMeta(t) {
+  if (!t || t === "value") return PIN_META["value.any"];
+  return PIN_META[t] ?? PIN_META["value.any"];
 }
 
 function elt(tag, attrs = {}, children = []) {
@@ -56,13 +63,14 @@ function pinRow(p, side ) {
   const cls = ["pin"];
   if (side === "output") cls.push("right");
   if (isExec) cls.push("exec");
-  const color = pinColor(p.type);
+  const meta = pinMeta(p.type);
   return elt("span", {
-    class: cls.join(" "),
-    style: `--pc:${color};`
+    class: `${cls.join(" ")} pin-shape-${meta.shape}`,
+    style: `--pc:${meta.color};`
   }, [
-    elt("span", { class: "dot" }),
-    elt("span", { class: "lbl", style: "max-width:180px;overflow:hidden;text-overflow:ellipsis" }, p.label || "")
+    elt("span", { class: "dot" }, elt("span", { class:"pin-glyph" }, meta.glyph)),
+    elt("span", { class: "lbl", style: "max-width:180px;overflow:hidden;text-overflow:ellipsis" }, p.label || ""),
+    elt("span", { class:"pin-kind" }, meta.short)
   ]);
 }
 
@@ -74,10 +82,10 @@ function fieldRow(f, value) {
     const cb = elt("input", { type: "checkbox", style: "flex:0 0 auto" });
     cb.checked = !!display;
     wrap.appendChild(cb);
-  } else if (f.type === "select" && f.options) {
+  } else if (f.type === "select" && Array.isArray(f.options)) {
     wrap.appendChild(elt("span", { class: "lbl" }, f.label || f.key));
     const sel = elt("select");
-    for (const opt of f.options) {
+    for (const opt of (f.options ?? [])) {
       const o = elt("option", { value: opt.value ?? opt.id ?? opt }, opt.label ?? opt);
       if ((opt.value ?? opt.id ?? opt) === display) o.selected = true;
       sel.appendChild(o);
@@ -205,4 +213,4 @@ export function ghostWire(color = "#7b68ee", w = 36) {
   }, "→");
 }
 
-export { KIND_COLOURS, PIN_COLOURS };
+export { KIND_COLOURS, PIN_META };

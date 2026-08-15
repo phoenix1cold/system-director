@@ -151,7 +151,7 @@
         const desc = document.createElement("span");
         desc.className = "desc";
         const def = f.def ?? f.options?.[0]?.label ?? "";
-        const opts = f.options?.map(o => o.label ?? o.value ?? o).join(" / ");
+        const opts = Array.isArray(f.options) ? f.options.map(o => o.label ?? o.value ?? o).join(" / ") : "";
         desc.textContent = (opts ? "[" + opts + "] " : "") + (def !== "" ? `default: ${JSON.stringify(def)}` : "");
         li.appendChild(desc);
         ul.appendChild(li);

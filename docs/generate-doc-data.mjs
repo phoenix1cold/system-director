@@ -22,6 +22,10 @@ function normaliseField(field) {
   if (!field || typeof field !== "object") return field;
   const out = { ...field };
   if ("def" in out && !("default" in out)) out.default = out.def;
+  if (out.options?.__fn) {
+    out.options = [];
+    out.dynamicOptions = true;
+  }
   return out;
 }
 

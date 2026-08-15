@@ -1,0 +1,55 @@
+<div class="sd sd-database-window">
+<form class="sd-db-form" autocomplete="off">
+  <header class="sd-db-toolbar">
+    <div>
+      <h2><i class="fas fa-database"></i> Shared Database</h2>
+      <p>One schema for the whole world. Document databases keep separate values on each Actor or Item; world databases keep one shared value.</p>
+    </div>
+    {{#if isGM}}
+    <button type="button" data-action="addDatabase" class="config-btn primary"><i class="fas fa-plus"></i> Add database</button>
+    {{/if}}
+  </header>
+  <div class="sd-db-context"><b>Current storage context:</b> {{contextName}}{{#unless hasContext}} — open Database from an Actor or Item sheet to edit document values.{{/unless}}</div>
+  <div class="sd-db-body">
+    {{#each databaseEntries as |db|}}
+    <section class="sd-db-card">
+      <div class="sd-db-card-head">
+        <code>{{db.id}}</code>
+        <input type="text" name="db_{{db.index}}_name" value="{{db.name}}" placeholder="Database name" {{#unless @root.isGM}}disabled{{/unless}}>
+        <select name="db_{{db.index}}_storage" {{#unless @root.isGM}}disabled{{/unless}}>
+          <option value="document" {{#unless db.isWorld}}selected{{/unless}}>Per Actor / Item</option>
+          <option value="world" {{#if db.isWorld}}selected{{/if}}>World shared</option>
+        </select>
+        {{#if @root.isGM}}
+        <button type="button" data-action="addRecord" data-index="{{db.index}}"><i class="fas fa-plus"></i> Record</button>
+        <button type="button" data-action="removeDatabase" data-index="{{db.index}}" class="danger"><i class="fas fa-trash"></i></button>
+        {{/if}}
+      </div>
+      <input class="sd-db-description" type="text" name="db_{{db.index}}_description" value="{{db.description}}" placeholder="Description" {{#unless @root.isGM}}disabled{{/unless}}>
+      <div class="sd-db-record-list">
+        {{#each db.records as |record|}}
+        <article class="sd-db-record">
+          <div class="sd-db-record-main">
+            <code>{{record.id}}</code>
+            <input type="text" name="rec_{{record.databaseIndex}}_{{record.index}}_name" value="{{record.name}}" placeholder="Record name" {{#unless @root.isGM}}disabled{{/unless}}>
+            <select name="rec_{{record.databaseIndex}}_{{record.index}}_type" {{#unless @root.isGM}}disabled{{/unless}}>
+              {{#each record.typeOptions as |type|}}<option value="{{type.id}}" {{#if type.selected}}selected{{/if}}>{{type.label}}</option>{{/each}}
+            </select>
+            {{#if @root.isGM}}<button type="button" data-action="removeRecord" data-database-index="{{record.databaseIndex}}" data-record-index="{{record.index}}" class="danger"><i class="fas fa-trash"></i></button>{{/if}}
+          </div>
+          <div class="sd-db-record-values">
+            <label>Default<textarea name="rec_{{record.databaseIndex}}_{{record.index}}_default" rows="2" {{#unless @root.isGM}}disabled{{/unless}}>{{record.defaultText}}</textarea></label>
+            <label>Value for {{@root.contextName}}<textarea name="rec_{{record.databaseIndex}}_{{record.index}}_value" rows="2" {{#if db.isWorld}}{{#unless @root.isGM}}disabled{{/unless}}{{else}}{{#unless @root.hasContext}}disabled{{/unless}}{{/if}}>{{record.value}}</textarea></label>
+          </div>
+          <input class="sd-db-description" type="text" name="rec_{{record.databaseIndex}}_{{record.index}}_description" value="{{record.description}}" placeholder="Record description" {{#unless @root.isGM}}disabled{{/unless}}>
+        </article>
+        {{/each}}
+        {{#unless db.records.length}}<div class="sd-db-empty">No records. Add a typed record.</div>{{/unless}}
+      </div>
+    </section>
+    {{/each}}
+    {{#unless databaseEntries.length}}<div class="sd-db-empty large"><i class="fas fa-database"></i><b>No databases yet</b><span>Create the shared schema, then open Database from an Actor or Item sheet to edit its values.</span></div>{{/unless}}
+  </div>
+  <footer class="sd-db-footer"><button type="button" data-action="save" class="config-btn primary"><i class="fas fa-floppy-disk"></i> Save database</button></footer>
+</form>
+</div>

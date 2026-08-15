@@ -1617,11 +1617,18 @@ export class WidgetRenderer {
 
   static _render_select(w, doc) {
     const esc   = this._esc.bind(this);
-    const cur   = String(this._get(doc, w.path, ""));
     const lbl   = esc(w.label ?? "Select");
     const path  = esc(w.path  ?? "");
     const raw   = String(w.choices ?? "");
     const opts  = raw.split(",").map(s => s.trim()).filter(Boolean);
+    const key   = String(w.widgetKey ?? "").trim();
+    let stored;
+    if (key) {
+      try { stored = foundry.utils.getProperty(doc, `system.widgetFields.${key}.value`); } catch {}
+    }
+    const bound = this._get(doc, w.path, "");
+    const candidate = stored !== undefined && stored !== null ? String(stored) : String(bound ?? "");
+    const cur = opts.includes(candidate) ? candidate : (opts[0] ?? candidate);
     const optsHtml = opts.map(o =>
       `<option value="${esc(o)}"${cur === o ? " selected" : ""}>${esc(o)}</option>`
     ).join("");

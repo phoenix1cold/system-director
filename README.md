@@ -8,7 +8,7 @@
 </p>
 <p align="center">
   <img alt="Release" src="https://img.shields.io/badge/status-release-36a269?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.1.2-informational?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.1.4-informational?style=flat-square">
   <img alt="Foundry VTT" src="https://img.shields.io/badge/Foundry%20VTT-v13%20%7C%20v14-fe6a1f?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-source--available%20%2F%20non--commercial-blue?style=flat-square">
 </p>
@@ -30,14 +30,18 @@ Manual installation: extract the release `system.zip` into `<FoundryUserData>/Da
 
 - **Sheet Builder** — tabs, rows, cells, reusable templates and more than thirty widget types.
 - **Widget Builder** — grid positioning, resizing, images, layers, nested widgets and safely scoped CSS.
-- **Typed Node Graph** — Actor, Item, Token Pool, Roll Result, Effect and AOE Template pins.
+- **Typed Node Graph** — Unreal-style pin language: every type has its own color, glyph and connector shape; arrays use stacked sockets and dashed wires.
 - **Composable rolls** — Roll → Analyze Roll → Compare Roll → Present Roll; formula and dice-pool modes.
 - **Combat automation** — saves, damage, healing, targets, chat actions, AoE and auras.
 - **Equipment** — inventory, slots, auto-equip and Active Effects that follow equipped state.
 - **Quests** — quest logs, objectives, dependencies, visibility, rewards and quest events.
 - **Progression** — class levels, choices, field changes, granted items/effects and skill trees.
+- **Persistent typed databases** — one shared schema with per-Actor, per-Item and world values, available from every graph.
+- **World-safe AOE presets** — ownerless graphs fall back to World storage, and typed AOE arrays pass intact through Database Set/Get into Spell.
+- **Dialogue Builder** — visible Dialogue palette category with RPG dialogue, form prompts, portraits, dynamic choice exec outputs, values and conversation history.
+- **Persistent widget values** — every keyed widget stores its current value in `system.widgetFields.<key>.value`; Select keeps this state independently from an optional Data Path, and Get Widget Value accepts a dynamic Widget Key.
 - **Macros** — copy Dice and Skill widgets to Foundry Script Macros or build reusable graph macros.
-- **Foundry v14 integration** — ApplicationV2, native Rich Text, Regions and Measured Templates.
+- **Foundry v14 integration** — ApplicationV2, native Rich Text and Region-based area templates. Measured Templates are retained only as a v13 compatibility path.
 
 ## Documentation
 

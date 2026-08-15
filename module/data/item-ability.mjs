@@ -92,6 +92,8 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
 
       customTabs: new ArrayField(new ObjectField()),
 
+      widgetFields: new ObjectField({ initial: {} }),
+
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
       slotDefinitions: new ArrayField(SlotDefinitionField()),

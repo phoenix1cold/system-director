@@ -1,25 +1,29 @@
-export const PIN_SUBTYPE_COLORS = Object.freeze({
-  "exec":          "#ffca6b",
-  "value.any":     null,
-  "value.number":  "#74c0ff",
-  "value.string":  "#e06bff",
-  "value.bool":    "#ff7b7b",
-  "value.path":    "#c8a268",
-  "value.uuid":    "#a76bff",
-  "value.actor":   "#5dd6a8",
-  "value.item":    "#ffd94a",
-  "value.token":   "#3ec8e0",
-  "value.array":   "#d0d0d0",
-  "value.card":    "#ff9b3a",
-  "value.cards":   "#ffb877",
-  "value.token_pool":    "#42d6c8",
-  "value.roll_result":   "#8ab4ff",
-  "value.effect":        "#c783ff",
-  "value.aoe_template":  "#ff9f68",
-  "value.aoe_templates": "#ffb58f",
-  "value.dialog_result": "#d89bff",
-  "value.object":        "#b8b8c8"
+export const PIN_TYPE_META = Object.freeze({
+  "exec":                { color:"#F5C451", glyph:"▶", label:"Execution",       short:"Exec",   shape:"exec" },
+  "value.any":           { color:"#8B93A7", glyph:"?", label:"Any value",       short:"Any",    shape:"circle" },
+  "value.number":        { color:"#42A5F5", glyph:"#", label:"Number",          short:"Num",    shape:"circle" },
+  "value.string":        { color:"#E052D1", glyph:"T", label:"Text",            short:"Text",   shape:"circle" },
+  "value.bool":          { color:"#EF5350", glyph:"✓", label:"Boolean",         short:"Bool",   shape:"diamond" },
+  "value.path":          { color:"#C49A6C", glyph:"/", label:"Data path",       short:"Path",   shape:"diamond" },
+  "value.uuid":          { color:"#7E57C2", glyph:"◇", label:"UUID reference",  short:"UUID",   shape:"diamond", reference:true },
+  "value.actor":         { color:"#35C98A", glyph:"A", label:"Actor",           short:"Actor",  shape:"capsule", reference:true },
+  "value.item":          { color:"#F2B84B", glyph:"I", label:"Item",            short:"Item",   shape:"square", reference:true },
+  "value.token":         { color:"#26C6DA", glyph:"●", label:"Token",           short:"Token",  shape:"diamond", reference:true },
+  "value.array":         { color:"#7C8CFF", glyph:"[]",label:"Array",           short:"Array",  shape:"array", container:true },
+  "value.card":          { color:"#F57C3D", glyph:"C", label:"Card",            short:"Card",   shape:"square", reference:true },
+  "value.cards":         { color:"#FFAB5A", glyph:"≡", label:"Card array",      short:"Cards",  shape:"array", container:true },
+  "value.token_pool":    { color:"#00BFA5", glyph:"••",label:"Token Pool",      short:"Pool",   shape:"array", container:true },
+  "value.roll_result":   { color:"#3D7DFF", glyph:"⚄", label:"Roll Result",     short:"Roll",   shape:"hex", structured:true },
+  "value.effect":        { color:"#B05CFF", glyph:"✦", label:"Effect",          short:"Effect", shape:"diamond", structured:true },
+  "value.aoe_template":  { color:"#FF7043", glyph:"◎", label:"AOE Region",      short:"AOE",    shape:"target", structured:true },
+  "value.aoe_templates": { color:"#FF8A65", glyph:"◉", label:"AOE Region array",short:"AOEs",   shape:"array", container:true, structured:true },
+  "value.dialog_result": { color:"#D65DB1", glyph:"▣", label:"Dialog Result",   short:"Dialog", shape:"square", structured:true },
+  "value.object":        { color:"#9AA4B8", glyph:"{}",label:"Object",          short:"Object", shape:"hex", structured:true }
 });
+
+export const PIN_SUBTYPE_COLORS = Object.freeze(Object.fromEntries(
+  Object.entries(PIN_TYPE_META).map(([type, meta]) => [type, meta.color])
+));
 
 export function pinSubtype(t) {
   if (!t) return "value.any";
@@ -29,8 +33,13 @@ export function pinSubtype(t) {
   return "value.any";
 }
 
+export function pinTypeMeta(t) {
+  const subtype = pinSubtype(t);
+  return PIN_TYPE_META[subtype] ?? PIN_TYPE_META["value.any"];
+}
+
 export function subtypeColor(t) {
-  return PIN_SUBTYPE_COLORS[pinSubtype(t)] ?? null;
+  return pinTypeMeta(t).color;
 }
 
 const _INTERCHANGEABLE = Object.freeze([

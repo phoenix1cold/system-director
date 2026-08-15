@@ -1,10 +1,17 @@
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { durationForRounds } from "../helpers/effect-duration.mjs";
+import { injectWidgetFieldsSnapshot, refreshWidgetFieldsRuntime } from "../helpers/widget-fields.mjs";
 
 export class SDItem extends Item {
 
   prepareData() {
     super.prepareData();
+    refreshWidgetFieldsRuntime(this);
+  }
+
+  async _preUpdate(changed, options, userId) {
+    injectWidgetFieldsSnapshot(this, changed);
+    return super._preUpdate(changed, options, userId);
   }
 
   async canEquip() {

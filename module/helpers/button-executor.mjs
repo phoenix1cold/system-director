@@ -768,6 +768,35 @@ export class ButtonExecutor {
 
     const _injectRuntime = (formula) => {
       if (typeof formula !== "string") return formula;
+      const exact = formula;
+      let exactMatch = exact.match(/^\{__dbValue:([A-Za-z0-9_-]+)\}$/);
+      if (exactMatch) return runtime.__databaseValues?.[exactMatch[1]];
+      exactMatch = exact.match(/^\{__dbRecordId:([A-Za-z0-9_-]+)\}$/);
+      if (exactMatch) return runtime.__databaseRecordIds?.[exactMatch[1]] ?? "";
+      const exactStructuredValues = {
+        "{__aoeTemplates}": runtime.__aoeTemplates ?? buttonDef?.__aoeTemplates,
+        "{__aoeTemplate}": runtime.__aoeTemplate ?? buttonDef?.__aoeTemplate,
+        "{__choiceSelected}": runtime.__choiceSelected ?? buttonDef?.__choiceSelected,
+        "{__choiceSelectedArray}": runtime.__choiceSelectedArray ?? buttonDef?.__choiceSelectedArray,
+        "{__effectDefinition}": runtime.__effectDefinition ?? buttonDef?.__effectDefinition,
+        "{__auraDefinition}": runtime.__auraDefinition ?? buttonDef?.__auraDefinition,
+        "{__spellEffect}": runtime.__spellEffect ?? buttonDef?.__spellEffect,
+        "{__spellValue}": runtime.__spellValue ?? buttonDef?.__spellValue
+      };
+      if (Object.prototype.hasOwnProperty.call(exactStructuredValues, exact)
+          && exactStructuredValues[exact] !== undefined) return exactStructuredValues[exact];
+      exactMatch = exact.match(/^\{__var:([A-Za-z0-9_]+)\|([^}]*)\}$/);
+      if (exactMatch) {
+        const localVars=runtime.__vars??{};
+        const actorVars=foundry.utils.getProperty(actor??item?.actor??{},"flags.sd.vars")??{};
+        return Object.prototype.hasOwnProperty.call(localVars,exactMatch[1]) ? localVars[exactMatch[1]] : (Object.prototype.hasOwnProperty.call(actorVars,exactMatch[1]) ? actorVars[exactMatch[1]] : exactMatch[2]);
+      }
+      exactMatch = exact.match(/^\{__(actorVar|itemVar|worldVar):([A-Za-z0-9_]+)\|([^}]*)\}$/);
+      if (exactMatch) {
+        const source=exactMatch[1]==="actorVar"?(actor??item?.actor):exactMatch[1]==="itemVar"?item:null;
+        const vars=exactMatch[1]==="worldVar"?(game.settings.get("sd","systemSettings")?.vars??{}):(foundry.utils.getProperty(source??{},"flags.sd.vars")??{});
+        return Object.prototype.hasOwnProperty.call(vars,exactMatch[2]) ? vars[exactMatch[2]] : exactMatch[3];
+      }
       const _rr = runtime.__rollResult ?? buttonDef?.__rollResult ?? null;
       const _exactRollValues = {
         "{__rollResult}": _rr,
@@ -1020,6 +1049,17 @@ export class ButtonExecutor {
         const v = Object.prototype.hasOwnProperty.call(localVars, name) ? localVars[name] : actorVars[name];
         return v === undefined || v === null ? dflt : String(v);
       });
+      formula = formula.replace(/\{__(actorVar|itemVar|worldVar):([A-Za-z0-9_]+)\|([^}]*)\}/g, (_, scope, name, dflt) => {
+        const source=scope==="actorVar"?(actor??item?.actor):scope==="itemVar"?item:null;
+        const vars=scope==="worldVar"?(game.settings.get("sd","systemSettings")?.vars??{}):(foundry.utils.getProperty(source??{},"flags.sd.vars")??{});
+        const value=Object.prototype.hasOwnProperty.call(vars,name)?vars[name]:dflt;
+        return typeof value==="object"?JSON.stringify(value):String(value);
+      });
+      formula = formula.replace(/\{__dbValue:([A-Za-z0-9_-]+)\}/g, (_, key) => {
+        const value=runtime.__databaseValues?.[key];
+        return typeof value==="object"?JSON.stringify(value):String(value??"");
+      });
+      formula = formula.replace(/\{__dbRecordId:([A-Za-z0-9_-]+)\}/g, (_, key) => String(runtime.__databaseRecordIds?.[key]??""));
       formula = formula.replace(/\{__sdEqCount:([^}]*)\}/g, (_, cat) => {
         const owner = actor ?? item?.parent ?? null;
         const items = owner?.items?.contents ?? [];
@@ -4089,6 +4129,44 @@ export class ButtonExecutor {
         break;
       }
 
+      case "databaseGet": {
+        try {
+          const { readDatabaseValue } = await import("./shared-database.mjs");
+          const owner=action.owner!=null?_injectRuntime(action.owner):null;
+          const value=await readDatabaseValue({databaseId:action.databaseId,recordId:action.recordId,ownerMode:action.ownerMode??"auto",owner,item,actor});
+          const key=String(action.runtimeKey??"database").replace(/[^A-Za-z0-9_-]/g,"_");
+          (runtime.__databaseValues??={})[key]=value;
+          if(buttonDef)(buttonDef.__databaseValues??={})[key]=value;
+        } catch(error){console.error("SD | Database Get failed",error);ui.notifications?.error?.(`Database Get: ${error.message}`);}
+        break;
+      }
+
+      case "databaseSet": {
+        try {
+          const { writeDatabaseValue } = await import("./shared-database.mjs");
+          const owner=action.owner!=null?_injectRuntime(action.owner):null;
+          const input=action.value!=null?_injectRuntime(action.value):null;
+          const value=await writeDatabaseValue({databaseId:action.databaseId,recordId:action.recordId,value:input,ownerMode:action.ownerMode??"auto",owner,item,actor});
+          const key=String(action.runtimeKey??"database").replace(/[^A-Za-z0-9_-]/g,"_");
+          (runtime.__databaseValues??={})[key]=value;
+          if(buttonDef)(buttonDef.__databaseValues??={})[key]=value;
+        } catch(error){console.error("SD | Database Set failed",error);ui.notifications?.error?.(`Database Set: ${error.message}`);}
+        break;
+      }
+
+      case "databaseCreate": {
+        try {
+          const { createDatabaseRecord } = await import("./shared-database.mjs");
+          const owner=action.owner!=null?_injectRuntime(action.owner):null;
+          const input=action.value!=null?_injectRuntime(action.value):null;
+          const result=await createDatabaseRecord({databaseId:action.databaseId,recordId:action.recordId,name:action.recordName,type:action.valueType,defaultValue:action.defaultValue,initialValue:input,writeInitial:action.writeInitial!==false,ownerMode:action.ownerMode??"auto",owner,item,actor});
+          const key=String(action.runtimeKey??"database").replace(/[^A-Za-z0-9_-]/g,"_");
+          (runtime.__databaseValues??={})[key]=result.value;
+          (runtime.__databaseRecordIds??={})[key]=result.record.id;
+        } catch(error){console.error("SD | Database Create failed",error);ui.notifications?.error?.(`Database Create: ${error.message}`);}
+        break;
+      }
+
       case "setVar": {
         const { FormulaEngine } = await import("./formula-engine.mjs");
         const varName = String(action.name ?? "myVar").trim() || "myVar";
@@ -4109,6 +4187,11 @@ export class ButtonExecutor {
           }
         }
 
+        try {
+          const { coerceDatabaseValue } = await import("./shared-database.mjs");
+          val = coerceDatabaseValue(val, action.valueType ?? "any");
+        } catch {}
+
         if (action.scope === "local") {
           runtime.__vars = (runtime.__vars && typeof runtime.__vars === "object") ? runtime.__vars : {};
           runtime.__vars[varName] = val;
@@ -4121,14 +4204,15 @@ export class ButtonExecutor {
           } else {
             console.warn(`SD | setVar(${varName}) skipped — world scope requires GM.`);
           }
+        } else if (action.scope === "item") {
+          if (!item) console.warn(`SD | setVar(${varName}) skipped — no item available.`);
+          else await item.setFlag("sd", `vars.${varName}`, val);
         } else {
           const a = actor ?? item?.actor;
-          if (!a) {
-            console.warn(`SD | setVar(${varName}) skipped — no actor available.`);
-          } else {
-            await a.setFlag("sd", `vars.${varName}`, val);
-          }
+          if (!a) console.warn(`SD | setVar(${varName}) skipped — no actor available.`);
+          else await a.setFlag("sd", `vars.${varName}`, val);
         }
+        runtime.__lastVariableValue=val;
         break;
       }
 
@@ -4481,15 +4565,30 @@ export class ButtonExecutor {
 
       case "switchExec": {
         const { FormulaEngine } = await import("./formula-engine.mjs");
-        let val = _injectRuntime(String(action.value ?? "0"));
-        try {
-          val = String(FormulaEngine.evaluate(
-            FormulaEngine.resolveForRoll(val, item ?? actor ?? {}),
-            item ?? actor ?? {}
-          ));
-        } catch {  }
+        const owner = item ?? actor ?? {};
+        const resolveComparable = (raw) => {
+          const injected = _injectRuntime(String(raw ?? ""));
+          try { return FormulaEngine._evalSideForCompare(injected, owner); }
+          catch { return injected; }
+        };
+        const val = resolveComparable(action.value ?? "");
         const cases  = action.cases  ?? [];
-        const matched = cases.findIndex(c => String(c) === val);
+        const mode = String(action.matchMode ?? "smart").toLowerCase();
+        const trimText = (v) => FormulaEngine._sdStripQuotes?.(v)?.trim?.() ?? String(v ?? "").trim();
+        const matches = (left, right) => {
+          const a = trimText(left);
+          const b = trimText(right);
+          if (mode === "exact") return String(left ?? "") === String(right ?? "");
+          if (mode === "number") {
+            const an = Number(a), bn = Number(b);
+            return Number.isFinite(an) && Number.isFinite(bn) && an === bn;
+          }
+          if (mode === "insensitive") return a.toLocaleLowerCase() === b.toLocaleLowerCase();
+          const an = Number(a), bn = Number(b);
+          if (a !== "" && b !== "" && Number.isFinite(an) && Number.isFinite(bn)) return an === bn;
+          return a.toLocaleLowerCase() === b.toLocaleLowerCase();
+        };
+        const matched = cases.findIndex(c => matches(val, resolveComparable(c)));
         const branch = matched >= 0
           ? (action[`case${matched}Actions`] ?? [])
           : (action.defaultActions ?? []);
@@ -6116,59 +6215,132 @@ export class ButtonExecutor {
 
     case "aoeTemplateSaver": {
       const { DialogV2 } = foundry.applications.api;
-      const templates = [];
       const esc = (v) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-      const selectedTemplate = () => {
-        const layer = globalThis.canvas?.templates;
-        const active = globalThis.canvas?.activeLayer;
-        return layer?.controlled?.[0]
-          ?? layer?.placeables?.find?.(x => x?.controlled || x?._controlled || x?.document?.object?.controlled)
-          ?? active?.controlled?.find?.(x => x?.document?.documentName === "MeasuredTemplate")
-          ?? null;
+      const clone = (v) => {
+        try { return foundry.utils.deepClone?.(v) ?? structuredClone(v); }
+        catch { try { return JSON.parse(JSON.stringify(v)); } catch { return v; } }
       };
-      // Keep the canvas interactive and remember selections made before or while the picker is open.
-      let lastSelectedTemplate = selectedTemplate();
-      const controlHook = globalThis.Hooks?.on?.("controlMeasuredTemplate", (placeable, controlled) => {
-        if (controlled && placeable) lastSelectedTemplate = placeable;
-      });
+      const storageMode = String(action.storageMode ?? "auto");
+      const storageOwner = storageMode === "item" ? (item ?? null)
+        : storageMode === "actor" ? (actor ?? item?.actor ?? null)
+          : storageMode === "runtime" || storageMode === "world" ? null
+            : (item ?? actor ?? null);
+      const useWorldStorage = storageMode === "world" || (storageMode === "auto" && !storageOwner);
+      const storageKey = String(action.storageKey ?? "default").replace(/[^A-Za-z0-9_-]/g,"_") || "default";
+      const worldSettings = game.settings.get("sd","systemSettings") ?? {};
+      const storedTemplates = useWorldStorage
+        ? foundry.utils.getProperty(worldSettings, `aoeRegionPresets.${storageKey}`)
+        : foundry.utils.getProperty(storageOwner ?? {}, `flags.sd.aoeRegionPresets.${storageKey}`);
+      const templates = Array.isArray(storedTemplates) ? clone(storedTemplates) : [];
+      const originalTemplates = clone(templates);
+      const controlledOn = (layer, documentName) => layer?.controlled?.[0]
+        ?? layer?.placeables?.find?.(x => x?.controlled || x?._controlled || x?.document?.object?.controlled)
+        ?? (globalThis.canvas?.activeLayer === layer
+          ? globalThis.canvas?.activeLayer?.controlled?.find?.(x => !documentName || x?.document?.documentName === documentName)
+          : null)
+        ?? null;
+      // Foundry VTT v14 removed MeasuredTemplate. Regions are the primary AOE document.
+      const selectedArea = () => controlledOn(globalThis.canvas?.regions, "Region")
+        ?? controlledOn(globalThis.canvas?.templates, "MeasuredTemplate")
+        ?? null;
+      const regionShapes = (doc) => {
+        let raw = null;
+        try { raw = doc?.toObject?.(true) ?? doc?.toObject?.() ?? null; } catch {}
+        const source = raw?.shapes ?? doc?.shapes ?? doc?._source?.shapes ?? [];
+        try { return Array.from(source ?? []).map(shape => clone(shape?.toObject?.(true) ?? shape?.toObject?.() ?? shape)); }
+        catch { return []; }
+      };
+      const snapshotOf = (placeable) => {
+        const d = placeable?.document ?? placeable;
+        if (!d) return null;
+        const shapes = regionShapes(d);
+        if (d.documentName === "Region" || shapes.length) {
+          const firstType = shapes[0]?.type ?? "region";
+          return {
+            id:foundry.utils.randomID(12),
+            kind:"region-v14",version:14,
+            name:d.name || `Region ${templates.length+1}`,
+            t:shapes.length === 1 ? firstType : "region",
+            shapes,
+            shapeCount:shapes.length,
+            appearance:{
+              color:String(d.color ?? d._source?.color ?? "#ff0000"),
+              displayMeasurements:Boolean(d.displayMeasurements ?? d._source?.displayMeasurements ?? true),
+              highlightMode:d.highlightMode ?? d._source?.highlightMode ?? undefined,
+              elevation:clone(d.elevation ?? d._source?.elevation ?? undefined)
+            }
+          };
+        }
+        return {
+          id:foundry.utils.randomID(12),kind:"measured-template-v13",version:13,
+          name:d.name || `Template ${templates.length+1}`,
+          t:d.t ?? d.type ?? "circle",distance:Number(d.distance ?? 0)||0,
+          angle:Number(d.angle ?? 53.13)||53.13,width:Number(d.width ?? 0)||0,
+          direction:Number(d.direction ?? 0)||0,texture:d.texture ?? null,
+          fillColor:d.fillColor ?? "#ff0000",borderColor:d.borderColor ?? "#000000"
+        };
+      };
+      // Keep the canvas interactive and remember Region/Template selections made before or while the picker is open.
+      let lastSelectedArea = selectedArea();
+      const hookIds = [];
+      const remember = (placeable, controlled) => { if (controlled && placeable) lastSelectedArea = placeable; };
+      for (const hookName of ["controlRegion", "controlMeasuredTemplate"]) {
+        const id = globalThis.Hooks?.on?.(hookName, remember);
+        if (id !== undefined && id !== null) hookIds.push([hookName,id]);
+      }
       let confirmed = false;
       try {
         while (true) {
-          const rows = templates.length ? templates.map((t,i)=>`<li style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--color-border-light-2);"><strong style="flex:1">${esc(t.name)}</strong><span>${esc(t.t)} · ${Number(t.distance||0)} ft</span><span>#${i+1}</span></li>`).join("") : `<li style="opacity:.65;padding:8px 0">No templates added.</li>`;
+          const rows = templates.length ? templates.map((t,i)=>{
+            const detail = t.kind === "region-v14" ? `Region · ${Number(t.shapeCount ?? t.shapes?.length ?? 0)} shape(s)` : `${t.t} · ${Number(t.distance||0)} ft`;
+            return `<li style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--color-border-light-2);"><strong style="flex:1">${esc(t.name)}</strong><span>${esc(detail)}</span><span>#${i+1}</span></li>`;
+          }).join("") : `<li style="opacity:.65;padding:8px 0">No areas added.</li>`;
           const choice = await DialogV2.wait({
-            window:{title:action.title ?? "AOE Templates"},modal:false,
-            content:`<div class="sd-aoe-template-saver"><p>This window does not block the canvas. Select a placed template, then click <b>Add selected</b>. A template selected before opening is also accepted.</p><ol style="max-height:260px;overflow:auto;padding-left:22px">${rows}</ol></div>`,
+            window:{title:action.title ?? "AOE Regions"},modal:false,
+            content:`<div class="sd-aoe-template-saver"><p><b>Foundry VTT v14:</b> select a placed <b>Region</b> on the canvas, then click <b>Add selected</b>. V13 Measured Templates remain supported as a fallback.</p><ol style="max-height:260px;overflow:auto;padding-left:22px">${rows}</ol></div>`,
             buttons:[
               {action:"add",label:"Add selected",icon:"fas fa-plus"},
               {action:"remove",label:"Remove last",icon:"fas fa-trash"},
+              {action:"clear",label:"Clear all",icon:"fas fa-broom"},
               {action:"confirm",label:"Confirm",icon:"fas fa-check",default:true},
               {action:"cancel",label:"Cancel",icon:"fas fa-times"}
             ],rejectClose:false
           }).catch(()=>"cancel");
           if (choice === "add") {
-            const placeable = selectedTemplate() ?? lastSelectedTemplate;
-            const d = placeable?.document ?? placeable;
-            if (placeable) lastSelectedTemplate = placeable;
-            if (!d) { ui.notifications?.warn?.("Select a placed template first."); continue; }
-            templates.push({
-              id:foundry.utils.randomID(12),name:d.name || `Template ${templates.length+1}`,
-              t:d.t ?? d.type ?? "circle",distance:Number(d.distance ?? 0)||0,
-              angle:Number(d.angle ?? 53.13)||53.13,width:Number(d.width ?? 0)||0,
-              direction:Number(d.direction ?? 0)||0,texture:d.texture ?? null,
-              fillColor:d.fillColor ?? "#ff0000",borderColor:d.borderColor ?? "#000000"
-            });
+            const placeable = selectedArea() ?? lastSelectedArea;
+            if (placeable) lastSelectedArea = placeable;
+            const snapshot = snapshotOf(placeable);
+            if (!snapshot) { ui.notifications?.warn?.("Select a placed Region first (Foundry v14)."); continue; }
+            if (snapshot.kind === "region-v14" && !snapshot.shapes.length) { ui.notifications?.warn?.("The selected Region has no shapes."); continue; }
+            templates.push(snapshot);
             continue;
           }
           if (choice === "remove") { templates.pop(); continue; }
+          if (choice === "clear") { templates.splice(0,templates.length); continue; }
           if (choice === "confirm") {
-            if (!templates.length && !action.allowEmpty) { ui.notifications?.warn?.("Add at least one template."); continue; }
+            if (!templates.length && !action.allowEmpty) { ui.notifications?.warn?.("Add at least one Region."); continue; }
+            if (storageMode === "runtime") {
+              // Explicitly keep the list only for the current execution.
+            } else if (useWorldStorage) {
+              if (game.user?.isGM) {
+                const current = clone(game.settings.get("sd","systemSettings") ?? {});
+                foundry.utils.setProperty(current,`aoeRegionPresets.${storageKey}`,clone(templates));
+                await game.settings.set("sd","systemSettings",current);
+              } else ui.notifications?.warn?.("Only a GM can persist AOE presets in World storage.");
+            } else if (storageOwner?.setFlag) {
+              await storageOwner.setFlag("sd",`aoeRegionPresets.${storageKey}`,clone(templates));
+            } else {
+              ui.notifications?.warn?.(`AOE preset storage "${storageMode}" has no matching Actor or Item.`);
+            }
             confirmed = true;
+          } else {
+            templates.splice(0,templates.length,...originalTemplates);
           }
           break;
         }
       } finally {
-        if (controlHook !== undefined && controlHook !== null) {
-          try { globalThis.Hooks?.off?.("controlMeasuredTemplate", controlHook); } catch {}
+        for (const [hookName,id] of hookIds) {
+          try { globalThis.Hooks?.off?.(hookName,id); } catch {}
         }
       }
       runtime.__aoeTemplates = templates;
@@ -6229,18 +6401,28 @@ export class ButtonExecutor {
       if (tpl === "{__aoeTemplate}") tpl = runtime.__aoeTemplate;
       if (typeof tpl === "string") {
         const id = _injectRuntime(tpl).replace(/^.*\./,"");
-        tpl = canvas?.templates?.get?.(id) ?? canvas?.scene?.templates?.get?.(id) ?? null;
+        tpl = canvas?.regions?.get?.(id) ?? canvas?.scene?.regions?.get?.(id)
+          ?? canvas?.templates?.get?.(id) ?? canvas?.scene?.templates?.get?.(id) ?? null;
       }
-      const placeable = tpl?.object ?? tpl;
+      const document = tpl?.document ?? tpl;
+      const isRegion = document?.documentName === "Region" || Array.isArray(document?.shapes) || document?.shapes?.size !== undefined;
       const tokenIds=[];
-      if (placeable?.shape && Number.isFinite(placeable.x) && Number.isFinite(placeable.y)) {
-        for (const tok of (canvas?.tokens?.placeables ?? [])) {
-          const c=tok.center ?? {x:tok.x+(tok.w||0)/2,y:tok.y+(tok.h||0)/2};
-          try { if(placeable.shape.contains(c.x-placeable.x,c.y-placeable.y)) tokenIds.push(tok.id); } catch {}
+      if (isRegion) {
+        try {
+          const { getRegionTokens } = await import("./sd-region.mjs");
+          tokenIds.push(...getRegionTokens(document).map(t => t.id).filter(Boolean));
+        } catch (error) { console.warn("SD | Tokens From AOE Region failed:", error); }
+      } else {
+        const placeable = tpl?.object ?? tpl;
+        if (placeable?.shape && Number.isFinite(placeable.x) && Number.isFinite(placeable.y)) {
+          for (const tok of (canvas?.tokens?.placeables ?? [])) {
+            const c=tok.center ?? {x:tok.x+(tok.w||0)/2,y:tok.y+(tok.h||0)/2};
+            try { if(placeable.shape.contains(c.x-placeable.x,c.y-placeable.y)) tokenIds.push(tok.id); } catch {}
+          }
         }
       }
-      runtime.allTargets=tokenIds;runtime.__targetCount=tokenIds.length;
-      if(buttonDef)buttonDef.__targetCount=tokenIds.length;
+      runtime.allTargets=[...new Set(tokenIds)];runtime.__targetCount=runtime.allTargets.length;
+      if(buttonDef)buttonDef.__targetCount=runtime.__targetCount;
       const branch=tpl ? (action.foundActions ?? []) : (action.missingActions ?? []);
       for(const sub of branch)await this._runAction(sub,item,actor,buttonDef,runtime);
       break;
@@ -6256,11 +6438,19 @@ export class ButtonExecutor {
       const isAoe=isSpell ? await boolValue(action.isAoe) : true;
       const hasTarget=isSpell ? await boolValue(action.hasTarget) : true;
       const hasEffect=isSpell ? await boolValue(action.hasEffect) : false;
-      const templates = action.templates === "{__aoeTemplates}" && Array.isArray(runtime.__aoeTemplates)
-        ? runtime.__aoeTemplates
-        : action.templates === "{__choiceSelectedArray}" && Array.isArray(runtime.__choiceSelectedArray)
-          ? runtime.__choiceSelectedArray
-          : Array.isArray(action.templates) ? action.templates : [];
+      const rawTemplates = action.templates == null ? null : _injectRuntime(action.templates);
+      const templateLike = (value) => value && typeof value === "object" && (
+        value.kind || value.t || value.shape || value.name || Number(value.distance) > 0
+        || (Array.isArray(value.shapes) && value.shapes.length)
+      );
+      let templates = Array.isArray(rawTemplates) ? rawTemplates.filter(templateLike)
+        : templateLike(rawTemplates) ? [rawTemplates] : [];
+      if (!templates.length && typeof rawTemplates === "string") {
+        try {
+          const parsed=JSON.parse(rawTemplates);
+          templates=Array.isArray(parsed) ? parsed.filter(templateLike) : templateLike(parsed) ? [parsed] : [];
+        } catch {}
+      }
       const targetsRaw = action.targets != null ? _injectRuntime(String(action.targets)) : "";
       const effectValue = action.effect === "{__choiceSelected}" ? runtime.__choiceSelected
         : action.effect === "{__spellEffect}" ? runtime.__spellEffect : action.effect;

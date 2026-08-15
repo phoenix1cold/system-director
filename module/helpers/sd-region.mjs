@@ -60,26 +60,49 @@ export function buildShape(kind, sizeFt, angleDeg = 53.13) {
   }
 }
 
-function _regionData({ name, shape, flags = {}, hidden = false }) {
+function _cloneRegionData(value) {
+  if (value == null) return value;
+  try { return globalThis.foundry?.utils?.deepClone?.(value) ?? structuredClone(value); }
+  catch { try { return JSON.parse(JSON.stringify(value)); } catch { return value; } }
+}
+
+function _regionData({ name, shape, shapes = null, flags = {}, hidden = false, appearance = {} }) {
   const V = CONST?.REGION_VISIBILITY ?? {};
   const visibility = hidden
     ? (V.GAMEMASTER ?? 0)
     : (V.OBSERVER   ?? 2);
-  return {
+  const regionShapes = (Array.isArray(shapes) && shapes.length ? shapes : [shape])
+    .filter(Boolean).map(_cloneRegionData);
+  const data = {
     name:       name ?? "SD Region",
-    shapes:     [shape],
+    shapes:     regionShapes,
     behaviors:  [],
     visibility,
     ownership:  { [game.user.id]: CONST?.DOCUMENT_OWNERSHIP_LEVELS?.OWNER ?? 3 },
     flags
   };
+  // Preserve portable appearance only. Behaviors, ownership, attachment and source IDs are intentionally not copied.
+  for (const key of ["color", "displayMeasurements", "highlightMode", "elevation"]) {
+    if (appearance?.[key] !== undefined && appearance?.[key] !== null) data[key] = _cloneRegionData(appearance[key]);
+  }
+  return data;
 }
 
-export async function placeRegionInteractive({ name, shape, flags = {}, hidden = false }) {
+export async function placeRegionInteractive({ name, shape = null, shapes = null, flags = {}, hidden = false, appearance = {} }) {
   if (!canvas?.scene) return null;
-  const data = _regionData({ name, shape, flags, hidden });
+  const data = _regionData({ name, shape, shapes, flags, hidden, appearance });
+  if (!data.shapes.length) return null;
 
   const layer = canvas.regions;
+  // Foundry VTT v14: MeasuredTemplate was removed and RegionLayer.placeRegion is the official replacement.
+  if (layer && typeof layer.placeRegion === "function") {
+    try {
+      return await layer.placeRegion(data, { create: true, allowRotation: true });
+    } catch (e) {
+      console.warn("SD | placeRegionInteractive(placeRegion) failed:", e);
+    }
+  }
+  // V13 compatibility path.
   if (layer && typeof layer.placeRegions === "function") {
     try {
       const docs = await layer.placeRegions([data], { create: true, allowRotation: true });
@@ -105,14 +128,18 @@ export async function placeAuraRegion({ ownerToken, shape, flags = {}, name }) {
   const layer = canvas.regions;
   let doc = null;
 
-  if (layer && typeof layer.placeRegions === "function") {
+  if (layer && (typeof layer.placeRegion === "function" || typeof layer.placeRegions === "function")) {
     const prevControlled = [...(canvas.tokens?.controlled ?? [])];
     try {
       if (!ownerToken.controlled) ownerToken.control({ releaseOthers: true });
-      const docs = await layer.placeRegions([data], { create: true, attachToToken: true });
-      doc = Array.isArray(docs) ? docs[0] ?? null : null;
+      if (typeof layer.placeRegion === "function") {
+        doc = await layer.placeRegion(data, { create: true, attachToToken: true });
+      } else {
+        const docs = await layer.placeRegions([data], { create: true, attachToToken: true });
+        doc = Array.isArray(docs) ? docs[0] ?? null : null;
+      }
     } catch (e) {
-      console.warn("SD | placeAuraRegion(placeRegions+attachToToken) failed:", e);
+      console.warn("SD | placeAuraRegion(V14 Region placement) failed:", e);
     } finally {
       try {
         for (const t of prevControlled) t.control({ releaseOthers: false });

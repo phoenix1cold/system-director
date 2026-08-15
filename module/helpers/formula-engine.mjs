@@ -108,6 +108,13 @@ export class FormulaEngine {
       const prop   = dotIdx < 0 ? "value" : rest.slice(dotIdx + 1);
       const w = this._findWidgetByKey(doc, key);
       if (w) return this._readWidgetProp(w, prop, doc);
+      // Persisted widgetFields is also a real document field. This fallback is
+      // important for Get Field Value by UUID and for documents whose sheet
+      // definition is not currently available in memory.
+      try {
+        const stored = foundry.utils.getProperty(doc, path);
+        if (stored !== undefined) return stored;
+      } catch {}
       return undefined;
     }
     if (!doc || !path) return undefined;
@@ -174,8 +181,18 @@ export class FormulaEngine {
     }
 
     if (t === "select") {
-      const v = this._readDocProperty(owner, w.path);
-      return (v === undefined || v === null) ? "" : v;
+      const options = String(w.choices ?? "").split(",").map(v => v.trim()).filter(Boolean);
+      const key = String(w.widgetKey ?? "").trim();
+      if (key) {
+        let stored;
+        try { stored = foundry.utils.getProperty(owner, `system.widgetFields.${key}.value`); } catch {}
+        if (stored !== undefined && stored !== null && (!options.length || options.includes(String(stored)))) return stored;
+      }
+      if (w.path && !String(w.path).startsWith("system.widgetFields.")) {
+        const v = this._readDocProperty(owner, w.path);
+        if (v !== undefined && v !== null && (!options.length || options.includes(String(v)))) return v;
+      }
+      return options[0] ?? "";
     }
 
     if (t === "diceTray") {
@@ -1037,6 +1054,24 @@ export class FormulaEngine {
         && i.system?.equipped === true
         && (cat === "" || cat === "any" || i.system?.category === cat)).length;
       return n;
+    }
+
+    if (token.startsWith("__sdWidgetValue:")) {
+      const encoded = token.slice("__sdWidgetValue:".length).trim();
+      let expression = "";
+      try { expression = this._b64decodeUtf8(encoded); } catch { expression = ""; }
+      let key = "";
+      try { key = this._evalSideForCompare(expression, doc); }
+      catch { key = expression; }
+      key = this._sdStripQuotes(key).trim();
+      if (!key) return 0;
+      const w = this._findWidgetByKey(doc, key);
+      if (w) return this._readWidgetValue(w, doc);
+      try {
+        const stored = foundry.utils.getProperty(doc, `system.widgetFields.${key}.value`);
+        if (stored !== undefined && stored !== null) return stored;
+      } catch {}
+      return 0;
     }
 
     if (token.startsWith("widget:")) {

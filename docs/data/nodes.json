@@ -535,8 +535,14 @@
     "title": "Get Widget Value",
     "color": "#1a4060",
     "cat": "Get Data",
-    "desc": "Read the current computed value of another widget by its Widget Key",
-    "inputs": [],
+    "desc": "Read the current value of a widget. Pick a static Widget, or connect Widget Key to resolve a widget dynamically (for example, feed a Select containing attribute widget keys).",
+    "inputs": [
+      {
+        "id": "key",
+        "label": "Widget Key",
+        "type": "value.string"
+      }
+    ],
     "outputs": [
       {
         "id": "v",
@@ -9932,7 +9938,7 @@
     "title": "Switch on Value",
     "color": "#8a2a8a",
     "cat": "Flow Control",
-    "desc": "Compare Value against each Case label and jump to the matching exec output. Falls through to Default if no match.",
+    "desc": "Compare Value against each Case and run the matching exec output. Smart mode trims text, ignores letter case, and compares numeric values numerically. Falls through to Default if no match.",
     "wideNode": true,
     "inputs": [
       {
@@ -9986,6 +9992,30 @@
         "label": "Case 2 value",
         "type": "text",
         "default": "2"
+      },
+      {
+        "key": "matchMode",
+        "label": "Match",
+        "type": "select",
+        "default": "smart",
+        "options": [
+          {
+            "value": "smart",
+            "label": "Smart (recommended)"
+          },
+          {
+            "value": "exact",
+            "label": "Exact text"
+          },
+          {
+            "value": "insensitive",
+            "label": "Text — ignore case"
+          },
+          {
+            "value": "number",
+            "label": "Number"
+          }
+        ]
       }
     ],
     "isSwitch": true,
@@ -9997,9 +10027,9 @@
   "act_dialog_builder": {
     "title": "Dialogue Builder",
     "color": "#a04020",
-    "cat": "Flow",
+    "cat": "Dialogue",
     "wideNode": true,
-    "desc": "Build an RPG-style dialogue window or a compact form prompt. Choice buttons expose exec outputs so a selected line can continue into another Dialogue Builder node. Picked is the chosen id; Choice is the shown choice label; element values are available as {__dlg.<id>}.",
+    "desc": "Build an RPG-style dialogue window or a compact form prompt. Choice buttons expose exec outputs so a selected line can continue into another Dialogue Builder node. Picked is the chosen id; Choice is the shown choice label; History contains the conversation, and element values are available as {__dlg.<id>}.",
     "inputs": [
       {
         "id": "exec",
@@ -15477,7 +15507,7 @@
     "color": "#355a8a",
     "cat": "Effects",
     "wideNode": true,
-    "desc": "Opens a dialog. Select a placed Measured Template on the canvas and add it to the list. Geometry and appearance are copied as portable snapshots; scene coordinates are not stored.",
+    "desc": "Foundry v14: save selected Scene Regions as persistent presets. Auto uses the current Item/Actor and falls back to World storage when the graph has no document owner. V13 Measured Templates remain a fallback.",
     "inputs": [
       {
         "id": "exec",
@@ -15518,6 +15548,34 @@
         "options": [
           "no",
           "yes"
+        ]
+      },
+      {
+        "key": "storageMode",
+        "label": "Preset storage",
+        "type": "select",
+        "default": "auto",
+        "options": [
+          {
+            "value": "auto",
+            "label": "Auto — Item / Actor / World fallback"
+          },
+          {
+            "value": "world",
+            "label": "World"
+          },
+          {
+            "value": "actor",
+            "label": "Current Actor"
+          },
+          {
+            "value": "item",
+            "label": "Current Item"
+          },
+          {
+            "value": "runtime",
+            "label": "Runtime only"
+          }
         ]
       }
     ],
@@ -15651,7 +15709,7 @@
     "color": "#37698a",
     "cat": "Effects",
     "wideNode": true,
-    "desc": "Chooses one portable template snapshot, places it interactively, and returns the tokens inside. It performs no save, damage, healing, or effect logic.",
+    "desc": "Chooses one portable area snapshot and places it through RegionLayer.placeRegion in Foundry v14. It returns the tokens inside and performs no save, damage, healing, or effect logic.",
     "inputs": [
       {
         "id": "exec",
@@ -18468,7 +18526,7 @@
     "title": "Read Variable",
     "color": "#2a6a9a",
     "cat": "Variables",
-    "desc": "Reads a variable by scope. Local — within a single press. Actor — on the actor (persists). World — in system settings.",
+    "desc": "Reads a typed variable. Local lasts for one graph pass; Actor and Item persist on that document; World is shared by the world.",
     "inputs": [
       {
         "id": "name",
@@ -18490,7 +18548,18 @@
         "type": "value.any"
       }
     ],
+    "computeDynamicOutputs": {
+      "__fn": true
+    },
     "fields": [
+      {
+        "key": "valueType",
+        "label": "Type",
+        "type": "select",
+        "default": "any",
+        "options": [],
+        "dynamicOptions": true
+      },
       {
         "key": "scope",
         "label": "Scope",
@@ -18499,6 +18568,7 @@
         "options": [
           "local",
           "actor",
+          "item",
           "world"
         ]
       },
@@ -18524,7 +18594,7 @@
     "title": "Write Variable",
     "color": "#2a6a9a",
     "cat": "Variables",
-    "desc": "Writes a variable by scope. Local lasts until the end of the current graph pass. Actor is stored in actor.flags.sd.vars. World goes into game.settings.",
+    "desc": "Writes a typed variable. Actor/Item flags and World values persist between executions.",
     "inputs": [
       {
         "id": "exec",
@@ -18547,6 +18617,9 @@
         "type": "value.string"
       }
     ],
+    "computeDynamicInputs": {
+      "__fn": true
+    },
     "outputs": [
       {
         "id": "exec",
@@ -18556,6 +18629,14 @@
     ],
     "fields": [
       {
+        "key": "valueType",
+        "label": "Type",
+        "type": "select",
+        "default": "any",
+        "options": [],
+        "dynamicOptions": true
+      },
+      {
         "key": "scope",
         "label": "Scope",
         "type": "select",
@@ -18563,6 +18644,7 @@
         "options": [
           "local",
           "actor",
+          "item",
           "world"
         ]
       },
@@ -18578,6 +18660,319 @@
       "__fn": true
     },
     "id": "var_write"
+  },
+  "database_get": {
+    "title": "Database Get",
+    "color": "#236b63",
+    "cat": "Database",
+    "wideNode": true,
+    "desc": "Reads a typed record from a shared world database. Document databases use the selected/current Actor or Item; World databases are global.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "computeDynamicOutputs": {
+      "__fn": true
+    },
+    "fields": [
+      {
+        "key": "databaseId",
+        "label": "Database",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "dynamicOptions": true
+      },
+      {
+        "key": "recordId",
+        "label": "Record",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "dynamicOptions": true
+      },
+      {
+        "key": "ownerMode",
+        "label": "Storage owner",
+        "type": "select",
+        "default": "auto",
+        "options": [
+          {
+            "value": "auto",
+            "label": "Current Item / Actor"
+          },
+          {
+            "value": "actor",
+            "label": "Current Actor"
+          },
+          {
+            "value": "item",
+            "label": "Current Item"
+          },
+          {
+            "value": "world",
+            "label": "World"
+          }
+        ]
+      }
+    ],
+    "isAction": true,
+    "dynamicBranchToken": {
+      "__fn": true
+    },
+    "toAction": {
+      "__fn": true
+    },
+    "id": "database_get"
+  },
+  "database_set": {
+    "title": "Database Set",
+    "color": "#287a70",
+    "cat": "Database",
+    "wideNode": true,
+    "desc": "Writes a value to a typed database record and outputs the stored value with the same pin type.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.any"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "computeDynamicInputs": {
+      "__fn": true
+    },
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "→",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Stored",
+        "type": "value.any"
+      }
+    ],
+    "computeDynamicOutputs": {
+      "__fn": true
+    },
+    "fields": [
+      {
+        "key": "databaseId",
+        "label": "Database",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "dynamicOptions": true
+      },
+      {
+        "key": "recordId",
+        "label": "Record",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "dynamicOptions": true
+      },
+      {
+        "key": "ownerMode",
+        "label": "Storage owner",
+        "type": "select",
+        "default": "auto",
+        "options": [
+          {
+            "value": "auto",
+            "label": "Current Item / Actor"
+          },
+          {
+            "value": "actor",
+            "label": "Current Actor"
+          },
+          {
+            "value": "item",
+            "label": "Current Item"
+          },
+          {
+            "value": "world",
+            "label": "World"
+          }
+        ]
+      }
+    ],
+    "isAction": true,
+    "dynamicBranchToken": {
+      "__fn": true
+    },
+    "toAction": {
+      "__fn": true
+    },
+    "id": "database_set"
+  },
+  "database_create": {
+    "title": "Database Create",
+    "color": "#319887",
+    "cat": "Database",
+    "wideNode": true,
+    "desc": "Creates a new typed record in an existing database. Optionally writes an initial value for the current owner.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "owner",
+        "label": "Owner",
+        "type": "value.any"
+      },
+      {
+        "id": "value",
+        "label": "Initial Value",
+        "type": "value.any"
+      },
+      {
+        "id": "recordName",
+        "label": "Display name",
+        "type": "value.any",
+        "__autoFromField": true
+      },
+      {
+        "id": "defaultValue",
+        "label": "Default",
+        "type": "value.any",
+        "__autoFromField": true
+      }
+    ],
+    "computeDynamicInputs": {
+      "__fn": true
+    },
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Created →",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      },
+      {
+        "id": "recordId",
+        "label": "Record ID",
+        "type": "value.string"
+      }
+    ],
+    "computeDynamicOutputs": {
+      "__fn": true
+    },
+    "fields": [
+      {
+        "key": "databaseId",
+        "label": "Database",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "dynamicOptions": true
+      },
+      {
+        "key": "recordId",
+        "label": "New record ID",
+        "type": "text",
+        "default": "new_record"
+      },
+      {
+        "key": "recordName",
+        "label": "Display name",
+        "type": "text",
+        "default": "New Record"
+      },
+      {
+        "key": "valueType",
+        "label": "Type",
+        "type": "select",
+        "default": "any",
+        "options": [],
+        "dynamicOptions": true
+      },
+      {
+        "key": "defaultValue",
+        "label": "Default",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "writeInitial",
+        "label": "Write initial value",
+        "type": "select",
+        "default": "yes",
+        "options": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "key": "ownerMode",
+        "label": "Storage owner",
+        "type": "select",
+        "default": "auto",
+        "options": [
+          {
+            "value": "auto",
+            "label": "Current Item / Actor"
+          },
+          {
+            "value": "actor",
+            "label": "Current Actor"
+          },
+          {
+            "value": "item",
+            "label": "Current Item"
+          },
+          {
+            "value": "world",
+            "label": "World"
+          }
+        ]
+      }
+    ],
+    "isAction": true,
+    "dynamicBranchToken": {
+      "__fn": true
+    },
+    "toAction": {
+      "__fn": true
+    },
+    "id": "database_create"
   },
   "var_get": {
     "title": "Get Variable",

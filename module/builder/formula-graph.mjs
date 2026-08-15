@@ -1,5 +1,5 @@
 import { migrateGraph, NODE_TYPE_MIGRATIONS } from "./node-migration.mjs";
-import { pinSubtype, subtypeColor, arePinsCompatible } from "./pin-types.mjs";
+import { pinSubtype, pinTypeMeta, subtypeColor, arePinsCompatible } from "./pin-types.mjs";
 import { lintGraph, lintSummary } from "./graph-linter.mjs";
 import {
   formulaBounds, clampFormula, multiplyFormula, addMod, doubleDice,
@@ -8,6 +8,7 @@ import {
 import { WIDGET_VARIANTS } from "./widget-registry.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
+import { databaseSelectOptions, databaseRecordSelectOptions, databaseTypeOptions, databaseTypePin, getDatabaseRecord } from "../helpers/shared-database.mjs";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
@@ -417,10 +418,18 @@ export const NODE_DEFS = {
   },
   get_widget: {
     title:"Get Widget Value", color:"#1a4060", cat:"Get Data",
-    desc:"Read the current computed value of another widget by its Widget Key",
-    inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
+    desc:"Read the current value of a widget. Pick a static Widget, or connect Widget Key to resolve a widget dynamically (for example, feed a Select containing attribute widget keys).",
+    inputs:[{id:"key",label:"Widget Key",type:"value.string"}], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"key",label:"Widget",type:"widget-picker",default:""}],
-    compile:(n)=>`{widget:${n.data.key??""}}`
+    compile:(n,i)=>{
+      const dynamicKey = i.key;
+      if (dynamicKey !== undefined && dynamicKey !== null && String(dynamicKey).trim() !== "") {
+        let b64 = "";
+        try { b64 = btoa(unescape(encodeURIComponent(String(dynamicKey)))); } catch {}
+        return `{__sdWidgetValue:${b64}}`;
+      }
+      return `{widget:${n.data.key??""}}`;
+    }
   },
   get_widget_path: {
     title:"Get Widget Path", color:"#1a4060", cat:"Get Data",
@@ -3451,7 +3460,7 @@ export const NODE_DEFS = {
 
   switch_node: {
     title:"Switch on Value", color:"#8a2a8a", cat:"Flow Control",
-    desc:"Compare Value against each Case label and jump to the matching exec output. Falls through to Default if no match.",
+    desc:"Compare Value against each Case and run the matching exec output. Smart mode trims text, ignores letter case, and compares numeric values numerically. Falls through to Default if no match.",
     wideNode:true,
     inputs:[
       {id:"exec",  label:"",        type:"exec"},
@@ -3466,13 +3475,20 @@ export const NODE_DEFS = {
     fields:[
       {key:"case0", label:"Case 0 value", type:"text", default:"0"},
       {key:"case1", label:"Case 1 value", type:"text", default:"1"},
-      {key:"case2", label:"Case 2 value", type:"text", default:"2"}
+      {key:"case2", label:"Case 2 value", type:"text", default:"2"},
+      {key:"matchMode", label:"Match", type:"select", default:"smart", options:[
+        {value:"smart",label:"Smart (recommended)"},
+        {value:"exact",label:"Exact text"},
+        {value:"insensitive",label:"Text — ignore case"},
+        {value:"number",label:"Number"}
+      ]}
     ],
     isSwitch: true,
     toAction:(n,inp)=>({
       type:   "switchExec",
       value:  inp.value ?? 0,
-      cases:  [n.data.case0??"0", n.data.case1??"1", n.data.case2??"2"]
+      cases:  [n.data.case0??"0", n.data.case1??"1", n.data.case2??"2"],
+      matchMode: n.data.matchMode ?? "smart"
     })
   },
 
@@ -3505,7 +3521,7 @@ export const NODE_DEFS = {
       );
     }
     return {
-      title:"Dialog Builder", color:"#a04020", cat:"Flow", wideNode:true,
+      title:"Dialog Builder", color:"#a04020", cat:"Dialogue", wideNode:true,
       desc:"Visual form-dialog builder. Pick element count (1-8), then for each element choose its type (label/section/text/number/checkbox/select/button), a unique Id, a Label, optional default and options. Each element with an Id exposes an output value pin that resolves to the runtime token {__dlg.<id>} (use it anywhere downstream — paths, formulas, text). Buttons additionally expose a per-button exec output when 'Emit exec on click?' is set to yes; turning it off hides that exec pin. Picked outputs the id of the last button clicked. Submit fires after any button (or OK if no buttons exist); Cancel fires on close without confirm.",
       inputs:[ {id:"exec", label:"", type:"exec"} ],
 
@@ -4804,7 +4820,7 @@ export const NODE_DEFS = {
 
   act_aoe_template_saver: {
     title:"AOE Template Saver", color:"#355a8a", cat:"Effects", wideNode:true,
-    desc:"Opens a dialog. Select a placed Measured Template on the canvas and add it to the list. Geometry and appearance are copied as portable snapshots; scene coordinates are not stored.",
+    desc:"Foundry v14: save selected Scene Regions as persistent presets. Auto uses the current Item/Actor and falls back to World storage when the graph has no document owner. V13 Measured Templates remain a fallback.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[
       {id:"confirmed",label:"Confirmed →",type:"exec"},
@@ -4813,10 +4829,17 @@ export const NODE_DEFS = {
     ],
     fields:[
       {key:"title",label:"Dialog title",type:"text",default:"AOE Templates", noPin:true},
-      {key:"allowEmpty",label:"Allow empty list",type:"select",default:"no",options:["no","yes"]}
+      {key:"allowEmpty",label:"Allow empty list",type:"select",default:"no",options:["no","yes"]},
+      {key:"storageMode",label:"Preset storage",type:"select",default:"auto",options:[
+        {value:"auto",label:"Auto — Item / Actor / World fallback"},
+        {value:"world",label:"World"},
+        {value:"actor",label:"Current Actor"},
+        {value:"item",label:"Current Item"},
+        {value:"runtime",label:"Runtime only"}
+      ]}
     ],
     isGenericBranch:true,
-    toAction:(n)=>({type:"aoeTemplateSaver",title:n.data.title ?? "AOE Templates",allowEmpty:n.data.allowEmpty === "yes"})
+    toAction:(n)=>({type:"aoeTemplateSaver",title:n.data.title ?? "AOE Templates",allowEmpty:n.data.allowEmpty === "yes",storageMode:n.data.storageMode ?? "auto",storageKey:n.id})
   },
 
   act_choice_from_array: {
@@ -4855,7 +4878,7 @@ export const NODE_DEFS = {
 
   act_place_aoe_template: {
     title:"Place AOE Template", color:"#37698a", cat:"Effects", wideNode:true,
-    desc:"Chooses one portable template snapshot, places it interactively, and returns the tokens inside. It performs no save, damage, healing, or effect logic.",
+    desc:"Chooses one portable area snapshot and places it through RegionLayer.placeRegion in Foundry v14. It returns the tokens inside and performs no save, damage, healing, or effect logic.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"templates",label:"Templates[]",type:"value.aoe_templates"}
@@ -5810,45 +5833,92 @@ export const NODE_DEFS = {
 
   var_read: {
     title:"Read Variable", color:"#2a6a9a", cat:"Variables",
-    desc:"Reads a variable by scope. Local — within a single press. Actor — on the actor (persists). World — in system settings.",
+    desc:"Reads a typed variable. Local lasts for one graph pass; Actor and Item persist on that document; World is shared by the world.",
     inputs:[],
-    outputs:[{id:"v", label:"Value", type:"value.any"}],
+    outputs:[{id:"v",label:"Value",type:"value.any"}],
+    computeDynamicOutputs:(n)=>[{id:"v",label:"Value",type:databaseTypePin(n.data?.valueType ?? "any")}],
     fields:[
-      {key:"scope",   label:"Scope",   type:"select", default:"local", options:["local","actor","world"]},
-      {key:"name",    label:"Name",    type:"text",   default:"myVar"},
-      {key:"default", label:"Default", type:"text",   default:"0"}
+      {key:"valueType",label:"Type",type:"select",default:"any",options:()=>databaseTypeOptions()},
+      {key:"scope",label:"Scope",type:"select",default:"local",options:["local","actor","item","world"]},
+      {key:"name",label:"Name",type:"text",default:"myVar"},
+      {key:"default",label:"Default",type:"text",default:"0"}
     ],
     compile:(n)=>{
-      const s = n.data.scope ?? "local";
-      const nm = n.data.name ?? "myVar";
-      const d = n.data.default ?? "0";
-      if (s === "actor") return `{var:${nm}}`;
-      if (s === "world") return `{wvar:${nm}|${d}}`;
-      return `{__var:${nm}|${d}}`;
+      const scope=n.data.scope??"local",name=n.data.name??"myVar",d=n.data.default??"0";
+      if(scope==="actor")return `{__actorVar:${name}|${d}}`;
+      if(scope==="item")return `{__itemVar:${name}|${d}}`;
+      if(scope==="world")return `{__worldVar:${name}|${d}}`;
+      return `{__var:${name}|${d}}`;
     }
   },
 
   var_write: {
     title:"Write Variable", color:"#2a6a9a", cat:"Variables",
-    desc:"Writes a variable by scope. Local lasts until the end of the current graph pass. Actor is stored in actor.flags.sd.vars. World goes into game.settings.",
-    inputs:[
-      {id:"exec",  label:"",      type:"exec"},
-      {id:"name",  label:"Name",  type:"value.string"},
-      {id:"value", label:"Value", type:"value.any"},
-      {id:"scope", label:"Scope", type:"value.string"}
-    ],
-    outputs:[{id:"exec", label:"→", type:"exec"}],
+    desc:"Writes a typed variable. Actor/Item flags and World values persist between executions.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"name",label:"Name",type:"value.string"},{id:"value",label:"Value",type:"value.any"},{id:"scope",label:"Scope",type:"value.string"}],
+    computeDynamicInputs:(n)=>[{id:"exec",label:"",type:"exec"},{id:"name",label:"Name",type:"value.string"},{id:"value",label:"Value",type:databaseTypePin(n.data?.valueType??"any")},{id:"scope",label:"Scope",type:"value.string"}],
+    outputs:[{id:"exec",label:"→",type:"exec"}],
     fields:[
-      {key:"scope", label:"Scope", type:"select", default:"local", options:["local","actor","world"]},
-      {key:"name",  label:"Name",  type:"text",   default:"myVar"}
+      {key:"valueType",label:"Type",type:"select",default:"any",options:()=>databaseTypeOptions()},
+      {key:"scope",label:"Scope",type:"select",default:"local",options:["local","actor","item","world"]},
+      {key:"name",label:"Name",type:"text",default:"myVar"}
     ],
     isAction:true,
-    toAction:(n,inp)=>({
-      type:  "setVar",
-      name:  (inp.name != null && inp.name !== "") ? String(inp.name) : (n.data.name ?? "myVar"),
-      value: inp.value    ?? "0",
-      scope: (inp.scope != null && inp.scope !== "") ? String(inp.scope) : (n.data.scope ?? "local")
-    })
+    toAction:(n,inp)=>({type:"setVar",name:(inp.name!=null&&inp.name!=="")?String(inp.name):(n.data.name??"myVar"),value:inp.value??"0",scope:(inp.scope!=null&&inp.scope!=="")?String(inp.scope):(n.data.scope??"local"),valueType:n.data.valueType??"any"})
+  },
+
+  database_get: {
+    title:"Database Get",color:"#236b63",cat:"Database",wideNode:true,
+    desc:"Reads a typed record from a shared world database. Document databases use the selected/current Actor or Item; World databases are global.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"owner",label:"Owner",type:"value.any"}],
+    outputs:[{id:"exec",label:"→",type:"exec"},{id:"value",label:"Value",type:"value.any"}],
+    computeDynamicOutputs:(n)=>[{id:"exec",label:"→",type:"exec"},{id:"value",label:"Value",type:databaseTypePin(getDatabaseRecord(n.data?.databaseId,n.data?.recordId)?.type??"any")}],
+    fields:[
+      {key:"databaseId",label:"Database",type:"select",default:"",options:()=>databaseSelectOptions()},
+      {key:"recordId",label:"Record",type:"select",default:"",options:(n)=>databaseRecordSelectOptions(n.data?.databaseId)},
+      {key:"ownerMode",label:"Storage owner",type:"select",default:"auto",options:[{value:"auto",label:"Current Item / Actor"},{value:"actor",label:"Current Actor"},{value:"item",label:"Current Item"},{value:"world",label:"World"}]}
+    ],
+    isAction:true,
+    dynamicBranchToken:(n,p)=>p==="value"?`{__dbValue:${n.id}}`:null,
+    toAction:(n,inp)=>({type:"databaseGet",databaseId:n.data.databaseId??"",recordId:n.data.recordId??"",ownerMode:n.data.ownerMode??"auto",owner:inp.owner??null,runtimeKey:n.id})
+  },
+
+  database_set: {
+    title:"Database Set",color:"#287a70",cat:"Database",wideNode:true,
+    desc:"Writes a value to a typed database record and outputs the stored value with the same pin type.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"owner",label:"Owner",type:"value.any"},{id:"value",label:"Value",type:"value.any"}],
+    computeDynamicInputs:(n)=>[{id:"exec",label:"",type:"exec"},{id:"owner",label:"Owner",type:"value.any"},{id:"value",label:"Value",type:databaseTypePin(getDatabaseRecord(n.data?.databaseId,n.data?.recordId)?.type??"any")}],
+    outputs:[{id:"exec",label:"→",type:"exec"},{id:"value",label:"Stored",type:"value.any"}],
+    computeDynamicOutputs:(n)=>[{id:"exec",label:"→",type:"exec"},{id:"value",label:"Stored",type:databaseTypePin(getDatabaseRecord(n.data?.databaseId,n.data?.recordId)?.type??"any")}],
+    fields:[
+      {key:"databaseId",label:"Database",type:"select",default:"",options:()=>databaseSelectOptions()},
+      {key:"recordId",label:"Record",type:"select",default:"",options:(n)=>databaseRecordSelectOptions(n.data?.databaseId)},
+      {key:"ownerMode",label:"Storage owner",type:"select",default:"auto",options:[{value:"auto",label:"Current Item / Actor"},{value:"actor",label:"Current Actor"},{value:"item",label:"Current Item"},{value:"world",label:"World"}]}
+    ],
+    isAction:true,
+    dynamicBranchToken:(n,p)=>p==="value"?`{__dbValue:${n.id}}`:null,
+    toAction:(n,inp)=>({type:"databaseSet",databaseId:n.data.databaseId??"",recordId:n.data.recordId??"",ownerMode:n.data.ownerMode??"auto",owner:inp.owner??null,value:inp.value??null,runtimeKey:n.id})
+  },
+
+  database_create: {
+    title:"Database Create",color:"#319887",cat:"Database",wideNode:true,
+    desc:"Creates a new typed record in an existing database. Optionally writes an initial value for the current owner.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"owner",label:"Owner",type:"value.any"},{id:"value",label:"Initial Value",type:"value.any"}],
+    computeDynamicInputs:(n)=>[{id:"exec",label:"",type:"exec"},{id:"owner",label:"Owner",type:"value.any"},{id:"value",label:"Initial Value",type:databaseTypePin(n.data?.valueType??"any")}],
+    outputs:[{id:"exec",label:"Created →",type:"exec"},{id:"value",label:"Value",type:"value.any"},{id:"recordId",label:"Record ID",type:"value.string"}],
+    computeDynamicOutputs:(n)=>[{id:"exec",label:"Created →",type:"exec"},{id:"value",label:"Value",type:databaseTypePin(n.data?.valueType??"any")},{id:"recordId",label:"Record ID",type:"value.string"}],
+    fields:[
+      {key:"databaseId",label:"Database",type:"select",default:"",options:()=>databaseSelectOptions()},
+      {key:"recordId",label:"New record ID",type:"text",default:"new_record"},
+      {key:"recordName",label:"Display name",type:"text",default:"New Record"},
+      {key:"valueType",label:"Type",type:"select",default:"any",options:()=>databaseTypeOptions()},
+      {key:"defaultValue",label:"Default",type:"text",default:""},
+      {key:"writeInitial",label:"Write initial value",type:"select",default:"yes",options:["yes","no"]},
+      {key:"ownerMode",label:"Storage owner",type:"select",default:"auto",options:[{value:"auto",label:"Current Item / Actor"},{value:"actor",label:"Current Actor"},{value:"item",label:"Current Item"},{value:"world",label:"World"}]}
+    ],
+    isAction:true,
+    dynamicBranchToken:(n,p)=>p==="value"?`{__dbValue:${n.id}}`:p==="recordId"?`{__dbRecordId:${n.id}}`:null,
+    toAction:(n,inp)=>({type:"databaseCreate",databaseId:n.data.databaseId??"",recordId:n.data.recordId??"new_record",recordName:n.data.recordName??"New Record",valueType:n.data.valueType??"any",defaultValue:n.data.defaultValue??null,writeInitial:n.data.writeInitial!=="no",ownerMode:n.data.ownerMode??"auto",owner:inp.owner??null,value:inp.value??null,runtimeKey:n.id})
   },
 
   var_get: {
@@ -7814,8 +7884,8 @@ export const NODE_DEFS = {
   }
 
   NODE_DEFS.act_dialog_builder = {
-    title:"Dialogue Builder", color:"#a04020", cat:"Flow", wideNode:true,
-    desc:"Build an RPG-style dialogue window or a compact form prompt. Choice buttons expose exec outputs so a selected line can continue into another Dialogue Builder node. Picked is the chosen id; Choice is the shown choice label; element values are available as {__dlg.<id>}.",
+    title:"Dialogue Builder", color:"#a04020", cat:"Dialogue", wideNode:true,
+    desc:"Build an RPG-style dialogue window or a compact form prompt. Choice buttons expose exec outputs so a selected line can continue into another Dialogue Builder node. Picked is the chosen id; Choice is the shown choice label; History contains the conversation, and element values are available as {__dlg.<id>}.",
     inputs:[
       {id:"exec",      label:"",           type:"exec"},
       {id:"aiChoices", label:"AI Choices", type:"value.any"}
@@ -8160,9 +8230,11 @@ const BRANCH_PIN_TOKENS = {
 const CATS = [
   {id:"Events",       color:"#c04040"},
   {id:"Flow Control", color:"#8a3a8a"},
+  {id:"Dialogue",     color:"#a04020"},
   {id:"Functions",    color:"#7a4abc"},
   {id:"Macros",       color:"#1a8a4a"},
   {id:"Variables",    color:"#2a6a9a"},
+  {id:"Database",     color:"#287a70"},
   {id:"Values",       color:"#3a7a9a"},
   {id:"Get Data",     color:"#2a6a9a"},
   {id:"Set Data",     color:"#4a2a6a"},
@@ -10759,6 +10831,10 @@ export class FormulaGraph {
 
     if (def?.isEvent) return EVENT_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
     if (def?.isMacroInput) return `{__macroArg:${fromPin ?? "a"}}`;
+    if (typeof def?.dynamicBranchToken === "function") {
+      const token = def.dynamicBranchToken(node, fromPin);
+      if (token != null) return token;
+    }
     if (def?.isAttackBranch || def?.isBranch || def?.isSaveBranch || def?.isTieredBranch || def?.isGenericBranch || def?.isProgressionBranch || def?.isAoeSave || def?.isAiBranch) {
 
       if (typeof def.dynamicBranchToken === "function") {
@@ -10874,7 +10950,12 @@ export class FormulaGraph {
         const value   = valNode ? this._compileValue(valNode, new Set(), valEdge.fromPin) : (node.data?.value ?? "0");
 
         const cases = [node.data?.case0 ?? "0", node.data?.case1 ?? "1", node.data?.case2 ?? "2"];
-        const act = { type: "switchExec", value, cases };
+        const act = {
+          type: "switchExec",
+          value,
+          cases,
+          matchMode: node.data?.matchMode ?? "smart"
+        };
 
         const caseOutputs = ["case0", "case1", "case2", "default"];
         for (const outPin of caseOutputs) {
@@ -11800,7 +11881,7 @@ export class FormulaGraph {
   _nodeFilterContext() {
     const ALLOWED_CONFIG_CATS = new Set(["Values", "Get Data", "Math"]);
     const ALLOWED_NUMBER_CATS = new Set(["Values", "Get Data", "Math", "Logic"]);
-    const ALLOWED_QUEST_CATS  = new Set(["Flow Control", "Quest", "Values", "Get Data", "Math", "Logic"]);
+    const ALLOWED_QUEST_CATS  = new Set(["Flow Control", "Dialogue", "Quest", "Values", "Get Data", "Math", "Logic"]);
     const ALLOWED_QUEST_SOURCES = new Set([
       "literal", "literal_str", "get_path", "actor_ref", "item_uuid", "fa_icon"
     ]);
@@ -13104,30 +13185,44 @@ export class FormulaGraph {
   _pinEl(node,pin,side) {
     const wrap=document.createElement("div");
     wrap.className = `gn-pin gn-pin-${side}`;
+    const meta=pinTypeMeta(pin.type);
+    wrap.dataset.pinType=pinSubtype(pin.type);
+    wrap.title=`${pin.label || pin.id} · ${meta.label}`;
     wrap.style.cssText=`display:flex;align-items:center;gap:7px;padding:3px 8px;min-height:30px;width:100%;min-width:0;${side==="output"?"justify-content:flex-end":"justify-content:flex-start"}`;
     const dot=this._dotEl(node,pin,side);
     const lbl=document.createElement("span");
     lbl.textContent=_NL(pin.label||"");
 
     lbl.style.cssText="font-size:11px;color:var(--sd-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1;letter-spacing:0";
-    if(side==="input"){wrap.appendChild(dot);wrap.appendChild(lbl);}
-    else{wrap.appendChild(lbl);wrap.appendChild(dot);}
+    const kind=document.createElement("span");
+    kind.className="gn-pin-kind";
+    kind.textContent=meta.short;
+    kind.style.setProperty("--pin-color",meta.color);
+    if(side==="input"){wrap.appendChild(dot);wrap.appendChild(lbl);wrap.appendChild(kind);}
+    else{wrap.appendChild(kind);wrap.appendChild(lbl);wrap.appendChild(dot);}
     return wrap;
   }
 
   _dotEl(node,pin,side) {
     const isExec=pin.type==="exec";
+    const meta=pinTypeMeta(pin.type);
     const dot=document.createElement("div");
-    dot.className="gpin";
+    dot.className=`gpin gpin-shape-${meta.shape}${meta.container?" gpin-container":""}${meta.structured?" gpin-structured":""}`;
     dot.dataset.nid=node.id; dot.dataset.pid=pin.id; dot.dataset.side=side;
-    const _typeColor = subtypeColor(pin.type) ?? (isExec ? "#ffca6b" : (side==="output" ? "#22d48a" : "#497efb"));
+    dot.dataset.pinType=pinSubtype(pin.type);
+    dot.style.setProperty("--pin-color",meta.color);
+    const glyph=document.createElement("span");
+    glyph.className="gpin-glyph";
+    glyph.textContent=meta.glyph;
+    dot.appendChild(glyph);
+    const _typeColor = meta.color;
     const _connected = (side === "output")
       ? this.edges.some(e => e.fromNode === node.id && e.fromPin === pin.id)
       : this.edges.some(e => e.toNode  === node.id && e.toPin   === pin.id);
     dot.dataset.connected = _connected ? "1" : "0";
     const _fill = _connected ? _typeColor : "transparent";
     const _restingShadow = _connected ? "0 0 0 1px rgba(0,0,0,.35) inset" : "none";
-    dot.style.cssText=`width:13px;height:13px;border-radius:${isExec?"3px":"50%"};
+    dot.style.cssText+=`width:18px;height:18px;
       background:${_fill};border:2px solid ${_typeColor};
       box-shadow:${_restingShadow};
       cursor:crosshair;flex-shrink:0;
@@ -13146,15 +13241,16 @@ export class FormulaGraph {
       this._pinContextMenu(ev, node, pin, side, hasEdge);
     });
     dot.addEventListener("mouseenter",()=>{
-      dot.style.transform="scale(1.2)";
+      dot.classList.add("is-hovered");
       dot.style.boxShadow="0 0 0 6px rgba(255,255,255,.1)";
       const hasEdge = side==="output"
         ? this.edges.some(e=>e.fromNode===node.id&&e.fromPin===pin.id)
         : this.edges.some(e=>e.toNode===node.id&&e.toPin===pin.id);
-      dot.title = isExec ? (hasEdge ? "RMB: disconnect" : "") : "RMB: Promote to Var / Disconnect";
+      const actionHint=isExec ? (hasEdge ? " · RMB: disconnect" : "") : " · RMB: Promote to Var / Disconnect";
+      dot.title = `${meta.label} pin${actionHint}`;
     });
     dot.addEventListener("mouseleave",()=>{
-      dot.style.transform="";
+      dot.classList.remove("is-hovered");
       dot.style.boxShadow = (dot.dataset.connected === "1") ? "0 0 0 1px rgba(0,0,0,.35) inset" : "none";
     });
     return dot;
@@ -13566,7 +13662,8 @@ export class FormulaGraph {
       inp.style.cssText=IS+";cursor:pointer";
 
       const cur = node.data[field.key]??field.default;
-      for(const o of (field.options??[])){
+      const fieldOptions = typeof field.options === "function" ? (field.options(node, this) ?? []) : (field.options ?? []);
+      for(const o of fieldOptions){
         const oel=document.createElement("option");
         const val = (o && typeof o === "object") ? String(o.value ?? "") : String(o);
         const lbl = (o && typeof o === "object") ? String(o.label ?? o.value ?? "") : String(o);
@@ -13596,7 +13693,7 @@ export class FormulaGraph {
     const _fullRerenderIfDynamic = () => {
       const _defV = NODE_DEFS[node.type];
       const _hasVis = _defV?.fields?.some(f => typeof f.visibleIf === "function");
-      const _hasDyn = typeof _defV?.computeDynamicOutputs === "function";
+      const _hasDyn = typeof _defV?.computeDynamicOutputs === "function" || typeof _defV?.computeDynamicInputs === "function";
       if (_hasVis || _hasDyn) {
         this._renderNode(node);
         this._scheduleEdges?.();
@@ -13804,7 +13901,8 @@ export class FormulaGraph {
       const fromPinDef = dynOuts.find(p=>p.id===edge.fromPin)
                        ?? [...(def?.outputs??[])].find(p=>p.id===edge.fromPin);
       const isExec = fromPinDef?.type==="exec";
-      const subColor = subtypeColor(fromPinDef?.type);
+      const edgeMeta = pinTypeMeta(fromPinDef?.type);
+      const subColor = edgeMeta.color;
 
       const bez = this._bez(from,to);
 
@@ -13825,7 +13923,8 @@ export class FormulaGraph {
       path.setAttribute("fill","none");
       const stroke = isExec ? "#ffca6b" : (subColor ?? "url(#sd-link-grad)");
       path.setAttribute("stroke", stroke);
-      path.setAttribute("stroke-width","3.5");
+      path.setAttribute("stroke-width",edgeMeta.container?"4.2":edgeMeta.structured?"3.8":"3.5");
+      if(edgeMeta.container) path.setAttribute("stroke-dasharray","10,4");
       path.setAttribute("stroke-linecap","round");
       path.setAttribute("opacity","0.92");
       path.setAttribute("pointer-events","none");
@@ -13850,10 +13949,11 @@ export class FormulaGraph {
     const pos=this._pinScreen(nodeId,pinId,"output"); if(!pos) return;
     const line=document.createElementNS("http://www.w3.org/2000/svg","path");
     line.setAttribute("fill","none");
-    const dragColor = isExec ? "#ffca6b" : (subtypeColor(pinType) ?? "#ffffff");
+    const dragMeta = pinTypeMeta(pinType);
+    const dragColor = isExec ? "#F5C451" : dragMeta.color;
     line.setAttribute("stroke", dragColor);
     line.setAttribute("stroke-width","3");
-    line.setAttribute("stroke-dasharray","7,7");
+    line.setAttribute("stroke-dasharray",dragMeta.container?"10,4":"7,7");
     line.setAttribute("stroke-opacity","0.75");
     line.setAttribute("stroke-linecap","round");
     this.edgeSVG.appendChild(line);
@@ -14760,7 +14860,26 @@ if(!document.getElementById("sd-graph-css")){
   s.id="sd-graph-css";
   s.textContent=`
     .sdgctx *,.sd-graph-win *{box-sizing:border-box}
-    .gpin{transition:transform .12s ease,box-shadow .12s ease}
+    .gpin{position:relative;display:inline-grid;place-items:center;isolation:isolate;color:var(--pin-color);border-radius:50%;transition:transform .12s ease,box-shadow .12s ease,background .12s ease}
+    .gpin-glyph{position:relative;z-index:2;display:inline-grid;place-items:center;min-width:0;color:var(--pin-color);font-family:Inter,'Segoe UI Symbol',Arial,sans-serif;font-size:8px;font-weight:900;line-height:1;letter-spacing:-1px;pointer-events:none;user-select:none;text-shadow:0 1px 1px rgba(0,0,0,.7)}
+    .gpin[data-connected="1"] .gpin-glyph{color:#10131b;text-shadow:0 1px 0 rgba(255,255,255,.28)}
+    .gpin.is-hovered:not(.gpin-shape-diamond){transform:scale(1.18)}
+    .gpin-shape-exec{border-radius:3px!important}
+    .gpin-shape-circle{border-radius:50%!important}
+    .gpin-shape-square{border-radius:3px!important}
+    .gpin-shape-capsule{border-radius:9px 4px 9px 4px!important}
+    .gpin-shape-diamond{border-radius:3px!important;transform:rotate(45deg) scale(.82)}
+    .gpin-shape-diamond.is-hovered{transform:rotate(45deg) scale(1)}
+    .gpin-shape-diamond .gpin-glyph{transform:rotate(-45deg)}
+    .gpin-shape-hex{border-radius:2px!important;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+    .gpin-shape-array{border-radius:4px!important;margin-right:2px}
+    .gpin-shape-array::after{content:"";position:absolute;z-index:0;inset:2px -4px -4px 2px;border:1.5px solid var(--pin-color);border-radius:4px;background:rgba(15,17,25,.88);pointer-events:none}
+    .gpin-shape-array .gpin-glyph{font-size:7px;letter-spacing:-1.5px}
+    .gpin-shape-target{border-radius:50%!important}
+    .gpin-shape-target::after{content:"";position:absolute;z-index:1;width:6px;height:6px;border:1.5px solid var(--pin-color);border-radius:50%;pointer-events:none}
+    .gpin-structured{box-shadow:0 0 0 1px color-mix(in srgb,var(--pin-color) 35%,transparent)}
+    .gn-pin-kind{display:inline-flex;align-items:center;justify-content:center;min-width:22px;max-width:46px;height:14px;padding:0 4px;border:1px solid color-mix(in srgb,var(--pin-color) 58%,transparent);border-radius:999px;background:color-mix(in srgb,var(--pin-color) 12%,transparent);color:var(--pin-color);font-size:7px;font-weight:800;line-height:1;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.82;flex:0 0 auto}
+    .gn-pin:hover .gn-pin-kind{opacity:1;background:color-mix(in srgb,var(--pin-color) 20%,transparent)}
     .gn-columns{display:flex;flex-direction:column;min-width:0;padding:4px 0 6px}
     .gn-node-row{display:grid;grid-template-columns:minmax(105px,.8fr) minmax(180px,1.6fr) minmax(105px,.8fr);align-items:stretch;min-width:0}
     .gn-row-cell{display:flex;min-width:0;min-height:36px}

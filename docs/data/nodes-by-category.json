@@ -290,9 +290,8 @@
     "ai_dialogue_choices",
     "act_ai_memory_update"
   ],
-  "Flow": [
-    "act_dialog_builder",
-    "act_choice_from_array"
+  "Dialogue": [
+    "act_dialog_builder"
   ],
   "System": [
     "act_play_sound",
@@ -301,6 +300,9 @@
   ],
   "Field Ops": [
     "act_set_var"
+  ],
+  "Flow": [
+    "act_choice_from_array"
   ],
   "Widget": [
     "widget_output"
@@ -324,6 +326,11 @@
   "Variables": [
     "var_read",
     "var_write"
+  ],
+  "Database": [
+    "database_get",
+    "database_set",
+    "database_create"
   ],
   "Macros": [
     "macro_input",

@@ -69,6 +69,7 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
       declaredAttrs: new ArrayField(new ObjectField()),
 
       customTabs:  new ArrayField(new ObjectField()),
+      widgetFields: new ObjectField({ initial: {} }),
       sdTriggerGraph: new ObjectField({ initial: {} }),
       flags:       new ObjectField({ initial: {} })
     };

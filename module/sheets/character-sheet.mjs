@@ -8,6 +8,7 @@ import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
+import { persistWidgetValue } from "../helpers/widget-fields.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -108,6 +109,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       controls: [
         { icon: "fas fa-toolbox",     label: "Sheet Builder",    action: "openBuilder"      },
         { icon: "fas fa-bolt",        label: "Sheet Triggers",   action: "openSheetTriggers"},
+        { icon: "fas fa-database",    label: "Database",         action: "openDatabase"     },
         { icon: "fas fa-hand-sparkles", label: "Interactions",   action: "openInteractions" },
         { icon: "fas fa-brain",       label: "AI Bio",           action: "openAIBio"        },
         { icon: "fas fa-pen-ruler",   label: "Toggle Edit Mode", action: "toggleEditMode"   }
@@ -120,6 +122,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       openTrade:         CharacterSheet._onOpenTrade,
       openBuilder:       CharacterSheet._onOpenBuilder,
       openSheetTriggers: CharacterSheet._onOpenSheetTriggers,
+      openDatabase:      CharacterSheet._onOpenDatabase,
       openInteractions:  CharacterSheet._onOpenInteractions,
       openAIBio:         CharacterSheet._onOpenAIBio,
       toggleEditMode:    CharacterSheet._onToggleEditMode
@@ -989,7 +992,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           const n = Number(inp.value);
           v = Number.isFinite(n) ? n : 0;
         } else v = inp.value;
-        await doc.update({ [path]: v });
+        if (String(w.type ?? "") === "select") await persistWidgetValue(doc, w, v);
+        else await doc.update({ [path]: v });
       });
     });
 
@@ -1114,8 +1118,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         ev.stopPropagation();
         const path = el.dataset.path;
         const val  = el.dataset.value ?? el.value ?? "";
-        if (!path) return;
-        await doc.update({ [path]: val });
+        if (!path && !w.widgetKey) return;
+        await persistWidgetValue(doc, w, val);
       };
 
       el.addEventListener(el.tagName === "INPUT" ? "change" : "click", handler);
@@ -2680,6 +2684,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static async _onOpenBuilder(event, target) {
     const { Toolbox } = await import("../builder/toolbox-app.mjs");
     Toolbox.toggle();
+  }
+
+
+  static async _onOpenDatabase() {
+    const { openSharedDatabaseApp } = await import("../helpers/shared-database.mjs");
+    openSharedDatabaseApp(this.document);
   }
 
   static async _onOpenSheetTriggers(event, target) {

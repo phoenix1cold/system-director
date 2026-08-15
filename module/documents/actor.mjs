@@ -1,4 +1,5 @@
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
+import { injectWidgetFieldsSnapshot, refreshWidgetFieldsRuntime } from "../helpers/widget-fields.mjs";
 
 function _sdMsgMode() {
   try {
@@ -129,6 +130,12 @@ export class SDActor extends Actor {
     this._sdAeContext = null;
     super.prepareData();
     this._sdReapplyOverwrittenEffects();
+    refreshWidgetFieldsRuntime(this);
+  }
+
+  async _preUpdate(changed, options, userId) {
+    injectWidgetFieldsSnapshot(this, changed);
+    return super._preUpdate(changed, options, userId);
   }
 
   prepareDerivedData() {
