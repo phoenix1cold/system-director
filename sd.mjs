@@ -220,6 +220,14 @@ Hooks.once("init", () => {
     default: "https://sdmarket.flamegogang.com/api/v1/catalog"
   });
 
+  game.settings.register("sd", "marketInstallState", {
+    name: "SD Market Install State",
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {}
+  });
+
   game.settings.registerMenu("sd", "systemConfig", {
     name:   "SD.Settings.SystemConfig",
     label:  "SD.Settings.SystemConfigLabel",
