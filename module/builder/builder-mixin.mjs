@@ -2,6 +2,8 @@ import { GridManager }    from "./grid-manager.mjs";
 import { WidgetRenderer } from "./widget-renderer.mjs";
 import { WIDGET_TYPES } from "./widget-registry.mjs";
 import { FormulaGraph }   from "./formula-graph.mjs";
+import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
+import { localizeTree } from "../helpers/localization.mjs";
 
 export function BuilderMixin(Base) {
   return class extends Base {
@@ -12,7 +14,7 @@ export function BuilderMixin(Base) {
       const ctx = await super._prepareContext(options);
 
       const doc      = this.document;
-      const rawTabs  = GridManager.getTabs(doc);
+      const rawTabs  = localizeTree(GridManager.getTabs(doc));
       const editMode = this._editMode;
 
       const customTabs = rawTabs.map(tab => ({
@@ -670,7 +672,22 @@ export function BuilderMixin(Base) {
           </div>
         </div>`;
 
-      document.body.appendChild(popup);
+      popup.style.cssText = "position:relative!important;inset:auto!important;transform:none!important;margin:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;overflow:auto!important";
+      let resolveWindow = null;
+      let windowApp = null;
+      const closePopup = () => windowApp?.close?.() ?? popup.remove();
+      windowApp = openFoundryWindow({
+        id:`sd-legacy-widget-config-${foundry.utils.randomID(8)}`,
+        title:`Configure Widget — ${widget.label || typeDef.label}`,
+        icon:`fa-solid ${typeDef.icon || "fa-gear"}`,
+        width:460,
+        height:Math.min(620, Math.floor(window.innerHeight * 0.88)),
+        minWidth:380,
+        minHeight:280,
+        classes:["sd-legacy-widget-config-window"],
+        content:popup,
+        onClose:()=>{ popup.remove(); resolveWindow?.(null); }
+      });
 
       popup.querySelectorAll("[data-config-type='path'], [data-config-type='text']").forEach(inp => {
         this._wirePathAutocomplete(inp, popup);
@@ -682,8 +699,9 @@ export function BuilderMixin(Base) {
       });
 
       return new Promise(resolve => {
+        resolveWindow = resolve;
         popup.querySelector("#popup-graph")?.addEventListener("click", async () => {
-          popup.remove();
+          closePopup();
           resolve(null);
           const tabs   = GridManager.getTabs(this.document);
           const tab    = tabs.find(t => t.id === tabId);
@@ -709,7 +727,7 @@ export function BuilderMixin(Base) {
         const cancelBtn = popup.querySelector("#popup-cancel");
         if (cancelBtn) {
           cancelBtn.addEventListener("click", () => {
-            popup.remove();
+            closePopup();
             resolve(null);
           });
         }
@@ -736,7 +754,7 @@ export function BuilderMixin(Base) {
                 changes[key] = el.value;
               }
             });
-            popup.remove();
+            closePopup();
             await GridManager.updateWidget(this.document, tabId, rowId, widgetId, changes);
             this.render();
             resolve(changes);
@@ -767,10 +785,6 @@ export function BuilderMixin(Base) {
           });
         });
 
-        const outside = (ev) => {
-          if (!popup.contains(ev.target)) { popup.remove(); document.removeEventListener("click", outside, true); resolve(null); }
-        };
-        setTimeout(() => document.addEventListener("click", outside, true), 100);
       });
     }
 

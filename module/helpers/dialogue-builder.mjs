@@ -1,3 +1,6 @@
+import { openFoundryWindow } from "./foundry-window-host.mjs";
+import { localizeTree } from "./localization.mjs";
+
 const CHOICE_TYPES = new Set(["button", "choice", "rollButton"]);
 
 function _text(value) {
@@ -125,6 +128,7 @@ function _iconElement(icon) {
 
 export class SDDialogueBuilder {
   static async show(action = {}, ctx = {}) {
+    action = localizeTree(action);
     const elements = _normaliseElements(action);
     const state = _initialState(elements, ctx);
     const mode = _text(action.mode ?? action.presentation ?? "rpg").toLowerCase();
@@ -134,19 +138,22 @@ export class SDDialogueBuilder {
     return new Promise((resolve) => {
       let done = false;
       let choiceSeq = 0;
+      let windowApp = null;
 
-      const finish = (payload) => {
+      const finish = (payload, { fromHost=false }={}) => {
         if (done) return;
         done = true;
         syncState();
         document.removeEventListener("keydown", onKeyDown, true);
         overlay.remove();
+        if (!fromHost) windowApp?.close?.({ sdSkipCallback:true });
         if (payload && typeof payload === "object") payload.state = { ...state };
         resolve(payload);
       };
 
       const overlay = document.createElement("div");
       overlay.className = `sd-dialogue-overlay sd-dialogue-mode-${mode === "form" ? "form" : "rpg"}`;
+      overlay.style.cssText = "position:relative;inset:auto;width:100%;height:100%;min-width:0;min-height:0;display:flex;overflow:hidden;background:transparent";
       _setTheme(overlay);
 
       const win = document.createElement("section");
@@ -411,7 +418,18 @@ export class SDDialogueBuilder {
       };
 
       renderDynamic();
-      document.body.appendChild(overlay);
+      windowApp = openFoundryWindow({
+        id:`sd-dialogue-${foundry.utils.randomID(8)}`,
+        title:_resolve(action.title ?? "Dialogue", ctx, state),
+        icon:"fa-solid fa-comment-dots",
+        width:Math.min(mode === "form" ? 760 : 920, Math.floor(window.innerWidth * 0.92)),
+        height:Math.min(680, Math.floor(window.innerHeight * 0.88)),
+        minWidth:420,
+        minHeight:300,
+        classes:["sd-dialogue-foundry-window",`sd-dialogue-foundry-${mode === "form" ? "form" : "rpg"}`],
+        content:overlay,
+        onClose:()=>finish({ cancelled:true }, { fromHost:true })
+      });
       document.addEventListener("keydown", onKeyDown, true);
       setTimeout(() => {
         const first = choices.querySelector("button:not(:disabled)")

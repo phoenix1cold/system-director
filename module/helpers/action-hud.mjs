@@ -5,6 +5,7 @@ import { ButtonExecutor }  from "./button-executor.mjs";
 import { openInlineWidgetEditor } from "./action-hud-inline-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { persistWidgetValue } from "./widget-fields.mjs";
+import { localizeTree } from "./localization.mjs";
 
 function _sanitizeHudVariant(raw, widgetType) {
   const v = String(raw ?? "").trim().toLowerCase();
@@ -195,7 +196,7 @@ export function mountActionHudHooks() {
 
 function collectActorWidgets(actor) {
   const out = [];
-  const tabs = actor?.system?.customTabs ?? [];
+  const tabs = localizeTree(actor?.system?.customTabs ?? []);
   const walk = (widgets) => {
     if (!Array.isArray(widgets)) return;
     for (const w of widgets) {

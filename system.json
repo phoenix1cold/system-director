@@ -2,7 +2,7 @@
   "id": "sd",
   "title": "System Director",
   "description": "System Director — visual sheets, typed node graphs, quests and progression for Foundry VTT.",
-  "version": "0.16.5",
+  "version": "1.1.5",
   "compatibility": {
     "minimum": "13",
     "verified": "14"
@@ -139,7 +139,7 @@
   "secondaryTokenAttribute": "resources.mp",
   "url": "https://github.com/phoenix1cold/system-director",
   "manifest": "https://github.com/phoenix1cold/system-director/releases/latest/download/system.json",
-  "download": "https://github.com/phoenix1cold/system-director/releases/download/v0.9.6/system.zip",
+  "download": "https://github.com/phoenix1cold/system-director/releases/download/v0.19.0/system.zip",
   "readme": "https://github.com/phoenix1cold/system-director/blob/main/README.md",
   "bugs": "https://github.com/phoenix1cold/system-director/issues",
   "changelog": "https://github.com/phoenix1cold/system-director/releases"

@@ -4,6 +4,8 @@ import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES, createWidget } f
 import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 import { getConfiguredDataPathEntries, getSystemPathEntries, isConfiguredSettingsPath } from "../helpers/system-config.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
+import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
+import { getLanguages, translationEditLanguage, setTranslationEditLanguage, localizedField, setLocalizedField, TRANSLATABLE_KEYS } from "../helpers/localization.mjs";
 
 const SD_SLOT_TILE_ICON_PRESETS = [
   { name: "helmet",   label: "Helmet" },
@@ -177,8 +179,18 @@ const FIELD_HINTS = {
 
 let _wcfgOpenCount = 0;
 let _wcfgZTop      = 10000;
+const _wcfgApps    = new Map();
 
 export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
+
+  const _appKey = `${doc?.uuid ?? doc?.id ?? "document"}:${w?.id ?? w?.widgetKey ?? w?.type ?? "widget"}`;
+  const _openApp = _wcfgApps.get(_appKey);
+  if (_openApp?.rendered) {
+    _openApp.bringToFront?.();
+    _openApp.element?.querySelector?.("input,select,textarea")?.focus?.();
+    return _openApp;
+  }
+  if (_openApp) _wcfgApps.delete(_appKey);
 
   const existingForSameWidget = [...document.querySelectorAll(".sd-wcfg-popup")]
     .find(el => el.dataset.wcfgWidgetId && w?.id && el.dataset.wcfgWidgetId === w.id);
@@ -201,6 +213,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   ];
   const fields = [..._typeFields, ..._commonFields];
   const esc      = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+  const editLanguage = translationEditLanguage();
+  const languages = getLanguages();
 
   const IS = "width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
   const MONO = ";font-family:'Courier New',monospace;font-size:11px";
@@ -786,12 +800,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   const _wcfgZ  = ++_wcfgZTop;
 
   popup.style.cssText = `
-    position:fixed;left:${popLeft}px;top:${popTop}px;
-    width:430px;height:min(620px,90vh);max-height:96vh;
-    min-width:380px;min-height:280px;
-    overflow:hidden;resize:both;
-    background:var(--sd-popover-bg,var(--sd-bg));border:1px solid var(--sd-popover-border,var(--sd-accent-2));border-radius:8px;
-    box-shadow:var(--sd-popover-shadow,0 8px 40px rgba(0,0,0,.85));z-index:${_wcfgZ};
+    position:relative;width:100%;height:100%;min-width:0;min-height:0;
+    overflow:hidden;
+    background:var(--sd-popover-bg,var(--sd-bg));
     font-family:'Signika','Palatino Linotype',serif;color:var(--sd-text);
     display:flex;flex-direction:column;`;
 
@@ -807,6 +818,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       <span style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--sd-accent)">
         <i class="fas ${ICON_MAP[w.type]??'fa-gear'}" style="margin-right:7px;opacity:.8"></i>Configure: ${esc(w.label || w.type)}
       </span>
+      <label style="margin-left:auto;margin-right:10px;display:flex;align-items:center;gap:5px;font-size:10px;color:var(--sd-text-2)"><i class="fas fa-language"></i><select id="wcfg-language" title="Translation editing language" style="background:var(--sd-bg);color:var(--sd-text);border:1px solid var(--sd-border);border-radius:3px">${languages.map(l=>`<option value="${esc(l.id)}" ${l.id===editLanguage?"selected":""}>${esc(l.name)}</option>`).join("")}</select></label>
       <button type="button" id="wcfg-x" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:16px;padding:0" aria-label="Close"><i class="fas fa-xmark"></i></button>
     </div>
 
@@ -824,7 +836,28 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       </button>
     </div>`;
 
-  document.body.appendChild(popup);
+  for (const field of fields) {
+    const key=Array.isArray(field)?field[1]:null;
+    if (!key || !TRANSLATABLE_KEYS.has(key)) continue;
+    const input=popup.querySelector(`[data-field="${CSS.escape(key)}"]`);
+    if (input) input.value=localizedField(w,key,editLanguage,w[key]??"");
+  }
+
+  let windowApp = null;
+  const _closePopup = () => windowApp?.close?.() ?? popup.remove();
+  windowApp = openFoundryWindow({
+    id:`sd-widget-config-${foundry.utils.randomID(8)}`,
+    title:`Configure Widget — ${w.label || w.type}`,
+    icon:`fa-solid ${ICON_MAP[w.type]??"fa-gear"}`,
+    width:430,
+    height:Math.min(620, Math.floor(window.innerHeight * 0.90)),
+    minWidth:380,
+    minHeight:280,
+    classes:["sd-widget-config-window"],
+    content:popup,
+    onClose:()=>{ _wcfgApps.delete(_appKey); popup.remove(); }
+  });
+  _wcfgApps.set(_appKey, windowApp);
 
   const cssEditor = popup.querySelector('textarea[data-field="customCss"]');
   if (cssEditor) {
@@ -1638,6 +1671,16 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       changes[el.dataset.field] = el.value;
     });
 
+    if (editLanguage !== "base") {
+      const translated = foundry.utils.deepClone(w);
+      for (const key of Object.keys(changes)) {
+        if (!TRANSLATABLE_KEYS.has(key)) continue;
+        setLocalizedField(translated,key,changes[key],editLanguage);
+        delete changes[key];
+      }
+      changes.i18n=translated.i18n ?? {};
+    }
+
     const _unknownPaths = [];
     popup.querySelectorAll("input[data-field][data-ftype='path']").forEach(el => {
       const raw = String(el.value ?? "").trim();
@@ -1679,7 +1722,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       if (Object.keys(_hfUpdates).length) await doc.update(_hfUpdates);
       options.onSave?.(foundry.utils.deepClone(w));
       ui.notifications?.info?.(`Embedded widget "${w.label || w.type}" updated.`);
-      popup.remove();
+      _closePopup();
       return;
     }
 
@@ -1749,28 +1792,24 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       ui.notifications?.warn?.(`Widget "${w.label || w.type}" not found in document data — save aborted.`);
       console.warn("[sd] widget-config-popup: failed to locate widget", { tabId: tab?.id, rowId: row?.id, widgetId: w?.id });
     }
-    popup.remove();
+    _closePopup();
   };
 
   popup.querySelector("#wcfg-save").addEventListener("click", doSave);
-  popup.querySelector("#wcfg-cancel").addEventListener("click", () => popup.remove());
-  popup.querySelector("#wcfg-x").addEventListener("click",     () => popup.remove());
+  popup.querySelector("#wcfg-cancel").addEventListener("click", _closePopup);
+  popup.querySelector("#wcfg-x").addEventListener("click",     _closePopup);
+  popup.querySelector("#wcfg-language")?.addEventListener("change", async ev => {
+    await setTranslationEditLanguage(ev.currentTarget.value);
+    ui.notifications?.info?.("Translation language changed. Save edits before switching language.");
+    _closePopup();
+    openWidgetConfigPopup(w,tab,row,doc,options);
+  });
 
   const saveBtn = popup.querySelector("#wcfg-save");
   saveBtn.addEventListener("mouseenter", () => saveBtn.style.background = "var(--sd-accent)");
   saveBtn.addEventListener("mouseleave", () => saveBtn.style.background = "var(--sd-accent)");
 
-  let ds = null;
-  popup.querySelector("#wcfg-hdr").addEventListener("mousedown", ev => {
-    if (ev.target.id === "wcfg-x") return;
-    ds = { x: ev.clientX - popup.offsetLeft, y: ev.clientY - popup.offsetTop };
-  });
-  document.addEventListener("mousemove", ev => {
-    if (!ds) return;
-    popup.style.left = `${Math.max(0, ev.clientX - ds.x)}px`;
-    popup.style.top  = `${Math.max(0, ev.clientY - ds.y)}px`;
-  });
-  document.addEventListener("mouseup", () => ds = null);
+  popup.querySelector("#wcfg-hdr").style.cursor = "default";
 
   popup.querySelector("input[data-field]")?.focus();
   SDOnboarding.bindWidgetConfig(popup);

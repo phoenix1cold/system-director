@@ -70,6 +70,13 @@ for (const id of nodeIds) {
 
   if (def.hidden === true && def.replacement) {
     const replacement = String(def.replacement);
+    const replacementNodes = Array.isArray(def.replacementNodes) ? def.replacementNodes : [];
+    if (replacementNodes.length) {
+      for (const replacementId of replacementNodes) {
+        if (!nodeIdSet.has(replacementId)) fail(`${id}: composite replacement node "${replacementId}" does not exist.`);
+      }
+      continue;
+    }
     // A replacement is machine-checkable only when it names a stable node ID.
     // Human migration guidance (for example, "specific On-* event nodes") is
     // intentionally allowed but reported as a warning.
@@ -79,7 +86,7 @@ for (const id of nodeIds) {
       warn(`${id}: replacement is descriptive text, not a machine-checkable node ID: "${replacement}".`);
     }
   }
-  if (def.isAction === true && typeof def.toAction !== "function" && !def.isFunctionCall) {
+  if (def.isAction === true && typeof def.toAction !== "function" && !def.isFunctionCall && !def.compilerSpecial) {
     warn(`${id}: action definition has no toAction compiler; verify that it is compiler-special-cased.`);
   }
 }

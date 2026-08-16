@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+const store=new Map();
+globalThis.foundry={utils:{deepClone:v=>structuredClone(v)}};
+globalThis.game={settings:{register:(m,k,c)=>{if(!store.has(`${m}.${k}`))store.set(`${m}.${k}`,structuredClone(c.default));},get:(m,k)=>store.get(`${m}.${k}`),set:async(m,k,v)=>(store.set(`${m}.${k}`,structuredClone(v)),v)}};
+globalThis.ui={windows:{}};globalThis.Hooks={callAll(){}};
+const L=await import("../module/helpers/localization.mjs");
+L.registerLocalizationSettings();
+await L.saveLanguages([{id:"base",name:"Base",enabled:true,primary:true},{id:"en",name:"English",enabled:true,fallback:"base"},{id:"pirate",name:"Pirate",enabled:true,fallback:"en"}]);
+const source={id:"stable",label:"Base label",path:"system.hiddenFields.choice",formula:"1d20+@attr",value:"blue",i18n:{en:{label:"English label"},pirate:{}},widgets:[{id:"child",title:"Base child",i18n:{pirate:{title:"Arrr child"}}}]};
+assert.equal(L.localizedField(source,"label","pirate"),"English label");
+const out=L.localizeTree(source,"pirate");
+assert.equal(out.label,"English label");assert.equal(out.widgets[0].title,"Arrr child");
+assert.equal(out.path,source.path);assert.equal(out.formula,source.formula);assert.equal(out.value,"blue");
+assert.equal(source.label,"Base label","runtime localization must not mutate source");
+L.setLocalizedField(source,"label","Ahoy","pirate");assert.equal(source.i18n.pirate.label,"Ahoy");assert.equal(source.label,"Base label");
+L.setLocalizedField(source,"label","Changed base","base");assert.equal(source.label,"Changed base");
+assert.equal(L.normalizeLanguages([{id:"de",name:"Deutsch"}]).some(l=>l.id==="base"),true);
+console.log("Localization 0.19.0 regression: OK");

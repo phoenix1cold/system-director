@@ -8,6 +8,7 @@ import {
 import { WIDGET_VARIANTS } from "./widget-registry.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
+import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { databaseSelectOptions, databaseRecordSelectOptions, databaseTypeOptions, databaseTypePin, getDatabaseRecord } from "../helpers/shared-database.mjs";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
@@ -391,6 +392,43 @@ export const NODE_DEFS = {
       return `"${v.replace(/\\/g,"\\\\").replace(/"/g,'\\"')}"`;
     }
   },
+  convert_number: {
+    title:"To Number", color:"#2f8a72", cat:"Conversion",
+    desc:"Convert any value to a number. Numeric text is parsed; invalid or empty input uses Default.",
+    inputs:[{id:"value",label:"Value",type:"value.any"},{id:"default",label:"Default",type:"value.number"}],
+    outputs:[{id:"v",label:"Number",type:"value.number"}],
+    fields:[{key:"default",label:"Default",type:"number",default:0}],
+    compile:(n,i)=>`{convertValue:number|${_arrayArg(i.value ?? "")}|${_arrayArg(i.default ?? n.data.default ?? 0)}}`
+  },
+  convert_text: {
+    title:"To Text", color:"#2f8a72", cat:"Conversion",
+    desc:"Convert a number, boolean, UUID or any scalar value to text.",
+    inputs:[{id:"value",label:"Value",type:"value.any"}],
+    outputs:[{id:"v",label:"Text",type:"value.string"}],
+    fields:[], compile:(_n,i)=>`{convertValue:text|${_arrayArg(i.value ?? "")}}`
+  },
+  convert_boolean: {
+    title:"To Boolean", color:"#2f8a72", cat:"Conversion",
+    desc:"Convert common values to true/false. Empty, 0, false, no, off and null are false.",
+    inputs:[{id:"value",label:"Value",type:"value.any"}],
+    outputs:[{id:"v",label:"Boolean",type:"value.bool"}],
+    fields:[], compile:(_n,i)=>`{convertValue:boolean|${_arrayArg(i.value ?? "")}}`
+  },
+  convert_array: {
+    title:"To Array", color:"#2f8a72", cat:"Conversion",
+    desc:"Convert a comma-separated value or JSON array to a typed Array pin.",
+    inputs:[{id:"value",label:"Value",type:"value.any"}],
+    outputs:[{id:"v",label:"Array",type:"value.array"}],
+    fields:[], compile:(_n,i)=>`{convertValue:array|${_arrayArg(i.value ?? "")}}`
+  },
+  is_valid: {
+    title:"Is Valid", color:"#2f8a72", cat:"Conversion",
+    desc:"True when Value is not empty, null, undefined or a formula error.",
+    inputs:[{id:"value",label:"Value",type:"value.any"}],
+    outputs:[{id:"v",label:"Valid",type:"value.bool"}],
+    fields:[], compile:(_n,i)=>`{convertValue:valid|${_arrayArg(i.value ?? "")}}`
+  },
+
   get_path: {
     title:"Get Field Value", color:"#1a4060", cat:"Get Data", wideNode:true,
     keywords:"target field token field uuid field get field value read",
@@ -2147,9 +2185,9 @@ export const NODE_DEFS = {
   },
 
   act_add_item: {
-    title:"Add Item", color:"#2a4a2a", cat:"Items",
-    desc:"Add a world item (drag UUID from sidebar) as a copy to the actor's inventory. Optionally restrict to an inventory widget.",
-    inputs:[{id:"exec",label:"",type:"exec"}],
+    title:"Add Item(s)", color:"#2a4a2a", cat:"Items",
+    desc:"Add one item or an array of item UUIDs/ids/names to the actor. A connected Item / Items pin overrides the static UUID.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"items",label:"Item / Items",type:"value.any"},{id:"qty",label:"Qty",type:"value.number"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"uuid",            label:"Item UUID (drag here)",  type:"text",          default:"", placeholder:"drag item from sidebar…"},
@@ -2157,7 +2195,7 @@ export const NODE_DEFS = {
       {key:"inventoryWidget", label:"Inventory Widget",       type:"widget-picker",  default:""}
     ],
     isAction:true, wideNode:true,
-    toAction:(n)=>({type:"createItem", uuid:n.data.uuid??"", qty:Number(n.data.qty??1), inventoryWidget:n.data.inventoryWidget??""})
+    toAction:(n,inp)=>({type:"createItemArray", items:inp.items ?? n.data.uuid ?? "", qty:Number(inp.qty ?? n.data.qty ?? 1), inventoryWidget:n.data.inventoryWidget??""})
   },
 
   act_add_slot: {
@@ -2210,9 +2248,9 @@ export const NODE_DEFS = {
   },
 
   act_remove_item: {
-    title:"Remove Item", color:"#6a2a2a", cat:"Items",
-    desc:"Remove an owned item from actor inventory. Item is auto-indexed — pick from dropdown. Optionally scope to a widget.",
-    inputs:[{id:"exec",label:"",type:"exec"}],
+    title:"Remove Item(s)", color:"#6a2a2a", cat:"Items",
+    desc:"Remove one owned item or an array of item UUIDs/ids/names. A connected Item / Items pin overrides the static picker.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"items",label:"Item / Items",type:"value.any"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
       {key:"itemName",        label:"Item",              type:"item-picker",   default:""},
@@ -2220,10 +2258,11 @@ export const NODE_DEFS = {
       {key:"inventoryWidget", label:"Inventory Widget",  type:"widget-picker", default:""}
     ],
     isAction:true, wideNode:true,
-    toAction:(n)=>({type:"removeItem", uuid:n.data.uuid??"", itemName:n.data.itemName??"", inventoryWidget:n.data.inventoryWidget??""})
+    toAction:(n,inp)=>({type:"removeItemArray", items:inp.items ?? n.data.uuid ?? n.data.itemName ?? "", inventoryWidget:n.data.inventoryWidget??""})
   },
 
   act_add_item_array: {
+    hidden:true, replacement:"act_add_item",
     title:"Add Item Array", color:"#2a4a2a", cat:"Items",
     desc:"Add every item from an array (UUIDs or owned names/ids) as copies to the actor's inventory. Feed a Compendium Item UUIDs node or any value.array of item references. Qty per item can be set. Optionally scope to an inventory widget.",
     inputs:[
@@ -2246,6 +2285,7 @@ export const NODE_DEFS = {
   },
 
   act_remove_item_array: {
+    hidden:true, replacement:"act_remove_item",
     title:"Remove Item Array", color:"#6a2a2a", cat:"Items",
     desc:"Remove every item listed in the array (matches by name, id, or UUID source name) from the actor's inventory. Optionally scope to an inventory widget.",
     inputs:[
@@ -4843,7 +4883,7 @@ export const NODE_DEFS = {
   },
 
   act_choice_from_array: {
-    title:"Choice From Array", color:"#5a3a8a", cat:"Flow", wideNode:true,
+    title:"Choice From Array", color:"#5a3a8a", cat:"Flow Control", wideNode:true,
     desc:"Opens a dialog and lets the user choose one or more values from an array. Execution continues only after Confirm or Cancel.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
@@ -5468,6 +5508,7 @@ export const NODE_DEFS = {
   },
   get_all_targets: {
     title:"Get All Targets", color:"#2a5a7a", cat:"Targeting",
+    hidden:true, replacement:"get_actors_array",
     desc:"All currently targeted tokens as an array. Feed into For Each Target, AoE save branches, etc.",
     inputs:[], outputs:[{id:"v", label:"Targets", type:"value.array"}],
     fields:[],
@@ -5476,6 +5517,7 @@ export const NODE_DEFS = {
 
   get_player_actors: {
     title:"Get Player Actors", color:"#2a5a7a", cat:"Targeting",
+    hidden:true, replacement:"get_actors_array",
     desc:"Returns the array of player-character actors. Feed into Dialog Select (Array) to let the user pick a PC, or into For Each Token / array nodes.",
     inputs:[], outputs:[{id:"v", label:"Players", type:"value.array"}],
     fields:[
@@ -5495,8 +5537,8 @@ export const NODE_DEFS = {
   },
 
   get_actors_array: {
-    title:"Get Target/Selected Actors", color:"#2a5a7a", cat:"Targeting", wideNode:true,
-    desc:"Modular source of multiple actors. Source: targeted tokens, selected tokens, or both (several different actors can be selected at once). Outputs: UUIDs (array), Count, First UUID and — when Field path is set — Values (that field read from every actor, same order as UUIDs). Feed UUIDs into Break Array (Split Pins), Get UUID From Array, Get Field By UUID, For Each Element or any array node.",
+    title:"Get Actors", color:"#2a5a7a", cat:"Targeting", wideNode:true,
+    desc:"One actor-array source for targets, selected tokens, player characters, the current actor, the user's character or every token on the current scene. Outputs UUIDs, Count, First UUID and an optional mapped field.",
     inputs:[],
     outputs:[
       {id:"uuids",  label:"UUIDs (array)",  type:"value.array"},
@@ -5508,7 +5550,12 @@ export const NODE_DEFS = {
       {key:"mode", label:"Source", type:"select", default:"targets", options:[
         {value:"targets",  label:"Targeted tokens"},
         {value:"selected", label:"Selected tokens"},
-        {value:"both",     label:"Targeted + selected"}
+        {value:"both",     label:"Targeted + selected"},
+        {value:"players_online", label:"Player actors — online"},
+        {value:"players_all",    label:"Player actors — all"},
+        {value:"self_actor",     label:"Self (Actor)"},
+        {value:"user_character", label:"User's assigned character"},
+        {value:"scene",          label:"All actors on current scene"}
       ]},
       {key:"path", label:"Field path (for Values)", type:"path", default:""}
     ],
@@ -7262,6 +7309,7 @@ export const NODE_DEFS = {
     noClone: true,
     isFunctionAnchor: true,
     isFunctionOutputs: true,
+    compilerSpecial: true,
     isAction: true,
     inputs: [],
     outputs: [],
@@ -8236,6 +8284,7 @@ const CATS = [
   {id:"Variables",    color:"#2a6a9a"},
   {id:"Database",     color:"#287a70"},
   {id:"Values",       color:"#3a7a9a"},
+  {id:"Conversion",   color:"#2f8a72"},
   {id:"Get Data",     color:"#2a6a9a"},
   {id:"Set Data",     color:"#4a2a6a"},
   {id:"Targeting",    color:"#8a3a6a"},
@@ -8437,6 +8486,33 @@ for (const [, def] of Object.entries(WIDGET_CONFIG_NODES)) {
 
 Object.assign(NODE_DEFS, WIDGET_CONFIG_NODES);
 
+// Machine-readable recipes for legacy nodes which were split into several
+// composable nodes. Saved legacy graphs remain executable; tooling can now
+// validate and present the exact replacement chain instead of parsing prose.
+export const COMPOSITE_NODE_REPLACEMENTS = Object.freeze({
+  act_roll_value:["act_roll_v2","act_analyze_roll","act_present_roll"],
+  act_effect:["act_effect_definition","act_effect_apply_v2"],
+  act_effect_uuid:["act_effect_definition","act_effect_apply_v2"],
+  act_attack_check:["act_roll_v2","act_compare_roll","act_present_roll"],
+  act_roll_check:["act_roll_v2","act_compare_roll","act_present_roll"],
+  act_tiered_roll:["act_roll_v2","act_compare_roll"],
+  act_dice_pool:["act_roll_v2","act_compare_roll"],
+  act_progression:["act_roll_v2","get_path","act_compare_roll","act_modify"],
+  act_throw_on_canvas:["act_roll_v2","act_present_roll"],
+  act_throw_on_sheet:["act_roll_v2","act_present_roll"],
+  act_create_effect:["act_effect_definition","act_effect_apply_v2"],
+  act_place_aura:["act_aura_definition","act_place_aura_zone"],
+  act_place_aura_damage:["act_place_aura_zone","act_damage_simple"],
+  act_place_aura_heal:["act_place_aura_zone","act_heal_simple"],
+  act_place_aura_save_effect:["act_place_aura_zone","act_save_dc","act_effect_apply_v2"],
+  act_place_aura_save_branch:["act_place_aura_zone","act_save_dc"],
+  on_event:["on_update","on_create","on_delete","on_turn_start","on_turn_end","on_combat_start","on_combat_end","on_effect_apply","on_damage_taken","on_rest","on_equip","on_unequip"],
+  get_self:["get_self_actor","get_self_item"]
+});
+for (const [legacyId, replacementNodes] of Object.entries(COMPOSITE_NODE_REPLACEMENTS)) {
+  if (NODE_DEFS[legacyId]) NODE_DEFS[legacyId].replacementNodes = replacementNodes;
+}
+
 export class FormulaGraph {
   constructor(targetInput, doc, widget=null, saveCtx=null, itemSaveCtx=null, opts={}) {
     this.targetInput  = targetInput;
@@ -8455,6 +8531,9 @@ export class FormulaGraph {
     this.customLoad   = typeof opts.customLoad === "function" ? opts.customLoad : null;
     this.customSave   = typeof opts.customSave === "function" ? opts.customSave : null;
     this.win          = null;
+    this._windowApp   = null;
+    this._functionManagerApp = null;
+    this._aiChatApp   = null;
     this.edgeSVG      = null;
     this.nodesEl      = null;
     this.nodes        = [];
@@ -10033,10 +10112,7 @@ export class FormulaGraph {
     const messages = win.querySelector(".sd-ai-chat-messages");
     if (messages) messages.scrollTop = messages.scrollHeight;
 
-    win.querySelector("[data-action='close']")?.addEventListener("click", () => {
-      win.remove();
-      this._aiChatWin = null;
-    });
+    win.querySelector("[data-action='close']")?.addEventListener("click", () => this._aiChatApp?.close?.());
     win.querySelector("[data-action='new-chat']")?.addEventListener("click", () => {
       this._newAIAssistantChat();
       this._renderAIAssistantChat();
@@ -10203,9 +10279,8 @@ export class FormulaGraph {
   }
 
   async _openAIAssistant() {
-    if (this._aiChatWin && document.body.contains(this._aiChatWin)) {
-      this._aiChatWin.style.display = "flex";
-      this._aiChatWin.style.zIndex = "26000";
+    if (this._aiChatApp?.rendered && this._aiChatWin) {
+      this._aiChatApp.bringToFront?.();
       this._renderAIAssistantChat();
       return;
     }
@@ -10213,9 +10288,21 @@ export class FormulaGraph {
     if (!this._aiChats.length) this._newAIAssistantChat();
     const win = document.createElement("div");
     win.className = "sd sd-ai-graph-chat";
-    document.body.appendChild(win);
+    win.style.cssText = "position:relative;width:100%;height:100%;min-width:0;min-height:0;inset:auto;resize:none;border:0;border-radius:0;box-shadow:none";
     this._aiChatWin = win;
-    this._aiChatDragBound = false;
+    this._aiChatDragBound = true;
+    this._aiChatApp = openFoundryWindow({
+      id:`sd-ai-graph-assistant-${foundry.utils.randomID(8)}`,
+      title:"System Director — AI Graph Assistant",
+      icon:"fa-solid fa-brain",
+      width:Math.min(760, Math.floor(window.innerWidth * 0.90)),
+      height:Math.min(640, Math.floor(window.innerHeight * 0.86)),
+      minWidth:560,
+      minHeight:420,
+      classes:["sd-ai-graph-assistant-window"],
+      content:win,
+      onClose:()=>{ this._aiChatApp=null; this._aiChatWin=null; win.remove(); }
+    });
     this._renderAIAssistantChat();
   }
 
@@ -10586,7 +10673,20 @@ export class FormulaGraph {
     try { if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur(); } catch {  }
     this._smartIndex = this._buildSmartIndex(); this._buildWin(); this._renderAll(); setTimeout(()=>this._fitView(),120);
   }
-  close() { this._cleanup.forEach(fn=>fn()); this.win?.remove(); this.win=null; }
+  close(options={}) {
+    this._cleanup.forEach(fn=>fn());
+    this._cleanup = [];
+    this._functionManagerApp?.close?.({ sdSkipCallback:true });
+    this._functionManagerApp = null;
+    this._aiChatApp?.close?.({ sdSkipCallback:true });
+    this._aiChatApp = null;
+    this._aiChatWin = null;
+    const app = this._windowApp;
+    this._windowApp = null;
+    this.win?.remove();
+    this.win = null;
+    if (!options.fromHost) app?.close?.({ sdSkipCallback:true });
+  }
 
   _buildSmartIndex() {
     const doc    = this.doc;
@@ -11477,7 +11577,7 @@ export class FormulaGraph {
       const _w = Math.min(1180, Math.floor(window.innerWidth * 0.97));
       const _h = Math.min(720, Math.floor(window.innerHeight * 0.93));
       const _l = Math.max(20, Math.floor((window.innerWidth - _w) / 2));
-      win.style.cssText=`position:fixed;top:30px;left:${_l}px;width:${_w}px;height:${_h}px;min-width:800px;min-height:520px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:12px;box-shadow:var(--sd-popover-shadow,0 24px 80px rgba(0,0,0,.95));z-index:20000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;resize:both`;
+      win.style.cssText=`position:relative;width:100%;height:100%;min-width:0;min-height:0;background:var(--sd-bg);display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden`;
     }
     win.innerHTML=`
       <div id="gbar" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move;user-select:none">
@@ -11544,7 +11644,21 @@ export class FormulaGraph {
           <div id="gmode-badge" style="position:absolute;top:10px;left:10px;font-size:10px;padding:4px 10px;border-radius:8px;pointer-events:none;border:1px solid var(--sd-border);background:var(--sd-bg-2);display:none;color:var(--sd-text-2)"></div>
         </div>
       </div>`;
-    document.body.appendChild(win);
+    const graphTitle = this._activeFunctionId ? "System Director — Function Graph" : "System Director — Graph Editor";
+    const _hostW = Math.min(1180, Math.floor(window.innerWidth * 0.97));
+    const _hostH = Math.min(720, Math.floor(window.innerHeight * 0.93));
+    this._windowApp = openFoundryWindow({
+      id:`sd-formula-graph-${foundry.utils.randomID(8)}`,
+      title:graphTitle,
+      icon:"fa-solid fa-diagram-project",
+      width:_hostW,
+      height:_hostH,
+      minWidth:800,
+      minHeight:520,
+      classes:["sd-formula-graph-window"],
+      content:win,
+      onClose:()=>this.close({ fromHost:true })
+    });
     this.win     = win;
     this.edgeSVG = win.querySelector("#gedges");
     this.nodesEl = win.querySelector("#gnodes");
@@ -11879,9 +11993,9 @@ export class FormulaGraph {
   }
 
   _nodeFilterContext() {
-    const ALLOWED_CONFIG_CATS = new Set(["Values", "Get Data", "Math"]);
-    const ALLOWED_NUMBER_CATS = new Set(["Values", "Get Data", "Math", "Logic"]);
-    const ALLOWED_QUEST_CATS  = new Set(["Flow Control", "Dialogue", "Quest", "Values", "Get Data", "Math", "Logic"]);
+    const ALLOWED_CONFIG_CATS = new Set(["Values", "Conversion", "Get Data", "Math"]);
+    const ALLOWED_NUMBER_CATS = new Set(["Values", "Conversion", "Get Data", "Math", "Logic"]);
+    const ALLOWED_QUEST_CATS  = new Set(["Flow Control", "Dialogue", "Quest", "Values", "Conversion", "Get Data", "Math", "Logic"]);
     const ALLOWED_QUEST_SOURCES = new Set([
       "literal", "literal_str", "get_path", "actor_ref", "item_uuid", "fa_icon"
     ]);
@@ -12387,8 +12501,9 @@ export class FormulaGraph {
     });
   }
 
-  _ctxMenu(sx,sy,gx,gy) {
+  _ctxMenu(sx,sy,gx,gy,conn=null) {
     document.querySelector(".sdgctx")?.remove();
+    document.getElementById("sd-quick-insert-menu")?.remove();
     const menu=document.createElement("div");
     menu.className="sdgctx";
     menu.style.cssText=`position:fixed;left:${sx}px;top:${sy}px;background:var(--sd-popover-bg,var(--sd-bg-2));border:1px solid var(--sd-popover-border,var(--sd-border));border-radius:6px;box-shadow:var(--sd-popover-shadow,0 8px 32px rgba(0,0,0,.85));z-index:25000;min-width:200px;padding:4px 0;font-family:'Signika',serif;max-height:82vh;overflow-y:auto;color:var(--sd-text)`;
@@ -12402,6 +12517,13 @@ export class FormulaGraph {
     menu.appendChild(list);
 
     const ctx = this._nodeFilterContext();
+    const compatibleInput = def => {
+      if (!conn) return null;
+      return (def?.inputs ?? []).find(pin => {
+        if (conn.fromType === "exec") return pin.type === "exec";
+        return pin.type !== "exec" && arePinsCompatible(conn.fromType, pin.type);
+      }) ?? null;
+    };
     const build=(q="")=>{
       list.innerHTML="";
       CATS.forEach(cat=>{
@@ -12409,6 +12531,7 @@ export class FormulaGraph {
         if (ctx.isQuestModeAny && !ctx.ALLOWED_QUEST_CATS.has(cat.id)) return;
         const nodes=Object.entries(NODE_DEFS).filter(([type,d])=>{
           if (!this._isNodeAvailableInCurrentGraph(type, d, cat.id, ctx)) return false;
+          if (conn && !compatibleInput(d)) return false;
           return this._matchesNodeSearch(type, d, q);
         }).sort((a,b)=>String(_NL(a[1].title)).localeCompare(String(_NL(b[1].title))));
         if(!nodes.length) return;
@@ -12421,7 +12544,24 @@ export class FormulaGraph {
           item.innerHTML=`<div style="width:8px;height:8px;border-radius:2px;background:${def.color};flex-shrink:0"></div>${esc(_NL(def.title))}`;
           item.addEventListener("mouseenter",()=>item.style.background="rgba(116,167,255,.1)");
           item.addEventListener("mouseleave",()=>item.style.background="");
-          item.addEventListener("click",()=>{this._addNode(type,gx,gy);menu.remove();});
+          item.addEventListener("click",()=>{
+            menu.remove();
+            if (!conn) {
+              this._addNode(type,gx,gy);
+              return;
+            }
+            const input = compatibleInput(def);
+            if (!input) return;
+            this._suppressHistory = true;
+            let added = null;
+            try {
+              added = this._addNode(type,gx,gy);
+              if (added) this._addEdge(conn.fromNode,conn.fromPin,added.id,input.id);
+            } finally {
+              this._suppressHistory = false;
+            }
+            if (added) this._pushHistory();
+          });
           list.appendChild(item);
         });
       });
@@ -13977,7 +14117,10 @@ export class FormulaGraph {
       const wrap = this.win?.querySelector("#gwrap");
       const overWrap = wrap?.contains(ev.target) || (document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.("#gwrap"));
       if (overWrap) {
-        this._showQuickInsertMenu(conn, ev);
+        const r = wrap.getBoundingClientRect();
+        const gx = (ev.clientX - r.left - this._pan.x) / this._zoom;
+        const gy = (ev.clientY - r.top  - this._pan.y) / this._zoom;
+        this._ctxMenu(ev.clientX,ev.clientY,gx,gy,conn);
       }
       return;
     }
@@ -14575,7 +14718,7 @@ export class FormulaGraph {
 
   _openManageFunctions() {
     if (!game?.user?.isGM) { ui.notifications?.warn?.("GM only."); return; }
-    document.getElementById("sd-fn-mgr")?.remove();
+    this._functionManagerApp?.close?.({ sdSkipCallback:true });
     const wrap = document.createElement("div");
     wrap.id = "sd-fn-mgr";
     wrap.className = "sd";
@@ -14583,7 +14726,7 @@ export class FormulaGraph {
       const _w = Math.min(1000, Math.floor(window.innerWidth * 0.94));
       const _h = Math.min(640, Math.floor(window.innerHeight * 0.90));
       const _l = Math.max(20, Math.floor((window.innerWidth - _w) / 2));
-      wrap.style.cssText = `position:fixed;top:60px;left:${_l}px;width:${_w}px;height:${_h}px;min-width:620px;min-height:420px;background:var(--sd-popover-bg,var(--sd-bg));border:1px solid var(--sd-popover-border,var(--sd-border));border-radius:12px;box-shadow:var(--sd-popover-shadow,0 24px 80px rgba(0,0,0,.95));z-index:21000;display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden;resize:both`;
+      wrap.style.cssText = `position:relative;width:100%;height:100%;min-width:0;min-height:0;background:var(--sd-popover-bg,var(--sd-bg));display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden`;
     }
 
     wrap.innerHTML = `
@@ -14598,7 +14741,18 @@ export class FormulaGraph {
         <div id="fmList"   style="width:240px;border-right:1px solid var(--sd-border);overflow-y:auto;flex-shrink:0;background:var(--sd-bg-2)"></div>
         <div id="fmDetail" style="flex:1;padding:14px;overflow-y:auto"></div>
       </div>`;
-    document.body.appendChild(wrap);
+    this._functionManagerApp = openFoundryWindow({
+      id:`sd-function-manager-${foundry.utils.randomID(8)}`,
+      title:"System Director — Manage Functions",
+      icon:"fa-solid fa-list",
+      width:Math.min(1000, Math.floor(window.innerWidth * 0.94)),
+      height:Math.min(640, Math.floor(window.innerHeight * 0.90)),
+      minWidth:620,
+      minHeight:420,
+      classes:["sd-function-manager-window"],
+      content:wrap,
+      onClose:()=>{ this._functionManagerApp=null; wrap.remove(); }
+    });
 
     const selected = { id: null };
     const render = () => {
@@ -14633,7 +14787,7 @@ export class FormulaGraph {
       this._fnWireDetail(detail, fn, render);
     };
 
-    wrap.querySelector("#fmClose").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#fmClose").addEventListener("click", () => this._functionManagerApp?.close());
     wrap.querySelector("#fmNew").addEventListener("click", async () => {
       await this._fnCreatePrompt();
       render();

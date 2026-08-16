@@ -5,6 +5,8 @@
  * (see docs/MARKET-REGISTRY.md for the registry repo setup).
  */
 
+import { getLanguages, saveLanguages } from "./localization.mjs";
+
 const { ApplicationV2, DialogV2 } = foundry.applications.api;
 
 const loc = (k) => game.i18n.localize(k);
@@ -30,6 +32,9 @@ const PACKAGE_SETTING_KEYS = [
   "initiativeGraph",
   "initiativeGraphCompiled",
   "useEncumbrance"
+  ,"localizationLanguages"
+  ,"effectPresets"
+  ,"allowPlayerEffectApplier"
 ];
 
 export class SDMarketApp extends ApplicationV2 {
@@ -161,6 +166,7 @@ export class SDMarketApp extends ApplicationV2 {
         ${Array.isArray(s.tags) && s.tags.length
           ? `<div class="sd-market-card-tags">${s.tags.map(t => `<span>${esc(t)}</span>`).join("")}</div>`
           : ""}
+        ${Array.isArray(s.languages) && s.languages.length ? `<div class="sd-market-card-tags">${s.languages.map(l=>`<span><i class="fas fa-language"></i> ${esc(l.name??l.id??l)}</span>`).join("")}</div>`:""}
         <div class="sd-market-card-actions">
           <button type="button" class="sd-market-btn primary" data-action="install" data-idx="${idx}"><i class="fas fa-download"></i> ${loc("SD.Market.Install")}</button>
           ${s.rulebook ? `<a class="sd-market-btn" href="${esc(s.rulebook)}" target="_blank" rel="noopener"><i class="fas fa-book"></i> ${loc("SD.Market.Rulebook")}</a>` : ""}
@@ -257,7 +263,15 @@ export class SDMarketApp extends ApplicationV2 {
 
     for (const key of PACKAGE_SETTING_KEYS) {
       if (!(key in settings)) continue;
-      try { await game.settings.set("sd", key, settings[key]); }
+      try {
+        if (key === "localizationLanguages") {
+          const map=new Map(getLanguages().map(l=>[l.id,l]));
+          for(const l of (settings[key]??[])) if(l?.id) map.set(l.id,{...(map.get(l.id)??{}),...l});
+          await saveLanguages([...map.values()]);
+        } else if (key === "effectPresets") {
+          await game.settings.set("sd",key,{...(game.settings.get("sd",key)??{}),...(settings[key]??{})});
+        } else await game.settings.set("sd", key, settings[key]);
+      }
       catch (err) { console.warn(`SD | Market: failed to apply setting "${key}"`, err); }
     }
 
@@ -271,7 +285,10 @@ export class SDMarketApp extends ApplicationV2 {
   _downloadBackup() {
     try {
       const backup = {
-        sdMarket: 1,
+        sdMarket: 2,
+        schemaVersion: 2,
+        capabilities: { localizations:true, effectPresets:true },
+        languages: getLanguages().map(l=>({id:l.id,name:l.name})),
         meta: {
           name:        `Backup ${game.world?.title ?? ""}`.trim(),
           author:      game.user?.name ?? "",
@@ -399,14 +416,18 @@ export class SDMarketApp extends ApplicationV2 {
     if (!meta) return;
 
     const pkg = {
-      sdMarket: 1,
+      sdMarket: 2,
+      schemaVersion: 2,
+      capabilities: { localizations:true, effectPresets:true },
+      languages: getLanguages().map(l=>({id:l.id,name:l.name})),
       meta: {
         name:        meta.name || "Untitled system",
         author:      meta.author || "",
         version:     meta.version || "1.0.0",
         description: meta.description || "",
         created:     new Date().toISOString(),
-        sdVersion:   game.system?.version ?? ""
+        sdVersion:   game.system?.version ?? "",
+        languages:   getLanguages().map(l=>({id:l.id,name:l.name}))
       },
       settings: {}
     };

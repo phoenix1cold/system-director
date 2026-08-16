@@ -47,6 +47,8 @@ import { installSdPause }      from "./module/helpers/sd-pause.mjs";
 import { SlotEffectSync }      from "./module/helpers/slot-effects.mjs";
 import { registerEffectDurationHooks } from "./module/helpers/effect-duration.mjs";
 import { installOnboarding, SDOnboarding } from "./module/helpers/onboarding.mjs";
+import { registerLocalizationSettings, currentLanguage, localizeTree } from "./module/helpers/localization.mjs";
+import { EffectApplierApp, registerEffectApplierSettings } from "./module/helpers/effect-applier.mjs";
 
 SDTrade.init();
 SDQuest.init();
@@ -130,6 +132,8 @@ Hooks.once("init", () => {
   console.log("SD | Initialising system…");
 
   registerConfig();
+  registerLocalizationSettings();
+  registerEffectApplierSettings();
 
   try { exposeAutoanimationsIntegration(); } catch (e) { console.warn("SD | exposeAutoanimationsIntegration failed:", e); }
 
@@ -365,7 +369,7 @@ Hooks.once("init", () => {
     name:    "SD.Settings.NodeGraphLanguage",
     hint:    "SD.Settings.NodeGraphLanguageHint",
     scope:   "client",
-    config:  true,
+    config:  false,
     type:    String,
     default: "auto",
     choices: {
@@ -400,6 +404,15 @@ Hooks.once("init", () => {
 
   CONFIG.SD.Toolbox = Toolbox;
   CONFIG.SD.SharedDatabaseApp = SharedDatabaseApp;
+  CONFIG.SD.EffectApplierApp = EffectApplierApp;
+  CONFIG.SD.localizeTree = localizeTree;
+  CONFIG.SD.currentLanguage = currentLanguage;
+  Object.assign(globalThis.SD, {
+    EffectApplierApp,
+    openEffectApplier: () => EffectApplierApp.open(),
+    localizeTree,
+    currentLanguage
+  });
 
   console.log("SD | Initialisation complete.");
 });

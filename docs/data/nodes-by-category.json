@@ -29,6 +29,7 @@
     "while_loop",
     "gate",
     "reroute",
+    "act_choice_from_array",
     "act_delay",
     "for_loop_range",
     "act_loop",
@@ -63,6 +64,13 @@
     "ternary",
     "random_num",
     "random_pick"
+  ],
+  "Conversion": [
+    "convert_number",
+    "convert_text",
+    "convert_boolean",
+    "convert_array",
+    "is_valid"
   ],
   "Get Data": [
     "get_path",
@@ -300,9 +308,6 @@
   ],
   "Field Ops": [
     "act_set_var"
-  ],
-  "Flow": [
-    "act_choice_from_array"
   ],
   "Widget": [
     "widget_output"

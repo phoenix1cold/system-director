@@ -1,9 +1,12 @@
+import { openFoundryWindow } from "./foundry-window-host.mjs";
+
 const FLAG_SCOPE = "sd";
 const FLAG_KEY   = "interactables";
 const HEX_RE     = /^#[0-9a-fA-F]{6}$/;
 
 const SUPPORTED_TYPES = ["Tile", "Token", "Note", "Wall", "AmbientLight", "AmbientSound", "Drawing", "Region"];
 const ACTOR_TYPE = "Actor";
+const INTERACTABLE_WINDOWS = new Map();
 
 const ICON_PRESET_PATHS = [
   "icons/svg/circle.svg",
@@ -680,8 +683,13 @@ function _renderEditorHTML(state) {
 
 export function openInteractablesEditor(doc) {
   if (!doc) return;
-  const existing = document.getElementById("sd-iep-popup");
-  if (existing) existing.remove();
+  const windowKey = String(doc.uuid ?? doc.id ?? doc.documentName);
+  const existingApp = INTERACTABLE_WINDOWS.get(windowKey);
+  if (existingApp?.rendered) {
+    existingApp.bringToFront?.();
+    return existingApp;
+  }
+  if (existingApp) INTERACTABLE_WINDOWS.delete(windowKey);
 
   const data = getInteractables(doc);
   const state = {
@@ -706,8 +714,23 @@ export function openInteractablesEditor(doc) {
       || "";
     if (fxAttr) popup.setAttribute("data-sd-theme-fx", fxAttr);
   } catch {  }
+  popup.style.cssText = "position:relative!important;inset:auto!important;transform:none!important;margin:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;overflow:hidden!important";
   popup.innerHTML = _renderEditorHTML(state);
-  document.body.appendChild(popup);
+  let windowApp = null;
+  const _closePopup = () => windowApp?.close?.() ?? popup.remove();
+  windowApp = openFoundryWindow({
+    id:`sd-interactables-${foundry.utils.randomID(8)}`,
+    title:`SD Interactables — ${state.docLabel}`,
+    icon:"fa-solid fa-bolt",
+    width:Math.min(900, Math.floor(window.innerWidth * 0.90)),
+    height:Math.min(650, Math.floor(window.innerHeight * 0.86)),
+    minWidth:620,
+    minHeight:420,
+    classes:["sd-interactables-window"],
+    content:popup,
+    onClose:()=>{ INTERACTABLE_WINDOWS.delete(windowKey); popup.remove(); }
+  });
+  INTERACTABLE_WINDOWS.set(windowKey, windowApp);
 
   const _rerender = () => {
     popup.innerHTML = _renderEditorHTML(state);
@@ -747,11 +770,11 @@ export function openInteractablesEditor(doc) {
   };
 
   const _wireAll = () => {
-    popup.querySelector(".sd-iep-close")?.addEventListener("click", () => popup.remove());
+    popup.querySelector(".sd-iep-close")?.addEventListener("click", _closePopup);
     popup.querySelector(".sd-iep-save")?.addEventListener("click", async () => {
       await setInteractables(doc, { enabled: state.enabled, buttons: state.buttons });
       _Overlay.scheduleRefresh();
-      popup.remove();
+      _closePopup();
     });
 
     popup.querySelector(".sd-iep-enabled")?.addEventListener("change", (e) => {
@@ -879,13 +902,15 @@ export function openInteractablesEditor(doc) {
 
   const _onKey = (ev) => {
     if (ev.key === "Escape") {
-      popup.remove();
+      _closePopup();
       window.removeEventListener("keydown", _onKey);
     }
   };
   window.addEventListener("keydown", _onKey);
 
-  _makeDraggable(popup);
+  const legacyHead = popup.querySelector(".sd-iep-head");
+  if (legacyHead) legacyHead.style.cursor = "default";
+  return windowApp;
 }
 
 function _makeDraggable(popup) {

@@ -3,6 +3,7 @@ import { buildWidgetMacroScript, encodeMacroScript } from "../helpers/widget-mac
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
+import { localizeTree } from "../helpers/localization.mjs";
 
 export class WidgetRenderer {
 
@@ -15,6 +16,8 @@ export class WidgetRenderer {
   }
 
   static render(widgetDef, doc, editMode = false, options = {}) {
+
+    widgetDef = localizeTree(widgetDef);
 
     if (editMode && typeof editMode === "object" && !Array.isArray(editMode)) {
       options = editMode;

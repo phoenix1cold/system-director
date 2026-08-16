@@ -3,6 +3,7 @@ import { formulaBounds, doubleDice, leadingD20Natural } from "../builder/formula
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { durationForRounds } from "./effect-duration.mjs";
 import { SDDialogueBuilder } from "./dialogue-builder.mjs";
+import { materializeDeferredActionSnapshot } from "./deferred-action-snapshot.mjs";
 import {
   addActorAIInteraction,
   addActorAIMemory,
@@ -3286,21 +3287,6 @@ export class ButtonExecutor {
           }
           return String(_sdStripQuotedString(text));
         };
-        const materialize = (value, depth = 0) => {
-          if (depth > 12 || value === null || value === undefined) return value;
-          if (typeof value === "string") return _injectRuntime(value);
-          if (Array.isArray(value)) return value.map(entry => materialize(entry, depth + 1));
-          if (typeof value === "object") {
-            const out = {};
-            for (const [key, entry] of Object.entries(value)) {
-              if (typeof entry === "function") continue;
-              out[key] = materialize(entry, depth + 1);
-            }
-            return out;
-          }
-          return value;
-        };
-
         const styles = {
           message: { accent:"#3b73a6", icon:"fas fa-message", valueLabel:"Result" },
           damage:  { accent:"#b83232", icon:"fas fa-heart-crack", valueLabel:"Damage" },
@@ -3341,7 +3327,7 @@ export class ButtonExecutor {
             label:resolveText(button?.label ?? `Button ${index + 1}`),
             icon:_sdSafeIcon(button?.icon, "fas fa-circle"),
             variant,
-            actions:materialize(action[`${id}Actions`] ?? [])
+            actions:materializeDeferredActionSnapshot(action[`${id}Actions`] ?? [], _injectRuntime)
           };
         });
         const buttonsHtml = flagButtons.length ? `

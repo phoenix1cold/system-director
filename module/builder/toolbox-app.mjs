@@ -1,6 +1,7 @@
 import { BLUEPRINT_NODES, BLUEPRINT_CATS } from "../helpers/formula-engine.mjs";
 import { getConfiguredDataPathEntries, getSystemPathEntries, loadSettings } from "../helpers/system-config.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
+import { getLanguages, saveLanguages } from "../helpers/localization.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -219,6 +220,10 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     this._wireCustomFields();
     this._wireBlueprintCopy();
     this._wireSearch();
+    this.element?.querySelector("[data-action='openEffectApplier']")?.addEventListener("click", async () => {
+      const { EffectApplierApp } = await import("../helpers/effect-applier.mjs");
+      EffectApplierApp.open();
+    });
     this.element?.querySelector("[data-action='refreshPaths']")?.addEventListener("click", () => this.render());
     SDOnboarding.bindToolbox(this.element);
   }
@@ -404,6 +409,8 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         buttons:         foundry.utils.deepClone(sys.buttons          ?? []),
         onClickGraph:    foundry.utils.deepClone(sys.onClickGraph      ?? {}),
         effectTemplates: foundry.utils.deepClone(sys.effectTemplates   ?? []),
+        languages:       foundry.utils.deepClone(getLanguages()),
+        effectPresets:   foundry.utils.deepClone(game.settings.get("sd","effectPresets") ?? {}),
         created: Date.now()
       };
       await game.settings.set("sd", "sheetTemplates", stored);
@@ -417,6 +424,14 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         const stored  = game.settings.get("sd", "sheetTemplates") ?? {};
         const tmpl    = stored[name];
         if (!tmpl) return;
+
+        if (Array.isArray(tmpl.languages)) await saveLanguages(this._mergeLanguages(getLanguages(), tmpl.languages));
+        if (tmpl.effectPresets && typeof tmpl.effectPresets === "object") {
+          await game.settings.set("sd","effectPresets",{
+            ...(game.settings.get("sd","effectPresets") ?? {}),
+            ...foundry.utils.deepClone(tmpl.effectPresets)
+          });
+        }
 
         const docName = await this._prompt(`Name for new ${tmpl.docType ?? "document"}:`, tmpl.name);
         if (!docName) return;
@@ -477,7 +492,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         const stored = game.settings.get("sd", "sheetTemplates") ?? {};
         const tmpl   = stored[name];
         if (!tmpl) return ui.notifications.warn(`Template "${name}" not found.`);
-        const payload = { sdSheetTemplate: 1, ...foundry.utils.deepClone(tmpl) };
+        const payload = { sdSheetTemplate: 2, localizationSchema:1, ...foundry.utils.deepClone(tmpl), languages:getLanguages(), effectPresets:game.settings.get("sd","effectPresets")??{} };
         Toolbox._downloadJSON(payload, `${name}.sheet-template.json`);
       });
     });
@@ -486,7 +501,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       const stored = foundry.utils.deepClone(game.settings.get("sd", "sheetTemplates") ?? {});
       const names  = Object.keys(stored);
       if (!names.length) return ui.notifications.warn("No templates to export.");
-      const payload = { sdSheetTemplateBundle: 1, templates: stored, exported: Date.now() };
+      const payload = { sdSheetTemplateBundle: 2, localizationSchema:1, templates: stored, languages:getLanguages(), effectPresets:game.settings.get("sd","effectPresets")??{}, exported: Date.now() };
       Toolbox._downloadJSON(payload, `sd-sheet-templates.json`);
     });
 
@@ -507,6 +522,10 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   async _importSheetTemplates(parsed) {
+    if (Array.isArray(parsed?.languages)) await saveLanguages(this._mergeLanguages(getLanguages(), parsed.languages));
+    if (parsed?.effectPresets && typeof parsed.effectPresets === "object") {
+      await game.settings.set("sd","effectPresets",{...(game.settings.get("sd","effectPresets")??{}),...foundry.utils.deepClone(parsed.effectPresets)});
+    }
     let incoming = {};
     if (parsed?.templates && typeof parsed.templates === "object") {
       incoming = parsed.templates;
@@ -564,6 +583,12 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     await game.settings.set("sd", "sheetTemplates", stored);
     ui.notifications.info(`Imported templates — added: ${added}, overwritten: ${overwritten}, renamed: ${renamed}, skipped: ${skipped}.`);
     this.render();
+  }
+
+  _mergeLanguages(current, incoming) {
+    const map=new Map((current??[]).map(l=>[l.id,{...l}]));
+    for(const l of (incoming??[])) if(l?.id) map.set(l.id,{...(map.get(l.id)??{}),...l});
+    return [...map.values()];
   }
 
   static _downloadJSON(obj, filename = "export.json") {

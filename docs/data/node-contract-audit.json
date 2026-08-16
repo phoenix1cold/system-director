@@ -1,15 +1,15 @@
 {
   "sourceMtimes": {
-    "graphSource": 1785569908100.0857,
-    "executorSource": 1785483426013.5286
+    "graphSource": 1786840200000,
+    "executorSource": 1786840200000
   },
   "summary": {
-    "actionNodes": 92,
-    "emittedActionTypes": 122,
-    "executorCaseLabels": 140,
+    "actionNodes": 100,
+    "emittedActionTypes": 140,
+    "executorCaseLabels": 160,
     "compileFailures": 0,
     "missingExecutor": 0,
-    "executorOnly": 19,
+    "executorOnly": 21,
     "compilerSpecial": 1
   },
   "compileFailures": [],
@@ -17,12 +17,14 @@
   "executorOnly": [
     "actorField",
     "always",
+    "createItem",
     "custom",
     "field",
     "gate",
     "label",
     "meet_and_beat",
     "placeAura",
+    "removeItem",
     "roll",
     "rollButton",
     "roll_over",

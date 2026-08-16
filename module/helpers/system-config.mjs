@@ -9,6 +9,7 @@ import {
 } from "./color-schemes.mjs";
 import { SDOnboarding } from "./onboarding.mjs";
 import { getAISettings, openAISettingsDialog } from "./ai-context.mjs";
+import { getLanguages, saveLanguages, currentLanguage, setCurrentLanguage, translationEditLanguage, setTranslationEditLanguage, exportLocalizationBundle } from "./localization.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -570,6 +571,48 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     });
 
     SDOnboarding.bindSystemConfig(this.element);
+
+    this.element.querySelector("[name='localizationLanguage']")?.addEventListener("change", async ev => {
+      await setCurrentLanguage(ev.currentTarget.value);
+      this.render();
+    });
+    this.element.querySelector("[name='translationEditLanguage']")?.addEventListener("change", async ev => {
+      await setTranslationEditLanguage(ev.currentTarget.value);
+    });
+    this.element.querySelector("[data-action='addLanguage']")?.addEventListener("click", async () => {
+      if (!game.user?.isGM) return;
+      const id = await foundry.applications.api.DialogV2.prompt({
+        window:{title:"Add language"},content:'<div class="form-group"><label>Language code</label><input name="id" placeholder="de"></div>',
+        ok:{callback:(_e,b)=>String(b.form?.elements?.id?.value??"").trim().toLowerCase()}
+      }).catch(()=>"");
+      if (!id) return;
+      const rows=getLanguages(); if(rows.some(l=>l.id===id)) return ui.notifications?.warn?.("Language code already exists.");
+      rows.push({id,name:id.toUpperCase(),enabled:true,fallback:"base"}); await saveLanguages(rows); this.render();
+    });
+    this.element.querySelectorAll("[data-remove-language]").forEach(btn=>btn.addEventListener("click",async()=>{
+      if(!game.user?.isGM||btn.dataset.removeLanguage==="base")return;
+      await saveLanguages(getLanguages().filter(l=>l.id!==btn.dataset.removeLanguage));this.render();
+    }));
+    this.element.querySelectorAll("[data-duplicate-language]").forEach(btn=>btn.addEventListener("click",async()=>{
+      if(!game.user?.isGM)return;const src=getLanguages().find(l=>l.id===btn.dataset.duplicateLanguage);if(!src)return;
+      let id=`${src.id}-copy`,n=2;const rows=getLanguages();while(rows.some(l=>l.id===id))id=`${src.id}-copy-${n++}`;
+      rows.push({...src,id,name:`${src.name} Copy`,primary:false});await saveLanguages(rows);this.render();
+    }));
+    this.element.querySelector("[data-action='exportLanguages']")?.addEventListener("click",()=>{
+      const bundle={...exportLocalizationBundle(),sheetTemplates:game.settings.get("sd","sheetTemplates")??{},effectPresets:game.settings.get("sd","effectPresets")??{}};
+      saveDataToFile(JSON.stringify(bundle,null,2),"application/json","system-director-translations.json");
+    });
+    const importInput=this.element.querySelector("[data-role='importLanguagesFile']");
+    this.element.querySelector("[data-action='importLanguages']")?.addEventListener("click",()=>importInput?.click());
+    importInput?.addEventListener("change",async()=>{
+      const file=importInput.files?.[0];if(!file)return;
+      try{const read=globalThis.readTextFromFile??foundry.utils.readTextFromFile;const data=JSON.parse(await read(file));
+        if(Array.isArray(data.languages))await saveLanguages(data.languages);
+        if(data.sheetTemplates)await game.settings.set("sd","sheetTemplates",{...(game.settings.get("sd","sheetTemplates")??{}),...data.sheetTemplates});
+        if(data.effectPresets)await game.settings.set("sd","effectPresets",{...(game.settings.get("sd","effectPresets")??{}),...data.effectPresets});
+        ui.notifications?.info?.("Translations imported.");this.render();
+      }catch(err){console.error(err);ui.notifications?.error?.("Invalid translation file.");}
+    });
   }
 
   async _prepareContext(options) {
@@ -588,8 +631,12 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const aiSettings = getAISettings();
     const worldKnowledge = String(aiSettings.worldKnowledge ?? "");
 
+    const languageRows=getLanguages();
     return {
       ...base,
+      isGM: !!game.user?.isGM,
+      languages: languageRows.map(l=>({...l,selected:l.id===currentLanguage(),editing:l.id===translationEditLanguage(),isBase:l.id==="base",fallbackOptions:languageRows.map(f=>({...f,selected:f.id===l.fallback}))})),
+      allowPlayerEffectApplier: !!game.settings.get("sd","allowPlayerEffectApplier"),
       cfg,
       ai: {
         hasWorldKnowledge: worldKnowledge.trim().length > 0,
@@ -855,6 +902,16 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static async _onSaveAndClose(event, target) {
+    if (!game.user?.isGM) { this.close(); return; }
+    const rows=[...this.element.querySelectorAll(".sd-language-row")].map(row=>({
+      id:row.dataset.languageId,
+      name:row.querySelector("[data-language-name]")?.value||row.dataset.languageId,
+      enabled:!!row.querySelector("[data-language-enabled]")?.checked,
+      fallback:row.querySelector("[data-language-fallback]")?.value||"base",
+      primary:!!row.querySelector("[data-language-primary]")?.checked
+    }));
+    if(rows.length) await saveLanguages(rows);
+    await game.settings.set("sd","allowPlayerEffectApplier",!!this.element.querySelector("[name='allowPlayerEffectApplier']")?.checked);
     const cfg = this._collectFormCfg();
 
     const initFormula  = cfg.__initiativeFormula;

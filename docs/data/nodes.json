@@ -479,6 +479,143 @@
     },
     "id": "literal_str"
   },
+  "convert_number": {
+    "title": "To Number",
+    "color": "#2f8a72",
+    "cat": "Conversion",
+    "desc": "Convert any value to a number. Numeric text is parsed; invalid or empty input uses Default.",
+    "inputs": [
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      },
+      {
+        "id": "default",
+        "label": "Default",
+        "type": "value.number"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Number",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "default",
+        "label": "Default",
+        "type": "number",
+        "default": 0
+      }
+    ],
+    "compile": {
+      "__fn": true
+    },
+    "id": "convert_number"
+  },
+  "convert_text": {
+    "title": "To Text",
+    "color": "#2f8a72",
+    "cat": "Conversion",
+    "desc": "Convert a number, boolean, UUID or any scalar value to text.",
+    "inputs": [
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Text",
+        "type": "value.string"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    },
+    "id": "convert_text"
+  },
+  "convert_boolean": {
+    "title": "To Boolean",
+    "color": "#2f8a72",
+    "cat": "Conversion",
+    "desc": "Convert common values to true/false. Empty, 0, false, no, off and null are false.",
+    "inputs": [
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Boolean",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    },
+    "id": "convert_boolean"
+  },
+  "convert_array": {
+    "title": "To Array",
+    "color": "#2f8a72",
+    "cat": "Conversion",
+    "desc": "Convert a comma-separated value or JSON array to a typed Array pin.",
+    "inputs": [
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Array",
+        "type": "value.array"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    },
+    "id": "convert_array"
+  },
+  "is_valid": {
+    "title": "Is Valid",
+    "color": "#2f8a72",
+    "cat": "Conversion",
+    "desc": "True when Value is not empty, null, undefined or a formula error.",
+    "inputs": [
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Valid",
+        "type": "value.bool"
+      }
+    ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    },
+    "id": "is_valid"
+  },
   "get_path": {
     "title": "Get Field Value",
     "color": "#1a4060",
@@ -2767,6 +2904,11 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_roll_v2",
+      "act_analyze_roll",
+      "act_present_roll"
+    ],
     "id": "act_roll_value"
   },
   "act_damage": {
@@ -3191,6 +3333,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_effect_definition",
+      "act_effect_apply_v2"
+    ],
     "id": "act_effect"
   },
   "act_effect_uuid": {
@@ -3272,6 +3418,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_effect_definition",
+      "act_effect_apply_v2"
+    ],
     "id": "act_effect_uuid"
   },
   "for_each_target": {
@@ -5659,10 +5809,10 @@
     "id": "act_message_composer"
   },
   "act_add_item": {
-    "title": "Add Item",
+    "title": "Add Item(s)",
     "color": "#2a4a2a",
     "cat": "Items",
-    "desc": "Add a world item (drag UUID from sidebar) as a copy to the actor's inventory. Optionally restrict to an inventory widget.",
+    "desc": "Add one item or an array of item UUIDs/ids/names to the actor. A connected Item / Items pin overrides the static UUID.",
     "inputs": [
       {
         "id": "exec",
@@ -5670,14 +5820,18 @@
         "type": "exec"
       },
       {
-        "id": "uuid",
-        "label": "Item UUID (drag here)",
-        "type": "value.any",
-        "__autoFromField": true
+        "id": "items",
+        "label": "Item / Items",
+        "type": "value.any"
       },
       {
         "id": "qty",
         "label": "Qty",
+        "type": "value.number"
+      },
+      {
+        "id": "uuid",
+        "label": "Item UUID (drag here)",
         "type": "value.any",
         "__autoFromField": true
       }
@@ -5838,15 +5992,20 @@
     "id": "act_remove_slot"
   },
   "act_remove_item": {
-    "title": "Remove Item",
+    "title": "Remove Item(s)",
     "color": "#6a2a2a",
     "cat": "Items",
-    "desc": "Remove an owned item from actor inventory. Item is auto-indexed — pick from dropdown. Optionally scope to a widget.",
+    "desc": "Remove one owned item or an array of item UUIDs/ids/names. A connected Item / Items pin overrides the static picker.",
     "inputs": [
       {
         "id": "exec",
         "label": "",
         "type": "exec"
+      },
+      {
+        "id": "items",
+        "label": "Item / Items",
+        "type": "value.any"
       },
       {
         "id": "uuid",
@@ -5891,6 +6050,8 @@
     "id": "act_remove_item"
   },
   "act_add_item_array": {
+    "hidden": true,
+    "replacement": "act_add_item",
     "title": "Add Item Array",
     "color": "#2a4a2a",
     "cat": "Items",
@@ -5941,6 +6102,8 @@
     "id": "act_add_item_array"
   },
   "act_remove_item_array": {
+    "hidden": true,
+    "replacement": "act_remove_item",
     "title": "Remove Item Array",
     "color": "#6a2a2a",
     "cat": "Items",
@@ -7479,6 +7642,11 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_roll_v2",
+      "act_compare_roll",
+      "act_present_roll"
+    ],
     "id": "act_attack_check"
   },
   "act_roll_check": {
@@ -7781,6 +7949,11 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_roll_v2",
+      "act_compare_roll",
+      "act_present_roll"
+    ],
     "id": "act_roll_check"
   },
   "act_tiered_roll": {
@@ -8048,6 +8221,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_roll_v2",
+      "act_compare_roll"
+    ],
     "id": "act_tiered_roll"
   },
   "act_dice_pool": {
@@ -8276,6 +8453,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_roll_v2",
+      "act_compare_roll"
+    ],
     "id": "act_dice_pool"
   },
   "act_spend_token": {
@@ -8674,6 +8855,12 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_roll_v2",
+      "get_path",
+      "act_compare_roll",
+      "act_modify"
+    ],
     "id": "act_progression"
   },
   "act_throw_on_canvas": {
@@ -8909,6 +9096,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_roll_v2",
+      "act_present_roll"
+    ],
     "id": "act_throw_on_canvas"
   },
   "act_throw_on_sheet": {
@@ -9132,6 +9323,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_roll_v2",
+      "act_present_roll"
+    ],
     "id": "act_throw_on_sheet"
   },
   "act_ai_request": {
@@ -11374,6 +11569,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_effect_definition",
+      "act_effect_apply_v2"
+    ],
     "id": "act_create_effect"
   },
   "act_apply_status": {
@@ -11790,6 +11989,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_aura_definition",
+      "act_place_aura_zone"
+    ],
     "id": "act_place_aura"
   },
   "act_place_aura_damage": {
@@ -12038,6 +12241,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_place_aura_zone",
+      "act_damage_simple"
+    ],
     "id": "act_place_aura_damage"
   },
   "act_place_aura_heal": {
@@ -12275,6 +12482,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_place_aura_zone",
+      "act_heal_simple"
+    ],
     "id": "act_place_aura_heal"
   },
   "act_place_aura_save_effect": {
@@ -12553,6 +12764,11 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_place_aura_zone",
+      "act_save_dc",
+      "act_effect_apply_v2"
+    ],
     "id": "act_place_aura_save_effect"
   },
   "act_place_aura_targets": {
@@ -12982,6 +13198,10 @@
     "toAction": {
       "__fn": true
     },
+    "replacementNodes": [
+      "act_place_aura_zone",
+      "act_save_dc"
+    ],
     "id": "act_place_aura_save_branch"
   },
   "act_place_aoe_effect": {
@@ -15588,7 +15808,7 @@
   "act_choice_from_array": {
     "title": "Choice From Array",
     "color": "#5a3a8a",
-    "cat": "Flow",
+    "cat": "Flow Control",
     "wideNode": true,
     "desc": "Opens a dialog and lets the user choose one or more values from an array. Execution continues only after Confirm or Cancel.",
     "inputs": [
@@ -17496,6 +17716,20 @@
     ],
     "isEvent": true,
     "eventHook": "updateDocument",
+    "replacementNodes": [
+      "on_update",
+      "on_create",
+      "on_delete",
+      "on_turn_start",
+      "on_turn_end",
+      "on_combat_start",
+      "on_combat_end",
+      "on_effect_apply",
+      "on_damage_taken",
+      "on_rest",
+      "on_equip",
+      "on_unequip"
+    ],
     "id": "on_event"
   },
   "get_self": {
@@ -17517,6 +17751,10 @@
     "compile": {
       "__fn": true
     },
+    "replacementNodes": [
+      "get_self_actor",
+      "get_self_item"
+    ],
     "id": "get_self"
   },
   "get_self_actor": {
@@ -17669,6 +17907,8 @@
     "title": "Get All Targets",
     "color": "#2a5a7a",
     "cat": "Targeting",
+    "hidden": true,
+    "replacement": "get_actors_array",
     "desc": "All currently targeted tokens as an array. Feed into For Each Target, AoE save branches, etc.",
     "inputs": [],
     "outputs": [
@@ -17688,6 +17928,8 @@
     "title": "Get Player Actors",
     "color": "#2a5a7a",
     "cat": "Targeting",
+    "hidden": true,
+    "replacement": "get_actors_array",
     "desc": "Returns the array of player-character actors. Feed into Dialog Select (Array) to let the user pick a PC, or into For Each Token / array nodes.",
     "inputs": [],
     "outputs": [
@@ -17746,11 +17988,11 @@
     "id": "get_user_character"
   },
   "get_actors_array": {
-    "title": "Get Target/Selected Actors",
+    "title": "Get Actors",
     "color": "#2a5a7a",
     "cat": "Targeting",
     "wideNode": true,
-    "desc": "Modular source of multiple actors. Source: targeted tokens, selected tokens, or both (several different actors can be selected at once). Outputs: UUIDs (array), Count, First UUID and — when Field path is set — Values (that field read from every actor, same order as UUIDs). Feed UUIDs into Break Array (Split Pins), Get UUID From Array, Get Field By UUID, For Each Element or any array node.",
+    "desc": "One actor-array source for targets, selected tokens, player characters, the current actor, the user's character or every token on the current scene. Outputs UUIDs, Count, First UUID and an optional mapped field.",
     "inputs": [
       {
         "id": "path",
@@ -17799,6 +18041,26 @@
           {
             "value": "both",
             "label": "Targeted + selected"
+          },
+          {
+            "value": "players_online",
+            "label": "Player actors — online"
+          },
+          {
+            "value": "players_all",
+            "label": "Player actors — all"
+          },
+          {
+            "value": "self_actor",
+            "label": "Self (Actor)"
+          },
+          {
+            "value": "user_character",
+            "label": "User's assigned character"
+          },
+          {
+            "value": "scene",
+            "label": "All actors on current scene"
           }
         ]
       },
@@ -22586,6 +22848,7 @@
     "noClone": true,
     "isFunctionAnchor": true,
     "isFunctionOutputs": true,
+    "compilerSpecial": true,
     "isAction": true,
     "inputs": [],
     "outputs": [],

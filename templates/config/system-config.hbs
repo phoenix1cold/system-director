@@ -4,6 +4,36 @@
   <div class="config-body">
 
     <div class="config-section">
+      <h3 class="config-section-title"><i class="fas fa-language"></i> Language</h3>
+      <div class="config-field-row">
+        <label>Interface and content language</label>
+        <select name="localizationLanguage">
+          {{#each languages as |lang|}}<option value="{{lang.id}}" {{#if lang.selected}}selected{{/if}}>{{lang.name}}</option>{{/each}}
+        </select>
+      </div>
+      {{#if isGM}}
+      <div class="config-field-row">
+        <label>Language used while editing translations</label>
+        <select name="translationEditLanguage">
+          {{#each languages as |lang|}}<option value="{{lang.id}}" {{#if lang.editing}}selected{{/if}}>{{lang.name}}</option>{{/each}}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px"><button type="button" class="config-add-btn" data-action="importLanguages"><i class="fas fa-upload"></i> Import</button><button type="button" class="config-add-btn" data-action="exportLanguages"><i class="fas fa-download"></i> Export</button><button type="button" class="config-add-btn" data-action="addLanguage"><i class="fas fa-plus"></i> Add language</button><input type="file" accept="application/json" data-role="importLanguagesFile" hidden></div>
+      {{#each languages as |lang|}}
+      <div class="sd-language-row" data-language-id="{{lang.id}}" style="display:grid;grid-template-columns:80px 1fr 80px 75px 130px 34px 34px;gap:6px;align-items:center;margin-bottom:5px">
+        <code>{{lang.id}}</code><input data-language-name value="{{lang.name}}"><label><input type="checkbox" data-language-enabled {{#if lang.enabled}}checked{{/if}}> Enabled</label><label><input type="radio" name="primaryLanguage" data-language-primary {{#if lang.primary}}checked{{/if}}> Primary</label>
+        <select data-language-fallback>{{#each lang.fallbackOptions as |fb|}}<option value="{{fb.id}}" {{#if fb.selected}}selected{{/if}}>{{fb.name}}</option>{{/each}}</select>
+        <button type="button" data-duplicate-language="{{lang.id}}" title="Duplicate"><i class="fas fa-copy"></i></button>
+        <button type="button" data-remove-language="{{lang.id}}" {{#if lang.isBase}}disabled{{/if}}><i class="fas fa-trash"></i></button>
+      </div>
+      {{/each}}
+      <div class="config-field-row" style="margin-top:8px"><label>Effect Applier</label><label><input type="checkbox" name="allowPlayerEffectApplier" {{#if allowPlayerEffectApplier}}checked{{/if}}> Allow players to apply presets to owned actors</label></div>
+      {{/if}}
+    </div>
+
+    {{#if isGM}}
+
+    <div class="config-section">
       <h3 class="config-section-title">
         <i class="fas fa-chart-bar"></i> Attributes
         <span class="section-hint">Character attributes - add, rename, or remove</span>
@@ -373,12 +403,13 @@
       </p>
     </div>
 
+    {{/if}}
   </div>
 
   <footer class="config-footer">
-    <button type="button" class="config-btn danger" data-action="resetDefaults">
+    {{#if isGM}}<button type="button" class="config-btn danger" data-action="resetDefaults">
       <i class="fas fa-rotate-left"></i> Reset to Defaults
-    </button>
+    </button>{{/if}}
     <div class="spacer"></div>
     <button type="button" class="config-btn primary" data-action="saveAndClose">
       <i class="fas fa-save"></i> Save & Close

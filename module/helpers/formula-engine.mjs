@@ -386,17 +386,32 @@ export class FormulaEngine {
     return null;
   }
 
-  static _collectTargetUuids(mode) {
+  static _collectTargetUuids(mode, doc = null) {
     const m = String(mode ?? "targets");
     const toks = [];
     if (m === "selected" || m === "both") toks.push(...(canvas?.tokens?.controlled ?? []));
     if (m === "targets" || m === "both" || m === "all_targets") toks.push(...(game?.user?.targets ?? []));
     const seen = new Set(); const out = [];
-    for (const t of toks) {
-      const a = t?.actor;
-      if (!a) continue;
-      const u = a.uuid ?? a.id;
+    const addActor = (a) => {
+      const u = a?.uuid ?? a?.id;
       if (u && !seen.has(u)) { seen.add(u); out.push(u); }
+    };
+    if (m === "self_actor") addActor(this._actorFor(doc));
+    if (m === "user_character") addActor(game?.user?.character ?? null);
+    if (m === "scene") for (const t of (canvas?.tokens?.placeables ?? [])) addActor(t?.actor);
+    if (m === "players_online" || m === "players_all") {
+      const users = game?.users?.contents ?? game?.users ?? [];
+      for (const user of users) {
+        if (user?.isGM) continue;
+        if (m === "players_online" && user?.active === false) continue;
+        addActor(user?.character ?? null);
+      }
+      if (m === "players_all") {
+        for (const actor of (game?.actors?.contents ?? [])) if (actor?.hasPlayerOwner) addActor(actor);
+      }
+    }
+    for (const t of toks) {
+      addActor(t?.actor);
     }
     return out;
   }
@@ -1805,16 +1820,46 @@ export class FormulaEngine {
       return v ?? def ?? "";
     }
 
+    if (token.startsWith("convertValue:")) {
+      const parts = token.slice("convertValue:".length).split("|");
+      const mode = String(parts[0] ?? "text").toLowerCase();
+      const value = this._resolveArrayArg(parts[1] ?? "", doc);
+      if (mode === "number") {
+        const n = Number(value);
+        if (value !== "" && value !== null && value !== undefined && Number.isFinite(n)) return n;
+        const fallback = Number(this._resolveArrayArg(parts[2] ?? "", doc));
+        return Number.isFinite(fallback) ? fallback : 0;
+      }
+      if (mode === "boolean") {
+        const s = String(value ?? "").trim().toLowerCase();
+        return (!["", "0", "false", "no", "off", "null", "undefined"].includes(s)) ? 1 : 0;
+      }
+      if (mode === "array") {
+        if (Array.isArray(value)) return value.join(",");
+        const s = String(value ?? "").trim();
+        if (!s) return "";
+        if (s.startsWith("[") && s.endsWith("]")) {
+          try { const parsed = JSON.parse(s); if (Array.isArray(parsed)) return parsed.map(v => String(v ?? "")).join(","); } catch {}
+        }
+        return this._parseArrayList(s).join(",");
+      }
+      if (mode === "valid") {
+        const s = String(value ?? "").trim().toLowerCase();
+        return (value !== null && value !== undefined && !["", "null", "undefined"].includes(s) && !s.startsWith("!err")) ? 1 : 0;
+      }
+      return String(value ?? "");
+    }
+
     if (token.startsWith("targetUuids:")) {
-      return this._collectTargetUuids(token.slice("targetUuids:".length)).join(",");
+      return this._collectTargetUuids(token.slice("targetUuids:".length), doc).join(",");
     }
 
     if (token.startsWith("targetCount:")) {
-      return this._collectTargetUuids(token.slice("targetCount:".length)).length;
+      return this._collectTargetUuids(token.slice("targetCount:".length), doc).length;
     }
 
     if (token.startsWith("targetFirst:")) {
-      return this._collectTargetUuids(token.slice("targetFirst:".length))[0] ?? "";
+      return this._collectTargetUuids(token.slice("targetFirst:".length), doc)[0] ?? "";
     }
 
     if (token.startsWith("targetFields:")) {
@@ -1822,7 +1867,7 @@ export class FormulaEngine {
       const sep  = rest.indexOf("|");
       const mode = sep < 0 ? rest : rest.slice(0, sep);
       const path = sep < 0 ? "" : this._b64decodeUtf8(rest.slice(sep + 1));
-      return this._collectTargetUuids(mode)
+      return this._collectTargetUuids(mode, doc)
         .map(u => { const v = this._readDocField(this._docByUuidSync(u), path); return v == null ? "" : v; })
         .join(",");
     }
