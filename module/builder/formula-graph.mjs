@@ -136,6 +136,10 @@ function _ngLangSetting() {
 function _ngLookupCached(lang, key) {
   const dict = _NG_LANG_CACHE[lang];
   if (dict && Object.prototype.hasOwnProperty.call(dict, key)) return dict[key];
+  if (dict) {
+    const nested = String(key).split(".").reduce((value, part) => value?.[part], dict);
+    if (nested !== undefined) return nested;
+  }
   return undefined;
 }
 
@@ -8960,34 +8964,35 @@ export class FormulaGraph {
   }
 
   _openTemplatesMenu(anchorEl) {
-    document.querySelector(".sdgtpl-menu")?.remove();
+    const doc = anchorEl?.ownerDocument ?? this._uiDocument();
+    doc.querySelector(".sdgtpl-menu")?.remove();
     const store = this._readNodeTemplates();
     const entries = Object.values(store).sort((a,b)=>(a.name??"").localeCompare(b.name??""));
 
     const r = anchorEl.getBoundingClientRect();
-    const menu = document.createElement("div");
+    const menu = doc.createElement("div");
     menu.className = "sdgtpl-menu";
     menu.style.cssText = `position:fixed;left:${Math.round(r.left)}px;top:${Math.round(r.bottom+6)}px;min-width:260px;max-width:380px;max-height:60vh;overflow:auto;background:var(--sd-popover-bg,var(--sd-bg-2));border:1px solid var(--sd-popover-border,var(--sd-border));border-radius:8px;box-shadow:var(--sd-popover-shadow,0 12px 40px rgba(0,0,0,.8));z-index:25000;font-family:'Signika',sans-serif;color:var(--sd-text);padding:6px 0`;
 
-    const header = document.createElement("div");
+    const header = doc.createElement("div");
     header.style.cssText = "padding:4px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sd-accent);border-bottom:1px solid var(--sd-border);margin-bottom:4px";
     header.textContent = `Node Templates (${entries.length})`;
     menu.appendChild(header);
 
     if (!entries.length) {
-      const empty = document.createElement("div");
+      const empty = doc.createElement("div");
       empty.style.cssText = "padding:12px;font-size:11px;color:var(--sd-text-3);font-style:italic";
       empty.textContent = "No templates yet. Select nodes with Shift and click Save as Tpl.";
       menu.appendChild(empty);
     }
 
     for (const tpl of entries) {
-      const row = document.createElement("div");
+      const row = doc.createElement("div");
       row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;transition:background .15s";
       row.addEventListener("mouseenter", () => row.style.background = "var(--sd-accent-glow)");
       row.addEventListener("mouseleave", () => row.style.background = "");
 
-      const main = document.createElement("div");
+      const main = doc.createElement("div");
       main.style.cssText = "flex:1;min-width:0";
       main.innerHTML = `
         <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tpl.name)}</div>
@@ -9005,7 +9010,7 @@ export class FormulaGraph {
         if (n) ui.notifications?.info?.(`Inserted template "${tpl.name}" (${n} node${n===1?"":"s"}).`);
       });
 
-      const exp = document.createElement("button");
+      const exp = doc.createElement("button");
       exp.type = "button";
       exp.title = "Export this template as JSON";
       exp.style.cssText = "background:transparent;border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:2px 7px";
@@ -9015,7 +9020,7 @@ export class FormulaGraph {
         this._downloadTemplateJSON(tpl, `${tpl.name}.node-template.json`);
       });
 
-      const del = document.createElement("button");
+      const del = doc.createElement("button");
       del.type = "button";
       del.title = "Delete template";
       del.style.cssText = "background:transparent;border:none;color:#a06666;cursor:pointer;font-size:14px;padding:0 4px";
@@ -9035,15 +9040,15 @@ export class FormulaGraph {
       menu.appendChild(row);
     }
 
-    document.body.appendChild(menu);
+    doc.body.appendChild(menu);
 
     const off = (ev) => {
       if (!menu.contains(ev.target) && ev.target !== anchorEl) {
         menu.remove();
-        document.removeEventListener("mousedown", off, true);
+        doc.removeEventListener("mousedown", off, true);
       }
     };
-    setTimeout(() => document.addEventListener("mousedown", off, true), 0);
+    setTimeout(() => doc.addEventListener("mousedown", off, true), 0);
   }
 
   _runLint() {
@@ -11580,7 +11585,7 @@ export class FormulaGraph {
       win.style.cssText=`position:relative;width:100%;height:100%;min-width:0;min-height:0;background:var(--sd-bg);display:flex;flex-direction:column;font-family:Inter,'Segoe UI',Arial,sans-serif;color:var(--sd-text);overflow:hidden`;
     }
     win.innerHTML=`
-      <div id="gbar" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move;user-select:none">
+      <div id="gbar" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:default;user-select:none">
         <i class="fas fa-diagram-project" style="color:var(--sd-accent);font-size:13px"></i>
         <b style="font-size:11px;text-transform:uppercase;letter-spacing:0;color:var(--sd-accent);flex:none">Graph Editor</b>
         ${this._migrationCount ? `<span id="gmigration" title="Legacy nodes were updated in memory. Save & Apply to persist the migrated graph." style="display:flex;align-items:center;gap:5px;flex:none;padding:4px 7px;border:1px solid var(--sd-warning,#d7a53a);border-radius:6px;color:var(--sd-warning,#d7a53a);font-size:10px;letter-spacing:0"><i class="fas fa-wand-magic-sparkles"></i>${this._migrationCount} updated</span>` : ""}
@@ -11712,6 +11717,7 @@ export class FormulaGraph {
       EndedAt: "Finished at \u201c{node}\u201d",
       ValueOkAt: "Value chain evaluated up to \u201c{node}\u201d",
       BrokenWire: "Broken wire: target node not found",
+      BrokenSourceWire: "Broken wire: source node not found",
       UnknownNodeType: "Unknown node type \u201c{type}\u201d",
       BadgeError: "Debug: error \u2014 {msg}",
       BadgeEnd: "Debug: execution path ends here",
@@ -11722,15 +11728,46 @@ export class FormulaGraph {
     let out = null;
     try {
       const k = `SD.GraphDebug.${key}`;
-      if (game?.i18n?.has?.(k)) out = game.i18n.localize(k);
+      const lang = _ngLangSetting();
+      if (lang !== "auto") {
+        out = _ngLookupCached(lang, k);
+        if (typeof out !== "string" || !out) out = _ngLookupCached(_NG_DEFAULT_LANG, k);
+      } else if (game?.i18n?.has?.(k)) {
+        out = game.i18n.localize(k);
+      } else if (game?.i18n?.localize) {
+        const localized = game.i18n.localize(k);
+        if (localized && localized !== k) out = localized;
+      }
     } catch {}
     if (typeof out !== "string" || !out || out === `SD.GraphDebug.${key}`) out = FB[key] ?? key;
     for (const [dk, dv] of Object.entries(data ?? {})) out = out.replaceAll(`{${dk}}`, String(dv));
     return out;
   }
 
-  _dbgExecInPins(def) {
-    return new Set((def?.inputs ?? []).filter(p => p.type === "exec").map(p => p.id));
+  _dbgInputPins(node, def) {
+    const pins = [];
+    const add = list => {
+      for (const pin of (list ?? [])) {
+        if (!pin?.id || pins.some(existing => existing.id === pin.id)) continue;
+        pins.push(pin);
+      }
+    };
+    add(def?.inputs);
+    try {
+      if (typeof def?.computeDynamicInputs === "function") add(def.computeDynamicInputs(node));
+    } catch {}
+    const groups = Array.isArray(def?.dynamicPins) ? def.dynamicPins : (def?.dynamicPins ? [def.dynamicPins] : []);
+    for (const group of groups) {
+      const max = Math.max(0, Number(group?.max ?? 0) || 0);
+      for (let i = 0; i < max; i++) {
+        add([{ id:`${group.base}${i}`, label:`${group.label ?? group.base} ${i + 1}`, type:group.type ?? "value.any" }]);
+      }
+    }
+    return pins;
+  }
+
+  _dbgExecInPins(node, def) {
+    return new Set(this._dbgInputPins(node, def).filter(p => p.type === "exec").map(p => p.id));
   }
 
   _dbgExecOutPins(node, def) {
@@ -11745,16 +11782,30 @@ export class FormulaGraph {
     if (!def) return { ok: false, msg: this._dbgT("UnknownNodeType", { type: node.type }) };
     try {
       const ins = {};
-      for (const pin of (def.inputs ?? [])) {
+      for (const pin of this._dbgInputPins(node, def)) {
         if (pin.type === "exec") continue;
         const e = this._incomingEdge(node.id, pin.id);
         if (e) {
           const src = this.nodes.find(n => n.id === e.fromNode);
-          if (src) ins[pin.id] = this._compileValue(src, new Set(), e.fromPin);
+          if (!src) return { ok:false, msg:this._dbgT("BrokenSourceWire") };
+          ins[pin.id] = this._compileValue(src, new Set(), e.fromPin);
         }
       }
+      if (def.isIfCompare && typeof def.condition === "function") def.condition(node, ins);
       if (typeof def.toAction === "function") def.toAction(node, ins);
-      else if (typeof def.compile === "function") def.compile(node, ins);
+
+      // Value nodes increasingly expose multiple outputs through compilePin.
+      // Compile every connected output (or the first output when isolated) so
+      // new source nodes are checked by the same path as the real compiler.
+      let outs;
+      try { outs = def.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def.outputs ?? []); }
+      catch { outs = def.outputs ?? []; }
+      const valueOuts = (outs ?? []).filter(pin => pin.type !== "exec");
+      const connected = valueOuts.filter(pin => this.edges.some(e => e.fromNode === node.id && e.fromPin === pin.id));
+      const toCompile = connected.length ? connected : valueOuts.slice(0, 1);
+      for (const pin of toCompile) this._compileValue(node, new Set(), pin.id);
+
+      if (!valueOuts.length && typeof def.compile === "function") def.compile(node, ins);
       return { ok: true };
     } catch (e) {
       return { ok: false, msg: e?.message ?? String(e) };
@@ -11772,7 +11823,7 @@ export class FormulaGraph {
       if (!def) return false;
       if (!this._dbgExecOutPins(n, def).length) return false;
       if (def.isEvent || def.isTrigger) return true;
-      const inIds = this._dbgExecInPins(def);
+      const inIds = this._dbgExecInPins(n, def);
       if (!inIds.size) return true;
       return !this.edges.some(e => e.toNode === n.id && inIds.has(e.toPin));
     });
@@ -11836,12 +11887,12 @@ export class FormulaGraph {
     for (const n of this.nodes) {
       const def = NODE_DEFS[n.type];
       if (!def) continue;
-      if (this._dbgExecOutPins(n, def).length || this._dbgExecInPins(def).size) execCapable.add(n.id);
+      if (this._dbgExecOutPins(n, def).length || this._dbgExecInPins(n, def).size) execCapable.add(n.id);
     }
     const valueSinks = this.nodes.filter(n => {
       const def = NODE_DEFS[n.type];
       if (!def) return false;
-      if (VALUE_SINK_TYPES.has(n.type) || def.isWidgetConfig) return true;
+      if (VALUE_SINK_TYPES.has(n.type) || def.isWidgetConfig || def.isFunctionOutputs) return true;
       if (def.isEvent || def.isTrigger || execCapable.has(n.id)) return false;
       // Terminal pure node: nothing consumes its outputs.
       return !this.edges.some(e => e.fromNode === n.id);
@@ -11871,7 +11922,7 @@ export class FormulaGraph {
         return;
       }
       bump(nid, downSteps.length ? "ok" : "value");
-      const execIns = this._dbgExecInPins(def);
+      const execIns = this._dbgExecInPins(node, def);
       const incoming = this.edges.filter(e => e.toNode === nid && !execIns.has(e.toPin));
       if (!incoming.length) {
         budget--;
@@ -11905,7 +11956,7 @@ export class FormulaGraph {
         badge(el, color,
           st.status === "error" ? "\u2716" : st.status === "end" ? "\u25a0" : st.status === "value" ? "=" : "\u2714",
           st.status === "error" ? this._dbgT("BadgeError", { msg: st.msg ?? "" }) : st.status === "end" ? this._dbgT("BadgeEnd") : st.status === "value" ? this._dbgT("BadgeValue") : this._dbgT("BadgeOk"));
-      } else if (def && this._dbgExecInPins(def).size) {
+      } else if (def && this._dbgExecInPins(n, def).size) {
         el.style.outline = "2px dashed rgba(160,160,175,.55)";
         el.style.outlineOffset = "3px";
         el.dataset.gdbg = "unreachable";
@@ -12144,6 +12195,14 @@ export class FormulaGraph {
     return head + btns + items + empty;
   }
 
+  _uiDocument() {
+    return this.win?.ownerDocument ?? globalThis.document;
+  }
+
+  _uiWindow() {
+    return this._uiDocument()?.defaultView ?? globalThis.window;
+  }
+
   _wireWin() {
     const win  = this.win;
     const wrap = win.querySelector("#gwrap");
@@ -12225,18 +12284,13 @@ export class FormulaGraph {
       });
     };
 
-    let ds = null;
-    win.querySelector("#gbar").addEventListener("mousedown", ev => {
-      if (ev.target.closest("button")) return;
-      ds = { x: ev.clientX - win.offsetLeft, y: ev.clientY - win.offsetTop };
-    });
-
     const _move = ev => {
-
-      if (ds) {
-        win.style.transform = "none";
-        win.style.left = `${Math.max(0, ev.clientX - ds.x)}px`;
-        win.style.top  = `${Math.max(0, ev.clientY - ds.y)}px`;
+      // A detached browser window may miss mouseup when the pointer leaves its
+      // right/bottom edge.  Do not keep a stale drag alive when the pointer
+      // returns, otherwise the canvas jumps to the new screen coordinate.
+      if ((this._panDrag || this._drag || this._commentDrag || this._commentResize) && ev.buttons === 0) {
+        _up(ev);
+        return;
       }
       if (this._panDrag) {
         if (!this._panDrag.moved &&
@@ -12265,7 +12319,6 @@ export class FormulaGraph {
       if (this._commentDraft)  this._doCommentDraft(ev);
     };
     const _up = ev => {
-      ds = null;
       if (this._panDrag) {
         const pd = this._panDrag;
         this._panDrag = null;
@@ -12304,16 +12357,10 @@ export class FormulaGraph {
         this._pushHistory();
       }
     };
-    document.addEventListener("mousemove", _move);
-    document.addEventListener("mouseup",   _up);
-    this._cleanup.push(() => {
-      document.removeEventListener("mousemove", _move);
-      document.removeEventListener("mouseup",   _up);
-    });
-
     let space = false;
     const _kd = ev => {
-      if (!this.win || !document.body.contains(this.win)) return;
+      const uiDoc = this._uiDocument();
+      if (!this.win || !uiDoc?.body?.contains(this.win)) return;
 
       if (ev.code === "Space") {
         const st = ev.target;
@@ -12327,7 +12374,7 @@ export class FormulaGraph {
         // re-activating the still-focused button.
         if (!inSpaceField) {
           ev.preventDefault();
-          if (st instanceof HTMLElement && st !== document.body) st.blur?.();
+          if (st?.blur && st !== uiDoc.body) st.blur();
           space = true;
           wrap.style.cursor = "grab";
         }
@@ -12360,14 +12407,65 @@ export class FormulaGraph {
       else if (k === "v")                    { ev.preventDefault(); this._pasteClipboard(); }
     };
     const _ku = ev => { if (ev.code === "Space") { space = false; wrap.style.cursor = ""; }};
-    document.addEventListener("keydown", _kd);
-    document.addEventListener("keyup",   _ku);
+
+    // ApplicationV2 windows can be detached into another browser Document.
+    // DOM nodes move with the window, but listeners registered on the original
+    // global document do not.  Rebind document-level drag/keyboard listeners
+    // whenever the graph receives focus or a pointer event in its new owner.
+    let eventDoc = null;
+    let eventView = null;
+    const _unbindEventDocument = () => {
+      eventDoc?.removeEventListener("mousemove", _move);
+      eventDoc?.removeEventListener("mouseup", _up);
+      eventDoc?.removeEventListener("keydown", _kd);
+      eventDoc?.removeEventListener("keyup", _ku);
+      eventView?.removeEventListener("blur", _up);
+      eventDoc = null;
+      eventView = null;
+    };
+    const _syncEventDocument = () => {
+      const nextDoc = win.ownerDocument ?? globalThis.document;
+      if (!nextDoc || nextDoc === eventDoc) return;
+      _unbindEventDocument();
+      eventDoc = nextDoc;
+      eventView = nextDoc.defaultView ?? globalThis.window;
+      eventDoc.addEventListener("mousemove", _move);
+      eventDoc.addEventListener("mouseup", _up);
+      eventDoc.addEventListener("keydown", _kd);
+      eventDoc.addEventListener("keyup", _ku);
+      eventView?.addEventListener("blur", _up);
+    };
+    win.addEventListener("pointerdown", _syncEventDocument, true);
+    win.addEventListener("focusin", _syncEventDocument, true);
+    _syncEventDocument();
     this._cleanup.push(() => {
-      document.removeEventListener("keydown", _kd);
-      document.removeEventListener("keyup",   _ku);
+      win.removeEventListener("pointerdown", _syncEventDocument, true);
+      win.removeEventListener("focusin", _syncEventDocument, true);
+      _unbindEventDocument();
     });
 
+    // Pointer capture keeps panning responsive even when the pointer crosses
+    // the edge of a detached window. Mouse handlers remain for v13 support.
+    wrap.addEventListener("pointerdown", ev => {
+      if (ev.button === 1 || ev.button === 2 || (ev.button === 0 && space)) {
+        this._panPointerId = ev.pointerId;
+        try { wrap.setPointerCapture?.(ev.pointerId); } catch { }
+      }
+    }, true);
+    wrap.addEventListener("pointermove", ev => {
+      if (this._panDrag && this._panPointerId === ev.pointerId) _move(ev);
+    });
+    const _pointerUp = ev => {
+      if (this._panPointerId !== ev.pointerId) return;
+      try { wrap.releasePointerCapture?.(ev.pointerId); } catch { }
+      this._panPointerId = null;
+      _up(ev);
+    };
+    wrap.addEventListener("pointerup", _pointerUp);
+    wrap.addEventListener("pointercancel", _pointerUp);
+
     wrap.addEventListener("mousedown", ev => {
+      _syncEventDocument();
       if (ev.button === 1 || ev.button === 2 || (ev.button === 0 && space)) {
         ev.preventDefault();
         this._panDrag = {
@@ -12491,7 +12589,7 @@ export class FormulaGraph {
           this._addNode(d._sg, gx, gy, extra);
         }
         if (d.type === "Item" || d.uuid?.includes("Item")) {
-          const focused = document.activeElement;
+          const focused = this._uiDocument()?.activeElement;
           if (focused?.dataset?.fieldType === "text" && focused?.placeholder?.includes("drag")) {
             focused.value = d.uuid ?? d.id ?? "";
             focused.dispatchEvent(new Event("input", { bubbles: true }));
@@ -12502,18 +12600,19 @@ export class FormulaGraph {
   }
 
   _ctxMenu(sx,sy,gx,gy,conn=null) {
-    document.querySelector(".sdgctx")?.remove();
-    document.getElementById("sd-quick-insert-menu")?.remove();
-    const menu=document.createElement("div");
+    const doc = this._uiDocument();
+    doc.querySelector(".sdgctx")?.remove();
+    doc.getElementById("sd-quick-insert-menu")?.remove();
+    const menu=doc.createElement("div");
     menu.className="sdgctx";
     menu.style.cssText=`position:fixed;left:${sx}px;top:${sy}px;background:var(--sd-popover-bg,var(--sd-bg-2));border:1px solid var(--sd-popover-border,var(--sd-border));border-radius:6px;box-shadow:var(--sd-popover-shadow,0 8px 32px rgba(0,0,0,.85));z-index:25000;min-width:200px;padding:4px 0;font-family:'Signika',serif;max-height:82vh;overflow-y:auto;color:var(--sd-text)`;
 
-    const search=document.createElement("input");
+    const search=doc.createElement("input");
     search.placeholder="Search...";
     search.style.cssText="width:calc(100% - 16px);margin:6px 8px 3px;background:var(--sd-graph-field-bg,var(--sd-bg));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 8px;outline:none;box-sizing:border-box";
     menu.appendChild(search);
 
-    const list=document.createElement("div");
+    const list=doc.createElement("div");
     menu.appendChild(list);
 
     const ctx = this._nodeFilterContext();
@@ -12535,11 +12634,11 @@ export class FormulaGraph {
           return this._matchesNodeSearch(type, d, q);
         }).sort((a,b)=>String(_NL(a[1].title)).localeCompare(String(_NL(b[1].title))));
         if(!nodes.length) return;
-        const h=document.createElement("div");
+        const h=doc.createElement("div");
         h.style.cssText=`padding:3px 10px;font-size:9px;font-weight:700;text-transform:uppercase;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:3px`;
         h.textContent=cat.id; list.appendChild(h);
         nodes.forEach(([type,def])=>{
-          const item=document.createElement("div");
+          const item=doc.createElement("div");
           item.style.cssText="padding:5px 16px;font-size:11px;color:#c0c0d8;cursor:pointer;display:flex;align-items:center;gap:8px";
           item.innerHTML=`<div style="width:8px;height:8px;border-radius:2px;background:${def.color};flex-shrink:0"></div>${esc(_NL(def.title))}`;
           item.addEventListener("mouseenter",()=>item.style.background="rgba(116,167,255,.1)");
@@ -12568,9 +12667,9 @@ export class FormulaGraph {
     };
     build();
     search.addEventListener("input",()=>build(search.value));
-    document.body.appendChild(menu);
+    doc.body.appendChild(menu);
     search.focus();
-    setTimeout(()=>document.addEventListener("click",function f(){menu.remove();document.removeEventListener("click",f);},{once:true}),80);
+    setTimeout(()=>doc.addEventListener("click",function f(){menu.remove();doc.removeEventListener("click",f);},{once:true}),80);
   }
 
   _addWidgetConfigNode() {
@@ -13415,12 +13514,14 @@ export class FormulaGraph {
   }
 
   _pinContextMenu(ev, node, pin, side, hasEdge) {
-    document.querySelector(".sd-pin-menu")?.remove();
-    const menu = document.createElement("div");
+    const doc = this._uiDocument();
+    const view = this._uiWindow();
+    doc.querySelector(".sd-pin-menu")?.remove();
+    const menu = doc.createElement("div");
     menu.className = "sd-pin-menu";
     menu.style.cssText = `position:fixed;left:${ev.clientX}px;top:${ev.clientY}px;z-index:100000;background:var(--sd-bg,#1e1e2a);border:1px solid var(--sd-accent,#7b68ee);border-radius:6px;padding:4px;min-width:190px;box-shadow:0 6px 24px rgba(0,0,0,.6);font-size:12px;color:var(--sd-text,#e0e0ee)`;
     const mkItem = (label, icon, fn) => {
-      const it = document.createElement("div");
+      const it = doc.createElement("div");
       it.style.cssText = "padding:6px 10px;border-radius:4px;cursor:pointer;display:flex;gap:8px;align-items:center";
       it.innerHTML = `<i class="fas ${icon}" style="width:14px;opacity:.75"></i>${label}`;
       it.addEventListener("mouseenter",()=>it.style.background="rgba(123,104,238,.25)");
@@ -13431,14 +13532,14 @@ export class FormulaGraph {
     mkItem("Promote to Var (local)", "fa-square-plus", () => this._promotePinToVar(node, pin, side, "local"));
     mkItem("Promote to Var (actor)", "fa-user-plus",   () => this._promotePinToVar(node, pin, side, "actor"));
     if (hasEdge) mkItem("Disconnect", "fa-link-slash", () => this._disconnectPin(node, pin, side));
-    document.body.appendChild(menu);
+    doc.body.appendChild(menu);
     const r = menu.getBoundingClientRect();
-    if (r.right  > window.innerWidth)  menu.style.left = Math.max(4, window.innerWidth  - r.width  - 8) + "px";
-    if (r.bottom > window.innerHeight) menu.style.top  = Math.max(4, window.innerHeight - r.height - 8) + "px";
+    if (r.right  > view.innerWidth)  menu.style.left = Math.max(4, view.innerWidth  - r.width  - 8) + "px";
+    if (r.bottom > view.innerHeight) menu.style.top  = Math.max(4, view.innerHeight - r.height - 8) + "px";
     const close = (e) => {
-      if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("mousedown", close, true); }
+      if (!menu.contains(e.target)) { menu.remove(); doc.removeEventListener("mousedown", close, true); }
     };
-    setTimeout(()=>document.addEventListener("mousedown", close, true), 0);
+    setTimeout(()=>doc.addEventListener("mousedown", close, true), 0);
   }
 
   _promotePinToVar(node, pin, side, scope = "local") {
@@ -14112,15 +14213,18 @@ export class FormulaGraph {
     if(!this._conn) return;
     const conn=this._conn; this._conn=null;
     conn.line.remove();
-    const pin=document.elementFromPoint(ev.clientX,ev.clientY)?.closest?.(".gpin");
+    const doc = this._uiDocument();
+    const clientX = Number.isFinite(ev?.clientX) ? ev.clientX : -1;
+    const clientY = Number.isFinite(ev?.clientY) ? ev.clientY : -1;
+    const pin=doc.elementFromPoint(clientX,clientY)?.closest?.(".gpin");
     if (!pin) {
       const wrap = this.win?.querySelector("#gwrap");
-      const overWrap = wrap?.contains(ev.target) || (document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.("#gwrap"));
+      const overWrap = wrap?.contains(ev?.target) || (doc.elementFromPoint(clientX, clientY)?.closest?.("#gwrap"));
       if (overWrap) {
         const r = wrap.getBoundingClientRect();
-        const gx = (ev.clientX - r.left - this._pan.x) / this._zoom;
-        const gy = (ev.clientY - r.top  - this._pan.y) / this._zoom;
-        this._ctxMenu(ev.clientX,ev.clientY,gx,gy,conn);
+        const gx = (clientX - r.left - this._pan.x) / this._zoom;
+        const gy = (clientY - r.top  - this._pan.y) / this._zoom;
+        this._ctxMenu(clientX,clientY,gx,gy,conn);
       }
       return;
     }
@@ -14161,8 +14265,9 @@ export class FormulaGraph {
     }
     candidates.sort((a, b) => (_NL(a.def.cat ?? "")).localeCompare(_NL(b.def.cat ?? "")) || _NL(a.def.title ?? a.type).localeCompare(_NL(b.def.title ?? b.type)));
 
-    document.getElementById("sd-quick-insert-menu")?.remove();
-    const menu = document.createElement("div");
+    const doc = this._uiDocument();
+    doc.getElementById("sd-quick-insert-menu")?.remove();
+    const menu = doc.createElement("div");
     menu.id = "sd-quick-insert-menu";
     menu.style.cssText = `position:fixed;left:${ev.clientX}px;top:${ev.clientY}px;
       min-width:240px;max-width:340px;max-height:60vh;overflow:auto;
@@ -14170,13 +14275,13 @@ export class FormulaGraph {
       box-shadow:var(--sd-popover-shadow,0 12px 40px rgba(0,0,0,.8));z-index:25000;
       font-family:'Signika',sans-serif;color:var(--sd-text);padding:6px 0`;
 
-    const head = document.createElement("div");
+    const head = doc.createElement("div");
     head.textContent = `${_NL("Insert node compatible with")} ${pinSubtype(fromType) || "exec"}`;
     head.style.cssText = "padding:6px 12px;font-size:11px;color:var(--sd-text-2);border-bottom:1px solid var(--sd-border)";
     menu.appendChild(head);
 
     if (!candidates.length) {
-      const empty = document.createElement("div");
+      const empty = doc.createElement("div");
       empty.textContent = _NL("No compatible nodes");
       empty.style.cssText = "padding:8px 12px;color:var(--sd-text-3)";
       menu.appendChild(empty);
@@ -14185,12 +14290,12 @@ export class FormulaGraph {
       for (const c of candidates.slice(0, 80)) {
         if (c.def.cat !== lastCat) {
           lastCat = c.def.cat;
-          const sec = document.createElement("div");
+          const sec = doc.createElement("div");
           sec.textContent = _NL(lastCat ?? "Other");
           sec.style.cssText = "padding:4px 12px 2px;font-size:10px;color:var(--sd-accent);text-transform:uppercase;letter-spacing:.5px";
           menu.appendChild(sec);
         }
-        const item = document.createElement("div");
+        const item = doc.createElement("div");
         item.textContent = _NL(c.def.title ?? c.type);
         item.style.cssText = "padding:5px 14px;font-size:12px;cursor:pointer";
         item.addEventListener("mouseenter", () => item.style.background = "var(--sd-control-hover,var(--sd-bg-3))");
@@ -14210,18 +14315,18 @@ export class FormulaGraph {
         menu.appendChild(item);
       }
     }
-    document.body.appendChild(menu);
+    doc.body.appendChild(menu);
 
     const close = (e) => {
       if (e && menu.contains(e.target)) return;
       menu.remove();
-      document.removeEventListener("mousedown", close, true);
-      document.removeEventListener("keydown", onKey, true);
+      doc.removeEventListener("mousedown", close, true);
+      doc.removeEventListener("keydown", onKey, true);
     };
     const onKey = (e) => { if (e.key === "Escape") close(); };
     setTimeout(() => {
-      document.addEventListener("mousedown", close, true);
-      document.addEventListener("keydown", onKey, true);
+      doc.addEventListener("mousedown", close, true);
+      doc.addEventListener("keydown", onKey, true);
     }, 0);
   }
 

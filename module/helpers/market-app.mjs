@@ -79,6 +79,17 @@ export class SDMarketApp extends ApplicationV2 {
     return null;
   }
 
+  _marketApiBase() {
+    try {
+      const raw=String(game.settings.get("sd","marketRegistryUrl")??"").trim();
+      if(!raw)return "";
+      const url=new URL(raw);
+      url.pathname=url.pathname.replace(/\/api\/v1\/catalog\/?$/i,"/api/v1").replace(/\/+$/,"");
+      url.search="";url.hash="";
+      return url.toString().replace(/\/+$/,"");
+    } catch { return ""; }
+  }
+
   async _loadIndex() {
     let url = "";
     try { url = game.settings.get("sd", "marketRegistryUrl") ?? ""; } catch {}
@@ -117,7 +128,7 @@ export class SDMarketApp extends ApplicationV2 {
       <button type="button" class="sd-market-btn" data-action="refresh" title="${esc(loc("SD.Market.Refresh"))}"><i class="fas fa-rotate"></i></button>
       <button type="button" class="sd-market-btn" data-action="export"><i class="fas fa-file-export"></i> ${loc("SD.Market.ExportBtn")}</button>
       <button type="button" class="sd-market-btn" data-action="import" title="${esc(loc("SD.Market.ImportHint"))}"><i class="fas fa-file-import"></i> ${loc("SD.Market.ImportBtn")}</button>
-      ${this._registryRepoUrl() ? `<button type="button" class="sd-market-btn" data-action="publish" title="${esc(loc("SD.Market.PublishHint"))}"><i class="fab fa-github"></i> ${loc("SD.Market.PublishBtn")}</button>` : ""}
+      ${this._marketApiBase() ? `<button type="button" class="sd-market-btn primary" data-action="publish" title="${esc(loc("SD.Market.PublishHint"))}"><i class="fas fa-cloud-arrow-up"></i> ${loc("SD.Market.PublishBtn")}</button>` : ""}
     </div>`;
 
     html += `<div class="sd-market-body">`;
@@ -149,6 +160,7 @@ export class SDMarketApp extends ApplicationV2 {
     for (const s of list) {
       const idx = this._index.indexOf(s);
       html += `<div class="sd-market-card">
+        <div class="sd-market-card-cover">${s.cover?`<img src="${esc(s.cover)}" alt="">`:`<span><i class="fas fa-wand-magic-sparkles"></i></span>`}<b>v${esc(s.version??"1.0.0")}</b></div>
         <div class="sd-market-card-hdr">
           ${s.icon
             ? `<img class="sd-market-card-icon" src="${esc(s.icon)}" alt="">`
@@ -221,9 +233,7 @@ export class SDMarketApp extends ApplicationV2 {
     if (action === "export")  return this._exportCurrent();
     if (action === "import")  return this._importFromFile();
     if (action === "publish") {
-      const repo = this._registryRepoUrl();
-      if (repo) window.open(`${repo}/issues/new?template=submit-system.yml`, "_blank");
-      return;
+      return this._publishCurrent();
     }
     if (action === "install") {
       const entry = this._index?.[Number(ev.currentTarget.dataset.idx)];
@@ -381,6 +391,24 @@ export class SDMarketApp extends ApplicationV2 {
         }
       } catch (err) { console.warn(`SD | Market: compendium "${p?.name}" import failed`, err); }
     }
+  }
+
+  async _buildPackage(meta={}) {
+    const pkg={sdMarket:3,schemaVersion:3,capabilities:{localizations:true,effectPresets:true,media:true},languages:getLanguages().map(l=>({id:l.id,name:l.name})),meta:{name:meta.name||"Untitled system",author:meta.author||"",version:meta.version||"1.0.0",description:meta.description||"",created:new Date().toISOString(),sdVersion:game.system?.version??"",languages:getLanguages().map(l=>({id:l.id,name:l.name}))},settings:{},content:{npcs:[],journals:[],packs:[]}};
+    for(const key of PACKAGE_SETTING_KEYS){try{pkg.settings[key]=game.settings.get("sd",key);}catch{}}
+    if(meta.withNpcs){try{pkg.content.npcs=game.actors.filter(a=>a.type==="npc").map(a=>a.toObject());}catch(e){console.warn("SD | Market NPC export",e);}}
+    if(meta.withJournals){try{pkg.content.journals=game.journal.contents.map(j=>j.toObject());}catch(e){console.warn("SD | Market journal export",e);}}
+    if(meta.withPacks)for(const p of(game.packs?.filter(pk=>pk.metadata?.packageType==="world")??[])){try{const docs=await p.getDocuments();pkg.content.packs.push({name:p.metadata.name,label:p.metadata.label||p.metadata.name,documentName:p.documentName,documents:docs.map(d=>d.toObject())});}catch(e){console.warn("SD | Market pack export",e);}}
+    return pkg;
+  }
+
+  async _publishCurrent() {
+    if(!game.user?.isGM)return ui.notifications?.warn?.("Only a GM can submit a system.");
+    const api=this._marketApiBase();if(!api)return ui.notifications?.error?.(loc("SD.Market.NoRegistry"));
+    const npcCount=game.actors?.filter(a=>a.type==="npc").length??0,journalCount=game.journal?.size??0,worldPacks=game.packs?.filter(p=>p.metadata?.packageType==="world")??[];
+    const content=`<div class="sd-market-publish-form"><div class="sd-market-publish-intro"><i class="fas fa-cloud-arrow-up"></i><div><b>${loc("SD.Market.SubmitTitle")}</b><span>${loc("SD.Market.SubmitIntro")}</span></div></div><div class="sd-market-publish-grid"><label>${loc("SD.Market.ExportName")}<input required name="name" value="${esc(game.world?.title??"")}"></label><label>${loc("SD.Market.ExportAuthor")}<input required name="author" value="${esc(game.user?.name??"")}"></label><label>${loc("SD.Market.ExportVersion")}<input required name="version" value="1.0.0"></label><label>${loc("SD.Market.Contact")}<input name="contact" placeholder="Discord / email"></label><label class="wide">${loc("SD.Market.ExportDesc")}<textarea required name="description" rows="4"></textarea></label><label class="wide">${loc("SD.Market.Tags")}<input name="tags" placeholder="fantasy, sci-fi, rules-light"></label><label>${loc("SD.Market.IconImage")}<input type="file" name="iconFile" accept="image/*"></label><label>${loc("SD.Market.CoverImage")}<input type="file" name="coverFile" accept="image/*"></label><label class="wide">${loc("SD.Market.Screenshots")}<input type="file" name="screenshotFiles" accept="image/*" multiple></label></div><div class="sd-market-publish-options"><label><input type="checkbox" name="withNpcs" ${npcCount?"checked":""}> ${loc("SD.Market.ExportNpc")} (${npcCount})</label><label><input type="checkbox" name="withJournals" ${journalCount?"checked":""}> ${loc("SD.Market.ExportJournals")} (${journalCount})</label><label><input type="checkbox" name="withPacks" ${worldPacks.length?"checked":""}> ${loc("SD.Market.ExportPacks")} (${worldPacks.length})</label></div><p class="hint">${loc("SD.Market.SubmitReviewHint")}</p></div>`;
+    let values;try{values=await DialogV2.prompt({window:{title:loc("SD.Market.SubmitTitle"),resizable:true},content,ok:{label:loc("SD.Market.SubmitBtn"),icon:"fas fa-cloud-arrow-up",callback:(event,button)=>{const form=button.form,FDE=foundry.applications?.ux?.FormDataExtended??globalThis.FormDataExtended,obj=new FDE(form).object;return{...obj,iconFile:form.querySelector("[name='iconFile']")?.files?.[0]??null,coverFile:form.querySelector("[name='coverFile']")?.files?.[0]??null,screenshotFiles:[...(form.querySelector("[name='screenshotFiles']")?.files??[])]};}}});}catch{return;}if(!values)return;
+    try{ui.notifications?.info?.(loc("SD.Market.SubmitUploading"));const pkg=await this._buildPackage(values),body=new FormData();body.append("meta",JSON.stringify({name:values.name,author:values.author,version:values.version,description:values.description,tags:values.tags,contact:values.contact,world:game.world?.title??"",foundryUser:game.user?.name??""}));const base=String(values.name||"sd-system").toLowerCase().replace(/[^a-z0-9\u0400-\u04ff]+/gi,"-").replace(/^-+|-+$/g,"")||"sd-system";body.append("package",new Blob([JSON.stringify(pkg,null,2)],{type:"application/json"}),`${base}.sd-system.json`);if(values.iconFile)body.append("icon",values.iconFile,values.iconFile.name);if(values.coverFile)body.append("cover",values.coverFile,values.coverFile.name);for(const f of values.screenshotFiles.slice(0,6))body.append("screenshots",f,f.name);const response=await fetch(`${api}/submissions`,{method:"POST",body}),result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);ui.notifications?.info?.(fmt("SD.Market.SubmitDone",{id:result.submissionId},"Submission {id} is waiting for approval."));}catch(err){console.error("SD | Market submission",err);ui.notifications?.error?.(fmt("SD.Market.SubmitError",{error:err.message},"Submission failed: {error}"));}
   }
 
   async _exportCurrent() {

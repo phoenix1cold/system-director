@@ -217,7 +217,7 @@ Hooks.once("init", () => {
     scope:   "world",
     config:  true,
     type:    String,
-    default: "https://raw.githubusercontent.com/phoenix1cold/sd-market/main/index.json"
+    default: "https://sdmarket.flamegogang.com/api/v1/catalog"
   });
 
   game.settings.registerMenu("sd", "systemConfig", {
