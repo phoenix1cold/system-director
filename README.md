@@ -2,13 +2,7 @@
 
 # System Director
 
-## 1.2.2 — Languages and Effect Applier
-
-- Custom world languages with per-player language selection and fallback chains.
-- Translation editing for widget labels, titles, descriptions, hints, placeholders and dialogue text while technical values remain stable.
-- Translation metadata is preserved in sheet templates, exports, imports and Market packages.
-- Effect Applier library for creating reusable ActiveEffect presets and applying them to selected tokens.
-- Optional player access to Effect Applier for owned actors.
+## 1.2.3 — Languages and Effect Applier
 
 <p align="center">
   <a href="https://discord.gg/Qfx5y8cPCw"><img alt="Discord" src="https://img.shields.io/badge/Discord-Community-5865F2?style=for-the-badge&logo=discord&logoColor=white"></a>
@@ -16,7 +10,7 @@
 </p>
 <p align="center">
   <img alt="Release" src="https://img.shields.io/badge/status-release-36a269?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.2.2-informational?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.2.3-informational?style=flat-square">
   <img alt="Foundry VTT" src="https://img.shields.io/badge/Foundry%20VTT-v13%20%7C%20v14-fe6a1f?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-source--available%20%2F%20non--commercial-blue?style=flat-square">
 </p>
@@ -38,7 +32,6 @@ Manual installation: extract the release `system.zip` into `<FoundryUserData>/Da
 
 - **Sheet Builder** — tabs, rows, cells, reusable templates and more than thirty widget types.
 - **Widget Builder** — grid positioning, resizing, images, layers, nested widgets and safely scoped CSS.
-- **Typed Node Graph** — Unreal-style pin language: every type has its own color, glyph and connector shape; arrays use stacked sockets and dashed wires.
 - **Composable node library** — unified actor selection and item actions, explicit type-conversion nodes, machine-readable legacy replacement chains, and hidden duplicate nodes retained for saved-graph compatibility.
 - **Composable rolls** — Roll → Analyze Roll → Compare Roll → Present Roll; formula and dice-pool modes.
 - **Combat automation** — saves, damage, healing, targets, chat actions, AoE and auras.
@@ -46,7 +39,6 @@ Manual installation: extract the release `system.zip` into `<FoundryUserData>/Da
 - **Quests** — quest logs, objectives, dependencies, visibility, rewards and quest events.
 - **Progression** — class levels, choices, field changes, granted items/effects and skill trees.
 - **Persistent typed databases** — one shared schema with per-Actor, per-Item and world values, available from every graph.
-- **Persistent widget values** — every keyed widget stores its current value in `system.widgetFields.<key>.value`; Select keeps this state independently from an optional Data Path, and Get Widget Value accepts a dynamic Widget Key.
 - **Macros** — copy Dice and Skill widgets to Foundry Script Macros or build reusable graph macros.
 - **Foundry v14 integration** — ApplicationV2, native Rich Text and Region-based area templates. Measured Templates are retained only as a v13 compatibility path.
 

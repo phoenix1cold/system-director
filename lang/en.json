@@ -1761,5 +1761,7 @@
   "SD.Market.RulebookReplaceHint": "Choose a replacement or keep the current file",
   "SD.Market.CurrentRulebook": "Current rulebook",
   "SD.Market.Font": "Font",
-  "SD.Market.FontSize": "Size"
+  "SD.Market.FontSize": "Size",
+  "SD.Market.RemoveScreenshot": "Remove screenshot",
+  "SD.Market.ScreenshotLimit": "You can attach up to 6 screenshots."
 }

@@ -1761,5 +1761,7 @@
   "SD.Market.RulebookReplaceHint": "Выберите замену или оставьте текущий файл",
   "SD.Market.CurrentRulebook": "Текущий рулбук",
   "SD.Market.Font": "Шрифт",
-  "SD.Market.FontSize": "Размер"
+  "SD.Market.FontSize": "Размер",
+  "SD.Market.RemoveScreenshot": "Удалить скриншот",
+  "SD.Market.ScreenshotLimit": "Можно прикрепить не более 6 скриншотов."
 }
