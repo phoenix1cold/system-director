@@ -1,8 +1,6 @@
 /**
  * SD Community Market
- * Browse, install and share user-created SD systems.
- * The catalog is a static index.json hosted on GitHub Pages / raw.githubusercontent
- * (see docs/MARKET-REGISTRY.md for the registry repo setup).
+ * Browse, install and submit user-created SD systems through the custom server.
  */
 
 import { getLanguages, saveLanguages } from "./localization.mjs";
@@ -19,6 +17,8 @@ const fmt = (k, data = {}, fallback = "") => {
 const esc = (s) => String(s ?? "")
   .replace(/&/g, "&amp;").replace(/</g, "&lt;")
   .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const CUSTOM_MARKET_CATALOG = "https://sdmarket.flamegogang.com/api/v1/catalog";
+const CUSTOM_MARKET_API = "https://sdmarket.flamegogang.com/api/v1";
 
 /** World-scoped settings that make up an exportable "system package". */
 const PACKAGE_SETTING_KEYS = [
@@ -47,7 +47,7 @@ export class SDMarketApp extends ApplicationV2 {
       icon:      "fas fa-store",
       resizable: true
     },
-    position: { width: 860, height: 640 }
+    position: { width: 1080, height: 720 }
   };
 
   constructor(options = {}) {
@@ -62,39 +62,19 @@ export class SDMarketApp extends ApplicationV2 {
 
   /* ------------------------------ data ------------------------------ */
 
-  /** Derive the registry GitHub repo URL from the configured registry URL. */
-  _registryRepoUrl() {
-    try {
-      const url = new URL(String(game.settings.get("sd", "marketRegistryUrl") ?? ""));
-      if (url.hostname === "raw.githubusercontent.com") {
-        const [owner, repo] = url.pathname.split("/").filter(Boolean);
-        if (owner && repo) return `https://github.com/${owner}/${repo}`;
-      }
-      if (url.hostname.endsWith(".github.io")) {
-        const owner = url.hostname.split(".")[0];
-        const repo  = url.pathname.split("/").filter(Boolean)[0];
-        if (owner && repo) return `https://github.com/${owner}/${repo}`;
-      }
-    } catch {}
-    return null;
-  }
-
   _marketApiBase() {
-    try {
-      const raw=String(game.settings.get("sd","marketRegistryUrl")??"").trim();
-      if(!raw)return "";
-      const url=new URL(raw);
-      url.pathname=url.pathname.replace(/\/api\/v1\/catalog\/?$/i,"/api/v1").replace(/\/+$/,"");
-      url.search="";url.hash="";
-      return url.toString().replace(/\/+$/,"");
-    } catch { return ""; }
+    return CUSTOM_MARKET_API;
   }
 
   async _loadIndex() {
-    let url = "";
-    try { url = game.settings.get("sd", "marketRegistryUrl") ?? ""; } catch {}
-    url = String(url).trim();
-    if (!url) { this._error = "noRegistry"; this._index = null; this.render(); return; }
+    const url = CUSTOM_MARKET_CATALOG;
+    if (game.user?.isGM) {
+      try {
+        if (game.settings.get("sd", "marketRegistryUrl") !== url) {
+          game.settings.set("sd", "marketRegistryUrl", url).catch?.(() => {});
+        }
+      } catch {}
+    }
 
     this._loading = true;
     this._error   = null;
@@ -119,16 +99,23 @@ export class SDMarketApp extends ApplicationV2 {
 
   async _renderHTML() {
     let html = `<div class="sd-market-app">`;
-
+    html += `<section class="sd-market-hero">
+      <div class="sd-market-hero-mark"><i class="fas fa-store"></i></div>
+      <div class="sd-market-hero-copy"><span>${loc("SD.Market.CommunityEyebrow")}</span><strong>${loc("SD.Market.Title")}</strong><small>${loc("SD.Market.HeroSubtitle")}</small></div>
+      <div class="sd-market-hero-actions">
+        <button type="button" class="sd-market-btn" data-action="export"><i class="fas fa-box-archive"></i> ${loc("SD.Market.ExportBtn")}</button>
+        <button type="button" class="sd-market-btn" data-action="import" title="${esc(loc("SD.Market.ImportHint"))}"><i class="fas fa-file-arrow-up"></i> ${loc("SD.Market.ImportBtn")}</button>
+        <button type="button" class="sd-market-btn" data-action="update-system" title="${esc(loc("SD.Market.UpdateHint"))}"><i class="fas fa-arrows-rotate"></i> ${loc("SD.Market.UpdateBtn")}</button>
+        <button type="button" class="sd-market-btn primary" data-action="publish" title="${esc(loc("SD.Market.PublishHint"))}"><i class="fas fa-cloud-arrow-up"></i> ${loc("SD.Market.PublishBtn")}</button>
+      </div>
+    </section>`;
     html += `<div class="sd-market-toolbar">
       <div class="sd-market-search">
         <i class="fas fa-search"></i>
         <input type="text" value="${esc(this._query)}" placeholder="${esc(loc("SD.Market.SearchPlaceholder"))}" data-action="search">
       </div>
-      <button type="button" class="sd-market-btn" data-action="refresh" title="${esc(loc("SD.Market.Refresh"))}"><i class="fas fa-rotate"></i></button>
-      <button type="button" class="sd-market-btn" data-action="export"><i class="fas fa-file-export"></i> ${loc("SD.Market.ExportBtn")}</button>
-      <button type="button" class="sd-market-btn" data-action="import" title="${esc(loc("SD.Market.ImportHint"))}"><i class="fas fa-file-import"></i> ${loc("SD.Market.ImportBtn")}</button>
-      ${this._marketApiBase() ? `<button type="button" class="sd-market-btn primary" data-action="publish" title="${esc(loc("SD.Market.PublishHint"))}"><i class="fas fa-cloud-arrow-up"></i> ${loc("SD.Market.PublishBtn")}</button>` : ""}
+      <span class="sd-market-count">${Number(this._index?.length ?? 0)} ${loc("SD.Market.SystemCount")}</span>
+      <button type="button" class="sd-market-btn icon-only" data-action="refresh" title="${esc(loc("SD.Market.Refresh"))}"><i class="fas fa-rotate"></i></button>
     </div>`;
 
     html += `<div class="sd-market-body">`;
@@ -169,10 +156,7 @@ export class SDMarketApp extends ApplicationV2 {
             <div class="sd-market-card-name">${esc(s.name ?? "?")}</div>
             <div class="sd-market-card-author">${esc(s.author ?? "")}${s.version ? ` \u00b7 v${esc(s.version)}` : ""}</div>
           </div>
-          <div class="sd-market-card-stats" title="${esc(loc("SD.Market.LikeHint"))}">
-            <span><i class="fas fa-star"></i> ${Number(s.stars ?? 0)}</span>
-            <span><i class="fas fa-download"></i> ${Number(s.downloads ?? 0)}</span>
-          </div>
+          <div class="sd-market-card-stats"><span><i class="fas fa-download"></i> ${Number(s.downloads ?? 0)}</span><button type="button" class="sd-market-vote ${this._savedVote(s.id)==="like"?"active":""}" data-action="vote" data-id="${esc(s.id)}" data-vote="like" title="${esc(loc("SD.Market.Like"))}"><i class="fas fa-thumbs-up"></i> ${Number(s.likes ?? 0)}</button><button type="button" class="sd-market-vote dislike ${this._savedVote(s.id)==="dislike"?"active":""}" data-action="vote" data-id="${esc(s.id)}" data-vote="dislike" title="${esc(loc("SD.Market.Dislike"))}"><i class="fas fa-thumbs-down"></i> ${Number(s.dislikes ?? 0)}</button></div>
         </div>
         <div class="sd-market-card-desc">${esc(s.description ?? "")}</div>
         ${Array.isArray(s.tags) && s.tags.length
@@ -182,7 +166,6 @@ export class SDMarketApp extends ApplicationV2 {
         <div class="sd-market-card-actions">
           <button type="button" class="sd-market-btn primary" data-action="install" data-idx="${idx}"><i class="fas fa-download"></i> ${loc("SD.Market.Install")}</button>
           ${s.rulebook ? `<a class="sd-market-btn" href="${esc(s.rulebook)}" target="_blank" rel="noopener"><i class="fas fa-book"></i> ${loc("SD.Market.Rulebook")}</a>` : ""}
-          ${s.repo ? `<a class="sd-market-btn" href="${esc(s.repo)}" target="_blank" rel="noopener" title="${esc(loc("SD.Market.LikeHint"))}"><i class="fab fa-github"></i> <i class="fas fa-star"></i></a>` : ""}
         </div>
       </div>`;
     }
@@ -220,7 +203,7 @@ export class SDMarketApp extends ApplicationV2 {
     const body = this.element.querySelector(".sd-market-body");
     if (!body) return;
     body.innerHTML = this._buildCards();
-    body.querySelectorAll("[data-action='install']").forEach(el =>
+    body.querySelectorAll("[data-action]").forEach(el =>
       el.addEventListener("click", ev => this._handleAction(ev))
     );
   }
@@ -232,13 +215,21 @@ export class SDMarketApp extends ApplicationV2 {
     if (action === "refresh") return this._loadIndex();
     if (action === "export")  return this._exportCurrent();
     if (action === "import")  return this._importFromFile();
-    if (action === "publish") {
-      return this._publishCurrent();
-    }
+    if (action === "publish") return this._publishCurrent();
+    if (action === "update-system") return this._updateCurrent();
+    if (action === "vote") return this._vote(ev.currentTarget.dataset.id, ev.currentTarget.dataset.vote);
     if (action === "install") {
       const entry = this._index?.[Number(ev.currentTarget.dataset.idx)];
       if (entry) return this._install(entry);
     }
+  }
+
+  _savedVote(id) { try { return localStorage.getItem(`sd.market.vote.${id}`) ?? ""; } catch { return ""; } }
+  _voterId() { const key="sd.market.voterId"; try { let id=localStorage.getItem(key); if(!id){id=crypto.randomUUID();localStorage.setItem(key,id)} return id; } catch { return crypto.randomUUID(); } }
+  async _vote(id, requested) {
+    if(!id||!["like","dislike"].includes(requested))return;
+    const vote=this._savedVote(id)===requested?"clear":requested;
+    try { const response=await fetch(`${CUSTOM_MARKET_API}/systems/${encodeURIComponent(id)}/vote`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({vote,voterId:this._voterId()})}),result=await response.json().catch(()=>({}));if(!response.ok)throw Error(result.error||`HTTP ${response.status}`);const entry=this._index?.find(x=>x.id===id);if(entry){entry.likes=result.likes;entry.dislikes=result.dislikes}try{result.vote?localStorage.setItem(`sd.market.vote.${id}`,result.vote):localStorage.removeItem(`sd.market.vote.${id}`)}catch{}this._refreshCardsOnly(); } catch(error){console.error("SD | Market vote failed",error);ui.notifications?.error?.(loc("SD.Market.VoteError"));}
   }
 
   async _install(entry) {
@@ -402,13 +393,19 @@ export class SDMarketApp extends ApplicationV2 {
     return pkg;
   }
 
-  async _publishCurrent() {
-    if(!game.user?.isGM)return ui.notifications?.warn?.("Only a GM can submit a system.");
-    const api=this._marketApiBase();if(!api)return ui.notifications?.error?.(loc("SD.Market.NoRegistry"));
-    const npcCount=game.actors?.filter(a=>a.type==="npc").length??0,journalCount=game.journal?.size??0,worldPacks=game.packs?.filter(p=>p.metadata?.packageType==="world")??[];
-    const content=`<div class="sd-market-publish-form"><div class="sd-market-publish-intro"><i class="fas fa-cloud-arrow-up"></i><div><b>${loc("SD.Market.SubmitTitle")}</b><span>${loc("SD.Market.SubmitIntro")}</span></div></div><div class="sd-market-publish-grid"><label>${loc("SD.Market.ExportName")}<input required name="name" value="${esc(game.world?.title??"")}"></label><label>${loc("SD.Market.ExportAuthor")}<input required name="author" value="${esc(game.user?.name??"")}"></label><label>${loc("SD.Market.ExportVersion")}<input required name="version" value="1.0.0"></label><label>${loc("SD.Market.Contact")}<input name="contact" placeholder="Discord / email"></label><label class="wide">${loc("SD.Market.ExportDesc")}<textarea required name="description" rows="4"></textarea></label><label class="wide">${loc("SD.Market.Tags")}<input name="tags" placeholder="fantasy, sci-fi, rules-light"></label><label>${loc("SD.Market.IconImage")}<input type="file" name="iconFile" accept="image/*"></label><label>${loc("SD.Market.CoverImage")}<input type="file" name="coverFile" accept="image/*"></label><label class="wide">${loc("SD.Market.Screenshots")}<input type="file" name="screenshotFiles" accept="image/*" multiple></label></div><div class="sd-market-publish-options"><label><input type="checkbox" name="withNpcs" ${npcCount?"checked":""}> ${loc("SD.Market.ExportNpc")} (${npcCount})</label><label><input type="checkbox" name="withJournals" ${journalCount?"checked":""}> ${loc("SD.Market.ExportJournals")} (${journalCount})</label><label><input type="checkbox" name="withPacks" ${worldPacks.length?"checked":""}> ${loc("SD.Market.ExportPacks")} (${worldPacks.length})</label></div><p class="hint">${loc("SD.Market.SubmitReviewHint")}</p></div>`;
-    let values;try{values=await DialogV2.prompt({window:{title:loc("SD.Market.SubmitTitle"),resizable:true},content,ok:{label:loc("SD.Market.SubmitBtn"),icon:"fas fa-cloud-arrow-up",callback:(event,button)=>{const form=button.form,FDE=foundry.applications?.ux?.FormDataExtended??globalThis.FormDataExtended,obj=new FDE(form).object;return{...obj,iconFile:form.querySelector("[name='iconFile']")?.files?.[0]??null,coverFile:form.querySelector("[name='coverFile']")?.files?.[0]??null,screenshotFiles:[...(form.querySelector("[name='screenshotFiles']")?.files??[])]};}}});}catch{return;}if(!values)return;
-    try{ui.notifications?.info?.(loc("SD.Market.SubmitUploading"));const pkg=await this._buildPackage(values),body=new FormData();body.append("meta",JSON.stringify({name:values.name,author:values.author,version:values.version,description:values.description,tags:values.tags,contact:values.contact,world:game.world?.title??"",foundryUser:game.user?.name??""}));const base=String(values.name||"sd-system").toLowerCase().replace(/[^a-z0-9\u0400-\u04ff]+/gi,"-").replace(/^-+|-+$/g,"")||"sd-system";body.append("package",new Blob([JSON.stringify(pkg,null,2)],{type:"application/json"}),`${base}.sd-system.json`);if(values.iconFile)body.append("icon",values.iconFile,values.iconFile.name);if(values.coverFile)body.append("cover",values.coverFile,values.coverFile.name);for(const f of values.screenshotFiles.slice(0,6))body.append("screenshots",f,f.name);const response=await fetch(`${api}/submissions`,{method:"POST",body}),result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);ui.notifications?.info?.(fmt("SD.Market.SubmitDone",{id:result.submissionId},"Submission {id} is waiting for approval."));}catch(err){console.error("SD | Market submission",err);ui.notifications?.error?.(fmt("SD.Market.SubmitError",{error:err.message},"Submission failed: {error}"));}
+  async _publishCurrent() { return this._openSubmissionForm({mode:"create"}); }
+
+  async _updateCurrent() {
+    if(!game.user?.isGM)return ui.notifications?.warn?.("Only a GM can update a system.");
+    let secretKey;try{secretKey=await DialogV2.prompt({window:{title:loc("SD.Market.UpdateLookupTitle")},content:`<div class="sd-market-key-prompt"><i class="fas fa-key"></i><p>${loc("SD.Market.UpdateLookupIntro")}</p><label>${loc("SD.Market.SecretKey")}<input type="password" name="secretKey" autocomplete="off" required></label></div>`,ok:{label:loc("SD.Market.FindSystem"),icon:"fas fa-magnifying-glass",callback:(event,button)=>String(button.form.elements.secretKey?.value??"").trim()}})}catch{return}if(!secretKey)return ui.notifications?.warn?.(loc("SD.Market.SecretRequired"));
+    try{ui.notifications?.info?.(loc("SD.Market.FindingSystem"));const response=await fetch(`${CUSTOM_MARKET_API}/updates/lookup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({secretKey})}),result=await response.json().catch(()=>({}));if(!response.ok)throw Error(result.error||`HTTP ${response.status}`);return this._openSubmissionForm({mode:"update",secretKey,existing:result.system??{}})}catch(error){console.error("SD | Market update lookup",error);ui.notifications?.error?.(fmt("SD.Market.UpdateLookupError",{error:error.message},"System lookup failed: {error}"))}
+  }
+
+  async _openSubmissionForm({mode="create",secretKey="",existing={}}={}) {
+    if(!game.user?.isGM)return ui.notifications?.warn?.("Only a GM can submit a system.");const isUpdate=mode==="update",api=this._marketApiBase(),npcCount=game.actors?.filter(a=>a.type==="npc").length??0,journalCount=game.journal?.size??0,worldPacks=game.packs?.filter(p=>p.metadata?.packageType==="world")??[],tags=Array.isArray(existing.tags)?existing.tags.join(", "):"",field=(label,name,value="",attrs="")=>`<label>${label}<input ${attrs} name="${name}" value="${esc(value)}"></label>`,keyField=isUpdate?`<div class="wide sd-market-secret-confirmed"><i class="fas fa-key"></i><div><b>${loc("SD.Market.SecretMatched")}</b><small>${loc("SD.Market.SecretNeverShown")}</small></div></div>`:`<label class="wide sd-market-secret-field">${loc("SD.Market.SecretKey")}<input required type="password" name="secretKey" autocomplete="new-password" placeholder="${esc(loc("SD.Market.SecretPlaceholder"))}"><small>${loc("SD.Market.SecretHelp")}</small></label>`;
+    const content=`<div class="sd-market-publish-form"><div class="sd-market-publish-intro"><i class="fas ${isUpdate?"fa-arrows-rotate":"fa-cloud-arrow-up"}"></i><div><b>${loc(isUpdate?"SD.Market.UpdateTitle":"SD.Market.SubmitTitle")}</b><span>${loc(isUpdate?"SD.Market.UpdateIntro":"SD.Market.SubmitIntro")}</span></div></div><div class="sd-market-publish-grid">${field(loc("SD.Market.ExportName"),"name",existing.name||game.world?.title||"","required")}${field(loc("SD.Market.ExportAuthor"),"author",existing.author||game.user?.name||"","required")}${field(loc("SD.Market.ExportVersion"),"version",existing.version||"1.0.0","required")}${field(loc("SD.Market.Contact"),"contact",existing.contact||"",'placeholder="Discord / email"')}<label class="wide">${loc("SD.Market.ExportDesc")}<textarea required name="description" rows="4">${esc(existing.description||"")}</textarea></label><label class="wide">${loc("SD.Market.Tags")}<input name="tags" value="${esc(tags)}" placeholder="fantasy, sci-fi, rules-light"></label>${keyField}<label class="sd-market-media-upload"><input type="file" name="iconFile" accept="image/*"><span><i class="fas fa-icons"></i><b>${loc("SD.Market.IconImage")}</b><small>${loc(isUpdate?"SD.Market.ImageReplaceHint":"SD.Market.ImagePickHint")}</small></span></label><label class="sd-market-media-upload"><input type="file" name="coverFile" accept="image/*"><span><i class="fas fa-panorama"></i><b>${loc("SD.Market.CoverImage")}</b><small>${loc(isUpdate?"SD.Market.ImageReplaceHint":"SD.Market.ImagePickHint")}</small></span></label><label class="wide sd-market-media-upload is-screens"><input type="file" name="screenshotFiles" accept="image/*" multiple><span><i class="fas fa-images"></i><b>${loc("SD.Market.Screenshots")}</b><small>${loc(isUpdate?"SD.Market.ImagesReplaceHint":"SD.Market.ImagesPickHint")}</small></span></label></div><div class="sd-market-publish-options"><label><input type="checkbox" name="withNpcs" ${npcCount?"checked":""}> ${loc("SD.Market.ExportNpc")} (${npcCount})</label><label><input type="checkbox" name="withJournals" ${journalCount?"checked":""}> ${loc("SD.Market.ExportJournals")} (${journalCount})</label><label><input type="checkbox" name="withPacks" ${worldPacks.length?"checked":""}> ${loc("SD.Market.ExportPacks")} (${worldPacks.length})</label></div><p class="hint">${loc(isUpdate?"SD.Market.UpdateReviewHint":"SD.Market.SubmitReviewHint")}</p></div>`;
+    let values;try{values=await DialogV2.prompt({window:{title:loc(isUpdate?"SD.Market.UpdateTitle":"SD.Market.SubmitTitle"),resizable:true},content,ok:{label:loc(isUpdate?"SD.Market.UpdateSubmitBtn":"SD.Market.SubmitBtn"),icon:isUpdate?"fas fa-arrows-rotate":"fas fa-cloud-arrow-up",callback:(event,button)=>{const form=button.form,FDE=foundry.applications?.ux?.FormDataExtended??globalThis.FormDataExtended,obj=new FDE(form).object;return{...obj,secretKey:isUpdate?secretKey:String(form.elements.secretKey?.value??"").trim(),iconFile:form.querySelector("[name='iconFile']")?.files?.[0]??null,coverFile:form.querySelector("[name='coverFile']")?.files?.[0]??null,screenshotFiles:[...(form.querySelector("[name='screenshotFiles']")?.files??[])]}}}})}catch{return}if(!values)return;if(!values.secretKey)return ui.notifications?.warn?.(loc("SD.Market.SecretRequired"));
+    try{ui.notifications?.info?.(loc(isUpdate?"SD.Market.UpdateUploading":"SD.Market.SubmitUploading"));const pkg=await this._buildPackage(values),body=new FormData();body.append("secretKey",values.secretKey);body.append("meta",JSON.stringify({name:values.name,author:values.author,version:values.version,description:values.description,tags:values.tags,contact:values.contact,world:game.world?.title??"",foundryUser:game.user?.name??""}));const base=String(values.name||"sd-system").toLowerCase().replace(/[^a-z0-9\u0400-\u04ff]+/gi,"-").replace(/^-+|-+$/g,"")||"sd-system";body.append("package",new Blob([JSON.stringify(pkg,null,2)],{type:"application/json"}),`${base}.sd-system.json`);if(values.iconFile)body.append("icon",values.iconFile,values.iconFile.name);if(values.coverFile)body.append("cover",values.coverFile,values.coverFile.name);for(const file of values.screenshotFiles.slice(0,6))body.append("screenshots",file,file.name);const response=await fetch(`${api}/${isUpdate?"updates":"submissions"}`,{method:"POST",body}),result=await response.json().catch(()=>({}));if(!response.ok)throw Error(result.error||`HTTP ${response.status}`);ui.notifications?.info?.(fmt(isUpdate?"SD.Market.UpdateDone":"SD.Market.SubmitDone",{id:result.updateId||result.submissionId},"Request {id} is waiting for approval."))}catch(error){console.error("SD | Market submission",error);ui.notifications?.error?.(fmt(isUpdate?"SD.Market.UpdateError":"SD.Market.SubmitError",{error:error.message},`Request failed: ${error.message}`))}
   }
 
   async _exportCurrent() {
