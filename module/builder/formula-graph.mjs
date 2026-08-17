@@ -8308,6 +8308,135 @@ const CATS = [
   {id:"System",       color:"#4a2a7a"}
 ];
 
+
+// Public extension registry. Modules may register their own palette categories
+// and node definitions without patching System Director source files.
+export const NODE_CATEGORIES = CATS;
+const _SD_BUILTIN_NODE_CATEGORIES = new Set(CATS.map(category => category.id));
+const _SD_EXTENSION_NODE_TYPES = new Map();
+const _SD_EXTENSION_CATEGORY_IDS = new Map();
+
+function _sdRegistryOwner(options = {}) {
+  return String(options.owner ?? options.moduleId ?? "external").trim() || "external";
+}
+
+function _sdNotifyNodeRegistryChanged(detail) {
+  try { globalThis.Hooks?.callAll?.("sdNodeRegistryChanged", detail); } catch {}
+}
+
+export function registerNodeCategory(category, options = {}) {
+  const source = typeof category === "string" ? { id: category } : (category ?? {});
+  const id = String(source.id ?? "").trim();
+  if (!id) throw new Error("SD node category requires a non-empty id");
+  const owner = _sdRegistryOwner({ ...options, owner: options.owner ?? source.owner });
+  const normalized = {
+    id,
+    color: String(source.color ?? "#64748b"),
+    label: source.label != null ? String(source.label) : undefined,
+    labels: source.labels && typeof source.labels === "object" ? { ...source.labels } : undefined,
+    owner
+  };
+  let entry = CATS.find(item => item.id === id);
+  if (entry) Object.assign(entry, normalized);
+  else {
+    entry = normalized;
+    const before = String(options.before ?? source.before ?? "");
+    const after = String(options.after ?? source.after ?? "");
+    let index = before ? CATS.findIndex(item => item.id === before) : -1;
+    if (index < 0 && after) {
+      const afterIndex = CATS.findIndex(item => item.id === after);
+      if (afterIndex >= 0) index = afterIndex + 1;
+    }
+    if (index < 0) CATS.push(entry); else CATS.splice(index, 0, entry);
+  }
+  if (!_SD_BUILTIN_NODE_CATEGORIES.has(id)) {
+    const owned = _SD_EXTENSION_CATEGORY_IDS.get(owner) ?? new Set();
+    owned.add(id); _SD_EXTENSION_CATEGORY_IDS.set(owner, owned);
+  }
+  _sdNotifyNodeRegistryChanged({ type: "category", action: "register", id, owner, category: entry });
+  return entry;
+}
+
+export function registerNodeDefinition(type, definition, options = {}) {
+  const id = String(type ?? "").trim();
+  if (!id) throw new Error("SD node definition requires a non-empty type");
+  if (!definition || typeof definition !== "object") throw new Error(`SD node '${id}' requires a definition object`);
+  const owner = _sdRegistryOwner(options);
+  const categoryInput = options.category;
+  if (categoryInput && typeof categoryInput === "object") registerNodeCategory(categoryInput, { ...options, owner });
+  const categoryId = String(definition.cat ?? (typeof categoryInput === "string" ? categoryInput : categoryInput?.id) ?? "System").trim();
+  if (!CATS.some(category => category.id === categoryId)) {
+    registerNodeCategory({ id: categoryId, label: categoryId, color: definition.color ?? "#64748b" }, { ...options, owner });
+  }
+  NODE_DEFS[id] = { ...definition, cat: categoryId, extensionOwner: owner };
+  const owned = _SD_EXTENSION_NODE_TYPES.get(owner) ?? new Set();
+  owned.add(id); _SD_EXTENSION_NODE_TYPES.set(owner, owned);
+  _sdNotifyNodeRegistryChanged({ type: "node", action: "register", id, owner, definition: NODE_DEFS[id] });
+  return NODE_DEFS[id];
+}
+
+export function registerNodeDefinitions(definitions, options = {}) {
+  if (!definitions || typeof definitions !== "object") throw new Error("SD node definitions must be an object");
+  const registered = {};
+  for (const [type, definition] of Object.entries(definitions)) {
+    registered[type] = registerNodeDefinition(type, definition, options);
+  }
+  return registered;
+}
+
+export function unregisterNodeExtension(ownerValue) {
+  const owner = String(ownerValue ?? "").trim();
+  if (!owner) return { nodes: [], categories: [] };
+  const removedNodes = [...(_SD_EXTENSION_NODE_TYPES.get(owner) ?? [])];
+  for (const type of removedNodes) {
+    if (NODE_DEFS[type]?.extensionOwner === owner) delete NODE_DEFS[type];
+  }
+  _SD_EXTENSION_NODE_TYPES.delete(owner);
+  const removedCategories = [];
+  for (const id of _SD_EXTENSION_CATEGORY_IDS.get(owner) ?? []) {
+    if (_SD_BUILTIN_NODE_CATEGORIES.has(id)) continue;
+    if (Object.values(NODE_DEFS).some(definition => definition?.cat === id)) continue;
+    const index = CATS.findIndex(category => category.id === id && category.owner === owner);
+    if (index >= 0) { CATS.splice(index, 1); removedCategories.push(id); }
+  }
+  _SD_EXTENSION_CATEGORY_IDS.delete(owner);
+  _sdNotifyNodeRegistryChanged({ type: "extension", action: "unregister", owner, nodes: removedNodes, categories: removedCategories });
+  return { nodes: removedNodes, categories: removedCategories };
+}
+
+export function getNodeRegistrySnapshot() {
+  return {
+    categories: CATS.map(category => ({ ...category, labels: category.labels ? { ...category.labels } : undefined })),
+    nodeTypes: Object.keys(NODE_DEFS),
+    extensions: Object.fromEntries([..._SD_EXTENSION_NODE_TYPES].map(([owner, types]) => [owner, [...types]]))
+  };
+}
+
+export const SD_NODE_REGISTRY = Object.freeze({
+  registerCategory: registerNodeCategory,
+  registerNode: registerNodeDefinition,
+  registerNodes: registerNodeDefinitions,
+  unregisterExtension: unregisterNodeExtension,
+  snapshot: getNodeRegistrySnapshot,
+  categories: NODE_CATEGORIES,
+  nodes: NODE_DEFS
+});
+
+function _nodeCategoryLabel(categoryOrId) {
+  const category = typeof categoryOrId === "object"
+    ? categoryOrId
+    : CATS.find(item => item.id === categoryOrId);
+  if (!category) return _NL(String(categoryOrId ?? "Other"));
+  const configured = _ngLangSetting();
+  const language = configured === "auto"
+    ? String(globalThis.game?.i18n?.lang ?? "en")
+    : configured;
+  const localized = category.labels?.[language]
+    ?? category.labels?.[language.split("-")[0]]
+    ?? category.label;
+  return localized ? _cleanGraphText(localized) : _NL(category.id);
+}
+
 export const SD_NODE_KIND_COLOURS = {
   pure:       "#3aa87a",
   imperative: "#e08a2a",
@@ -9384,7 +9513,7 @@ export class FormulaGraph {
       rows.push({
         type,
         title: _NL(def.title ?? type),
-        category: _NL(def.cat ?? ""),
+        category: _nodeCategoryLabel(def.cat ?? ""),
         description: _NL(def.desc ?? "").slice(0, 260),
         aliases,
         inputs: pinBrief(this._aiPinsForDef(def, null, "input", true)),
@@ -12147,7 +12276,7 @@ export class FormulaGraph {
         .sort((a,b) => String(_NL(a[1].title)).localeCompare(String(_NL(b[1].title))));
       if (!nodes.length) return "";
       return `<div style="display:flex;align-items:center;gap:6px;padding:6px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:4px">
-          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(_NL(cat.id))}</span>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(_nodeCategoryLabel(cat))}</span>
           <span style="color:var(--sd-text-3);font-weight:600">${nodes.length}</span>
         </div>
         ${nodes.map(([type,d])=>`<div class="gpal" data-type="${type}" draggable="true" title="${esc(_NL(d.desc??d.title))}"
@@ -12172,7 +12301,7 @@ export class FormulaGraph {
     fns.sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
     if (q && !fns.length) return "";
 
-    const head = `<div style="padding:5px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:4px">${esc(_NL(cat.id))}</div>`;
+    const head = `<div style="padding:5px 10px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:4px">${esc(_nodeCategoryLabel(cat))}</div>`;
     const btns = isGM ? `<div style="display:flex;gap:4px;padding:3px 6px 4px">
       <button id="gpalFnCreate" style="flex:1;background:#2a4a6a;border:1px solid #3a5a7a;border-radius:6px;color:#cfe8ff;cursor:pointer;font-size:10px;padding:4px 6px" title="Create a new function"><i class="fas fa-plus" style="margin-right:3px"></i>New</button>
       <button id="gpalFnManage" style="flex:1;background:#3a2a5a;border:1px solid #4a3a6a;border-radius:6px;color:#dccff8;cursor:pointer;font-size:10px;padding:4px 6px" title="Manage function library"><i class="fas fa-list" style="margin-right:3px"></i>Manage</button>
@@ -12636,7 +12765,7 @@ export class FormulaGraph {
         if(!nodes.length) return;
         const h=doc.createElement("div");
         h.style.cssText=`padding:3px 10px;font-size:9px;font-weight:700;text-transform:uppercase;color:${cat.color};border-top:1px solid var(--sd-border);margin-top:3px`;
-        h.textContent=cat.id; list.appendChild(h);
+        h.textContent=_nodeCategoryLabel(cat); list.appendChild(h);
         nodes.forEach(([type,def])=>{
           const item=doc.createElement("div");
           item.style.cssText="padding:5px 16px;font-size:11px;color:#c0c0d8;cursor:pointer;display:flex;align-items:center;gap:8px";
@@ -14263,7 +14392,7 @@ export class FormulaGraph {
       if (!compat) continue;
       candidates.push({ type, def, pin: compat });
     }
-    candidates.sort((a, b) => (_NL(a.def.cat ?? "")).localeCompare(_NL(b.def.cat ?? "")) || _NL(a.def.title ?? a.type).localeCompare(_NL(b.def.title ?? b.type)));
+    candidates.sort((a, b) => (_nodeCategoryLabel(a.def.cat ?? "")).localeCompare(_nodeCategoryLabel(b.def.cat ?? "")) || _NL(a.def.title ?? a.type).localeCompare(_NL(b.def.title ?? b.type)));
 
     const doc = this._uiDocument();
     doc.getElementById("sd-quick-insert-menu")?.remove();
@@ -14291,7 +14420,7 @@ export class FormulaGraph {
         if (c.def.cat !== lastCat) {
           lastCat = c.def.cat;
           const sec = doc.createElement("div");
-          sec.textContent = _NL(lastCat ?? "Other");
+          sec.textContent = _nodeCategoryLabel(lastCat ?? "Other");
           sec.style.cssText = "padding:4px 12px 2px;font-size:10px;color:var(--sd-accent);text-transform:uppercase;letter-spacing:.5px";
           menu.appendChild(sec);
         }

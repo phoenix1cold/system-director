@@ -394,7 +394,11 @@ Hooks.once("init", () => {
 
   (async () => {
     try {
-      const { _loadNodeGraphLangs } = await import("./module/builder/formula-graph.mjs");
+      const { _loadNodeGraphLangs, SD_NODE_REGISTRY } = await import("./module/builder/formula-graph.mjs");
+      CONFIG.SD.nodeRegistry = SD_NODE_REGISTRY;
+      globalThis.SD ??= {};
+      globalThis.SD.nodeRegistry = SD_NODE_REGISTRY;
+      Hooks.callAll("sdNodeRegistryReady", SD_NODE_REGISTRY);
       await _loadNodeGraphLangs();
     } catch (e) { console.warn("SD | failed to preload node-graph lang dicts:", e); }
   })();
