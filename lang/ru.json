@@ -669,6 +669,17 @@
         "AlreadyGranted": "Награда уже выдана всем подходящим персонажам.",
         "GrantAllConfirm": "Выдать эту награду всем подходящим персонажам? Персонажи, уже получившие её, будут пропущены."
       }
+    },
+    "Market": {
+      "SystemsTab": "Системы",
+      "ModulesTab": "Модули SD",
+      "ModuleCount": "модулей",
+      "NoModules": "Модули для SD ещё не опубликованы.",
+      "ManifestUrl": "Ссылка манифеста Foundry",
+      "CopyManifest": "Скопировать ссылку манифеста",
+      "InstallInFoundry": "Скопировать ссылку установки",
+      "DownloadModule": "Скачать ZIP",
+      "ManifestCopied": "Ссылка манифеста скопирована. Откройте Foundry Setup → Add-on Modules → Install Module и вставьте её."
     }
   },
   "SD.Progression.Title": "Прогрессия",

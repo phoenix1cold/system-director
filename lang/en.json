@@ -669,6 +669,17 @@
         "AlreadyGranted": "Reward was already granted to all eligible characters.",
         "GrantAllConfirm": "Grant this reward to every eligible character? Already granted characters will be skipped."
       }
+    },
+    "Market": {
+      "SystemsTab": "Systems",
+      "ModulesTab": "SD Modules",
+      "ModuleCount": "modules",
+      "NoModules": "No SD modules have been published yet.",
+      "ManifestUrl": "Foundry manifest URL",
+      "CopyManifest": "Copy manifest URL",
+      "InstallInFoundry": "Copy install URL",
+      "DownloadModule": "Download ZIP",
+      "ManifestCopied": "Manifest URL copied. Open Foundry Setup → Add-on Modules → Install Module and paste it."
     }
   },
   "SD.Progression.Title": "Progression",
