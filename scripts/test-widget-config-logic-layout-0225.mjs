@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const popup=fs.readFileSync(new URL("../module/builder/widget-config-popup.mjs",import.meta.url),"utf8");
+const css=fs.readFileSync(new URL("../styles/system.css",import.meta.url),"utf8");
+assert.match(popup,/data-wcfg-row=/);
+assert.match(popup,/class="wcfg-graph-btn"/);
+assert.match(css,/wcfg-input-row\[data-wcfg-row="formula"\]\{[^}]*grid-template-columns:minmax\(0,1fr\) max-content 28px!important/);
+assert.match(css,/wcfg-input-row\[data-wcfg-row="formula"\]>\.wcfg-graph-btn\{[^}]*grid-column:2!important/);
+assert.match(css,/wcfg-input-row\[data-wcfg-row="formula"\]>\.wcfg-clear-btn\{[^}]*grid-column:3!important/);
+console.log("PASS: Logic formula, Graph and Clear controls stay in one stable row.");

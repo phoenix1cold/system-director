@@ -8,6 +8,7 @@ import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 import { persistWidgetValue } from "../helpers/widget-fields.mjs";
+import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate, getWidgetPathRows, releaseWidgetDataPath } from "../builder/widget-paths.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -1523,6 +1524,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       : new Set();
     const userRows = Object.entries(stored).filter(([k])=>!lockedKeys.has(k) && !_structuredKeys.has(k));
     const hfEmpty  = locked.length === 0 && userRows.length === 0;
+    const widgetPaths = getWidgetPathRows(this.document);
 
     const renderLockedRow = ({key,placeholder}) => {
       const v = stored[key] ?? "";
@@ -1603,6 +1605,18 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     ${locked.map(renderLockedRow).join("")}
     ${userRows.map(renderUserRow).join("")}
   </div>`}
+</div>
+<div class="sys-section" style="margin-top:12px">
+  <div class="sys-section-header"><i class="fas fa-route"></i> Widget Data Paths</div>
+  <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.6">Every created widget reserves its own path. Removed widgets keep the reservation until you delete it here; then the next matching widget can reuse that number.</p>
+  ${widgetPaths.length?`<div style="display:flex;flex-direction:column;gap:4px">
+    ${widgetPaths.map(entry=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--sd-bg)">
+      <code style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sd-accent);font-size:10px" title="${e(entry.path)}">${e(entry.path)}</code>
+      <span style="font-size:9px;color:${entry.inUse?"var(--sd-stamina)":"var(--sd-text-3)"};white-space:nowrap">${entry.inUse?"in use":"unused"}</span>
+      <button type="button" data-sys-action="copyWidgetPath" data-path="${e(entry.path)}" title="Copy path" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer"><i class="fas fa-copy"></i></button>
+      ${ed?`<button type="button" data-sys-action="removeWidgetPath" data-path="${e(entry.path)}" ${entry.inUse?"disabled":""} title="${entry.inUse?"Remove the widget before deleting this path":"Delete reservation and stored value"}" style="background:none;border:none;color:${entry.inUse?"var(--sd-text-3)":"var(--sd-hp)"};cursor:${entry.inUse?"not-allowed":"pointer"};opacity:${entry.inUse?".35":"1"}"><i class="fas fa-trash"></i></button>`:""}
+    </div>`).join("")}
+  </div>`:`<div style="color:var(--sd-text-3);font-size:11px;padding:8px 0;font-style:italic">No widget data paths yet.</div>`}
 </div>
 <div class="sys-section" style="margin-top:12px">
   <div class="sys-section-header"><i class="fas fa-tag"></i> Declared Attributes
@@ -2730,6 +2744,20 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         }
         await this.document.update({[`system.hiddenFields.-=${btn.dataset.key}`]:null}); break;
       }
+      case "copyWidgetPath": {
+        const path = btn.dataset.path;
+        try { await navigator.clipboard.writeText(path); ui.notifications.info(`Copied: ${path}`); } catch { ui.notifications.warn("Could not copy to clipboard"); }
+        break;
+      }
+      case "removeWidgetPath": {
+        const path = btn.dataset.path;
+        if (btn.disabled) { ui.notifications.warn("This path is still used by a widget."); break; }
+        const ok = await foundry.applications.api.DialogV2.confirm({window:{title:"Delete Widget Data Path"},content:`<p>Delete <code>${this._e(path)}</code> and its stored value? The next matching widget can reuse this path.</p>`}).catch(()=>false);
+        if (!ok) break;
+        const result = await releaseWidgetDataPath(this.document, path);
+        if (!result.ok) ui.notifications.warn(result.reason === "in-use" ? "This path is still used by a widget." : "Could not delete widget path.");
+        break;
+      }
       case "addDeclaredAttr":  { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); attrs.push({id:foundry.utils.randomID(8),name:`attr${attrs.length+1}`,path:""}); await this.document.update({"system.declaredAttrs":attrs}); break; }
       case "removeDeclaredAttr":{ const attrs=(this.document.system.declaredAttrs??[]).filter(a=>a.id!==btn.dataset.attrId); await this.document.update({"system.declaredAttrs":attrs}); break; }
       case "addSlot":          { const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d.push({id:`slot${d.length+1}`,label:`Slot ${d.length+1}`,allowedTypes:[],allowedCategories:[],attrFilters:[],maxCount:1,displayMode:"compact",removable:true,consumeOnRemove:false,placeholderIcon:"",accentColor:"",changes:[]}); await this.document.update({"system.slotDefinitions":d}); break; }
@@ -3030,13 +3058,14 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     const widget={id:foundry.utils.randomID(8),span:1,...(defaults[widgetType]??{label:widgetType}),type:widgetType};
     if (widgetType === "number") _applyNumberWidgetMode(widget, numberMode);
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(!tab) return;
+    assignUniqueWidgetDataPaths(widget, this.document, { tabs });
     if (rowId) {
       const row=tab.rows?.find(r=>r.id===rowId); if(!row) return;
       row.widgets??=[];
       if (parentVsId) { const vs=this._findVs(row.widgets, parentVsId); if (vs){ vs.widgets??=[]; vs.widgets.push(widget); } }
       else row.widgets.push(widget);
     } else { tab.rows??=[]; tab.rows.push({id:foundry.utils.randomID(8),cols:3,widgets:[widget]}); }
-    await this.document.update({"system.customTabs":tabs});
+    await this.document.update({"system.customTabs":tabs, ...buildWidgetPathRegistryUpdate(this.document, tabs)});
   }
   async _cycleSpan(tab,row,w){
     const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
@@ -3078,9 +3107,10 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
 
     const clone = foundry.utils.deepClone(container[idx]);
     this._refreshWidgetIdsDeep(clone);
+    assignUniqueWidgetDataPaths(clone, this.document, { tabs });
     container.splice(idx + 1, 0, clone);
 
-    await this.document.update({ "system.customTabs": tabs });
+    await this.document.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(this.document, tabs) });
   }
 
   async _deleteWidget(tab,row,w){

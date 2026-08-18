@@ -2,71 +2,98 @@
 
 # System Director
 
-## 1.2.3 — Languages and Effect Applier
-
 <p align="center">
   <a href="https://discord.gg/Qfx5y8cPCw"><img alt="Discord" src="https://img.shields.io/badge/Discord-Community-5865F2?style=for-the-badge&logo=discord&logoColor=white"></a>
+  <a href="https://sdmarket.flamegogang.com/"><img alt="System Director Market" src="https://img.shields.io/badge/System%20Director-Market-36a269?style=for-the-badge"></a>
+  <a href="https://sdwiki.flamegogang.com/"><img alt="System Director Wiki" src="https://img.shields.io/badge/System%20Director-Wiki-3b82f6?style=for-the-badge"></a>
   <a href="https://www.donationalerts.com/r/pronikxside"><img alt="Donate" src="https://img.shields.io/badge/Donate-DonationAlerts-FF5C5C?style=for-the-badge"></a>
 </p>
-<p align="center">
-  <img alt="Release" src="https://img.shields.io/badge/status-release-36a269?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.2.3-informational?style=flat-square">
-  <img alt="Foundry VTT" src="https://img.shields.io/badge/Foundry%20VTT-v13%20%7C%20v14-fe6a1f?style=flat-square">
-  <img alt="License" src="https://img.shields.io/badge/license-source--available%20%2F%20non--commercial-blue?style=flat-square">
-</p>
 
-System Director is a visual, system-agnostic toolkit for building tabletop rules in Foundry VTT. Create Actor and Item sheets, bind widgets to document paths, and automate rules with a typed node graph.
+System Director is a Foundry VTT game system for creating and running original tabletop role-playing games. It brings character sheets, items, rules, combat, progression, quests, dialogue and campaign content together in one flexible environment.
 
-## Install
-
-1. Foundry Setup → **Game Systems** → **Install System**.
-2. Paste:
-   ```text
-   https://github.com/phoenix1cold/system-director/releases/latest/download/system.json
-   ```
-3. Click **Install**, then create a world using **System Director**.
-
-Manual installation: extract the release `system.zip` into `<FoundryUserData>/Data/systems/sd/`. The folder must contain `system.json` at its root.
+The system is designed for projects of any genre and scale, from small home campaigns to complete standalone game systems.
 
 ## Main features
 
-- **Sheet Builder** — tabs, rows, cells, reusable templates and more than thirty widget types.
-- **Widget Builder** — grid positioning, resizing, images, layers, nested widgets and safely scoped CSS.
-- **Composable node library** — unified actor selection and item actions, explicit type-conversion nodes, machine-readable legacy replacement chains, and hidden duplicate nodes retained for saved-graph compatibility.
-- **Composable rolls** — Roll → Analyze Roll → Compare Roll → Present Roll; formula and dice-pool modes.
-- **Combat automation** — saves, damage, healing, targets, chat actions, AoE and auras.
-- **Equipment** — inventory, slots, auto-equip and Active Effects that follow equipped state.
-- **Quests** — quest logs, objectives, dependencies, visibility, rewards and quest events.
-- **Progression** — class levels, choices, field changes, granted items/effects and skill trees.
-- **Persistent typed databases** — one shared schema with per-Actor, per-Item and world values, available from every graph.
-- **Macros** — copy Dice and Skill widgets to Foundry Script Macros or build reusable graph macros.
-- **Foundry v14 integration** — ApplicationV2, native Rich Text and Region-based area templates. Measured Templates are retained only as a v13 compatibility path.
+- Custom Actor and Item sheets.
+- Visual creation of rules and game logic.
+- Rolls, combat, damage, healing and effects.
+- Equipment, inventory and character progression.
+- Quests, objectives, rewards and dialogue.
+- Reusable templates and shared game content.
+- Custom languages and translations for game content.
+- Optional modules for additional features.
+- Built-in access to community systems and content through the System Director Market.
 
-## Documentation
+## System Director Market
 
-The GitHub Pages wiki is task-oriented and includes click-by-click instructions:
+The [System Director Market](https://sdmarket.flamegogang.com/) is the central catalog for System Director content.
 
-- [Getting started](https://phoenix1cold.github.io/system-director/getting-started.html)
-- [Sheets and widgets](https://phoenix1cold.github.io/system-director/sheets.html)
-- [Node Graph guide](https://phoenix1cold.github.io/system-director/node-graph.html)
-- [Quest system](https://phoenix1cold.github.io/system-director/quests.html)
-- [Progression](https://phoenix1cold.github.io/system-director/progression.html)
-- [Equipment](https://phoenix1cold.github.io/system-director/equipment.html)
-- [AoE, Aura and Effects](https://phoenix1cold.github.io/system-director/areas-effects.html)
-- [Macros](https://phoenix1cold.github.io/system-director/macros.html)
-- [Node recipes](https://phoenix1cold.github.io/system-director/examples.html)
-- [Widget reference](https://phoenix1cold.github.io/system-director/widgets.html)
-- [Node reference](https://phoenix1cold.github.io/system-director/nodes.html)
+The Market includes:
 
-## Updating safely
+- Complete game systems.
+- Sheet and content templates.
+- Optional modules.
+- Community publications and updates.
 
-Back up the world before replacing a system version. Existing hidden legacy nodes remain executable so previously saved graphs continue to work. Test important sheets, equipment effects and quest rewards on a world copy before updating a live campaign.
+## Modules
 
-## Support
+System Director supports optional modules that expand the available gameplay and content tools without becoming mandatory parts of the base system. Modules are installed separately and enabled only in worlds where they are needed.
+
+Available module categories include:
+
+- Trading and economy extensions.
+- Token and portrait tools.
+- AI-assisted content tools.
+- Additional community extensions published through the Market.
+
+Module availability and current releases are listed in the System Director Market.
+
+## Wiki
+
+The official documentation is available at the [System Director Wiki](https://sdwiki.flamegogang.com/).
+
+The Wiki contains guides and references for:
+
+- Getting started.
+- Sheets and widgets.
+- Node graphs and examples.
+- Actors and Items.
+- Combat and effects.
+- Equipment and progression.
+- Quests and dialogue.
+- Modules and Market content.
+
+## Installation
+
+### Foundry VTT
+
+1. Open **Foundry VTT Setup**.
+2. Select **Game Systems**.
+3. Select **Install System**.
+4. Paste the manifest URL:
+
+   ```text
+   https://github.com/phoenix1cold/system-director/releases/latest/download/system.json
+   ```
+
+5. Select **Install**.
+
+### Manual installation
+
+Extract the release archive into:
+
+```text
+<FoundryUserData>/Data/systems/sd/
+```
+
+## Community and support
 
 - Discord: https://discord.gg/Qfx5y8cPCw
+- Wiki: https://sdwiki.flamegogang.com/
 - Issues: https://github.com/phoenix1cold/system-director/issues
-- Wiki: https://phoenix1cold.github.io/system-director/
 - Donations: https://www.donationalerts.com/r/pronikxside
 
-See [LICENSE](LICENSE) for usage terms.
+## License
+
+Usage terms are available in [LICENSE](LICENSE).

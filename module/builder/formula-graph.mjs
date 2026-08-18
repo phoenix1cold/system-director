@@ -5000,7 +5000,7 @@ export const NODE_DEFS = {
   // ── v0.15 composable Roll Result pipeline ──────────────────────────────
   act_roll_v2: {
     title:"Roll", color:"#8a4400", cat:"Dice & Rolls", wideNode:true,
-    desc:"Evaluates a formula or dice pool and returns one typed Roll Result. This node does not decide success and does not post to chat; connect Analyze, Compare and Present nodes.",
+    desc:"Evaluates a formula or dice pool and returns one typed Roll Result, the numeric total, and an array containing every active die result. This node does not decide success and does not post to chat; connect Analyze, Compare and Present nodes.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"formula",label:"Formula",type:"value.string"},
@@ -5013,6 +5013,7 @@ export const NODE_DEFS = {
       {id:"exec",label:"Rolled →",type:"exec"},
       {id:"result",label:"Roll Result",type:"value.roll_result"},
       {id:"total",label:"Total",type:"value.number"},
+      {id:"dice",label:"Dice",type:"value.array"},
       {id:"successes",label:"Successes",type:"value.number"},
       {id:"botches",label:"Botches",type:"value.number"}
     ],
@@ -8212,7 +8213,7 @@ const _ROLL_META = {
   isFumble:      "{__lastIsFumble}"
 };
 const BRANCH_PIN_TOKENS = {
-  act_roll_v2: { result:"{__rollResult}", total:"{__rollTotal}", successes:"{__rollSuccesses}", botches:"{__rollBotches}" },
+  act_roll_v2: { result:"{__rollResult}", total:"{__rollTotal}", dice:"{__rollDice}", successes:"{__rollSuccesses}", botches:"{__rollBotches}" },
   act_analyze_roll: { result:"{__rollResult}", total:"{__rollTotal}", formula:"{__rollFormula}", dice:"{__rollDice}", natural:"{__rollNatural}", min:"{__rollMin}", max:"{__rollMax}", avg:"{__rollAvg}", successes:"{__rollSuccesses}", botches:"{__rollBotches}", isCrit:"{__rollIsCrit}", isFumble:"{__rollIsFumble}" },
   act_compare_roll: { result:"{__rollResult}", compared:"{__rollCompared}", target:"{__rollTarget}", margin:"{__rollMargin}", passed:"{__rollPassed}" },
   act_present_roll: { result:"{__rollResult}" },
@@ -15074,33 +15075,72 @@ export class FormulaGraph {
 
   _fnWireDetail(detail, fn, rerender) {
     const fid = fn.id;
-    const upd = async (mut) => {
-      const lib = foundry.utils.deepClone(this._getFunctionLib());
-      const f = lib.functions?.[fid];
-      if (!f) return;
-      mut(f);
-      const ok = await this._saveFunctionLib(lib);
-      if (ok) { rerender(); this._refreshPalette(); this._renderAll?.(); }
+    let updateQueue = Promise.resolve();
+    const upd = (mut, { rerenderDetail = true, refreshPalette = true, refreshGraph = true } = {}) => {
+      const run = async () => {
+        const lib = foundry.utils.deepClone(this._getFunctionLib());
+        const f = lib.functions?.[fid];
+        if (!f) return false;
+        mut(f);
+        const ok = await this._saveFunctionLib(lib);
+        if (ok) {
+          if (rerenderDetail) rerender();
+          if (refreshPalette) this._refreshPalette();
+          if (refreshGraph) this._renderAll?.();
+        }
+        return ok;
+      };
+      updateQueue = updateQueue.then(run, run);
+      return updateQueue;
     };
 
     const nameEl  = detail.querySelector("#fmName");
     const colorEl = detail.querySelector("#fmColor");
     const descEl  = detail.querySelector("#fmDesc");
 
-    let timer = null;
-    const debouncedSave = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(async () => {
-        await upd(f => {
-          f.name        = String(nameEl.value || "").trim();
-          f.color       = String(colorEl.value || "#5a3a8a");
-          f.description = String(descEl.value || "");
-        });
-      }, 300);
+    const applyDraft = f => {
+      f.name        = String(nameEl?.value || "").trim();
+      f.color       = String(colorEl?.value || "#5a3a8a");
+      f.description = String(descEl?.value || "");
+      detail.querySelectorAll(".fmPinRow").forEach(row => {
+        const side = row.dataset.side;
+        const idx = Number.parseInt(row.dataset.idx, 10);
+        const arr = side === "inputs" ? f.inputs : f.outputs;
+        if (!arr?.[idx]) return;
+        const nextId = String(row.querySelector("[data-fnPinId]")?.value || "").trim();
+        arr[idx].id = nextId || arr[idx].id;
+        arr[idx].label = String(row.querySelector("[data-fnPinLabel]")?.value || "");
+        arr[idx].type = String(row.querySelector("[data-fnPinType]")?.value || "value.any");
+      });
     };
-    nameEl.addEventListener("input", debouncedSave);
-    colorEl.addEventListener("input", debouncedSave);
-    descEl.addEventListener("input", debouncedSave);
+
+    let draftTimer = null;
+    const saveDraft = ({ refresh = false } = {}) => upd(applyDraft, {
+      rerenderDetail: false,
+      refreshPalette: refresh,
+      refreshGraph: refresh
+    });
+    const scheduleDraftSave = () => {
+      if (draftTimer) clearTimeout(draftTimer);
+      draftTimer = setTimeout(() => {
+        draftTimer = null;
+        void saveDraft();
+      }, 350);
+    };
+    const flushDraft = () => {
+      if (draftTimer) clearTimeout(draftTimer);
+      draftTimer = null;
+      return saveDraft({ refresh: true });
+    };
+    const structuralUpdate = async mut => {
+      await flushDraft();
+      return upd(mut);
+    };
+
+    for (const el of [nameEl, colorEl, descEl]) {
+      el?.addEventListener("input", scheduleDraftSave);
+      el?.addEventListener("change", () => { void flushDraft(); });
+    }
 
     detail.querySelector("#fmDel")?.addEventListener("click", () => this._fnDelete(fid).then(rerender));
     detail.querySelector("#fmEdit")?.addEventListener("click", () => {
@@ -15112,7 +15152,7 @@ export class FormulaGraph {
     detail.querySelectorAll("[data-fn-add-pin]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const side = btn.dataset.fnAddPin;
-        await upd(f => {
+        await structuralUpdate(f => {
           const arr = side === "inputs" ? (f.inputs ??= []) : (f.outputs ??= []);
           const baseN = arr.length + 1;
           let n = baseN;
@@ -15129,24 +15169,14 @@ export class FormulaGraph {
       const idEl    = row.querySelector("[data-fnPinId]");
       const lblEl   = row.querySelector("[data-fnPinLabel]");
       const typeEl  = row.querySelector("[data-fnPinType]");
-      const debounced = () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(async () => {
-          await upd(f => {
-            const arr = side === "inputs" ? f.inputs : f.outputs;
-            if (!arr?.[idx]) return;
-            arr[idx].id    = String(idEl.value || "").trim() || arr[idx].id;
-            arr[idx].label = String(lblEl.value || "");
-            arr[idx].type  = String(typeEl.value || "value.any");
-          });
-        }, 300);
-      };
-      idEl?.addEventListener("input", debounced);
-      lblEl?.addEventListener("input", debounced);
-      typeEl?.addEventListener("change", debounced);
+      idEl?.addEventListener("input", scheduleDraftSave);
+      lblEl?.addEventListener("input", scheduleDraftSave);
+      idEl?.addEventListener("change", () => { void flushDraft(); });
+      lblEl?.addEventListener("change", () => { void flushDraft(); });
+      typeEl?.addEventListener("change", () => { void flushDraft(); });
       row.querySelector("[data-fnPinUp]")?.addEventListener("click", async () => {
         if (idx <= 0) return;
-        await upd(f => {
+        await structuralUpdate(f => {
           const arr = side === "inputs" ? f.inputs : f.outputs;
           if (!arr || idx <= 0 || idx >= arr.length) return;
           [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
@@ -15159,7 +15189,7 @@ export class FormulaGraph {
           rejectClose: false
         }).catch(() => false);
         if (!okDel) return;
-        await upd(f => {
+        await structuralUpdate(f => {
           const arr = side === "inputs" ? f.inputs : f.outputs;
           if (!arr?.[idx]) return;
           arr.splice(idx, 1);

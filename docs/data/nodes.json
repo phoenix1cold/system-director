@@ -16162,7 +16162,7 @@
     "color": "#8a4400",
     "cat": "Dice & Rolls",
     "wideNode": true,
-    "desc": "Evaluates a formula or dice pool and returns one typed Roll Result. This node does not decide success and does not post to chat; connect Analyze, Compare and Present nodes.",
+    "desc": "Evaluates a formula or dice pool and returns one typed Roll Result, the numeric total, and an array containing every active die result. This node does not decide success and does not post to chat; connect Analyze, Compare and Present nodes.",
     "inputs": [
       {
         "id": "exec",
@@ -16210,6 +16210,11 @@
         "id": "total",
         "label": "Total",
         "type": "value.number"
+      },
+      {
+        "id": "dice",
+        "label": "Dice",
+        "type": "value.array"
       },
       {
         "id": "successes",

@@ -1,4 +1,5 @@
 import { createWidget } from "./widget-registry.mjs";
+import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
 
 export class GridManager {
 
@@ -103,8 +104,9 @@ export class GridManager {
     const row = tab.rows.find(r => r.id === rowId);
     if (!row) return;
     const widget  = createWidget(widgetType, overrides);
+    assignUniqueWidgetDataPaths(widget, doc, { tabs });
     row.widgets.push(widget);
-    await doc.update({ "system.customTabs": tabs });
+    await doc.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(doc, tabs) });
     return widget;
   }
 
@@ -155,8 +157,9 @@ export class GridManager {
     if (idx < 0) return null;
     const clone = foundry.utils.deepClone(row.widgets[idx]);
     this._refreshWidgetIds(clone);
+    assignUniqueWidgetDataPaths(clone, doc, { tabs });
     row.widgets.splice(idx + 1, 0, clone);
-    await doc.update({ "system.customTabs": tabs });
+    await doc.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(doc, tabs) });
     return clone;
   }
 
@@ -169,12 +172,13 @@ export class GridManager {
     if (!row) return null;
     const clone = foundry.utils.deepClone(widgetData);
     this._refreshWidgetIds(clone);
+    assignUniqueWidgetDataPaths(clone, doc, { tabs });
     if (atIndex == null || atIndex < 0 || atIndex > row.widgets.length) {
       row.widgets.push(clone);
     } else {
       row.widgets.splice(atIndex, 0, clone);
     }
-    await doc.update({ "system.customTabs": tabs });
+    await doc.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(doc, tabs) });
     return clone;
   }
 

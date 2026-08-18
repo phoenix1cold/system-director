@@ -1,6 +1,7 @@
 import { FormulaEngine }   from "../helpers/formula-engine.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
 import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES, createWidget } from "./widget-registry.mjs";
+import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
 import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 import { getConfiguredDataPathEntries, getSystemPathEntries, isConfiguredSettingsPath } from "../helpers/system-config.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
@@ -734,12 +735,12 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
           ${noteColor ? `<span style="background:${noteColor};color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">${type}</span>` : ""}
         </label>
         ${hint ? `<div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;line-height:1.4">${esc(hint)}</div>` : ""}
-        <div class="wcfg-input-row" style="display:flex;gap:5px;align-items:center;min-width:0">
+        <div class="wcfg-input-row" data-wcfg-row="${type === "formula" ? "formula" : "field"}" style="display:flex;gap:5px;align-items:center;min-width:0">
           <input type="${type==="number"?"number":"text"}" data-field="${esc(key)}" data-ftype="${type}"
             value="${esc(cur)}"
             style="${IS}${isPF?MONO:""};flex:1"
             placeholder="${type==="path"?"system.resources.hp.value":type==="formula"?"1d20 + {system.attributes.attr1.mod}":type==="array"?"ammo, magazine":""}">
-          ${type === "formula" ? `<button type="button" data-open-graph="${esc(key)}" style="flex-shrink:0;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:4px 8px;white-space:nowrap;line-height:1;transition:background .15s" title="Open Blueprint Graph">🔷 Graph</button>` : ""}
+          ${type === "formula" ? `<button type="button" class="wcfg-graph-btn" data-open-graph="${esc(key)}" style="flex-shrink:0;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:4px 8px;white-space:nowrap;line-height:1;transition:background .15s" title="Open Blueprint Graph">🔷 Graph</button>` : ""}
           ${isPF ? `<button type="button" data-clear-field="${esc(key)}" class="wcfg-clear-btn" title="Clear">✕</button>` : ""}
         </div>
       </div>`;
@@ -1496,7 +1497,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         row2.querySelector(".wb-kind")?.addEventListener("change", ev2 => {
           wbEls[idx].kind = ev2.target.value;
           if (ev2.target.value === "widget" && (!wbEls[idx].widget || !WIDGET_TYPES[wbEls[idx].widget.type])) {
-            wbEls[idx].widget = createWidget("text", { label: wbEls[idx].label || "Text" });
+            wbEls[idx].widget = assignUniqueWidgetDataPaths(createWidget("text", { label: wbEls[idx].label || "Text" }), doc, { additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
             if (!Number(wbEls[idx].w)) wbEls[idx].w = 160;
             if (!Number(wbEls[idx].h)) wbEls[idx].h = 72;
           }
@@ -1504,11 +1505,11 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         });
         row2.querySelector(".wb-widget-type")?.addEventListener("change", ev2 => {
           const oldLabel = wbEls[idx].widget?.label || wbEls[idx].label || "";
-          wbEls[idx].widget = createWidget(ev2.target.value, oldLabel ? { label: oldLabel } : {});
+          wbEls[idx].widget = assignUniqueWidgetDataPaths(createWidget(ev2.target.value, oldLabel ? { label: oldLabel } : {}), doc, { additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
           wbRender();
         });
         row2.querySelector(".wb-widget-config")?.addEventListener("click", async () => {
-          if (!wbEls[idx].widget) wbEls[idx].widget = createWidget(widgetType || "text");
+          if (!wbEls[idx].widget) wbEls[idx].widget = assignUniqueWidgetDataPaths(createWidget(widgetType || "text"), doc, { additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
           await openWidgetConfigPopup(wbEls[idx].widget, tab, row, doc, {
             embedded: true,
             onSave: updated => { wbEls[idx].widget = updated; wbSync(); wbRender(); }
@@ -1556,7 +1557,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const surface = wbCanvasEl.firstElementChild ?? wbCanvasEl;
       const rect = surface.getBoundingClientRect();
       const def = WIDGET_TYPES[type];
-      const nested = createWidget(type);
+      const nested = assignUniqueWidgetDataPaths(createWidget(type), doc, { additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
       const idx = wbEls.length;
       wbEls.push({
         id: foundry.utils.randomID(6),
@@ -1762,7 +1763,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         if (defIdx !== -1) {
           if (changes.maxCount !== undefined) defs[defIdx].maxCount = Math.max(1, parseInt(changes.maxCount) || 1);
           if (changes.label    !== undefined) defs[defIdx].label    = changes.label || defs[defIdx].label;
-          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates });
+          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates, ...buildWidgetPathRegistryUpdate(doc, tabs) });
         } else {
           defs.push({
             id:                sid,
@@ -1778,11 +1779,11 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
             accentColor:       "",
             changes:           []
           });
-          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates });
+          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates, ...buildWidgetPathRegistryUpdate(doc, tabs) });
           ui.notifications?.info?.(`Slot definition "${sid}" created for this widget.`);
         }
       } else {
-        await doc.update({ "system.customTabs": tabs, ..._hfUpdates });
+        await doc.update({ "system.customTabs": tabs, ..._hfUpdates, ...buildWidgetPathRegistryUpdate(doc, tabs) });
       }
 
       ui.notifications?.info?.(`Widget "${widget.label || widget.type}" saved.`);

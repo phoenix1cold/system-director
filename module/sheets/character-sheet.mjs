@@ -9,6 +9,7 @@ import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { persistWidgetValue } from "../helpers/widget-fields.mjs";
+import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate, getWidgetPathRows, releaseWidgetDataPath } from "../builder/widget-paths.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -509,9 +510,20 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const ed = this.isEditable;
     const e = value => String(value ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
     const fields = Object.entries(this.document.system?.hiddenFields ?? {});
+    const widgetPaths = getWidgetPathRows(this.document);
     let html = `<div style="font-size:11px;color:var(--sd-text-3);margin-bottom:8px;line-height:1.6">GM-only key/value pairs attached to this actor. Module-owned values remain ordinary hidden fields when their module is disabled. Path: <code style="background:var(--sd-bg);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--sd-accent)">system.hiddenFields.name</code>${ed ? `<button type="button" data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}</div>`;
     if (!fields.length) html += `<div style="color:var(--sd-text-3);font-size:11px;font-style:italic;text-align:center;padding:20px 0">No hidden fields yet.</div>`;
     else for (const [key,value] of fields) html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--sd-bg)"><input type="text" data-hf-key="${e(key)}" data-hf-rename value="${e(key)}" style="width:150px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-accent);font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>${typeof value === "boolean" ? `<input type="checkbox" data-hf-key="${e(key)}" data-hf-val ${value?"checked":""} style="inline-size:15px;block-size:15px;min-inline-size:15px;min-block-size:15px;max-inline-size:15px;max-block-size:15px;width:15px;height:15px;margin:0" ${!ed?"disabled":""}>` : `<input type="text" data-hf-key="${e(key)}" data-hf-val value="${e(String(value))}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-w-fg,var(--sd-text));font-size:11px;padding:3px 6px" ${!ed?"disabled":""}>`}<button type="button" data-hf-action="copy-path" data-hf-key="${e(key)}" title="Copy path" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer"><i class="fas fa-copy"></i></button>${ed?`<button type="button" data-hf-action="remove" data-hf-key="${e(key)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer">✕</button>`:""}</div>`;
+    html += `<div style="border-top:1px solid var(--sd-w-bd,var(--sd-border));margin-top:10px;padding-top:10px">
+      <div style="display:flex;align-items:center;gap:6px;color:var(--sd-w-label,var(--sd-text-2));font-size:12px;font-weight:700;margin-bottom:4px"><i class="fas fa-route"></i> Widget Data Paths</div>
+      <p style="font-size:10px;color:var(--sd-text-3);line-height:1.5;margin:0 0 7px">Every created widget reserves its own path. Removed widgets keep their reservation until you delete it here; the next widget of that type can then reuse the free number.</p>
+      ${widgetPaths.length ? widgetPaths.map(entry => `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--sd-bg)">
+        <code style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sd-accent);font-size:10px" title="${e(entry.path)}">${e(entry.path)}</code>
+        <span style="font-size:9px;color:${entry.inUse?"var(--sd-stamina)":"var(--sd-text-3)"};white-space:nowrap">${entry.inUse?"in use":"unused"}</span>
+        <button type="button" data-widget-path-action="copy" data-widget-path="${e(entry.path)}" title="Copy path" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer"><i class="fas fa-copy"></i></button>
+        ${ed?`<button type="button" data-widget-path-action="remove" data-widget-path="${e(entry.path)}" ${entry.inUse?"disabled":""} title="${entry.inUse?"Remove the widget before deleting this path":"Delete reservation and stored value"}" style="background:none;border:none;color:${entry.inUse?"var(--sd-text-3)":"var(--sd-hp)"};cursor:${entry.inUse?"not-allowed":"pointer"};opacity:${entry.inUse?".35":"1"}"><i class="fas fa-trash"></i></button>`:""}
+      </div>`).join("") : `<div style="color:var(--sd-text-3);font-size:11px;font-style:italic;padding:5px 0">No widget data paths yet.</div>`}
+    </div>`;
     panel.innerHTML = html;
     const replace = async next => { const current=this.document.system?.hiddenFields??{}, patch={}; for(const key of Object.keys(current))if(!(key in next))patch[`system.hiddenFields.-=${key}`]=null;for(const [key,value] of Object.entries(next))patch[`system.hiddenFields.${key}`]=value;await this.document.update(patch); };
     panel.querySelector("[data-hf-action='add']")?.addEventListener("click",async()=>{const next=foundry.utils.deepClone(this.document.system?.hiddenFields??{});let i=Object.keys(next).length+1,key=`field${i}`;while(key in next)key=`field${++i}`;next[key]="";await replace(next);});
@@ -519,6 +531,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     panel.querySelectorAll("[data-hf-action='copy-path']").forEach(btn=>btn.addEventListener("click",async()=>{const path=`system.hiddenFields.${btn.dataset.hfKey}`;try{await navigator.clipboard.writeText(path);ui.notifications.info(`Copied: ${path}`);}catch{ui.notifications.warn("Could not copy to clipboard");}}));
     panel.querySelectorAll("[data-hf-val]").forEach(input=>input.addEventListener("change",async()=>{const value=input.type==="checkbox"?input.checked:input.value;await this.document.update({[`system.hiddenFields.${input.dataset.hfKey}`]:value});}));
     panel.querySelectorAll("[data-hf-rename]").forEach(input=>input.addEventListener("change",async()=>{const oldKey=input.dataset.hfKey,newKey=input.value.trim().replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_]/g,"");if(!newKey||newKey===oldKey)return;const next=foundry.utils.deepClone(this.document.system?.hiddenFields??{});next[newKey]=next[oldKey]??"";delete next[oldKey];await replace(next);}));
+    panel.querySelectorAll("[data-widget-path-action='copy']").forEach(btn=>btn.addEventListener("click",async()=>{const path=btn.dataset.widgetPath;try{await navigator.clipboard.writeText(path);ui.notifications.info(`Copied: ${path}`);}catch{ui.notifications.warn("Could not copy to clipboard");}}));
+    panel.querySelectorAll("[data-widget-path-action='remove']").forEach(btn=>btn.addEventListener("click",async()=>{const path=btn.dataset.widgetPath;if(btn.disabled)return;const ok=await foundry.applications.api.DialogV2.confirm({window:{title:"Delete Widget Data Path"},content:`<p>Delete <code>${e(path)}</code> and its stored value? The next matching widget can reuse this path.</p>`}).catch(()=>false);if(!ok)return;const result=await releaseWidgetDataPath(this.document,path);if(!result.ok)ui.notifications.warn(result.reason==="in-use"?"This path is still used by a widget.":"Could not delete widget path.");}));
     return panel;
   }
 
@@ -2133,6 +2147,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (widgetType === "number") _applyNumberWidgetMode(widget, numberMode);
 
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    assignUniqueWidgetDataPaths(widget, this.document, { tabs });
     const tab  = tabs.find(t => t.id === tabId);
     if (!tab) return;
 
@@ -2151,7 +2166,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       tab.rows.push({ id: foundry.utils.randomID(8), cols: 3, widgets: [widget] });
     }
 
-    await this.document.update({ "system.customTabs": tabs });
+    await this.document.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(this.document, tabs) });
   }
 
   _findVs(widgets, vsId) {
@@ -2268,9 +2283,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const clone = foundry.utils.deepClone(container[idx]);
     this._refreshWidgetIdsDeep(clone);
+    assignUniqueWidgetDataPaths(clone, this.document, { tabs });
     container.splice(idx + 1, 0, clone);
 
-    await this.document.update({ "system.customTabs": tabs });
+    await this.document.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(this.document, tabs) });
   }
 
   async _insertWidgetSnapshot(snapshot, dst) {
@@ -2281,6 +2297,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const clone = foundry.utils.deepClone(snapshot);
     this._refreshWidgetIdsDeep(clone);
+    assignUniqueWidgetDataPaths(clone, this.document, { tabs });
 
     let dstContainer;
     if (dst.rowId) {
@@ -2303,7 +2320,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const insertIdx = dst.toEnd ? dstContainer.length : Math.max(0, Math.min(dstContainer.length, dst.index ?? dstContainer.length));
     dstContainer.splice(insertIdx, 0, clone);
-    await this.document.update({ "system.customTabs": tabs });
+    await this.document.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(this.document, tabs) });
   }
 
   async _configWidget(tab, row, w, parentVS = null) {
