@@ -73,6 +73,6 @@ for (const source of [characterSheet, itemSheet]) {
 assert.match(gridManager, /assignUniqueWidgetDataPaths/);
 assert.match(gridManager, /buildWidgetPathRegistryUpdate/);
 assert.match(widgetPopup, /additionalWidgets:/, "nested Widget Builder widgets must participate in allocation");
-assert.equal(manifest.version, "0.22.7");
+assert.equal(manifest.version, "0.22.8");
 
 console.log("PASS: Roll dice array and reusable numbered widget Data Paths.");

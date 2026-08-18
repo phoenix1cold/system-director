@@ -48,13 +48,37 @@ import { registerEffectDurationHooks } from "./module/helpers/effect-duration.mj
 import { installOnboarding, SDOnboarding } from "./module/helpers/onboarding.mjs";
 import { registerLocalizationSettings, currentLanguage, localizeTree } from "./module/helpers/localization.mjs";
 import { EffectApplierApp, registerEffectApplierSettings } from "./module/helpers/effect-applier.mjs";
+import { SD_NODE_REGISTRY, exportNodeCatalog, validateGraphPlan, importNodeTemplates } from "./module/builder/formula-graph.mjs";
 
 SDQuest.init();
 installSdPause();
 SlotEffectSync.install();
 registerEffectDurationHooks();
 
-globalThis.SD = {};
+const SD_AI_API = Object.freeze({
+  schemaVersion: 1,
+  exportNodeCatalog,
+  validateGraphPlan,
+  importNodeTemplates,
+  nodeRegistry: SD_NODE_REGISTRY
+});
+
+globalThis.SD = { ai: SD_AI_API, nodeRegistry: SD_NODE_REGISTRY };
+
+function exposeSystemDirectorAI() {
+  globalThis.SD ??= {};
+  globalThis.SD.ai = SD_AI_API;
+  globalThis.SD.nodeRegistry = SD_NODE_REGISTRY;
+  try {
+    game.sd ??= {};
+    game.sd.ai = SD_AI_API;
+  } catch (error) { console.warn("SD | game.sd AI API exposure failed", error); }
+  try {
+    game.system.api ??= {};
+    game.system.api.ai = SD_AI_API;
+  } catch (error) { console.warn("SD | game.system.api AI exposure failed", error); }
+  try { Hooks.callAll("sdAIReady", SD_AI_API); } catch {}
+}
 
 function registerConfig() {
   CONFIG.SD = {
@@ -469,6 +493,7 @@ Hooks.on("preCreateActor", (actor, data, _options, _userId) => {
 });
 
 Hooks.once("ready", async () => {
+  exposeSystemDirectorAI();
   if (game.user.isGM) {
     await runMigrations();
 

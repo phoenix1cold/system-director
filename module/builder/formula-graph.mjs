@@ -8413,12 +8413,191 @@ export function getNodeRegistrySnapshot() {
   };
 }
 
+function _sdSafeCatalogValue(value, depth = 0, stack = new WeakSet()) {
+  if (depth > 10 || value === undefined || typeof value === "function" || typeof value === "symbol") return undefined;
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  if (typeof value === "bigint") return String(value);
+  if (typeof value !== "object" || stack.has(value)) return undefined;
+  stack.add(value);
+  let result;
+  if (Array.isArray(value)) {
+    result = value.map(entry => _sdSafeCatalogValue(entry, depth + 1, stack)).filter(entry => entry !== undefined);
+  } else {
+    result = {};
+    for (const [key, entry] of Object.entries(value)) {
+      const safe = _sdSafeCatalogValue(entry, depth + 1, stack);
+      if (safe !== undefined) result[key] = safe;
+    }
+  }
+  stack.delete(value);
+  return result;
+}
+
+function _sdStaticPins(definition, direction) {
+  const value = definition?.[direction === "input" ? "inputs" : "outputs"];
+  return Array.isArray(value) ? value : [];
+}
+
+function _sdHasDynamicPins(definition, direction) {
+  const key = direction === "input" ? "dynamicInputs" : "dynamicOutputs";
+  return typeof definition?.[direction === "input" ? "inputs" : "outputs"] === "function"
+    || !!definition?.[key]
+    || !!definition?.dynamicPins
+    || typeof definition?.getDynamicPins === "function"
+    || typeof definition?.getPins === "function";
+}
+
+export function exportNodeCatalog(options = {}) {
+  const language = String(options.language ?? globalThis.game?.settings?.get?.("sd", "nodeGraphLanguage") ?? globalThis.game?.i18n?.lang ?? "en");
+  const categories = CATS.map(category => ({
+    ..._sdSafeCatalogValue(category),
+    label: category.labels?.[language] ?? category.labels?.[language.split("-")[0]] ?? category.label ?? category.id
+  }));
+  const nodes = Object.entries(NODE_DEFS).map(([type, definition]) => {
+    let localizedTitle = String(definition?.title ?? type);
+    let localizedDescription = String(definition?.desc ?? "");
+    try { localizedTitle = _NL(localizedTitle); localizedDescription = _NL(localizedDescription); } catch {}
+    return {
+      type,
+      title: String(definition?.title ?? type),
+      localizedTitle,
+      description: String(definition?.desc ?? ""),
+      localizedDescription,
+      category: String(definition?.cat ?? "System"),
+      color: String(definition?.color ?? "#64748b"),
+      action: !!definition?.isAction,
+      inputs: _sdSafeCatalogValue(_sdStaticPins(definition, "input")) ?? [],
+      outputs: _sdSafeCatalogValue(_sdStaticPins(definition, "output")) ?? [],
+      fields: _sdSafeCatalogValue(Array.isArray(definition?.fields) ? definition.fields : []) ?? [],
+      dynamic: {
+        inputs: _sdHasDynamicPins(definition, "input"),
+        outputs: _sdHasDynamicPins(definition, "output"),
+        descriptors: _sdSafeCatalogValue({ dynamicPins: definition?.dynamicPins, dynamicInputs: definition?.dynamicInputs, dynamicOutputs: definition?.dynamicOutputs }) ?? {}
+      },
+      extensionOwner: definition?.extensionOwner ?? null
+    };
+  }).sort((a, b) => a.category.localeCompare(b.category) || a.title.localeCompare(b.title));
+  return {
+    schema: "sd.node-catalog",
+    schemaVersion: 1,
+    system: "sd",
+    systemVersion: String(globalThis.game?.system?.version ?? "0.22.8"),
+    language,
+    generatedAt: new Date().toISOString(),
+    categories,
+    nodes,
+    extensions: Object.fromEntries([..._SD_EXTENSION_NODE_TYPES].map(([owner, types]) => [owner, [...types]]))
+  };
+}
+
+function _sdPlanTemplateList(plan) {
+  if (Array.isArray(plan)) return plan;
+  if (Array.isArray(plan?.templates)) return plan.templates;
+  if (plan?.graph && typeof plan.graph === "object") return [{ name: plan.name ?? plan.graph.name, ...plan.graph }];
+  return plan && typeof plan === "object" ? [plan] : [];
+}
+
+export function validateGraphPlan(plan, options = {}) {
+  const errors = [];
+  const warnings = [];
+  const normalized = [];
+  const templates = _sdPlanTemplateList(plan);
+  if (!templates.length) errors.push({ path: "templates", code: "empty_plan", message: "Graph plan contains no templates" });
+  templates.forEach((source, templateIndex) => {
+    const base = `templates[${templateIndex}]`;
+    const name = String(source?.name ?? `AI Template ${templateIndex + 1}`).trim() || `AI Template ${templateIndex + 1}`;
+    const rawNodes = Array.isArray(source?.nodes) ? source.nodes : [];
+    const rawEdges = Array.isArray(source?.edges) ? source.edges : [];
+    const ids = new Set();
+    const nodeById = new Map();
+    const nodes = rawNodes.map((raw, index) => {
+      const id = String(raw?.id ?? "").trim();
+      const type = String(raw?.type ?? "").trim();
+      if (!id) errors.push({ path: `${base}.nodes[${index}].id`, code: "missing_node_id", message: "Node id is required" });
+      else if (ids.has(id)) errors.push({ path: `${base}.nodes[${index}].id`, code: "duplicate_node_id", message: `Duplicate node id: ${id}` });
+      else ids.add(id);
+      const definition = NODE_DEFS[type];
+      if (!definition) errors.push({ path: `${base}.nodes[${index}].type`, code: "unknown_node_type", message: `Unknown node type: ${type || "(empty)"}` });
+      const x = Number(raw?.x ?? index * 240);
+      const y = Number(raw?.y ?? 0);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) errors.push({ path: `${base}.nodes[${index}]`, code: "invalid_position", message: "Node position must be finite numbers" });
+      const data = _sdSafeCatalogValue(raw?.data && typeof raw.data === "object" ? raw.data : {}) ?? {};
+      if (definition && Array.isArray(definition.fields)) {
+        const known = new Set(definition.fields.map(field => field?.key).filter(Boolean));
+        for (const key of Object.keys(data)) if (!known.has(key)) warnings.push({ path: `${base}.nodes[${index}].data.${key}`, code: "unknown_field", message: `Field '${key}' is not declared by ${type}` });
+      }
+      const node = { id, type, x: Number.isFinite(x) ? x : 0, y: Number.isFinite(y) ? y : 0, data };
+      if (id) nodeById.set(id, node);
+      return node;
+    });
+    const edges = rawEdges.map((raw, index) => {
+      const edgePath = `${base}.edges[${index}]`;
+      const edge = {
+        id: String(raw?.id ?? `e${templateIndex}_${index}`).trim() || `e${templateIndex}_${index}`,
+        fromNode: String(raw?.fromNode ?? raw?.from ?? "").trim(),
+        fromPin: String(raw?.fromPin ?? raw?.output ?? "").trim(),
+        toNode: String(raw?.toNode ?? raw?.to ?? "").trim(),
+        toPin: String(raw?.toPin ?? raw?.input ?? "").trim()
+      };
+      const fromNode = nodeById.get(edge.fromNode);
+      const toNode = nodeById.get(edge.toNode);
+      if (!fromNode) errors.push({ path: `${edgePath}.fromNode`, code: "missing_source_node", message: `Source node not found: ${edge.fromNode}` });
+      if (!toNode) errors.push({ path: `${edgePath}.toNode`, code: "missing_target_node", message: `Target node not found: ${edge.toNode}` });
+      const fromDef = fromNode ? NODE_DEFS[fromNode.type] : null;
+      const toDef = toNode ? NODE_DEFS[toNode.type] : null;
+      const output = _sdStaticPins(fromDef, "output").find(pin => String(pin?.id) === edge.fromPin);
+      const input = _sdStaticPins(toDef, "input").find(pin => String(pin?.id) === edge.toPin);
+      if (fromDef && !output && !_sdHasDynamicPins(fromDef, "output")) errors.push({ path: `${edgePath}.fromPin`, code: "unknown_output_pin", message: `Output pin not found: ${fromNode.type}.${edge.fromPin}` });
+      if (toDef && !input && !_sdHasDynamicPins(toDef, "input")) errors.push({ path: `${edgePath}.toPin`, code: "unknown_input_pin", message: `Input pin not found: ${toNode.type}.${edge.toPin}` });
+      if (output && input && !arePinsCompatible(output.type, input.type)) errors.push({ path: edgePath, code: "incompatible_pins", message: `Incompatible pins: ${output.type} -> ${input.type}` });
+      return edge;
+    });
+    const comments = (Array.isArray(source?.comments) ? source.comments : []).map((comment, index) => ({
+      ...(_sdSafeCatalogValue(comment) ?? {}), id: String(comment?.id ?? `c${templateIndex}_${index}`),
+      x: Number(comment?.x ?? 0) || 0, y: Number(comment?.y ?? 0) || 0
+    }));
+    if (!nodes.length) warnings.push({ path: `${base}.nodes`, code: "empty_template", message: `Template '${name}' has no nodes` });
+    normalized.push({ name, nodes, edges, comments, created: Number(source?.created) || Date.now() });
+  });
+  return {
+    schema: "sd.graph-plan-validation", schemaVersion: 1,
+    valid: errors.length === 0, errors, warnings, templates: normalized,
+    nodeCount: normalized.reduce((sum, template) => sum + template.nodes.length, 0),
+    edgeCount: normalized.reduce((sum, template) => sum + template.edges.length, 0)
+  };
+}
+
+export async function importNodeTemplates(plan, options = {}) {
+  if (!globalThis.game?.user?.isGM) throw new Error("Only a GM can import node templates");
+  const validation = validateGraphPlan(plan, options);
+  if (!validation.valid || options.dryRun === true) return { ...validation, imported: [], dryRun: true };
+  const current = globalThis.game?.settings?.get?.("sd", "nodeTemplates") ?? {};
+  const store = globalThis.foundry?.utils?.deepClone ? foundry.utils.deepClone(current) : _sdSafeCatalogValue(current) ?? {};
+  const imported = [];
+  for (const template of validation.templates) {
+    const requested = `${String(options.prefix ?? "")}${template.name}`;
+    let name = requested;
+    if (!options.overwrite) {
+      let suffix = 2;
+      while (Object.hasOwn(store, name)) name = `${requested} (${suffix++})`;
+    }
+    store[name] = { ...template, name, created: Date.now() };
+    imported.push(name);
+  }
+  await globalThis.game.settings.set("sd", "nodeTemplates", store);
+  try { globalThis.Hooks?.callAll?.("sdNodeTemplatesImported", { imported, source: options.source ?? "ai" }); } catch {}
+  return { ...validation, imported, dryRun: false };
+}
+
 export const SD_NODE_REGISTRY = Object.freeze({
   registerCategory: registerNodeCategory,
   registerNode: registerNodeDefinition,
   registerNodes: registerNodeDefinitions,
   unregisterExtension: unregisterNodeExtension,
   snapshot: getNodeRegistrySnapshot,
+  exportCatalog: exportNodeCatalog,
+  validatePlan: validateGraphPlan,
+  importTemplates: importNodeTemplates,
   categories: NODE_CATEGORIES,
   nodes: NODE_DEFS
 });
