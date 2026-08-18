@@ -414,28 +414,6 @@ export const WIDGET_TYPES = {
     ]
   },
 
-  rollButton: {
-    id:    "rollButton",
-    label: "Roll Button",
-    icon:  "fa-dice-d20",
-    desc:  "One-click dice roll → chat",
-    defaultSpan: 1,
-    defaults: {
-      label:   "Roll",
-      formula: "1d20",
-      flavor:  "",
-      icon:    "fa-dice-d20",
-      color:   "#5a9ae0"
-    },
-    configFields: [
-      { key: "label",   type: "text",  label: "Label" },
-      { key: "formula", type: "text",  label: "Formula", mono: true, placeholder: "1d20 + @attrs.str.mod" },
-      { key: "flavor",  type: "text",  label: "Flavor text (chat)" },
-      { key: "icon",    type: "text",  label: "FA icon" },
-      { key: "color",   type: "color", label: "Accent colour" }
-    ]
-  },
-
   tokenPool: {
     id:    "tokenPool",
     label: "Token Pool",
@@ -695,7 +673,6 @@ export const WIDGET_VARIANTS = {
   counter:        ["default", "chunky", "minimal", "wheel"],
   dice:           ["default", "d20-big", "chip", "flat"],
   button:         ["default", "pill", "outline", "ghost", "raised", "danger", "soft"],
-  rollButton:     ["default", "d20", "flat", "stamp"],
   toggle:         ["default", "checkbox", "pill", "led"],
   select:         ["default", "pills", "segmented", "radio"],
   attribute:      ["default", "stat-card", "inline", "badge", "roll-button"],
@@ -740,7 +717,6 @@ for (const [type, def] of Object.entries(WIDGET_TYPES)) {
 
 export const CLICKABLE_WIDGET_TYPES = new Set([
   "dice",
-  "rollButton",
   "button",
   "attribute",
   "attributeGroup",

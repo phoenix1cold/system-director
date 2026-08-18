@@ -1,7 +1,7 @@
 import { openFoundryWindow } from "./foundry-window-host.mjs";
 import { localizeTree } from "./localization.mjs";
 
-const CHOICE_TYPES = new Set(["button", "choice", "rollButton"]);
+const CHOICE_TYPES = new Set(["button", "choice"]);
 
 function _text(value) {
   return String(value ?? "");

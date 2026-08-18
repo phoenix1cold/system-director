@@ -1519,7 +1519,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const lockedKeys = new Set(locked.map(f=>f.key));
     const stored  = sys.hiddenFields ?? {};
     const _structuredKeys = (this.document.type === "inventory")
-      ? new Set(["saleable","salePrice","salePricePath","saleCurrency","equippable"])
+      ? new Set(["equippable"])
       : new Set();
     const userRows = Object.entries(stored).filter(([k])=>!lockedKeys.has(k) && !_structuredKeys.has(k));
     const hfEmpty  = locked.length === 0 && userRows.length === 0;

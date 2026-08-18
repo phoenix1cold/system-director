@@ -230,36 +230,6 @@ export const MIGRATIONS = [
   },
 
   {
-    version:     "0.5.3",
-    description: "Trade: backfill inventory.category for items lacking it; reset legacy currency \"gp\" to first configured currency.",
-    run: async () => {
-      const _curList = (Array.isArray(CONFIG?.SD?.currencies) && CONFIG.SD.currencies.length)
-        ? CONFIG.SD.currencies
-        : [{ key: "primary" }, { key: "secondary" }, { key: "tertiary" }];
-      const knownKeys = new Set(_curList.map(c => c.key));
-      const firstKey  = _curList[0]?.key ?? "primary";
-
-      await migrateItems(data => {
-        if (data.type !== "inventory") return null;
-        const upd = {};
-        const cat = data.system?.category;
-
-        if (cat === undefined || cat === null) {
-          upd["system.category"] = "";
-        }
-        const cur = data.system?.currency;
-        if (typeof cur === "string" && !knownKeys.has(cur)) {
-
-          upd["system.currency"] = firstKey;
-        } else if (cur === undefined || cur === null) {
-          upd["system.currency"] = firstKey;
-        }
-        return Object.keys(upd).length ? upd : null;
-      });
-    }
-  },
-
-  {
     version:     "0.9.7",
     description: "Calculations are node-graph only: seed a default Number(0) -> Output graph and drop legacy operator/path fields.",
     run: async () => {
@@ -297,7 +267,43 @@ export const MIGRATIONS = [
       }
       if (changed) await game.settings.set("sd", "systemSettings", cfg);
     }
+  },
+  {
+    version:     "0.22.4",
+    description: "Replace every legacy Roll Button widget/dialog element with the ordinary Button widget.",
+    run: async () => {
+      const convert = root => {
+        const seen = new WeakSet();
+        let changed = 0;
+        const walk = value => {
+          if (!value || typeof value !== "object" || seen.has(value)) return;
+          seen.add(value);
+          if (value.type === "rollButton") {
+            value.type = "button";
+            if (["d20", "flat", "stamp"].includes(String(value.variant ?? ""))) value.variant = "default";
+            changed++;
+          }
+          for (const [key, child] of Object.entries(value)) {
+            if (/(_type|Type)$/.test(key) && child === "rollButton") { value[key] = "button"; changed++; continue; }
+            if (typeof child === "string" && child.includes("rollButton") && /^[\s]*[\[{]/.test(child)) {
+              try { const parsed=JSON.parse(child); const before=changed; walk(parsed); if(changed>before)value[key]=JSON.stringify(parsed); } catch {}
+            } else walk(child);
+          }
+        };
+        walk(root);
+        return changed;
+      };
+      const migrateDocument = async doc => {
+        const system=foundry.utils.deepClone(doc.system??{}), flags=foundry.utils.deepClone(doc.flags??{});
+        if (convert(system)+convert(flags)) await doc.update({system,flags},{diff:false,recursive:false});
+      };
+      for (const actor of game.actors??[]) { await migrateDocument(actor); for (const item of actor.items??[]) await migrateDocument(item); }
+      for (const item of game.items??[]) await migrateDocument(item);
+      const cfg=foundry.utils.deepClone(game.settings.get("sd","systemSettings")??{});
+      if (convert(cfg)) await game.settings.set("sd","systemSettings",cfg);
+    }
   }
+
 
 ];
 

@@ -165,7 +165,6 @@ export const widgetUsage = {
   clock: { en: "Segmented progress clock for PbtA/Blades style countdowns.", ru: "Сегментные часы прогресса для PbtA/Blades countdowns." },
   tracker: { en: "Clickable pip tracker for stress, wounds, clocks or custom counters.", ru: "Кликабельный pip tracker для стресса, ран, часов или счётчиков." },
   counter: { en: "Large stepper with bounded min/max value.", ru: "Крупный stepper с ограничениями min/max." },
-  rollButton: { en: "One-click roll-to-chat button.", ru: "Кнопка one-click roll-to-chat." },
   tokenPool: { en: "Spend/gain token pool UI for meta-currencies.", ru: "Пул токенов spend/gain для мета-валют." },
   diceTray: { en: "Displays the latest dice roll stored in a flag path.", ru: "Показывает последний бросок из flag path." },
   tags: { en: "Pill list of traits or keywords.", ru: "Pill-список traits/keywords." },

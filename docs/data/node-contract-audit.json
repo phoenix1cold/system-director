@@ -1,15 +1,15 @@
 {
   "sourceMtimes": {
-    "graphSource": 1786842686000,
-    "executorSource": 1786840920000
+    "graphSource": 1787010517449.7366,
+    "executorSource": 1787010450141.5417
   },
   "summary": {
     "actionNodes": 100,
     "emittedActionTypes": 140,
-    "executorCaseLabels": 160,
+    "executorCaseLabels": 159,
     "compileFailures": 0,
     "missingExecutor": 0,
-    "executorOnly": 21,
+    "executorOnly": 20,
     "compilerSpecial": 1
   },
   "compileFailures": [],
@@ -26,7 +26,6 @@
     "placeAura",
     "removeItem",
     "roll",
-    "rollButton",
     "roll_over",
     "roll_under",
     "saveCheck",

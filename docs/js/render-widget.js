@@ -77,10 +77,6 @@ const PREV = {
     elt("span", {}, "▶ "),
     elt("span", {}, w.label ?? "Action")
   ]),
-  rollButton: (w) => elt("button", { class: "wp-btn" }, [
-    elt("span", {}, w.label ?? "Roll Attack"),
-  ]),
-
   toggle: (w) => elt("div", { class: "wp-toggle" }, [
     elt("span", {}, w.label ?? "Toggle"),
     elt("span", { class: "sw on" }, [

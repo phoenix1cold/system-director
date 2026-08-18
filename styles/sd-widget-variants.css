@@ -630,33 +630,6 @@
   box-shadow: none !important;
 }
 
-.sd-w-rollbutton.sd-v-d20 .dice-btn,
-.sd-w-rollbutton.sd-v-d20 .widget-roll-button-btn {
-  background: radial-gradient(circle at 30% 30%, var(--sd-accent), var(--sd-accent-2)) !important;
-  color: var(--sd-accent-text) !important;
-  border-radius: 10px !important;
-  border: 2px solid var(--sd-accent-2) !important;
-  box-shadow: 0 2px 0 var(--sd-accent-2), 0 0 12px var(--sd-accent-glow) !important;
-}
-.sd-w-rollbutton.sd-v-flat .dice-btn,
-.sd-w-rollbutton.sd-v-flat .widget-roll-button-btn {
-  background: transparent !important;
-  border: 1px solid var(--sd-border) !important;
-  box-shadow: none !important;
-  color: var(--sd-text) !important;
-}
-.sd-w-rollbutton.sd-v-stamp .dice-btn,
-.sd-w-rollbutton.sd-v-stamp .widget-roll-button-btn {
-  background: transparent !important;
-  border: 2px dashed var(--sd-accent) !important;
-  color: var(--sd-accent) !important;
-  border-radius: 4px !important;
-  text-transform: uppercase !important;
-  letter-spacing: .12em !important;
-  font-weight: 800 !important;
-  box-shadow: none !important;
-}
-
 .sd-w-toggle.sd-v-checkbox .tog-track,
 .sd-w-toggle.sd-v-checkbox .toggle-track,
 .sd-w-toggle.sd-v-checkbox .toggle-switch {

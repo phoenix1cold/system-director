@@ -43,9 +43,6 @@ const FIELD_DEFS = {
   attributeGroup: [["Button Label","label"],["Widget Key","widgetKey","text"],["Attribute keys or paths (comma, blank = all enabled)","attributeKeys","text"],["FA icon","icon","text"]],
 
   counter:   [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Step","step","number"],["Min","min","number"],["Max","max","number"]],
-
-  rollButton:[["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-dice-d20)","icon","text"],["Roll Formula","formula","formula"],["Chat Flavor","flavor","text"]],
-
   tokenPool: [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
 
   diceTray:  [["Label","label"],["Widget Key","widgetKey","text"],["Flag Path (default flags.sd.lastRoll)","flagPath","text"]],
@@ -128,7 +125,6 @@ const STYLE_DEFS = {
   resource:  [["Width (px)","boxW","style-px"],["Bar height (px)","barH","style-px"],["Fill color","color","style-color"],["Track color","barTrack","style-color"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
   dice:      [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Button border","btnBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Icon color","iconColor","style-color"]],
   button:    [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Icon color","iconColor","style-color"]],
-  rollButton:[["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
   toggle:    [["Width (px)","boxW","style-px"],["On color","onColor","style-color"],["Off color","offColor","style-color"],["Border radius (px)","boxRadius","style-px"]],
   section:   [["Line color","lineColor","style-color"],["Title color","titleColor","style-color"],["Thickness (px)","lineThickness","style-px"]],
   vsection:  [["Border color","boxBorder","style-color"],["Background","boxBg","style-color"],["Title color","titleColor","style-color"],["Border radius (px)","boxRadius","style-px"]],
@@ -557,11 +553,13 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       </div>`;
 
     if (type === "boolean") return `
-      <div class="wcfg-f" style="margin-bottom:10px;display:flex;align-items:center;gap:8px">
-        <input type="checkbox" data-field="${esc(key)}" data-ftype="boolean"
-          id="wcfg-bool-${esc(key)}" ${cur === true || cur === "true" ? "checked" : ""}
-          style="width:15px;height:15px;accent-color:var(--sd-accent);cursor:pointer;flex-shrink:0">
-        <label for="wcfg-bool-${esc(key)}" class="wcfg-lbl" style="margin:0;cursor:pointer">${esc(lbl)}</label>
+      <div class="wcfg-f wcfg-boolean-row" style="margin-bottom:10px">
+        <label for="wcfg-bool-${esc(key)}" class="wcfg-checkbox-label">
+          <input type="checkbox" class="wcfg-checkbox-control" data-field="${esc(key)}" data-ftype="boolean"
+            id="wcfg-bool-${esc(key)}" ${cur === true || cur === "true" ? "checked" : ""}
+            style="appearance:auto!important;-webkit-appearance:checkbox!important;display:inline-block!important;position:static!important;opacity:1!important;width:15px!important;min-width:15px!important;max-width:15px!important;height:15px!important;min-height:15px!important;max-height:15px!important;padding:0!important;margin:0!important;accent-color:var(--sd-accent);cursor:pointer;flex:0 0 15px!important">
+          <span>${esc(lbl)}</span>
+        </label>
       </div>`;
 
     if (type === "select") return `
@@ -736,7 +734,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
           ${noteColor ? `<span style="background:${noteColor};color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">${type}</span>` : ""}
         </label>
         ${hint ? `<div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;line-height:1.4">${esc(hint)}</div>` : ""}
-        <div style="display:flex;gap:5px;align-items:center">
+        <div class="wcfg-input-row" style="display:flex;gap:5px;align-items:center;min-width:0">
           <input type="${type==="number"?"number":"text"}" data-field="${esc(key)}" data-ftype="${type}"
             value="${esc(cur)}"
             style="${IS}${isPF?MONO:""};flex:1"
@@ -893,7 +891,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     if (!panel) return;
     const wKey = String(w.widgetKey ?? "").trim() || String(w.label ?? "").trim();
     const refs = [];
-    const _noValTypes = ["button", "rollButton", "cardDrawButton", "section", "vsection", "widgetBuilder"];
+    const _noValTypes = ["button", "cardDrawButton", "section", "vsection", "widgetBuilder"];
     const _hasValue = !_noValTypes.includes(String(w.type ?? "")) || (w.valueFormula !== undefined && String(w.valueFormula ?? "").trim() !== "");
     if (wKey && _hasValue) {
       refs.push(["Value token", "{widget:" + wKey + "}"]);

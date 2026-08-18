@@ -119,7 +119,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       editImage:         CharacterSheet._onEditImage,
       openRollDialog:    CharacterSheet._onOpenRollDialog,
       openProgression:   CharacterSheet._onOpenProgression,
-      openTrade:         CharacterSheet._onOpenTrade,
       openBuilder:       CharacterSheet._onOpenBuilder,
       openSheetTriggers: CharacterSheet._onOpenSheetTriggers,
       openDatabase:      CharacterSheet._onOpenDatabase,
@@ -507,206 +506,19 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     panel.className = "sd-tab-panel";
     panel.dataset.tab = "_sys_hidden";
     panel.style.cssText = `display:${isActive?"flex":"none"};flex:1;overflow-y:auto;padding:12px 14px;flex-direction:column;gap:8px;min-height:0;`;
-    const sys = this.document.system;
-    const ed  = this.isEditable;
-    const e   = s => String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-
-    const TRADER_KEYS = new Set(["trader","autoTrade","priceDistortion","tradeCategories"]);
-    const allHf = sys.hiddenFields ?? {};
-    const hf  = Object.entries(allHf).filter(([k]) => !TRADER_KEYS.has(k));
-    const _truthy = v => (v === true || v === "true" || v === 1 || v === "1" || v === "yes" || v === "on");
-    const isTrader   = _truthy(allHf.trader);
-    const autoTrade  = _truthy(allHf.autoTrade);
-    const priceDist  = (allHf.priceDistortion === undefined || allHf.priceDistortion === null || allHf.priceDistortion === "") ? 100 : Number(allHf.priceDistortion);
-    const tradeCats  = String(allHf.tradeCategories ?? "");
-
-    const _i18n = (k, f) => { const v = game.i18n?.localize?.(k); return (!v || v === k) ? f : v; };
-
-    const _curList = (Array.isArray(CONFIG?.SD?.currencies) && CONFIG.SD.currencies.length)
-      ? CONFIG.SD.currencies
-      : [{ key: "primary", label: "Gold" }, { key: "secondary", label: "Silver" }, { key: "tertiary", label: "Copper" }];
-
-    let html = `<div class="sys-section" style="margin-bottom:12px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:6px;padding:10px">
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--sd-stamina);margin-bottom:6px">
-        <i class="fas fa-store"></i> ${e(_i18n("SD.Trade.TraderSettings","Trader settings"))}
-      </div>
-      <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.5">${e(_i18n("SD.Trade.TraderHint","Mark this actor as a merchant. Traders appear in the partner picker even off-scene. AutoTrade lets players shop directly without GM approval."))}</p>
-      <div style="display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end">
-        <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:var(--sd-text)">
-          <input type="checkbox" data-hf-trader="trader" ${isTrader?"checked":""} ${!ed?"disabled":""} style="accent-color:var(--sd-stamina);width:15px;height:15px;cursor:inherit">
-          ${e(_i18n("SD.Trade.IsTrader","Trader"))}
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:var(--sd-text)">
-          <input type="checkbox" data-hf-trader="autoTrade" ${autoTrade?"checked":""} ${!ed?"disabled":""} style="accent-color:var(--sd-stamina);width:15px;height:15px;cursor:inherit">
-          ${e(_i18n("SD.Trade.AutoTrade","AutoTrade"))}
-        </label>
-        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2);flex:0 0 130px">
-          <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(_i18n("SD.Trade.PriceDistortion","Price distortion %"))}</span>
-          <input type="number" min="0" step="1" data-hf-trader="priceDistortion" value="${priceDist}" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px">
-        </label>
-        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2);flex:1;min-width:160px">
-          <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(_i18n("SD.Trade.TradeCategories","Buys categories (CSV)"))}</span>
-          <input type="text" data-hf-trader="tradeCategories" value="${e(tradeCats)}" placeholder="weapon, armor, consumable" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 7px">
-        </label>
-      </div>
-    </div>`;
-
-    if (isTrader) {
-      const invItems = [...(this.document.items ?? [])].filter(it => it.type === "inventory");
-      const _curOptionsHTML = (sel) => {
-        const opts = [`<option value="" ${sel?"":"selected"}>— ${e(_i18n("SD.Trade.UseItem","use item's"))} —</option>`]
-          .concat(_curList.map(c => `<option value="${e(c.key)}" ${c.key===sel?"selected":""}>${e(c.label ?? c.key)}</option>`));
-        return opts.join("");
-      };
-      let table = `<div class="sys-section" style="margin-bottom:12px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:6px;padding:10px">
-        <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--sd-stamina);margin-bottom:6px">
-          <i class="fas fa-cart-shopping"></i> ${e(_i18n("SD.Trade.ShopTitle","Shop"))} — ${e(_i18n("SD.InventoryFlags","Inventory"))}
-        </div>
-        <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.5">${e(_i18n("SD.Trade.ShopTableHint","Toggle Saleable to list items in the autotrade shop. Price/currency override the item's base values for this trader copy."))}</p>`;
-      if (!invItems.length) {
-        table += `<div style="font-size:11px;color:var(--sd-text-3);font-style:italic;text-align:center;padding:14px">${e(_i18n("SD.Trade.NoInventory","No inventory items on this actor."))}</div>`;
-      } else {
-        table += `<div style="display:grid;grid-template-columns:24px 1fr 90px 60px 90px 110px;gap:6px 8px;align-items:center;font-size:10px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--sd-border);padding-bottom:4px;margin-bottom:6px">
-          <span></span>
-          <span>${e(_i18n("SD.Trade.Item","Item"))}</span>
-          <span>${e(_i18n("SD.Category","Category"))}</span>
-          <span>${e(_i18n("SD.Trade.Stock","Stock"))}</span>
-          <span title="${e(_i18n("SD.Trade.PriceOverrideHint","Empty = use item's base price"))}">${e(_i18n("SD.Trade.SalePriceOverride","Price"))}</span>
-          <span>${e(_i18n("SD.Trade.SaleCurrency","Currency"))}</span>
-        </div>`;
-        for (const it of invItems) {
-          const ihf = it.system?.hiddenFields ?? {};
-          const isSale = _truthy(ihf.saleable);
-          const sP = (ihf.salePrice === undefined || ihf.salePrice === null || ihf.salePrice === "") ? "" : Number(ihf.salePrice);
-          const sCur = String(ihf.saleCurrency ?? "");
-          const stk = Number(it.system?.quantity ?? 0);
-          const cat = String(it.system?.category ?? "");
-          table += `<div style="display:grid;grid-template-columns:24px 1fr 90px 60px 90px 110px;gap:6px 8px;align-items:center;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.04)">
-            <input type="checkbox" data-shop-item-id="${e(it.id)}" data-shop-field="saleable" ${isSale?"checked":""} ${!ed?"disabled":""} title="${e(_i18n("SD.Trade.Saleable","Saleable"))}" style="accent-color:var(--sd-stamina);width:14px;height:14px;cursor:${ed?"pointer":"not-allowed"};margin:0">
-            <div style="display:flex;align-items:center;gap:6px;min-width:0">
-              <img src="${e(it.img||"icons/svg/item-bag.svg")}" style="width:22px;height:22px;border-radius:3px;object-fit:cover;flex-shrink:0">
-              <span style="font-size:12px;color:var(--sd-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e(it.name)}">${e(it.name)}</span>
-            </div>
-            <span style="font-size:11px;color:var(--sd-text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(cat || "—")}</span>
-            <span style="font-size:11px;color:var(--sd-text-2);text-align:center">${stk}</span>
-            <input type="number" min="0" step="any" data-shop-item-id="${e(it.id)}" data-shop-field="salePrice" value="${sP}" placeholder="${Number(it.system?.price ?? 0)}" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:3px 6px;text-align:right">
-            <select data-shop-item-id="${e(it.id)}" data-shop-field="saleCurrency" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:3px 6px">
-              ${_curOptionsHTML(sCur)}
-            </select>
-          </div>`;
-        }
-      }
-      table += `</div>`;
-      html += table;
-    }
-
-    html += `<div style="font-size:11px;color:var(--sd-text-3);margin-bottom:8px;line-height:1.6">
-      GM-only key/value pairs attached to this actor. Path: <code style="background:var(--sd-bg);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--sd-accent)">system.hiddenFields.name</code>
-      ${ed ? `<button type="button" data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}
-    </div>`;
-
-    if (!hf.length) {
-      html += `<div style="color:#333;font-size:11px;font-style:italic;text-align:center;padding:20px 0">No hidden fields yet.</div>`;
-    } else {
-      for (const [k, v] of hf) {
-        html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--sd-bg)">
-          <input type="text" data-hf-key="${e(k)}" data-hf-rename value="${e(k)}" style="width:130px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-accent);font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>
-          <input type="text" data-hf-key="${e(k)}" data-hf-val value="${e(String(v))}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-w-fg,var(--sd-text));font-size:11px;padding:3px 6px" ${!ed?"disabled":""}>
-          <button type="button" data-hf-action="copy-path" data-hf-key="${e(k)}" title="Copy path: system.hiddenFields.${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
-          ${ed?`<button type="button" data-hf-action="remove" data-hf-key="${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 4px">✕</button>`:""}
-        </div>`;
-      }
-    }
-
+    const ed = this.isEditable;
+    const e = value => String(value ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+    const fields = Object.entries(this.document.system?.hiddenFields ?? {});
+    let html = `<div style="font-size:11px;color:var(--sd-text-3);margin-bottom:8px;line-height:1.6">GM-only key/value pairs attached to this actor. Module-owned values remain ordinary hidden fields when their module is disabled. Path: <code style="background:var(--sd-bg);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--sd-accent)">system.hiddenFields.name</code>${ed ? `<button type="button" data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}</div>`;
+    if (!fields.length) html += `<div style="color:var(--sd-text-3);font-size:11px;font-style:italic;text-align:center;padding:20px 0">No hidden fields yet.</div>`;
+    else for (const [key,value] of fields) html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--sd-bg)"><input type="text" data-hf-key="${e(key)}" data-hf-rename value="${e(key)}" style="width:150px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-accent);font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>${typeof value === "boolean" ? `<input type="checkbox" data-hf-key="${e(key)}" data-hf-val ${value?"checked":""} style="inline-size:15px;block-size:15px;min-inline-size:15px;min-block-size:15px;max-inline-size:15px;max-block-size:15px;width:15px;height:15px;margin:0" ${!ed?"disabled":""}>` : `<input type="text" data-hf-key="${e(key)}" data-hf-val value="${e(String(value))}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-w-fg,var(--sd-text));font-size:11px;padding:3px 6px" ${!ed?"disabled":""}>`}<button type="button" data-hf-action="copy-path" data-hf-key="${e(key)}" title="Copy path" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer"><i class="fas fa-copy"></i></button>${ed?`<button type="button" data-hf-action="remove" data-hf-key="${e(key)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer">✕</button>`:""}</div>`;
     panel.innerHTML = html;
-
-    panel.querySelectorAll("[data-hf-action='copy-path']").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const path = `system.hiddenFields.${btn.dataset.hfKey}`;
-        try { await navigator.clipboard.writeText(path); ui.notifications.info(`Copied: ${path}`); }
-        catch { ui.notifications.warn("Could not copy to clipboard"); }
-      });
-    });
-
-    const _hfReplace = async (newFields) => {
-      const current = this.document.system.hiddenFields ?? {};
-      const patch = {};
-      for (const k of Object.keys(current)) {
-        if (!(k in newFields)) patch[`system.hiddenFields.-=${k}`] = null;
-      }
-      for (const [k, v] of Object.entries(newFields)) {
-        patch[`system.hiddenFields.${k}`] = v;
-      }
-      await this.document.update(patch);
-    };
-
-    let _adding = false;
-    panel.querySelector("[data-hf-action='add']")?.addEventListener("click", async () => {
-      if (_adding) return;
-      _adding = true;
-      try {
-        const fields = foundry.utils.deepClone(this.document.system.hiddenFields ?? {});
-        let i = Object.keys(fields).length + 1;
-        let k = `field${i}`;
-        while (k in fields) { i++; k = `field${i}`; }
-        fields[k] = "";
-        await _hfReplace(fields);
-      } finally { _adding = false; }
-    });
-
-    panel.querySelectorAll("[data-hf-action='remove']").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const fields = foundry.utils.deepClone(this.document.system.hiddenFields ?? {});
-        delete fields[btn.dataset.hfKey];
-        await _hfReplace(fields);
-      });
-    });
-
-    panel.querySelectorAll("[data-hf-val]").forEach(inp => {
-      inp.addEventListener("change", async () => {
-        await this.document.update({ [`system.hiddenFields.${inp.dataset.hfKey}`]: inp.value });
-      });
-    });
-
-    panel.querySelectorAll("[data-hf-rename]").forEach(inp => {
-      inp.addEventListener("change", async () => {
-        const oldKey = inp.dataset.hfKey;
-        const newKey = inp.value.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
-        if (!newKey || newKey === oldKey) return;
-        const fields = foundry.utils.deepClone(this.document.system.hiddenFields ?? {});
-        const val = fields[oldKey] ?? "";
-        delete fields[oldKey];
-        fields[newKey] = val;
-        await _hfReplace(fields);
-      });
-    });
-
-    panel.querySelectorAll("[data-hf-trader]").forEach(inp => {
-      inp.addEventListener("change", async () => {
-        const key = inp.dataset.hfTrader;
-        let val;
-        if (inp.type === "checkbox") val = inp.checked;
-        else if (inp.type === "number") val = (inp.value === "" ? 0 : Number(inp.value));
-        else val = inp.value;
-        await this.document.update({ [`system.hiddenFields.${key}`]: val });
-        if (key === "trader") this.render(false);
-      });
-    });
-
-    panel.querySelectorAll("[data-shop-field]").forEach(inp => {
-      inp.addEventListener("change", async () => {
-        const itemId = inp.dataset.shopItemId;
-        const field  = inp.dataset.shopField;
-        const item   = this.document.items?.get?.(itemId);
-        if (!item) return;
-        let val;
-        if (inp.type === "checkbox")    val = inp.checked;
-        else if (inp.type === "number") val = (inp.value === "" ? "" : Number(inp.value));
-        else                            val = inp.value;
-        await item.update({ [`system.hiddenFields.${field}`]: val });
-      });
-    });
-
+    const replace = async next => { const current=this.document.system?.hiddenFields??{}, patch={}; for(const key of Object.keys(current))if(!(key in next))patch[`system.hiddenFields.-=${key}`]=null;for(const [key,value] of Object.entries(next))patch[`system.hiddenFields.${key}`]=value;await this.document.update(patch); };
+    panel.querySelector("[data-hf-action='add']")?.addEventListener("click",async()=>{const next=foundry.utils.deepClone(this.document.system?.hiddenFields??{});let i=Object.keys(next).length+1,key=`field${i}`;while(key in next)key=`field${++i}`;next[key]="";await replace(next);});
+    panel.querySelectorAll("[data-hf-action='remove']").forEach(btn=>btn.addEventListener("click",async()=>{const next=foundry.utils.deepClone(this.document.system?.hiddenFields??{});delete next[btn.dataset.hfKey];await replace(next);}));
+    panel.querySelectorAll("[data-hf-action='copy-path']").forEach(btn=>btn.addEventListener("click",async()=>{const path=`system.hiddenFields.${btn.dataset.hfKey}`;try{await navigator.clipboard.writeText(path);ui.notifications.info(`Copied: ${path}`);}catch{ui.notifications.warn("Could not copy to clipboard");}}));
+    panel.querySelectorAll("[data-hf-val]").forEach(input=>input.addEventListener("change",async()=>{const value=input.type==="checkbox"?input.checked:input.value;await this.document.update({[`system.hiddenFields.${input.dataset.hfKey}`]:value});}));
+    panel.querySelectorAll("[data-hf-rename]").forEach(input=>input.addEventListener("change",async()=>{const oldKey=input.dataset.hfKey,newKey=input.value.trim().replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_]/g,"");if(!newKey||newKey===oldKey)return;const next=foundry.utils.deepClone(this.document.system?.hiddenFields??{});next[newKey]=next[oldKey]??"";delete next[oldKey];await replace(next);}));
     return panel;
   }
 
@@ -2676,10 +2488,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ProgressionApp.open(this.document);
   }
 
-  static async _onOpenTrade(event, target) {
-    const { SDTrade } = await import("../helpers/trade.mjs");
-    await SDTrade.openFor(this.document);
-  }
 
   static async _onOpenBuilder(event, target) {
     const { Toolbox } = await import("../builder/toolbox-app.mjs");

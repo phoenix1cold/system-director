@@ -41,7 +41,6 @@ import { installColorSchemeObserver } from "./module/helpers/color-schemes.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 import { SDMarketApp }         from "./module/helpers/market-app.mjs";
 import { SDActionHUD, SDActionHUDConfig, registerActionHudSettings, mountActionHudHooks } from "./module/helpers/action-hud.mjs";
-import { SDTrade }             from "./module/helpers/trade.mjs";
 import { SDQuest }             from "./module/helpers/quest.mjs";
 import { installSdPause }      from "./module/helpers/sd-pause.mjs";
 import { SlotEffectSync }      from "./module/helpers/slot-effects.mjs";
@@ -50,7 +49,6 @@ import { installOnboarding, SDOnboarding } from "./module/helpers/onboarding.mjs
 import { registerLocalizationSettings, currentLanguage, localizeTree } from "./module/helpers/localization.mjs";
 import { EffectApplierApp, registerEffectApplierSettings } from "./module/helpers/effect-applier.mjs";
 
-SDTrade.init();
 SDQuest.init();
 installSdPause();
 SlotEffectSync.install();

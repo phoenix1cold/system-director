@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const graph=fs.readFileSync(new URL("../module/builder/formula-graph.mjs",import.meta.url),"utf8");
+const main=fs.readFileSync(new URL("../sd.mjs",import.meta.url),"utf8");
+const manifest=JSON.parse(fs.readFileSync(new URL("../system.json",import.meta.url),"utf8"));
+assert.equal(manifest.version,"0.22.4");
+for(const token of ["NODE_CATEGORIES","registerNodeCategory","registerNodeDefinition","registerNodeDefinitions","unregisterNodeExtension","getNodeRegistrySnapshot","SD_NODE_REGISTRY","_nodeCategoryLabel"]) assert.match(graph,new RegExp(`export (?:const|function) ${token}|function ${token}`));
+assert.match(graph,/registerCategory: registerNodeCategory/);
+assert.match(graph,/registerNodes: registerNodeDefinitions/);
+assert.match(graph,/CATS\.splice\(index, 0, entry\)/);
+assert.match(graph,/labels\?\.\[language\]/);
+assert.match(main,/CONFIG\.SD\.nodeRegistry = SD_NODE_REGISTRY/);
+assert.match(main,/Hooks\.callAll\("sdNodeRegistryReady", SD_NODE_REGISTRY\)/);
+assert.doesNotMatch(graph,/\$\{esc\(_NL\(cat\.id\)\)\}/);
+console.log("SD public node extension registry regression: OK");

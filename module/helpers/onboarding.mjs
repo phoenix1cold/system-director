@@ -72,9 +72,9 @@ const TOURS = {
       body: "Drag New Tab onto the sheet navigation if you need a custom tab for your widgets."
     },
     {
-      selector: "#sd-toolbox [data-widget-type='button'], #sd-toolbox [data-widget-type='rollButton']",
+      selector: "#sd-toolbox [data-widget-type='button']",
       title: "Add a button widget",
-      body: "Drag Button or Roll Button onto an edit-mode character sheet to create an interactive roll control."
+      body: "Drag Button onto an edit-mode character sheet to create an interactive action control."
     },
     {
       selector: "#sd-toolbox #tb-tab-paths",
@@ -103,7 +103,7 @@ const TOURS = {
     {
       selector: ".sd-wcfg-popup [data-open-graph], .sd-wcfg-popup [data-open-action-graph], .sd-wcfg-popup #wcfg-attr-graph-btn",
       title: "Open graph editor",
-      body: "Graph buttons let you build formulas visually. For a button roll, open the formula graph and add Roll -> Value."
+      body: "Graph buttons open the visual editor. For a modern button roll, build On Click → Roll → Present Roll and pass the blue Roll Result pin."
     },
     {
       selector: ".sd-wcfg-popup [data-field='formula'], .sd-wcfg-popup [data-field='label']",
@@ -116,13 +116,19 @@ const TOURS = {
       id: "node-list",
       selector: ".sd-graph-win #gpal",
       title: "Node list",
-      body: "The left panel contains nodes that are valid for this graph type. Use Search or scroll to the Roll category."
+      body: "The left panel contains nodes allowed in this graph. Search for Roll and Present Roll."
     },
     {
-      id: "add-roll-value",
-      selector: ".sd-graph-win [data-type='act_roll_value']",
-      title: "Roll -> Value",
-      body: "Drag Roll -> Value into the graph. It rolls dice and outputs the numeric result for later nodes or the final output."
+      id: "add-roll",
+      selector: ".sd-graph-win [data-type='act_roll_v2']",
+      title: "Add Roll",
+      body: "Drag Roll into the graph. It creates a structured Roll Result instead of only a number."
+    },
+    {
+      id: "add-present-roll",
+      selector: ".sd-graph-win [data-type='act_present_roll']",
+      title: "Add Present Roll",
+      body: "Drag Present Roll into the graph. This node displays the structured result in chat, on the canvas, or in a sheet."
     },
     {
       id: "connect-roll-exec",
@@ -130,18 +136,34 @@ const TOURS = {
         const win = document.querySelector(".sd-graph-win");
         if (!win) return [];
         const from = win.querySelector("[data-type='on_click'] [data-pid='exec'][data-side='output']");
-        const to = win.querySelector("[data-type='act_roll_value'] [data-pid='exec'][data-side='input']");
+        const to = win.querySelector("[data-type='act_roll_v2'] [data-pid='exec'][data-side='input']");
         return [from, to].filter(Boolean);
       },
-      title: "Connect exec pins",
-      body: "Drag the exec output from On Click to the exec input on Roll -> Value. This makes the roll run when the button is clicked.",
-      missing: "Add Roll -> Value first. Then connect On Click's exec output to Roll -> Value's exec input."
+      title: "Connect the event to Roll",
+      body: "Connect On Click Exec to Roll Exec so the roll runs when the widget is clicked.",
+      missing: "Add Roll first, then connect On Click Exec to Roll Exec."
+    },
+    {
+      id: "connect-present-roll",
+      selector: () => {
+        const win = document.querySelector(".sd-graph-win");
+        if (!win) return [];
+        return [
+          win.querySelector("[data-type='act_roll_v2'] [data-pid='exec'][data-side='output']"),
+          win.querySelector("[data-type='act_present_roll'] [data-pid='exec'][data-side='input']"),
+          win.querySelector("[data-type='act_roll_v2'] [data-pid='result'][data-side='output']"),
+          win.querySelector("[data-type='act_present_roll'] [data-pid='result'][data-side='input']")
+        ].filter(Boolean);
+      },
+      title: "Present the structured result",
+      body: "Connect Roll Exec to Present Roll Exec, then connect the blue Roll Result output to the matching Result input.",
+      missing: "Add Roll and Present Roll. Connect both the Exec wire and the blue Roll Result wire."
     },
     {
       id: "save-graph",
       selector: ".sd-graph-win #gsave",
       title: "Save graph",
-      body: "Save & Apply writes the graph back to the widget or system path."
+      body: "Save & Apply writes the current graph back to the widget or system path."
     }
   ]
 };
@@ -257,7 +279,6 @@ export const SDOnboarding = {
     if (!root) return;
     _tag(root.querySelector("[data-drag-type='newTab']"), "Drag this onto sheet navigation to add a custom tab.");
     _tag(root.querySelector("[data-widget-type='button']"), "Drag this onto an edit-mode sheet to create a button.");
-    _tag(root.querySelector("[data-widget-type='rollButton']"), "Roll Button is a ready-made dice button widget.");
     _tag(root.querySelector("#tb-tab-paths"), "Switch to data paths you can drag or copy.");
     _tag(root.querySelector("#tb-search-widgets"), "Filter widgets by name or type.");
     this.maybeStart("sheetBuilder");
@@ -299,9 +320,11 @@ export const SDOnboarding = {
   bindGraph(root) {
     if (!root) return;
     _tag(root.querySelector("#gpal"), "Available nodes for this graph type.");
-    _tag(root.querySelector("[data-type='act_roll_value']"), "Drag Roll -> Value into the graph for a numeric dice result.");
+    _tag(root.querySelector("[data-type='act_roll_v2']"), "Roll creates a structured Roll Result.");
+    _tag(root.querySelector("[data-type='act_present_roll']"), "Present Roll displays the structured result.");
     _tag(root.querySelector("[data-type='on_click'] [data-pid='exec'][data-side='output']"), "Drag from this exec output.");
-    _tag(root.querySelector("[data-type='act_roll_value'] [data-pid='exec'][data-side='input']"), "Drop onto this exec input.");
+    _tag(root.querySelector("[data-type='act_roll_v2'] [data-pid='exec'][data-side='input']"), "Drop the event Exec wire here.");
+    _tag(root.querySelector("[data-type='act_present_roll'] [data-pid='result'][data-side='input']"), "Connect Roll Result here.");
     _tag(root.querySelector("#gwrap"), "Drop nodes and connect output pins to input pins.");
     _tag(root.querySelector("#gsave"), "Save the graph back to the sheet or settings.");
     this.maybeStart("graphRollValue");
@@ -350,7 +373,7 @@ export const SDOnboarding = {
         <div class="sd-welcome-kicker">System Director</div>
         <div class="sd-welcome-title">Welcome to a new world</div>
         <div class="sd-welcome-body">
-          Start with System Configuration, create a Scene, then create a Character actor, open its sheet, add a button widget, and wire Roll -> Value in the node graph.
+          Start with System Configuration, create a Scene, then create a Character actor, open its sheet, add a button widget, and wire On Click → Roll → Present Roll in the node graph.
         </div>
         <div class="sd-welcome-actions">
           <button type="button" data-sd-welcome="skip">Skip</button>
@@ -587,15 +610,21 @@ export const SDOnboarding = {
   },
 
   _graphHasRollValue(graph) {
-    return !!graph?.nodes?.some?.(n => n.type === "act_roll_value");
+    const nodes = graph?.nodes ?? [];
+    return nodes.some(n => n.type === "act_roll_v2") && nodes.some(n => n.type === "act_present_roll");
   },
 
   _graphHasOnClickToRollValue(graph) {
     const nodes = graph?.nodes ?? [];
-    const from = nodes.find(n => n.type === "on_click");
-    const rolls = new Set(nodes.filter(n => n.type === "act_roll_value").map(n => n.id));
-    if (!from || !rolls.size) return false;
-    return (graph?.edges ?? []).some(e => e.fromNode === from.id && e.fromPin === "exec" && rolls.has(e.toNode) && e.toPin === "exec");
+    const click = nodes.find(n => n.type === "on_click");
+    const roll = nodes.find(n => n.type === "act_roll_v2");
+    const present = nodes.find(n => n.type === "act_present_roll");
+    if (!click || !roll || !present) return false;
+    const edges = graph?.edges ?? [];
+    const linked = (a,ap,b,bp) => edges.some(e => e.fromNode === a && e.fromPin === ap && e.toNode === b && e.toPin === bp);
+    return linked(click.id,"exec",roll.id,"exec")
+      && linked(roll.id,"exec",present.id,"exec")
+      && linked(roll.id,"result",present.id,"result");
   },
 
   _esc(value) {

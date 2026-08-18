@@ -289,9 +289,9 @@ async function _sdRequestAiDialogueChoices(cfg, {
 
 function _sdApplyAiDialogueChoices(action, aiResult) {
   const baseElements = (Array.isArray(action.elements) ? action.elements : [])
-    .filter(el => el && !["button", "choice", "rollButton"].includes(String(el.type ?? "")));
+    .filter(el => el && !["button", "choice"].includes(String(el.type ?? "")));
   const choices = (aiResult?.choices ?? []).map((choice, i) => ({
-    type: "rollButton",
+    type: "button",
     id: String(choice.id ?? `ai${i + 1}`),
     label: String(choice.label ?? `Choice ${i + 1}`),
     hint: String(choice.hint ?? ""),
@@ -4770,7 +4770,7 @@ export class ButtonExecutor {
         for (const el of elements) {
           if (!el || typeof el !== "object") continue;
           if (el.id == null) continue;
-          if (el.type === "rollButton" || el.type === "label" || el.type === "section") continue;
+          if (el.type === "label" || el.type === "section") continue;
           state[el.id] = (el.default !== undefined) ? el.default : (el.type === "checkbox" ? false : "");
         }
 
@@ -4868,9 +4868,7 @@ export class ButtonExecutor {
                 </div>`);
                 break;
               }
-              case "rollButton":
-
-                break;
+              
               default:
                 break;
             }
@@ -4878,12 +4876,12 @@ export class ButtonExecutor {
           return parts.join("");
         };
 
-        const rollButtons = elements
+        const choiceButtons = elements
           .map((el, i) => ({ el, idx: i }))
-          .filter(({ el }) => el && el.type === "rollButton");
+          .filter(({ el }) => el && el.type === "button");
         let dlgButtons = [];
         let btnSeq = 0;
-        for (const { el } of rollButtons) {
+        for (const { el } of choiceButtons) {
           const pinId   = (Number.isInteger(el.execIndex)) ? `el${el.execIndex}_exec` : `btn${btnSeq}`;
           btnSeq++;
           if (btnSeq > 8) break;
@@ -4900,7 +4898,7 @@ export class ButtonExecutor {
           action:  "__sd_submit",
           label:   okLabel,
           icon:    "fas fa-check",
-          default: rollButtons.length === 0,
+          default: choiceButtons.length === 0,
           callback: () => "submit||yes"
         });
         dlgButtons.push({ action:"cancel", label: cancelLabel, icon:"fas fa-times" });

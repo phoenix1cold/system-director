@@ -221,38 +221,6 @@
       "style-color"
     ]
   ],
-  "rollButton": [
-    [
-      "Width (px)",
-      "boxW",
-      "style-px"
-    ],
-    [
-      "Height (px)",
-      "boxH",
-      "style-px"
-    ],
-    [
-      "Button background",
-      "btnBg",
-      "style-color"
-    ],
-    [
-      "Text color",
-      "btnFg",
-      "style-color"
-    ],
-    [
-      "Border",
-      "boxBorder",
-      "style-color"
-    ],
-    [
-      "Border radius (px)",
-      "boxRadius",
-      "style-px"
-    ]
-  ],
   "toggle": [
     [
       "Width (px)",

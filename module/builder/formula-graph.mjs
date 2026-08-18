@@ -3638,7 +3638,7 @@ export const NODE_DEFS = {
           else if (t !== "label" && t !== "section" && t !== "button") o.default = String(def ?? "");
           if (t === "label" || t === "section") o.text = lbl;
           if (t === "button") {
-            o.type = "rollButton";
+            o.type = "button";
             o.formula = "0";
             o.execIndex = i;
             o.emit = emit;
@@ -8024,7 +8024,7 @@ export const NODE_DEFS = {
         else if (t !== "label" && t !== "section" && t !== "button") o.default = String(def ?? "");
         if (t === "label" || t === "section") o.text = lbl;
         if (t === "button") {
-          o.type = "rollButton";
+          o.type = "button";
           o.formula = "0";
           o.execIndex = i;
           o.emit = emit;
@@ -8565,16 +8565,6 @@ const WIDGET_CONFIG_NODES = {
       {key:"max",  label:"Max",type:"number",default:99},
       {key:"step", label:"Step",type:"number",default:1},
       {key:"color",label:"Accent colour",type:"text",default:"#e0a020"}
-    ]
-  },
-  wcfg_rollButton:{ title:"Roll Button",      color:"#1a3a1a", isWidgetConfig:true, widgetType:"rollButton",
-    inputs:[_mkPin("label","Label"),_mkPin("formula","Formula"),_mkPin("flavor","Flavor"),_mkPin("icon","Icon"),_mkPin("color","Color")],
-    outputs:[], fields:[
-      {key:"label",  label:"Label",type:"text",default:"Roll"},
-      {key:"formula",label:"Formula",type:"text",default:"1d20"},
-      {key:"flavor", label:"Flavor text (chat)",type:"text",default:""},
-      {key:"icon",   label:"FA Icon",type:"text",default:"fa-dice-d20"},
-      {key:"color",  label:"Accent colour",type:"text",default:"#5a9ae0"}
     ]
   },
   wcfg_tokenPool: { title:"Token Pool",       color:"#4a3a1a", isWidgetConfig:true, widgetType:"tokenPool",
@@ -12180,7 +12170,7 @@ export class FormulaGraph {
       "literal", "literal_str", "get_path", "actor_ref", "item_uuid", "fa_icon"
     ]);
     const IMPLICIT_CLICK_WIDGETS = new Set([
-      "rollButton","counter","dice","toggle","tracker","clock",
+      "counter","dice","toggle","tracker","clock",
       "tokenPool","diceTray","number","resource","progress","richtext"
     ]);
     const isWidgetGraph    = !!this.widget && !this.configMode;

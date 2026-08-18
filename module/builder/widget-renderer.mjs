@@ -1025,7 +1025,7 @@ export class WidgetRenderer {
     const variant = this._sanitizeVariant(w.variant);
 
     if (variant === "roll-button") {
-      const rollLabel = e(w.rollButtonLabel || "ROLL");
+      const rollLabel = e(w.actionLabel || "ROLL");
       return `<div class="widget widget-attribute widget-attribute--roll">
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.path ? this._copyBtn(w.path, "score") : ""}</div>
   <div class="attr-box">
@@ -1812,34 +1812,6 @@ export class WidgetRenderer {
             onmouseover="this.style.background='${col}22'"
             onmouseout="this.style.background='var(--sd-bg)'">+</button>
   </div>
-</div>`;
-  }
-
-  static _render_rollButton(w, doc) {
-    const e    = this._esc;
-    const raw  = w.formula ?? "1d20";
-    const col  = e(w.color ?? "#5a9ae0");
-    const icon = e(this._faClass(w.icon ?? "fa-dice-d20"));
-    const hasRefs = FormulaEngine.isFormula(raw);
-    const display = hasRefs ? FormulaEngine.resolveForRoll(raw, doc) : raw;
-    return `<div class="widget widget-roll-button" style="display:flex;flex-direction:column;align-items:stretch;padding:2px 0">
-  <button type="button" class="dice-btn widget-roll-button-btn"
-          data-action="widgetRoll"
-          data-formula="${e(display)}"
-          data-formula-raw="${e(raw)}"
-          data-flavor="${e(w.flavor ?? w.label ?? "")}"
-          title="Roll ${e(display)}"
-          style="display:flex;align-items:center;gap:8px;padding:8px 12px;
-                 background:linear-gradient(135deg, ${col}33, ${col}11);
-                 border:1px solid ${col}88; border-radius:6px; color:#e0e0f0;
-                 cursor:pointer; font-size:12px; font-weight:600; text-align:left;
-                 transition:all .15s; box-shadow:0 1px 2px #0006"
-          onmouseover="this.style.background='linear-gradient(135deg, ${col}55, ${col}22)';this.style.borderColor='${col}';this.style.transform='translateY(-1px)'"
-          onmouseout="this.style.background='linear-gradient(135deg, ${col}33, ${col}11)';this.style.borderColor='${col}88';this.style.transform='none'">
-    <i class="${icon}" style="color:${col};font-size:16px"></i>
-    <span style="flex:1">${e(w.label ?? "Roll")}</span>
-    <span style="opacity:.7;font-size:10px;font-weight:400">${e(display)}</span>
-  </button>
 </div>`;
   }
 

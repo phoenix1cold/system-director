@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const popup=fs.readFileSync(new URL("../module/builder/widget-config-popup.mjs",import.meta.url),"utf8");
+const css=fs.readFileSync(new URL("../styles/system.css",import.meta.url),"utf8");
+const manifest=JSON.parse(fs.readFileSync(new URL("../system.json",import.meta.url),"utf8"));
+assert.equal(manifest.version,"0.22.4");
+assert.match(popup,/text:\s*\[.*\["Read Only","readOnly","boolean"\]/s,"Text Field must expose Read Only");
+assert.match(popup,/class="wcfg-f wcfg-boolean-row"/);
+assert.match(popup,/class="wcfg-checkbox-control"/);
+assert.match(popup,/appearance:auto!important/);
+assert.match(popup,/<span>\$\{esc\(lbl\)\}<\/span>/,"checkbox label must remain visible");
+assert.match(css,/html body \.sd\.sd-wcfg-popup input\.wcfg-checkbox-control\[type="checkbox"\]/);
+for(const token of ["width:15px!important","height:15px!important","position:static!important","opacity:1!important","transform:none!important"]) assert.match(css,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
+console.log("Text Field Read Only checkbox regression: OK");
