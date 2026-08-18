@@ -8481,7 +8481,7 @@ export function exportNodeCatalog(options = {}) {
     schema: "sd.node-catalog",
     schemaVersion: 1,
     system: "sd",
-    systemVersion: String(globalThis.game?.system?.version ?? "0.22.8"),
+    systemVersion: String(globalThis.game?.system?.version ?? "0.22.9"),
     language,
     generatedAt: new Date().toISOString(),
     categories,
@@ -8975,6 +8975,7 @@ export class FormulaGraph {
     this._selected = new Set(created.map(n => n.id));
     for (const n of created) this._renderNode(n);
     this._refreshSelectionHighlights?.();
+    this._layoutAIAssistantNodes(addedNodeIds);
     this._scheduleEdges?.();
     this._updatePreview?.();
     this._pushHistory();
@@ -10101,10 +10102,56 @@ export class FormulaGraph {
     return !!res;
   }
 
+  _layoutAIAssistantNodes(nodeIds = []) {
+    const ids = new Set(nodeIds.filter(Boolean));
+    if (!ids.size) return;
+    const addedNodes = this.nodes.filter(node => ids.has(node.id));
+    if (!addedNodes.length) return;
+
+    const levels = new Map(addedNodes.map(node => [node.id, 0]));
+    for (let pass = 0; pass < addedNodes.length; pass++) {
+      let changed = false;
+      for (const edge of this.edges ?? []) {
+        if (!ids.has(edge.toNode)) continue;
+        const candidate = ids.has(edge.fromNode) ? (levels.get(edge.fromNode) ?? 0) + 1 : 0;
+        if (candidate > (levels.get(edge.toNode) ?? 0)) { levels.set(edge.toNode, candidate); changed = true; }
+      }
+      if (!changed) break;
+    }
+
+    const externalSources = (this.edges ?? [])
+      .filter(edge => ids.has(edge.toNode) && !ids.has(edge.fromNode))
+      .map(edge => this.nodes.find(node => node.id === edge.fromNode))
+      .filter(Boolean);
+    const existing = this.nodes.filter(node => !ids.has(node.id));
+    const anchors = externalSources.length ? externalSources : existing;
+    const widthOf = node => this.nodesEl?.querySelector?.(`[data-nid="${node.id}"]`)?.offsetWidth || 460;
+    const baseX = anchors.length ? Math.max(...anchors.map(node => Number(node.x || 0) + widthOf(node))) + 120 : 160;
+    const baseY = anchors.length ? Math.min(...anchors.map(node => Number(node.y || 0))) : 160;
+    const groups = new Map();
+    for (const node of addedNodes) {
+      const level = Math.min(12, levels.get(node.id) ?? 0);
+      if (!groups.has(level)) groups.set(level, []);
+      groups.get(level).push(node);
+    }
+    for (const [level, nodes] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
+      let y = baseY;
+      nodes.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      for (const node of nodes) {
+        node.x = Math.round(baseX + level * 620);
+        node.y = Math.round(y);
+        const element = this.nodesEl?.querySelector?.(`[data-nid="${node.id}"]`);
+        if (element) { element.style.left = `${node.x}px`; element.style.top = `${node.y}px`; }
+        y += Math.max(120, element?.offsetHeight || 180) + 70;
+      }
+    }
+  }
+
   _applyAIAssistantPlan(plan) {
     const actions = Array.isArray(plan?.actions) ? plan.actions : [];
     const created = {};
     const pendingExecByValueNode = {};
+    const addedNodeIds = [];
     const skipped = [];
     let added = 0, updated = 0, connected = 0, deleted = 0, disconnected = 0;
 
@@ -10146,6 +10193,7 @@ export class FormulaGraph {
             const ref = String(a.ref ?? a.id ?? "").trim();
             if (ref) created[ref] = node.id;
             if (originalType && originalType !== ref) created[originalType] = node.id;
+            addedNodeIds.push(node.id);
             added++;
             continue;
           }
@@ -15447,6 +15495,14 @@ if(!document.getElementById("sd-graph-css")){
   s.id="sd-graph-css";
   s.textContent=`
     .sdgctx *,.sd-graph-win *{box-sizing:border-box}
+    .sd-ai-graph-assistant-window .window-content{padding:0!important;overflow:hidden!important;min-width:0!important;min-height:0!important}
+    .sd-ai-graph-assistant-window .window-content>*{width:100%!important;height:100%!important;min-width:0!important;min-height:0!important}
+    .sd-ai-graph-chat button{width:auto!important;min-width:0!important;max-width:100%!important;height:auto!important;margin:0!important}
+    .sd-ai-graph-chat .sd-ai-chat-iconbtn{width:30px!important;min-width:30px!important;height:30px!important;padding:0!important}
+    .sd-ai-graph-chat .sd-ai-chat-delete{width:26px!important;min-width:26px!important;height:26px!important;padding:0!important}
+    .sd-ai-graph-chat .sd-ai-chat-send,.sd-ai-graph-chat .sd-ai-chat-apply{flex:0 0 auto!important}
+    .gn-node-row .gn-control{width:100%;min-width:0;max-width:100%}
+    .gn-node-row :is(input,select,textarea){box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important}
     .gpin{position:relative;display:inline-grid;place-items:center;isolation:isolate;color:var(--pin-color);border-radius:50%;transition:transform .12s ease,box-shadow .12s ease,background .12s ease}
     .gpin-glyph{position:relative;z-index:2;display:inline-grid;place-items:center;min-width:0;color:var(--pin-color);font-family:Inter,'Segoe UI Symbol',Arial,sans-serif;font-size:8px;font-weight:900;line-height:1;letter-spacing:-1px;pointer-events:none;user-select:none;text-shadow:0 1px 1px rgba(0,0,0,.7)}
     .gpin[data-connected="1"] .gpin-glyph{color:#10131b;text-shadow:0 1px 0 rgba(255,255,255,.28)}
@@ -15504,7 +15560,7 @@ if(!document.getElementById("sd-graph-css")){
     .sd-ai-chat-titlebox span{font-size:11px;color:var(--sd-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
     .sd-ai-chat-iconbtn{background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:8px;color:var(--sd-text-2);width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}
     .sd-ai-chat-iconbtn:hover{border-color:var(--sd-accent);color:var(--sd-text)}
-    .sd-ai-chat-body{display:grid;grid-template-columns:190px minmax(0,1fr);min-height:0;flex:1}
+    .sd-ai-chat-body{display:grid;grid-template-columns:190px minmax(0,1fr);min-width:0;min-height:0;overflow:hidden;flex:1}
     .sd-ai-chat-sidebar{min-height:0;overflow:auto;background:var(--sd-bg-2);border-right:1px solid var(--sd-border);padding:8px}
     .sd-ai-chat-side-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);font-weight:800;margin:2px 2px 8px}
     .sd-ai-chat-row{display:grid;grid-template-columns:minmax(0,1fr) 26px;gap:5px;align-items:center;margin-bottom:5px}
@@ -15538,6 +15594,7 @@ if(!document.getElementById("sd-graph-css")){
     .sd-ai-chat-compose-row span{font-size:11px;color:var(--sd-text-3)}
     .sd-ai-chat-messages::-webkit-scrollbar,.sd-ai-chat-sidebar::-webkit-scrollbar{width:6px}
     .sd-ai-chat-messages::-webkit-scrollbar-thumb,.sd-ai-chat-sidebar::-webkit-scrollbar-thumb{background:var(--sd-border);border-radius:3px}
+    @media(max-width:620px){.sd-ai-chat-body{grid-template-columns:1fr}.sd-ai-chat-sidebar{max-height:118px;border-right:0;border-bottom:1px solid var(--sd-border)}.sd-ai-chat-compose-row{align-items:stretch;flex-direction:column}.sd-ai-chat-send{width:100%!important}.sd-ai-chat-titlebox span{display:none}}
   `;
   document.head.appendChild(s);
 }
