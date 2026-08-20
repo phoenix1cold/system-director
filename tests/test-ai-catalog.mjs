@@ -3,7 +3,7 @@ import fs from "node:fs";
 const manifest = JSON.parse(fs.readFileSync(new URL("../system.json", import.meta.url)));
 const graph = fs.readFileSync(new URL("../module/builder/formula-graph.mjs", import.meta.url), "utf8");
 const main = fs.readFileSync(new URL("../sd.mjs", import.meta.url), "utf8");
-assert.equal(manifest.version, "0.22.8");
+assert.equal(manifest.version, "0.22.10");
 for (const name of ["exportNodeCatalog", "validateGraphPlan", "importNodeTemplates"]) {
   assert.match(graph, new RegExp(`export (?:async )?function ${name}\\b`));
   assert.match(main, new RegExp(name));

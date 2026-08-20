@@ -56,6 +56,21 @@ assert.deepEqual(await releaseWidgetDataPath(removableDoc, "system.flags.myField
 assert.ok(!removalPatch["system.flags.__widgetPaths"].some(entry => entry.path === "system.flags.myField2"));
 assert.equal(removalPatch["system.flags.-=myField2"], null, "releasing a path must clear its stored value");
 
+let schemaRemovalPatch = null;
+const field = initial => ({ options:{ initial }, getInitialValue:()=>initial });
+const schemaDoc = {
+  system:{
+    customTabs:[],
+    flags:{ __widgetPaths:[{path:"system.skills.skill1.rank"}] },
+    skills:{ skill1:{ rank:4, attribute:"", bonus:4, label:"Skill 1" } },
+    schema:{ fields:{ skills:{ fields:{ skill1:{ fields:{ rank:field(0), attribute:field(""), bonus:field(0), label:field("Skill 1") } } } } } }
+  },
+  async update(patch){ schemaRemovalPatch = patch; }
+};
+assert.deepEqual(await releaseWidgetDataPath(schemaDoc, "system.skills.skill1.rank"), {ok:true});
+assert.equal(schemaRemovalPatch["system.skills.skill1.rank"], 0, "required schema fields must reset to their initial value instead of becoming undefined");
+assert.equal(schemaRemovalPatch["system.skills.skill1.-=rank"], undefined);
+
 let inUseUpdated = false;
 const inUseDoc = {
   system:{ customTabs:tabs, flags:{ __widgetPaths:[{path:"system.flags.myField"}] } },
@@ -73,6 +88,6 @@ for (const source of [characterSheet, itemSheet]) {
 assert.match(gridManager, /assignUniqueWidgetDataPaths/);
 assert.match(gridManager, /buildWidgetPathRegistryUpdate/);
 assert.match(widgetPopup, /additionalWidgets:/, "nested Widget Builder widgets must participate in allocation");
-assert.equal(manifest.version, "0.22.9");
+assert.equal(manifest.version, "0.22.10");
 
 console.log("PASS: Roll dice array and reusable numbered widget Data Paths.");

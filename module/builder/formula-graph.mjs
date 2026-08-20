@@ -8481,7 +8481,7 @@ export function exportNodeCatalog(options = {}) {
     schema: "sd.node-catalog",
     schemaVersion: 1,
     system: "sd",
-    systemVersion: String(globalThis.game?.system?.version ?? "0.22.9"),
+    systemVersion: String(globalThis.game?.system?.version ?? "0.22.10"),
     language,
     generatedAt: new Date().toISOString(),
     categories,

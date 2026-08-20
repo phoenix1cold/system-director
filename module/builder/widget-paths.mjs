@@ -166,12 +166,77 @@ export function getWidgetPathRows(doc) {
   );
 }
 
-function deletionPatchFor(path) {
+export function deletionPatchFor(path) {
   const parts = cleanPath(path).split(".").filter(Boolean);
   if (parts.length < 2) return {};
   const leaf = parts.pop();
   const parent = parts.join(".");
   return { [`${parent}.-=${leaf}`]: null };
+}
+
+function valueAtPath(source, path) {
+  let current = source;
+  for (const part of cleanPath(path).split(".").filter(Boolean)) {
+    if (!current || typeof current !== "object" || !(part in current)) return undefined;
+    current = current[part];
+  }
+  return current;
+}
+
+function cloneWithoutUndefined(value) {
+  if (Array.isArray(value)) return value.map(cloneWithoutUndefined).filter(entry => entry !== undefined);
+  if (!value || typeof value !== "object") return value;
+  const out = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry === undefined) continue;
+    const clean = cloneWithoutUndefined(entry);
+    if (clean !== undefined) out[key] = clean;
+  }
+  return out;
+}
+
+function modelDefaultAtPath(doc, path) {
+  const parts = cleanPath(path).split(".").filter(Boolean);
+  if (parts[0] === "system") parts.shift();
+  let field = doc?.system?.schema;
+  for (const part of parts) {
+    if (!field) return undefined;
+    field = field.fields?.[part] ?? field.element ?? null;
+  }
+  if (!field) return undefined;
+  try {
+    const value = field.getInitialValue?.({});
+    if (value !== undefined) return cloneWithoutUndefined(value);
+  } catch {}
+  const initial = field.options?.initial ?? field.initial;
+  try {
+    return cloneWithoutUndefined(typeof initial === "function" ? initial() : initial);
+  } catch {
+    return undefined;
+  }
+}
+
+function isFixedSchemaPath(doc, path) {
+  const parts = cleanPath(path).split(".").filter(Boolean);
+  if (parts[0] === "system") parts.shift();
+  let field = doc?.system?.schema;
+  for (const part of parts) {
+    if (!field?.fields || !(part in field.fields)) return false;
+    field = field.fields[part];
+  }
+  return !!field;
+}
+
+function schemaSafeDeletionPatch(doc, path) {
+  const current = valueAtPath(doc, path);
+  if (current === undefined) return {};
+  const fixedSchema = isFixedSchemaPath(doc, path);
+  const fallback = fixedSchema ? modelDefaultAtPath(doc, path) : undefined;
+  // Deleting a required field from a fixed SchemaField produces an intermediate
+  // `undefined` during DataModel#updateSource. Reset it to the schema initial
+  // value instead. Dynamic ObjectField paths can still be removed with `-=`.
+  if (fixedSchema) return fallback === undefined ? {} : { [cleanPath(path)]: fallback };
+  return deletionPatchFor(path);
 }
 
 /** Remove an unused reservation and clear its stored value so the slot is reusable. */
@@ -182,11 +247,12 @@ export async function releaseWidgetDataPath(doc, path) {
     return { ok: false, reason: "in-use" };
   }
   const next = storedRegistry(doc).filter(entry => entry.path !== target);
+  const valuePatch = schemaSafeDeletionPatch(doc, target);
   await doc.update({
     [WIDGET_PATH_REGISTRY_PATH]: next,
-    ...deletionPatchFor(target)
+    ...valuePatch
   });
   return { ok: true };
 }
 
-export const __widgetPathTest = Object.freeze({ numberedPath, directWidgetPathRecords, storedRegistry });
+export const __widgetPathTest = Object.freeze({ numberedPath, directWidgetPathRecords, storedRegistry, modelDefaultAtPath, schemaSafeDeletionPatch });
