@@ -18,6 +18,7 @@ export class WidgetRenderer {
   static render(widgetDef, doc, editMode = false, options = {}) {
 
     widgetDef = localizeTree(widgetDef);
+    widgetDef = this._resolveDynamicColours(widgetDef, doc);
 
     if (editMode && typeof editMode === "object" && !Array.isArray(editMode)) {
       options = editMode;
@@ -104,6 +105,48 @@ export class WidgetRenderer {
     return val ?? fallback;
   }
 
+  static _isCssColour(value) {
+    const s = String(value ?? "").trim();
+    if (!s) return false;
+    return /^(?:#[0-9a-f]{3,8}|(?:rgb|hsl|hwb|lab|lch|oklab|oklch|color)\([^;{}<>]*\)|color-mix\([^;{}<>]*\)|var\(--[a-z0-9_-]+(?:\s*,\s*[^;{}<>]+)?\)|transparent|currentcolor|[a-z]+)$/i.test(s);
+  }
+
+  static _resolveColourSpec(spec, doc) {
+    if (typeof spec !== "string") return spec;
+    const raw = spec.trim();
+    if (!raw || this._isCssColour(raw)) return raw;
+
+    let resolved;
+    try {
+      if (raw.includes("{") && raw.includes("}")) {
+        resolved = FormulaEngine.evaluate(raw, doc);
+      } else {
+        resolved = this._get(doc, raw, undefined);
+      }
+    } catch { resolved = undefined; }
+
+    if (resolved && typeof resolved === "object" && "value" in resolved) {
+      resolved = resolved.value;
+    }
+    return this._isCssColour(resolved) ? String(resolved).trim() : "";
+  }
+
+  static _resolveDynamicColours(widgetDef, doc) {
+    if (!widgetDef || typeof widgetDef !== "object") return widgetDef;
+    const out = { ...widgetDef };
+    const keys = [
+      "boxBg", "boxFg", "boxBorder", "barTrack", "btnBg", "btnFg",
+      "btnBorder", "iconColor", "btnColor", "onColor", "offColor",
+      "lineColor", "titleColor", "emptyColor", "headerColor", "tagFg",
+      "color", "bgColor", "fillColor", "accentColor"
+    ];
+    for (const key of keys) {
+      if (typeof out[key] !== "string" || !out[key].trim()) continue;
+      out[key] = this._resolveColourSpec(out[key], doc);
+    }
+    return out;
+  }
+
   static _getValue(w, doc, fallback = "") {
     if (w.valueFormula !== undefined && w.valueFormula !== null && String(w.valueFormula).trim() !== "") {
       return FormulaEngine.evaluate(String(w.valueFormula), doc);
@@ -150,7 +193,7 @@ export class WidgetRenderer {
     const colour = (v) => {
       if (typeof v !== "string") return null;
       const t = v.trim();
-      return /^#[0-9a-f]{3,8}$/i.test(t) || /^rgb/i.test(t) || /^[a-z]+$/i.test(t) ? t : null;
+      return this._isCssColour(t) ? t : null;
     };
 
     const wPx = px(w.boxW);    if (wPx) parts.push(`width:${wPx}`);
@@ -1788,29 +1831,21 @@ export class WidgetRenderer {
     const maxN = (w.max === "" || w.max == null) ? null : Number(w.max);
     const hasRange = Number.isFinite(minN) && Number.isFinite(maxN) && maxN > minN;
     const pct = hasRange
-      ? Math.round(Math.clamp((val - minN) / (maxN - minN), 0, 1) * 100)
+      ? Math.round(Math.max(0, Math.min(1, (val - minN) / (maxN - minN))) * 100)
       : 0;
-    return `<div class="widget widget-counter" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;--sd-progress:${pct}%">
-  <div class="widget-label cnt-lbl" style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--sd-text-2)">${e(w.label ?? "Counter")}</div>
-  <div class="cnt-row" style="display:flex;align-items:center;gap:8px">
+    const minAttr = minN == null ? "" : e(minN);
+    const maxAttr = maxN == null ? "" : e(maxN);
+    const path = e(w.path ?? "");
+    return `<div class="widget widget-counter" style="--sd-progress:${pct}%">
+  <div class="widget-label cnt-lbl">${e(w.label ?? "Counter")}</div>
+  <div class="cnt-row">
     <button type="button" class="num-btn cnt-btn cnt-btn-dec" data-action="widgetNumStep"
-            data-path="${e(w.path)}" data-step="-${step}"
-            data-min="${w.min ?? ""}" data-max="${w.max ?? ""}"
-            style="font-size:16px;width:28px;height:28px;border-radius:6px;
-                   background:var(--sd-bg);border:1px solid ${col}66;color:${col};
-                   cursor:pointer;transition:all .12s"
-            onmouseover="this.style.background='${col}22'"
-            onmouseout="this.style.background='var(--sd-bg)'">−</button>
-    <div class="cnt-val" data-progress="${pct}" style="font-size:22px;font-weight:700;min-width:38px;text-align:center;color:${col};
-                text-shadow:0 0 8px ${col}55;--sd-progress:${pct}%">${val}</div>
+            data-path="${path}" data-step="-${e(step)}"
+            data-min="${minAttr}" data-max="${maxAttr}">−</button>
+    <div class="cnt-val" data-progress="${pct}" style="--sd-progress:${pct}%;color:${col};">${e(val)}</div>
     <button type="button" class="num-btn cnt-btn cnt-btn-inc" data-action="widgetNumStep"
-            data-path="${e(w.path)}" data-step="${step}"
-            data-min="${w.min ?? ""}" data-max="${w.max ?? ""}"
-            style="font-size:16px;width:28px;height:28px;border-radius:6px;
-                   background:var(--sd-bg);border:1px solid ${col}66;color:${col};
-                   cursor:pointer;transition:all .12s"
-            onmouseover="this.style.background='${col}22'"
-            onmouseout="this.style.background='var(--sd-bg)'">+</button>
+            data-path="${path}" data-step="${e(step)}"
+            data-min="${minAttr}" data-max="${maxAttr}">+</button>
   </div>
 </div>`;
   }
@@ -2441,7 +2476,7 @@ export class WidgetRenderer {
     const ic  = e(this._faClass(w.icon || "fa-backpack"));
     if (!items || items.length === 0) {
       return `<div class="widget widget-inventory widget-compact"><details class="sd-hud-popover">
-  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span><span class="sd-hud-pop-count">0</span></summary>
+  <summary class="sd-hud-pop-btn"><i class="${ic}"></i><span>${lbl}</span></summary>
   <div class="sd-hud-pop-body sd-hud-pop-empty"><i class="fas fa-backpack"></i> No items</div>
 </details></div>`;
     }

@@ -12,14 +12,36 @@ function loc(key)     { return game.i18n.localize(key); }
 const DEFAULT_SP_VALUE_PATH = "system.skillPoints.value";
 const DEFAULT_SP_MAX_PATH   = "system.skillPoints.max";
 
-function getNestedValue(obj, path) {
-  return path.split(".").reduce((cur, k) => cur?.[k], obj);
+function normalizeActorPath(actor, path) {
+  let raw = String(path ?? "").trim().replace(/^\{(.+)\}$/, "$1");
+  if (!raw) return "";
+  if (/^(?:system|flags|name|img|prototypeToken|ownership)\./.test(raw)) return raw;
+  try {
+    if (foundry.utils.getProperty(actor, raw) !== undefined) return raw;
+    if (foundry.utils.getProperty(actor?.system, raw) !== undefined) return `system.${raw}`;
+  } catch {}
+  // Common shorthand used in progression configs and imported class items.
+  if (/^(?:skillPoints|advancement|resources|attributes|skills|hiddenFields)\./.test(raw)) {
+    return `system.${raw}`;
+  }
+  return raw;
 }
 
-function buildFieldUpdate(actor, { path, mode, value }) {
+function getNestedValue(obj, path) {
+  const normalized = normalizeActorPath(obj, path);
+  if (!normalized) return undefined;
+  try { return foundry.utils.getProperty(obj, normalized); }
+  catch { return normalized.split(".").reduce((cur, k) => cur?.[k], obj); }
+}
+
+function buildFieldUpdate(actor, { path, mode, value }, pending = {}) {
+  path = normalizeActorPath(actor, path);
+  if (!path) return {};
   const numVal = Number(value);
   const safe   = isNaN(numVal) ? 0 : numVal;
-  const current = getNestedValue(actor, path) ?? 0;
+  const current = Object.hasOwn(pending, path)
+    ? Number(pending[path] ?? 0)
+    : Number(getNestedValue(actor, path) ?? 0);
   let newVal;
   switch (mode) {
     case "set":      newVal = safe; break;
@@ -30,6 +52,7 @@ function buildFieldUpdate(actor, { path, mode, value }) {
 }
 
 function _readActorPath(actor, path, fallback = 0) {
+  path = normalizeActorPath(actor, path);
   if (!path) return fallback;
   try {
     const v = foundry.utils.getProperty(actor, path);
@@ -1899,12 +1922,25 @@ export class ProgressionApp extends ApplicationV2 {
     const updates = {};
     const collectFieldChange = (fc) => {
       if (!fc || !fc.path) return;
-      if (!(fc.path in snapshot.prevValues)) {
-        snapshot.prevValues[fc.path] = getNestedValue(actor, fc.path);
+      const path = normalizeActorPath(actor, fc.path);
+      if (!path) return;
+      if (!(path in snapshot.prevValues)) {
+        snapshot.prevValues[path] = getNestedValue(actor, path);
       }
-      Object.assign(updates, buildFieldUpdate(actor, fc));
+      Object.assign(updates, buildFieldUpdate(actor, { ...fc, path }, updates));
     };
     for (const fc of (lv.fieldChanges ?? [])) collectFieldChange(fc);
+
+    // Also support explicit skill-point grants in imported Class definitions.
+    // Both the spendable value and its maximum are additive rewards.
+    const explicitSp = Number(lv.skillPoints ?? lv.skillPointGain ?? lv.skillPointsGranted);
+    const explicitMax = Number(lv.skillPointsMax ?? lv.skillPointMaxGain);
+    if (Number.isFinite(explicitSp) && explicitSp !== 0) {
+      collectFieldChange({ path: this._spValuePath, mode: "add", value: explicitSp });
+    }
+    if (Number.isFinite(explicitMax) && explicitMax !== 0) {
+      collectFieldChange({ path: this._spMaxPath, mode: "add", value: explicitMax });
+    }
 
     const extraItems   = [];
     const extraEffects = [];

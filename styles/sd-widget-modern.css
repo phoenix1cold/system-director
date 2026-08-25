@@ -1,0 +1,674 @@
+/* System Director 1.3.5 — modern widget system
+   All selectors are data/behaviour neutral: visual variants never change data. */
+
+.sd .widget,
+.sd-wcfg-popup .widget,
+#sd-action-hud .widget,
+#sd-action-hud-floating .widget {
+  box-sizing: border-box;
+  min-width: 0;
+  position: relative;
+  container-type: inline-size;
+  color: var(--sd-w-fg, var(--sd-text));
+  background: var(--sd-w-bg, var(--sd-widget-bg, var(--sd-bg-2)));
+  border: 1px solid var(--sd-w-bd, var(--sd-widget-border, var(--sd-border)));
+  border-radius: var(--sd-r, var(--sd-widget-radius, 8px));
+  box-shadow: var(--sd-widget-shadow);
+  padding: var(--sd-p, 10px);
+  gap: 7px;
+  isolation: isolate;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.sd .widget:hover,
+.sd-wcfg-popup .widget:hover,
+#sd-action-hud .widget:hover,
+#sd-action-hud-floating .widget:hover {
+  border-color: var(--sd-widget-border-hover);
+  box-shadow: var(--sd-widget-shadow-hover);
+}
+
+.sd .widget-label,
+.sd-wcfg-popup .widget-label,
+#sd-action-hud .widget-label,
+#sd-action-hud-floating .widget-label {
+  min-width: 0;
+  color: var(--sd-w-label, var(--sd-label));
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.25;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.sd .widget :is(input,select,textarea,button),
+.sd-wcfg-popup .widget :is(input,select,textarea,button),
+#sd-action-hud .widget :is(input,select,textarea,button),
+#sd-action-hud-floating .widget :is(input,select,textarea,button) {
+  box-sizing: border-box;
+  min-width: 0;
+  font: inherit;
+}
+
+.sd .widget :is(input,select,textarea),
+.sd-wcfg-popup .widget :is(input,select,textarea),
+#sd-action-hud .widget :is(input,select,textarea),
+#sd-action-hud-floating .widget :is(input,select,textarea) {
+  color: var(--sd-w-fg, var(--sd-text));
+  background: var(--sd-control-bg);
+  border: 1px solid var(--sd-control-border);
+  border-radius: var(--sd-control-radius);
+  min-height: 30px;
+  padding: 5px 8px;
+  outline: 0;
+  box-shadow: inset 0 1px 3px color-mix(in srgb, #000 28%, transparent);
+}
+
+.sd .widget :is(input,select,textarea):hover { border-color: color-mix(in srgb, var(--sd-accent) 45%, var(--sd-border)); }
+.sd .widget :is(input,select,textarea):focus-visible,
+.sd .widget button:focus-visible,
+#sd-action-hud .widget :is(input,select,textarea,button):focus-visible,
+#sd-action-hud-floating .widget :is(input,select,textarea,button):focus-visible {
+  border-color: var(--sd-accent) !important;
+  box-shadow: var(--sd-input-focus-shadow) !important;
+  outline: none !important;
+}
+
+.sd .widget button:not(:disabled),
+#sd-action-hud .widget button:not(:disabled),
+#sd-action-hud-floating .widget button:not(:disabled) { cursor: pointer; }
+.sd .widget button:disabled { cursor: not-allowed; opacity: .48; filter: saturate(.45); }
+.sd .widget :is(.widget-copy-path,.widget-copy-macro,.sd-tag-add,.sd-clock-reset,.sd-tracker-reset) {
+  min-width: 22px;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px !important;
+}
+.sd .widget-copy-path { opacity: .42; }
+.sd .widget:hover .widget-copy-path { opacity: .82; }
+
+/* Text and rich text */
+.sd-w-text input { width: 100%; font-size: 13px !important; line-height: 1.35; }
+.sd-w-text .widget-text-readonly-val,
+.sd-w-text .widget-formula-val { min-height: 31px !important; display:flex; align-items:center; padding:6px 9px !important; border-radius:var(--sd-control-radius) !important; }
+.sd-w-richtext :is(.sd-richtext-native,.sd-richtext-editor,.richtext-display) {
+  border-radius: var(--sd-control-radius) !important;
+  background: color-mix(in srgb, var(--sd-bg) 82%, var(--sd-bg-2)) !important;
+  border-color: var(--sd-control-border) !important;
+  color: var(--sd-text) !important;
+}
+.sd-w-richtext :is(.ProseMirror,.richtext-display) { line-height: 1.62; }
+
+/* Numeric controls */
+.sd-w-number .num-row,
+.sd-w-counter .cnt-row { display:flex; align-items:stretch; gap:6px !important; width:100%; }
+.sd-w-number .num-row input { min-width:48px; min-height:34px; font-size:17px !important; font-variant-numeric:tabular-nums; }
+.sd-w-number .num-btn,
+.sd-w-counter .cnt-btn,
+.sd-w-tokenpool .num-btn {
+  min-width:32px !important;
+  min-height:32px !important;
+  border:1px solid color-mix(in srgb, var(--sd-accent) 32%, var(--sd-border)) !important;
+  background:color-mix(in srgb, var(--sd-bg-3) 82%, var(--sd-accent) 18%) !important;
+  color:var(--sd-accent) !important;
+  border-radius:var(--sd-control-radius) !important;
+  box-shadow:inset 0 1px 0 color-mix(in srgb, var(--sd-text) 6%, transparent);
+}
+.sd-w-number .num-btn:hover,
+.sd-w-counter .cnt-btn:hover,
+.sd-w-tokenpool .num-btn:hover { background:var(--sd-accent-glow) !important; border-color:var(--sd-accent) !important; transform:translateY(-1px); }
+.sd-w-counter {
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  gap:6px !important;
+  padding:8px 10px !important;
+  min-width:0;
+}
+.sd-w-counter .cnt-lbl { text-align:center; }
+.sd-w-counter .cnt-row {
+  display:grid !important;
+  grid-template-columns:minmax(32px, 36px) minmax(0, 1fr) minmax(32px, 36px);
+  align-items:center !important;
+  gap:8px !important;
+  width:100% !important;
+}
+.sd-w-counter .cnt-btn { width:100% !important; height:32px !important; padding:0 !important; }
+.sd-w-counter .cnt-val {
+  min-width:0 !important;
+  font-size:22px !important;
+  font-weight:700 !important;
+  line-height:1.1 !important;
+  text-align:center !important;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.04em;
+  text-shadow:0 0 8px color-mix(in srgb, currentColor 34%, transparent);
+}
+
+/* Resource and progress */
+.sd-w-resource .res-row { gap:6px !important; justify-content:center; }
+.sd-w-resource .res-row input { width:64px !important; min-height:32px; font-variant-numeric:tabular-nums; }
+.sd-w-resource .res-bar,
+.sd-w-progress > div:last-child {
+  position:relative;
+  overflow:hidden;
+  min-height:7px;
+  border:1px solid color-mix(in srgb, var(--sd-border) 80%, #000) !important;
+  border-radius:999px !important;
+  background:color-mix(in srgb, var(--sd-bg) 88%, #000) !important;
+  box-shadow:inset 0 2px 6px color-mix(in srgb, #000 55%, transparent), 0 1px 0 color-mix(in srgb, var(--sd-text) 5%, transparent);
+}
+.sd-w-resource .res-bar-fill,
+.sd-w-progress > div:last-child > div {
+  position:relative;
+  border-radius:inherit !important;
+  box-shadow:0 0 12px color-mix(in srgb, currentColor 48%, transparent), inset 0 1px 0 rgba(255,255,255,.22);
+}
+.sd-w-resource .res-bar-fill::after,
+.sd-w-progress > div:last-child > div::after {
+  content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(255,255,255,.28),transparent 48%,rgba(0,0,0,.15)); opacity:.72;
+}
+
+/* Action widgets */
+.sd-w-dice,
+.sd-w-button,
+.sd-w-carddrawbutton { background:transparent !important; border-color:transparent !important; box-shadow:none !important; padding:0 !important; }
+.sd-w-dice .dice-btn,
+.sd-w-button .sd-action-btn,
+.sd-w-carddrawbutton > button {
+  min-height:38px;
+  border-radius:var(--sd-control-radius) !important;
+  box-shadow:inset 0 1px 0 color-mix(in srgb, var(--sd-text) 10%, transparent), 0 5px 12px color-mix(in srgb, #000 38%, transparent);
+  transition:transform .12s ease,box-shadow .12s ease,background .12s ease,border-color .12s ease !important;
+}
+.sd-w-dice .dice-btn:hover,
+.sd-w-button .sd-action-btn:hover,
+.sd-w-carddrawbutton > button:hover { transform:translateY(-1px); box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 8px 18px rgba(0,0,0,.42),0 0 16px var(--sd-accent-glow); }
+.sd-w-dice .dice-btn:active,
+.sd-w-button .sd-action-btn:active,
+.sd-w-carddrawbutton > button:active { transform:translateY(1px) scale(.995); }
+
+/* Toggle and select */
+.sd-w-toggle .tog-row { min-height:32px; padding:3px 0; border-radius:var(--sd-control-radius); }
+.sd-w-toggle .tog-track { width:42px !important; height:22px !important; border-radius:999px !important; box-shadow:inset 0 2px 5px rgba(0,0,0,.4); }
+.sd-w-toggle .tog-knob { width:16px !important; height:16px !important; top:2px !important; left:3px !important; box-shadow:0 2px 5px rgba(0,0,0,.5); }
+.sd-w-toggle .tog-track.on .tog-knob { left:21px !important; }
+.sd-w-select .widget-select-input { min-height:34px; width:100%; }
+.sd-w-select .widget-select-pill,
+.sd-w-select .widget-select-radio { min-height:30px; border-radius:var(--sd-control-radius) !important; }
+
+/* Attributes and skills */
+.sd-w-attribute .attr-box,
+.sd-w-attributegroup .attr-item,
+.sd-w-skill { border-color:color-mix(in srgb,var(--sd-border) 78%,var(--sd-accent) 22%); }
+.sd-w-attribute .attr-score,
+.sd-w-attribute .attr-mod,
+.sd-w-attributegroup .attr-item-score,
+.sd-w-attributegroup .attr-item-mod,
+.sd-w-skill .skill-bonus { font-variant-numeric:tabular-nums; }
+.sd-w-attribute .attr-box { border-radius:var(--sd-control-radius); overflow:hidden; }
+.sd-w-attributegroup .attr-item { min-height:38px; border-radius:var(--sd-control-radius); background:color-mix(in srgb,var(--sd-bg-2) 88%,var(--sd-accent) 12%); }
+.sd-w-skill { min-height:38px; align-items:center; }
+.sd-w-skill .skill-pip { border-color:var(--sd-border-2); box-shadow:inset 0 1px 2px rgba(0,0,0,.45); }
+
+/* Collection widgets */
+.sd-w-inventory,
+.sd-w-effects,
+.sd-w-spellbook,
+.sd-w-cardhand { overflow:visible; }
+.sd-w-inventory :is(.item-row,.inv-row,.inventory-item),
+.sd-w-effects :is(.effect-row,.fx-row),
+.sd-w-spellbook :is(.sb-ability-row,.sp-row,.spell-row),
+.sd-hud-pop-row {
+  min-height:34px;
+  border:1px solid transparent;
+  border-radius:var(--sd-control-radius) !important;
+  background:color-mix(in srgb,var(--sd-bg-2) 78%,transparent);
+  transition:background .12s,border-color .12s,transform .12s;
+}
+.sd-w-inventory :is(.item-row,.inv-row,.inventory-item):hover,
+.sd-w-effects :is(.effect-row,.fx-row):hover,
+.sd-w-spellbook :is(.sb-ability-row,.sp-row,.spell-row):hover,
+.sd-hud-pop-row:hover { background:color-mix(in srgb,var(--sd-bg-3) 82%,var(--sd-accent) 18%) !important; border-color:var(--sd-accent-dim) !important; transform:translateX(1px); }
+.sd-w-inventory :is(.item-img,.inv-img),
+.sd-w-effects :is(.effect-img,.fx-img),
+.sd-w-spellbook :is(.sb-ability-row img,.sp-img) { border:1px solid var(--sd-border); box-shadow:0 2px 7px rgba(0,0,0,.42); }
+.sd-item-card { border-radius:calc(var(--sd-widget-radius) + 1px) !important; box-shadow:0 9px 24px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.06) !important; }
+.sd-item-card:hover { transform:translateY(-2px); }
+.sd-cards-nav { border-radius:var(--sd-control-radius) !important; backdrop-filter:blur(8px); }
+.sd-hud-popover > summary { min-height:36px; border-radius:var(--sd-control-radius); }
+.sd-hud-popover[open] > summary { color:var(--sd-accent); }
+.sd-hud-pop-body { border-radius:var(--sd-widget-radius); box-shadow:var(--sd-popover-shadow); backdrop-filter:blur(14px); }
+
+/* Slots */
+.sd-w-slot .slot-mini-item,
+.sd-w-slot .slot-drop-mini,
+.sd-w-slot .slot-hud-icons,
+.sd-w-slot .sd-slot-tile { border-radius:var(--sd-control-radius); }
+.sd-w-slot .slot-mini-item { min-height:34px; background:color-mix(in srgb,var(--sd-bg-2) 84%,var(--sd-accent) 16%); }
+.sd-w-slot .slot-mini-img { width:28px !important; height:28px !important; border:1px solid var(--sd-border); }
+.sd-w-slot .slot-drop-mini { min-height:34px; display:flex; align-items:center; justify-content:center; }
+
+/* Tracker, token pool, clock and tags */
+.sd-w-tracker .sd-tracker-row,
+.sd-w-tokenpool .sd-token-row { min-height:30px; padding:5px !important; border-radius:var(--sd-control-radius); background:color-mix(in srgb,var(--sd-bg) 70%,transparent); }
+.sd-w-tracker .sd-tracker-pip,
+.sd-w-tokenpool .sd-tracker-pip { transform-origin:center; }
+.sd-w-tracker .sd-tracker-pip:hover,
+.sd-w-tokenpool .sd-tracker-pip:hover { transform:translateY(-2px) scale(1.08); }
+.sd-w-clock svg { filter:drop-shadow(0 5px 9px rgba(0,0,0,.38)); }
+.sd-w-clock .sd-clock-segment:hover { filter:brightness(1.14); }
+.sd-w-tags .sd-tag-pill { min-height:24px; display:inline-flex; align-items:center; border-radius:999px !important; padding:2px 9px !important; }
+.sd-w-tags .sd-tag-remove { width:15px; height:15px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; }
+.sd-w-tags .sd-tag-remove:hover { color:var(--sd-danger) !important; background:var(--sd-danger-dim); }
+
+/* Structural, media, quest and builder widgets */
+.sd-w-section,
+.sd-w-image { background:transparent !important; border-color:transparent !important; box-shadow:none !important; }
+.sd-w-section { padding:6px 0 !important; }
+.sd-w-section .sec-title { letter-spacing:.10em; font-weight:800; }
+.sd-w-section .sec-divider { opacity:.85; }
+.sd-w-vsection { padding:10px !important; gap:9px !important; }
+.sd-w-vsection > .vsection-title { padding-bottom:7px !important; border-bottom:1px solid var(--sd-accent-dim); }
+.sd-w-image img { box-shadow:0 8px 22px rgba(0,0,0,.48); transition:transform .16s,box-shadow .16s,filter .16s !important; }
+.sd-w-image:hover img { transform:translateY(-1px); box-shadow:0 12px 28px rgba(0,0,0,.55); }
+.sd-w-questmarker .qm-row,
+.sd-w-questmarker .qm-open { min-height:38px !important; padding:7px 9px !important; border-radius:var(--sd-control-radius) !important; background:color-mix(in srgb,var(--sd-bg-2) 88%,var(--sd-accent) 12%) !important; }
+.sd-w-questmarker .qm-open:hover { border-color:var(--sd-accent) !important; background:var(--sd-accent-glow) !important; }
+.sd-w-cardhand .sd-card { border-color:var(--sd-widget-border) !important; box-shadow:0 8px 20px rgba(0,0,0,.55) !important; }
+.sd-w-cardhand .sd-card:hover { transform:translateY(-5px) scale(1.02) !important; border-color:var(--sd-accent) !important; }
+.sd-w-cardhand .sd-cardhand-actions button { min-height:30px; border-color:var(--sd-border) !important; background:var(--sd-control-bg) !important; color:var(--sd-text-2) !important; }
+.sd-w-widgetbuilder .sd-wb-grid,
+.sd-w-widgetbuilder .sd-wb-canvas { border:1px solid var(--sd-border); border-radius:var(--sd-control-radius); background:color-mix(in srgb,var(--sd-bg) 82%,transparent); }
+.sd-w-widgetbuilder .sd-wb-grid-element { min-width:0; }
+.sd-w-widgetbuilder .sd-wb-button { border-radius:var(--sd-control-radius); box-shadow:0 4px 12px rgba(0,0,0,.35); }
+.sd-w-dicetray { overflow:hidden; }
+
+/* Existing variants: cleaner geometry, depth and state contrast */
+:is(.sd-v-boxed,.sd-v-framed,.sd-v-stat,.sd-v-stat-card,.sd-v-raised,.sd-v-cards,.sd-v-card-grid) {
+  box-shadow:var(--sd-widget-shadow-hover) !important;
+}
+:is(.sd-v-ghost,.sd-v-minimal,.sd-v-flat) {
+  background:transparent !important;
+  box-shadow:none !important;
+  border-color:color-mix(in srgb,var(--sd-border) 45%,transparent) !important;
+}
+:is(.sd-v-pill,.sd-v-chip,.sd-v-pills,.sd-v-soft) { --sd-r:999px; }
+:is(.sd-v-outline,.sd-v-underline,.sd-v-divider) { background:transparent !important; box-shadow:none !important; }
+:is(.sd-v-digital,.sd-v-formula-badge,.sd-v-fraction) { font-variant-numeric:tabular-nums; letter-spacing:.075em; }
+:is(.sd-v-grid,.sd-v-card-grid,.sd-v-cards) :is(.item-row,.effect-row,.sb-ability-row) { box-shadow:0 6px 16px rgba(0,0,0,.34); }
+.sd-w-resource:is(.sd-v-heart,.sd-v-stripes,.sd-v-digital) .res-bar,
+.sd-w-progress:is(.sd-v-striped,.sd-v-segmented) > div:last-child { min-height:10px; }
+.sd-w-resource.sd-v-orb { background:radial-gradient(circle at 50% 30%,var(--sd-accent-glow),transparent 58%) !important; }
+.sd-w-resource.sd-v-pulse { background:linear-gradient(180deg,color-mix(in srgb,var(--sd-bg) 94%,#000),var(--sd-bg-2)) !important; }
+.sd-w-slot.sd-v-tile .sd-slot-tile { box-shadow:inset 0 0 20px rgba(0,0,0,.36),0 6px 16px rgba(0,0,0,.38); }
+.sd-w-image.sd-v-polaroid { box-shadow:0 12px 26px rgba(0,0,0,.34) !important; }
+.sd-w-spellbook.sd-v-grimoire { background:linear-gradient(135deg,color-mix(in srgb,var(--sd-bg-2) 78%,#5d351d 22%),var(--sd-bg)) !important; }
+
+/* New genre-inspired variants — original UI treatments, no copied assets. */
+.sd-w-text.sd-v-terminal,
+.sd-w-richtext.sd-v-terminal,
+.sd-w-number.sd-v-terminal,
+.sd-w-derived.sd-v-terminal,
+.sd-w-tags.sd-v-terminal,
+.sd-w-section.sd-v-terminal,
+.sd-w-dicetray.sd-v-terminal,
+.sd-w-vsection.sd-v-terminal,
+.sd-w-widgetbuilder.sd-v-terminal {
+  --sd-r:2px;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--sd-bg) 92%,#000),color-mix(in srgb,var(--sd-bg-2) 86%,var(--sd-success) 14%)) !important;
+  border-color:color-mix(in srgb,var(--sd-success) 48%,var(--sd-border)) !important;
+  color:color-mix(in srgb,var(--sd-success) 82%,var(--sd-text)) !important;
+  box-shadow:inset 0 0 22px color-mix(in srgb,var(--sd-success) 8%,transparent),0 7px 20px rgba(0,0,0,.5) !important;
+}
+.sd-v-terminal .widget-label { color:color-mix(in srgb,var(--sd-success) 72%,var(--sd-label)) !important; font-family:inherit; }
+.sd-w-text.sd-v-dialogue { border-left:3px solid var(--sd-accent) !important; background:linear-gradient(90deg,var(--sd-accent-glow),var(--sd-bg-2) 22%) !important; }
+.sd-w-richtext.sd-v-codex { background:linear-gradient(135deg,color-mix(in srgb,var(--sd-bg-2) 72%,#9a6c33 28%),var(--sd-bg-2)) !important; border-color:color-mix(in srgb,var(--sd-warn) 48%,var(--sd-border)) !important; }
+.sd-w-richtext.sd-v-codex :is(.richtext-display,.sd-richtext-native,.sd-richtext-editor) { font-family:Georgia,serif; }
+.sd-w-number.sd-v-gauge { border-left:4px solid var(--sd-accent) !important; background:linear-gradient(90deg,var(--sd-accent-glow),var(--sd-bg-2) 34%) !important; }
+
+.sd-w-resource.sd-v-rpg-bar .res-bar,
+.sd-w-progress.sd-v-xp > div:last-child { min-height:14px !important; border-radius:3px !important; border-color:color-mix(in srgb,var(--sd-accent) 52%,var(--sd-border)) !important; }
+.sd-w-resource.sd-v-rpg-bar .res-bar-fill,
+.sd-w-progress.sd-v-xp > div:last-child > div { background-image:linear-gradient(90deg,rgba(255,255,255,.18),transparent 25%,rgba(255,255,255,.12) 50%,transparent 75%) !important; }
+.sd-w-resource.sd-v-boss,
+.sd-w-progress.sd-v-boss { border-color:var(--sd-danger) !important; background:linear-gradient(180deg,color-mix(in srgb,var(--sd-bg-2) 82%,var(--sd-danger) 18%),var(--sd-bg)) !important; box-shadow:0 0 22px var(--sd-danger-dim),inset 0 1px 0 rgba(255,255,255,.06) !important; }
+.sd-w-resource.sd-v-boss .widget-label,
+.sd-w-progress.sd-v-boss .widget-label { color:color-mix(in srgb,var(--sd-danger) 76%,var(--sd-text)) !important; letter-spacing:.14em; }
+.sd-w-resource.sd-v-survival { --sd-r:1px; border-style:dashed !important; background:repeating-linear-gradient(135deg,var(--sd-bg-2) 0 8px,color-mix(in srgb,var(--sd-bg-2) 84%,var(--sd-warn) 16%) 8px 9px) !important; }
+.sd-w-progress.sd-v-quest { border-left:3px solid var(--sd-warn) !important; }
+
+.sd-w-clock.sd-v-hex svg { clip-path:polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%); background:var(--sd-accent-glow); padding:3px; }
+.sd-w-clock.sd-v-timeline { flex-direction:row !important; justify-content:space-between; }
+.sd-w-clock.sd-v-timeline svg { width:54px !important; height:54px !important; }
+.sd-w-counter.sd-v-ammo { --sd-r:2px; border-left:4px solid var(--sd-warn) !important; background:repeating-linear-gradient(90deg,var(--sd-bg-2) 0 12px,color-mix(in srgb,var(--sd-bg-2) 84%,var(--sd-warn) 16%) 12px 13px) !important; }
+.sd-w-counter.sd-v-odometer .cnt-val { font-family:ui-monospace,Consolas,monospace; background:#050607; color:var(--sd-success) !important; padding:4px 9px; border:1px solid var(--sd-border); border-radius:2px; letter-spacing:.18em; text-shadow:0 0 8px var(--sd-success); }
+
+.sd-w-dice.sd-v-rune .dice-btn,
+.sd-w-button.sd-v-rune .sd-action-btn { border-radius:50% 50% 46% 54% / 54% 46% 54% 46% !important; min-height:48px; background:radial-gradient(circle,var(--sd-accent-glow),var(--sd-bg-2) 64%) !important; border:1px solid var(--sd-accent) !important; box-shadow:0 0 0 3px color-mix(in srgb,var(--sd-accent) 12%,transparent),0 0 22px var(--sd-accent-glow) !important; }
+.sd-w-dice.sd-v-tactical .dice-btn,
+.sd-w-button.sd-v-tactical .sd-action-btn { --sd-r:0; clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px); background:linear-gradient(105deg,var(--sd-accent-glow),var(--sd-bg-3)) !important; border-color:var(--sd-accent) !important; text-transform:uppercase; letter-spacing:.10em; }
+.sd-w-dice.sd-v-neon .dice-btn,
+.sd-w-button.sd-v-neon .sd-action-btn { background:color-mix(in srgb,var(--sd-bg) 80%,var(--sd-accent) 20%) !important; border-color:var(--sd-accent) !important; color:var(--sd-accent) !important; text-shadow:0 0 8px var(--sd-accent); box-shadow:0 0 16px var(--sd-accent-glow),inset 0 0 14px var(--sd-accent-glow) !important; }
+.sd-w-button.sd-v-menu .sd-action-btn { justify-content:flex-start !important; min-height:44px; border-left:4px solid var(--sd-accent) !important; background:linear-gradient(90deg,var(--sd-accent-glow),var(--sd-bg-2) 45%) !important; text-transform:uppercase; letter-spacing:.08em; }
+
+.sd-w-toggle.sd-v-power .tog-track { border-radius:50% !important; width:30px !important; height:30px !important; background:var(--sd-bg) !important; border:2px solid var(--sd-text-3) !important; }
+.sd-w-toggle.sd-v-power .tog-knob { width:14px !important; height:14px !important; left:6px !important; top:6px !important; background:var(--sd-text-3) !important; }
+.sd-w-toggle.sd-v-power .tog-track.on { border-color:var(--sd-success) !important; box-shadow:0 0 14px color-mix(in srgb,var(--sd-success) 48%,transparent); }
+.sd-w-toggle.sd-v-power .tog-track.on .tog-knob { left:6px !important; background:var(--sd-success) !important; }
+.sd-w-toggle.sd-v-rune .tog-track { border:1px solid var(--sd-accent) !important; background:radial-gradient(circle,var(--sd-accent-glow),var(--sd-bg)) !important; }
+.sd-w-select.sd-v-menu .widget-select-input { min-height:40px; border-left:4px solid var(--sd-accent); text-transform:uppercase; letter-spacing:.06em; }
+.sd-w-select.sd-v-holographic .widget-select-input { color:var(--sd-accent); border-color:var(--sd-accent); background:linear-gradient(90deg,var(--sd-accent-glow),transparent) !important; box-shadow:inset 0 0 18px var(--sd-accent-glow); }
+
+.sd-w-attribute.sd-v-rpg .attr-box { background:radial-gradient(circle at 50% 30%,var(--sd-accent-glow),var(--sd-bg-2) 65%) !important; border:2px solid color-mix(in srgb,var(--sd-accent) 52%,var(--sd-border)); box-shadow:0 8px 18px rgba(0,0,0,.42); }
+.sd-w-attribute.sd-v-hex .attr-box { clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); padding:10px 14px; }
+.sd-w-attribute.sd-v-tactical .attr-box,
+.sd-w-attributegroup.sd-v-tactical .attr-item { --sd-r:1px; border-left:3px solid var(--sd-accent); background:linear-gradient(90deg,var(--sd-accent-glow),var(--sd-bg-2) 45%) !important; }
+.sd-w-attributegroup.sd-v-character .attr-group-body { grid-template-columns:repeat(auto-fit,minmax(104px,1fr)) !important; gap:8px !important; }
+.sd-w-attributegroup.sd-v-character .attr-item { flex-direction:column; text-align:center; padding:9px; }
+
+.sd-w-tags.sd-v-rarity .sd-tag-pill { background:linear-gradient(135deg,var(--sd-accent-glow),var(--sd-bg-3)) !important; border-color:var(--sd-accent) !important; box-shadow:0 0 10px var(--sd-accent-glow); }
+.sd-w-image.sd-v-portrait img { border:3px double var(--sd-accent) !important; border-radius:calc(var(--sd-widget-radius) * 1.4) !important; background:var(--sd-bg); padding:3px; }
+.sd-w-image.sd-v-hologram img { border:1px solid var(--sd-accent) !important; filter:saturate(.8) hue-rotate(8deg) contrast(1.1); box-shadow:0 0 20px var(--sd-accent-glow),inset 0 0 20px var(--sd-accent-glow) !important; }
+.sd-w-section.sd-v-quest .sec-title { color:var(--sd-warn) !important; }
+.sd-w-section.sd-v-quest .sec-divider { border-top:2px solid var(--sd-warn) !important; box-shadow:0 0 8px color-mix(in srgb,var(--sd-warn) 35%,transparent); }
+.sd-w-section.sd-v-gothic .sec-title { font-family:Georgia,serif; font-size:14px; letter-spacing:.14em; color:var(--sd-accent) !important; text-align:center; }
+.sd-w-section.sd-v-gothic .sec-divider { border:0 !important; height:1px; background:linear-gradient(90deg,transparent,var(--sd-accent),transparent); }
+
+.sd-w-inventory.sd-v-loot :is(.item-row,.inv-row) { border-left:3px solid color-mix(in srgb,var(--sd-warn) 62%,var(--sd-border)); }
+.sd-w-inventory.sd-v-tactical,
+.sd-w-effects.sd-v-combat,
+.sd-w-spellbook.sd-v-hotbar { --sd-r:2px; background:linear-gradient(135deg,var(--sd-bg-2),color-mix(in srgb,var(--sd-bg-2) 88%,var(--sd-accent) 12%)) !important; }
+.sd-w-inventory.sd-v-tactical :is(.item-row,.inv-row),
+.sd-w-effects.sd-v-combat :is(.effect-row,.fx-row),
+.sd-w-spellbook.sd-v-hotbar :is(.sb-ability-row,.sp-row) { border-left:3px solid var(--sd-accent); }
+.sd-w-inventory.sd-v-survival { --sd-r:1px; border-style:dashed !important; background:repeating-linear-gradient(135deg,var(--sd-bg-2) 0 10px,color-mix(in srgb,var(--sd-bg-2) 88%,var(--sd-warn) 12%) 10px 11px) !important; }
+.sd-w-slot.sd-v-equipment .slot-mini-item,
+.sd-w-slot.sd-v-equipment .sd-slot-tile { border:2px solid color-mix(in srgb,var(--sd-accent) 52%,var(--sd-border)) !important; box-shadow:inset 0 0 18px rgba(0,0,0,.42),0 0 12px var(--sd-accent-glow); }
+.sd-w-slot.sd-v-diamond .slot-mini-img,
+.sd-w-slot.sd-v-diamond .sd-slot-tile-img { transform:rotate(45deg) scale(.78); border-radius:3px !important; }
+.sd-w-slot.sd-v-diamond .slot-mini-img > *,
+.sd-w-slot.sd-v-diamond .sd-slot-tile-img > * { transform:rotate(-45deg) scale(1.28); }
+.sd-w-slot.sd-v-hotbar .slot-mini-list { flex-direction:row !important; flex-wrap:wrap; }
+.sd-w-slot.sd-v-hotbar .slot-mini-item { width:52px; height:52px; justify-content:center; padding:3px !important; }
+.sd-w-slot.sd-v-hotbar .slot-mini-item > span { display:none; }
+
+.sd-w-cardhand.sd-v-tabletop { background:radial-gradient(ellipse at center,color-mix(in srgb,#185b3c 58%,var(--sd-bg-2)),var(--sd-bg) 75%) !important; border:3px double color-mix(in srgb,var(--sd-warn) 55%,var(--sd-border)) !important; }
+.sd-w-cardhand.sd-v-tactical { --sd-r:2px; border-left:4px solid var(--sd-accent) !important; }
+.sd-w-carddrawbutton.sd-v-arcane > button { border-color:var(--sd-accent) !important; background:radial-gradient(circle,var(--sd-accent-glow),var(--sd-bg-2)) !important; box-shadow:0 0 20px var(--sd-accent-glow) !important; }
+.sd-w-carddrawbutton.sd-v-casino > button { border:2px solid var(--sd-warn) !important; background:linear-gradient(135deg,#4d1017,var(--sd-bg-2)) !important; color:#ffe9b8 !important; }
+
+.sd-w-questmarker.sd-v-objective .qm-open { border-left:4px solid var(--sd-warn) !important; background:linear-gradient(90deg,color-mix(in srgb,var(--sd-warn) 16%,transparent),var(--sd-bg-2) 38%) !important; }
+.sd-w-questmarker.sd-v-journal .qm-open { font-family:Georgia,serif; border-color:color-mix(in srgb,var(--sd-warn) 48%,var(--sd-border)) !important; background:linear-gradient(135deg,color-mix(in srgb,var(--sd-bg-2) 78%,#8a5b2a 22%),var(--sd-bg-2)) !important; }
+.sd-w-questmarker.sd-v-hud .qm-open { --sd-r:1px; clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px); border-color:var(--sd-accent) !important; }
+.sd-w-effects.sd-v-buffbar .effects-list { display:flex !important; flex-wrap:wrap; gap:5px; }
+.sd-w-effects.sd-v-buffbar .effect-row { width:42px; height:42px; padding:3px !important; overflow:hidden; }
+.sd-w-effects.sd-v-buffbar .effect-name,
+.sd-w-effects.sd-v-buffbar .effect-dur { display:none; }
+.sd-w-effects.sd-v-timeline .effect-row { border-left:3px solid var(--sd-accent); position:relative; margin-left:7px; }
+.sd-w-spellbook.sd-v-codex { font-family:Georgia,serif; border:2px solid color-mix(in srgb,var(--sd-warn) 48%,var(--sd-border)) !important; background:linear-gradient(135deg,color-mix(in srgb,var(--sd-bg-2) 80%,#7f5428 20%),var(--sd-bg)) !important; }
+.sd-w-spellbook.sd-v-arcane :is(.sb-ability-row,.sp-row) { border-color:var(--sd-accent-dim); box-shadow:inset 0 0 12px var(--sd-accent-glow); }
+
+.sd-w-skill.sd-v-skilltree { border-left:3px solid var(--sd-success) !important; background:linear-gradient(90deg,color-mix(in srgb,var(--sd-success) 14%,transparent),var(--sd-bg-2) 45%) !important; }
+.sd-w-skill.sd-v-compact { min-height:28px !important; padding:3px 6px !important; background:transparent !important; box-shadow:none !important; }
+.sd-w-skill.sd-v-rune { border-color:var(--sd-accent) !important; box-shadow:inset 0 0 14px var(--sd-accent-glow),0 0 10px var(--sd-accent-glow) !important; }
+.sd-w-derived.sd-v-hud { --sd-r:1px; border-left:4px solid var(--sd-accent) !important; background:linear-gradient(90deg,var(--sd-accent-glow),var(--sd-bg-2) 52%) !important; align-items:flex-start !important; }
+.sd-w-derived.sd-v-crystal { clip-path:polygon(12% 0,88% 0,100% 50%,88% 100%,12% 100%,0 50%); background:radial-gradient(circle at 50% 30%,color-mix(in srgb,var(--sd-accent) 32%,transparent),var(--sd-bg-2) 70%) !important; border-color:var(--sd-accent) !important; padding:12px 18px !important; }
+
+.sd-w-tracker.sd-v-hearts .sd-tracker-pip { color:var(--sd-hp) !important; text-shadow:0 0 9px color-mix(in srgb,var(--sd-hp) 56%,transparent) !important; }
+.sd-w-tracker.sd-v-stress { --sd-r:1px; border-left:4px solid var(--sd-danger) !important; background:linear-gradient(90deg,var(--sd-danger-dim),var(--sd-bg-2) 45%) !important; }
+.sd-w-tracker.sd-v-ammo .sd-tracker-pip { transform:rotate(90deg); }
+.sd-w-tracker.sd-v-hex .sd-tracker-pip { clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); }
+.sd-w-tokenpool.sd-v-coins .sd-tracker-pip { color:var(--sd-warn) !important; filter:drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
+.sd-w-tokenpool.sd-v-gems .sd-tracker-pip { color:var(--sd-accent) !important; text-shadow:0 0 10px var(--sd-accent) !important; transform:rotate(45deg) scale(.82); }
+.sd-w-tokenpool.sd-v-charges .sd-token-row { border:1px solid var(--sd-accent-dim); background:repeating-linear-gradient(90deg,var(--sd-accent-glow) 0 12px,transparent 12px 15px); }
+.sd-w-tokenpool.sd-v-souls { border-color:color-mix(in srgb,var(--sd-accent) 56%,var(--sd-border)) !important; background:radial-gradient(circle at 50% 100%,var(--sd-accent-glow),var(--sd-bg-2) 66%) !important; }
+.sd-w-dicetray.sd-v-combat-log { --sd-r:2px; border-left:4px solid var(--sd-accent) !important; background:linear-gradient(90deg,var(--sd-accent-glow),var(--sd-bg-2) 42%) !important; }
+.sd-w-dicetray.sd-v-critical { border-color:var(--sd-danger) !important; box-shadow:0 0 18px var(--sd-danger-dim),inset 0 0 14px var(--sd-danger-dim) !important; }
+.sd-w-vsection.sd-v-panel,
+.sd-w-widgetbuilder.sd-v-panel { border:2px solid var(--sd-border-2) !important; background:linear-gradient(180deg,var(--sd-bg-3),var(--sd-bg-2)) !important; }
+.sd-w-vsection.sd-v-quest { border-left:4px solid var(--sd-warn) !important; background:linear-gradient(90deg,color-mix(in srgb,var(--sd-warn) 12%,transparent),var(--sd-bg-2) 35%) !important; }
+.sd-w-vsection.sd-v-glass,
+.sd-w-widgetbuilder.sd-v-glass { background:color-mix(in srgb,var(--sd-bg-2) 66%,transparent) !important; backdrop-filter:blur(14px) saturate(1.2); border-color:color-mix(in srgb,var(--sd-text) 18%,var(--sd-border)) !important; }
+.sd-w-widgetbuilder.sd-v-hud { --sd-r:1px; border-color:var(--sd-accent) !important; background:linear-gradient(135deg,var(--sd-accent-glow),var(--sd-bg-2) 42%) !important; }
+
+/* Theme personalities */
+[data-sd-theme="tactical"] .widget { border-left-width:3px; border-left-color:var(--sd-accent); }
+[data-sd-theme="darkFantasy"] .widget { background:linear-gradient(155deg,color-mix(in srgb,var(--sd-bg-2) 82%,#6d4122 18%),var(--sd-bg)) ; border-color:color-mix(in srgb,var(--sd-border) 76%,var(--sd-accent) 24%); }
+[data-sd-theme="wasteland"] .widget { background:repeating-linear-gradient(0deg,color-mix(in srgb,var(--sd-bg-2) 96%,transparent) 0 3px,color-mix(in srgb,var(--sd-accent) 5%,var(--sd-bg-2)) 3px 4px); }
+[data-sd-theme="royal"] .widget { border-top-color:color-mix(in srgb,var(--sd-accent) 55%,var(--sd-border)); }
+[data-sd-theme="cyber"] .widget { border-right-color:var(--sd-accent-alt); box-shadow:0 9px 24px rgba(0,0,0,.48),0 0 12px var(--sd-accent-glow); }
+[data-sd-theme="horror"] .widget { background:radial-gradient(ellipse at 50% 0,color-mix(in srgb,var(--sd-accent) 8%,transparent),var(--sd-bg-2) 70%); }
+
+/* Responsive widgets */
+@container (max-width: 260px) {
+  .widget-label { font-size:9px !important; letter-spacing:.05em !important; }
+  .sd-w-resource .res-row input { width:52px !important; }
+  .sd-w-dice .dice-btn span,
+  .sd-w-dice .dice-btn > span { font-size:9px !important; }
+  .sd-w-attributegroup .attr-group-body { grid-template-columns:1fr !important; }
+  .sd-w-cardhand .sd-cardhand-actions { flex-wrap:wrap; }
+  .sd-w-cardhand .sd-cardhand-actions button { flex:1 1 70px; }
+}
+@container (max-width: 180px) {
+  .sd-w-number .num-row { gap:3px !important; }
+  .sd-w-number .num-btn { min-width:26px !important; }
+  .sd-w-toggle .tog-val { max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sd-w-questmarker .qm-status { display:none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .widget,
+  .widget * { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; scroll-behavior:auto !important; }
+}
+
+/* Stable type/variant hooks */
+.sd-w-text.sd-v-default { --sd-visual-variant: "text-default"; }
+.sd-w-text.sd-v-boxed { --sd-visual-variant: "text-boxed"; }
+.sd-w-text.sd-v-underline { --sd-visual-variant: "text-underline"; }
+.sd-w-text.sd-v-ghost { --sd-visual-variant: "text-ghost"; }
+.sd-w-text.sd-v-inline { --sd-visual-variant: "text-inline"; }
+.sd-w-text.sd-v-terminal { --sd-visual-variant: "text-terminal"; }
+.sd-w-text.sd-v-dialogue { --sd-visual-variant: "text-dialogue"; }
+.sd-w-richtext.sd-v-default { --sd-visual-variant: "richtext-default"; }
+.sd-w-richtext.sd-v-boxed { --sd-visual-variant: "richtext-boxed"; }
+.sd-w-richtext.sd-v-scroll { --sd-visual-variant: "richtext-scroll"; }
+.sd-w-richtext.sd-v-codex { --sd-visual-variant: "richtext-codex"; }
+.sd-w-richtext.sd-v-terminal { --sd-visual-variant: "richtext-terminal"; }
+.sd-w-number.sd-v-default { --sd-visual-variant: "number-default"; }
+.sd-w-number.sd-v-chip { --sd-visual-variant: "number-chip"; }
+.sd-w-number.sd-v-stat { --sd-visual-variant: "number-stat"; }
+.sd-w-number.sd-v-framed { --sd-visual-variant: "number-framed"; }
+.sd-w-number.sd-v-gauge { --sd-visual-variant: "number-gauge"; }
+.sd-w-number.sd-v-terminal { --sd-visual-variant: "number-terminal"; }
+.sd-w-resource.sd-v-default { --sd-visual-variant: "resource-default"; }
+.sd-w-resource.sd-v-split { --sd-visual-variant: "resource-split"; }
+.sd-w-resource.sd-v-heart { --sd-visual-variant: "resource-heart"; }
+.sd-w-resource.sd-v-stripes { --sd-visual-variant: "resource-stripes"; }
+.sd-w-resource.sd-v-digital { --sd-visual-variant: "resource-digital"; }
+.sd-w-resource.sd-v-pulse { --sd-visual-variant: "resource-pulse"; }
+.sd-w-resource.sd-v-orb { --sd-visual-variant: "resource-orb"; }
+.sd-w-resource.sd-v-rpg-bar { --sd-visual-variant: "resource-rpg-bar"; }
+.sd-w-resource.sd-v-boss { --sd-visual-variant: "resource-boss"; }
+.sd-w-resource.sd-v-survival { --sd-visual-variant: "resource-survival"; }
+.sd-w-progress.sd-v-default { --sd-visual-variant: "progress-default"; }
+.sd-w-progress.sd-v-thin { --sd-visual-variant: "progress-thin"; }
+.sd-w-progress.sd-v-thick { --sd-visual-variant: "progress-thick"; }
+.sd-w-progress.sd-v-striped { --sd-visual-variant: "progress-striped"; }
+.sd-w-progress.sd-v-segmented { --sd-visual-variant: "progress-segmented"; }
+.sd-w-progress.sd-v-xp { --sd-visual-variant: "progress-xp"; }
+.sd-w-progress.sd-v-quest { --sd-visual-variant: "progress-quest"; }
+.sd-w-progress.sd-v-boss { --sd-visual-variant: "progress-boss"; }
+.sd-w-clock.sd-v-default { --sd-visual-variant: "clock-default"; }
+.sd-w-clock.sd-v-ring { --sd-visual-variant: "clock-ring"; }
+.sd-w-clock.sd-v-bar { --sd-visual-variant: "clock-bar"; }
+.sd-w-clock.sd-v-fraction { --sd-visual-variant: "clock-fraction"; }
+.sd-w-clock.sd-v-hex { --sd-visual-variant: "clock-hex"; }
+.sd-w-clock.sd-v-timeline { --sd-visual-variant: "clock-timeline"; }
+.sd-w-counter.sd-v-default { --sd-visual-variant: "counter-default"; }
+.sd-w-counter.sd-v-chunky { --sd-visual-variant: "counter-chunky"; }
+.sd-w-counter.sd-v-minimal { --sd-visual-variant: "counter-minimal"; }
+.sd-w-counter.sd-v-wheel { --sd-visual-variant: "counter-wheel"; }
+.sd-w-counter.sd-v-ammo { --sd-visual-variant: "counter-ammo"; }
+.sd-w-counter.sd-v-odometer { --sd-visual-variant: "counter-odometer"; }
+.sd-w-dice.sd-v-default { --sd-visual-variant: "dice-default"; }
+.sd-w-dice.sd-v-d20-big { --sd-visual-variant: "dice-d20-big"; }
+.sd-w-dice.sd-v-chip { --sd-visual-variant: "dice-chip"; }
+.sd-w-dice.sd-v-flat { --sd-visual-variant: "dice-flat"; }
+.sd-w-dice.sd-v-rune { --sd-visual-variant: "dice-rune"; }
+.sd-w-dice.sd-v-tactical { --sd-visual-variant: "dice-tactical"; }
+.sd-w-dice.sd-v-neon { --sd-visual-variant: "dice-neon"; }
+.sd-w-button.sd-v-default { --sd-visual-variant: "button-default"; }
+.sd-w-button.sd-v-pill { --sd-visual-variant: "button-pill"; }
+.sd-w-button.sd-v-outline { --sd-visual-variant: "button-outline"; }
+.sd-w-button.sd-v-ghost { --sd-visual-variant: "button-ghost"; }
+.sd-w-button.sd-v-raised { --sd-visual-variant: "button-raised"; }
+.sd-w-button.sd-v-danger { --sd-visual-variant: "button-danger"; }
+.sd-w-button.sd-v-soft { --sd-visual-variant: "button-soft"; }
+.sd-w-button.sd-v-tactical { --sd-visual-variant: "button-tactical"; }
+.sd-w-button.sd-v-rune { --sd-visual-variant: "button-rune"; }
+.sd-w-button.sd-v-neon { --sd-visual-variant: "button-neon"; }
+.sd-w-button.sd-v-menu { --sd-visual-variant: "button-menu"; }
+.sd-w-toggle.sd-v-default { --sd-visual-variant: "toggle-default"; }
+.sd-w-toggle.sd-v-checkbox { --sd-visual-variant: "toggle-checkbox"; }
+.sd-w-toggle.sd-v-pill { --sd-visual-variant: "toggle-pill"; }
+.sd-w-toggle.sd-v-led { --sd-visual-variant: "toggle-led"; }
+.sd-w-toggle.sd-v-power { --sd-visual-variant: "toggle-power"; }
+.sd-w-toggle.sd-v-rune { --sd-visual-variant: "toggle-rune"; }
+.sd-w-select.sd-v-default { --sd-visual-variant: "select-default"; }
+.sd-w-select.sd-v-pills { --sd-visual-variant: "select-pills"; }
+.sd-w-select.sd-v-segmented { --sd-visual-variant: "select-segmented"; }
+.sd-w-select.sd-v-radio { --sd-visual-variant: "select-radio"; }
+.sd-w-select.sd-v-menu { --sd-visual-variant: "select-menu"; }
+.sd-w-select.sd-v-holographic { --sd-visual-variant: "select-holographic"; }
+.sd-w-attribute.sd-v-default { --sd-visual-variant: "attribute-default"; }
+.sd-w-attribute.sd-v-stat-card { --sd-visual-variant: "attribute-stat-card"; }
+.sd-w-attribute.sd-v-inline { --sd-visual-variant: "attribute-inline"; }
+.sd-w-attribute.sd-v-badge { --sd-visual-variant: "attribute-badge"; }
+.sd-w-attribute.sd-v-roll-button { --sd-visual-variant: "attribute-roll-button"; }
+.sd-w-attribute.sd-v-rpg { --sd-visual-variant: "attribute-rpg"; }
+.sd-w-attribute.sd-v-hex { --sd-visual-variant: "attribute-hex"; }
+.sd-w-attribute.sd-v-tactical { --sd-visual-variant: "attribute-tactical"; }
+.sd-w-attributegroup.sd-v-default { --sd-visual-variant: "attributegroup-default"; }
+.sd-w-attributegroup.sd-v-row { --sd-visual-variant: "attributegroup-row"; }
+.sd-w-attributegroup.sd-v-grid { --sd-visual-variant: "attributegroup-grid"; }
+.sd-w-attributegroup.sd-v-dice { --sd-visual-variant: "attributegroup-dice"; }
+.sd-w-attributegroup.sd-v-character { --sd-visual-variant: "attributegroup-character"; }
+.sd-w-attributegroup.sd-v-tactical { --sd-visual-variant: "attributegroup-tactical"; }
+.sd-w-tags.sd-v-default { --sd-visual-variant: "tags-default"; }
+.sd-w-tags.sd-v-outline { --sd-visual-variant: "tags-outline"; }
+.sd-w-tags.sd-v-solid { --sd-visual-variant: "tags-solid"; }
+.sd-w-tags.sd-v-soft { --sd-visual-variant: "tags-soft"; }
+.sd-w-tags.sd-v-rarity { --sd-visual-variant: "tags-rarity"; }
+.sd-w-tags.sd-v-terminal { --sd-visual-variant: "tags-terminal"; }
+.sd-w-image.sd-v-default { --sd-visual-variant: "image-default"; }
+.sd-w-image.sd-v-framed { --sd-visual-variant: "image-framed"; }
+.sd-w-image.sd-v-circle { --sd-visual-variant: "image-circle"; }
+.sd-w-image.sd-v-polaroid { --sd-visual-variant: "image-polaroid"; }
+.sd-w-image.sd-v-token { --sd-visual-variant: "image-token"; }
+.sd-w-image.sd-v-portrait { --sd-visual-variant: "image-portrait"; }
+.sd-w-image.sd-v-hologram { --sd-visual-variant: "image-hologram"; }
+.sd-w-section.sd-v-default { --sd-visual-variant: "section-default"; }
+.sd-w-section.sd-v-underline { --sd-visual-variant: "section-underline"; }
+.sd-w-section.sd-v-divider { --sd-visual-variant: "section-divider"; }
+.sd-w-section.sd-v-tab { --sd-visual-variant: "section-tab"; }
+.sd-w-section.sd-v-pill { --sd-visual-variant: "section-pill"; }
+.sd-w-section.sd-v-quest { --sd-visual-variant: "section-quest"; }
+.sd-w-section.sd-v-gothic { --sd-visual-variant: "section-gothic"; }
+.sd-w-section.sd-v-terminal { --sd-visual-variant: "section-terminal"; }
+.sd-w-inventory.sd-v-default { --sd-visual-variant: "inventory-default"; }
+.sd-w-inventory.sd-v-list { --sd-visual-variant: "inventory-list"; }
+.sd-w-inventory.sd-v-grid { --sd-visual-variant: "inventory-grid"; }
+.sd-w-inventory.sd-v-iconbar { --sd-visual-variant: "inventory-iconbar"; }
+.sd-w-inventory.sd-v-cards { --sd-visual-variant: "inventory-cards"; }
+.sd-w-inventory.sd-v-card-slider { --sd-visual-variant: "inventory-card-slider"; }
+.sd-w-inventory.sd-v-card-grid { --sd-visual-variant: "inventory-card-grid"; }
+.sd-w-inventory.sd-v-loot { --sd-visual-variant: "inventory-loot"; }
+.sd-w-inventory.sd-v-tactical { --sd-visual-variant: "inventory-tactical"; }
+.sd-w-inventory.sd-v-survival { --sd-visual-variant: "inventory-survival"; }
+.sd-w-slot.sd-v-default { --sd-visual-variant: "slot-default"; }
+.sd-w-slot.sd-v-framed { --sd-visual-variant: "slot-framed"; }
+.sd-w-slot.sd-v-round { --sd-visual-variant: "slot-round"; }
+.sd-w-slot.sd-v-ghost { --sd-visual-variant: "slot-ghost"; }
+.sd-w-slot.sd-v-tile { --sd-visual-variant: "slot-tile"; }
+.sd-w-slot.sd-v-equipment { --sd-visual-variant: "slot-equipment"; }
+.sd-w-slot.sd-v-diamond { --sd-visual-variant: "slot-diamond"; }
+.sd-w-slot.sd-v-hotbar { --sd-visual-variant: "slot-hotbar"; }
+.sd-w-cardhand.sd-v-default { --sd-visual-variant: "cardhand-default"; }
+.sd-w-cardhand.sd-v-fan { --sd-visual-variant: "cardhand-fan"; }
+.sd-w-cardhand.sd-v-stack { --sd-visual-variant: "cardhand-stack"; }
+.sd-w-cardhand.sd-v-grid { --sd-visual-variant: "cardhand-grid"; }
+.sd-w-cardhand.sd-v-tabletop { --sd-visual-variant: "cardhand-tabletop"; }
+.sd-w-cardhand.sd-v-tactical { --sd-visual-variant: "cardhand-tactical"; }
+.sd-w-carddrawbutton.sd-v-default { --sd-visual-variant: "carddrawbutton-default"; }
+.sd-w-carddrawbutton.sd-v-deck { --sd-visual-variant: "carddrawbutton-deck"; }
+.sd-w-carddrawbutton.sd-v-pile { --sd-visual-variant: "carddrawbutton-pile"; }
+.sd-w-carddrawbutton.sd-v-arcane { --sd-visual-variant: "carddrawbutton-arcane"; }
+.sd-w-carddrawbutton.sd-v-casino { --sd-visual-variant: "carddrawbutton-casino"; }
+.sd-w-questmarker.sd-v-default { --sd-visual-variant: "questmarker-default"; }
+.sd-w-questmarker.sd-v-compact { --sd-visual-variant: "questmarker-compact"; }
+.sd-w-questmarker.sd-v-framed { --sd-visual-variant: "questmarker-framed"; }
+.sd-w-questmarker.sd-v-ghost { --sd-visual-variant: "questmarker-ghost"; }
+.sd-w-questmarker.sd-v-objective { --sd-visual-variant: "questmarker-objective"; }
+.sd-w-questmarker.sd-v-journal { --sd-visual-variant: "questmarker-journal"; }
+.sd-w-questmarker.sd-v-hud { --sd-visual-variant: "questmarker-hud"; }
+.sd-w-effects.sd-v-default { --sd-visual-variant: "effects-default"; }
+.sd-w-effects.sd-v-chips { --sd-visual-variant: "effects-chips"; }
+.sd-w-effects.sd-v-icons { --sd-visual-variant: "effects-icons"; }
+.sd-w-effects.sd-v-card-slider { --sd-visual-variant: "effects-card-slider"; }
+.sd-w-effects.sd-v-card-grid { --sd-visual-variant: "effects-card-grid"; }
+.sd-w-effects.sd-v-buffbar { --sd-visual-variant: "effects-buffbar"; }
+.sd-w-effects.sd-v-combat { --sd-visual-variant: "effects-combat"; }
+.sd-w-effects.sd-v-timeline { --sd-visual-variant: "effects-timeline"; }
+.sd-w-spellbook.sd-v-default { --sd-visual-variant: "spellbook-default"; }
+.sd-w-spellbook.sd-v-grimoire { --sd-visual-variant: "spellbook-grimoire"; }
+.sd-w-spellbook.sd-v-grid { --sd-visual-variant: "spellbook-grid"; }
+.sd-w-spellbook.sd-v-minimal { --sd-visual-variant: "spellbook-minimal"; }
+.sd-w-spellbook.sd-v-card-slider { --sd-visual-variant: "spellbook-card-slider"; }
+.sd-w-spellbook.sd-v-card-grid { --sd-visual-variant: "spellbook-card-grid"; }
+.sd-w-spellbook.sd-v-codex { --sd-visual-variant: "spellbook-codex"; }
+.sd-w-spellbook.sd-v-hotbar { --sd-visual-variant: "spellbook-hotbar"; }
+.sd-w-spellbook.sd-v-arcane { --sd-visual-variant: "spellbook-arcane"; }
+.sd-w-skill.sd-v-default { --sd-visual-variant: "skill-default"; }
+.sd-w-skill.sd-v-pill { --sd-visual-variant: "skill-pill"; }
+.sd-w-skill.sd-v-row-rank { --sd-visual-variant: "skill-row-rank"; }
+.sd-w-skill.sd-v-pips { --sd-visual-variant: "skill-pips"; }
+.sd-w-skill.sd-v-skilltree { --sd-visual-variant: "skill-skilltree"; }
+.sd-w-skill.sd-v-compact { --sd-visual-variant: "skill-compact"; }
+.sd-w-skill.sd-v-rune { --sd-visual-variant: "skill-rune"; }
+.sd-w-derived.sd-v-default { --sd-visual-variant: "derived-default"; }
+.sd-w-derived.sd-v-stat-card { --sd-visual-variant: "derived-stat-card"; }
+.sd-w-derived.sd-v-formula-badge { --sd-visual-variant: "derived-formula-badge"; }
+.sd-w-derived.sd-v-inline { --sd-visual-variant: "derived-inline"; }
+.sd-w-derived.sd-v-pill { --sd-visual-variant: "derived-pill"; }
+.sd-w-derived.sd-v-hud { --sd-visual-variant: "derived-hud"; }
+.sd-w-derived.sd-v-terminal { --sd-visual-variant: "derived-terminal"; }
+.sd-w-derived.sd-v-crystal { --sd-visual-variant: "derived-crystal"; }
+.sd-w-tracker.sd-v-default { --sd-visual-variant: "tracker-default"; }
+.sd-w-tracker.sd-v-hearts { --sd-visual-variant: "tracker-hearts"; }
+.sd-w-tracker.sd-v-stress { --sd-visual-variant: "tracker-stress"; }
+.sd-w-tracker.sd-v-ammo { --sd-visual-variant: "tracker-ammo"; }
+.sd-w-tracker.sd-v-hex { --sd-visual-variant: "tracker-hex"; }
+.sd-w-tokenpool.sd-v-default { --sd-visual-variant: "tokenpool-default"; }
+.sd-w-tokenpool.sd-v-coins { --sd-visual-variant: "tokenpool-coins"; }
+.sd-w-tokenpool.sd-v-gems { --sd-visual-variant: "tokenpool-gems"; }
+.sd-w-tokenpool.sd-v-charges { --sd-visual-variant: "tokenpool-charges"; }
+.sd-w-tokenpool.sd-v-souls { --sd-visual-variant: "tokenpool-souls"; }
+.sd-w-dicetray.sd-v-default { --sd-visual-variant: "dicetray-default"; }
+.sd-w-dicetray.sd-v-combat-log { --sd-visual-variant: "dicetray-combat-log"; }
+.sd-w-dicetray.sd-v-critical { --sd-visual-variant: "dicetray-critical"; }
+.sd-w-dicetray.sd-v-terminal { --sd-visual-variant: "dicetray-terminal"; }
+.sd-w-vsection.sd-v-default { --sd-visual-variant: "vsection-default"; }
+.sd-w-vsection.sd-v-panel { --sd-visual-variant: "vsection-panel"; }
+.sd-w-vsection.sd-v-quest { --sd-visual-variant: "vsection-quest"; }
+.sd-w-vsection.sd-v-terminal { --sd-visual-variant: "vsection-terminal"; }
+.sd-w-vsection.sd-v-glass { --sd-visual-variant: "vsection-glass"; }
+.sd-w-widgetbuilder.sd-v-default { --sd-visual-variant: "widgetbuilder-default"; }
+.sd-w-widgetbuilder.sd-v-panel { --sd-visual-variant: "widgetbuilder-panel"; }
+.sd-w-widgetbuilder.sd-v-hud { --sd-visual-variant: "widgetbuilder-hud"; }
+.sd-w-widgetbuilder.sd-v-glass { --sd-visual-variant: "widgetbuilder-glass"; }
+.sd-w-widgetbuilder.sd-v-terminal { --sd-visual-variant: "widgetbuilder-terminal"; }

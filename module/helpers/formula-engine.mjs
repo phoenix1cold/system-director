@@ -1,3 +1,5 @@
+import { resolveNodeFormulaToken } from "./node-runtime-api.mjs";
+
 export class FormulaEngine {
 
   static evaluate(formula, doc) {
@@ -81,22 +83,90 @@ export class FormulaEngine {
 
   static _resolveItemRef(ref, doc) {
     if (!ref) return null;
+    if (typeof ref === "object") return ref;
+    ref = this._sdStripQuotes(ref).trim();
+    if (!ref) return null;
     const actor = this._actorFor(doc);
-    if (ref.includes(".")) {
-      try { return fromUuidSync?.(ref) ?? null; } catch { return null; }
-    }
+    // Always try a real UUID first, but do not stop searching when it is a
+    // stale embedded UUID: slot snapshots intentionally keep their source UUID
+    // after the live embedded Item has been removed.
+    try {
+      const byUuid = (typeof fromUuidSync === "function") ? fromUuidSync(ref) : null;
+      if (byUuid) return byUuid;
+    } catch {}
     if (actor) {
       const byId = actor.items?.get?.(ref);
       if (byId) return byId;
-      const byName = actor.items?.find?.(i => i.name === ref);
-      if (byName) return byName;
+      const byActorRef = actor.items?.find?.(i =>
+        i?.uuid === ref || i?.id === ref || i?.name === ref || i?._sourceUuid === ref
+      );
+      if (byActorRef) return byActorRef;
     }
     try {
       const byCollectionId = game?.items?.get?.(ref);
       if (byCollectionId) return byCollectionId;
       const byCollectionName = game?.items?.getName?.(ref);
       if (byCollectionName) return byCollectionName;
+      const byCollectionRef = game?.items?.find?.(i => i?.uuid === ref || i?.name === ref);
+      if (byCollectionRef) return byCollectionRef;
     } catch {}
+
+    // Embedded UUID fallback which also works for synthetic/token actors when
+    // fromUuidSync cannot resolve the original document.
+    const embedded = /^Actor\.([^.]+)\.Item\.([^.]+)$/.exec(ref);
+    if (embedded) {
+      const owner = game?.actors?.get?.(embedded[1]);
+      const item = owner?.items?.get?.(embedded[2]);
+      if (item) return item;
+    }
+
+    const slotEntry = this._findSlotEntryByRef(actor, ref);
+    if (slotEntry) return slotEntry;
+    return null;
+  }
+
+  static _findSlotEntryByRef(actor, ref) {
+    if (!actor || !ref) return null;
+    const wanted = String(ref);
+    const seen = new Set();
+    const walk = (host) => {
+      if (!host || seen.has(host)) return null;
+      seen.add(host);
+      const groups = Object.values(host?.system?.slotContents ?? {});
+      for (const group of groups) {
+        for (const entry of (group?.contents ?? [])) {
+          if (!entry) continue;
+          if ([entry.uuid, entry._sourceUuid, entry._id, entry.id, entry.name]
+            .some(v => v != null && String(v) === wanted)) return entry;
+          const nested = walk(entry);
+          if (nested) return nested;
+        }
+      }
+      return null;
+    };
+    const direct = walk(actor);
+    if (direct) return direct;
+    for (const item of (actor.items ?? [])) {
+      const nested = walk(item);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
+  static _splitItemRefAndPath(rest, doc) {
+    const raw = String(rest ?? "");
+    const dots = [];
+    for (let i = 0; i < raw.length; i++) if (raw[i] === ".") dots.push(i);
+    // UUIDs contain dots, so test boundaries from right to left and accept the
+    // longest prefix which resolves to a live Item or slot snapshot.
+    for (let i = dots.length - 1; i >= 0; i--) {
+      const at = dots[i];
+      const ref = raw.slice(0, at);
+      const path = raw.slice(at + 1);
+      if (!ref || !path) continue;
+      const item = this._resolveItemRef(ref, doc);
+      if (item) return { item, ref, path };
+    }
     return null;
   }
 
@@ -885,7 +955,54 @@ export class FormulaEngine {
     return undefined;
   }
 
+  static _arrayReferenceObject(ref, doc) {
+    if (ref && typeof ref === "object") return ref;
+    const raw = this._sdStripQuotes(String(ref ?? "")).trim();
+    if (!raw) return null;
+    try {
+      const token = globalThis.canvas?.tokens?.get?.(raw);
+      if (token) return token.actor ?? token.document ?? token;
+    } catch {}
+    try {
+      const actor = this._resolveActorFromBase(raw, doc);
+      if (actor && (raw === actor.id || raw === actor.uuid || raw.startsWith("Actor."))) return actor;
+    } catch {}
+    const item = this._resolveItemRef(raw, doc);
+    if (item) return item;
+    try {
+      const resolved = typeof fromUuidSync === "function" ? fromUuidSync(raw) : null;
+      if (resolved) return resolved.actor ?? resolved;
+    } catch {}
+    return null;
+  }
+
+  static _arrayFieldValue(ref, path, doc) {
+    const object = this._arrayReferenceObject(ref, doc);
+    const key = String(path ?? "").trim();
+    if (!object) return key === "value" ? ref : undefined;
+    if (!key || key === "value") return object;
+    if (key === "name") return object.name ?? object.label ?? "";
+    if (key === "id" || key === "_id") return object.id ?? object._id ?? "";
+    if (key === "uuid") return object.uuid ?? object._sourceUuid ?? object.id ?? "";
+    if (key === "type") return object.type ?? object.documentName ?? "";
+    let value;
+    try { value = foundry.utils.getProperty(object, key); } catch { value = undefined; }
+    if (value === undefined && !key.startsWith("system.")) {
+      try { value = foundry.utils.getProperty(object, `system.${key}`); } catch { value = undefined; }
+    }
+    if (value && typeof value === "object" && "value" in value && typeof value.value !== "object") value = value.value;
+    return value;
+  }
+
+  static _arrayRefValue(entry) {
+    if (entry === undefined || entry === null) return "";
+    if (typeof entry !== "object") return String(entry);
+    return String(entry._sourceUuid ?? entry.uuid ?? entry.id ?? entry._id ?? entry.name ?? "");
+  }
+
   static _resolveToken(token, doc) {
+    const extensionToken = resolveNodeFormulaToken(token, { doc, engine: this });
+    if (extensionToken.handled) return extensionToken.value;
     if (token.startsWith("__sdHasEffect:")) {
       const parts = token.slice("__sdHasEffect:".length).split("|");
       if (parts.length < 2) return 0;
@@ -974,13 +1091,33 @@ export class FormulaEngine {
       } else if (ref.startsWith("'") && ref.endsWith("'")) {
         ref = ref.slice(1, -1);
       }
+      // A connected Ref pin is compiled as another formula token (for
+      // example `{widget:foo}` or `{__sdName:...}`). Resolve that token
+      // before looking up the document; otherwise Get Name searches for the
+      // literal token text and returns an empty string.
+      if (ref.includes("{") && ref.includes("}")) {
+        try {
+          const resolvedRef = this._resolveRefs(ref, doc);
+          if (resolvedRef !== ref) ref = resolvedRef;
+        } catch {}
+      }
+      // `_resolveRefs` safely quotes text values so they can be embedded in
+      // larger formulas.  Here the result is a lookup key, not an expression;
+      // remove that transport quoting before trying UUIDs, ids or names.
+      if (ref.startsWith('"') && ref.endsWith('"')) {
+        try { ref = JSON.parse(ref); } catch { ref = ref.slice(1, -1); }
+      } else if (ref.startsWith("'") && ref.endsWith("'")) {
+        ref = ref.slice(1, -1);
+      }
       ref = String(ref ?? "").trim();
       if (!ref) return "";
 
       const _byUuid = (s) => {
         try { return fromUuidSync?.(s) ?? null; } catch { return null; }
       };
-      const actor = doc instanceof Actor ? doc : (doc?.actor ?? null);
+      const actor = (typeof Actor !== "undefined" && doc instanceof Actor)
+        ? doc
+        : (doc?.actor ?? null);
 
       const _tryItem = () => {
         if (ref.includes(".")) {
@@ -1111,24 +1248,14 @@ export class FormulaEngine {
 
     if (token.startsWith("item:id:")) {
       const rest    = token.slice("item:id:".length);
-      const dotIdx  = rest.indexOf(".");
-      if (dotIdx < 0) return 0;
-      const itemId  = rest.slice(0, dotIdx);
-      const path    = rest.slice(dotIdx + 1);
-      const actor   = doc instanceof Actor ? doc : doc.actor;
-      const item    = actor?.items?.get(itemId);
-      return item ? (this._readDocProperty(item, path) ?? 0) : 0;
+      const parsed  = this._splitItemRefAndPath(rest, doc);
+      return parsed ? (this._readDocProperty(parsed.item, parsed.path) ?? 0) : 0;
     }
 
     if (token.startsWith("item:")) {
       const rest    = token.slice("item:".length);
-      const dotIdx  = rest.indexOf(".");
-      if (dotIdx < 0) return 0;
-      const name    = rest.slice(0, dotIdx).toLowerCase();
-      const path    = rest.slice(dotIdx + 1);
-      const actor   = doc instanceof Actor ? doc : doc.actor;
-      const item    = actor?.items?.find(i => i.name.toLowerCase() === name);
-      return item ? (this._readDocProperty(item, path) ?? 0) : 0;
+      const parsed  = this._splitItemRefAndPath(rest, doc);
+      return parsed ? (this._readDocProperty(parsed.item, parsed.path) ?? 0) : 0;
     }
 
     if (token.startsWith("slotCount:")) {
@@ -1200,7 +1327,7 @@ export class FormulaEngine {
       if (!actor || !slotId) return "";
       let found = "";
       this._sdEachSlotItemAcrossActor(actor, slotId, (entry, host) => {
-        const u = entry.uuid ?? entry._sourceUuid ?? null;
+        const u = entry._sourceUuid ?? entry.uuid ?? null;
         if (u) { found = u; return true; }
         if (entry._id && actor.items?.get) {
           const live = actor.items.get(entry._id);
@@ -1227,12 +1354,11 @@ export class FormulaEngine {
                   ?? (doc instanceof Actor ? doc : (doc?.actor ?? null));
       if (!actor) return 0;
       if (!ref) return this._sdCountSlotItemsAcrossActor(actor, slotId);
-      const parentItem = actor.items?.get?.(ref)
-                      ?? actor.items?.find?.(i => i.name === ref)
-                      ?? actor.items?.find?.(i => i.uuid === ref)
-                      ?? null;
+      const parentItem = this._resolveItemRef(ref, actor);
       if (!parentItem) return 0;
-      return this._sdCountSlotItemsAcrossActor({ items: [parentItem] }, slotId);
+      return parentItem.system?.slotContents?.[slotId]?.contents?.length
+          ?? parentItem.system?.slotContents?.[slotId]?.count
+          ?? 0;
     }
 
     if (token.startsWith("spellSlots:")) {
@@ -1295,11 +1421,16 @@ export class FormulaEngine {
       const slotId  = parts[0];
       const idx     = parseInt(parts[1]);
       const path    = parts.slice(2).join(".");
-      const target  = doc instanceof Actor ? null : doc;
-      if (!target) return 0;
-      const contents = target.system?.slotContents?.[slotId]?.contents ?? [];
-      const slotItem = contents[idx];
-      return slotItem ? (foundry.utils.getProperty(slotItem, path) ?? 0) : 0;
+      const actor   = doc instanceof Actor ? doc : (doc?.actor ?? null);
+      const targets = [doc, actor, ...(actor?.items ?? [])].filter(Boolean);
+      for (const target of targets) {
+        const contents = target?.system?.slotContents?.[slotId]?.contents ?? [];
+        const slotItem = contents[idx];
+        if (!slotItem) continue;
+        const value = foundry.utils.getProperty(slotItem, path);
+        if (value !== undefined && value !== null) return value;
+      }
+      return 0;
     }
 
     if (token.startsWith("slotUuid:")) {
@@ -1313,7 +1444,7 @@ export class FormulaEngine {
       for (const t of targets) {
         const contents = t?.system?.slotContents?.[slotId]?.contents ?? [];
         const entry    = contents[idx];
-        if (entry) return entry.uuid ?? entry._id ?? "";
+        if (entry) return entry._sourceUuid ?? entry.uuid ?? entry._id ?? entry.id ?? "";
       }
       return "";
     }
@@ -1358,6 +1489,67 @@ export class FormulaEngine {
       return v;
     }
 
+    if (token.startsWith("sdItemArrayInventory:")) {
+      const parts = token.slice("sdItemArrayInventory:".length).split("|");
+      const actor = this._resolveActorFromBase(this._resolveArrayArg(parts[0] ?? "", doc), doc) ?? this._actorFor(doc);
+      if (!actor) return "";
+      const itemType = String(this._resolveArrayArg(parts[1] ?? "", doc) ?? "inventory");
+      const category = String(this._resolveArrayArg(parts[2] ?? "", doc) ?? "").trim().toLowerCase();
+      const name = String(this._resolveArrayArg(parts[3] ?? "", doc) ?? "").trim().toLowerCase();
+      const match = String(this._resolveArrayArg(parts[4] ?? "", doc) ?? "contains");
+      const items = actor.items?.contents ?? Array.from(actor.items ?? []);
+      return items.filter(item => {
+        if (itemType && itemType !== "all" && item.type !== itemType) return false;
+        if (category && String(item.system?.category ?? "").toLowerCase() !== category) return false;
+        const itemName = String(item.name ?? "").toLowerCase();
+        if (name && (match === "exact" ? itemName !== name : !itemName.includes(name))) return false;
+        return true;
+      }).map(item => item.uuid ?? item.id).filter(Boolean).join(",");
+    }
+
+    if (token.startsWith("sdItemArraySlot:")) {
+      const parts = token.slice("sdItemArraySlot:".length).split("|");
+      const actor = this._resolveActorFromBase(this._resolveArrayArg(parts[0] ?? "", doc), doc) ?? this._actorFor(doc);
+      const slotId = String(this._resolveArrayArg(parts[1] ?? "", doc) ?? "slot1");
+      const containerRef = String(this._resolveArrayArg(parts[2] ?? "", doc) ?? "").trim();
+      if (!actor) return "";
+      const out=[];
+      const add = entry => { const ref=this._arrayRefValue(entry); if (ref) out.push(ref); };
+      if (containerRef) {
+        const host=this._resolveItemRef(containerRef, actor);
+        for (const entry of (host?.system?.slotContents?.[slotId]?.contents ?? [])) add(entry);
+      } else {
+        this._sdEachSlotItemAcrossActor(actor, slotId, entry => add(entry));
+      }
+      return out.join(",");
+    }
+
+    if (token.startsWith("sdWidgetArray:")) {
+      const parts = token.slice("sdWidgetArray:".length).split("|");
+      const actor = this._resolveActorFromBase(this._resolveArrayArg(parts[0] ?? "", doc), doc) ?? this._actorFor(doc);
+      const key = String(this._resolveArrayArg(parts[1] ?? "", doc) ?? "").trim();
+      const explicitPath = String(this._resolveArrayArg(parts[2] ?? "", doc) ?? "").trim();
+      const owner = actor ?? doc;
+      if (!owner) return "";
+      const widget = key ? this._findWidgetByKey(owner, key) : null;
+      if (widget?.type === "inventory" && actor) {
+        const cats = new Set((widget.categories ?? []).map(v => String(v).toLowerCase()));
+        const items = actor.items?.contents ?? Array.from(actor.items ?? []);
+        return items.filter(item => item.type === "inventory" && (!cats.size || cats.has(String(item.system?.category ?? "").toLowerCase())))
+          .map(item => item.uuid ?? item.id).filter(Boolean).join(",");
+      }
+      if (widget?.type === "slot" && actor) {
+        const out=[]; this._sdEachSlotItemAcrossActor(actor, widget.slotId ?? key, entry => { const ref=this._arrayRefValue(entry); if(ref) out.push(ref); });
+        return out.join(",");
+      }
+      const path = explicitPath || widget?.path || widget?.dataPath || "";
+      let value;
+      try { value = path ? foundry.utils.getProperty(owner, path) : []; } catch { value=[]; }
+      if (!Array.isArray(value) && value && typeof value === "object") value = Object.values(value);
+      if (!Array.isArray(value)) value = this._parseArrayList(value);
+      return value.map(entry => this._arrayRefValue(entry)).filter(v => v !== "").join(",");
+    }
+
     if (token.startsWith("arrayLength:")) {
       const rest = token.slice("arrayLength:".length);
       if (!rest) return 0;
@@ -1380,16 +1572,12 @@ export class FormulaEngine {
       const list = this._parseArrayList(this._resolveArrayArg(rest.slice(0, sep), doc));
       const path = String(this._resolveArrayArg(rest.slice(sep + 1), doc) ?? "");
       if (!path) return "";
-      const out = [];
-      for (const tid of list) {
-        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
-        const a  = tk?.actor;
-        if (!a) { out.push(""); continue; }
-        const v = this._readDocProperty(a, path);
-        out.push(v === undefined || v === null || typeof v === "object" ? "" : String(v));
-      }
-      return out.join(",");
+      return list.map(ref => {
+        const value = this._arrayFieldValue(ref, path, doc);
+        return value === undefined || value === null || typeof value === "object" ? "" : String(value);
+      }).join(",");
     }
+
 
     if (token.startsWith("visibleTokens:") || token.startsWith("visibleActors:")) {
       const wantActors = token.startsWith("visibleActors:");
@@ -1569,66 +1757,49 @@ export class FormulaEngine {
       if (parts.length < 3) return 0;
       const list = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
       const path = String(this._resolveArrayArg(parts[1], doc) ?? "");
-      const op   = String(this._resolveArrayArg(parts[2], doc) ?? "sum");
-      const nums = [];
-      for (const tid of list) {
-        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
-        const a  = tk?.actor;
-        if (!a) continue;
-        const v = Number(foundry.utils.getProperty(a, path));
-        if (!isNaN(v)) nums.push(v);
-      }
-      if (op === "count") return nums.length;
-      if (!nums.length)   return 0;
-      if (op === "sum")   return nums.reduce((s,n)=>s+n,0);
-      if (op === "avg")   return nums.reduce((s,n)=>s+n,0) / nums.length;
-      if (op === "min")   return Math.min(...nums);
-      if (op === "max")   return Math.max(...nums);
+      const op = String(this._resolveArrayArg(parts[2], doc) ?? "sum");
+      if (op === "count") return list.filter(ref => this._arrayFieldValue(ref, path, doc) !== undefined).length;
+      const nums = list.map(ref => Number(this._arrayFieldValue(ref, path, doc))).filter(Number.isFinite);
+      if (!nums.length) return 0;
+      if (op === "sum") return nums.reduce((a,b)=>a+b,0);
+      if (op === "avg") return nums.reduce((a,b)=>a+b,0)/nums.length;
+      if (op === "min") return Math.min(...nums);
+      if (op === "max") return Math.max(...nums);
       return 0;
     }
+
 
     if (token.startsWith("arrayFindExtreme:")) {
       const parts = token.slice("arrayFindExtreme:".length).split("|");
       if (parts.length < 3) return "";
       const list = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
       const path = String(this._resolveArrayArg(parts[1], doc) ?? "");
-      const op   = String(this._resolveArrayArg(parts[2], doc) ?? "max");
-      let bestId  = "";
-      let bestVal = null;
-      for (const tid of list) {
-        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
-        const a  = tk?.actor;
-        if (!a) continue;
-        const v = Number(foundry.utils.getProperty(a, path));
-        if (isNaN(v)) continue;
-        if (bestVal === null || (op === "min" ? v < bestVal : v > bestVal)) {
-          bestVal = v;
-          bestId  = tid;
-        }
+      const op = String(this._resolveArrayArg(parts[2], doc) ?? "max");
+      let best = null;
+      for (const ref of list) {
+        const value = Number(this._arrayFieldValue(ref, path, doc));
+        if (!Number.isFinite(value)) continue;
+        if (!best || (op === "min" ? value < best.value : value > best.value)) best = { ref, value };
       }
-      return bestId;
+      return best?.ref ?? "";
     }
+
 
     if (token.startsWith("arraySort:")) {
       const parts = token.slice("arraySort:".length).split("|");
       if (parts.length < 3) return "";
       const list = this._parseArrayList(this._resolveArrayArg(parts[0], doc));
       const path = String(this._resolveArrayArg(parts[1], doc) ?? "");
-      const op   = String(this._resolveArrayArg(parts[2], doc) ?? "desc");
-      const annotated = list.map(tid => {
-        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
-        const a  = tk?.actor;
-        const v  = a ? Number(foundry.utils.getProperty(a, path)) : NaN;
-        return { tid, v: isNaN(v) ? null : v };
-      });
-      annotated.sort((x, y) => {
-        if (x.v === null && y.v === null) return 0;
-        if (x.v === null) return  1;
-        if (y.v === null) return -1;
-        return op === "asc" ? (x.v - y.v) : (y.v - x.v);
-      });
-      return annotated.map(e => e.tid).join(",");
+      const op = String(this._resolveArrayArg(parts[2], doc) ?? "desc");
+      return list.map((ref,index) => ({ ref, index, value:this._arrayFieldValue(ref,path,doc) }))
+        .sort((a,b) => {
+          const an=Number(a.value), bn=Number(b.value);
+          if (Number.isFinite(an) && Number.isFinite(bn)) return op === "asc" ? an-bn : bn-an;
+          const cmp=String(a.value??"").localeCompare(String(b.value??""), undefined, {numeric:true,sensitivity:"base"});
+          return (op === "asc" ? cmp : -cmp) || a.index-b.index;
+        }).map(entry => entry.ref).join(",");
     }
+
 
     if (token.startsWith("arraySlice:")) {
       const parts = token.slice("arraySlice:".length).split("|");
@@ -1724,25 +1895,24 @@ export class FormulaEngine {
       const cmpNum = Number(cmpRaw);
       const isNum  = cmpRaw.trim() !== "" && !isNaN(cmpNum);
       const out = [];
-      for (const tid of list) {
-        const tk = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
-        const a  = tk?.actor;
-        if (!a) continue;
-        const fv = foundry.utils.getProperty(a, path);
+      for (const ref of list) {
+        const fv = this._arrayFieldValue(ref, path, doc);
         if (fv === undefined || fv === null || typeof fv === "object") continue;
-        const lv = isNum ? Number(fv)  : String(fv);
-        const rv = isNum ? cmpNum      : String(cmpRaw);
+        const lv = isNum ? Number(fv) : String(fv);
+        const rv = isNum ? cmpNum : String(cmpRaw);
         let ok = false;
         switch (op) {
-          case "==": ok = (lv === rv); break;
-          case "!=": ok = (lv !== rv); break;
-          case ">":  ok = (lv >   rv); break;
-          case "<":  ok = (lv <   rv); break;
-          case ">=": ok = (lv >=  rv); break;
-          case "<=": ok = (lv <=  rv); break;
-          default:   ok = false;
+          case "==": ok = isNum ? lv === rv : String(lv).toLowerCase() === String(rv).toLowerCase(); break;
+          case "!=": ok = isNum ? lv !== rv : String(lv).toLowerCase() !== String(rv).toLowerCase(); break;
+          case ">": ok = lv > rv; break;
+          case "<": ok = lv < rv; break;
+          case ">=": ok = lv >= rv; break;
+          case "<=": ok = lv <= rv; break;
+          case "contains": ok = String(lv).toLowerCase().includes(String(rv).toLowerCase()); break;
+          case "startsWith": ok = String(lv).toLowerCase().startsWith(String(rv).toLowerCase()); break;
+          case "endsWith": ok = String(lv).toLowerCase().endsWith(String(rv).toLowerCase()); break;
         }
-        if (ok) out.push(tid);
+        if (ok) out.push(ref);
       }
       return out.join(",");
     }

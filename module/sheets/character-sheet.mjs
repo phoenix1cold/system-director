@@ -1504,7 +1504,14 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           type: "Item",
           uuid: el.dataset.itemUuid || "",
           _id:  el.dataset.itemId   || "",
-          sdSrc: { kind: "slot", actorUuid: actor.uuid, slotId, index: idx }
+          sdSrc: {
+            kind: "slot",
+            actorUuid: actor.uuid,
+            hostUuid: doc?.uuid ?? actor.uuid,
+            slotId,
+            index: idx,
+            itemName: el.getAttribute("title") || ""
+          }
         };
         ev.dataTransfer.setData("text/plain", JSON.stringify(dragData));
         ev.dataTransfer.effectAllowed = "all";
@@ -2549,10 +2556,59 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     return data;
   }
 
-  static async _resolveSlotSnapshot(srcActor, slotId, index) {
-    if (!srcActor) return null;
-    const arr = srcActor.system?.slotContents?.[slotId]?.contents ?? [];
-    return arr[index] ?? null;
+  static async _resolveSlotHost(src) {
+    if (!src) return null;
+    const preferred = src.hostUuid || src.actorUuid;
+    if (preferred) {
+      try {
+        const host = await fromUuid(preferred);
+        if (host) return host;
+      } catch {}
+    }
+    if (src.actorUuid) {
+      try { return await fromUuid(src.actorUuid); } catch {}
+    }
+    return null;
+  }
+
+  static async _resolveSlotSnapshot(srcHost, slotId, index, hint = {}) {
+    if (!srcHost) return null;
+    const idx = Number.isFinite(Number(index)) ? Number(index) : 0;
+    const direct = srcHost.system?.slotContents?.[slotId]?.contents?.[idx];
+    if (direct) return direct;
+
+    const actor = srcHost instanceof Actor ? srcHost : (srcHost?.actor ?? null);
+    if (!actor) return null;
+    const seen = new Set();
+    const matchesHint = (entry) => {
+      const refs = [entry?._sourceUuid, entry?.uuid, entry?._id, entry?.id, entry?.name]
+        .filter(v => v != null).map(String);
+      const wanted = [hint?.uuid, hint?._id, hint?.itemName]
+        .filter(v => v != null && v !== "").map(String);
+      return !wanted.length || wanted.some(v => refs.includes(v));
+    };
+    const walk = (host) => {
+      if (!host || seen.has(host)) return null;
+      seen.add(host);
+      const arr = host.system?.slotContents?.[slotId]?.contents ?? [];
+      if (arr[idx] && matchesHint(arr[idx])) return arr[idx];
+      const hinted = arr.find(matchesHint);
+      if (hinted) return hinted;
+      for (const group of Object.values(host.system?.slotContents ?? {})) {
+        for (const entry of (group?.contents ?? [])) {
+          const nested = walk(entry);
+          if (nested) return nested;
+        }
+      }
+      return null;
+    };
+    const actorDirect = walk(actor);
+    if (actorDirect) return actorDirect;
+    for (const item of (actor.items ?? [])) {
+      const nested = walk(item);
+      if (nested) return nested;
+    }
+    return null;
   }
 
   static async _ensureSlotDef(actor, slotId) {
@@ -2584,12 +2640,18 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const { SlotManager } = await import("../data/item-slots.mjs");
     await CharacterSheet._ensureSlotDef(targetActor, slotId);
 
-    if (src?.kind === "slot" && src.actorUuid === targetActor.uuid && src.slotId === slotId) return;
+    if (src?.kind === "slot"
+        && (src.hostUuid || src.actorUuid) === targetActor.uuid
+        && src.slotId === slotId) return;
 
     let payload = null;
     if (src?.kind === "slot") {
-      const srcActor = await fromUuid(src.actorUuid);
-      payload = await CharacterSheet._resolveSlotSnapshot(srcActor, src.slotId, src.index);
+      const srcHost = await CharacterSheet._resolveSlotHost(src);
+      payload = await CharacterSheet._resolveSlotSnapshot(srcHost, src.slotId, src.index, {
+        uuid: dragData.uuid,
+        _id: dragData._id,
+        itemName: src.itemName
+      });
     } else if (dragData.uuid) {
       try { payload = await fromUuid(dragData.uuid); } catch { payload = null; }
     }
@@ -2606,8 +2668,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const srcItem = srcActor?.items?.get(src.itemId);
       if (srcItem) await srcItem.delete();
     } else if (src.kind === "slot") {
-      const srcActor = await fromUuid(src.actorUuid);
-      if (srcActor) await SlotManager.removeFromSlot(srcActor, src.slotId, src.index);
+      const srcHost = await CharacterSheet._resolveSlotHost(src);
+      if (srcHost) await SlotManager.removeFromSlot(srcHost, src.slotId, src.index);
     }
   }
 
@@ -2622,8 +2684,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     let liveItem = null;
 
     if (src?.kind === "slot") {
-      const srcActor = await fromUuid(src.actorUuid);
-      payloadData = await CharacterSheet._resolveSlotSnapshot(srcActor, src.slotId, src.index);
+      const srcHost = await CharacterSheet._resolveSlotHost(src);
+      payloadData = await CharacterSheet._resolveSlotSnapshot(srcHost, src.slotId, src.index, {
+        uuid: dragData.uuid,
+        _id: dragData._id,
+        itemName: src.itemName
+      });
     } else if (dragData.uuid) {
       try { liveItem = await fromUuid(dragData.uuid); } catch { liveItem = null; }
       if (liveItem) payloadData = liveItem.toObject();
@@ -2661,10 +2727,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const srcItem = srcActor?.items?.get(src.itemId);
       if (srcItem) await srcItem.delete();
     } else if (src.kind === "slot") {
-      const srcActor = await fromUuid(src.actorUuid);
-      if (srcActor) {
+      const srcHost = await CharacterSheet._resolveSlotHost(src);
+      if (srcHost) {
         const { SlotManager } = await import("../data/item-slots.mjs");
-        await SlotManager.removeFromSlot(srcActor, src.slotId, src.index);
+        await SlotManager.removeFromSlot(srcHost, src.slotId, src.index);
       }
     }
   }

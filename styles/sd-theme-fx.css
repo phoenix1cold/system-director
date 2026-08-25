@@ -387,3 +387,36 @@
     opacity: .5;
   }
 }
+
+
+/* SD 1.3.5 — additional theme effects */
+[data-sd-theme-fx="tactical"] .sd .widget::before,
+[data-sd-theme-fx="tactical"] #sd-action-hud .widget::before,
+[data-sd-theme-fx="tactical"] #sd-action-hud-floating .widget::before {
+  background:repeating-linear-gradient(90deg,transparent 0 23px,color-mix(in srgb,var(--sd-accent) 8%,transparent) 23px 24px),repeating-linear-gradient(0deg,transparent 0 23px,color-mix(in srgb,var(--sd-accent) 6%,transparent) 23px 24px); opacity:.55;
+}
+[data-sd-theme-fx="darkFantasy"] .sd .widget::before,
+[data-sd-theme-fx="darkFantasy"] #sd-action-hud .widget::before,
+[data-sd-theme-fx="darkFantasy"] #sd-action-hud-floating .widget::before { background:radial-gradient(circle at 20% 115%,color-mix(in srgb,var(--sd-warn) 25%,transparent),transparent 42%); animation:sd135Ember 5s ease-in-out infinite alternate; }
+[data-sd-theme-fx="wasteland"] .sd .widget::before,
+[data-sd-theme-fx="wasteland"] #sd-action-hud .widget::before,
+[data-sd-theme-fx="wasteland"] #sd-action-hud-floating .widget::before { background:repeating-linear-gradient(0deg,transparent 0 3px,color-mix(in srgb,var(--sd-accent) 8%,transparent) 3px 4px); opacity:.65; }
+[data-sd-theme-fx="royal"] .sd .widget::before,
+[data-sd-theme-fx="royal"] #sd-action-hud .widget::before,
+[data-sd-theme-fx="royal"] #sd-action-hud-floating .widget::before { background:linear-gradient(115deg,transparent 20%,color-mix(in srgb,var(--sd-accent) 16%,transparent) 48%,transparent 72%); background-size:220% 100%; animation:sd135Royal 5.5s ease-in-out infinite; }
+[data-sd-theme-fx="cyber"] .sd .widget::before,
+[data-sd-theme-fx="cyber"] #sd-action-hud .widget::before,
+[data-sd-theme-fx="cyber"] #sd-action-hud-floating .widget::before { background:repeating-linear-gradient(0deg,transparent 0 4px,color-mix(in srgb,var(--sd-accent-alt) 8%,transparent) 4px 5px),linear-gradient(90deg,color-mix(in srgb,var(--sd-accent) 8%,transparent),transparent 35%,color-mix(in srgb,var(--sd-accent-alt) 7%,transparent)); opacity:.75; }
+[data-sd-theme-fx="horror"] .sd .widget::before,
+[data-sd-theme-fx="horror"] #sd-action-hud .widget::before,
+[data-sd-theme-fx="horror"] #sd-action-hud-floating .widget::before { background:radial-gradient(ellipse at center,transparent 30%,color-mix(in srgb,var(--sd-danger) 13%,transparent) 100%); animation:sd135Dread 3.8s ease-in-out infinite; }
+[data-sd-theme-fx="tactical"] .sd .widget [data-sd-fx-clicked]::after,
+[data-sd-theme-fx="wasteland"] .sd .widget [data-sd-fx-clicked]::after,
+[data-sd-theme-fx="royal"] .sd .widget [data-sd-fx-clicked]::after,
+[data-sd-theme-fx="darkFantasy"] .sd .widget [data-sd-fx-clicked]::after,
+[data-sd-theme-fx="cyber"] .sd .widget [data-sd-fx-clicked]::after,
+[data-sd-theme-fx="horror"] .sd .widget [data-sd-fx-clicked]::after { border-color:var(--sd-accent); box-shadow:0 0 0 2px var(--sd-accent-glow),0 0 22px var(--sd-accent-glow); animation:sd135Click .52s ease-out both; }
+@keyframes sd135Ember { from{opacity:.28;filter:saturate(.8)} to{opacity:.8;filter:saturate(1.35)} }
+@keyframes sd135Royal { 0%,25%{background-position:110% 0;opacity:.3} 55%,100%{background-position:-110% 0;opacity:.75} }
+@keyframes sd135Dread { 0%,100%{opacity:.25} 45%{opacity:.68} 50%{opacity:.35} 56%{opacity:.72} }
+@keyframes sd135Click { from{opacity:.9;transform:scale(.92)} to{opacity:0;transform:scale(1.12)} }

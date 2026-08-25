@@ -42,6 +42,12 @@ export class ClassData extends foundry.abstract.TypeDataModel {
 
           fieldChanges: new ArrayField(FieldChangeField(), { initial: [] }),
 
+          // Optional explicit rewards used by imported class definitions.
+          // The progression app also continues to support ordinary field
+          // changes targeting system.skillPoints.value / max.
+          skillPoints:    new NumberField({ initial: 0, min: 0, nullable: false }),
+          skillPointsMax: new NumberField({ initial: 0, min: 0, nullable: false }),
+
           choices: new ArrayField(
             new SchemaField({
               id:      new StringField({ initial: "", blank: true }),

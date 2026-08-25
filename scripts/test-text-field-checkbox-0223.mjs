@@ -3,7 +3,7 @@ import fs from "node:fs";
 const popup=fs.readFileSync(new URL("../module/builder/widget-config-popup.mjs",import.meta.url),"utf8");
 const css=fs.readFileSync(new URL("../styles/system.css",import.meta.url),"utf8");
 const manifest=JSON.parse(fs.readFileSync(new URL("../system.json",import.meta.url),"utf8"));
-assert.equal(manifest.version,"0.22.10");
+assert.equal(manifest.version,"1.3.5");
 assert.match(popup,/text:\s*\[.*\["Read Only","readOnly","boolean"\]/s,"Text Field must expose Read Only");
 assert.match(popup,/class="wcfg-f wcfg-boolean-row"/);
 assert.match(popup,/class="wcfg-checkbox-control"/);

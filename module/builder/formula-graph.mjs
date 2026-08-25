@@ -1374,7 +1374,7 @@ export const NODE_DEFS = {
 
   arr_filter: {
     title:"Filter by Field", color:"#2a7a3a", cat:"Array",
-    desc:"Keep only tokens whose actor field passes `field <op> value`. Numeric comparisons when value parses as a number, string equality otherwise. Outputs a comma-joined list to feed back into other Array / For Each Token nodes.",
+    desc:"Keep tokens, actors, items or widget elements whose field passes `field <op> value`. Use path `name` to filter item arrays by name. Numeric comparisons when value parses as a number, string equality otherwise. Outputs a comma-joined list to feed back into other Array / For Each Token nodes.",
     inputs:[
       {id:"tokens", label:"Tokens", type:"value.array"},
       {id:"value",  label:"Value",  type:"value.any"}
@@ -1382,7 +1382,7 @@ export const NODE_DEFS = {
     outputs:[{id:"v", label:"Filtered", type:"value.array"}],
     fields:[
       {key:"path",label:"Field",type:"path",default:"system.resources.hp.value"},
-      {key:"op",  label:"Op",   type:"select",default:">",options:["==","!=",">","<",">=","<="]},
+      {key:"op",  label:"Op",   type:"select",default:">",options:["==","!=",">","<",">=","<=","contains","startsWith","endsWith"]},
       {key:"value",label:"Value",type:"text",default:"0"}
     ],
     compile:(n,i)=>{
@@ -2306,6 +2306,50 @@ export const NODE_DEFS = {
       items:           inp.items ?? "",
       inventoryWidget: n.data.inventoryWidget ?? ""
     })
+  },
+
+  item_array_inventory: {
+    title:"Inventory Items Array", color:"#3a7a3a", cat:"Items", wideNode:true,
+    desc:"Return actor inventory items as an array of item UUIDs. Optional type, category and name filters. The result works with every generic Array node; Filter by Field can use path `name`, `type`, `uuid` or any system path.",
+    inputs:[{id:"actor",label:"Actor",type:"value.actor"},{id:"name",label:"Name",type:"value.string"}],
+    outputs:[{id:"items",label:"Items[]",type:"value.array"},{id:"len",label:"Length",type:"value.number"}],
+    fields:[
+      {key:"itemType",label:"Item type",type:"text",default:"inventory",placeholder:"inventory / all"},
+      {key:"category",label:"Category",type:"text",default:""},
+      {key:"name",label:"Name filter",type:"text",default:""},
+      {key:"match",label:"Name match",type:"select",default:"contains",options:["contains","exact"]}
+    ],
+    compile:(n,i)=>`{sdItemArrayInventory:${_arrayArg(i.actor ?? "self")}|${_arrayArg(n.data.itemType ?? "inventory")}|${_arrayArg(n.data.category ?? "")}|${_arrayArg(i.name ?? n.data.name ?? "")}|${_arrayArg(n.data.match ?? "contains")}}`,
+    compilePin:(n,i,pin)=>{
+      const value=`{sdItemArrayInventory:${_arrayArg(i.actor ?? "self")}|${_arrayArg(n.data.itemType ?? "inventory")}|${_arrayArg(n.data.category ?? "")}|${_arrayArg(i.name ?? n.data.name ?? "")}|${_arrayArg(n.data.match ?? "contains")}}`;
+      return pin==="len"?`{arrayLength:${value}}`:value;
+    }
+  },
+
+  item_array_slot: {
+    title:"Slot Items Array", color:"#3a7a3a", cat:"Items", wideNode:true,
+    desc:"Return every item stored in a slot as an array. Searches actor slots and nested item slots; optionally restrict to one container item.",
+    inputs:[{id:"actor",label:"Actor",type:"value.actor"},{id:"slotId",label:"Slot ID",type:"value.string"},{id:"container",label:"Container",type:"value.item"}],
+    outputs:[{id:"items",label:"Items[]",type:"value.array"},{id:"len",label:"Length",type:"value.number"}],
+    fields:[{key:"slotId",label:"Slot ID",type:"text",default:"slot1"},{key:"container",label:"Container item (optional)",type:"text",default:""}],
+    compile:(n,i)=>`{sdItemArraySlot:${_arrayArg(i.actor ?? "self")}|${_arrayArg(i.slotId ?? n.data.slotId ?? "slot1")}|${_arrayArg(i.container ?? n.data.container ?? "")}}`,
+    compilePin:(n,i,pin)=>{
+      const value=`{sdItemArraySlot:${_arrayArg(i.actor ?? "self")}|${_arrayArg(i.slotId ?? n.data.slotId ?? "slot1")}|${_arrayArg(i.container ?? n.data.container ?? "")}}`;
+      return pin==="len"?`{arrayLength:${value}}`:value;
+    }
+  },
+
+  widget_value_array: {
+    title:"Widget as Array", color:"#3a7a3a", cat:"Items", wideNode:true,
+    desc:"Read an Inventory, Item Slot or array-backed widget as a real array. Inventory/slot widgets return item UUIDs; custom array paths return their elements.",
+    inputs:[{id:"actor",label:"Actor",type:"value.actor"}],
+    outputs:[{id:"items",label:"Array",type:"value.array"},{id:"len",label:"Length",type:"value.number"}],
+    fields:[{key:"widget",label:"Widget",type:"widget-picker",default:""},{key:"path",label:"Array path (optional)",type:"path",default:""}],
+    compile:(n,i)=>`{sdWidgetArray:${_arrayArg(i.actor ?? "self")}|${_arrayArg(n.data.widget ?? "")}|${_arrayArg(n.data.path ?? "")}}`,
+    compilePin:(n,i,pin)=>{
+      const value=`{sdWidgetArray:${_arrayArg(i.actor ?? "self")}|${_arrayArg(n.data.widget ?? "")}|${_arrayArg(n.data.path ?? "")}}`;
+      return pin==="len"?`{arrayLength:${value}}`:value;
+    }
   },
 
   item_arr_names: {
@@ -11015,7 +11059,26 @@ export class FormulaGraph {
         ? compiledObj
         : {};
       payload._graphData = data;
-      await this.doc.update({ "system.sdTriggerGraph": payload });
+      // Foundry recursively merges ObjectField updates.  Writing a newly
+      // compiled graph without first deleting the old runtime keys therefore
+      // leaves removed events/actions (most visibly Message nodes) behind in
+      // `sdTriggerGraph._events`.  Clear every compiled key first, while
+      // preserving the editor graph until the replacement is written.
+      const previous = this.doc.system?.sdTriggerGraph;
+      if (previous && typeof previous === "object") {
+        const stale = {};
+        for (const key of Object.keys(previous)) {
+          if (key === "_graphData") continue;
+          stale[`system.sdTriggerGraph.-=${key}`] = null;
+        }
+        if (Object.keys(stale).length) {
+          await this.doc.update(stale, { sdSkipEventBus: true });
+        }
+      }
+      await this.doc.update(
+        { "system.sdTriggerGraph": payload },
+        { sdSkipEventBus: true }
+      );
     }
   }
 

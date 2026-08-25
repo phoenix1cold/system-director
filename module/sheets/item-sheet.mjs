@@ -396,7 +396,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
     const el = document.createElement("div");
     el.dataset.rowId=row.id; el.dataset.tabId=tab.id; el.dataset.cols=cols;
-    el.style.cssText=`display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;align-items:start;position:relative;padding:8px;border:1px dashed var(--sd-accent-glow);border-radius:6px;`;
+    el.style.cssText=`display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;align-items:stretch;position:relative;padding:8px;border:1px dashed var(--sd-accent-glow);border-radius:6px;`;
     if (this._editMode) {
       const cfg=document.createElement("button"); cfg.type="button"; cfg.innerHTML=`<i class="fas fa-cog"></i> ${cols}`; cfg.title="Row columns (1-9)";
       cfg.style.cssText="position:absolute;top:-9px;right:32px;z-index:10;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:0 6px;line-height:17px;";
@@ -417,7 +417,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     cell.dataset.widgetId=w.id; cell.dataset.rowId=row.id; cell.dataset.tabId=tab.id;
     if (parentVS) cell.dataset.parentVsId = parentVS.id;
     cell.dataset.widgetIdx = idx;
-    cell.style.cssText=`grid-column:${parentVS ? "auto" : `span ${span}`};position:relative;min-width:0;`;
+    cell.style.cssText=`grid-column:${parentVS ? "auto" : `span ${span}`};position:relative;min-width:0;display:flex;align-items:stretch;`;
 
     if (w.type === "vsection") {
       cell.innerHTML = "";
@@ -559,7 +559,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     wrap.appendChild(hdr);
 
     const grid = document.createElement("div");
-    grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px;";
+    grid.className = "sd-class-level-grid";
+    grid.style.cssText = "display:grid;grid-template-columns:minmax(190px,1fr) minmax(320px,1.45fr) minmax(190px,1fr);gap:8px;padding:10px;overflow-x:auto;";
 
     const itemsCol = document.createElement("div");
     itemsCol.innerHTML = `<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sd-text-3);letter-spacing:.06em;margin-bottom:5px">
@@ -598,12 +599,13 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     fcList.style.cssText = "display:flex;flex-direction:column;gap:3px;";
     (lv.fieldChanges ?? []).forEach((fc, j) => {
       const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:2px;";
+      row.className = "sd-field-change-row";
+      row.style.cssText = "display:grid;grid-template-columns:minmax(220px,1fr) 48px 64px 24px;align-items:center;gap:4px;min-width:360px;";
       if (ed) {
         row.innerHTML = `
           <input type="text" class="cls-fc-path" data-level-idx="${idx}" data-fc-idx="${j}" value="${e(fc.path)}"
             placeholder="system.resources.hp.max"
-            style="flex:1;min-width:0;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-accent);font-size:9px;font-family:monospace;padding:2px 4px">
+            style="width:100%;min-width:220px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-accent);font-size:9px;font-family:monospace;padding:2px 4px">
           <select class="cls-fc-mode" data-level-idx="${idx}" data-fc-idx="${j}"
             style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px 2px">
             <option value="add" ${fc.mode==="add"?"selected":""}>+</option>
@@ -774,12 +776,13 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         }
         opts.forEach((fc, j) => {
           const row = document.createElement("div");
-          row.style.cssText = "display:flex;align-items:center;gap:2px;";
+          row.className = "sd-field-change-row sd-field-change-choice-row";
+          row.style.cssText = "display:grid;grid-template-columns:minmax(220px,1fr) 48px 64px 24px;align-items:center;gap:4px;min-width:360px;";
           if (ed) {
             row.innerHTML = `
               <input type="text" class="cls-choice-fc-path" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}" value="${e(fc.path ?? "")}"
                 placeholder="system.resources.hp.max"
-                style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px">
+                style="width:100%;min-width:220px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px">
               <select class="cls-choice-fc-mode" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}"
                 style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px">
                 <option value="add"      ${fc.mode === "add"      ? "selected" : ""}>+</option>
@@ -1355,9 +1358,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
             : `<span style="font-size:10px;color:var(--sd-text-3);font-style:italic">No effects yet.</span>`);
 
           const fcRows = (node.fieldChanges ?? []).map((fc, j) => `
-            <div class="stn-fc-row" style="display:flex;align-items:center;gap:3px;margin-bottom:3px">
+            <div class="stn-fc-row sd-field-change-row" style="display:grid;grid-template-columns:minmax(260px,1fr) 48px 64px 28px;align-items:center;gap:4px;margin-bottom:5px;min-width:430px">
               <input type="text" class="stn-fc-path" value="${escAttr(fc.path)}" placeholder="system.advancement.level"
-                style="flex:1;min-width:0;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;font-family:monospace;padding:2px 4px">
+                style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;font-family:monospace;padding:2px 4px">
               <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
                 <option value="add" ${fc.mode==="add"?"selected":""}>+</option>
                 <option value="set" ${fc.mode==="set"?"selected":""}>=</option>
@@ -1366,7 +1369,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
               <input type="text" class="stn-fc-val" value="${escAttr(fc.value)}" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
               <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>
             </div>`).join("");
-          const content = `<div style="display:flex;flex-direction:column;gap:10px;padding:8px">
+          const content = `<div class="sd-skilltree-node-config" style="display:flex;flex-direction:column;gap:10px;padding:8px;min-width:640px;overflow-x:auto">
             <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Label
               <input id="stn-label" type="text" value="${escAttr(node.label??'')}" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
             <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Max Acquires
@@ -1421,10 +1424,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
               root.querySelector("#stn-add-fc")?.addEventListener("click", () => {
                 const div = document.createElement("div");
                 div.className = "stn-fc-row";
-                div.style.cssText = "display:flex;align-items:center;gap:3px;margin-bottom:3px";
+                div.style.cssText = "display:grid;grid-template-columns:minmax(260px,1fr) 48px 64px 28px;align-items:center;gap:4px;margin-bottom:5px;min-width:430px";
                 div.innerHTML = `
                   <input type="text" class="stn-fc-path" value="system.advancement.level" placeholder="system...."
-                    style="flex:1;min-width:0;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;font-family:monospace;padding:2px 4px">
+                    style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;font-family:monospace;padding:2px 4px">
                   <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
                     <option value="add">+</option><option value="set">=</option><option value="multiply">×</option>
                   </select>
@@ -1767,7 +1770,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
             Contents <strong style="color:${contents.length>=def.maxCount?'var(--sd-hp)':'var(--sd-stamina)'}">${contents.length}/${def.maxCount}</strong>
             ${contents.length<def.maxCount?`<span style="color:var(--sd-text-3);font-size:10px">— drop item here</span>`:""}
           </div>
-          ${contents.map((c,ci)=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;border-bottom:1px solid var(--sd-bg)">
+          ${contents.map((c,ci)=>`<div draggable="true" data-slot-item-drag data-slot-id="${e(def.id)}" data-slot-index="${ci}" data-item-id="${e(c._id ?? c.id ?? '')}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? '')}" data-item-name="${e(c.name ?? '')}" style="display:flex;align-items:center;gap:6px;padding:3px 2px;border-bottom:1px solid var(--sd-bg);cursor:grab">
             <img src="${e(c.img??'icons/svg/item-bag.svg')}" style="width:20px;height:20px;object-fit:cover;border-radius:3px;flex-shrink:0">
             <span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(c.name??'?')}</span>
             ${Object.entries(c.system?.hiddenFields??{}).map(([k,v])=>`<span style="font-size:10px;color:var(--sd-text-3);font-family:monospace;flex-shrink:0">${e(k)}=${e(String(v))}</span>`).join('')}
@@ -1983,6 +1986,31 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     con._sdWired = true;
     con.addEventListener("click", this._onPanelClick.bind(this));
     con.addEventListener("change", this._onPanelChange.bind(this));
+
+    con.addEventListener("dragstart", ev => {
+      const row = ev.target.closest?.("[data-slot-item-drag]");
+      if (!row) return;
+      const slotId = row.dataset.slotId || "";
+      const index = parseInt(row.dataset.slotIndex ?? "-1", 10);
+      if (!slotId || index < 0) return;
+      const actor = this.document?.actor ?? null;
+      const dragData = {
+        type: "Item",
+        uuid: row.dataset.itemUuid || "",
+        _id: row.dataset.itemId || "",
+        sdSrc: {
+          kind: "slot",
+          actorUuid: actor?.uuid ?? "",
+          hostUuid: this.document.uuid,
+          slotId,
+          index,
+          itemName: row.dataset.itemName || ""
+        }
+      };
+      ev.dataTransfer?.setData("text/plain", JSON.stringify(dragData));
+      if (ev.dataTransfer) ev.dataTransfer.effectAllowed = "all";
+      ev.stopPropagation();
+    });
 
     con.addEventListener("click", async ev => {
       const skillPip = ev.target.closest(".skill-pip[data-path][data-rank]");
@@ -2933,9 +2961,16 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return; }
 
         if (zone.dataset.dropSlot !== undefined) {
-          const item = data.uuid ? await fromUuid(data.uuid) : null;
+          const src = data.sdSrc ?? null;
+          const sourceHost = src?.kind === "slot"
+            ? await fromUuid(src.hostUuid || src.actorUuid).catch(() => null)
+            : null;
+          const item = sourceHost
+            ? (SlotManager.getContents(sourceHost, src.slotId)[Number(src.index)] ?? null)
+            : (data.uuid ? await fromUuid(data.uuid).catch(() => null) : null);
           if (item) {
             const slotId = zone.dataset.dropSlot;
+            if (sourceHost === this.document && src?.slotId === slotId) return;
             const defs = this.document.system.slotDefinitions ?? [];
             if (!defs.find(d => String(d.id) === String(slotId))) {
               const allWidgets = (this.document.system.customTabs ?? [])
@@ -2955,7 +2990,10 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
               });
               await this.document.update({ "system.slotDefinitions": newDefs });
             }
-            await SlotManager.addToSlot(this.document, slotId, item);
+            const added = await SlotManager.addToSlot(this.document, slotId, item);
+            if (added && sourceHost && !ev.shiftKey) {
+              await SlotManager.removeFromSlot(sourceHost, src.slotId, Number(src.index));
+            }
           }
           return;
         }

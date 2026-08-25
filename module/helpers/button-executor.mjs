@@ -4,6 +4,7 @@ import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { durationForRounds } from "./effect-duration.mjs";
 import { SDDialogueBuilder } from "./dialogue-builder.mjs";
 import { materializeDeferredActionSnapshot } from "./deferred-action-snapshot.mjs";
+import { runNodeActionHandler } from "./node-runtime-api.mjs";
 import {
   addActorAIInteraction,
   addActorAIMemory,
@@ -1107,6 +1108,21 @@ export class ButtonExecutor {
         return Boolean(ev);
       } catch { return null; }
     };
+
+    const extensionResult = await runNodeActionHandler(action?.type, {
+      action, item, actor, buttonDef, runtime,
+      injectRuntime: _injectRuntime,
+      resolveValue: async (value) => {
+        const injected = typeof value === "string" ? _injectRuntime(value) : value;
+        if (typeof injected !== "string") return injected;
+        try {
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+          return FormulaEngine.evaluate(injected, item ?? actor ?? {});
+        } catch { return injected; }
+      },
+      resolveBool: _resolveBoolPin
+    });
+    if (extensionResult.handled) return extensionResult.value;
 
     switch (action.type) {
 

@@ -1,85 +1,127 @@
 export const COLOR_SCHEMES = [
   {
-    id:    "default",
+    id: "default",
     label: "SD.Theme.Default",
-    fallback: "Indigo Night (default)",
-    preview: { bg: "#1a1a24", accent: "#7b68ee", text: "#e0e0ee" }
+    fallback: "Director Pro",
+    preview: { bg: "#10131d", accent: "#8b7cff", text: "#f2f4ff" }
   },
   {
-    id:    "midnight",
+    id: "midnight",
     label: "SD.Theme.Midnight",
-    fallback: "Midnight Ocean",
-    preview: { bg: "#0a0f1c", accent: "#3cc8e0", text: "#d8e4f0" }
+    fallback: "Abyssal Ocean",
+    preview: { bg: "#07101b", accent: "#48d7e8", text: "#e8f4ff" }
   },
   {
-    id:    "forest",
+    id: "forest",
     label: "SD.Theme.Forest",
-    fallback: "Deep Forest",
-    preview: { bg: "#141c17", accent: "#7cc060", text: "#e4ead8" }
+    fallback: "Wildwood",
+    preview: { bg: "#101813", accent: "#8bd06e", text: "#edf3e7" }
   },
   {
-    id:    "crimson",
+    id: "crimson",
     label: "SD.Theme.Crimson",
-    fallback: "Crimson Gothic",
-    preview: { bg: "#1a0d10", accent: "#e04848", text: "#f0dcdc" }
+    fallback: "Blood Moon",
+    preview: { bg: "#160b0f", accent: "#f0525f", text: "#faecee" }
   },
   {
-    id:    "arcane",
+    id: "arcane",
     label: "SD.Theme.Arcane",
-    fallback: "Arcane Purple",
-    preview: { bg: "#160d1f", accent: "#c878ff", text: "#eadcf8" }
+    fallback: "Runebound",
+    preview: { bg: "#120c1d", accent: "#c985ff", text: "#f4eaff" }
   },
   {
-    id:    "sepia",
+    id: "sepia",
     label: "SD.Theme.Sepia",
-    fallback: "Sepia Parchment (light)",
-    preview: { bg: "#f3ead8", accent: "#8a4820", text: "#3a2a14" }
+    fallback: "Ancient Parchment",
+    preview: { bg: "#f1e6cf", accent: "#95501f", text: "#332514" }
   },
   {
-    id:    "solar",
+    id: "solar",
     label: "SD.Theme.Solar",
-    fallback: "Solar (balanced)",
-    preview: { bg: "#002b36", accent: "#b58900", text: "#eee8d5" }
+    fallback: "Desert Sun",
+    preview: { bg: "#092b32", accent: "#e1a82f", text: "#fff3d8" }
   },
   {
-    id:    "nord",
+    id: "nord",
     label: "SD.Theme.Nord",
-    fallback: "Nord Frost",
-    preview: { bg: "#2e3440", accent: "#88c0d0", text: "#eceff4" }
+    fallback: "Frostbound",
+    preview: { bg: "#252b36", accent: "#8fd3e2", text: "#f3f7fb" }
   },
   {
-    id:    "highContrast",
+    id: "highContrast",
     label: "SD.Theme.HighContrast",
-    fallback: "High Contrast (A11y)",
-    preview: { bg: "#000000", accent: "#ffd400", text: "#ffffff" }
+    fallback: "High Contrast",
+    preview: { bg: "#000000", accent: "#ffe14a", text: "#ffffff" }
   },
   {
-    id:    "mono",
+    id: "mono",
     label: "SD.Theme.Mono",
-    fallback: "Mono (strict B/W)",
-    preview: { bg: "#0d0d0d", accent: "#f5f5f5", text: "#f5f5f5" }
+    fallback: "Noir Interface",
+    preview: { bg: "#0b0b0c", accent: "#f2f2f2", text: "#fafafa" }
   },
   {
-    id:    "sciFi",
+    id: "sciFi",
     label: "SD.Theme.SciFi",
-    fallback: "Sci-Fi (Neon)",
-    preview: { bg: "#03101c", accent: "#3df0ff", text: "#dff5ff" }
-  }
+    fallback: "Neon Grid",
+    preview: { bg: "#030d17", accent: "#43ecff", text: "#e7fbff" }
+  },
+  {
+    id: "tactical",
+    label: "SD.Theme.Tactical",
+    fallback: "Tactical Command",
+    preview: { bg: "#11150f", accent: "#d1df66", text: "#f0f2df" }
+  },
+  {
+    id: "darkFantasy",
+    label: "SD.Theme.DarkFantasy",
+    fallback: "Ashen Kingdom",
+    preview: { bg: "#100d0c", accent: "#d1a35b", text: "#eee4d3" }
+  },
+  {
+    id: "wasteland",
+    label: "SD.Theme.Wasteland",
+    fallback: "Wasteland Terminal",
+    preview: { bg: "#15170f", accent: "#dfa447", text: "#f2dfb6" }
+  },
+  {
+    id: "royal",
+    label: "SD.Theme.Royal",
+    fallback: "Royal Adventure",
+    preview: { bg: "#0b1224", accent: "#e1c36a", text: "#f7f3e9" }
+  },
+  {
+    id: "cyber",
+    label: "SD.Theme.Cyber",
+    fallback: "Cyber Pulse",
+    preview: { bg: "#080812", accent: "#ff55d8", text: "#fff0ff" }
+  },
+  {
+    id: "horror",
+    label: "SD.Theme.Horror",
+    fallback: "Dread Signal",
+    preview: { bg: "#0e1210", accent: "#dc5353", text: "#edf0e9" }
+  },
 ];
 
 export const COLOR_SCHEMES_V2 = [
-  { id: "off",          label: "SD.ThemeFx.Off",          fallback: "Off (no effects)" },
-  { id: "default",      label: "SD.ThemeFx.Default",      fallback: "Indigo Night — sparkle" },
-  { id: "midnight",     label: "SD.ThemeFx.Midnight",     fallback: "Midnight Ocean — ripple" },
-  { id: "forest",       label: "SD.ThemeFx.Forest",       fallback: "Deep Forest — leaves" },
-  { id: "crimson",      label: "SD.ThemeFx.Crimson",      fallback: "Crimson Gothic — pulse" },
-  { id: "arcane",       label: "SD.ThemeFx.Arcane",       fallback: "Arcane — runes" },
-  { id: "sepia",        label: "SD.ThemeFx.Sepia",        fallback: "Sepia — parchment" },
-  { id: "solar",        label: "SD.ThemeFx.Solar",        fallback: "Solar — sun-flare" },
-  { id: "nord",         label: "SD.ThemeFx.Nord",         fallback: "Nord Frost — ice crack" },
-  { id: "highContrast", label: "SD.ThemeFx.HighContrast", fallback: "High Contrast — neon flicker" },
-  { id: "mono",         label: "SD.ThemeFx.Mono",         fallback: "Mono — ink press" },
-  { id: "sciFi",        label: "SD.ThemeFx.SciFi",        fallback: "Sci-Fi — scanlines / glitch" }
+  { id: "off", label: "SD.ThemeFx.Off", fallback: "Off (no effects)" },
+  { id: "default", label: "SD.ThemeFx.Default", fallback: "Director Pro \u2014 prism sweep" },
+  { id: "midnight", label: "SD.ThemeFx.Midnight", fallback: "Abyssal Ocean \u2014 sonar ripple" },
+  { id: "forest", label: "SD.ThemeFx.Forest", fallback: "Wildwood \u2014 drifting leaves" },
+  { id: "crimson", label: "SD.ThemeFx.Crimson", fallback: "Blood Moon \u2014 heartbeat" },
+  { id: "arcane", label: "SD.ThemeFx.Arcane", fallback: "Runebound \u2014 glyphs" },
+  { id: "sepia", label: "SD.ThemeFx.Sepia", fallback: "Ancient Parchment \u2014 ink and grain" },
+  { id: "solar", label: "SD.ThemeFx.Solar", fallback: "Desert Sun \u2014 flare" },
+  { id: "nord", label: "SD.ThemeFx.Nord", fallback: "Frostbound \u2014 ice fracture" },
+  { id: "highContrast", label: "SD.ThemeFx.HighContrast", fallback: "High Contrast \u2014 focus pulse" },
+  { id: "mono", label: "SD.ThemeFx.Mono", fallback: "Noir Interface \u2014 ink press" },
+  { id: "sciFi", label: "SD.ThemeFx.SciFi", fallback: "Neon Grid \u2014 scanlines" },
+  { id: "tactical", label: "SD.ThemeFx.Tactical", fallback: "Tactical Command \u2014 target grid" },
+  { id: "darkFantasy", label: "SD.ThemeFx.DarkFantasy", fallback: "Ashen Kingdom \u2014 embers" },
+  { id: "wasteland", label: "SD.ThemeFx.Wasteland", fallback: "Wasteland Terminal \u2014 phosphor noise" },
+  { id: "royal", label: "SD.ThemeFx.Royal", fallback: "Royal Adventure \u2014 gilded sweep" },
+  { id: "cyber", label: "SD.ThemeFx.Cyber", fallback: "Cyber Pulse \u2014 chromatic glitch" },
+  { id: "horror", label: "SD.ThemeFx.Horror", fallback: "Dread Signal \u2014 warning pulse" },
 ];
 
 export const THEME_FX_IDS = new Set(COLOR_SCHEMES_V2.map(s => s.id));

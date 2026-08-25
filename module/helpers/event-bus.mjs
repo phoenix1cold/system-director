@@ -465,6 +465,12 @@ class EventBus {
   }
 
   _matchesSynthetic(hookName, args, entry) {
+    // Internal graph saves must rebuild the registry, but must not execute the
+    // graph being edited. Foundry update hooks expose the update options as
+    // the third argument for Actor/Item updates.
+    const options = args?.[2] ?? {};
+    if (options?.sdSkipEventBus === true) return false;
+
     if (entry.eventHook === "updateDocument" ||
         entry.eventHook === "createDocument" ||
         entry.eventHook === "deleteDocument") {
