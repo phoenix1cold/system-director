@@ -28,6 +28,17 @@
   box-shadow: var(--sd-widget-shadow-hover);
 }
 
+/* Widget height tiers: each kind keeps its own compact or tall footprint.
+   Do not stretch a short widget to the tallest widget in its grid row. */
+.sd .widget:is(.widget-text, .widget-button, .widget-skill, .widget-toggle, .widget-select, .widget-number) {
+  height: 58px !important;
+  min-height: 58px !important;
+}
+.sd .widget:is(.widget-attribute, .widget-derived) {
+  height: 112px !important;
+  min-height: 112px !important;
+}
+
 .sd .widget-label,
 .sd-wcfg-popup .widget-label,
 #sd-action-hud .widget-label,

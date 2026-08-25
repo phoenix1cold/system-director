@@ -396,7 +396,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
     const el = document.createElement("div");
     el.dataset.rowId=row.id; el.dataset.tabId=tab.id; el.dataset.cols=cols;
-    el.style.cssText=`display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;align-items:stretch;position:relative;padding:8px;border:1px dashed var(--sd-accent-glow);border-radius:6px;`;
+    el.style.cssText=`display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;align-items:start;position:relative;padding:8px;border:1px dashed var(--sd-accent-glow);border-radius:6px;`;
     if (this._editMode) {
       const cfg=document.createElement("button"); cfg.type="button"; cfg.innerHTML=`<i class="fas fa-cog"></i> ${cols}`; cfg.title="Row columns (1-9)";
       cfg.style.cssText="position:absolute;top:-9px;right:32px;z-index:10;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:0 6px;line-height:17px;";
@@ -417,7 +417,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     cell.dataset.widgetId=w.id; cell.dataset.rowId=row.id; cell.dataset.tabId=tab.id;
     if (parentVS) cell.dataset.parentVsId = parentVS.id;
     cell.dataset.widgetIdx = idx;
-    cell.style.cssText=`grid-column:${parentVS ? "auto" : `span ${span}`};position:relative;min-width:0;display:flex;align-items:stretch;`;
+    cell.style.cssText=`grid-column:${parentVS ? "auto" : `span ${span}`};position:relative;min-width:0;`;
 
     if (w.type === "vsection") {
       cell.innerHTML = "";
