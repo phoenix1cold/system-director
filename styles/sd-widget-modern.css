@@ -28,17 +28,6 @@
   box-shadow: var(--sd-widget-shadow-hover);
 }
 
-/* Widget height tiers: each kind keeps its own compact or tall footprint.
-   Do not stretch a short widget to the tallest widget in its grid row. */
-.sd .widget:is(.widget-text, .widget-button, .widget-skill, .widget-toggle, .widget-select, .widget-number) {
-  height: 58px !important;
-  min-height: 58px !important;
-}
-.sd .widget:is(.widget-attribute, .widget-derived) {
-  height: 112px !important;
-  min-height: 112px !important;
-}
-
 .sd .widget-label,
 .sd-wcfg-popup .widget-label,
 #sd-action-hud .widget-label,
@@ -683,3 +672,51 @@
 .sd-w-widgetbuilder.sd-v-hud { --sd-visual-variant: "widgetbuilder-hud"; }
 .sd-w-widgetbuilder.sd-v-glass { --sd-visual-variant: "widgetbuilder-glass"; }
 .sd-w-widgetbuilder.sd-v-terminal { --sd-visual-variant: "widgetbuilder-terminal"; }
+
+/* Compact per-widget sizing.
+   The grid is intentionally not involved: short controls share one footprint,
+   while Attribute and Derived retain a single, slightly taller footprint. */
+.sd .widget:is(.widget-text, .widget-button, .widget-number, .widget-skill, .widget-toggle, .widget-select) {
+  box-sizing: border-box;
+  height: 60px !important;
+  min-height: 60px !important;
+  padding: 6px 8px !important;
+  gap: 4px !important;
+}
+
+.sd .widget:is(.widget-button, .widget-number) {
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: center !important;
+}
+.sd .widget-button .sd-action-btn {
+  height: 30px !important;
+  min-height: 30px !important;
+  margin-block: auto;
+  box-sizing: border-box;
+}
+.sd .widget-number .num-row {
+  height: 30px !important;
+  min-height: 30px !important;
+  align-items: stretch !important;
+}
+.sd .widget-number .num-row :is(input, .num-btn) {
+  height: 30px !important;
+  min-height: 30px !important;
+  box-sizing: border-box;
+}
+.sd .widget-text input,
+.sd .widget-select .widget-select-input {
+  height: 30px !important;
+  min-height: 30px !important;
+  box-sizing: border-box;
+}
+.sd .widget-toggle .tog-row { min-height: 30px !important; }
+
+.sd .widget:is(.widget-attribute, .widget-derived) {
+  box-sizing: border-box;
+  height: 104px !important;
+  min-height: 104px !important;
+  padding: 8px !important;
+  gap: 4px !important;
+}
