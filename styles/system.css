@@ -3134,6 +3134,133 @@ button:not(:where(.window-header button, .window-controls button, .header-contro
   width: min(720px, 100%);
 }
 
+/* ==== FULLSCREEN RPG DIALOGUE ==== */
+/* Mounted directly on <body> — the overlay itself is the fullscreen backdrop,
+ * and the window inside is enlarged, portrait panel is wider. */
+.sd-dialogue-mode-rpg-fullscreen .sd-dialogue-window {
+  width: min(1180px, 96vw);
+  max-height: min(88vh, 900px);
+  grid-template-columns: minmax(220px, 340px) minmax(0, 1fr);
+  border-radius: 14px;
+  box-shadow: 0 30px 90px -10px rgba(0, 0, 0, .7);
+}
+.sd-dialogue-mode-rpg-fullscreen .sd-dialogue-portrait {
+  min-height: 100%;
+  max-height: none;
+}
+.sd-dialogue-mode-rpg-fullscreen .sd-dialogue-title {
+  font-size: 22px;
+}
+.sd-dialogue-mode-rpg-fullscreen .sd-dialogue-speaker {
+  font-size: 13px;
+}
+.sd-dialogue-mode-rpg-fullscreen .sd-dialogue-text {
+  font-size: 16px;
+  line-height: 1.62;
+}
+.sd-dialogue-mode-rpg-fullscreen .sd-dialogue-choice {
+  min-height: 52px;
+  padding: 10px 14px;
+}
+
+/* ==== FOUNDRY NATIVE STYLE ==== */
+/* Hosted inside a real ApplicationV2 window; strip our custom RPG chrome so it
+ * blends with the surrounding Foundry UI (no portrait aside, no dark gradient). */
+.sd-dialogue-foundry-native .sd-dialogue-overlay,
+.sd-dialogue-mode-foundry .sd-dialogue-overlay {
+  background: transparent;
+  backdrop-filter: none;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-window {
+  grid-template-columns: 1fr;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  max-height: none;
+  border-radius: 0;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-portrait {
+  display: none;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-top {
+  padding: 8px 12px 8px;
+  background: transparent;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-title {
+  font-family: var(--font-primary, "Signika");
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--color-text-primary, var(--sd-text));
+}
+.sd-dialogue-mode-foundry .sd-dialogue-speaker {
+  color: var(--color-text-dark-secondary, var(--sd-text-2));
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-body {
+  padding: 8px 12px;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-text {
+  color: var(--color-text-primary, var(--sd-text));
+  font-size: 13px;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-controls {
+  padding: 6px 12px 8px;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-choices {
+  padding: 6px 12px 12px;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-choice {
+  min-height: 34px;
+  border-radius: 4px;
+  border-color: var(--color-border-light-primary, var(--sd-border));
+  background: var(--color-bg-btn, rgba(0, 0, 0, .1));
+  color: var(--color-text-primary, var(--sd-text));
+  font-weight: 600;
+  padding: 4px 10px;
+  transition: background .12s, border-color .12s;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-choice:hover,
+.sd-dialogue-mode-foundry .sd-dialogue-choice:focus-visible {
+  background: var(--color-warm-2, rgba(255, 200, 100, .18));
+  border-color: var(--color-border-highlight, #ff6400);
+  box-shadow: none;
+  transform: none;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-choice-number {
+  background: transparent;
+  color: var(--color-text-dark-secondary, var(--sd-text-2));
+  font-weight: 700;
+  border: 1px solid var(--color-border-light-primary, var(--sd-border));
+}
+.sd-dialogue-mode-foundry .sd-dialogue-footer {
+  padding: 4px 12px 10px;
+  border-top: 1px solid var(--color-border-light-tertiary, var(--sd-border));
+}
+.sd-dialogue-mode-foundry .sd-dialogue-submit {
+  background: var(--color-button-primary-background, var(--sd-accent));
+  border-color: var(--color-button-primary-border, var(--sd-accent));
+  color: var(--color-button-primary-text, var(--sd-accent-text));
+  border-radius: 4px;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-cancel {
+  background: var(--color-bg-btn, rgba(0, 0, 0, .1));
+  border-radius: 4px;
+}
+.sd-dialogue-mode-foundry .sd-dialogue-close {
+  background: transparent;
+  border: none;
+  color: var(--color-text-dark-secondary, var(--sd-text-2));
+}
+.sd-dialogue-mode-foundry .sd-dialogue-section {
+  color: var(--color-text-primary, var(--sd-text));
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  border-bottom-color: var(--color-border-light-tertiary, var(--sd-border));
+}
+
 @media (max-width: 640px) {
   .sd-dialogue-overlay {
     align-items: stretch;

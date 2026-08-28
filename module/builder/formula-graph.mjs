@@ -7995,8 +7995,12 @@ export const NODE_DEFS = {
       {id:"history", label:"History",   type:"value.string"}
     ],
     fields:[
-      {key:"mode",        label:"Mode",                         type:"select", default:"rpg",
-        options:[{value:"rpg",label:"RPG dialogue"},{value:"form",label:"Form prompt"}]},
+      {key:"mode",        label:"Mode",                         type:"select", default:"rpg-fullscreen",
+        options:[
+          {value:"rpg-fullscreen", label:"RPG dialogue — fullscreen"},
+          {value:"foundry",        label:"Foundry native window"},
+          {value:"form",           label:"Compact form prompt"}
+        ]},
       {key:"title",       label:"Title",                        type:"text",     default:"Dialogue"},
       {key:"speaker",     label:"Speaker",                      type:"text",     default:""},
       {key:"portrait",    label:"Portrait image",               type:"text",     default:"", placeholder:"icons/svg/mystery-man.svg or image URL"},

@@ -263,8 +263,17 @@ const NODE_CUSTOM_MIGRATIONS = {
 
   act_dialog_builder(node, edges) {
     const data = node.data || (node.data = {});
+    let changes = 0;
+
+    // Migrate the legacy two-value 'mode' to the new three-value scheme:
+    // 'rpg' → 'rpg-fullscreen'; 'form' and anything else already valid stays.
+    if (data.mode === "rpg" || data.mode == null || data.mode === "") {
+      data.mode = "rpg-fullscreen";
+      changes++;
+    }
+
     const raw = data.elementsJson;
-    if (typeof raw !== "string" || raw.trim() === "") return 0;
+    if (typeof raw !== "string" || raw.trim() === "") return changes;
     let arr;
     try { arr = JSON.parse(raw); } catch { return 0; }
     if (!Array.isArray(arr) || arr.length === 0) {
@@ -273,7 +282,6 @@ const NODE_CUSTOM_MIGRATIONS = {
     }
     const MAX = 8;
     const items = arr.slice(0, MAX);
-    let changes = 0;
 
     const rollIdxByBtn = [];
     items.forEach((el, i) => {

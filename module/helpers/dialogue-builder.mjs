@@ -126,12 +126,23 @@ function _iconElement(icon) {
   return i;
 }
 
+const VALID_MODES = new Set(["rpg-fullscreen", "rpg", "foundry", "form"]);
+function _normaliseMode(raw) {
+  let m = _text(raw ?? "rpg-fullscreen").toLowerCase().trim();
+  // Legacy migration — "rpg" (older graphs) → new fullscreen default.
+  if (m === "rpg") m = "rpg-fullscreen";
+  if (!VALID_MODES.has(m)) m = "rpg-fullscreen";
+  return m;
+}
+
 export class SDDialogueBuilder {
   static async show(action = {}, ctx = {}) {
     action = localizeTree(action);
     const elements = _normaliseElements(action);
     const state = _initialState(elements, ctx);
-    const mode = _text(action.mode ?? action.presentation ?? "rpg").toLowerCase();
+    const mode = _normaliseMode(action.mode ?? action.presentation);
+    const isFullscreen = mode === "rpg-fullscreen";
+    const isFoundry    = mode === "foundry";
     const actor = ctx.actor;
     const item = ctx.item;
 
@@ -152,8 +163,14 @@ export class SDDialogueBuilder {
       };
 
       const overlay = document.createElement("div");
-      overlay.className = `sd-dialogue-overlay sd-dialogue-mode-${mode === "form" ? "form" : "rpg"}`;
-      overlay.style.cssText = "position:relative;inset:auto;width:100%;height:100%;min-width:0;min-height:0;display:flex;overflow:hidden;background:transparent";
+      overlay.className = `sd-dialogue-overlay sd-dialogue-mode-${mode}`;
+      if (isFullscreen) {
+        // Native fullscreen overlay: mounted directly to <body>, no ApplicationV2 chrome.
+        overlay.style.cssText = "position:fixed;inset:0;z-index:100000;display:flex;align-items:flex-end;justify-content:center;padding:22px clamp(12px,4vw,56px) clamp(18px,6vh,58px);background:rgba(0,0,0,.55);backdrop-filter:blur(3px);box-sizing:border-box";
+      } else {
+        // Hosted inside SDFoundryWindowHost (a real Foundry window).
+        overlay.style.cssText = "position:relative;inset:auto;width:100%;height:100%;min-width:0;min-height:0;display:flex;overflow:hidden;background:transparent";
+      }
       _setTheme(overlay);
 
       const win = document.createElement("section");
@@ -418,18 +435,32 @@ export class SDDialogueBuilder {
       };
 
       renderDynamic();
-      windowApp = openFoundryWindow({
-        id:`sd-dialogue-${foundry.utils.randomID(8)}`,
-        title:_resolve(action.title ?? "Dialogue", ctx, state),
-        icon:"fa-solid fa-comment-dots",
-        width:Math.min(mode === "form" ? 760 : 920, Math.floor(window.innerWidth * 0.92)),
-        height:Math.min(680, Math.floor(window.innerHeight * 0.88)),
-        minWidth:420,
-        minHeight:300,
-        classes:["sd-dialogue-foundry-window",`sd-dialogue-foundry-${mode === "form" ? "form" : "rpg"}`],
-        content:overlay,
-        onClose:()=>finish({ cancelled:true }, { fromHost:true })
-      });
+
+      if (isFullscreen) {
+        // Mount overlay directly on the body — no Foundry window frame at all.
+        document.body.appendChild(overlay);
+        windowApp = null;
+      } else {
+        const width = mode === "form" ? 760 : 920;
+        const height = mode === "form" ? 560 : 680;
+        // Classes drive theming: sd-dialogue-foundry-form (compact form),
+        // sd-dialogue-foundry-native (plain Foundry-style, no portrait panel).
+        const modeClass = isFoundry
+          ? "sd-dialogue-foundry-native"
+          : `sd-dialogue-foundry-${mode === "form" ? "form" : "rpg"}`;
+        windowApp = openFoundryWindow({
+          id:`sd-dialogue-${foundry.utils.randomID(8)}`,
+          title:_resolve(action.title ?? "Dialogue", ctx, state),
+          icon:"fa-solid fa-comment-dots",
+          width:Math.min(width, Math.floor(window.innerWidth * 0.92)),
+          height:Math.min(height, Math.floor(window.innerHeight * 0.88)),
+          minWidth:420,
+          minHeight:300,
+          classes:["sd-dialogue-foundry-window", modeClass],
+          content:overlay,
+          onClose:()=>finish({ cancelled:true }, { fromHost:true })
+        });
+      }
       document.addEventListener("keydown", onKeyDown, true);
       setTimeout(() => {
         const first = choices.querySelector("button:not(:disabled)")
