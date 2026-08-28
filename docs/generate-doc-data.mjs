@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -30,9 +30,11 @@ function normaliseField(field) {
 }
 
 installDomStubs();
+// Absolute paths must be file:// URLs for the ESM loader (Windows drive letters
+// are otherwise read as a protocol).
 const [{ NODE_DEFS }, { WIDGET_TYPES, WIDGET_VARIANTS, WIDGET_PALETTE_ORDER }] = await Promise.all([
-  import(path.join(root, "module/builder/formula-graph.mjs")),
-  import(path.join(root, "module/builder/widget-registry.mjs"))
+  import(pathToFileURL(path.join(root, "module/builder/formula-graph.mjs")).href),
+  import(pathToFileURL(path.join(root, "module/builder/widget-registry.mjs")).href)
 ]);
 
 const nodeOrder = Object.keys(NODE_DEFS);

@@ -3241,12 +3241,6 @@ export class ButtonExecutor {
         break;
       }
 
-      case "runMacro": {
-        const macro = game.macros.getName(action.macroName);
-        if (macro) await macro.execute({ item, actor });
-        break;
-      }
-
       case "branch": {
         if (!action.condition && action.condition !== 0) break;
         let pass = false;
@@ -4487,55 +4481,6 @@ export class ButtonExecutor {
         const branch = ok ? (action.okActions ?? []) : (action.failActions ?? []);
         for (const sub of branch) await this._runAction(sub, item, actor, buttonDef, runtime);
         runtime.__castItemId = undefined;
-        break;
-      }
-
-      case "macroCall": {
-        const { FormulaEngine } = await import("./formula-engine.mjs");
-        const macros = buttonDef?.__macros ?? {};
-        const mid    = String(action.macroId ?? "");
-        const body   = Array.isArray(macros[mid]) ? macros[mid] : null;
-        if (!body) {
-          console.warn("SD | macroCall: macro not found", mid);
-          for (const sub of (action.execActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
-          break;
-        }
-        const resolvedArgs = {};
-        for (const k of ["a","b","c","d"]) {
-          const raw = action.args?.[k] ?? "0";
-          try {
-            const s = FormulaEngine.resolveForRoll(_injectRuntime(String(raw)), item ?? actor ?? {});
-            resolvedArgs[k] = String(FormulaEngine.evaluate(s, item ?? actor ?? {}) ?? 0);
-          } catch { resolvedArgs[k] = String(raw); }
-        }
-        const stack = runtime.__macroStack ?? (runtime.__macroStack = []);
-        stack.push(resolvedArgs);
-        const prevRetA = runtime.__macroRetA;
-        const prevRetB = runtime.__macroRetB;
-        runtime.__macroRetA = undefined;
-        runtime.__macroRetB = undefined;
-        try {
-          for (const sub of body) await this._runAction(sub, item, actor, buttonDef, runtime);
-        } finally {
-          stack.pop();
-        }
-        for (const sub of (action.execActions ?? [])) {
-          await this._runAction(sub, item, actor, buttonDef, runtime);
-        }
-        runtime.__macroRetA = prevRetA;
-        runtime.__macroRetB = prevRetB;
-        break;
-      }
-
-      case "macroReturn": {
-        const { FormulaEngine } = await import("./formula-engine.mjs");
-        for (const [k, field] of [["a","__macroRetA"],["b","__macroRetB"]]) {
-          const raw = action[k] ?? "0";
-          try {
-            const s = FormulaEngine.resolveForRoll(_injectRuntime(String(raw)), item ?? actor ?? {});
-            runtime[field] = String(FormulaEngine.evaluate(s, item ?? actor ?? {}) ?? 0);
-          } catch { runtime[field] = String(raw); }
-        }
         break;
       }
 

@@ -4607,23 +4607,6 @@ export const NODE_DEFS = {
     })
   },
 
-  act_run_macro: {
-    title:"Run Macro", color:"#4a4a7a", cat:"System",
-    desc:"Execute a world Macro by exact name. The macro runs with the current actor and token as speaker context. Macro name can be fed via pin.",
-    inputs:[
-      {id:"exec",      label:"",            type:"exec"},
-      {id:"macroName", label:"Macro Name",  type:"value.string"}
-    ],
-    outputs:[{id:"exec",label:"",type:"exec"}],
-    fields:[
-      {key:"macroName", label:"Macro Name", type:"text", default:"", placeholder:"exact name from Macros directory"}
-    ],
-    isAction:true, wideNode:true,
-    toAction:(n,inp)=>({type:"runMacro",
-      macroName: (inp.macroName != null && inp.macroName !== "") ? String(inp.macroName) : (n.data.macroName ?? "")
-    })
-  },
-
   act_notify: {
     title:"Notify", color:"#4a4a1a", cat:"Chat",
     desc:"Show a toast notification (info / warning / error) to the current user. Useful for feedback without a full chat message. Both Message and Level can be fed via pins.",
@@ -6085,64 +6068,6 @@ export const NODE_DEFS = {
     toAction:(n,inp)=>({ type:"castToItem", value: inp.value ?? "" })
   },
 
-  macro_input: {
-    title:"Macro Input", color:"#1a8a4a", cat:"Macros",
-    desc:"Entry point for a nested graph (macro). Macro ID must match the ID in macro_call. Exec and up to 4 value pins are forwarded from macro_call.",
-    inputs:[],
-    outputs:[
-      {id:"exec", label:"→",     type:"exec"},
-      {id:"a",    label:"Arg 1", type:"value.any"},
-      {id:"b",    label:"Arg 2", type:"value.any"},
-      {id:"c",    label:"Arg 3", type:"value.any"},
-      {id:"d",    label:"Arg 4", type:"value.any"}
-    ],
-    fields:[
-      {key:"macroId", label:"Macro ID", type:"text", default:"myMacro"}
-    ],
-    isMacroInput:true
-  },
-
-  macro_output: {
-    title:"Macro Output", color:"#1a8a4a", cat:"Macros",
-    desc:"Exit point of a nested graph. Placed INSIDE the macro graph. Exec and up to 2 value pins are returned out to macro_call.",
-    inputs:[
-      {id:"exec", label:"",         type:"exec"},
-      {id:"a",    label:"Return 1", type:"value.any"},
-      {id:"b",    label:"Return 2", type:"value.any"}
-    ],
-    outputs:[],
-    fields:[],
-    isAction:true,
-    toAction:(n,inp)=>({ type:"macroReturn", a: inp.a ?? "0", b: inp.b ?? "0" })
-  },
-
-  macro_call: {
-    title:"Call Macro", color:"#1a8a4a", cat:"Macros",
-    desc:"Calls a nested macro graph by ID. The macro must be defined in the Macros panel of the graph editor. Return values are available via value pins.",
-    wideNode:true,
-    inputs:[
-      {id:"exec", label:"",  type:"exec"},
-      {id:"a",    label:"Arg 1", type:"value.any"},
-      {id:"b",    label:"Arg 2", type:"value.any"},
-      {id:"c",    label:"Arg 3", type:"value.any"},
-      {id:"d",    label:"Arg 4", type:"value.any"}
-    ],
-    outputs:[
-      {id:"exec",   label:"→",        type:"exec"},
-      {id:"retA",   label:"Return 1", type:"value.any"},
-      {id:"retB",   label:"Return 2", type:"value.any"}
-    ],
-    fields:[
-      {key:"macroId", label:"Macro ID", type:"text", default:""}
-    ],
-    isGenericBranch:true,
-    toAction:(n,inp)=>({
-      type:    "macroCall",
-      macroId: n.data.macroId ?? "",
-      args:    { a:inp.a ?? "0", b:inp.b ?? "0", c:inp.c ?? "0", d:inp.d ?? "0" }
-    })
-  },
-
   act_show_journal: {
     title:"Show Journal", color:"#3a5a8a", cat:"Chat",
     desc:"Render a JournalEntry to the player. If 'Force show to all' is enabled, GM pushes the entry to every connected player.",
@@ -7232,23 +7157,6 @@ export const NODE_DEFS = {
     }
   },
 
-  on_macro_use: {
-    title:"On Macro Use", color:"#c04040", cat:"Events", wideNode:true,
-    desc:"Fires whenever a Macro is executed (chat command, hotbar click or any code-driven .execute()). Optionally filter by macro id, UUID or exact name; leave blank to react to ANY macro. Outputs expose the executed macro and the speaker actor / token at the moment of the call.",
-    inputs:[],
-    outputs:[
-      {id:"exec",      label:"→ On Macro Use", type:"exec"},
-      {id:"macroId",   label:"Macro Id",        type:"value.string"},
-      {id:"macroName", label:"Macro Name",      type:"value.string"},
-      {id:"actorId",   label:"Actor Id",        type:"value.string"},
-      {id:"tokenId",   label:"Token Id",        type:"value.string"}
-    ],
-    fields:[
-      {key:"macroFilter", label:"Only macro (id / uuid / name; optional)", type:"text", default:"", placeholder:"Macro.xxxx / My Macro Name"}
-    ],
-    isEvent:true, eventHook:"sdMacroUse"
-  },
-
   act_move_token: {
     title:"Move Token", color:"#2a4a8a", cat:"Scene", wideNode:true,
     desc:"Move a token by Distance feet in the given Direction.  Direction modes:  • Degrees — Direction is a 0-360В° heading (0 = up / north, 90 = right / east, 180 = down, 270 = left).  • Square — Direction is an index 0-7 starting at North then clockwise: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW (full 8-way including diagonals).  • Hex — Direction is an index 0-5 along the scene's hex grid directions (auto-detects columnar / row-wise).  Wall passthrough: when off, the move is cancelled if walls block the path.",
@@ -8233,13 +8141,7 @@ const EVENT_PIN_TOKENS = {
   on_quest_completed: { questId: "{__questId}", questLogUuid: "{__questLogUuid}" },
   on_quest_failed:    { questId: "{__questId}", questLogUuid: "{__questLogUuid}" },
   on_subtask_done:    { questId: "{__questId}", subtaskId: "{__subtaskId}" },
-  on_quest_revealed:  { questId: "{__questId}", revealed: "{__questRevealed}" },
-  on_macro_use:       {
-    macroId:   "{__macroId}",
-    macroName: "{__macroName}",
-    actorId:   "{__macroActorId}",
-    tokenId:   "{__macroTokenId}"
-  }
+  on_quest_revealed:  { questId: "{__questId}", revealed: "{__questRevealed}" }
 };
 
 const _ROLL_META_BASIC = {
@@ -8293,7 +8195,6 @@ const BRANCH_PIN_TOKENS = {
   for_loop_range:      { index: "{__loopIndex}" },
   cast_to_actor:       { actorId: "{__castActorId}" },
   cast_to_item:        { itemId: "{__castItemId}" },
-  macro_call:          { retA: "{__macroRetA}", retB: "{__macroRetB}" },
   act_place_aoe_save_branch: {
     saved:  "{__savedTargets}",
     failed: "{__failedTargets}",
@@ -8881,6 +8782,8 @@ export class FormulaGraph {
     this.initiativeMode = opts.mode === "initiative";
     this.customLoad   = typeof opts.customLoad === "function" ? opts.customLoad : null;
     this.customSave   = typeof opts.customSave === "function" ? opts.customSave : null;
+    /** Optional label for the trigger/entry node, set by embedding hosts. */
+    this.entryTitle   = typeof opts.entryTitle === "string" ? opts.entryTitle : "";
     this.win          = null;
     this._windowApp   = null;
     this._functionManagerApp = null;
@@ -11348,7 +11251,18 @@ export class FormulaGraph {
       return this._compileFunctionValue(node, fromPin);
     }
 
-    if (def?.isEvent) return EVENT_PIN_TOKENS[node.type]?.[fromPin] ?? "0";
+    if (def?.isEvent) {
+      const eventToken = EVENT_PIN_TOKENS[node.type]?.[fromPin];
+      if (eventToken != null) return eventToken;
+      // Event nodes registered by modules cannot add entries to the built-in pin
+      // token table, so let their definition describe its own value pins.
+      if (typeof def.dynamicBranchToken === "function") {
+        const dynamic = def.dynamicBranchToken(node, fromPin);
+        if (dynamic != null) return dynamic;
+      }
+      if (typeof def.compilePin === "function") return def.compilePin(node, {}, fromPin) ?? "0";
+      return "0";
+    }
     if (def?.isMacroInput) return `{__macroArg:${fromPin ?? "a"}}`;
     if (typeof def?.dynamicBranchToken === "function") {
       const token = def.dynamicBranchToken(node, fromPin);
@@ -13540,6 +13454,10 @@ export class FormulaGraph {
       transform:translateZ(0);`;
 
     let _hdrTitle = def.title;
+    // Hosts that reuse the generic trigger node for a specific event (UI widget
+    // events, for example) can relabel it, so the entry point does not claim to
+    // be "On Click" when the graph runs on open / close / change.
+    if (def.isTrigger && this.entryTitle) _hdrTitle = this.entryTitle;
     if (def.isFunctionCall) {
       const lib = this._getFunctionLib ? this._getFunctionLib() : null;
       const fn  = lib?.functions?.[node.data?.functionId];

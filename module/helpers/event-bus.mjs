@@ -778,6 +778,15 @@ class EventBus {
         break;
       }
     }
+    // Mirror every scalar runtime key into `__vars`, so nodes provided by
+    // modules can read event data through the generic `{__var:name|default}`
+    // token instead of needing a hard-coded substitution in the executor.
+    const vars = rt.__vars && typeof rt.__vars === "object" ? rt.__vars : (rt.__vars = {});
+    for (const [key, value] of Object.entries(rt)) {
+      if (key === "__vars") continue;
+      if (value === null || typeof value === "object" || typeof value === "function") continue;
+      if (!(key in vars)) vars[key] = value;
+    }
     return rt;
   }
 }

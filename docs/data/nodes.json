@@ -3743,7 +3743,7 @@
     "title": "Filter by Field",
     "color": "#2a7a3a",
     "cat": "Array",
-    "desc": "Keep only tokens whose actor field passes `field <op> value`. Numeric comparisons when value parses as a number, string equality otherwise. Outputs a comma-joined list to feed back into other Array / For Each Token nodes.",
+    "desc": "Keep tokens, actors, items or widget elements whose field passes `field <op> value`. Use path `name` to filter item arrays by name. Numeric comparisons when value parses as a number, string equality otherwise. Outputs a comma-joined list to feed back into other Array / For Each Token nodes.",
     "inputs": [
       {
         "id": "tokens",
@@ -3787,7 +3787,10 @@
           ">",
           "<",
           ">=",
-          "<="
+          "<=",
+          "contains",
+          "startsWith",
+          "endsWith"
         ]
       },
       {
@@ -6141,6 +6144,197 @@
       "__fn": true
     },
     "id": "act_remove_item_array"
+  },
+  "item_array_inventory": {
+    "title": "Inventory Items Array",
+    "color": "#3a7a3a",
+    "cat": "Items",
+    "wideNode": true,
+    "desc": "Return actor inventory items as an array of item UUIDs. Optional type, category and name filters. The result works with every generic Array node; Filter by Field can use path `name`, `type`, `uuid` or any system path.",
+    "inputs": [
+      {
+        "id": "actor",
+        "label": "Actor",
+        "type": "value.actor"
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "value.string"
+      },
+      {
+        "id": "itemType",
+        "label": "Item type",
+        "type": "value.any",
+        "__autoFromField": true
+      },
+      {
+        "id": "category",
+        "label": "Category",
+        "type": "value.any",
+        "__autoFromField": true
+      }
+    ],
+    "outputs": [
+      {
+        "id": "items",
+        "label": "Items[]",
+        "type": "value.array"
+      },
+      {
+        "id": "len",
+        "label": "Length",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "itemType",
+        "label": "Item type",
+        "type": "text",
+        "default": "inventory",
+        "placeholder": "inventory / all"
+      },
+      {
+        "key": "category",
+        "label": "Category",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "name",
+        "label": "Name filter",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "match",
+        "label": "Name match",
+        "type": "select",
+        "default": "contains",
+        "options": [
+          "contains",
+          "exact"
+        ]
+      }
+    ],
+    "compile": {
+      "__fn": true
+    },
+    "compilePin": {
+      "__fn": true
+    },
+    "id": "item_array_inventory"
+  },
+  "item_array_slot": {
+    "title": "Slot Items Array",
+    "color": "#3a7a3a",
+    "cat": "Items",
+    "wideNode": true,
+    "desc": "Return every item stored in a slot as an array. Searches actor slots and nested item slots; optionally restrict to one container item.",
+    "inputs": [
+      {
+        "id": "actor",
+        "label": "Actor",
+        "type": "value.actor"
+      },
+      {
+        "id": "slotId",
+        "label": "Slot ID",
+        "type": "value.string"
+      },
+      {
+        "id": "container",
+        "label": "Container",
+        "type": "value.item"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "items",
+        "label": "Items[]",
+        "type": "value.array"
+      },
+      {
+        "id": "len",
+        "label": "Length",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "slotId",
+        "label": "Slot ID",
+        "type": "text",
+        "default": "slot1"
+      },
+      {
+        "key": "container",
+        "label": "Container item (optional)",
+        "type": "text",
+        "default": ""
+      }
+    ],
+    "compile": {
+      "__fn": true
+    },
+    "compilePin": {
+      "__fn": true
+    },
+    "id": "item_array_slot"
+  },
+  "widget_value_array": {
+    "title": "Widget as Array",
+    "color": "#3a7a3a",
+    "cat": "Items",
+    "wideNode": true,
+    "desc": "Read an Inventory, Item Slot or array-backed widget as a real array. Inventory/slot widgets return item UUIDs; custom array paths return their elements.",
+    "inputs": [
+      {
+        "id": "actor",
+        "label": "Actor",
+        "type": "value.actor"
+      },
+      {
+        "id": "path",
+        "label": "Array path (optional)",
+        "type": "value.any",
+        "__autoFromField": true
+      }
+    ],
+    "outputs": [
+      {
+        "id": "items",
+        "label": "Array",
+        "type": "value.array"
+      },
+      {
+        "id": "len",
+        "label": "Length",
+        "type": "value.number"
+      }
+    ],
+    "fields": [
+      {
+        "key": "widget",
+        "label": "Widget",
+        "type": "widget-picker",
+        "default": ""
+      },
+      {
+        "key": "path",
+        "label": "Array path (optional)",
+        "type": "path",
+        "default": ""
+      }
+    ],
+    "compile": {
+      "__fn": true
+    },
+    "compilePin": {
+      "__fn": true
+    },
+    "id": "widget_value_array"
   },
   "item_arr_names": {
     "title": "Item Array Names",
@@ -10503,15 +10697,19 @@
         "key": "mode",
         "label": "Mode",
         "type": "select",
-        "default": "rpg",
+        "default": "rpg-fullscreen",
         "options": [
           {
-            "value": "rpg",
-            "label": "RPG dialogue"
+            "value": "rpg-fullscreen",
+            "label": "RPG dialogue — fullscreen"
+          },
+          {
+            "value": "foundry",
+            "label": "Foundry native window"
           },
           {
             "value": "form",
-            "label": "Form prompt"
+            "label": "Compact form prompt"
           }
         ]
       },
@@ -14775,46 +14973,6 @@
       "__fn": true
     },
     "id": "act_play_sound"
-  },
-  "act_run_macro": {
-    "title": "Run Macro",
-    "color": "#4a4a7a",
-    "cat": "System",
-    "desc": "Execute a world Macro by exact name. The macro runs with the current actor and token as speaker context. Macro name can be fed via pin.",
-    "inputs": [
-      {
-        "id": "exec",
-        "label": "",
-        "type": "exec"
-      },
-      {
-        "id": "macroName",
-        "label": "Macro Name",
-        "type": "value.string"
-      }
-    ],
-    "outputs": [
-      {
-        "id": "exec",
-        "label": "",
-        "type": "exec"
-      }
-    ],
-    "fields": [
-      {
-        "key": "macroName",
-        "label": "Macro Name",
-        "type": "text",
-        "default": "",
-        "placeholder": "exact name from Macros directory"
-      }
-    ],
-    "isAction": true,
-    "wideNode": true,
-    "toAction": {
-      "__fn": true
-    },
-    "id": "act_run_macro"
   },
   "act_notify": {
     "title": "Notify",
@@ -19416,157 +19574,6 @@
     },
     "id": "cast_to_item"
   },
-  "macro_input": {
-    "title": "Macro Input",
-    "color": "#1a8a4a",
-    "cat": "Macros",
-    "desc": "Entry point for a nested graph (macro). Macro ID must match the ID in macro_call. Exec and up to 4 value pins are forwarded from macro_call.",
-    "inputs": [
-      {
-        "id": "macroId",
-        "label": "Macro ID",
-        "type": "value.any",
-        "__autoFromField": true
-      }
-    ],
-    "outputs": [
-      {
-        "id": "exec",
-        "label": "→",
-        "type": "exec"
-      },
-      {
-        "id": "a",
-        "label": "Arg 1",
-        "type": "value.any"
-      },
-      {
-        "id": "b",
-        "label": "Arg 2",
-        "type": "value.any"
-      },
-      {
-        "id": "c",
-        "label": "Arg 3",
-        "type": "value.any"
-      },
-      {
-        "id": "d",
-        "label": "Arg 4",
-        "type": "value.any"
-      }
-    ],
-    "fields": [
-      {
-        "key": "macroId",
-        "label": "Macro ID",
-        "type": "text",
-        "default": "myMacro"
-      }
-    ],
-    "isMacroInput": true,
-    "id": "macro_input"
-  },
-  "macro_output": {
-    "title": "Macro Output",
-    "color": "#1a8a4a",
-    "cat": "Macros",
-    "desc": "Exit point of a nested graph. Placed INSIDE the macro graph. Exec and up to 2 value pins are returned out to macro_call.",
-    "inputs": [
-      {
-        "id": "exec",
-        "label": "",
-        "type": "exec"
-      },
-      {
-        "id": "a",
-        "label": "Return 1",
-        "type": "value.any"
-      },
-      {
-        "id": "b",
-        "label": "Return 2",
-        "type": "value.any"
-      }
-    ],
-    "outputs": [],
-    "fields": [],
-    "isAction": true,
-    "toAction": {
-      "__fn": true
-    },
-    "id": "macro_output"
-  },
-  "macro_call": {
-    "title": "Call Macro",
-    "color": "#1a8a4a",
-    "cat": "Macros",
-    "desc": "Calls a nested macro graph by ID. The macro must be defined in the Macros panel of the graph editor. Return values are available via value pins.",
-    "wideNode": true,
-    "inputs": [
-      {
-        "id": "exec",
-        "label": "",
-        "type": "exec"
-      },
-      {
-        "id": "a",
-        "label": "Arg 1",
-        "type": "value.any"
-      },
-      {
-        "id": "b",
-        "label": "Arg 2",
-        "type": "value.any"
-      },
-      {
-        "id": "c",
-        "label": "Arg 3",
-        "type": "value.any"
-      },
-      {
-        "id": "d",
-        "label": "Arg 4",
-        "type": "value.any"
-      },
-      {
-        "id": "macroId",
-        "label": "Macro ID",
-        "type": "value.any",
-        "__autoFromField": true
-      }
-    ],
-    "outputs": [
-      {
-        "id": "exec",
-        "label": "→",
-        "type": "exec"
-      },
-      {
-        "id": "retA",
-        "label": "Return 1",
-        "type": "value.any"
-      },
-      {
-        "id": "retB",
-        "label": "Return 2",
-        "type": "value.any"
-      }
-    ],
-    "fields": [
-      {
-        "key": "macroId",
-        "label": "Macro ID",
-        "type": "text",
-        "default": ""
-      }
-    ],
-    "isGenericBranch": true,
-    "toAction": {
-      "__fn": true
-    },
-    "id": "macro_call"
-  },
   "act_show_journal": {
     "title": "Show Journal",
     "color": "#3a5a8a",
@@ -22560,59 +22567,6 @@
     },
     "id": "act_set_elevation"
   },
-  "on_macro_use": {
-    "title": "On Macro Use",
-    "color": "#c04040",
-    "cat": "Events",
-    "wideNode": true,
-    "desc": "Fires whenever a Macro is executed (chat command, hotbar click or any code-driven .execute()). Optionally filter by macro id, UUID or exact name; leave blank to react to ANY macro. Outputs expose the executed macro and the speaker actor / token at the moment of the call.",
-    "inputs": [],
-    "outputs": [
-      {
-        "id": "exec",
-        "label": "→ On Macro Use",
-        "type": "exec"
-      },
-      {
-        "id": "macroId",
-        "label": "Macro Id",
-        "type": "value.string"
-      },
-      {
-        "id": "macroName",
-        "label": "Macro Name",
-        "type": "value.string"
-      },
-      {
-        "id": "actorId",
-        "label": "Actor Id",
-        "type": "value.string"
-      },
-      {
-        "id": "tokenId",
-        "label": "Token Id",
-        "type": "value.string"
-      }
-    ],
-    "fields": [
-      {
-        "key": "macroFilter",
-        "label": "Only macro (id / uuid / name; optional)",
-        "type": "text",
-        "default": "",
-        "placeholder": "Macro.xxxx / My Macro Name"
-      },
-      {
-        "key": "outOfSheet",
-        "label": "Standalone (fire when item is not on an actor)",
-        "type": "bool",
-        "default": false
-      }
-    ],
-    "isEvent": true,
-    "eventHook": "sdMacroUse",
-    "id": "on_macro_use"
-  },
   "act_move_token": {
     "title": "Move Token",
     "color": "#2a4a8a",
@@ -24259,7 +24213,9 @@
           "boxed",
           "underline",
           "ghost",
-          "inline"
+          "inline",
+          "terminal",
+          "dialogue"
         ],
         "default": "default"
       }
@@ -24343,7 +24299,9 @@
           "default",
           "chip",
           "stat",
-          "framed"
+          "framed",
+          "gauge",
+          "terminal"
         ],
         "default": "default"
       }
@@ -24419,7 +24377,10 @@
           "stripes",
           "digital",
           "pulse",
-          "orb"
+          "orb",
+          "rpg-bar",
+          "boss",
+          "survival"
         ],
         "default": "default"
       }
@@ -24492,7 +24453,10 @@
           "default",
           "d20-big",
           "chip",
-          "flat"
+          "flat",
+          "rune",
+          "tactical",
+          "neon"
         ],
         "default": "default"
       }
@@ -24565,7 +24529,9 @@
           "default",
           "checkbox",
           "pill",
-          "led"
+          "led",
+          "power",
+          "rune"
         ],
         "default": "default"
       }
@@ -24650,7 +24616,10 @@
           "framed",
           "round",
           "ghost",
-          "tile"
+          "tile",
+          "equipment",
+          "diamond",
+          "hotbar"
         ],
         "default": "default"
       }
@@ -24702,7 +24671,10 @@
           "stat-card",
           "inline",
           "badge",
-          "roll-button"
+          "roll-button",
+          "rpg",
+          "hex",
+          "tactical"
         ],
         "default": "default"
       }
@@ -24775,7 +24747,10 @@
           "default",
           "pill",
           "row-rank",
-          "pips"
+          "pips",
+          "skilltree",
+          "compact",
+          "rune"
         ],
         "default": "default"
       }
@@ -24849,7 +24824,10 @@
           "thin",
           "thick",
           "striped",
-          "segmented"
+          "segmented",
+          "xp",
+          "quest",
+          "boss"
         ],
         "default": "default"
       }
@@ -24922,7 +24900,9 @@
           "default",
           "ring",
           "bar",
-          "fraction"
+          "fraction",
+          "hex",
+          "timeline"
         ],
         "default": "default"
       }
@@ -24968,6 +24948,11 @@
       {
         "id": "bgColor",
         "label": "Empty Color",
+        "type": "value"
+      },
+      {
+        "id": "variant",
+        "label": "Variant",
         "type": "value"
       }
     ],
@@ -25020,6 +25005,19 @@
         "label": "Pip Size (px)",
         "type": "number",
         "default": 14
+      },
+      {
+        "key": "variant",
+        "label": "Variant",
+        "type": "select",
+        "options": [
+          "default",
+          "hearts",
+          "stress",
+          "ammo",
+          "hex"
+        ],
+        "default": "default"
       }
     ],
     "id": "wcfg_tracker"
@@ -25068,6 +25066,11 @@
       {
         "id": "pipSize",
         "label": "Size",
+        "type": "value"
+      },
+      {
+        "id": "variant",
+        "label": "Variant",
         "type": "value"
       }
     ],
@@ -25120,6 +25123,19 @@
         "label": "Token size (px)",
         "type": "number",
         "default": 16
+      },
+      {
+        "key": "variant",
+        "label": "Variant",
+        "type": "select",
+        "options": [
+          "default",
+          "coins",
+          "gems",
+          "charges",
+          "souls"
+        ],
+        "default": "default"
       }
     ],
     "id": "wcfg_tokenPool"
@@ -25179,7 +25195,9 @@
           "default",
           "pills",
           "segmented",
-          "radio"
+          "radio",
+          "menu",
+          "holographic"
         ],
         "default": "default"
       }
@@ -25242,7 +25260,10 @@
           "stat-card",
           "formula-badge",
           "inline",
-          "pill"
+          "pill",
+          "hud",
+          "terminal",
+          "crystal"
         ],
         "default": "default"
       }
@@ -25304,7 +25325,9 @@
           "default",
           "outline",
           "solid",
-          "soft"
+          "soft",
+          "rarity",
+          "terminal"
         ],
         "default": "default"
       }
@@ -25379,7 +25402,9 @@
           "framed",
           "circle",
           "polaroid",
-          "token"
+          "token",
+          "portrait",
+          "hologram"
         ],
         "default": "default"
       }
@@ -25429,7 +25454,9 @@
         "options": [
           "default",
           "boxed",
-          "scroll"
+          "scroll",
+          "codex",
+          "terminal"
         ],
         "default": "default"
       }
@@ -25470,7 +25497,10 @@
           "underline",
           "divider",
           "tab",
-          "pill"
+          "pill",
+          "quest",
+          "gothic",
+          "terminal"
         ],
         "default": "default"
       }
@@ -25565,7 +25595,9 @@
           "default",
           "chunky",
           "minimal",
-          "wheel"
+          "wheel",
+          "ammo",
+          "odometer"
         ],
         "default": "default"
       }
@@ -25591,6 +25623,11 @@
       {
         "id": "color",
         "label": "Color",
+        "type": "value"
+      },
+      {
+        "id": "variant",
+        "label": "Variant",
         "type": "value"
       }
     ],
@@ -25619,6 +25656,18 @@
         "label": "Compact (single line)",
         "type": "toggle",
         "default": false
+      },
+      {
+        "key": "variant",
+        "label": "Variant",
+        "type": "select",
+        "options": [
+          "default",
+          "combat-log",
+          "critical",
+          "terminal"
+        ],
+        "default": "default"
       }
     ],
     "id": "wcfg_diceTray"

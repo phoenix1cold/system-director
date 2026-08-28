@@ -51,6 +51,16 @@
             "value": "inline",
             "label": "SD.WidgetVariants.text.inline",
             "fallback": "inline"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.text.terminal",
+            "fallback": "terminal"
+          },
+          {
+            "value": "dialogue",
+            "label": "SD.WidgetVariants.text.dialogue",
+            "fallback": "dialogue"
           }
         ]
       }
@@ -60,7 +70,9 @@
       "boxed",
       "underline",
       "ghost",
-      "inline"
+      "inline",
+      "terminal",
+      "dialogue"
     ]
   },
   "number": {
@@ -130,6 +142,16 @@
             "value": "framed",
             "label": "SD.WidgetVariants.number.framed",
             "fallback": "framed"
+          },
+          {
+            "value": "gauge",
+            "label": "SD.WidgetVariants.number.gauge",
+            "fallback": "gauge"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.number.terminal",
+            "fallback": "terminal"
           }
         ]
       },
@@ -144,7 +166,9 @@
       "default",
       "chip",
       "stat",
-      "framed"
+      "framed",
+      "gauge",
+      "terminal"
     ]
   },
   "counter": {
@@ -219,6 +243,16 @@
             "value": "wheel",
             "label": "SD.WidgetVariants.counter.wheel",
             "fallback": "wheel"
+          },
+          {
+            "value": "ammo",
+            "label": "SD.WidgetVariants.counter.ammo",
+            "fallback": "ammo"
+          },
+          {
+            "value": "odometer",
+            "label": "SD.WidgetVariants.counter.odometer",
+            "fallback": "odometer"
           }
         ]
       },
@@ -233,7 +267,9 @@
       "default",
       "chunky",
       "minimal",
-      "wheel"
+      "wheel",
+      "ammo",
+      "odometer"
     ]
   },
   "resource": {
@@ -311,6 +347,21 @@
             "value": "orb",
             "label": "SD.WidgetVariants.resource.orb",
             "fallback": "orb"
+          },
+          {
+            "value": "rpg-bar",
+            "label": "SD.WidgetVariants.resource.rpg-bar",
+            "fallback": "rpg-bar"
+          },
+          {
+            "value": "boss",
+            "label": "SD.WidgetVariants.resource.boss",
+            "fallback": "boss"
+          },
+          {
+            "value": "survival",
+            "label": "SD.WidgetVariants.resource.survival",
+            "fallback": "survival"
           }
         ]
       }
@@ -322,7 +373,10 @@
       "stripes",
       "digital",
       "pulse",
-      "orb"
+      "orb",
+      "rpg-bar",
+      "boss",
+      "survival"
     ]
   },
   "derived": {
@@ -391,6 +445,21 @@
             "value": "pill",
             "label": "SD.WidgetVariants.derived.pill",
             "fallback": "pill"
+          },
+          {
+            "value": "hud",
+            "label": "SD.WidgetVariants.derived.hud",
+            "fallback": "hud"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.derived.terminal",
+            "fallback": "terminal"
+          },
+          {
+            "value": "crystal",
+            "label": "SD.WidgetVariants.derived.crystal",
+            "fallback": "crystal"
           }
         ]
       }
@@ -400,7 +469,10 @@
       "stat-card",
       "formula-badge",
       "inline",
-      "pill"
+      "pill",
+      "hud",
+      "terminal",
+      "crystal"
     ]
   },
   "dice": {
@@ -464,6 +536,21 @@
             "value": "flat",
             "label": "SD.WidgetVariants.dice.flat",
             "fallback": "flat"
+          },
+          {
+            "value": "rune",
+            "label": "SD.WidgetVariants.dice.rune",
+            "fallback": "rune"
+          },
+          {
+            "value": "tactical",
+            "label": "SD.WidgetVariants.dice.tactical",
+            "fallback": "tactical"
+          },
+          {
+            "value": "neon",
+            "label": "SD.WidgetVariants.dice.neon",
+            "fallback": "neon"
           }
         ]
       },
@@ -478,7 +565,80 @@
       "default",
       "d20-big",
       "chip",
-      "flat"
+      "flat",
+      "rune",
+      "tactical",
+      "neon"
+    ]
+  },
+  "diceTray": {
+    "id": "diceTray",
+    "label": "Dice Tray",
+    "icon": "fa-dice",
+    "desc": "Shows the last dice roll",
+    "defaultSpan": 2,
+    "defaults": {
+      "label": "Last Roll",
+      "flagPath": "flags.sd.lastRoll",
+      "color": "#7ef0c3",
+      "compact": false,
+      "variant": "default"
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "flagPath",
+        "type": "path",
+        "label": "Flag Path (read-only)"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "Accent colour"
+      },
+      {
+        "key": "compact",
+        "type": "toggle",
+        "label": "Compact (single line)"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "diceTray",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.diceTray.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "combat-log",
+            "label": "SD.WidgetVariants.diceTray.combat-log",
+            "fallback": "combat-log"
+          },
+          {
+            "value": "critical",
+            "label": "SD.WidgetVariants.diceTray.critical",
+            "fallback": "critical"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.diceTray.terminal",
+            "fallback": "terminal"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      "default",
+      "combat-log",
+      "critical",
+      "terminal"
     ]
   },
   "button": {
@@ -564,6 +724,26 @@
             "value": "soft",
             "label": "SD.WidgetVariants.button.soft",
             "fallback": "soft"
+          },
+          {
+            "value": "tactical",
+            "label": "SD.WidgetVariants.button.tactical",
+            "fallback": "tactical"
+          },
+          {
+            "value": "rune",
+            "label": "SD.WidgetVariants.button.rune",
+            "fallback": "rune"
+          },
+          {
+            "value": "neon",
+            "label": "SD.WidgetVariants.button.neon",
+            "fallback": "neon"
+          },
+          {
+            "value": "menu",
+            "label": "SD.WidgetVariants.button.menu",
+            "fallback": "menu"
           }
         ]
       },
@@ -581,7 +761,11 @@
       "ghost",
       "raised",
       "danger",
-      "soft"
+      "soft",
+      "tactical",
+      "rune",
+      "neon",
+      "menu"
     ]
   },
   "toggle": {
@@ -644,6 +828,16 @@
             "value": "led",
             "label": "SD.WidgetVariants.toggle.led",
             "fallback": "led"
+          },
+          {
+            "value": "power",
+            "label": "SD.WidgetVariants.toggle.power",
+            "fallback": "power"
+          },
+          {
+            "value": "rune",
+            "label": "SD.WidgetVariants.toggle.rune",
+            "fallback": "rune"
           }
         ]
       },
@@ -658,7 +852,9 @@
       "default",
       "checkbox",
       "pill",
-      "led"
+      "led",
+      "power",
+      "rune"
     ]
   },
   "attribute": {
@@ -714,6 +910,21 @@
             "value": "roll-button",
             "label": "SD.WidgetVariants.attribute.roll-button",
             "fallback": "roll-button"
+          },
+          {
+            "value": "rpg",
+            "label": "SD.WidgetVariants.attribute.rpg",
+            "fallback": "rpg"
+          },
+          {
+            "value": "hex",
+            "label": "SD.WidgetVariants.attribute.hex",
+            "fallback": "hex"
+          },
+          {
+            "value": "tactical",
+            "label": "SD.WidgetVariants.attribute.tactical",
+            "fallback": "tactical"
           }
         ]
       },
@@ -729,7 +940,10 @@
       "stat-card",
       "inline",
       "badge",
-      "roll-button"
+      "roll-button",
+      "rpg",
+      "hex",
+      "tactical"
     ]
   },
   "attributeGroup": {
@@ -786,6 +1000,16 @@
             "value": "dice",
             "label": "SD.WidgetVariants.attributeGroup.dice",
             "fallback": "dice"
+          },
+          {
+            "value": "character",
+            "label": "SD.WidgetVariants.attributeGroup.character",
+            "fallback": "character"
+          },
+          {
+            "value": "tactical",
+            "label": "SD.WidgetVariants.attributeGroup.tactical",
+            "fallback": "tactical"
           }
         ]
       },
@@ -800,7 +1024,9 @@
       "default",
       "row",
       "grid",
-      "dice"
+      "dice",
+      "character",
+      "tactical"
     ]
   },
   "skill": {
@@ -865,6 +1091,21 @@
             "value": "pips",
             "label": "SD.WidgetVariants.skill.pips",
             "fallback": "pips"
+          },
+          {
+            "value": "skilltree",
+            "label": "SD.WidgetVariants.skill.skilltree",
+            "fallback": "skilltree"
+          },
+          {
+            "value": "compact",
+            "label": "SD.WidgetVariants.skill.compact",
+            "fallback": "compact"
+          },
+          {
+            "value": "rune",
+            "label": "SD.WidgetVariants.skill.rune",
+            "fallback": "rune"
           }
         ]
       },
@@ -879,7 +1120,10 @@
       "default",
       "pill",
       "row-rank",
-      "pips"
+      "pips",
+      "skilltree",
+      "compact",
+      "rune"
     ]
   },
   "progress": {
@@ -958,6 +1202,21 @@
             "value": "segmented",
             "label": "SD.WidgetVariants.progress.segmented",
             "fallback": "segmented"
+          },
+          {
+            "value": "xp",
+            "label": "SD.WidgetVariants.progress.xp",
+            "fallback": "xp"
+          },
+          {
+            "value": "quest",
+            "label": "SD.WidgetVariants.progress.quest",
+            "fallback": "quest"
+          },
+          {
+            "value": "boss",
+            "label": "SD.WidgetVariants.progress.boss",
+            "fallback": "boss"
           }
         ]
       }
@@ -967,7 +1226,10 @@
       "thin",
       "thick",
       "striped",
-      "segmented"
+      "segmented",
+      "xp",
+      "quest",
+      "boss"
     ]
   },
   "tracker": {
@@ -987,6 +1249,7 @@
       "bgColor": "#2a2a3a",
       "pipSize": 14,
       "glow": true,
+      "variant": "default",
       "animationTag": ""
     },
     "configFields": [
@@ -1051,13 +1314,52 @@
         "label": "Glow effect on filled pips"
       },
       {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "tracker",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.tracker.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "hearts",
+            "label": "SD.WidgetVariants.tracker.hearts",
+            "fallback": "hearts"
+          },
+          {
+            "value": "stress",
+            "label": "SD.WidgetVariants.tracker.stress",
+            "fallback": "stress"
+          },
+          {
+            "value": "ammo",
+            "label": "SD.WidgetVariants.tracker.ammo",
+            "fallback": "ammo"
+          },
+          {
+            "value": "hex",
+            "label": "SD.WidgetVariants.tracker.hex",
+            "fallback": "hex"
+          }
+        ]
+      },
+      {
         "key": "animationTag",
         "type": "text",
         "label": "Animation Tag (Automated Animations)",
         "placeholder": "name matched by AA Auto Recognition"
       }
     ],
-    "variants": []
+    "variants": [
+      "default",
+      "hearts",
+      "stress",
+      "ammo",
+      "hex"
+    ]
   },
   "tokenPool": {
     "id": "tokenPool",
@@ -1074,6 +1376,7 @@
       "color": "#f0c040",
       "bgColor": "#2a2a3a",
       "pipSize": 16,
+      "variant": "default",
       "animationTag": ""
     },
     "configFields": [
@@ -1133,13 +1436,52 @@
         "label": "Token size (px, 10–24)"
       },
       {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "tokenPool",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.tokenPool.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "coins",
+            "label": "SD.WidgetVariants.tokenPool.coins",
+            "fallback": "coins"
+          },
+          {
+            "value": "gems",
+            "label": "SD.WidgetVariants.tokenPool.gems",
+            "fallback": "gems"
+          },
+          {
+            "value": "charges",
+            "label": "SD.WidgetVariants.tokenPool.charges",
+            "fallback": "charges"
+          },
+          {
+            "value": "souls",
+            "label": "SD.WidgetVariants.tokenPool.souls",
+            "fallback": "souls"
+          }
+        ]
+      },
+      {
         "key": "animationTag",
         "type": "text",
         "label": "Animation Tag (Automated Animations)",
         "placeholder": "name matched by AA Auto Recognition"
       }
     ],
-    "variants": []
+    "variants": [
+      "default",
+      "coins",
+      "gems",
+      "charges",
+      "souls"
+    ]
   },
   "clock": {
     "id": "clock",
@@ -1207,6 +1549,16 @@
             "value": "fraction",
             "label": "SD.WidgetVariants.clock.fraction",
             "fallback": "fraction"
+          },
+          {
+            "value": "hex",
+            "label": "SD.WidgetVariants.clock.hex",
+            "fallback": "hex"
+          },
+          {
+            "value": "timeline",
+            "label": "SD.WidgetVariants.clock.timeline",
+            "fallback": "timeline"
           }
         ]
       },
@@ -1221,7 +1573,9 @@
       "default",
       "ring",
       "bar",
-      "fraction"
+      "fraction",
+      "hex",
+      "timeline"
     ]
   },
   "slot": {
@@ -1302,6 +1656,21 @@
             "value": "tile",
             "label": "SD.WidgetVariants.slot.tile",
             "fallback": "tile"
+          },
+          {
+            "value": "equipment",
+            "label": "SD.WidgetVariants.slot.equipment",
+            "fallback": "equipment"
+          },
+          {
+            "value": "diamond",
+            "label": "SD.WidgetVariants.slot.diamond",
+            "fallback": "diamond"
+          },
+          {
+            "value": "hotbar",
+            "label": "SD.WidgetVariants.slot.hotbar",
+            "fallback": "hotbar"
           }
         ]
       }
@@ -1311,7 +1680,10 @@
       "framed",
       "round",
       "ghost",
-      "tile"
+      "tile",
+      "equipment",
+      "diamond",
+      "hotbar"
     ]
   },
   "inventory": {
@@ -1394,6 +1766,21 @@
             "value": "card-grid",
             "label": "SD.WidgetVariants.inventory.card-grid",
             "fallback": "card-grid"
+          },
+          {
+            "value": "loot",
+            "label": "SD.WidgetVariants.inventory.loot",
+            "fallback": "loot"
+          },
+          {
+            "value": "tactical",
+            "label": "SD.WidgetVariants.inventory.tactical",
+            "fallback": "tactical"
+          },
+          {
+            "value": "survival",
+            "label": "SD.WidgetVariants.inventory.survival",
+            "fallback": "survival"
           }
         ]
       }
@@ -1405,7 +1792,10 @@
       "iconbar",
       "cards",
       "card-slider",
-      "card-grid"
+      "card-grid",
+      "loot",
+      "tactical",
+      "survival"
     ]
   },
   "effects": {
@@ -1466,6 +1856,21 @@
             "value": "card-grid",
             "label": "SD.WidgetVariants.effects.card-grid",
             "fallback": "card-grid"
+          },
+          {
+            "value": "buffbar",
+            "label": "SD.WidgetVariants.effects.buffbar",
+            "fallback": "buffbar"
+          },
+          {
+            "value": "combat",
+            "label": "SD.WidgetVariants.effects.combat",
+            "fallback": "combat"
+          },
+          {
+            "value": "timeline",
+            "label": "SD.WidgetVariants.effects.timeline",
+            "fallback": "timeline"
           }
         ]
       }
@@ -1475,7 +1880,10 @@
       "chips",
       "icons",
       "card-slider",
-      "card-grid"
+      "card-grid",
+      "buffbar",
+      "combat",
+      "timeline"
     ]
   },
   "spellbook": {
@@ -1536,6 +1944,21 @@
             "value": "card-grid",
             "label": "SD.WidgetVariants.spellbook.card-grid",
             "fallback": "card-grid"
+          },
+          {
+            "value": "codex",
+            "label": "SD.WidgetVariants.spellbook.codex",
+            "fallback": "codex"
+          },
+          {
+            "value": "hotbar",
+            "label": "SD.WidgetVariants.spellbook.hotbar",
+            "fallback": "hotbar"
+          },
+          {
+            "value": "arcane",
+            "label": "SD.WidgetVariants.spellbook.arcane",
+            "fallback": "arcane"
           }
         ]
       }
@@ -1546,7 +1969,10 @@
       "grid",
       "minimal",
       "card-slider",
-      "card-grid"
+      "card-grid",
+      "codex",
+      "hotbar",
+      "arcane"
     ]
   },
   "select": {
@@ -1604,6 +2030,16 @@
             "value": "radio",
             "label": "SD.WidgetVariants.select.radio",
             "fallback": "radio"
+          },
+          {
+            "value": "menu",
+            "label": "SD.WidgetVariants.select.menu",
+            "fallback": "menu"
+          },
+          {
+            "value": "holographic",
+            "label": "SD.WidgetVariants.select.holographic",
+            "fallback": "holographic"
           }
         ]
       }
@@ -1612,7 +2048,9 @@
       "default",
       "pills",
       "segmented",
-      "radio"
+      "radio",
+      "menu",
+      "holographic"
     ]
   },
   "tags": {
@@ -1668,6 +2106,16 @@
             "value": "soft",
             "label": "SD.WidgetVariants.tags.soft",
             "fallback": "soft"
+          },
+          {
+            "value": "rarity",
+            "label": "SD.WidgetVariants.tags.rarity",
+            "fallback": "rarity"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.tags.terminal",
+            "fallback": "terminal"
           }
         ]
       }
@@ -1676,7 +2124,9 @@
       "default",
       "outline",
       "solid",
-      "soft"
+      "soft",
+      "rarity",
+      "terminal"
     ]
   },
   "image": {
@@ -1729,6 +2179,16 @@
             "value": "token",
             "label": "SD.WidgetVariants.image.token",
             "fallback": "token"
+          },
+          {
+            "value": "portrait",
+            "label": "SD.WidgetVariants.image.portrait",
+            "fallback": "portrait"
+          },
+          {
+            "value": "hologram",
+            "label": "SD.WidgetVariants.image.hologram",
+            "fallback": "hologram"
           }
         ]
       }
@@ -1738,7 +2198,9 @@
       "framed",
       "circle",
       "polaroid",
-      "token"
+      "token",
+      "portrait",
+      "hologram"
     ]
   },
   "section": {
@@ -1793,6 +2255,21 @@
             "value": "pill",
             "label": "SD.WidgetVariants.section.pill",
             "fallback": "pill"
+          },
+          {
+            "value": "quest",
+            "label": "SD.WidgetVariants.section.quest",
+            "fallback": "quest"
+          },
+          {
+            "value": "gothic",
+            "label": "SD.WidgetVariants.section.gothic",
+            "fallback": "gothic"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.section.terminal",
+            "fallback": "terminal"
           }
         ]
       }
@@ -1802,7 +2279,10 @@
       "underline",
       "divider",
       "tab",
-      "pill"
+      "pill",
+      "quest",
+      "gothic",
+      "terminal"
     ]
   },
   "vsection": {
@@ -1813,16 +2293,56 @@
     "defaultSpan": 1,
     "defaults": {
       "label": "",
-      "widgets": []
+      "widgets": [],
+      "variant": "default"
     },
     "configFields": [
       {
         "key": "label",
         "type": "text",
         "label": "Heading (optional)"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "vsection",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.vsection.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "panel",
+            "label": "SD.WidgetVariants.vsection.panel",
+            "fallback": "panel"
+          },
+          {
+            "value": "quest",
+            "label": "SD.WidgetVariants.vsection.quest",
+            "fallback": "quest"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.vsection.terminal",
+            "fallback": "terminal"
+          },
+          {
+            "value": "glass",
+            "label": "SD.WidgetVariants.vsection.glass",
+            "fallback": "glass"
+          }
+        ]
       }
     ],
-    "variants": []
+    "variants": [
+      "default",
+      "panel",
+      "quest",
+      "terminal",
+      "glass"
+    ]
   },
   "richtext": {
     "id": "richtext",
@@ -1866,6 +2386,16 @@
             "value": "scroll",
             "label": "SD.WidgetVariants.richtext.scroll",
             "fallback": "scroll"
+          },
+          {
+            "value": "codex",
+            "label": "SD.WidgetVariants.richtext.codex",
+            "fallback": "codex"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.richtext.terminal",
+            "fallback": "terminal"
           }
         ]
       }
@@ -1873,7 +2403,9 @@
     "variants": [
       "default",
       "boxed",
-      "scroll"
+      "scroll",
+      "codex",
+      "terminal"
     ]
   },
   "cardHand": {
@@ -2006,6 +2538,16 @@
             "value": "grid",
             "label": "SD.WidgetVariants.cardHand.grid",
             "fallback": "grid"
+          },
+          {
+            "value": "tabletop",
+            "label": "SD.WidgetVariants.cardHand.tabletop",
+            "fallback": "tabletop"
+          },
+          {
+            "value": "tactical",
+            "label": "SD.WidgetVariants.cardHand.tactical",
+            "fallback": "tactical"
           }
         ]
       },
@@ -2020,7 +2562,9 @@
       "default",
       "fan",
       "stack",
-      "grid"
+      "grid",
+      "tabletop",
+      "tactical"
     ]
   },
   "cardDrawButton": {
@@ -2111,6 +2655,16 @@
             "value": "pile",
             "label": "SD.WidgetVariants.cardDrawButton.pile",
             "fallback": "pile"
+          },
+          {
+            "value": "arcane",
+            "label": "SD.WidgetVariants.cardDrawButton.arcane",
+            "fallback": "arcane"
+          },
+          {
+            "value": "casino",
+            "label": "SD.WidgetVariants.cardDrawButton.casino",
+            "fallback": "casino"
           }
         ]
       },
@@ -2124,7 +2678,9 @@
     "variants": [
       "default",
       "deck",
-      "pile"
+      "pile",
+      "arcane",
+      "casino"
     ]
   },
   "questMarker": {
@@ -2211,6 +2767,21 @@
             "value": "ghost",
             "label": "SD.WidgetVariants.questMarker.ghost",
             "fallback": "ghost"
+          },
+          {
+            "value": "objective",
+            "label": "SD.WidgetVariants.questMarker.objective",
+            "fallback": "objective"
+          },
+          {
+            "value": "journal",
+            "label": "SD.WidgetVariants.questMarker.journal",
+            "fallback": "journal"
+          },
+          {
+            "value": "hud",
+            "label": "SD.WidgetVariants.questMarker.hud",
+            "fallback": "hud"
           }
         ]
       }
@@ -2219,7 +2790,10 @@
       "default",
       "compact",
       "framed",
-      "ghost"
+      "ghost",
+      "objective",
+      "journal",
+      "hud"
     ]
   },
   "widgetBuilder": {
@@ -2240,7 +2814,8 @@
       "gridSize": 16,
       "snap": 4,
       "clipOverflow": true,
-      "customCss": ""
+      "customCss": "",
+      "variant": "default"
     },
     "configFields": [
       {
@@ -2296,44 +2871,47 @@
         "key": "customCss",
         "type": "textarea",
         "label": "Safe scoped CSS"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "widgetBuilder",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.widgetBuilder.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "panel",
+            "label": "SD.WidgetVariants.widgetBuilder.panel",
+            "fallback": "panel"
+          },
+          {
+            "value": "hud",
+            "label": "SD.WidgetVariants.widgetBuilder.hud",
+            "fallback": "hud"
+          },
+          {
+            "value": "glass",
+            "label": "SD.WidgetVariants.widgetBuilder.glass",
+            "fallback": "glass"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.widgetBuilder.terminal",
+            "fallback": "terminal"
+          }
+        ]
       }
     ],
-    "variants": []
-  },
-  "diceTray": {
-    "id": "diceTray",
-    "label": "Dice Tray",
-    "icon": "fa-dice",
-    "desc": "Shows the last dice roll",
-    "defaultSpan": 2,
-    "defaults": {
-      "label": "Last Roll",
-      "flagPath": "flags.sd.lastRoll",
-      "color": "#7ef0c3",
-      "compact": false
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "flagPath",
-        "type": "path",
-        "label": "Flag Path (read-only)"
-      },
-      {
-        "key": "color",
-        "type": "color",
-        "label": "Accent colour"
-      },
-      {
-        "key": "compact",
-        "type": "toggle",
-        "label": "Compact (single line)"
-      }
-    ],
-    "variants": []
+    "variants": [
+      "default",
+      "panel",
+      "hud",
+      "glass",
+      "terminal"
+    ]
   }
 }

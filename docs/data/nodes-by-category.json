@@ -54,8 +54,7 @@
     "custom_event",
     "remote_activate",
     "on_event",
-    "on_card_drawn",
-    "on_macro_use"
+    "on_card_drawn"
   ],
   "Values": [
     "literal",
@@ -279,6 +278,9 @@
     "act_remove_item",
     "act_add_item_array",
     "act_remove_item_array",
+    "item_array_inventory",
+    "item_array_slot",
+    "widget_value_array",
     "item_arr_names",
     "item_arr_map_field",
     "item_arr_aggregate",
@@ -303,7 +305,6 @@
   ],
   "System": [
     "act_play_sound",
-    "act_run_macro",
     "act_tts"
   ],
   "Field Ops": [
@@ -336,11 +337,6 @@
     "database_get",
     "database_set",
     "database_create"
-  ],
-  "Macros": [
-    "macro_input",
-    "macro_output",
-    "macro_call"
   ],
   "Cards": [
     "act_card_shuffle",
