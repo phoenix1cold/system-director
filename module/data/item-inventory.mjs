@@ -11,6 +11,7 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
     return {
+      values: new ObjectField({ initial: {} }),
       category: new StringField({ initial: "", blank: true }),
       rarity:   new StringField({ initial: "", blank: true }),
       weight:   new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
@@ -70,6 +71,10 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
 
       customTabs:  new ArrayField(new ObjectField()),
       widgetFields: new ObjectField({ initial: {} }),
+      widgetVars: new ObjectField({ initial: {} }),
+
+      // Internal typed Blueprint persistence; never exposed as a user-authored path.
+      blueprintState: new ObjectField({ initial: {} }),
       sdTriggerGraph: new ObjectField({ initial: {} }),
       flags:       new ObjectField({ initial: {} })
     };

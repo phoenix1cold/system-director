@@ -59,13 +59,14 @@ function normalizeRecord(record={}, index=0) {
 function normalizeDatabase(database={}, index=0) {
   const id = databaseSafeId(database.id ?? database.key ?? `database_${index+1}`, "database");
   const storage = database.storage === "world" ? "world" : "document";
+  const kind = ["variables","enum","dataTable"].includes(database.kind) ? database.kind : "variables";
   const used = new Set();
   const records=[];
   for (const [ri,raw] of (Array.isArray(database.records)?database.records:[]).entries()) {
     const rec=normalizeRecord(raw,ri);
     let rid=rec.id,n=2; while(used.has(rid)) rid=`${rec.id}_${n++}`; rec.id=rid;used.add(rid);records.push(rec);
   }
-  return {id,name:String(database.name ?? id),storage,description:String(database.description ?? ""),records};
+  return {id,name:String(database.name ?? id),kind,storage,description:String(database.description ?? ""),records};
 }
 
 export function normalizeDatabaseConfig(raw) {
@@ -108,8 +109,16 @@ export function getDatabaseRecord(databaseId,recordId) {
   return getDatabase(databaseId)?.records?.find(record=>record.id===String(recordId ?? "")) ?? null;
 }
 
-export function databaseSelectOptions() {
-  const list=getSharedDatabaseConfig().databases.map(db=>({value:db.id,label:`${db.name} [${db.storage}]`}));
+export function getEnumEntries(databaseId){const db=getDatabase(databaseId);return db?.kind==="enum"?(db.records??[]):[];}
+export function getDataTableRows(databaseId){const db=getDatabase(databaseId);return db?.kind==="dataTable"?(db.records??[]):[];}
+export function readDataAsset(databaseId,recordId,field=""){
+  const record=getDatabaseRecord(databaseId,recordId);if(!record)return undefined;
+  const value=clone(record.default);if(!field)return value;
+  try{return foundry.utils.getProperty(value,String(field));}catch{return undefined;}
+}
+
+export function databaseSelectOptions(kind="") {
+  const list=getSharedDatabaseConfig().databases.filter(db=>!kind||db.kind===kind).map(db=>({value:db.id,label:`${db.name} [${db.kind} · ${db.storage}]`}));
   return list.length?[{value:"",label:"Select database…"},...list]:[{value:"",label:"No databases — open Database settings"}];
 }
 
@@ -264,7 +273,7 @@ export class SharedDatabaseApp extends HandlebarsApplicationMixin(ApplicationV2)
         let value="";try{value=formatDatabaseValue(await readDatabaseValue({databaseId:db.id,recordId:record.id,ownerMode:db.storage==="world"?"world":"auto",owner:this.contextDocument,item:this.contextDocument?.documentName==="Item"?this.contextDocument:null,actor:this.contextDocument?.documentName==="Actor"?this.contextDocument:this.contextDocument?.actor}),record.type);}catch{}
         records.push({...record,index:ri,databaseIndex:di,value,defaultText:formatDatabaseValue(record.default,record.type),typeOptions:DATABASE_TYPES.map(t=>({...t,selected:t.id===record.type}))});
       }
-      rows.push({...db,index:di,isWorld:db.storage==="world",records});
+      rows.push({...db,index:di,isWorld:db.storage==="world",isVariables:db.kind==="variables",isEnum:db.kind==="enum",isDataTable:db.kind==="dataTable",records});
     }
     return {...base,databaseEntries:rows,contextName:this.contextDocument?.name??"World",hasContext:!!this.contextDocument,isGM:!!game.user?.isGM,typeOptions:DATABASE_TYPES};
   }
@@ -273,7 +282,7 @@ export class SharedDatabaseApp extends HandlebarsApplicationMixin(ApplicationV2)
     const cfg=getSharedDatabaseConfig();const form=this.element?.querySelector("form");if(!form)return cfg;
     const FDE=foundry.applications?.ux?.FormDataExtended??FormDataExtended;const raw=new FDE(form).object;
     for(const [di,db] of cfg.databases.entries()){
-      db.name=String(raw[`db_${di}_name`]??db.name);db.storage=raw[`db_${di}_storage`]==="world"?"world":"document";db.description=String(raw[`db_${di}_description`]??db.description??"");
+      db.name=String(raw[`db_${di}_name`]??db.name);db.kind=["variables","enum","dataTable"].includes(raw[`db_${di}_kind`])?raw[`db_${di}_kind`]:db.kind;db.storage=raw[`db_${di}_storage`]==="world"?"world":"document";db.description=String(raw[`db_${di}_description`]??db.description??"");
       for(const [ri,record] of db.records.entries()){
         record.name=String(raw[`rec_${di}_${ri}_name`]??record.name);record.type=TYPE_IDS.has(String(raw[`rec_${di}_${ri}_type`]))?String(raw[`rec_${di}_${ri}_type`]):record.type;
         record.default=coerceDatabaseValue(raw[`rec_${di}_${ri}_default`]??record.default,record.type);
@@ -294,7 +303,7 @@ export class SharedDatabaseApp extends HandlebarsApplicationMixin(ApplicationV2)
     }
   }
 
-  static async _onAddDatabase(){const cfg=this._collect();let id=databaseSafeId(`database_${cfg.databases.length+1}`);while(cfg.databases.some(d=>d.id===id))id=databaseSafeId(`${id}_2`);cfg.databases.push({id,name:`Database ${cfg.databases.length+1}`,storage:"document",description:"",records:[]});await this._persist(cfg,{values:true});this.render();}
+  static async _onAddDatabase(){const cfg=this._collect();let id=databaseSafeId(`database_${cfg.databases.length+1}`);while(cfg.databases.some(d=>d.id===id))id=databaseSafeId(`${id}_2`);cfg.databases.push({id,name:`Database ${cfg.databases.length+1}`,kind:"variables",storage:"document",description:"",records:[]});await this._persist(cfg,{values:true});this.render();}
   static async _onRemoveDatabase(event,target){const cfg=this._collect();const i=Number(target.dataset.index);if(!Number.isInteger(i)||!cfg.databases[i])return;cfg.databases.splice(i,1);await this._persist(cfg,{values:true});this.render();}
   static async _onAddRecord(event,target){const cfg=this._collect();const i=Number(target.dataset.index);const db=cfg.databases[i];if(!db)return;let id=databaseSafeId(`record_${db.records.length+1}`);while(db.records.some(r=>r.id===id))id=databaseSafeId(`${id}_2`);db.records.push({id,name:`Record ${db.records.length+1}`,type:"any",default:null,description:""});await this._persist(cfg,{values:true});this.render();}
   static async _onRemoveRecord(event,target){const cfg=this._collect();const di=Number(target.dataset.databaseIndex),ri=Number(target.dataset.recordIndex);if(!cfg.databases[di]?.records?.[ri])return;cfg.databases[di].records.splice(ri,1);await this._persist(cfg,{values:true});this.render();}

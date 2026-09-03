@@ -22,6 +22,8 @@ import { AbilityData, FeatureData } from "./module/data/item-ability.mjs";
 import { ClassData }           from "./module/data/item-class.mjs";
 import { SkillTreeData }       from "./module/data/item-skilltree.mjs";
 import { QuestLogData }        from "./module/data/item-questlog.mjs";
+import { UIWidgetItemData }    from "./module/ui-blueprint/ui-widget-document.mjs";
+import "./module/ui-blueprint/main.mjs";
 
 import { SDActor }       from "./module/documents/actor.mjs";
 import { SDItem }        from "./module/documents/item.mjs";
@@ -36,8 +38,12 @@ import { SDItemSheet }         from "./module/sheets/item-sheet.mjs";
 import { runMigrations }       from "./module/helpers/migrations.mjs";
 import { EFFECT_PATHS }        from "./module/helpers/effects.mjs";
 import { SystemConfig, applySettings, buildActorBaseDefaults } from "./module/helpers/system-config.mjs";
+import { migrateDocumentDatabaseValues } from "./module/helpers/value-database.mjs";
 import { SharedDatabaseApp, registerSharedDatabaseSettings } from "./module/helpers/shared-database.mjs";
+import "./module/helpers/data-asset-nodes.mjs";
+import { initWidgetNodes } from "./module/builder/widget-nodes.mjs";
 import { installColorSchemeObserver } from "./module/helpers/color-schemes.mjs";
+import { registerEffectSheet } from "./module/helpers/effect-sheet.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
 import { SDMarketApp }         from "./module/helpers/market-app.mjs";
 import { SDActionHUD, SDActionHUDConfig, registerActionHudSettings, mountActionHudHooks } from "./module/helpers/action-hud.mjs";
@@ -150,6 +156,8 @@ function registerConfig() {
   };
 }
 
+Hooks.once("init", () => { try { initWidgetNodes(); } catch (error) { console.error("SD | widget nodes failed to register", error); } });
+
 Hooks.once("init", () => {
   console.log("SD | Initialising system…");
 
@@ -178,7 +186,8 @@ Hooks.once("init", () => {
     feature:   FeatureData,
     class:     ClassData,
     skilltree: SkillTreeData,
-    questlog:  QuestLogData
+    questlog:  QuestLogData,
+    uiwidget:  UIWidgetItemData
   };
 
   CONFIG.Actor.trackableAttributes = {
@@ -224,6 +233,10 @@ Hooks.once("init", () => {
     });
   }).catch(e => console.error("SD | failed to register QuestLog sheet:", e));
 
+  // Replace Foundry's native "Attribute Key" effect config with the SD window
+  // that only edits Database variables.
+  registerEffectSheet();
+
   game.settings.registerMenu("sd", "marketMenu", {
     name:   "SD.Market.MenuName",
     label:  "SD.Market.MenuLabel",
@@ -260,14 +273,9 @@ Hooks.once("init", () => {
   });
 
 
-  game.settings.registerMenu("sd", "databaseManager", {
-    name:   "Database",
-    label:  "Open Database",
-    hint:   "Configure shared typed databases and world values.",
-    icon:   "fa-solid fa-database",
-    type:   SharedDatabaseApp,
-    restricted: true
-  });
+  // The stand-alone "Database" menu was removed: it duplicated the Database
+  // section of Configure System. SharedDatabaseApp is still reachable from
+  // Configure System and from the graph editors.
 
   game.settings.register("sd", "systemSettings", {
     name:   "System Settings Data",
@@ -492,10 +500,20 @@ Hooks.on("preCreateActor", (actor, data, _options, _userId) => {
   }
 });
 
+Hooks.on("preCreateItem", (item, _data) => {
+  try { const updates=buildActorBaseDefaults("Item"); if(updates)item.updateSource(updates); }
+  catch(e){console.warn("SD | Failed to seed item Database values:",e);}
+});
+
 Hooks.once("ready", async () => {
   exposeSystemDirectorAI();
   if (game.user.isGM) {
     await runMigrations();
+    try {
+      const docs=[...(game.actors??[]),...(game.items??[])];
+      for(const actor of (game.actors??[])) docs.push(...(actor.items??[]));
+      for(const doc of docs) await migrateDocumentDatabaseValues(doc);
+    } catch(e){console.warn("SD | Database value migration failed:",e);}
 
     try {
       const { convertLegacyFeatureItems } = await import("./module/helpers/migrations.mjs");

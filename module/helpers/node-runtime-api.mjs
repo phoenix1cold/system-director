@@ -43,6 +43,26 @@ export async function runNodeActionHandler(type, context = {}) {
   return { handled: true, value: await record.handler(context) };
 }
 
+/** Store a typed output record for a concrete graph node execution. */
+export function storeNodeResult(runtime, nodeId, value) {
+  const id = String(nodeId ?? "").trim();
+  if (!runtime || typeof runtime !== "object" || !id) return value;
+  const outputs = value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : { value };
+  runtime.__nodeResults ??= Object.create(null);
+  runtime.__nodeResults[id] = outputs;
+  runtime.__lastNodeResult = outputs;
+  return value;
+}
+
+/** Read one output without coupling later nodes to a global "last result". */
+export function readNodeResult(runtime, nodeId, outputId = "value") {
+  const result = runtime?.__nodeResults?.[String(nodeId ?? "")];
+  if (!result || typeof result !== "object") return undefined;
+  return result[String(outputId ?? "value")];
+}
+
 export function resolveNodeFormulaToken(token, context = {}) {
   const raw = String(token ?? "");
   for (const record of state.tokens) {
@@ -64,5 +84,7 @@ globalThis.SD_NODE_RUNTIME = Object.freeze({
   registerAction: registerNodeActionHandler,
   registerToken: registerFormulaTokenResolver,
   unregisterExtension: unregisterNodeRuntimeExtension,
-  snapshot: getNodeRuntimeSnapshot
+  snapshot: getNodeRuntimeSnapshot,
+  storeResult: storeNodeResult,
+  readResult: readNodeResult
 });

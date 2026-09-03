@@ -1,0 +1,118 @@
+<div class="sduw-root">
+  <header class="sduw-toolbar">
+    <div class="sduw-toolbar-row">
+      <label class="sduw-field sduw-grow">
+        <span>{{localize "SDUI.Editor.Title"}}</span>
+        <input type="text" name="system.title" value="{{system.title}}">
+      </label>
+      <label class="sduw-field">
+        <span>Blueprint ID</span>
+        <input type="text" name="system.blueprintId" value="{{system.blueprintId}}" placeholder="bp-character-sheet">
+      </label>
+      <label class="sduw-field">
+        <span>{{localize "SDUI.Editor.Layout"}}</span>
+        <select name="system.layout">
+          {{#each layoutModes as |m|}}
+            <option value="{{m.value}}" {{#if m.selected}}selected{{/if}}>{{m.label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label class="sduw-field">
+        <span>{{localize "SDUI.Editor.WindowSize"}}</span>
+        <span class="sduw-inline-inputs">
+          <input type="number" name="system.size.w" value="{{system.size.w}}" min="200" max="3840" step="10">
+          <span>×</span>
+          <input type="number" name="system.size.h" value="{{system.size.h}}" min="120" max="2160" step="10">
+        </span>
+      </label>
+      <div class="sduw-toolbar-actions">
+        <span class="sduw-mode-switch"><button type="button" class="is-active" title="{{localize 'SDUI.Editor.Designer'}}"><i class="fa-solid fa-object-group"></i> {{localize "SDUI.Editor.Designer"}}</button></span>
+        <button type="button" class="sduw-main-graph-button" data-action="openGraph" title="Open the one shared graph for lifecycle, widget and custom-event triggers"><i class="fa-solid fa-diagram-project"></i> MAIN BLUEPRINT GRAPH</button>
+        <button type="button" data-action="openAssets" title="{{localize 'SDUI.Editor.MyBlueprint'}}"><i class="fa-solid fa-cubes"></i> {{localize "SDUI.Editor.MyBlueprint"}}</button>
+        <button type="button" data-action="saveTemplate" title="{{localize 'SDUI.Editor.SaveTemplate'}}"><i class="fa-solid fa-bookmark"></i></button>
+        <button type="button" data-action="insertTemplate" title="{{localize 'SDUI.Editor.InsertTemplate'}}"><i class="fa-solid fa-puzzle-piece"></i></button>
+        <button type="button" data-action="preview" title="{{localize 'SDUI.Editor.Preview'}}">
+          <i class="fa-solid fa-play"></i> {{localize "SDUI.Editor.Preview"}}
+        </button>
+        <button type="button" data-action="copyMacro" title="{{localize 'SDUI.Editor.CopyMacroHint'}}">
+          <i class="fa-solid fa-code"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="sduw-toolbar-row sduw-toolbar-row-sub">
+      <label class="sduw-field">
+        <span>{{localize "SDUI.Editor.CanvasMode"}}</span>
+        <select name="system.wbLayout">
+          <option value="free" {{#if isFree}}selected{{/if}}>{{localize "SDUI.Editor.ModeFree"}}</option>
+          <option value="grid" {{#unless isFree}}selected{{/unless}}>{{localize "SDUI.Editor.ModeGrid"}}</option>
+        </select>
+      </label>
+      <label class="sduw-field">
+        <span>{{localize "SDUI.Editor.CanvasSize"}}</span>
+        <span class="sduw-inline-inputs">
+          <input type="number" name="system.canvas.w" value="{{system.canvas.w}}" min="0" max="3840" step="10" title="0 = fill">
+          <span>×</span>
+          <input type="number" name="system.canvas.h" value="{{system.canvas.h}}" min="0" max="2160" step="10" title="0 = fill">
+        </span>
+      </label>
+      <label class="sduw-field">
+        <span>{{localize "SDUI.Editor.SnapGrid"}}</span>
+        <span class="sduw-inline-inputs">
+          <input type="number" name="system.snap" value="{{system.snap}}" min="0" max="128" step="1" title="{{localize 'SDUI.Editor.SnapHint'}}">
+          <input type="number" name="system.gridSize" value="{{system.gridSize}}" min="4" max="128" step="1" title="{{localize 'SDUI.Editor.GridHint'}}">
+        </span>
+      </label>
+      <label class="sduw-field">
+        <span>{{localize "SDUI.Editor.Columns"}}</span>
+        <span class="sduw-inline-inputs">
+          <input type="number" name="system.columns" value="{{system.columns}}" min="1" max="24" step="1">
+          <input type="number" name="system.gap" value="{{system.gap}}" min="0" max="128" step="1">
+        </span>
+      </label>
+      <div class="sduw-toolbar-actions">
+        <button type="button" data-action="zoomOut" title="{{localize 'SDUI.Editor.ZoomOut'}}"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+        <span class="sduw-zoom-label">100%</span>
+        <button type="button" data-action="zoomIn" title="{{localize 'SDUI.Editor.ZoomIn'}}"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+        <button type="button" data-action="zoomReset" title="{{localize 'SDUI.Editor.ZoomReset'}}"><i class="fa-solid fa-compress"></i></button>
+        <button type="button" data-action="fit" title="{{localize 'SDUI.Editor.Fit'}}"><i class="fa-solid fa-expand"></i></button>
+        <button type="button" data-action="undo" title="{{localize 'SDUI.Editor.Undo'}}"><i class="fa-solid fa-rotate-left"></i></button>
+      </div>
+    </div>
+
+    {{#if needsMigration}}
+      <div class="sduw-migrate-banner">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>{{localize "SDUI.Editor.MigrateHint"}}</span>
+        <button type="button" data-action="migrate">{{localize "SDUI.Editor.MigrateNow"}}</button>
+      </div>
+    {{/if}}
+  </header>
+
+  <section class="sduw-body">
+    <aside class="sduw-left">
+      <div class="sduw-panel-head"><i class="fa-solid fa-shapes"></i> {{localize "SDUI.Editor.Palette"}}</div>
+      <label class="sduw-search"><i class="fa-solid fa-magnifying-glass"></i><input type="search" data-palette-search placeholder="{{localize 'SDUI.Editor.SearchWidgets'}}"></label>
+      <div class="sduw-palette" data-region="palette"></div>
+      <div class="sduw-panel-head"><i class="fa-solid fa-sitemap"></i> {{localize "SDUI.Editor.Hierarchy"}}</div>
+      <div class="sduw-hierarchy" data-region="hierarchy"></div>
+    </aside>
+
+    <main class="sduw-center">
+      <div class="sduw-canvas-wrap" data-region="canvas-wrap">
+        <div class="sduw-canvas-scaler" data-region="scaler">
+          <div class="sduw-canvas" data-region="canvas"></div>
+          <div class="sduw-guides" data-region="guides"></div>
+        </div>
+      </div>
+      <footer class="sduw-statusbar" data-region="status"></footer>
+    </main>
+
+    <aside class="sduw-right">
+      <div class="sduw-panel-head"><i class="fa-solid fa-sliders"></i> {{localize "SDUI.Editor.Details"}}</div>
+      <div class="sduw-details" data-region="details"></div>
+      <div class="sduw-panel-head"><i class="fa-solid fa-cubes"></i> My Blueprint</div>
+      <div class="sduw-variables" data-region="variables"></div>
+    </aside>
+  </section>
+</div>

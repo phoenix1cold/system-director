@@ -1,3 +1,6 @@
+import { getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
+import { ensureWidgetVariables } from "../helpers/widget-variables.mjs";
+import { deletionUpdate } from "../helpers/foundry-compat.mjs";
 const REGISTRY_KEY = "__widgetPaths";
 export const WIDGET_PATH_REGISTRY_PATH = `system.flags.${REGISTRY_KEY}`;
 
@@ -102,39 +105,48 @@ function numberedPath(path, ordinal) {
   return segments.join(".");
 }
 
-function assignOneWidget(widget, used) {
-  const fields = directWidgetPathRecords(widget);
-  if (fields.length) {
-    let ordinal = 1;
-    let candidates = fields.map(entry => numberedPath(entry.path, ordinal));
-    while (candidates.some(path => used.has(path))) {
-      ordinal += 1;
-      candidates = fields.map(entry => numberedPath(entry.path, ordinal));
-    }
-    fields.forEach((entry, index) => {
-      widget[entry.field] = candidates[index];
-      used.add(candidates[index]);
-    });
+/**
+ * Paths that belong to the system itself (attributes, resources and other
+ * fields configured in System Config). Widgets keep pointing at those, because
+ * they represent shared character data, not a widget's own value.
+ */
+const SYSTEM_OWNED_PREFIXES = Object.freeze([
+  "system.attributes.", "system.resources.", "system.movement.", "system.defense.",
+  "system.initiative.", "system.advancement.", "system.currencies.", "system.calculations."
+]);
+
+export function isSystemOwnedPath(path) {
+  const value = String(path ?? "").trim();
+  return SYSTEM_OWNED_PREFIXES.some(prefix => value.startsWith(prefix));
+}
+
+function assignOneWidget(widget, used, doc = null) {
+  if (!widget || typeof widget !== "object") return;
+  // Widgets own their values, unless the binding points at configured system data.
+  const keep = {};
+  for (const field of DATA_PATH_FIELDS) {
+    const raw = cleanPath(widget[field]);
+    if (raw && isSystemOwnedPath(raw)) keep[field] = raw;
   }
-  if (Array.isArray(widget.widgets)) {
-    for (const child of widget.widgets) assignOneWidget(child, used);
+  ensureWidgetVariables(widget, doc);
+  for (const [field, raw] of Object.entries(keep)) widget[field] = raw;
+  for (const field of DATA_PATH_FIELDS) {
+    const raw = cleanPath(widget[field]);
+    if (raw) used?.add(raw);
   }
-  if (Array.isArray(widget.elements)) {
-    for (const element of widget.elements) {
-      if (element?.widget) assignOneWidget(element.widget, used);
-    }
-  }
+  if (Array.isArray(widget.widgets)) for (const child of widget.widgets) assignOneWidget(child, used, doc);
+  if (Array.isArray(widget.elements)) for (const element of widget.elements) if (element?.widget) assignOneWidget(element.widget, used, doc);
 }
 
 /**
- * Mutates a newly-created or duplicated widget so every writable data path is
- * unique for this document. Numbering starts at 2: myField, myField2, ...
+ * Points every widget binding at the widget's own storage
+ * (`system.widgetVars.<widget>.<field>`) and keeps the current value.
  */
 export function assignUniqueWidgetDataPaths(widget, doc = null, options = {}) {
   const used = options.usedPaths instanceof Set
     ? new Set(options.usedPaths)
     : getUsedWidgetDataPaths(doc, options);
-  assignOneWidget(widget, used);
+  assignOneWidget(widget, used, doc);
   return widget;
 }
 
@@ -171,7 +183,7 @@ export function deletionPatchFor(path) {
   if (parts.length < 2) return {};
   const leaf = parts.pop();
   const parent = parts.join(".");
-  return { [`${parent}.-=${leaf}`]: null };
+  return deletionUpdate(parent, leaf);
 }
 
 function valueAtPath(source, path) {

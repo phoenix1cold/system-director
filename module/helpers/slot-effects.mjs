@@ -1,3 +1,4 @@
+import { readDatabaseValue, valueStoragePath, variableIdForLegacyPath } from "./value-database.mjs";
 export const SD_SLOT_EFFECT_FLAG = "slotEffect";
 
 const _AE_MODES = {
@@ -184,7 +185,7 @@ export function collectExpectedSlotEffects(host) {
       const slotId = String(def?.id ?? "");
       if (!slotId) continue;
       const contents = container?.system?.slotContents?.[slotId]?.contents ?? [];
-      const changes = (def?.changes ?? []).filter(change => change?.itemFieldPath && change?.actorFieldPath);
+      const changes = (def?.changes ?? []).filter(change => (change?.itemVariableId||change?.itemFieldPath) && (change?.actorVariableId||change?.actorFieldPath));
 
       for (let index = 0; index < contents.length; index++) {
         const snapshot = contents[index];
@@ -195,9 +196,11 @@ export function collectExpectedSlotEffects(host) {
         if (contentsActive && changes.length) {
           const tag = `${marker.hostDocumentName}:${marker.hostId}|${itemPath}|mapped`;
           const mappedChanges = changes.map(change => {
-            const raw = foundry.utils.getProperty(snapshot, change.itemFieldPath);
+            const itemVariableId=change.itemVariableId||variableIdForLegacyPath(change.itemFieldPath);
+            const actorVariableId=change.actorVariableId||variableIdForLegacyPath(change.actorFieldPath);
+            const raw = itemVariableId?readDatabaseValue(snapshot,itemVariableId):foundry.utils.getProperty(snapshot,change.itemFieldPath);
             return {
-              key: String(change.actorFieldPath),
+              key: actorVariableId?valueStoragePath(actorVariableId):String(change.actorFieldPath),
               mode: Number.isFinite(Number(change.mode)) ? Number(change.mode) : _AE_MODES.ADD,
               value: raw === undefined || raw === null ? "0" : String(raw),
               priority: Number.isFinite(Number(change.priority)) ? Number(change.priority) : 20

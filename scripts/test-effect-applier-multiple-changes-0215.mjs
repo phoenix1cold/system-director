@@ -1,1 +1,10 @@
-import assert from'node:assert/strict';import fs from'node:fs';const s=fs.readFileSync(new URL('../module/helpers/effect-applier.mjs',import.meta.url),'utf8');assert.match(s,/p\.changes=\[\.\.\.this\.element\.querySelectorAll\('\.sd-ea-change'\)\]\.map/);assert.doesNotMatch(s,/\.map\(r=>\(\{key:[^;]+\}\)\)\.filter\(c=>c\.key\)/);assert.match(s,/p\.changes\.push\(\{key:\"\",mode:2,value:\"\",priority:20\}\)/);assert.match(s,/sd-ea-change:last-child \[data-change=\"key\"\]/);assert.match(s,/p\.changes=p\.changes\.filter\(c=>c\.key\.trim\(\)\)/);assert.match(s,/changes:clone\(p\.changes\.filter\(c=>c\.key\.trim\(\)\)\)/);console.log('Effect Applier multiple blank changes regression: OK');
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const s=fs.readFileSync(new URL("../module/helpers/effect-applier.mjs",import.meta.url),"utf8");
+assert.match(s,/p\.changes=\[\.\.\.this\.element\.querySelectorAll\('\.sd-ea-change'\)\]\.map/);
+assert.match(s,/p\.changes\.push\(\{variableId:\"\",mode:2,value:\"\",priority:20\}\)/);
+assert.match(s,/sd-ea-change:last-child \[data-change=\"variableId\"\]/);
+assert.match(s,/p\.changes=p\.changes\.filter\(c=>c\.variableId\.trim\(\)\|\|c\.legacyKey\)/);
+assert.match(s,/valueStoragePath\(change\.variableId\)/);
+assert.doesNotMatch(s,/Attribute key/);
+console.log("Effect Applier multiple Database-variable changes regression: OK");

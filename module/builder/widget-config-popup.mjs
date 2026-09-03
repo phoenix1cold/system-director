@@ -4,7 +4,9 @@ import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES, createWidget } f
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
 import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 import { getConfiguredDataPathEntries, getSystemPathEntries, isConfiguredSettingsPath } from "../helpers/system-config.mjs";
+import { getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
+import { widgetVariables, widgetVarPath, coerceWidgetValue } from "../helpers/widget-variables.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { getLanguages, translationEditLanguage, setTranslationEditLanguage, localizedField, setLocalizedField, TRANSLATABLE_KEYS } from "../helpers/localization.mjs";
 
@@ -26,37 +28,36 @@ const SD_SLOT_TILE_ICON_PATH = name => `systems/sd/assets/slot-icons/${name}.svg
 const SD_HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
 const FIELD_DEFS = {
-  text:      [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Value Formula","valueFormula","formula"],["Read Only","readOnly","boolean"]],
-  number:    [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Min (number or path)","min","text"],["Max (number or path)","max","text"],["Step","step","number"]],
-  resource:  [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"]],
-  dice:      [["Label","label"],["Widget Key","widgetKey","text"],["Roll Formula","formula","formula"],["Chat Flavor","flavor","text"]],
-  button:    [["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-bolt)","icon","text"],["Roll Formula (optional)","formula","formula"],["Chat Flavor / Message","flavor","text"]],
-  toggle:    [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["On Label","onLabel","text"],["Off Label","offLabel","text"]],
+  text:      [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["Value Formula","valueFormula","formula"],["Read Only","readOnly","boolean"]],
+  number:    [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["Min","min","text"],["Max","max","text"],["Step","step","number"]],
+  resource:  [["Display Name","label"],["Widget Key","widgetKey","text"],["Value Property","pathValue","path"],["Maximum Property","pathMax","path"]],
+  button:    [["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-bolt)","icon","text"],["Chat Flavor / Message","flavor","text"]],
+  toggle:    [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["On Label","onLabel","text"],["Off Label","offLabel","text"]],
   section:   [["Section Title","label"],["Widget Key","widgetKey","text"]],
   vsection:  [["Title","label"],["Widget Key","widgetKey","text"]],
-  richtext:  [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"]],
-  attribute: [["Label","label"],["Widget Key","widgetKey","text"],["Score Path","path","path"],["Chat Flavor","flavor","text"]],
-  skill:     [["Label","label"],["Widget Key","widgetKey","text"],["Rank Path","path","path"],["Attr Modifier","attrMod","number"],["Roll Formula Override","formula","formula"],["Chat Flavor","flavor","text"],["Pips count (Pips variant only)","pipMax","number"]],
+  richtext:  [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"]],
+  attribute: [["Label","label"],["Widget Key","widgetKey","text"],["Variable","path","path"],["Chat Flavor","flavor","text"]],
+  skill:     [["Label","label"],["Widget Key","widgetKey","text"],["Variable","path","path"],["Attr Modifier","attrMod","number"],["Chat Flavor","flavor","text"],["Pips count (Pips variant only)","pipMax","number"]],
   slot:      [["Label","label"],["Widget Key","widgetKey","text"],["Slot ID","slotId","text"],["Max Items","maxCount","number"],["SD.Slots.AutoEquip","autoEquip","boolean"]],
   inventory: [["Label","label"],["Widget Key","widgetKey","text"],["Filter Categories","categories","array"],["Extra Columns (hidden field names)","columns","array"],["Show Currency Section","showCurrency","boolean"],["Currency Path (optional)","currencyPath","path"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   effects:   [["Label","label"],["Widget Key","widgetKey","text"],["Show Disabled","showDisabled","boolean"],["Show Passive","showPassive","boolean"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   spellbook: [["Label","label"],["Widget Key","widgetKey","text"],["Ability type filter (empty = all)","abilityType","text"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
-  attributeGroup: [["Button Label","label"],["Widget Key","widgetKey","text"],["Attribute keys or paths (comma, blank = all enabled)","attributeKeys","text"],["FA icon","icon","text"]],
+  attributeGroup: [["Button Label","label"],["Widget Key","widgetKey","text"],["Database Variable IDs (comma-separated)","attributeKeys","text"],["FA icon","icon","text"]],
 
-  counter:   [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Step","step","number"],["Min","min","number"],["Max","max","number"]],
-  tokenPool: [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
+  counter:   [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["Step","step","number"],["Min","min","number"],["Max","max","number"]],
+  tokenPool: [["Label","label"],["Widget Key","widgetKey","text"],["Value Variable","path","path"],["Max Variable (blank = use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
 
   diceTray:  [["Label","label"],["Widget Key","widgetKey","text"],["Flag Path (default flags.sd.lastRoll)","flagPath","text"]],
 
-  progress: [["Label","label"],["Widget Key","widgetKey","text"],["Value Path","pathValue","path"],["Max Path","pathMax","path"],["Show label","showLabel","boolean"],["Show percentage","showPct","boolean"]],
-  select:   [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"],["Choices (comma-separated)","choices","text"]],
+  progress: [["Display Name","label"],["Widget Key","widgetKey","text"],["Value Property","pathValue","path"],["Maximum Property","pathMax","path"],["Show label","showLabel","boolean"],["Show percentage","showPct","boolean"]],
+  select:   [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["Choices (comma-separated)","choices","text"]],
   clock:    [["Label","label"],["Widget Key","widgetKey","text"],["Filled count path","path","path"],["Segments (2–12)","segments","number"]],
-  tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value path","path","path"],["Max path (blank=use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
+  tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value Variable","path","path"],["Max Variable (blank = use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
   tags:     [["Label","label"],["Widget Key","widgetKey","text"],["Data path","path","path"]],
   image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
   derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]],
 
-  widgetBuilder: [["Label","label"],["Layout","wbLayout","select",["grid","free"]],["Columns (grid layout)","columns","number"],["Gap (px, grid layout)","gap","number"],["Canvas width (px, free layout; 0 = full width)","canvasW","number"],["Canvas height (px, free layout)","canvasH","number"],["Visual grid size (px)","gridSize","number"],["Snap step (px; 0 = off)","snap","number"],["Clip elements outside canvas","clipOverflow","boolean"],["On Click Graph","formula","formula"],["Elements","elements","wbElements"],["Scoped CSS","customCss","css"]],
+  widgetBuilder: [["Display Name","label"],["Widget Key","widgetKey","text"],["Layout","wbLayout","select",["grid","free"]],["Columns (grid layout)","columns","number"],["Gap (px, grid layout)","gap","number"],["Canvas width (px, free layout; 0 = full width)","canvasW","number"],["Canvas height (px, free layout)","canvasH","number"],["Visual grid size (px)","gridSize","number"],["Snap step (px; 0 = off)","snap","number"],["Clip elements outside canvas","clipOverflow","boolean"],["Elements","elements","wbElements"],["Scoped CSS","customCss","css"]],
 
   questMarker: [
     ["Label", "label", "text"],
@@ -151,9 +152,9 @@ const STYLE_DEFS = {
 };
 
 const FIELD_HINTS = {
-  path:         "Path on actor/item — directly reads/writes the field (two-way bind)",
+  path:         "Choose a typed Actor or Item property. The technical path is kept internally and never needs to be typed.",
   valueFormula: "Formula — computed at display time. Use {system.path}, {item:Name.field}, {widget:key}, 1d20+{@attr1}",
-  formula:      "Roll formula — supports {path} refs. E.g: 1d20 + {system.attributes.attr1.mod}",
+  formula:      "Roll formula — connect values from the Database graph",
   widgetKey:    "Optional unique name for this widget. Other widgets can read its value via {widget:thisKey}",
   showIf:       "Show this widget only when a field or widget equals a specific value. Leave blank to always show.",
   cssClass:     "Space-separated CSS class names added to the widget's outer element for custom styling",
@@ -201,7 +202,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   const _resourceMode = w.type === "resource" && w.resourceMode === "node" ? "node" : "classic";
   let _typeFields = FIELD_DEFS[w.type] ?? [["Label","label"]];
   if (w.type === "number" && _numberMode === "node") {
-    _typeFields = [["Label","label"],["Widget Key","widgetKey","text"],["Data Path","path","path"]];
+    _typeFields = [["Label","label"],["Widget Key","widgetKey","text"],["Variable","path","path"]];
   }
   if (w.type === "resource" && _resourceMode === "node") {
     _typeFields = _typeFields.filter(f => Array.isArray(f) && f[1] !== "pathMax");
@@ -212,196 +213,18 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   const esc      = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
   const editLanguage = translationEditLanguage();
   const languages = getLanguages();
+  const _dbOptions = selected => { const resolved=getValueDefinition(selected)?.id||variableIdForLegacyPath(selected); return `<option value="">— Select Database variable —</option>` + getValueDefinitions().map(v=>`<option value="${esc(v.id)}" ${resolved===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join(""); };
 
   const IS = "width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
   const MONO = ";font-family:'Courier New',monospace;font-size:11px";
 
-  const attrGraphRow = (w.type === "attribute" || w.type === "skill") ? `
-    <div class="wcfg-f" style="margin-bottom:10px">
-      <label class="wcfg-lbl">Node Graph</label>
-      <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.4">${w.type === "skill" ? "Wire Roll Formula output and On Click exec chain for this skill." : "Wire Attr Score → modValue output, and On Click exec chain."}</div>
-      <button type="button" id="wcfg-attr-graph-btn"
-        style="width:100%;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:5px;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:7px 12px;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s"
-        onmouseover="this.style.background='var(--sd-accent-glow)'" onmouseout="this.style.background='var(--sd-bg-4)'">
-        <i class="fas fa-diagram-project"></i> Open Graph Editor
-      </button>
-    </div>` : "";
-
-  const numberGraphRow = (w.type === "number" || w.type === "resource") ? (() => {
-    const gd = w.numberGraph;
-    const hasGraph = !!(gd && Array.isArray(gd.nodes) && gd.nodes.length);
-    const status = hasGraph
-      ? `<span style="color:var(--sd-success);font-size:10px">${gd.nodes.length} node${gd.nodes.length===1?"":"s"}</span>`
-      : `<span style="color:var(--sd-text-3);font-size:10px;font-style:italic">no graph yet</span>`;
-    return `
-    <div class="wcfg-f" style="margin-bottom:10px">
-      <label class="wcfg-lbl">Node Graph</label>
-      <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.4">${w.type === "resource" ? "Node mode: Max (and optional Min) come from the graph output instead of Max Path." : "Wire Min, Max, and Step. This graph has no exec output."}</div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-        <span style="font-size:10px;color:var(--sd-text-3);flex-shrink:0">Mode</span>
-        <select data-field="${w.type === "resource" ? "resourceMode" : "numberMode"}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px">
-          <option value="classic" ${(w.type === "resource" ? _resourceMode : _numberMode) === "classic" ? "selected" : ""}>classic (manual values / paths)</option>
-          <option value="node" ${(w.type === "resource" ? _resourceMode : _numberMode) === "node" ? "selected" : ""}>node (graph Min/Max output)</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button type="button" id="wcfg-number-graph-btn"
-          style="flex:1;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:5px;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:7px 12px;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s"
-          onmouseover="this.style.background='var(--sd-accent-glow)'" onmouseout="this.style.background='var(--sd-bg-4)'">
-          <i class="fas fa-diagram-project"></i> Open Graph Editor
-        </button>
-        ${status}
-      </div>
-    </div>`;
-  })() : "";
-
-  const attrGroupGraphsRow = (w.type === "attributeGroup") ? (() => {
-    const cfgLabels  = CONFIG?.SD?.attributes ?? {};
-    const cfgEnabled = CONFIG?.SD?.attributesEnabled ?? {};
-    const explicit   = String(w.attributeKeys ?? "").trim();
-    const _parseKey = (raw) => {
-      const s = String(raw).trim();
-      if (!s) return null;
-      if (s.includes(".")) {
-        const m = s.match(/^system\.attributes\.([^.]+)/);
-        if (m) return m[1];
-        const segs = s.split(".");
-        return segs[segs.length - 1];
-      }
-      return s;
-    };
-    let keys;
-    if (explicit) {
-      keys = explicit.split(",").map(_parseKey).filter(Boolean);
-    } else {
-      const cfgKeys = Object.keys(cfgLabels);
-      keys = cfgKeys.length
-        ? cfgKeys.filter(k => cfgEnabled[k] !== false)
-        : Object.keys(doc.system?.attributes ?? {});
-    }
-    if (!keys.length) return "";
-    const attrGraphs = (w.attrGraphs && typeof w.attrGraphs === "object") ? w.attrGraphs : {};
-    const rows = keys.map(k => {
-      const ag = attrGraphs[k] ?? null;
-      const has = !!(ag?.graphData && Array.isArray(ag.graphData.nodes) && ag.graphData.nodes.length);
-      const status = has
-        ? `<span style="color:var(--sd-success);font-size:10px">${ag.graphData.nodes.length} node${ag.graphData.nodes.length===1?"":"s"}</span>`
-        : `<span style="color:var(--sd-text-3);font-size:10px;font-style:italic">no graph</span>`;
-      const display = cfgLabels[k] || (k.charAt(0).toUpperCase() + k.slice(1));
-      return `
-      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--sd-bg-3)">
-        <span style="flex:1;font-size:11px;color:var(--sd-text)">${esc(display)} <span style="color:var(--sd-text-3);font-size:10px">(${esc(k)})</span></span>
-        ${status}
-        <button type="button" data-attr-group-graph="${esc(k)}"
-          style="background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:4px 9px;display:inline-flex;align-items:center;gap:5px;transition:background .15s"
-          onmouseover="this.style.background='var(--sd-accent-glow)'" onmouseout="this.style.background='var(--sd-bg-4)'">
-          <i class="fas fa-diagram-project"></i> Edit
-        </button>
-      </div>`;
-    }).join("");
-    return `
-    <div class="wcfg-f" style="margin-bottom:10px">
-      <label class="wcfg-lbl">Per-Attribute Graphs</label>
-      <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:5px;line-height:1.4">Each attribute below can have its own modifier formula (Attr Score → modValue) and On Click exec chain. Untouched attributes keep the legacy 1d20+(mod) behaviour.</div>
-      <div style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;padding:4px 8px">${rows}</div>
-    </div>`;
-  })() : "";
-
   const _showIfSources = (() => {
-    const list = [];
-
-    for (const t of (doc.system?.customTabs ?? [])) {
-      for (const r of (t.rows ?? [])) {
-        for (const ww of (r.widgets ?? [])) {
-          if (ww.widgetKey && ww.widgetKey !== w.widgetKey) {
-            list.push({ value: `widget:${ww.widgetKey}`, label: `Widget: ${ww.widgetKey}` });
-          }
-        }
-      }
+    const list=[];
+    for(const t of (doc.system?.customTabs??[])) for(const r of (t.rows??[])) for(const ww of (r.widgets??[])) {
+      if(ww.widgetKey&&ww.widgetKey!==w.widgetKey) list.push({value:`widget:${ww.widgetKey}`,label:`Widget: ${ww.widgetKey}`});
     }
-
-    for (const [k] of Object.entries(doc.system?.hiddenFields ?? {})) {
-      list.push({ value: `hidden:${k}`, label: `Hidden Field: ${k}` });
-    }
-
-    const sys = doc?.system;
-    if (sys && typeof sys === "object") {
-
-      const _attrName = (key) => {
-
-        const lbl = CONFIG?.SD?.attributes?.[key];
-        if (typeof lbl !== "string" || !lbl.trim()) return key;
-        if (lbl.startsWith("SD.")) {
-          const t = game?.i18n?.localize?.(lbl);
-          return (t && t !== lbl) ? t : key;
-        }
-        return lbl;
-      };
-      const _resName = (key) => {
-
-        const k = `SD.Resources.${String(key).toUpperCase()}`;
-        const t = game?.i18n?.localize?.(k);
-        return (t && t !== k && t.trim()) ? t : key;
-      };
-      for (const [key, attr] of Object.entries(sys.attributes ?? {})) {
-        if (attr && typeof attr === "object" && "value" in attr) {
-          const n = _attrName(key);
-          list.push({ value: `system.attributes.${key}.value`, label: `Attr: ${n} score` });
-          if ("mod" in attr) list.push({ value: `system.attributes.${key}.mod`, label: `Attr: ${n} mod` });
-          if ("proficient" in attr) list.push({ value: `system.attributes.${key}.proficient`, label: `Attr: ${n} proficient` });
-        }
-      }
-
-      for (const [key, res] of Object.entries(sys.resources ?? {})) {
-        if (res && typeof res === "object") {
-          const n = _resName(key);
-          if ("value" in res) list.push({ value: `system.resources.${key}.value`, label: `Resource: ${n} value` });
-          if ("max"   in res) list.push({ value: `system.resources.${key}.max`,   label: `Resource: ${n} max`   });
-          if ("min"   in res) list.push({ value: `system.resources.${key}.min`,   label: `Resource: ${n} min`   });
-        }
-      }
-
-      for (const [key, skl] of Object.entries(sys.skills ?? {})) {
-        if (skl && typeof skl === "object" && "rank" in skl) {
-          list.push({ value: `system.skills.${key}.rank`,  label: `Skill: ${key} rank`  });
-          if ("bonus" in skl) list.push({ value: `system.skills.${key}.bonus`, label: `Skill: ${key} bonus` });
-        }
-      }
-
-      try {
-        for (const p of getConfiguredDataPathEntries()) {
-          list.push({ value: p.path, label: `${p.group}: ${p.label}` });
-        }
-        for (const p of getSystemPathEntries()) {
-          list.push({ value: p.path, label: `System Path: ${p.sectionLabel} \u203a ${p.label}` });
-        }
-      } catch {  }
-
-      const flatGroups = {
-        "system.advancement": ["level", "proficiencyBonus"],
-        "system.advancement.xp": ["value", "max"],
-        "system.skillPoints":   ["value", "max"],
-        "system.defense":       ["armor", "bonus", "total"],
-        "system.movement":      ["walk", "swim", "fly", "climb"]
-      };
-      for (const [base, keys] of Object.entries(flatGroups)) {
-        const obj = foundry.utils.getProperty(doc, base);
-        if (!obj || typeof obj !== "object") continue;
-        for (const k of keys) {
-          if (!(k in obj)) continue;
-          list.push({ value: `${base}.${k}`, label: `${base.replace(/^system\./, "").replace(/\./g, " › ")} › ${k}` });
-        }
-      }
-    }
-
-    const seen = new Set();
-    const out  = [];
-    for (const entry of list) {
-      if (!entry?.value || seen.has(entry.value)) continue;
-      seen.add(entry.value);
-      out.push(entry);
-    }
-    return out;
+    for(const variable of getValueDefinitions()) list.push({value:variable.id,label:`Database: ${variable.name} · ${variable.type} [${variable.id}]`});
+    return list;
   })();
 
   const _showIfKey   = w.showIfKey   ?? "";
@@ -512,9 +335,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
           style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px;width:100%;box-sizing:border-box">
       </div>
       <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">
-        Select a widget key, hidden field, or document data path, then set the
-        value it must equal to show this widget. Leave the value empty to show
-        only when the source is truthy (non-zero / non-empty).
+        Select a widget or typed document field, then set the value it must equal.
+        Leave the value empty to show only when the source is truthy.
       </div>
     </div>`;
 
@@ -527,6 +349,26 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     const isPF = type === "path" || type === "formula";
     const hint = FIELD_HINTS[key] ?? FIELD_HINTS[type] ?? "";
     const noteColor = type === "formula" ? "var(--sd-accent-2)" : type === "path" ? "var(--sd-mp)" : "";
+
+    if (type === "path") {
+      const varLabel = String(lbl).replace(/path/ig, "Value");
+      const descriptor = (widgetVariables(w) ?? []).find(entry => entry.field === key) ?? { field: key, label: varLabel, type: "text", initial: "" };
+      const selfPath = widgetVarPath(w, key);
+      const stored = doc ? foundry.utils.getProperty(doc, selfPath) : undefined;
+      const current = stored !== undefined ? stored : (w.varDefaults?.[key] ?? descriptor.initial ?? "");
+      const shown = Array.isArray(current) ? current.join(", ") : current;
+      const control = descriptor.type === "boolean"
+        ? `<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sd-text-2)"><input type="checkbox" data-field="__wvar_${esc(key)}" data-ftype="widgetvar" ${current ? "checked" : ""}> Enabled</label>`
+        : `<input type="${descriptor.type === "number" ? "number" : "text"}" ${descriptor.type === "number" ? `step="any"` : ""} data-field="__wvar_${esc(key)}" data-ftype="widgetvar" value="${esc(shown)}" placeholder="${esc(descriptor.type === "array" ? "a, b, c" : "value")}" style="${IS}">`;
+      return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(descriptor.label ?? varLabel)} <span style="background:var(--sd-accent-2);color:#10131a;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;text-transform:none">own value</span></label>
+        ${hint ? `<div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;line-height:1.4">${esc(hint)}</div>` : ""}
+        ${control}
+        <input type="hidden" data-field="${esc(key)}" data-ftype="text" value="${esc(selfPath)}">
+        <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">This widget stores its own value. Type it here, or drive it from the Blueprint node of this widget.</div>
+      </div>`;
+    }
 
     if (type === "color") {
       const safeColor = _isHexColor(cur) ? cur.trim() : "var(--sd-accent)";
@@ -667,25 +509,12 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const els = Array.isArray(w[key]) ? w[key] : [];
       return `
       <div class="wcfg-f" style="margin-bottom:10px">
-        <label class="wcfg-lbl">${esc(lbl)}</label>
-        <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:6px;line-height:1.4">
-          Give every element a unique name. Clickable elements fire the Custom Event "On Click &lt;Name&gt;" &mdash; press the bolt button to create the event node, then wire its exec chain in the graph. Value elements read their value from a Custom Output node with the same name in the shared widget graph - press the Output Node button to create it, wire any value into it and save the graph. The manual formula field below is a fallback.
+        <label class="wcfg-lbl">Widget Designer</label>
+        <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:8px;line-height:1.45">
+          Open the full UMG-style designer with Palette, Hierarchy, Canvas, Details, Database variables and live Free-mode dragging. Widget logic belongs to the single Sheet Blueprint.
         </div>
-        <div id="wcfg-wb-canvas-wrap" style="margin-bottom:8px">
-          <div id="wcfg-wb-canvas-hint" style="font-size:10px;color:var(--sd-text-3);margin-bottom:4px"></div>
-          <div id="wcfg-wb-canvas" style="position:relative;background:var(--sd-bg);border:1px dashed var(--sd-border);border-radius:4px;overflow:auto;max-width:100%"></div>
-        </div>
-        <div class="wcfg-wb-layer-panel" style="border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg);padding:6px;margin-bottom:8px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-            <strong style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--sd-text-2)"><i class="fas fa-layer-group" style="margin-right:5px"></i>Layers</strong>
-            <span style="font-size:9px;color:var(--sd-text-3)">front to back</span>
-          </div>
-          <div id="wcfg-wb-layers" style="display:flex;flex-direction:column;gap:3px;max-height:180px;overflow:auto"></div>
-        </div>
-        <div id="wcfg-wb-rows"></div>
-        <button type="button" id="wcfg-wb-add"
-          style="margin-top:6px;background:var(--sd-bg);border:1px solid var(--sd-accent-2);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:3px 10px">
-          + Add Element
+        <button type="button" id="wcfg-open-widget-designer" class="sd-open-widget-designer">
+          <i class="fas fa-object-group"></i> OPEN FULL WIDGET DESIGNER
         </button>
         <input type="hidden" id="wcfg-wb-json" data-field="${esc(key)}" data-ftype="json" value="${esc(JSON.stringify(els))}">
       </div>`;
@@ -701,12 +530,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
           <input type="number" class="wcfg-slot-level" value="${lvl}" min="0" max="20"
             style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;padding:2px 4px;text-align:center;width:100%"
             title="Level number">
-          <input type="text" class="wcfg-slot-maxpath" value="${maxP}"
-            style="background:var(--sd-bg);border:1px solid var(--sd-mp);border-radius:3px;color:var(--sd-mp);font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
-            placeholder="system.hiddenFields.l1max">
-          <input type="text" class="wcfg-slot-valpath" value="${valP}"
-            style="background:var(--sd-bg);border:1px solid var(--sd-success);border-radius:3px;color:var(--sd-success);font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
-            placeholder="system.spellSlots.1.value">
+          <select class="wcfg-slot-maxpath" style="background:var(--sd-bg);border:1px solid var(--sd-mp);border-radius:3px;color:var(--sd-mp);font-size:10px;padding:2px 5px;width:100%">${_dbOptions(maxP)}</select>
+          <select class="wcfg-slot-valpath" style="background:var(--sd-bg);border:1px solid var(--sd-success);border-radius:3px;color:var(--sd-success);font-size:10px;padding:2px 5px;width:100%">${_dbOptions(valP)}</select>
           <button type="button" class="wcfg-slot-del" style="background:none;border:none;color:var(--sd-danger-dim);cursor:pointer;font-size:13px;padding:0;line-height:1" title="Remove level">✕</button>
         </div>`;
       }).join("");
@@ -715,7 +540,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       <div class="wcfg-f" style="margin-bottom:10px">
         <label class="wcfg-lbl">${esc(lbl)}</label>
         <div style="font-size:10px;color:var(--sd-text-3);margin-bottom:6px;line-height:1.4">
-          Lv · <span style="color:var(--sd-mp)">Max path (hiddenField or spellSlots.N.max)</span> · <span style="color:var(--sd-success)">Value path (hiddenField or spellSlots.N.value)</span>
+          Lv · <span style="color:var(--sd-mp)">Max Variable</span> · <span style="color:var(--sd-success)">Value Variable</span>
         </div>
         <div id="wcfg-slotrows" style="max-height:220px;overflow-y:auto">
           ${rows || "<div style='font-size:10px;color:var(--sd-text-3);font-style:italic'>No levels — click Add Level below</div>"}
@@ -739,8 +564,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
           <input type="${type==="number"?"number":"text"}" data-field="${esc(key)}" data-ftype="${type}"
             value="${esc(cur)}"
             style="${IS}${isPF?MONO:""};flex:1"
-            placeholder="${type==="path"?"system.resources.hp.value":type==="formula"?"1d20 + {system.attributes.attr1.mod}":type==="array"?"ammo, magazine":""}">
-          ${type === "formula" ? `<button type="button" class="wcfg-graph-btn" data-open-graph="${esc(key)}" style="flex-shrink:0;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:4px 8px;white-space:nowrap;line-height:1;transition:background .15s" title="Open Blueprint Graph">🔷 Graph</button>` : ""}
+            placeholder="${type==="path"?"Select Database variable":type==="formula"?"1d20 + Database value":type==="array"?"ammo, magazine":""}">
           ${isPF ? `<button type="button" data-clear-field="${esc(key)}" class="wcfg-clear-btn" title="Clear">✕</button>` : ""}
         </div>
       </div>`;
@@ -752,23 +576,23 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     if (w.type === "widgetBuilder") {
       if (fKey === "elements" || fKey === "wbLayout" || fKey === "columns" || fKey === "gap" || fKey === "canvasW" || fKey === "canvasH" || fKey === "gridSize" || fKey === "snap" || fKey === "clipOverflow") return "elements";
       if (fKey === "customCss") return "style";
-      if (fType === "formula" || fType === "actionGraph" || fKey === "animationTag") return "logic";
+      if (fType === "formula" || fType === "actionGraph" || fKey === "animationTag") return "main";
       return "main";
     }
-    if (fType === "formula" || fType === "actionGraph" || fKey === "animationTag" || fKey === "valueFormula") return "logic";
+    if (fType === "formula" || fType === "actionGraph" || fKey === "animationTag" || fKey === "valueFormula") return "main";
     return "main";
   };
   const _rowsFor = (tabId) => fields.filter(f => _tabForField(f) === tabId).map(_renderFieldRow).join("");
-  const _mainRows = attrGraphRow + numberGraphRow + attrGroupGraphsRow + _rowsFor("main");
+  const sharedGraphRow = `<div class="wcfg-shared-blueprint"><div><b><i class="fas fa-diagram-project"></i> Sheet Blueprint</b><small>One graph for every widget and event on this sheet.</small></div><button type="button" data-open-sheet-blueprint title="Open Sheet Blueprint" aria-label="Open Sheet Blueprint"><i class="fas fa-arrow-up-right-from-square"></i></button></div>`;
+  const _mainRows = sharedGraphRow + _rowsFor("main");
   const _paneList = [
     ["main",     w.type === "widgetBuilder" ? "General" : "Main", _mainRows],
     ["elements", "Elements", _rowsFor("elements")],
-    ["logic",    "Logic",    _rowsFor("logic")],
     ["style",    "Style",    slotTileRow + styleRow],
     ["showif",   "Show If",  showIfRow]
   ].filter(pn => String(pn[2]).trim() !== "");
   const _tabBar = _paneList.length > 1 ? `
-    <div id="wcfg-tabs" style="display:flex;gap:2px;padding:0 12px;background:var(--sd-popover-bg,var(--sd-bg));border-bottom:1px solid var(--sd-border);flex-shrink:0;overflow-x:auto">
+    <div id="wcfg-tabs" class="wcfg-tabs" style="display:flex;gap:2px;padding:0 12px;background:var(--sd-popover-bg,var(--sd-bg));border-bottom:1px solid var(--sd-border);flex-shrink:0;overflow-x:auto">
       ${_paneList.map((pn, i) => `<button type="button" class="wcfg-tab-btn" data-cfg-tab="${pn[0]}" style="background:none;border:none;border-bottom:2px solid ${i === 0 ? "var(--sd-accent)" : "transparent"};color:${i === 0 ? "var(--sd-accent)" : "var(--sd-text-3)"};cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;white-space:nowrap">${pn[1]}</button>`).join("")}
     </div>` : "";
   const _panesHtml = _paneList.map((pn, i) => `<div class="wcfg-tabpane" data-cfg-tab="${pn[0]}" style="${i === 0 ? "" : "display:none"}">${pn[2]}</div>`).join("");
@@ -813,22 +637,27 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
 
   popup.innerHTML = `
     <!-- Header -->
-    <div id="wcfg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--sd-popover-bg,var(--sd-bg));border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move">
+    <div id="wcfg-hdr" class="wcfg-hero" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--sd-popover-bg,var(--sd-bg));border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move">
       <span style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--sd-accent)">
-        <i class="fas ${ICON_MAP[w.type]??'fa-gear'}" style="margin-right:7px;opacity:.8"></i>Configure: ${esc(w.label || w.type)}
+        <i class="fas ${ICON_MAP[w.type]??'fa-gear'}" style="margin-right:7px;opacity:.8"></i>Widget Details
       </span>
       <label style="margin-left:auto;margin-right:10px;display:flex;align-items:center;gap:5px;font-size:10px;color:var(--sd-text-2)"><i class="fas fa-language"></i><select id="wcfg-language" title="Translation editing language" style="background:var(--sd-bg);color:var(--sd-text);border:1px solid var(--sd-border);border-radius:3px">${languages.map(l=>`<option value="${esc(l.id)}" ${l.id===editLanguage?"selected":""}>${esc(l.name)}</option>`).join("")}</select></label>
       <button type="button" id="wcfg-x" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:16px;padding:0" aria-label="Close"><i class="fas fa-xmark"></i></button>
     </div>
 
+    <div class="wcfg-identity" style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:9px 14px;background:color-mix(in srgb,var(--sd-accent) 6%,var(--sd-bg));border-bottom:1px solid var(--sd-border)">
+      <div><span style="display:block;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--sd-text-3)">Display Name</span><b style="font-size:13px;color:var(--sd-text)">${esc(w.label || w.type)}</b></div>
+      <div style="text-align:right"><span style="display:block;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--sd-text-3)">Widget ID</span><code style="font-size:11px;color:var(--sd-accent);user-select:all">${esc(w.id || "unassigned")}</code></div>
+    </div>
+    ${w.type === "widgetBuilder" ? `<div style="padding:8px 14px;border-bottom:1px solid var(--sd-border);background:rgba(94,159,232,.08);color:var(--sd-text-2);font-size:11px"><i class="fas fa-shapes" style="color:var(--sd-accent);margin-right:6px"></i><b>UI Canvas restored:</b> use Elements for nested objects, Free/Grid layout and live positioning.</div>` : ""}
     ${_tabBar}
     <!-- Fields panel -->
-    <div id="wcfg-panel-fields" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:0">
+    <div id="wcfg-panel-fields" class="wcfg-panel-fields" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:0">
       ${_panesHtml}
     </div>
 
     <!-- Footer -->
-    <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--sd-border);flex-shrink:0;background:var(--sd-popover-bg,var(--sd-bg))">
+    <div class="wcfg-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--sd-border);flex-shrink:0;background:var(--sd-popover-bg,var(--sd-bg))">
       <button type="button" id="wcfg-cancel" class="wcfg-footer-btn" style="padding:7px 16px;font-size:12px;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid var(--sd-border);background:var(--sd-bg-3);color:var(--sd-text-2)">Cancel</button>
       <button type="button" id="wcfg-save"   class="wcfg-footer-btn" style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:5px;cursor:pointer;border:1px solid var(--sd-accent);background:var(--sd-accent);color:var(--sd-accent-text,#fff)">
         <i class="fas fa-check" style="margin-right:5px"></i>Save
@@ -846,11 +675,11 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   const _closePopup = () => windowApp?.close?.() ?? popup.remove();
   windowApp = openFoundryWindow({
     id:`sd-widget-config-${foundry.utils.randomID(8)}`,
-    title:`Configure Widget — ${w.label || w.type}`,
+    title:`Widget Details — ${w.label || w.type} [${w.id || "new"}]`,
     icon:`fa-solid ${ICON_MAP[w.type]??"fa-gear"}`,
-    width:430,
-    height:Math.min(620, Math.floor(window.innerHeight * 0.90)),
-    minWidth:380,
+    width:520,
+    height:Math.min(720, Math.floor(window.innerHeight * 0.92)),
+    minWidth:440,
     minHeight:280,
     classes:["sd-widget-config-window"],
     content:popup,
@@ -910,8 +739,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       }
     }
     if (w.path)      refs.push(["Bound path", String(w.path)]);
-    if (w.pathValue) refs.push(["Value path", String(w.pathValue)]);
-    if (w.pathMax)   refs.push(["Max path", String(w.pathMax)]);
+    if (w.pathValue) refs.push(["Value Variable", String(w.pathValue)]);
+    if (w.pathMax)   refs.push(["Max Variable", String(w.pathMax)]);
     if (wKey && ["inventory","spellbook","slot"].includes(String(w.type))) {
       refs.push(["Items array (names)", "{widget:" + wKey + ".names}"]);
       refs.push(["Items array (ids)",   "{widget:" + wKey + ".ids}"]);
@@ -1192,12 +1021,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     div.innerHTML = `
       <input type="number" class="wcfg-slot-level" value="${next}" min="0" max="20"
         style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;padding:2px 4px;text-align:center;width:100%" title="Level number">
-      <input type="text" class="wcfg-slot-maxpath" value="system.hiddenFields.l${next}max"
-        style="background:var(--sd-bg);border:1px solid var(--sd-mp);border-radius:3px;color:var(--sd-mp);font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
-        placeholder="system.hiddenFields.l${next}max">
-      <input type="text" class="wcfg-slot-valpath" value="system.spellSlots.${next}.value"
-        style="background:var(--sd-bg);border:1px solid var(--sd-success);border-radius:3px;color:var(--sd-success);font-size:10px;padding:2px 5px;width:100%;font-family:'Courier New',monospace"
-        placeholder="system.spellSlots.${next}.value">
+      <select class="wcfg-slot-maxpath" style="background:var(--sd-bg);border:1px solid var(--sd-mp);border-radius:3px;color:var(--sd-mp);font-size:10px;padding:2px 5px;width:100%">${_dbOptions("")}</select>
+      <select class="wcfg-slot-valpath" style="background:var(--sd-bg);border:1px solid var(--sd-success);border-radius:3px;color:var(--sd-success);font-size:10px;padding:2px 5px;width:100%">${_dbOptions("")}</select>
       <button type="button" class="wcfg-slot-del" style="background:none;border:none;color:var(--sd-danger-dim);cursor:pointer;font-size:13px;padding:0;line-height:1" title="Remove level">✕</button>`;
     slotRowsContainer.appendChild(div);
   });
@@ -1602,6 +1427,23 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     });
   });
 
+  popup.querySelector("[data-open-sheet-blueprint]")?.addEventListener("click", () => {
+    const graph = new FormulaGraph(null, doc, null, null, null, { mode: "sheetTrigger" });
+    graph.open();
+  });
+
+  popup.querySelector("#wcfg-open-widget-designer")?.addEventListener("click", async () => {
+    const { openSheetWidgetDesigner } = await import("./widget-builder-designer.mjs");
+    openSheetWidgetDesigner({
+      widget: w, doc, tab, row,
+      onSave: updated => {
+        Object.assign(w, updated);
+        const json = popup.querySelector("#wcfg-wb-json");
+        if (json) json.value = JSON.stringify(updated.elements ?? []);
+      }
+    });
+  });
+
   popup.querySelectorAll("[data-open-action-graph]").forEach(btn => {
     btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-glow)");
     btn.addEventListener("mouseleave", () => btn.style.background = "var(--sd-bg-4)");
@@ -1610,26 +1452,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const inp = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`);
       if (!inp) return;
       const graph = new FormulaGraph(inp, doc, w, { tab, row, w, doc }, null, { mode: "actionGraph" });
-      graph.open();
-    });
-  });
-
-  popup.querySelector("#wcfg-attr-graph-btn")?.addEventListener("click", () => {
-    const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc });
-    graph.open();
-  });
-
-  popup.querySelector("#wcfg-number-graph-btn")?.addEventListener("click", () => {
-    const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc }, null, { mode: "numberWidget" });
-    graph.open();
-  });
-
-  popup.querySelectorAll("[data-attr-group-graph]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const attrKey = btn.dataset.attrGroupGraph;
-      if (!attrKey) return;
-
-      const graph = new FormulaGraph(null, doc, w, { tab, row, w, doc, attrKey });
       graph.open();
     });
   });
@@ -1663,12 +1485,27 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       }
       if (type === "array")   val = String(val).split(",").map(s => s.trim()).filter(Boolean);
       if (type === "boolean") val = el.type === "checkbox" ? el.checked : val === "true";
+      if (type === "widgetvar" && el.type === "checkbox") val = el.checked;
       if (type === "json")    { try { val = JSON.parse(el.value || "[]"); } catch { val = []; } }
       changes[key] = val;
     });
     popup.querySelectorAll("select[data-field]").forEach(el => {
       changes[el.dataset.field] = el.value;
     });
+
+    // Widget-owned variables: manual value input writes the widget's own storage.
+    const _varDefaults = { ...(w.varDefaults ?? {}) };
+    const _varWrites = {};
+    for (const changeKey of Object.keys(changes)) {
+      if (!changeKey.startsWith("__wvar_")) continue;
+      const field = changeKey.slice(7);
+      const descriptor = (widgetVariables(w) ?? []).find(entry => entry.field === field);
+      const value = coerceWidgetValue(changes[changeKey], descriptor?.type ?? "text");
+      _varDefaults[field] = value;
+      _varWrites[widgetVarPath(w, field)] = value;
+      delete changes[changeKey];
+    }
+    if (Object.keys(_varWrites).length) changes.varDefaults = _varDefaults;
 
     if (editLanguage !== "base") {
       const translated = foundry.utils.deepClone(w);
@@ -1689,7 +1526,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     });
 
     const _hfUpdates = {};
-    if (_unknownPaths.length) {
+    if (false && _unknownPaths.length) {
       const listHtml = _unknownPaths.map(p => {
         const newKey = _hiddenFieldKeyFor(p.value);
         return `<li style="margin-bottom:4px"><code>${esc(p.value)}</code> &rarr; <code>system.hiddenFields.${esc(newKey)}</code></li>`;
@@ -1698,9 +1535,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         window: { title: "Create new data path?" },
         content: `
           <div style="padding:8px;font-size:12px;line-height:1.5">
-            <p style="margin:0 0 8px 0">The following path${_unknownPaths.length>1?"s do":" does"} not exist in this document's schema and would be silently dropped on save:</p>
+            <p style="margin:0 0 8px 0">The selected Database variable is unavailable:</p>
             <ul style="margin:0 0 8px 18px;padding:0">${listHtml}</ul>
-            <p style="margin:0;color:var(--sd-text-2,#aaa)">Create ${_unknownPaths.length>1?"them":"it"} automatically as <code>system.hiddenFields.&lt;name&gt;</code>? You can store and read freely from hidden fields.</p>
+            <p style="margin:0;color:var(--sd-text-2,#aaa)">Create missing Database definitions in System Settings first.</p>
           </div>`,
         rejectClose: false
       });
@@ -1718,7 +1555,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
 
     if (options?.embedded === true) {
       Object.assign(w, changes);
-      if (Object.keys(_hfUpdates).length) await doc.update(_hfUpdates);
+      const _embeddedUpdates = { ..._hfUpdates, ..._varWrites };
+      if (Object.keys(_embeddedUpdates).length) await doc.update(_embeddedUpdates);
       options.onSave?.(foundry.utils.deepClone(w));
       ui.notifications?.info?.(`Embedded widget "${w.label || w.type}" updated.`);
       _closePopup();
@@ -1763,7 +1601,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         if (defIdx !== -1) {
           if (changes.maxCount !== undefined) defs[defIdx].maxCount = Math.max(1, parseInt(changes.maxCount) || 1);
           if (changes.label    !== undefined) defs[defIdx].label    = changes.label || defs[defIdx].label;
-          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates, ...buildWidgetPathRegistryUpdate(doc, tabs) });
+          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates, ..._varWrites, ...buildWidgetPathRegistryUpdate(doc, tabs) });
         } else {
           defs.push({
             id:                sid,
@@ -1779,11 +1617,11 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
             accentColor:       "",
             changes:           []
           });
-          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates, ...buildWidgetPathRegistryUpdate(doc, tabs) });
+          await doc.update({ "system.customTabs": tabs, "system.slotDefinitions": defs, ..._hfUpdates, ..._varWrites, ...buildWidgetPathRegistryUpdate(doc, tabs) });
           ui.notifications?.info?.(`Slot definition "${sid}" created for this widget.`);
         }
       } else {
-        await doc.update({ "system.customTabs": tabs, ..._hfUpdates, ...buildWidgetPathRegistryUpdate(doc, tabs) });
+        await doc.update({ "system.customTabs": tabs, ..._hfUpdates, ..._varWrites, ...buildWidgetPathRegistryUpdate(doc, tabs) });
       }
 
       ui.notifications?.info?.(`Widget "${widget.label || widget.type}" saved.`);

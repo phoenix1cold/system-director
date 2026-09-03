@@ -1,3 +1,4 @@
+import { fieldChangeStoragePath, getValueDefinition } from "./value-database.mjs";
 
 
 const SOCKET_NS = "system.sd";
@@ -7,6 +8,8 @@ function _i18n(k, fb=k) { return game.i18n?.localize?.(k) ?? fb; }
 export class SDQuest {
 
   static _rewardLocks = new Set();
+  static _processedRequests = new Map();
+  static _remoteOps = new Set(["activate", "subtaskDone", "rewardClaim"]);
 
   static init() {
     Hooks.once("ready", () => {
@@ -17,8 +20,19 @@ export class SDQuest {
         const activeGMs = (game.users?.contents ?? []).filter(u => u.isGM && u.active);
         const primaryGM = activeGMs[0]?.id ?? null;
         if (primaryGM && game.user.id !== primaryGM) return;
+        const requester = game.users?.get?.(String(data.userId ?? ""));
+        if (!requester?.active || requester.isGM) return;
+        const requestId = String(data.requestId ?? "");
+        if (!requestId || SDQuest._processedRequests.has(requestId)) return;
+        SDQuest._processedRequests.set(requestId, Date.now());
+        for (const [id, at] of SDQuest._processedRequests) {
+          if (Date.now() - at > 300000) SDQuest._processedRequests.delete(id);
+        }
         try {
-          await SDQuest._applyOnGM(data.action ?? {}, data.ctx ?? {});
+          const action = data.action ?? {};
+          const ctx = { ...(data.ctx ?? {}), userId: requester.id };
+          if (!await SDQuest._canRemoteApply(action, ctx, requester)) return;
+          await SDQuest._applyOnGM(action, ctx);
         } catch (err) {
           console.error("SD | quest.action GM-side failed", err);
         }
@@ -64,7 +78,24 @@ export class SDQuest {
       ui.notifications?.warn(_i18n("SD.QuestLog.NoGMOnline","No GM online — quest action skipped."));
       return;
     }
-    game.socket.emit(SOCKET_NS, { type: "quest.action", action, ctx });
+    game.socket.emit(SOCKET_NS, {
+      type: "quest.action",
+      requestId: foundry.utils.randomID(16),
+      userId: game.user?.id ?? "",
+      action,
+      ctx: { ...ctx, userId: game.user?.id ?? "" }
+    });
+  }
+
+  static async _canRemoteApply(action, ctx, user) {
+    if (!action || action.type !== "questAction" || !SDQuest._remoteOps.has(action.op)) return false;
+    const actor = await SDQuest.resolveActor(action.actorRef ?? "this", ctx).catch(() => null);
+    if (actor && !actor.testUserPermission?.(user, "OWNER")) return false;
+    if (action.op === "rewardClaim") {
+      if (action.userId && !["this", user.id].includes(String(action.userId))) return false;
+      action.userId = user.id;
+    }
+    return true;
   }
 
 
@@ -332,7 +363,7 @@ export class SDQuest {
 
     for (const c of (reward.currency ?? [])) {
       try {
-        const path = String(c.path ?? "");
+        const path = fieldChangeStoragePath(c);
         if (!path) continue;
         const amount = await SDQuest._evaluateAmount(c.amount, actor);
         if (!Number.isFinite(amount)) { errors.push(`currency ${path}: invalid amount`); continue; }
@@ -374,7 +405,7 @@ export class SDQuest {
   }
 
   static async _applyPathChange(pc, actor) {
-    const path = String(pc.path ?? "");
+    const path = fieldChangeStoragePath(pc);
     if (!path || !actor) return;
     const amount = await SDQuest._evaluateAmount(pc.value, actor);
     const cur = Number(foundry.utils.getProperty(actor, path) ?? 0);

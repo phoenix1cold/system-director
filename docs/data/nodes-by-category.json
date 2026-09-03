@@ -39,6 +39,7 @@
   ],
   "Events": [
     "on_click",
+    "sheet_widget_event",
     "on_update",
     "on_create",
     "on_delete",
@@ -73,6 +74,7 @@
   ],
   "Get Data": [
     "get_path",
+    "get_value",
     "get_widget",
     "get_widget_path",
     "get_name",
@@ -97,6 +99,12 @@
     "get_interactable_actor_uuid",
     "get_interactable_config_uuid",
     "actor_token_info"
+  ],
+  "Database": [
+    "set_value",
+    "database_get",
+    "database_set",
+    "database_create"
   ],
   "Dice & Rolls": [
     "dice",
@@ -333,11 +341,6 @@
     "var_read",
     "var_write"
   ],
-  "Database": [
-    "database_get",
-    "database_set",
-    "database_create"
-  ],
   "Cards": [
     "act_card_shuffle",
     "act_card_draw",
@@ -413,7 +416,6 @@
     "wcfg_text",
     "wcfg_number",
     "wcfg_resource",
-    "wcfg_dice",
     "wcfg_toggle",
     "wcfg_slot",
     "wcfg_attribute",

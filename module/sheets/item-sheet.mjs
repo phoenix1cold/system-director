@@ -5,13 +5,20 @@ import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpers/effect-editor.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
+import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "../helpers/sheet-widget-events.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 import { persistWidgetValue } from "../helpers/widget-fields.mjs";
-import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate, getWidgetPathRows, releaseWidgetDataPath } from "../builder/widget-paths.mjs";
+import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "../builder/widget-paths.mjs";
+import { promptWidgetIdentity } from "../builder/widget-identity.mjs";
+import { getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
+
+function _sdDbOptions(selected="", scope="item") {
+  return `<option value="">Select Database variable…</option>`+getValueDefinitions(scope).map(v=>`<option value="${String(v.id).replace(/"/g,"&quot;")}" ${selected===v.id?"selected":""}>${String(v.name).replace(/</g,"&lt;")} · ${v.type} [${v.id}]</option>`).join("");
+}
 
 function _sdLoc(key, fallback, data = null) {
   try {
@@ -129,6 +136,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       openBuilder:       SDItemSheet._onOpenBuilder,
       openSheetTriggers: SDItemSheet._onOpenSheetTriggers,
       openDatabase:      SDItemSheet._onOpenDatabase,
+      openEffectApplier: SDItemSheet._onOpenEffectApplier,
       toggleEditMode:    SDItemSheet._onToggleEditMode,
       editImage:         SDItemSheet._onEditImage,
       useItem:           SDItemSheet._onUseItem,
@@ -149,8 +157,14 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   get title() { return this.document.name; }
 
   async _prepareContext(options) {
-    const base = await super._prepareContext(options);
-    return { ...base, item: this.document, system: this.document.system, isEditable: this.isEditable, editMode: this._editMode, isInventory: this.document.type === "inventory", isAbility: this.document.type === "ability" };
+    const base=await super._prepareContext(options);
+    const type=String(this.document.type??"");
+    const icons={ability:"fa-wand-sparkles",inventory:"fa-backpack",feature:"fa-star",class:"fa-graduation-cap",skilltree:"fa-diagram-project"};
+    return {
+      ...base,item:this.document,system:this.document.system,isEditable:this.isEditable,editMode:this._editMode,
+      isInventory:type==="inventory",isAbility:type==="ability",isClass:type==="class",isSkillTree:type==="skilltree",isFeature:type==="feature",
+      isEffectItem:type==="ability"||type==="inventory",itemTypeIcon:icons[type]??"fa-cube",databaseCount:getValueDefinitions("item").length
+    };
   }
 
   _onRender(context, options) {
@@ -231,15 +245,13 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     const customTabs = this.document.system.customTabs ?? [];
     const itemType   = this.document.type;
-    const sysTabs    = itemType === "ability"
-      ? ["_sys_attrs","_sys_graph","_sys_effects"]
-      : itemType === "class"
-        ? ["_sys_class"]
-        : itemType === "skilltree"
-          ? ["_sys_skilltree"]
-          : itemType === "inventory"
-            ? ["_sys_attrs","_sys_graph","_sys_effects"]
-            : ["_sys_attrs","_sys_graph"];
+    const sysTabs = itemType === "class"
+      ? ["_sys_class","_sys_graph"]
+      : itemType === "skilltree"
+        ? ["_sys_skilltree","_sys_graph"]
+        : (itemType === "ability" || itemType === "inventory")
+          ? ["_sys_graph","_sys_effects"]
+          : ["_sys_graph"];
     const allIds     = [...customTabs.map(t=>t.id), ...sysTabs];
     if (!this.tabGroups.sheet || !allIds.includes(this.tabGroups.sheet)) {
       this.tabGroups.sheet = customTabs[0]?.id ?? sysTabs[0];
@@ -281,12 +293,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     }
 
     const sysNavItems = [
-      ...(this.document.type === "class"     ? [{id:"_sys_class",    label:"<i class='fas fa-arrow-circle-up' style='margin-right:4px'></i>Levels"}]    : []),
+      ...(this.document.type === "class"     ? [{id:"_sys_class",label:"<i class='fas fa-arrow-circle-up' style='margin-right:4px'></i>Levels"}] : []),
       ...(this.document.type === "skilltree" ? [{id:"_sys_skilltree",label:"<i class='fas fa-project-diagram' style='margin-right:4px'></i>Skill Tree"}] : []),
-      ...(hidesExtras ? [] : [
-        {id:"_sys_attrs", label:"<i class='fas fa-eye-slash' style='margin-right:4px'></i>Hidden Fields"},
-        {id:"_sys_graph", label:"<i class='fas fa-project-diagram' style='margin-right:4px'></i>On Click"},
-      ]),
+      {id:"_sys_graph",label:"<i class='fas fa-diagram-project' style='margin-right:4px'></i>Item Blueprint"}
     ];
     if (this.document.type === "ability" || this.document.type === "inventory") {
       sysNavItems.push({id:"_sys_effects", label:"<i class='fas fa-sparkles' style='margin-right:4px'></i>Effects"});
@@ -385,11 +394,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     if (this.document.type === "class")     con.appendChild(this._buildClassPanel(active==="_sys_class"));
     if (this.document.type === "skilltree") con.appendChild(this._buildSkilltreePanel(active==="_sys_skilltree"));
-    if (this.document.type !== "class" && this.document.type !== "skilltree") {
-      con.appendChild(this._buildSysAttrsPanel(active==="_sys_attrs"));
-      con.appendChild(this._buildSysGraphPanel(active==="_sys_graph"));
-    }
-    con.appendChild(this._buildSysEffectsPanel(active==="_sys_effects"));
+    con.appendChild(this._buildSysGraphPanel(active==="_sys_graph"));
+    if (this.document.type === "ability" || this.document.type === "inventory") con.appendChild(this._buildSysEffectsPanel(active==="_sys_effects"));
   }
 
   _buildRow(tab, row) {
@@ -415,9 +421,12 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const span = Math.max(1, Math.min(parentVS ? 1 : rowCols, Number(w.span) || 1));
     const cell=document.createElement("div");
     cell.dataset.widgetId=w.id; cell.dataset.rowId=row.id; cell.dataset.tabId=tab.id;
-    if (parentVS) cell.dataset.parentVsId = parentVS.id;
-    cell.dataset.widgetIdx = idx;
-    cell.style.cssText=`grid-column:${parentVS ? "auto" : `span ${span}`};position:relative;min-width:0;`;
+    if (parentVS) {
+      cell.dataset.parentVsId=parentVS.id;
+      cell.classList.add("sd-vsection-child");
+    }
+    cell.dataset.widgetIdx=idx;
+    cell.style.cssText=`grid-column:${parentVS ? "1 / -1" : `span ${span}`};position:relative;min-width:0;${parentVS ? "width:100%;max-width:100%;box-sizing:border-box;" : ""}`;
 
     if (w.type === "vsection") {
       cell.innerHTML = "";
@@ -436,7 +445,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       cell.style.display = "none";
       return cell;
     }
-    cell.innerHTML = renderedHtml;
+    cell.innerHTML=renderedHtml;
+    this._wireSheetWidgetEvents(cell,w);
 
     if (this._editMode) {
       this._makeCellDraggable(cell, tab, row, w, parentVS);
@@ -445,10 +455,48 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     return cell;
   }
 
+  _wireSheetWidgetEvents(cell,w) {
+    const doc=this.document;
+    const emit=(eventName,sourceEvent=null,detail={})=>{
+      if(this._editMode)return;
+      const target=sourceEvent?.target??null;
+      let value;
+      if(Object.prototype.hasOwnProperty.call(detail,"value"))value=detail.value;
+      else if(target?.type==="checkbox")value=!!target.checked;
+      else if(target&&"value" in target)value=target.value;
+      else {
+        const variableId=String(w.variableId??w.path??w.pathValue??"").trim();
+        const def=getValueDefinition(variableId);
+        const valuePath=def?`system.values.${def.id}`:variableId;
+        try{value=valuePath?foundry.utils.getProperty(doc,valuePath):w.value??"";}catch{value=w.value??"";}
+      }
+      // Runs this item's own common Item Blueprint immediately and notifies
+      // every other listener through the sdSheetWidgetEvent hook.
+      return dispatchSheetWidgetEvent(doc,{
+        event:String(eventName||"click").toLowerCase(),value,
+        widgetKey:String(w.widgetKey||w.id||""),widgetId:String(w.id||""),
+        widgetLabel:String(w.label||""),widgetType:String(w.type||""),
+        elementKey:String(detail.elementKey??""),actorId:String(doc.actor?.id??""),
+        documentUuid:String(doc.uuid??""),sourceUuid:String(doc.uuid??"")
+      });
+    };
+    cell._sdEmitWidgetEvent=emit;
+    // Capture phase: inner controls (steppers, pills, rich text, widget builder
+    // elements) call stopPropagation, which used to swallow widget events.
+    cell.addEventListener("click",event=>{
+      if(event.target?.closest?.("[data-action='wbElement']"))return;
+      emit("click",event);
+      if(String(w.type)==="toggle")emit("toggle",event);
+    },true);
+    cell.addEventListener("input",event=>emit("input",event),true);
+    cell.addEventListener("change",event=>emit("change",event),true);
+  }
+
   _buildVSection(tab, row, vs) {
-    const box = document.createElement("div");
-    box.dataset.vsId = vs.id;
-    box.style.cssText = "display:flex;flex-direction:column;gap:6px;padding:6px;border:1px dashed var(--sd-accent-glow);border-radius:5px;background:rgba(123,104,238,.03);min-height:40px;";
+    const box=document.createElement("div");
+    box.className="sd-vsection-runtime";
+    box.dataset.vsId=vs.id;
+    box.style.cssText="display:flex;flex-direction:column;align-items:stretch;gap:6px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;padding:6px;border:1px dashed var(--sd-accent-glow);border-radius:5px;background:rgba(123,104,238,.03);min-height:40px;";
     if (vs.label) {
       const h=document.createElement("div"); h.textContent = vs.label;
       h.style.cssText="font-size:10px;font-weight:700;color:var(--sd-accent);text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px";
@@ -603,9 +651,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       row.style.cssText = "display:grid;grid-template-columns:minmax(220px,1fr) 48px 64px 24px;align-items:center;gap:4px;min-width:360px;";
       if (ed) {
         row.innerHTML = `
-          <input type="text" class="cls-fc-path" data-level-idx="${idx}" data-fc-idx="${j}" value="${e(fc.path)}"
-            placeholder="system.resources.hp.max"
-            style="width:100%;min-width:220px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-accent);font-size:9px;font-family:monospace;padding:2px 4px">
+          <select class="cls-fc-variable" data-level-idx="${idx}" data-fc-idx="${j}" >${_sdDbOptions(fc.variableId||variableIdForLegacyPath(fc.path),"actor")}</select>
           <select class="cls-fc-mode" data-level-idx="${idx}" data-fc-idx="${j}"
             style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px 2px">
             <option value="add" ${fc.mode==="add"?"selected":""}>+</option>
@@ -619,7 +665,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         row.innerHTML = row.innerHTML.replace('%', '');
       } else {
         const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
-        row.innerHTML = `<code style="font-size:9px;color:var(--sd-accent);flex:1">${e(fc.path)}</code>
+        row.innerHTML = `<code style="font-size:9px;color:var(--sd-accent);flex:1">${e(getValueDefinition(fc.variableId)?.name ?? variableIdForLegacyPath(fc.path) ?? "Database value")}</code>
           <span style="color:var(--sd-accent);font-weight:700;padding:0 3px">${sym}</span>
           <strong style="font-size:11px">${e(fc.value)}</strong>`;
       }
@@ -780,9 +826,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           row.style.cssText = "display:grid;grid-template-columns:minmax(220px,1fr) 48px 64px 24px;align-items:center;gap:4px;min-width:360px;";
           if (ed) {
             row.innerHTML = `
-              <input type="text" class="cls-choice-fc-path" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}" value="${e(fc.path ?? "")}"
-                placeholder="system.resources.hp.max"
-                style="width:100%;min-width:220px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px">
+              <select class="cls-choice-fc-variable" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}" >${_sdDbOptions(fc.variableId||variableIdForLegacyPath(fc.path),"actor")}</select>
               <select class="cls-choice-fc-mode" data-level-idx="${idx}" data-choice-idx="${g}" data-opt-idx="${j}"
                 style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 4px">
                 <option value="add"      ${fc.mode === "add"      ? "selected" : ""}>+</option>
@@ -796,7 +840,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
                 style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:10px;padding:0 1px">✕</button>`;
           } else {
             const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
-            row.innerHTML = `<code style="font-size:10px;color:var(--sd-text-2)">${e(fc.path ?? "")}</code>
+            row.innerHTML = `<code style="font-size:10px;color:var(--sd-text-2)">${e(getValueDefinition(fc.variableId)?.name ?? variableIdForLegacyPath(fc.path) ?? "Database value")}</code>
               <span style="font-size:10px;color:var(--sd-accent)">${sym}</span>
               <strong style="font-size:10px;color:var(--sd-text)">${e(fc.value ?? "")}</strong>`;
           }
@@ -874,7 +918,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const lvls = foundry.utils.deepClone(this.document.system.levels ?? []);
         const li   = parseInt(ev.currentTarget.dataset.levelIdx);
         lvls[li].fieldChanges ??= [];
-        lvls[li].fieldChanges.push({ path: "system.advancement.level", mode: "add", value: "1" });
+        lvls[li].fieldChanges.push({ variableId: getValueDefinitions("actor")[0]?.id ?? "", mode: "add", value: "1" });
         await this.document.update({ "system.levels": lvls });
       })
     );
@@ -886,7 +930,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       if (lvls[li]?.fieldChanges?.[fi]) { lvls[li].fieldChanges[fi][field] = el.value; }
       await this.document.update({ "system.levels": lvls });
     };
-    panel.querySelectorAll(".cls-fc-path").forEach(el => el.addEventListener("change", () => _fcSave(el, "path")));
+    panel.querySelectorAll(".cls-fc-variable").forEach(el => el.addEventListener("change", () => _fcSave(el, "variableId")));
     panel.querySelectorAll(".cls-fc-mode").forEach(el => el.addEventListener("change", () => _fcSave(el, "mode")));
     panel.querySelectorAll(".cls-fc-val" ).forEach(el => el.addEventListener("change", () => _fcSave(el, "value")));
 
@@ -1084,7 +1128,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const ch = lvls?.[li]?.choices?.[gi];
         if (!ch) return;
         ch.options ??= [];
-        ch.options.push({ path: "system.resources.hp.max", mode: "add", value: "1" });
+        ch.options.push({ variableId: getValueDefinitions("actor")[0]?.id ?? "", mode: "add", value: "1" });
         await this.document.update({ "system.levels": lvls });
       })
     );
@@ -1099,7 +1143,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       opt[field] = el.value;
       await this.document.update({ "system.levels": lvls });
     };
-    panel.querySelectorAll(".cls-choice-fc-path").forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "path")));
+    panel.querySelectorAll(".cls-choice-fc-variable").forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "variableId")));
     panel.querySelectorAll(".cls-choice-fc-mode").forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "mode")));
     panel.querySelectorAll(".cls-choice-fc-val" ).forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "value")));
   }
@@ -1359,8 +1403,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
           const fcRows = (node.fieldChanges ?? []).map((fc, j) => `
             <div class="stn-fc-row sd-field-change-row" style="display:grid;grid-template-columns:minmax(260px,1fr) 48px 64px 28px;align-items:center;gap:4px;margin-bottom:5px;min-width:430px">
-              <input type="text" class="stn-fc-path" value="${escAttr(fc.path)}" placeholder="system.advancement.level"
-                style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;font-family:monospace;padding:2px 4px">
+              <select class="stn-fc-variable" style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;padding:2px 4px">${_sdDbOptions(fc.variableId||variableIdForLegacyPath(fc.path),"actor")}</select>
               <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
                 <option value="add" ${fc.mode==="add"?"selected":""}>+</option>
                 <option value="set" ${fc.mode==="set"?"selected":""}>=</option>
@@ -1407,10 +1450,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
                 node.color      = root.querySelector("#stn-color")?.value ?? "";
                 const fcs = [];
                 root.querySelectorAll("#stn-fcs .stn-fc-row").forEach(row => {
-                  const path  = row.querySelector(".stn-fc-path")?.value?.trim();
+                  const path  = row.querySelector(".stn-fc-variable")?.value?.trim();
                   const mode  = row.querySelector(".stn-fc-mode")?.value ?? "add";
                   const value = row.querySelector(".stn-fc-val")?.value ?? "0";
-                  if (path) fcs.push({ path, mode, value });
+                  if (path) fcs.push({ variableId:path, mode, value });
                 });
                 node.fieldChanges = fcs;
                 node.effects      = workingEffects.map(ef => { const c = { ...ef }; delete c._id; return c; });
@@ -1426,8 +1469,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
                 div.className = "stn-fc-row";
                 div.style.cssText = "display:grid;grid-template-columns:minmax(260px,1fr) 48px 64px 28px;align-items:center;gap:4px;margin-bottom:5px;min-width:430px";
                 div.innerHTML = `
-                  <input type="text" class="stn-fc-path" value="system.advancement.level" placeholder="system...."
-                    style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;font-family:monospace;padding:2px 4px">
+                  <select class="stn-fc-variable" style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;padding:2px 4px">${_sdDbOptions(getValueDefinitions("actor")[0]?.id??"","actor")}</select>
                   <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
                     <option value="add">+</option><option value="set">=</option><option value="multiply">×</option>
                   </select>
@@ -1516,174 +1558,54 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     return p;
   }
 
-    _buildSysAttrsPanel(isActive) {
-    const p=this._mkSysPanel("_sys_attrs",isActive);
-    const e=this._e.bind(this); const sys=this.document.system; const ed=this.isEditable;
-    const locked  = LOCKED_HIDDEN_FIELDS[this.document.type] ?? [];
-    const lockedKeys = new Set(locked.map(f=>f.key));
-    const stored  = sys.hiddenFields ?? {};
-    const _structuredKeys = (this.document.type === "inventory")
-      ? new Set(["equippable"])
-      : new Set();
-    const userRows = Object.entries(stored).filter(([k])=>!lockedKeys.has(k) && !_structuredKeys.has(k));
-    const hfEmpty  = locked.length === 0 && userRows.length === 0;
-    const widgetPaths = getWidgetPathRows(this.document);
-
-    const renderLockedRow = ({key,placeholder}) => {
-      const v = stored[key] ?? "";
-      return `<div class="hf-row" data-locked="1"><div style="flex:0 0 130px;position:relative">
-      <input type="text" value="${e(key)}" disabled title="Required field — cannot be renamed or removed" style="font-family:monospace;font-size:11px;width:100%;background:#141420;border:1px solid var(--sd-bg-3);border-radius:4px;color:var(--sd-accent);padding:3px 6px;box-sizing:border-box;cursor:not-allowed">
-      <i class="fas fa-lock" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:9px;color:var(--sd-border)" title="Locked"></i>
-    </div>
-    <input type="text" data-sys-hf-val="${e(key)}" value="${e(v)}" placeholder="${e(placeholder??"")}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px;min-width:0" ${!ed?"disabled":""}>
-    <button type="button" data-sys-action="copyHiddenFieldPath" data-key="${e(key)}" title="Copy path: system.hiddenFields.${e(key)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
-  </div>`;
-    };
-    const renderUserRow = ([k,v]) =>
-      `<div class="hf-row"><div style="flex:0 0 130px;position:relative">
-      <input type="text" data-sys-hf-key="${e(k)}" value="${e(k)}" style="font-family:monospace;font-size:11px;width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-accent);padding:3px 6px;box-sizing:border-box" ${!ed?"disabled":""}>
-    </div>
-    <input type="text" data-sys-hf-val="${e(k)}" value="${e(v)}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px;min-width:0" ${!ed?"disabled":""}>
-    <button type="button" data-sys-action="copyHiddenFieldPath" data-key="${e(k)}" title="Copy path: system.hiddenFields.${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px" tabindex="-1"><i class="fas fa-copy"></i></button>
-    ${ed?`<button data-sys-action="removeHiddenField" data-key="${e(k)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:13px;padding:0 5px">✕</button>`:""}
-  </div>`;
-
-    const isInv = this.document.type === "inventory";
-    const da=sys.declaredAttrs??[];
-
-    const _curList = (Array.isArray(CONFIG?.SD?.currencies) && CONFIG.SD.currencies.length)
-      ? CONFIG.SD.currencies
-      : [{ key: "primary", label: "Gold" }, { key: "secondary", label: "Silver" }, { key: "tertiary", label: "Copper" }];
-    const _catSeen = new Set();
-    try {
-      for (const it of (game.items ?? [])) {
-        if (it.type === "inventory" && it.system?.category) _catSeen.add(String(it.system.category));
-      }
-      for (const a of (game.actors ?? [])) {
-        for (const it of (a.items ?? [])) {
-          if (it.type === "inventory" && it.system?.category) _catSeen.add(String(it.system.category));
-        }
-      }
-    } catch (_) {  }
-    const _catSuggestions = [..._catSeen].filter(Boolean).sort();
-    const _datalistId = "sd-inv-cat-suggest";
-    const curCat   = String(sys.category ?? "");
-    const curPrice = Number(sys.price ?? 0);
-    const curItemCurrency = String(sys.currency ?? _curList[0]?.key ?? "primary");
-
-    p.innerHTML=`
-${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option value="${e(c)}">`).join("")}</datalist>
-<div class="sys-section" style="margin-bottom:12px">
-  <div class="sys-section-header"><i class="fas fa-shield-halved"></i> ${e(game.i18n?.localize?.("SD.InventoryFlags") ?? "Inventory")}</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 12px;padding:4px 0;align-items:end">
-    <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2)">
-      <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(game.i18n?.localize?.("SD.Category") ?? "Category")}</span>
-      <input type="text" data-sys-field="category" list="${_datalistId}" value="${e(curCat)}" placeholder="${e(game.i18n?.localize?.("SD.NoCategory") ?? "no category")}" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px">
-    </label>
-    <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2)">
-      <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(game.i18n?.localize?.("SD.Price") ?? "Price")}</span>
-      <input type="number" min="0" step="any" data-sys-field="price" value="${curPrice}" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 7px">
-    </label>
-    <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-2)">
-      <span style="text-transform:uppercase;letter-spacing:.04em;color:var(--sd-text-3);font-size:10px">${e(game.i18n?.localize?.("SD.Currency") ?? "Currency")}</span>
-      <select data-sys-field="currency" ${!ed?"disabled":""} style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:3px 6px">
-        ${_curList.map(c => `<option value="${e(c.key)}" ${c.key===curItemCurrency?"selected":""}>${e(c.label ?? c.key)}</option>`).join("")}
-      </select>
-    </label>
-  </div>
-  <div style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:6px 0 0;border-top:1px solid var(--sd-border);margin-top:8px">
-    <label style="display:flex;align-items:center;gap:6px;cursor:${ed?"pointer":"not-allowed"};font-size:12px;color:var(--sd-text)">
-      <input type="checkbox" data-sys-hf-val="equippable" ${(sys.hiddenFields?.equippable ?? sys.equippable)?"checked":""} ${!ed?"disabled":""} style="accent-color:var(--sd-accent);width:15px;height:15px;cursor:inherit">
-      ${e(game.i18n?.localize?.("SD.Equippable") ?? "Equippable")}
-    </label>
-  </div>
-</div>
-` : ""}
-<div class="sys-section">
-  <div class="sys-section-header"><i class="fas fa-eye-slash"></i> Hidden Fields
-    ${ed?`<button data-sys-action="addHiddenField" style="margin-left:auto" class="sys-add-btn"><i class="fas fa-plus"></i> Add</button>`:""}
-  </div>
-  <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.6">GM-only key/value pairs. Path: <code style="background:var(--sd-bg);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--sd-accent)">system.hiddenFields.name</code>${locked.length?` — <span style="color:var(--sd-accent)">locked fields (<i class="fas fa-lock" style="font-size:9px"></i>) are required for this item type</span>`:""}</p>
-  ${hfEmpty?`<div style="color:var(--sd-text-3);font-size:11px;padding:8px 0;font-style:italic">No hidden fields yet.</div>`:`<div style="display:flex;flex-direction:column;gap:4px">
-    ${locked.map(renderLockedRow).join("")}
-    ${userRows.map(renderUserRow).join("")}
-  </div>`}
-</div>
-<div class="sys-section" style="margin-top:12px">
-  <div class="sys-section-header"><i class="fas fa-route"></i> Widget Data Paths</div>
-  <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.6">Every created widget reserves its own path. Removed widgets keep the reservation until you delete it here; then the next matching widget can reuse that number.</p>
-  ${widgetPaths.length?`<div style="display:flex;flex-direction:column;gap:4px">
-    ${widgetPaths.map(entry=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--sd-bg)">
-      <code style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sd-accent);font-size:10px" title="${e(entry.path)}">${e(entry.path)}</code>
-      <span style="font-size:9px;color:${entry.inUse?"var(--sd-stamina)":"var(--sd-text-3)"};white-space:nowrap">${entry.inUse?"in use":"unused"}</span>
-      <button type="button" data-sys-action="copyWidgetPath" data-path="${e(entry.path)}" title="Copy path" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer"><i class="fas fa-copy"></i></button>
-      ${ed?`<button type="button" data-sys-action="removeWidgetPath" data-path="${e(entry.path)}" ${entry.inUse?"disabled":""} title="${entry.inUse?"Remove the widget before deleting this path":"Delete reservation and stored value"}" style="background:none;border:none;color:${entry.inUse?"var(--sd-text-3)":"var(--sd-hp)"};cursor:${entry.inUse?"not-allowed":"pointer"};opacity:${entry.inUse?".35":"1"}"><i class="fas fa-trash"></i></button>`:""}
-    </div>`).join("")}
-  </div>`:`<div style="color:var(--sd-text-3);font-size:11px;padding:8px 0;font-style:italic">No widget data paths yet.</div>`}
-</div>
-<div class="sys-section" style="margin-top:12px">
-  <div class="sys-section-header"><i class="fas fa-tag"></i> Declared Attributes
-    ${ed?`<button data-sys-action="addDeclaredAttr" style="margin-left:auto" class="sys-add-btn"><i class="fas fa-plus"></i> Add</button>`:""}
-  </div>
-  <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 8px;line-height:1.6">Named path references — used in slot filters and button conditions.</p>
-  ${da.length?`<div style="display:flex;flex-direction:column;gap:4px">
-    ${da.map(a=>`<div style="display:flex;gap:5px;align-items:center">
-      <input type="text" data-sys-da-name="${e(a.id)}" value="${e(a.name??a.id)}" placeholder="attr_name" style="flex:0 0 100px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-accent);font-size:11px;font-family:monospace;padding:3px 6px;box-sizing:border-box" ${!ed?"disabled":""}>
-      <input type="text" data-sys-da-path="${e(a.id)}" value="${e(a.path??"")}" placeholder="system.hiddenFields.key" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 6px;min-width:0" ${!ed?"disabled":""}>
-      ${ed?`<button data-sys-action="removeDeclaredAttr" data-attr-id="${e(a.id)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:13px;padding:0 5px">✕</button>`:""}
-    </div>`).join("")}
-  </div>`:`<div style="color:var(--sd-text-3);font-size:11px;padding:8px 0;font-style:italic">No declared attributes yet.</div>`}
-</div>`;
-    return p;
-  }
-
   _buildSysGraphPanel(isActive) {
-    const p = this._mkSysPanel("_sys_graph", isActive);
-    const sys = this.document.system;
-    const hasGraph = !!(sys.onClickGraph?.nodes?.length);
-    const hasFormula = !!(sys.onClickFormula && sys.onClickFormula !== "0");
-
-    p.innerHTML = `
-      <div class="sys-section">
-        <div class="sys-section-header">
-          <i class="fas fa-project-diagram"></i> On Click Graph
-        </div>
-        <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 10px;line-height:1.6">
-          Define what happens when this item is <strong>Used</strong> — from inventory, item slots, or the Use button.
-          Build a node graph with an <strong>On Click</strong> trigger node.
-        </p>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px 0">
-          <div style="font-size:11px;color:${hasGraph ? 'var(--sd-stamina)' : '#555'};display:flex;align-items:center;gap:6px">
-            <i class="fas fa-${hasGraph ? 'check-circle' : 'circle'}" style="font-size:14px"></i>
-            ${hasGraph ? `Graph configured (${sys.onClickGraph.nodes.length} nodes)` : 'No graph configured — uses default roll behaviour'}
-          </div>
-          <button type="button" data-sys-action="openOnClickGraph"
-            style="padding:8px 20px;background:var(--sd-accent-2);border:1px solid var(--sd-accent);border-radius:5px;color:var(--sd-accent-text,#fff);cursor:pointer;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px">
-            <i class="fas fa-project-diagram"></i>
-            ${hasGraph ? 'Edit On Click Graph' : 'Create On Click Graph'}
-          </button>
-          ${hasGraph ? `<button type="button" data-sys-action="clearOnClickGraph"
-            style="padding:5px 14px;background:transparent;border:1px solid #6a2a2a;border-radius:4px;color:#c04040;cursor:pointer;font-size:11px">
-            <i class="fas fa-trash" style="margin-right:4px"></i>Clear Graph
-          </button>` : ''}
+    const p=this._mkSysPanel("_sys_graph",isActive);
+    const common=this.document.system.sdTriggerGraph??{};
+    const nodeCount=Number(common?._graphData?.nodes?.length??0);
+    const events=common?._events&&typeof common._events==="object"?Object.values(common._events):[];
+    const eventCount=events.filter(ev=>Array.isArray(ev?.actions)?ev.actions.length:Array.isArray(ev)).length;
+    const hasLegacy=!!this.document.system.onClickGraph?.nodes?.length;
+    // "Use" is just the On Click entry node inside the common graph. Surfacing
+    // it explicitly is what makes Use configurable on ability/inventory items.
+    const hasUseNode=(common?._graphData?.nodes??[]).some(n=>n?.type==="on_click");
+    const useActions=common?._events?.onClick;
+    const useWired=Array.isArray(useActions)?useActions.length>0:(useActions?.actions?.length>0);
+    const useState=useWired?"ready":hasUseNode?"empty":"none";
+    const useCount=Array.isArray(useActions)?useActions.length:Number(useActions?.actions?.length??0);
+    // game.i18n.localize returns the key itself when a translation is missing,
+    // so fall back to English rather than printing "SD.Item.UseAdd" in the UI.
+    const L=(key,fallback)=>{const v=game.i18n?.localize?.(key);return(!v||v===key)?fallback:v;};
+    const LF=(key,data,fallback)=>{const v=game.i18n?.format?.(key,data);return(!v||v===key)?fallback:v;};
+    const useText=useState==="ready"?LF("SD.Item.UseReady",{count:useCount},`Use: configured and ready (${useCount})`)
+      :useState==="empty"?L("SD.Item.UseEmpty","Use: entry added, nothing connected yet")
+      :L("SD.Item.UseNone","Use: not configured \u2014 clicking Use does nothing");
+    p.innerHTML=`
+      <div class="sys-section sd-item-blueprint-panel">
+        <div class="sys-section-header"><i class="fas fa-diagram-project"></i> Item Blueprint</div>
+        <p style="font-size:11px;color:var(--sd-text-3);margin:0 0 10px;line-height:1.6">One common graph for this Item: Use/On Click, ordinary widget events, lifecycle events, Database variables and effects. Ability, Inventory, Class, Feature and Skill Tree use the same graph model.</p>
+        <div class="sd-item-blueprint-status"><i class="fas fa-${nodeCount?"check-circle":"circle"}"></i><span>${nodeCount?`Common graph configured (${nodeCount} nodes, ${eventCount} active events)`:hasLegacy?"Legacy On Click graph will be migrated when opened":"No common Item Blueprint configured"}</span></div>
+        <div class="sd-item-blueprint-status sd-item-use-status is-${useState}"><i class="fas fa-${useState==="ready"?"bolt":useState==="empty"?"circle-half-stroke":"circle"}"></i><span>${useText}</span></div>
+        <div class="sd-item-blueprint-actions">
+          <button type="button" data-sys-action="addUseOnClick" title="Add the Use / On Click entry to this item's graph" aria-label="Add Use On Click on Graph"><i class="fas fa-bolt"></i><span>${hasUseNode?L("SD.Item.UseOpen","Open Use / On Click"):L("SD.Item.UseAdd","Add Use / On Click on Graph")}</span></button>
+          <button type="button" data-sys-action="openItemBlueprint" title="Open common Item Blueprint" aria-label="Open common Item Blueprint"><i class="fas fa-diagram-project"></i><span>${nodeCount?"Edit Item Blueprint":"Create Item Blueprint"}</span></button>
+          ${nodeCount?`<button type="button" class="danger" data-sys-action="clearItemBlueprint" title="Clear common Item Blueprint" aria-label="Clear common Item Blueprint"><i class="fas fa-trash"></i></button>`:""}
         </div>
       </div>`;
-
-    p.querySelector("[data-sys-action='openOnClickGraph']")?.addEventListener("click", async () => {
-      const { FormulaGraph } = await import("../builder/formula-graph.mjs");
-      const graph = new FormulaGraph(null, this.document, null, null, { doc: this.document });
-      graph.open();
+    p.querySelector("[data-sys-action='addUseOnClick']")?.addEventListener("click",async()=>{
+      await this._ensureCommonItemGraph();
+      await this._ensureUseOnClickNode();
+      const {FormulaGraph}=await import("../builder/formula-graph.mjs");
+      new FormulaGraph(null,this.document,null,null,null,{mode:"sheetTrigger"}).open();
     });
-    p.querySelector("[data-sys-action='clearOnClickGraph']")?.addEventListener("click", async () => {
-      const ok = await foundry.applications.api.DialogV2.confirm({
-        window: { title: "Clear Graph" },
-        content: "<p>Clear the On Click graph?</p>"
-      }).catch(() => false);
-      if (ok) {
-        await this.document.update({ "system.onClickGraph": {}, "system.onClickFormula": "0" });
-      }
+    p.querySelector("[data-sys-action='openItemBlueprint']")?.addEventListener("click",async()=>{
+      await this._ensureCommonItemGraph();
+      const {FormulaGraph}=await import("../builder/formula-graph.mjs");
+      new FormulaGraph(null,this.document,null,null,null,{mode:"sheetTrigger"}).open();
     });
-
+    p.querySelector("[data-sys-action='clearItemBlueprint']")?.addEventListener("click",async()=>{
+      const ok=await foundry.applications.api.DialogV2.confirm({window:{title:"Clear Item Blueprint"},content:"<p>Clear the common Item Blueprint?</p>"}).catch(()=>false);
+      if(ok)await this.document.update({"system.sdTriggerGraph":{}},{sdSkipEventBus:true});
+    });
     return p;
   }
 
@@ -1750,14 +1672,14 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         </div>
         <div style="margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-            <span style="font-size:10px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.05em" title="When an item is dropped into this slot, ActiveEffect(s) are created on the parent actor. Each row reads a value from the slotted item's field and writes it to an actor field via Foundry ActiveEffect.modes."><i class="fas fa-bolt"></i> Changes if Equipped</span>
+            <span style="font-size:10px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.05em" title="When an item is equipped, each row maps an Item Database variable to an Actor Database variable."><i class="fas fa-bolt"></i> Changes if Equipped</span>
             ${ed?`<button data-sys-action="addSlotChange" data-slot-idx="${idx}" style="background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:1px 7px">+ Add</button>`:""}
           </div>
-          ${(def.changes??[]).length===0?`<div style="font-size:10px;color:var(--sd-text-3);opacity:.6;padding:2px 4px;font-style:italic">No changes yet. Add pairs of "item field → actor field" to synthesize ActiveEffects while equipped.</div>`:""}
+          ${(def.changes??[]).length===0?`<div style="font-size:10px;color:var(--sd-text-3);opacity:.6;padding:2px 4px;font-style:italic">No changes yet. Add Item variable → Actor variable mappings.</div>`:""}
           ${(def.changes??[]).map((ch,cIdx)=>`<div style="display:grid;grid-template-columns:1fr 8px 1fr 86px 52px auto;gap:4px;align-items:center;margin-bottom:3px;background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:4px;padding:3px 6px">
-            <input type="text" data-sys-slot-change="itemFieldPath" data-slot-idx="${idx}" data-change-idx="${cIdx}" value="${e(ch.itemFieldPath??'')}" placeholder="system.hiddenFields.bonus" title="Item field path (what to read)" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-family:monospace;padding:2px 5px;min-width:0" ${!ed?"disabled":""}>
+            <select data-sys-slot-change="itemVariableId" data-slot-idx="${idx}" data-change-idx="${cIdx}" title="Item Database variable" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);padding:2px 5px;min-width:0" ${!ed?"disabled":""}>${_sdDbOptions(ch.itemVariableId||variableIdForLegacyPath(ch.itemFieldPath),"item")}</select>
             <span style="color:var(--sd-text-3);font-size:10px;text-align:center">→</span>
-            <input type="text" data-sys-slot-change="actorFieldPath" data-slot-idx="${idx}" data-change-idx="${cIdx}" value="${e(ch.actorFieldPath??'')}" placeholder="system.attack.bonus" title="Actor field path (what to modify)" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-family:monospace;padding:2px 5px;min-width:0" ${!ed?"disabled":""}>
+            <select data-sys-slot-change="actorVariableId" data-slot-idx="${idx}" data-change-idx="${cIdx}" title="Actor Database variable" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);padding:2px 5px;min-width:0" ${!ed?"disabled":""}>${_sdDbOptions(ch.actorVariableId||variableIdForLegacyPath(ch.actorFieldPath),"actor")}</select>
             <select data-sys-slot-change="mode" data-slot-idx="${idx}" data-change-idx="${cIdx}" title="Effect mode" style="font-size:11px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);padding:2px" ${!ed?"disabled":""}>
               ${[[2,"Add"],[1,"Multiply"],[5,"Override"],[4,"Upgrade"],[3,"Downgrade"],[0,"Custom"]].map(([v,l])=>`<option value="${v}" ${Number(ch.mode)===v?"selected":""}>${l}</option>`).join("")}
             </select>
@@ -1773,7 +1695,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           ${contents.map((c,ci)=>`<div draggable="true" data-slot-item-drag data-slot-id="${e(def.id)}" data-slot-index="${ci}" data-item-id="${e(c._id ?? c.id ?? '')}" data-item-uuid="${e(c._sourceUuid ?? c.uuid ?? '')}" data-item-name="${e(c.name ?? '')}" style="display:flex;align-items:center;gap:6px;padding:3px 2px;border-bottom:1px solid var(--sd-bg);cursor:grab">
             <img src="${e(c.img??'icons/svg/item-bag.svg')}" style="width:20px;height:20px;object-fit:cover;border-radius:3px;flex-shrink:0">
             <span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(c.name??'?')}</span>
-            ${Object.entries(c.system?.hiddenFields??{}).map(([k,v])=>`<span style="font-size:10px;color:var(--sd-text-3);font-family:monospace;flex-shrink:0">${e(k)}=${e(String(v))}</span>`).join('')}
+            ${Object.entries(c.system?.values??{}).map(([k,v])=>`<span style="font-size:10px;color:var(--sd-text-3);font-family:monospace;flex-shrink:0">${e(getValueDefinition(k)?.name??k)}=${e(String(v))}</span>`).join('')}
             ${ed&&def.removable?`<button data-sys-action="removeFromSlot" data-slot-id="${e(def.id)}" data-slot-idx="${ci}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:12px;padding:0 4px" title="Remove">⏏</button>`:""}
           </div>`).join("")}
         </div>
@@ -1980,6 +1902,15 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
   }
 
   _wireAllInteractions() {
+    const widgetForElement=el=>{
+      const widgetId=el?.closest?.("[data-widget-id]")?.dataset?.widgetId;
+      if(!widgetId)return null;
+      for(const tab of (this.document.system.customTabs??[]))for(const row of (tab.rows??[])){
+        const found=this._findWidgetDeep(row.widgets,widgetId);
+        if(found)return found;
+      }
+      return null;
+    };
     const root=this.element; if (!root) return;
     const con=root.querySelector(".sd-panels-container"); if (!con) return;
     if (con._sdWired) { this._wirePerElementInteractions(con); return; }
@@ -2303,7 +2234,8 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
 
     con.querySelectorAll("[data-action='widgetRoll']").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
-        let formula = btn.dataset.formulaRaw || btn.dataset.formula || "1d20";
+        let formula = btn.dataset.formulaRaw || btn.dataset.formula || "";
+        if (!String(formula).trim()) return;
         if (formula.trim().startsWith("[")) {
           try {
             const { ButtonExecutor } = await import("../helpers/button-executor.mjs");
@@ -2334,12 +2266,14 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     });
 
     con.querySelectorAll("[data-action='widgetSelectPill']").forEach(el => {
-      const handler = async ev => {
+      const handler=async ev=>{
         ev.stopPropagation();
-        const path = el.dataset.path;
-        const val  = el.dataset.value ?? el.value ?? "";
-        if (!path && !w.widgetKey) return;
-        await persistWidgetValue(this.document, w, val);
+        const w=widgetForElement(el);
+        const path=el.dataset.path;
+        const val=el.dataset.value??el.value??"";
+        if(!w||(!path&&!w.widgetKey))return;
+        await persistWidgetValue(this.document,w,val);
+        el.closest("[data-widget-id]")?._sdEmitWidgetEvent?.(el.tagName==="INPUT"?"change":"click",ev,{value:val});
       };
       el.addEventListener(el.tagName === "INPUT" ? "change" : "click", handler);
     });
@@ -2389,26 +2323,22 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
         await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.document.actor }), flavor: btn.dataset.flavor });
       });
     });
-    con.querySelectorAll("[data-action='wbElement']").forEach(el => {
-      el.addEventListener("click", ev => {
-        ev.stopPropagation();
-        const name = el.dataset.eventName ?? "";
-        if (!name) return;
-        try {
-          Hooks.callAll("sdCustomEvent", {
-            name,
-            scope: "actor",
-            actorId: this.document.actor?.id ?? this.document?.id ?? "",
-            sourceUuid: this.document?.uuid ?? "",
-            payload: ""
-          });
-        } catch (e) { console.error("SD | wbElement event failed:", e); }
+    con.querySelectorAll("[data-action='wbElement']").forEach(el=>{
+      el.addEventListener("click",ev=>{
+        ev.preventDefault();ev.stopPropagation();
+        const name=String(el.dataset.eventName??"").trim();
+        const elementKey=String(el.dataset.elementKey??name.replace(/^On Click\s+/,"")).trim();
+        if(!name&&!elementKey)return;
+        el.closest("[data-widget-id]")?._sdEmitWidgetEvent?.("click",ev,{value:elementKey,elementKey});
+        try{Hooks.callAll("sdCustomEvent",{name:name||`On Click ${elementKey}`,scope:this.document.actor?"actor":"item",actorId:this.document.actor?.id??"",sourceUuid:this.document.uuid??"",payload:elementKey});}
+        catch(e){console.error("SD | wbElement event failed:",e);}
       });
     });
 
     con.querySelectorAll("input[data-path], select[data-path], textarea[data-path], .widget input[name], .widget select[name], .widget textarea[name]").forEach(inp=>{
-      inp.addEventListener("change", async ()=>{
-        const path = inp.dataset.path || inp.getAttribute("name");
+      inp.addEventListener("change",async()=>{
+        const w=widgetForElement(inp);
+        const path=inp.dataset.path||inp.getAttribute("name");
         if (!path || path.startsWith("__")) return;
         let val;
         if (inp.type === "checkbox") val = inp.checked;
@@ -2416,8 +2346,8 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
           const n = Number(inp.value);
           val = Number.isFinite(n) ? n : 0;
         } else val = inp.value;
-        if (String(w.type ?? "") === "select") await persistWidgetValue(this.document, w, val);
-        else await this.document.update({ [path]: val });
+        if(w&&String(w.type??"")==="select")await persistWidgetValue(this.document,w,val);
+        else await this.document.update({[path]:val});
       });
     });
 
@@ -2759,33 +2689,6 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     const a=btn.dataset.sysAction;
     const lockedKeys = new Set(_lockedKeysForType(this.document.type));
     switch(a) {
-      case "addHiddenField":   { const hf=this.document.system.hiddenFields??{}; let n=Object.keys(hf).length+1; let k=`field${n}`; while(hf[k]!==undefined || lockedKeys.has(k)){n++;k=`field${n}`;} await this.document.update({[`system.hiddenFields.${k}`]:""}); break; }
-      case "copyHiddenFieldPath": {
-        const path = `system.hiddenFields.${btn.dataset.key}`;
-        try { await navigator.clipboard.writeText(path); ui.notifications.info(`Copied: ${path}`); } catch { ui.notifications.warn("Could not copy to clipboard"); }
-        break;
-      }
-      case "removeHiddenField":{
-        if (lockedKeys.has(btn.dataset.key)) {
-          ui.notifications.warn(`"${btn.dataset.key}" is a required field for ${this.document.type} items and cannot be removed.`);
-          break;
-        }
-        await this.document.update({[`system.hiddenFields.-=${btn.dataset.key}`]:null}); break;
-      }
-      case "copyWidgetPath": {
-        const path = btn.dataset.path;
-        try { await navigator.clipboard.writeText(path); ui.notifications.info(`Copied: ${path}`); } catch { ui.notifications.warn("Could not copy to clipboard"); }
-        break;
-      }
-      case "removeWidgetPath": {
-        const path = btn.dataset.path;
-        if (btn.disabled) { ui.notifications.warn("This path is still used by a widget."); break; }
-        const ok = await foundry.applications.api.DialogV2.confirm({window:{title:"Delete Widget Data Path"},content:`<p>Delete <code>${this._e(path)}</code> and its stored value? The next matching widget can reuse this path.</p>`}).catch(()=>false);
-        if (!ok) break;
-        const result = await releaseWidgetDataPath(this.document, path);
-        if (!result.ok) ui.notifications.warn(result.reason === "in-use" ? "This path is still used by a widget." : "Could not delete widget path.");
-        break;
-      }
       case "addDeclaredAttr":  { const attrs=foundry.utils.deepClone(this.document.system.declaredAttrs??[]); attrs.push({id:foundry.utils.randomID(8),name:`attr${attrs.length+1}`,path:""}); await this.document.update({"system.declaredAttrs":attrs}); break; }
       case "removeDeclaredAttr":{ const attrs=(this.document.system.declaredAttrs??[]).filter(a=>a.id!==btn.dataset.attrId); await this.document.update({"system.declaredAttrs":attrs}); break; }
       case "addSlot":          { const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d.push({id:`slot${d.length+1}`,label:`Slot ${d.length+1}`,allowedTypes:[],allowedCategories:[],attrFilters:[],maxCount:1,displayMode:"compact",removable:true,consumeOnRemove:false,placeholderIcon:"",accentColor:"",changes:[]}); await this.document.update({"system.slotDefinitions":d}); break; }
@@ -2851,7 +2754,7 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
       }
       case "addAttrFilter":    { const si=parseInt(btn.dataset.slotIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d[si].attrFilters??=[]; d[si].attrFilters.push({id:foundry.utils.randomID(8),fieldPath:"",fieldLabel:"",operator:"==",expectedValue:""}); await this.document.update({"system.slotDefinitions":d}); break; }
       case "removeAttrFilter": { const si=parseInt(btn.dataset.slotIdx),fi=parseInt(btn.dataset.filterIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); d[si].attrFilters.splice(fi,1); await this.document.update({"system.slotDefinitions":d}); break; }
-      case "addSlotChange":    { const si=parseInt(btn.dataset.slotIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); if(!d[si]) break; d[si].changes??=[]; d[si].changes.push({id:foundry.utils.randomID(8),itemFieldPath:"",actorFieldPath:"",mode:2,priority:20}); await this.document.update({"system.slotDefinitions":d}); break; }
+      case "addSlotChange":    { const si=parseInt(btn.dataset.slotIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); if(!d[si]) break; d[si].changes??=[]; d[si].changes.push({id:foundry.utils.randomID(8),itemVariableId:getValueDefinitions("item")[0]?.id??"",actorVariableId:getValueDefinitions("actor")[0]?.id??"",mode:2,priority:20}); await this.document.update({"system.slotDefinitions":d}); break; }
       case "removeSlotChange": { const si=parseInt(btn.dataset.slotIdx),ci=parseInt(btn.dataset.changeIdx); const d=foundry.utils.deepClone(this.document.system.slotDefinitions??[]); if(!d[si]?.changes?.[ci]) break; d[si].changes.splice(ci,1); await this.document.update({"system.slotDefinitions":d}); break; }
       case "removeFromSlot":   { await SlotManager.removeFromSlot(this.document,btn.dataset.slotId,parseInt(btn.dataset.slotIdx)); break; }
       case "addButton":        { const b=foundry.utils.deepClone(this.document.system.buttons??[]); b.push({id:foundry.utils.randomID(8),label:"New Button",icon:"fa-bolt",color:"var(--sd-accent)",showIn:"inline",conditions:[],actions:[]}); await this.document.update({"system.buttons":b}); break; }
@@ -2864,25 +2767,6 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
 
   async _onPanelChange(ev) {
     const el=ev.target;
-    if (el.dataset.sysHfKey!==undefined) {
-      const ok=el.dataset.sysHfKey, nk=el.value.trim(); if(!nk||nk===ok) return;
-      const lockedKeys = new Set(_lockedKeysForType(this.document.type));
-      if (lockedKeys.has(ok)) {
-        ui.notifications.warn(`"${ok}" is a required field for ${this.document.type} items and cannot be renamed.`);
-        el.value = ok; return;
-      }
-      if (lockedKeys.has(nk)) {
-        ui.notifications.warn(`"${nk}" is a reserved key for ${this.document.type} items.`);
-        el.value = ok; return;
-      }
-      const hf=this.document.system.hiddenFields??{};
-      const val=hf[ok]??"";
-      await this.document.update({
-        [`system.hiddenFields.-=${ok}`]: null,
-        [`system.hiddenFields.${nk}`]: val
-      }); return;
-    }
-    if (el.dataset.sysHfVal!==undefined) { const val=el.type==="checkbox"?el.checked:el.value; await this.document.update({[`system.hiddenFields.${el.dataset.sysHfVal}`]:val}); return; }
     if (el.dataset.sysField!==undefined) {
       const path = el.dataset.sysField;
       let val;
@@ -3091,11 +2975,14 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
   }
 
   async _addWidget(tabId, rowId, widgetType, parentVsId = null) {
-    const defaults={ text:{label:"Label",path:"system.hiddenFields.myField"}, number:{label:"Number",path:"system.hiddenFields.myNum"}, resource:{label:"Resource",pathValue:"system.uses.value",pathMax:"system.uses.max",color:"var(--sd-hp)"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"var(--sd-accent)",formula:"",flavor:""}, toggle:{label:"Toggle",path:"system.hiddenFields.myToggle",onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:"system.description",span:3}, attribute:{label:"Attr",path:"system.hiddenFields.myAttr"}, skill:{label:"Skill",path:"system.hiddenFields.mySkill"}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
-    const numberMode = widgetType === "number" ? await _chooseNumberWidgetMode() : null;
-    const widget={id:foundry.utils.randomID(8),span:1,...(defaults[widgetType]??{label:widgetType}),type:widgetType};
-    if (widgetType === "number") _applyNumberWidgetMode(widget, numberMode);
+    const itemValue=getValueDefinitions("item")[0]?.id??""; const defaults={ text:{label:"Text",path:itemValue}, number:{label:"Number",path:itemValue}, resource:{label:"Value Meter",pathValue:itemValue,pathMax:"",color:"var(--sd-accent)"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"var(--sd-accent)",formula:"",flavor:""}, toggle:{label:"Toggle",path:itemValue,onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:itemValue,span:3}, attribute:{label:"Number",path:itemValue}, skill:{label:"Number",path:itemValue}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(!tab) return;
+    const baseDefaults=defaults[widgetType]??{label:widgetType};
+    const identity=await promptWidgetIdentity({widgetType,defaultLabel:baseDefaults.label||widgetType,tabs});
+    if(!identity)return;
+    const numberMode = widgetType === "number" ? await _chooseNumberWidgetMode() : null;
+    const widget={id:foundry.utils.randomID(8),span:1,...baseDefaults,type:widgetType,label:identity.label,widgetKey:identity.widgetKey};
+    if (widgetType === "number") _applyNumberWidgetMode(widget, numberMode);
     assignUniqueWidgetDataPaths(widget, this.document, { tabs });
     if (rowId) {
       const row=tab.rows?.find(r=>r.id===rowId); if(!row) return;
@@ -3240,15 +3127,75 @@ ${isInv ? `<datalist id="${_datalistId}">${_catSuggestions.map(c => `<option val
     if(header){header.style.position="relative";header.appendChild(badge);}
   }
 
+  /**
+   * Guarantee this item's common graph contains the "On Click" entry node that
+   * `Item#use()` runs. Without it there is no way to author Use logic on
+   * ability / inventory items from the sheet.
+   * @returns {Promise<boolean>} true when a new entry node was written.
+   */
+  async _ensureUseOnClickNode() {
+    const current=this.document.system.sdTriggerGraph;
+    const graph=(current&&typeof current==="object"&&current._graphData&&typeof current._graphData==="object")
+      ? foundry.utils.deepClone(current._graphData) : {nodes:[],edges:[],comments:[]};
+    graph.nodes=Array.isArray(graph.nodes)?graph.nodes:[];
+    graph.edges=Array.isArray(graph.edges)?graph.edges:[];
+    graph.comments=Array.isArray(graph.comments)?graph.comments:[];
+    if(graph.nodes.some(n=>n?.type==="on_click"))return false;
+    // Keep ids unique against whatever the graph editor already produced.
+    let next=1;
+    for(const node of graph.nodes){
+      const match=/^n(\d+)$/.exec(String(node?.id??""));
+      if(match)next=Math.max(next,Number(match[1])+1);
+    }
+    // Place the entry clear of existing content so it is visible on open.
+    const minX=graph.nodes.length?Math.min(...graph.nodes.map(n=>Number(n?.x)||0)):240;
+    const minY=graph.nodes.length?Math.min(...graph.nodes.map(n=>Number(n?.y)||0)):160;
+    graph.nodes.push({id:`n${next}`,type:"on_click",x:Math.round(graph.nodes.length?minX-320:240),y:Math.round(graph.nodes.length?minY:160),data:{}});
+    const payload=(current&&typeof current==="object")?foundry.utils.deepClone(current):{};
+    payload._graphData=graph;
+    await this.document.update({"system.sdTriggerGraph":payload},{sdSkipEventBus:true});
+    const added=game.i18n?.localize?.("SD.Item.UseAdded");
+    ui.notifications?.info?.((!added||added==="SD.Item.UseAdded")
+      ?"Use / On Click entry added to the Item Blueprint. Connect it to your actions, then Save the graph."
+      :added);
+    return true;
+  }
+
+  async _ensureCommonItemGraph() {
+    const sys=this.document.system;
+    const current=sys.sdTriggerGraph;
+    if(current?._graphData?.nodes?.length||Object.keys(current?._events??{}).length)return false;
+    const legacyGraph=sys.onClickGraph;
+    if(!legacyGraph?.nodes?.length)return false;
+    let actions=[];let macros=null;
+    try{
+      const parsed=JSON.parse(sys.onClickFormula||"0");
+      if(Array.isArray(parsed))actions=parsed;
+      else if(parsed?._trigger==="onClick")actions=parsed.actions??[];
+      else if(parsed?._trigger==="multi"){actions=parsed._events?.onClick?.actions??parsed._events?.onClick??[];macros=parsed._macros??null;}
+      else if(parsed?._trigger==="macrosOnly")macros=parsed._macros??null;
+    }catch{}
+    const payload={_trigger:"multi",_events:{},_graphData:foundry.utils.deepClone(legacyGraph)};
+    if(Array.isArray(actions)&&actions.length)payload._events.onClick={hook:"onClick",data:{},actions};
+    if(macros)payload._macros=macros;
+    await this.document.update({"system.sdTriggerGraph":payload},{sdSkipEventBus:true});
+    return true;
+  }
+
   static async _onOpenBuilder() { const{Toolbox}=await import("../builder/toolbox-app.mjs"); Toolbox.toggle(); }
 
 
   static async _onOpenDatabase() {
-    const { openSharedDatabaseApp } = await import("../helpers/shared-database.mjs");
-    openSharedDatabaseApp(this.document);
+    const {openDocumentValueDatabase}=await import("../helpers/value-database.mjs");
+    await openDocumentValueDatabase(this.document);
+  }
+  static async _onOpenEffectApplier() {
+    const {EffectApplierApp}=await import("../helpers/effect-applier.mjs");
+    EffectApplierApp.open();
   }
 
   static async _onOpenSheetTriggers() {
+    await this._ensureCommonItemGraph();
     const { FormulaGraph } = await import("../builder/formula-graph.mjs");
     const graph = new FormulaGraph(null, this.document, null, null, null,
       { mode: "sheetTrigger" });

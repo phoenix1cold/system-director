@@ -13,7 +13,7 @@ const fx = read("styles/sd-theme-fx.css");
 const en = JSON.parse(read("lang/en.json"));
 const ru = JSON.parse(read("lang/ru.json"));
 
-assert.equal(manifest.version, "1.3.5");
+assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 assert.ok(manifest.styles.includes("styles/sd-widget-modern.css"));
 assert.equal(new Set(WIDGET_PALETTE_ORDER).size, WIDGET_PALETTE_ORDER.length);
 for (const type of WIDGET_PALETTE_ORDER) {

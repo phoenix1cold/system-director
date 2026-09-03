@@ -23,33 +23,21 @@ export class NPCData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
     return {
+      values: new ObjectField({ initial: {} }),
 
-      attributes: new TypedObjectField(AttributeField({ initial: 10 }), {
-        initial: DEFAULT_ATTRIBUTES
-      }),
+      attributes: new ObjectField({ initial: {} }),
 
-      resources: new TypedObjectField(ResourceField({ initial: 10 }), {
-        initial: () => ({
-          hp: { value: 10, max: 10, min: 0 },
-          mp: { value: 0,  max: 0,  min: 0 }
-        })
-      }),
+      resources: new ObjectField({ initial: {} }),
 
-      defense: new ObjectField({
-        initial: () => ({ armor: 10, bonus: 0, total: 10 })
-      }),
+      defense: new ObjectField({ initial: {} }),
 
-      movement: new ObjectField({
-        initial: () => ({ walk: 30, fly: 0, swim: 0 })
-      }),
+      movement: new ObjectField({ initial: {} }),
 
       other: new ObjectField({
         initial: () => ({})
       }),
 
-      initiative: new ObjectField({
-        initial: () => ({ bonus: 0, total: 0 })
-      }),
+      initiative: new ObjectField({ initial: {} }),
 
       classification: new SchemaField({
         cr:        new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
@@ -89,6 +77,11 @@ export class NPCData extends foundry.abstract.TypeDataModel {
 
       widgetFields: new ObjectField({ initial: {} }),
 
+      widgetVars: new ObjectField({ initial: {} }),
+
+      // Internal typed Blueprint persistence; never exposed as a user-authored path.
+      blueprintState: new ObjectField({ initial: {} }),
+
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
       resistances: new ObjectField({ initial: {} }),
@@ -110,11 +103,8 @@ export class NPCData extends foundry.abstract.TypeDataModel {
 
   prepareDerivedData() {
     super.prepareDerivedData();
-    this._prepareAttributes();
-    this._prepareResources();
-    this._prepareDefense();
-    this._prepareInitiative();
-    applyCalculationsToActor(this.parent);
+    // Database variables are stored verbatim in system.values. Legacy fields
+    // are retained only for loading old documents and are not derived.
     this._prepareXPFromCR();
   }
 

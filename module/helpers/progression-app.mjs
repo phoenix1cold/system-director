@@ -1,6 +1,7 @@
 import { editEffectViaStandardConfig as _sharedEditEffect, openItemSheetFromSnapshot as _sharedOpenItem } from "./effect-editor.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { LevelUpWizard } from "./levelup-wizard.mjs";
+import { fieldChangeStoragePath, getValueDefinition, getValueDefinitions, readDatabaseValue, valueStoragePath, variableIdForLegacyPath } from "./value-database.mjs";
 
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -9,12 +10,29 @@ function dc(obj)      { return foundry.utils.deepClone(obj); }
 function e(str)       { return String(str ?? "").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
 function loc(key)     { return game.i18n.localize(key); }
 
-const DEFAULT_SP_VALUE_PATH = "system.skillPoints.value";
-const DEFAULT_SP_MAX_PATH   = "system.skillPoints.max";
+function dbVariableId(value) {
+  const raw=String(value??"").trim();
+  return getValueDefinition(raw)?.id ?? variableIdForLegacyPath(raw) ?? "";
+}
+function dbVariableLabel(change) {
+  const id=String(change?.variableId||dbVariableId(change?.path)||"");
+  return getValueDefinition(id)?.name ?? (id||"Database value");
+}
+function dbVariableOptions(selected="", scope="both") {
+  const id=dbVariableId(selected)||String(selected??"");
+  return `<option value="">Select Database variable…</option>`+getValueDefinitions(scope).map(v=>`<option value="${e(v.id)}" ${id===v.id?"selected":""}>${e(v.name)} · ${e(v.type)} [${e(v.id)}]</option>`).join("");
+}
+function preferredVariableId(id="level") {
+  return getValueDefinition(id)?.id ?? getValueDefinitions("actor").find(v=>String(v.name).trim().toLowerCase()===id)?.id ?? "";
+}
+
+const DEFAULT_SP_VALUE_ID = "";
+const DEFAULT_SP_MAX_ID   = "";
 
 function normalizeActorPath(actor, path) {
   let raw = String(path ?? "").trim().replace(/^\{(.+)\}$/, "$1");
   if (!raw) return "";
+  if (getValueDefinition(raw)) return valueStoragePath(raw);
   if (/^(?:system|flags|name|img|prototypeToken|ownership)\./.test(raw)) return raw;
   try {
     if (foundry.utils.getProperty(actor, raw) !== undefined) return raw;
@@ -34,7 +52,9 @@ function getNestedValue(obj, path) {
   catch { return normalized.split(".").reduce((cur, k) => cur?.[k], obj); }
 }
 
-function buildFieldUpdate(actor, { path, mode, value }, pending = {}) {
+function buildFieldUpdate(actor, change, pending = {}) {
+  let { mode, value }=change??{};
+  let path = fieldChangeStoragePath(change);
   path = normalizeActorPath(actor, path);
   if (!path) return {};
   const numVal = Number(value);
@@ -133,8 +153,9 @@ export class ProgressionApp extends ApplicationV2 {
         skilltreeItemId:      t?.skilltreeItemId ?? null,
         inlineLevels:         t?.inlineLevels ?? [],
         inlineSkilltree:      t?.inlineSkilltree ?? null,
-        skillPointsPathValue: t?.skillPointsPathValue ?? DEFAULT_SP_VALUE_PATH,
-        skillPointsPathMax:   t?.skillPointsPathMax   ?? DEFAULT_SP_MAX_PATH
+        levelVariableId:      t?.levelVariableId ?? dbVariableId(t?.levelPath) ?? preferredVariableId("level"),
+        skillPointsValueId: t?.skillPointsValueId ?? dbVariableId(t?.skillPointsPathValue),
+        skillPointsMaxId:   t?.skillPointsMaxId ?? dbVariableId(t?.skillPointsPathMax)
       }));
     }
     return [{
@@ -144,8 +165,9 @@ export class ProgressionApp extends ApplicationV2 {
       skilltreeItemId:      cfg?.skilltreeItemId ?? null,
       inlineLevels:         cfg?.inlineLevels ?? [],
       inlineSkilltree:      cfg?.inlineSkilltree ?? null,
-      skillPointsPathValue: cfg?.skillPointsPathValue ?? DEFAULT_SP_VALUE_PATH,
-      skillPointsPathMax:   cfg?.skillPointsPathMax   ?? DEFAULT_SP_MAX_PATH
+      levelVariableId:      cfg?.levelVariableId ?? dbVariableId(cfg?.levelPath) ?? preferredVariableId("level"),
+      skillPointsValueId: cfg?.skillPointsValueId ?? dbVariableId(cfg?.skillPointsPathValue),
+      skillPointsMaxId:   cfg?.skillPointsMaxId ?? dbVariableId(cfg?.skillPointsPathMax)
     }];
   }
 
@@ -180,13 +202,29 @@ export class ProgressionApp extends ApplicationV2 {
     return tab.inlineSkilltree ?? null;
   }
 
-  get _spValuePath() {
-    return this._getActiveTab()?.skillPointsPathValue ?? DEFAULT_SP_VALUE_PATH;
+  get _spValueId() {
+    const tab=this._getActiveTab();
+    return tab?.skillPointsValueId ?? dbVariableId(tab?.skillPointsPathValue) ?? DEFAULT_SP_VALUE_ID;
   }
 
-  get _spMaxPath() {
-    return this._getActiveTab()?.skillPointsPathMax ?? DEFAULT_SP_MAX_PATH;
+  get _levelVariableId() {
+    return this._getActiveTab()?.levelVariableId ?? preferredVariableId("level");
   }
+
+  get _levelValue() {
+    const value=this._levelVariableId ? readDatabaseValue(this._actor,this._levelVariableId) : null;
+    return Number.isFinite(Number(value)) ? Number(value) : 1;
+  }
+
+  get _levelPath() { return this._levelVariableId ? valueStoragePath(this._levelVariableId) : ""; }
+
+  get _spMaxId() {
+    const tab=this._getActiveTab();
+    return tab?.skillPointsMaxId ?? dbVariableId(tab?.skillPointsPathMax) ?? DEFAULT_SP_MAX_ID;
+  }
+
+  get _spValuePath() { return this._spValueId ? valueStoragePath(this._spValueId) : ""; }
+  get _spMaxPath() { return this._spMaxId ? valueStoragePath(this._spMaxId) : ""; }
 
   async _renderHTML(context, options) {
     return this._buildHTML();
@@ -264,19 +302,15 @@ export class ProgressionApp extends ApplicationV2 {
     html += `</div>`;
 
     if (em && isGM) {
-      const valPath = this._spValuePath;
-      const maxPath = this._spMaxPath;
-      html += `<div class="sd-prog-sp-paths" style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--sd-border);background:var(--sd-bg-2);font-size:11px;flex-wrap:wrap;">
-        <span style="color:var(--sd-label);font-weight:600;text-transform:uppercase;letter-spacing:.04em;"><i class="fas fa-route"></i> ${loc("SD.Progression.SkillPointsPathHint") || "Skill Points Path"}</span>
-        <label style="display:inline-flex;align-items:center;gap:4px;color:var(--sd-text-3);">${loc("SD.Progression.SkillPointsValuePath") || "Value"}
-          <input type="text" data-action="spSetValuePath" value="${e(valPath)}"
-                 placeholder="${DEFAULT_SP_VALUE_PATH}"
-                 style="width:200px;font-size:11px;padding:2px 4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);">
+      const valId = this._spValueId;
+      const maxId = this._spMaxId;
+      html += `<div class="sd-prog-sp-values" style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--sd-border);background:var(--sd-bg-2);font-size:11px;flex-wrap:wrap;">
+        <span style="color:var(--sd-label);font-weight:600;text-transform:uppercase;letter-spacing:.04em;"><i class="fas fa-database"></i> Skill Point Variables</span>
+        <label style="display:inline-flex;align-items:center;gap:4px;color:var(--sd-text-3);">Value
+          <select data-action="spSetValueVariable" style="width:230px;font-size:11px;padding:2px 4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);">${dbVariableOptions(valId,"actor")}</select>
         </label>
-        <label style="display:inline-flex;align-items:center;gap:4px;color:var(--sd-text-3);">${loc("SD.Progression.SkillPointsMaxPath") || "Max"}
-          <input type="text" data-action="spSetMaxPath" value="${e(maxPath)}"
-                 placeholder="${DEFAULT_SP_MAX_PATH}"
-                 style="width:200px;font-size:11px;padding:2px 4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);">
+        <label style="display:inline-flex;align-items:center;gap:4px;color:var(--sd-text-3);">Max
+          <select data-action="spSetMaxVariable" style="width:230px;font-size:11px;padding:2px 4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);">${dbVariableOptions(maxId,"actor")}</select>
         </label>
       </div>`;
     }
@@ -552,13 +586,13 @@ export class ProgressionApp extends ApplicationV2 {
 
   _renderFcPreview(fc, label) {
     if (!fc) return "";
-    const name = label || (fc.path || "Field Change");
+    const name = label || dbVariableLabel(fc);
     const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
     const body = `<div class="sd-prog-preview-body">
       <div class="sd-prog-preview-section">
         <div class="sd-prog-preview-section-title"><i class="fas fa-sliders-h"></i> ${loc("SD.Progression.FieldChange") || "Field Change"}</div>
         <div class="sd-prog-preview-fc">
-          <code>${e(fc.path ?? "")}</code>
+          <code>${e(dbVariableLabel(fc))}</code>
           <span class="sd-prog-preview-fc-sym">${sym}</span>
           <strong>${e(String(fc.value ?? ""))}</strong>
         </div>
@@ -593,7 +627,7 @@ export class ProgressionApp extends ApplicationV2 {
         <div class="sd-prog-preview-changes">`;
       for (const fc of node.fieldChanges) {
         const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
-        body += `<div class="sd-prog-preview-change-row"><code>${e(fc.path ?? "")}</code><span class="sd-prog-preview-change-sym">${sym}</span><strong>${e(String(fc.value ?? ""))}</strong></div>`;
+        body += `<div class="sd-prog-preview-change-row"><code>${e(dbVariableLabel(fc))}</code><span class="sd-prog-preview-change-sym">${sym}</span><strong>${e(String(fc.value ?? ""))}</strong></div>`;
       }
       body += `</div></div>`;
     }
@@ -612,12 +646,12 @@ export class ProgressionApp extends ApplicationV2 {
 
   _buildLevelUpHTML(levels, state, cfg, em, isGM) {
     const appliedLevel = state.appliedLevel ?? 0;
-    const curLevel     = this._actor.system?.advancement?.level ?? 1;
+    const curLevel     = this._levelValue;
 
     let html = `<div class="sd-prog-levelup">`;
 
     if (em && isGM) {
-      html += `<datalist id="sd-prog-paths-${this._actor.id}">${this._numericPathOptions()}</datalist>`;
+
     }
 
     html += `<div class="sd-prog-lu-hdr">
@@ -625,6 +659,10 @@ export class ProgressionApp extends ApplicationV2 {
         <span class="sd-prog-cur-num">${curLevel}</span>
         <span class="sd-prog-cur-lbl">${loc("SD.Progression.CurrentLevel")}</span>
       </div>`;
+
+    if (em && isGM) {
+      html += `<label class="sd-prog-level-variable"><i class="fas fa-cube"></i><span>Level Variable</span><select data-action="changeLevelVariable">${dbVariableOptions(this._levelVariableId,"actor")}</select></label>`;
+    }
 
     if (em && isGM) {
       const tab = this._getActiveTab();
@@ -770,9 +808,7 @@ export class ProgressionApp extends ApplicationV2 {
         html += `<div class="sd-prog-fc-row"
           data-preview-kind="fc"
           data-preview-ref="level:${i}:fc:${j}">
-          <input type="text" class="sd-prog-fc-path" value="${e(fc.path)}"
-                 placeholder="system.resources.hp.max" list="sd-prog-paths-${this._actor.id}"
-                 data-action="fcChangePath" data-level-idx="${i}" data-fc-idx="${j}">
+          <select class="sd-prog-fc-variable" data-action="fcChangeVariable" data-level-idx="${i}" data-fc-idx="${j}">${dbVariableOptions(fc.variableId||fc.path,"actor")}</select>
           <select class="sd-prog-fc-mode" data-action="fcChangeMode" data-level-idx="${i}" data-fc-idx="${j}">
             <option value="add"      ${mAdd}>+</option>
             <option value="set"      ${mSet}>=</option>
@@ -789,7 +825,7 @@ export class ProgressionApp extends ApplicationV2 {
         html += `<div class="sd-prog-fc-view"
           data-preview-kind="fc"
           data-preview-ref="level:${i}:fc:${j}">
-          <code>${e(fc.path)}</code>
+          <code>${e(dbVariableLabel(fc))}</code>
           <span class="sd-prog-fc-sym">${sym}</span>
           <strong>${e(fc.value)}</strong>
         </div>`;
@@ -927,9 +963,7 @@ export class ProgressionApp extends ApplicationV2 {
           html += `<div class="sd-prog-fc-row${active}"
             data-preview-kind="fc"
             data-preview-ref="choice:${i}:${gi}:${j}">
-            <input type="text" class="sd-prog-fc-path" value="${e(fc.path ?? "")}"
-                   placeholder="system.resources.hp.max" list="sd-prog-paths-${this._actor.id}"
-                   data-action="choiceFcChangePath" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">
+            <select class="sd-prog-fc-variable" data-action="choiceFcChangeVariable" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">${dbVariableOptions(fc.variableId||fc.path,"actor")}</select>
             <select class="sd-prog-fc-mode" data-action="choiceFcChangeMode" data-level-idx="${i}" data-choice-idx="${gi}" data-opt-idx="${j}">
               <option value="add"      ${mAdd}>+</option>
               <option value="set"      ${mSet}>=</option>
@@ -1220,7 +1254,7 @@ export class ProgressionApp extends ApplicationV2 {
       }
       if (sub === "fc") {
         const fc = lv.fieldChanges?.[j];
-        return fc ? { kind: "fc", data: fc, label: fc.path } : null;
+        return fc ? { kind: "fc", data: fc, label: dbVariableLabel(fc) } : null;
       }
       if (sub === "effects") {
         const ef = lv.effects?.[j];
@@ -1330,9 +1364,12 @@ export class ProgressionApp extends ApplicationV2 {
       inp.addEventListener("change", ev =>
         this._updateLevelField(+ev.target.dataset.idx, "label", ev.target.value))
     );
-    el.querySelectorAll("[data-action='fcChangePath']").forEach(inp =>
+    el.querySelectorAll("[data-action='changeLevelVariable']").forEach(select=>
+      select.addEventListener("change",async ev=>{await this._setActiveTabField("levelVariableId",ev.target.value);this.render();})
+    );
+    el.querySelectorAll("[data-action='fcChangeVariable']").forEach(inp =>
       inp.addEventListener("change", ev =>
-        this._updateFc(+ev.target.dataset.levelIdx, +ev.target.dataset.fcIdx, "path", ev.target.value))
+        this._updateFc(+ev.target.dataset.levelIdx, +ev.target.dataset.fcIdx, "variableId", ev.target.value))
     );
     el.querySelectorAll("[data-action='fcChangeMode']").forEach(sel =>
       sel.addEventListener("change", ev =>
@@ -1355,9 +1392,9 @@ export class ProgressionApp extends ApplicationV2 {
       inp.addEventListener("change", ev =>
         this._updateChoiceField(+ev.target.dataset.levelIdx, +ev.target.dataset.choiceIdx, "picks", Math.max(1, Number(ev.target.value) || 1)))
     );
-    el.querySelectorAll("[data-action='choiceFcChangePath']").forEach(inp =>
+    el.querySelectorAll("[data-action='choiceFcChangeVariable']").forEach(inp =>
       inp.addEventListener("change", ev =>
-        this._updateChoiceFc(+ev.target.dataset.levelIdx, +ev.target.dataset.choiceIdx, +ev.target.dataset.optIdx, "path", ev.target.value))
+        this._updateChoiceFc(+ev.target.dataset.levelIdx, +ev.target.dataset.choiceIdx, +ev.target.dataset.optIdx, "variableId", ev.target.value))
     );
     el.querySelectorAll("[data-action='choiceFcChangeMode']").forEach(sel =>
       sel.addEventListener("change", ev =>
@@ -1419,18 +1456,18 @@ export class ProgressionApp extends ApplicationV2 {
       });
     });
 
-    el.querySelectorAll("[data-action='spSetValuePath']").forEach(inp => {
+    el.querySelectorAll("[data-action='spSetValueVariable']").forEach(inp => {
       inp.addEventListener("change", async () => {
-        const v = String(inp.value ?? "").trim() || DEFAULT_SP_VALUE_PATH;
-        await this._setActiveTabField("skillPointsPathValue", v);
+        const v = String(inp.value ?? "").trim();
+        await this._setActiveTabField("skillPointsValueId", v);
         this.render();
       });
     });
 
-    el.querySelectorAll("[data-action='spSetMaxPath']").forEach(inp => {
+    el.querySelectorAll("[data-action='spSetMaxVariable']").forEach(inp => {
       inp.addEventListener("change", async () => {
-        const v = String(inp.value ?? "").trim() || DEFAULT_SP_MAX_PATH;
-        await this._setActiveTabField("skillPointsPathMax", v);
+        const v = String(inp.value ?? "").trim();
+        await this._setActiveTabField("skillPointsMaxId", v);
         this.render();
       });
     });
@@ -1722,8 +1759,8 @@ export class ProgressionApp extends ApplicationV2 {
     const levels = dc(this._levels);
     if (!levels[levelIdx]) return;
     levels[levelIdx].fieldChanges ??= [];
-    levels[levelIdx].fieldChanges.push({ path: this._spMaxPath,   mode: "add", value: "1" });
-    levels[levelIdx].fieldChanges.push({ path: this._spValuePath, mode: "add", value: "1" });
+    const variableId=this._spMaxId||this._spValueId||getValueDefinitions("actor")[0]?.id||"";
+    levels[levelIdx].fieldChanges.push({ variableId, mode: "add", value: "1" });
     await this._saveLevels(levels);
     this.render();
   }
@@ -1886,7 +1923,7 @@ export class ProgressionApp extends ApplicationV2 {
     const ch = levels?.[levelIdx]?.choices?.[choiceIdx];
     if (!ch) return;
     ch.options ??= [];
-    ch.options.push({ path: this._spMaxPath, mode: "add", value: "1" });
+    ch.options.push({ variableId:this._spMaxId||getValueDefinitions("actor")[0]?.id||"", mode: "add", value: "1" });
     await this._saveLevels(levels);
     this.render();
   }
@@ -1921,8 +1958,8 @@ export class ProgressionApp extends ApplicationV2 {
 
     const updates = {};
     const collectFieldChange = (fc) => {
-      if (!fc || !fc.path) return;
-      const path = normalizeActorPath(actor, fc.path);
+      if (!fc || (!fc.variableId && !fc.path)) return;
+      const path = normalizeActorPath(actor, fieldChangeStoragePath(fc));
       if (!path) return;
       if (!(path in snapshot.prevValues)) {
         snapshot.prevValues[path] = getNestedValue(actor, path);
@@ -1936,10 +1973,10 @@ export class ProgressionApp extends ApplicationV2 {
     const explicitSp = Number(lv.skillPoints ?? lv.skillPointGain ?? lv.skillPointsGranted);
     const explicitMax = Number(lv.skillPointsMax ?? lv.skillPointMaxGain);
     if (Number.isFinite(explicitSp) && explicitSp !== 0) {
-      collectFieldChange({ path: this._spValuePath, mode: "add", value: explicitSp });
+      collectFieldChange({ variableId: this._spValueId, mode: "add", value: explicitSp });
     }
     if (Number.isFinite(explicitMax) && explicitMax !== 0) {
-      collectFieldChange({ path: this._spMaxPath, mode: "add", value: explicitMax });
+      collectFieldChange({ variableId: this._spMaxId, mode: "add", value: explicitMax });
     }
 
     const extraItems   = [];
@@ -1958,10 +1995,11 @@ export class ProgressionApp extends ApplicationV2 {
       }
     }
 
-    if (!("system.advancement.level" in snapshot.prevValues)) {
-      snapshot.prevValues["system.advancement.level"] = actor.system?.advancement?.level ?? null;
+    const levelPath=this._levelPath;
+    if (levelPath) {
+      if (!(levelPath in snapshot.prevValues)) snapshot.prevValues[levelPath]=getNestedValue(actor,levelPath);
+      updates[levelPath]=lv.level;
     }
-    updates["system.advancement.level"] = lv.level;
 
     if (Object.keys(updates).length) await actor.update(updates);
 
@@ -1987,7 +2025,7 @@ export class ProgressionApp extends ApplicationV2 {
     await this._postLevelUpChat(lv, {
       items: itemDatas,
       effects: effectDatas,
-      fieldChanges: Object.entries(updates).filter(([p]) => p !== "system.advancement.level").map(([path, to]) => ({ path, from: snapshot.prevValues[path], to })),
+      fieldChanges: Object.entries(updates).filter(([p]) => p !== levelPath).map(([path, to]) => ({ path, from: snapshot.prevValues[path], to })),
       choiceGroups,
       pickedByGroup
     });
@@ -2009,7 +2047,7 @@ export class ProgressionApp extends ApplicationV2 {
       if (fieldChanges.length) {
         html += `<div class="sd-luw-chat-sec">${loc("SD.Progression.ChatStatChanges") || "Stat changes"}</div><ul class="sd-luw-chat-fcs">`;
         for (const fc of fieldChanges) {
-          html += `<li><code>${e(fc.path)}</code> ${e(String(fc.from ?? "\u2014"))} <i class="fas fa-arrow-right"></i> <strong>${e(String(fc.to ?? "\u2014"))}</strong></li>`;
+          html += `<li><code>${e(dbVariableLabel(fc))}</code> ${e(String(fc.from ?? "\u2014"))} <i class="fas fa-arrow-right"></i> <strong>${e(String(fc.to ?? "\u2014"))}</strong></li>`;
         }
         html += `</ul>`;
       }
@@ -2036,19 +2074,8 @@ export class ProgressionApp extends ApplicationV2 {
     }
   }
 
-  _numericPathOptions(maxEntries = 300) {
-    const out = [];
-    const walk = (obj, prefix, depth) => {
-      if (!obj || typeof obj !== "object" || depth > 5 || out.length >= maxEntries) return;
-      for (const [k, v] of Object.entries(obj)) {
-        if (out.length >= maxEntries) return;
-        const path = `${prefix}.${k}`;
-        if (typeof v === "number") out.push(path);
-        else if (v && typeof v === "object" && !Array.isArray(v)) walk(v, path, depth + 1);
-      }
-    };
-    walk(this._actor?.system ?? {}, "system", 1);
-    return out.map(p => `<option value="${e(p)}"></option>`).join("");
+  _numericPathOptions() {
+    return getValueDefinitions("actor").filter(v=>["number","integer"].includes(v.type)).map(v=>`<option value="${e(v.id)}">${e(v.name)}</option>`).join("");
   }
 
   async _rollbackLevel(levelIdx) {
@@ -2192,9 +2219,9 @@ export class ProgressionApp extends ApplicationV2 {
     const node = (st.nodes ?? []).find(n => n.id === nodeId);
     if (!node) return;
 
-    const fcRows = (node.fieldChanges ?? []).map((fc, j) => `
+    const fcRows = (node.fieldChanges ?? []).map((fc, j) => { const selected=fc.variableId||variableIdForLegacyPath(fc.path); return `
       <div class="sd-prog-fc-row" data-idx="${j}">
-        <input type="text" class="nc-path" value="${e(fc.path)}" placeholder="system.advancement.level" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
+        <select class="nc-variable" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;"><option value="">Select Database variable…</option>${getValueDefinitions().map(v=>`<option value="${e(v.id)}" ${selected===v.id?"selected":""}>${e(v.name)} · ${e(v.type)} [${e(v.id)}]</option>`).join("")}</select>
         <select class="nc-mode">
           <option value="add"      ${fc.mode === "add"      ? "selected" : ""}>+</option>
           <option value="set"      ${fc.mode === "set"      ? "selected" : ""}>=</option>
@@ -2202,7 +2229,7 @@ export class ProgressionApp extends ApplicationV2 {
         </select>
         <input type="text" class="nc-value" value="${e(fc.value)}" style="width:56px;">
         <button type="button" class="nc-del-fc"><i class="fas fa-times"></i></button>
-      </div>`).join("");
+      </div>`; }).join("");
 
     const _renderEffectRows = (effects) => (effects ?? []).map((ef, j) => `
       <div class="sd-prog-eff-row" data-idx="${j}" style="display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg-2);">
@@ -2215,7 +2242,7 @@ export class ProgressionApp extends ApplicationV2 {
 
     const effectRows = _renderEffectRows(node.effects ?? []);
 
-    const defaultMaxPath = this._spMaxPath || DEFAULT_SP_MAX_PATH;
+    const defaultMaxId = this._spMaxId || getValueDefinitions("actor")[0]?.id || "";
 
     const content = `<div style="display:flex;flex-direction:column;gap:10px;padding:8px;">
       <div style="display:flex;gap:8px;align-items:center;">
@@ -2267,10 +2294,10 @@ export class ProgressionApp extends ApplicationV2 {
 
           const fcs = [];
           el.querySelectorAll("#nc-fcs .sd-prog-fc-row").forEach(row => {
-            const path  = row.querySelector(".nc-path")?.value?.trim();
+            const path  = row.querySelector(".nc-variable")?.value?.trim();
             const mode  = row.querySelector(".nc-mode")?.value ?? "add";
             const value = row.querySelector(".nc-value")?.value ?? "0";
-            if (path) fcs.push({ path, mode, value });
+            if (path) fcs.push({ variableId:path, mode, value });
           });
           node.fieldChanges = fcs;
           return true;
@@ -2278,7 +2305,7 @@ export class ProgressionApp extends ApplicationV2 {
       },
       render: (event, dialog) => {
         const el = dialog.element;
-        const safeNodeMaxPath = defaultMaxPath;
+        const safeNodeMaxId = defaultMaxId;
 
         el.addEventListener("click", async ev => {
           if (ev.target.closest(".nc-del-fc")) {
@@ -2322,7 +2349,7 @@ export class ProgressionApp extends ApplicationV2 {
           div.className = "sd-prog-fc-row";
           div.dataset.idx = idx;
         div.innerHTML = `
-        <input type="text" class="nc-path" value="${e(safeNodeMaxPath)}" placeholder="system...." style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">
+        <select class="nc-variable" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">${dbVariableOptions(safeNodeMaxId,"actor")}</select>
         <select class="nc-mode"><option value="add">+</option><option value="set">=</option><option value="multiply">×</option></select>
         <input type="text" class="nc-value" value="1" style="width:56px;">
         <button type="button" class="nc-del-fc"><i class="fas fa-times"></i></button>`;
@@ -2527,8 +2554,9 @@ export class ProgressionApp extends ApplicationV2 {
       skilltreeItemId: null,
       inlineLevels: [],
       inlineSkilltree: null,
-      skillPointsPathValue: DEFAULT_SP_VALUE_PATH,
-      skillPointsPathMax: DEFAULT_SP_MAX_PATH
+      levelVariableId: preferredVariableId("level"),
+      skillPointsValueId: DEFAULT_SP_VALUE_ID,
+      skillPointsMaxId: DEFAULT_SP_MAX_ID
     });
     cfg.tabs = tabs;
     cfg.activeTabId = id;

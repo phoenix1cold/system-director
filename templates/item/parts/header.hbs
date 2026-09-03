@@ -1,55 +1,32 @@
 <header class="sheet-header item-header">
   <div class="actor-portrait">
-    <img src="{{item.img}}" alt="{{item.name}}"
-         data-action="editImage"
-         class="portrait-img {{#unless isEditable}}readonly{{/unless}}" />
+    <img src="{{item.img}}" alt="{{item.name}}" data-action="editImage" class="portrait-img {{#unless isEditable}}readonly{{/unless}}" />
   </div>
 
   <div class="actor-identity">
-    <input class="actor-name" type="text" name="name"
-           value="{{item.name}}"
-           placeholder="{{localize 'SD.ItemName'}}"
-           {{#unless isEditable}}disabled{{/unless}} />
-
+    <input class="actor-name item-name-input" type="text" name="name" value="{{item.name}}" placeholder="{{localize 'SD.ItemName'}}" {{#unless isEditable}}disabled{{/unless}} />
     <div class="item-meta">
-      <span class="badge">{{localize (concat 'ITEM.Type' (capitalize item.type))}}</span>
-
-      {{#if isInventory}}
-      <span class="badge {{rarityClass system.rarity}}">
-        {{localize (concat 'SD.Rarities.' system.rarity)}}
-      </span>
-      {{/if}}
-
+      <span class="badge"><i class="fas {{itemTypeIcon}}"></i> {{localize (concat 'ITEM.Type' (capitalize item.type))}}</span>
+      <span class="badge sd-item-db-badge" title="Item Database variables"><i class="fas fa-database"></i> {{databaseCount}}</span>
+      {{#if isInventory}}<span class="badge {{rarityClass system.rarity}}">{{localize (concat 'SD.Rarities.' system.rarity)}}</span>{{/if}}
       {{#if isAbility}}
       <span class="badge activation-badge">{{system.activation.type}}</span>
-      {{#if system.duration.concentration}}
-      <span class="badge conc-badge">{{localize "SD.Concentration"}}</span>
+      {{#if system.duration.concentration}}<span class="badge conc-badge">{{localize "SD.Concentration"}}</span>{{/if}}
       {{/if}}
-      {{/if}}
-
       {{#if isInventory}}{{#if system.equippable}}
-      <span class="badge {{#if system.equipped}}equipped-badge{{else}}unequipped-badge{{/if}}">
-        <i class="fas fa-{{#if system.equipped}}check-circle{{else}}circle{{/if}}"></i>
-        {{#if system.equipped}}{{localize "SD.Equipped"}}{{else}}{{localize "SD.Unequipped"}}{{/if}}
-      </span>
+      <span class="badge {{#if system.equipped}}equipped-badge{{else}}unequipped-badge{{/if}}"><i class="fas fa-{{#if system.equipped}}check-circle{{else}}circle{{/if}}"></i> {{#if system.equipped}}{{localize "SD.Equipped"}}{{else}}{{localize "SD.Unequipped"}}{{/if}}</span>
       {{/if}}{{/if}}
     </div>
   </div>
 
-  {{#if isEditable}}
-  {{#if isInventory}}{{#if system.equippable}}
-  <div class="item-equip-btn">
-    <button type="button" class="roll-button" data-action="toggleEquipped"
-            title="{{#if system.equipped}}{{localize 'SD.Unequip'}}{{else}}{{localize 'SD.Equip'}}{{/if}}">
-      <i class="fas fa-{{#if system.equipped}}shield-halved{{else}}shield{{/if}}"></i>
-    </button>
+  <div class="sd-sheet-icon-actions sd-item-icon-actions" aria-label="Item tools">
+    <button type="button" data-action="openBuilder" title="Sheet Builder" aria-label="Sheet Builder"><i class="fas fa-grid-2"></i></button>
+    <button type="button" class="sd-sheet-blueprint-button" data-action="openSheetTriggers" title="Item Blueprint" aria-label="Item Blueprint"><i class="fas fa-diagram-project"></i></button>
+    <button type="button" data-action="openDatabase" title="Database values" aria-label="Database values"><i class="fas fa-database"></i></button>
+    {{#if isEditable}}<button type="button" data-action="toggleEditMode" title="Toggle edit mode" aria-label="Toggle edit mode"><i class="fas fa-pen-ruler"></i></button>{{/if}}
+    {{#if isEditable}}{{#if isInventory}}{{#if system.equippable}}
+    <button type="button" data-action="toggleEquipped" title="{{#if system.equipped}}{{localize 'SD.Unequip'}}{{else}}{{localize 'SD.Equip'}}{{/if}}" aria-label="Toggle equipped"><i class="fas fa-{{#if system.equipped}}shield-halved{{else}}shield{{/if}}"></i></button>
+    {{/if}}{{/if}}{{/if}}
+    {{#if isEditable}}<button type="button" class="sd-item-use-button" data-action="useItem" title="{{localize 'SD.Use'}}" aria-label="{{localize 'SD.Use'}}"><i class="fas fa-play"></i></button>{{/if}}
   </div>
-  {{/if}}{{/if}}
-  <div class="item-use-btn">
-    <button type="button" class="roll-button" data-action="useItem"
-            title="{{localize 'SD.Use'}}">
-      <i class="fas fa-dice"></i>
-    </button>
-  </div>
-  {{/if}}
 </header>

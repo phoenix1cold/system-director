@@ -9,9 +9,13 @@
            {{#unless isEditable}}disabled{{/unless}} />
     <span style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--sd-text-3)">{{actor.type}}</span>
   </div>
-  <button type="button" data-action="openProgression" title="{{localize 'SD.Progression.OpenBtn'}}"
-          style="position:relative;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--sd-bg-4) 0%,var(--sd-bg) 100%);border:2px solid var(--sd-accent);color:var(--sd-accent);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 8px rgba(123,104,238,.25);transition:background .15s,transform .1s,box-shadow .15s">
-    <i class="fas fa-star-half-alt"></i>
-    <span style="position:absolute;bottom:-4px;right:-4px;min-width:16px;height:16px;background:var(--sd-accent);color:#fff;font-size:9px;font-weight:700;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;border:1px solid var(--sd-bg)">{{system.advancement.level}}</span>
-  </button>
+  <div class="sd-sheet-icon-actions" aria-label="Sheet tools">
+    <button type="button" data-action="openBuilder" title="Sheet Builder" aria-label="Sheet Builder"><i class="fas fa-grid-2"></i></button>
+    <button type="button" class="sd-sheet-progression-button" data-action="openProgression" title="Progression" aria-label="Progression">
+      <i class="fas fa-arrow-trend-up"></i><span class="sd-sheet-level-badge">{{progressionLevel}}</span>
+    </button>
+    <button type="button" class="sd-sheet-blueprint-button" data-action="openSheetTriggers" title="Sheet Blueprint — all widgets" aria-label="Sheet Blueprint"><i class="fas fa-diagram-project"></i></button>
+    <button type="button" data-action="openDatabase" title="Database values" aria-label="Database values"><i class="fas fa-database"></i></button>
+    <button type="button" data-action="openInteractions" title="Interactions" aria-label="Interactions"><i class="fas fa-hand-pointer"></i></button>
+  </div>
 </header>

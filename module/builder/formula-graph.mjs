@@ -1,5 +1,6 @@
 import { migrateGraph, NODE_TYPE_MIGRATIONS } from "./node-migration.mjs";
-import { pinSubtype, pinTypeMeta, subtypeColor, arePinsCompatible } from "./pin-types.mjs";
+import { pinSubtype, pinTypeMeta, subtypeColor, arePinsCompatible, automaticPinConverter, canConnectPins } from "./pin-types.mjs";
+import { resolveNodePins, resolveNodePin } from "./node-pin-resolver.mjs";
 import { lintGraph, lintSummary } from "./graph-linter.mjs";
 import {
   formulaBounds, clampFormula, multiplyFormula, addMod, doubleDice,
@@ -10,6 +11,8 @@ import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { databaseSelectOptions, databaseRecordSelectOptions, databaseTypeOptions, databaseTypePin, getDatabaseRecord } from "../helpers/shared-database.mjs";
+import { valueSelectOptions, getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
+import { deletionUpdate, dialogText, dialogValue } from "../helpers/foundry-compat.mjs";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
@@ -355,6 +358,40 @@ export const NODE_DEFS = {
     isTrigger: true
   },
 
+  sheet_widget_event: {
+    title:"On Sheet Widget Event", color:"#c64646", cat:"Events",
+    desc:"Entry point for an ordinary widget placed on this Actor/Item sheet. It uses Widget Key and runs directly in the common Sheet Blueprint.",
+    inputs:[],
+    outputs:[
+      {id:"exec",label:"On Event",type:"exec"},
+      {id:"value",label:"Value",type:"value.any"},
+      {id:"widgetKey",label:"Widget Key",type:"value.string"},
+      {id:"widgetId",label:"Widget ID",type:"value.string"},
+      {id:"elementKey",label:"Element Key",type:"value.string"},
+      {id:"event",label:"Event",type:"value.string"}
+    ],
+    fields:[
+      {key:"key",label:"Sheet Widget",type:"widget-picker",default:""},
+      {key:"elementKey",label:"Element Key (optional)",type:"text",default:""},
+      {key:"event",label:"Event",type:"select",default:"click",options:[
+        {value:"click",label:"On Click"},
+        {value:"change",label:"On Change"},
+        {value:"input",label:"On Input"},
+        {value:"toggle",label:"On Toggle"},
+        {value:"any",label:"Any interaction"}
+      ]}
+    ],
+    isEvent:true,
+    eventHook:"sdSheetWidgetEvent",
+    compilePin:(_node,_inputs,pin)=>({
+      value:"{__sheetWidgetValue}",
+      widgetKey:"{__sheetWidgetKey}",
+      widgetId:"{__sheetWidgetId}",
+      elementKey:"{__sheetWidgetElementKey}",
+      event:"{__sheetWidgetEvent}"
+    }[pin]??"0")
+  },
+
   sequence: {
     title:"Sequence", color:"#8a2a8a", cat:"Flow Control",
     desc:"Run N exec branches in strict order (1 → 2 → … → N). Set `count` to pick how many branches; connected + 1 is the smallest safe count.",
@@ -434,29 +471,37 @@ export const NODE_DEFS = {
   },
 
   get_path: {
-    title:"Get Field Value", color:"#1a4060", cat:"Get Data", wideNode:true,
-    keywords:"target field token field uuid field get field value read",
-    desc:"Read any field by dot-path from a chosen Source: Self (this actor/item), First Target (first targeted token's actor), Token by Id (wire a Token Id, e.g. from For Each Token; defaults to the current loop token), or By UUID (wire an actor/item UUID into Ref). Replaces the old Target Field / Token Field nodes.",
-    inputs:[{id:"ref", label:"Token Id / UUID", type:"value.any"}],
+    title:"Legacy Get Path", color:"#1a4060", cat:"Get Data", hidden:true, internal:true, replacement:"get_value",
+    inputs:[{id:"ref",label:"Ref",type:"value.any"}],outputs:[{id:"v",label:"Value",type:"value.any"}],fields:[],
+    compile:()=>"0"
+  },
+  get_value: {
+    title:"Get Value", color:"#1a4060", cat:"Get Data", wideNode:true,
+    keywords:"database variable typed actor item value read",
+    desc:"Reads a typed Database variable from the selected Actor or Item. No storage path is exposed.",
+    inputs:[{id:"ref",label:"Actor / Item Ref",type:"value.any"}],
     outputs:[{id:"v",label:"Value",type:"value.any"}],
+    computeDynamicOutputs:n=>{const def=getValueDefinition(n.data?.variableId);return [{id:"v",label:def?.name??"Value",type:databaseTypePin(def?.type??"any")}];},
     fields:[
-      {key:"source",label:"Source",type:"select",default:"self",options:["self","first target","token by id","by uuid"]},
-      {key:"path",label:"Path",type:"path",default:"system.resources.hp.value"}
+      {key:"source",label:"Source",type:"select",default:"self",options:[{value:"self",label:"Self"},{value:"first target",label:"First Target"},{value:"token by id",label:"Token by ID"},{value:"by uuid",label:"By UUID"}]},
+      {key:"variableId",label:"Variable",type:"select",default:"",options:valueSelectOptions,noPin:true}
     ],
-    compile:(n,i)=>{
-      const p   = String(n.data.path ?? "").trim();
-      const src = String(n.data.source ?? "self");
-      if (src === "first target") return `{target.${p}}`;
-      if (src === "token by id") {
-        const tid = (i.ref != null && i.ref !== "") ? String(i.ref) : "{__currentTarget}";
-        return `{tokenField:${tid}.${p}}`;
-      }
-      if (src === "by uuid") {
-        const b64 = (x)=>{ try { return btoa(unescape(encodeURIComponent(String(x ?? "")))); } catch { return ""; } };
-        return `{uuidField:${_arrayArg(i.ref ?? "")}|0|${b64(p)}}`;
-      }
-      return (p.startsWith("{") && p.endsWith("}")) ? p : `{${p}}`;
-    }
+    compile:(n,i)=>n.data?.variableId?`{sdValue:${_arrayArg(n.data?.source??"self")}|${_arrayArg(n.data.variableId)}|${_arrayArg(i.ref??"")}}`:`{sdLegacyValue:${_arrayArg(n.data?.source??"self")}|${_arrayArg(n.data?.legacyPath??"")}|${_arrayArg(i.ref??"")}}`
+  },
+  set_value: {
+    title:"Set Value", color:"#6a2f70", cat:"Database", wideNode:true,
+    keywords:"database variable typed actor item write add subtract multiply toggle",
+    desc:"Writes or modifies a typed Database variable on an Actor or Item. No storage path is exposed.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"ref",label:"Actor / Item Ref",type:"value.any"},{id:"value",label:"Value",type:"value.any"}],
+    computeDynamicInputs:n=>{const def=getValueDefinition(n.data?.variableId);return [{id:"exec",label:"",type:"exec"},{id:"ref",label:"Actor / Item Ref",type:"value.any"},{id:"value",label:def?.name??"Value",type:databaseTypePin(def?.type??"any")}];},
+    outputs:[{id:"exec",label:"Done →",type:"exec"}],
+    fields:[
+      {key:"source",label:"Target",type:"select",default:"self",options:[{value:"self",label:"Self"},{value:"first target",label:"First Target"},{value:"token by id",label:"Token by ID"},{value:"by uuid",label:"By UUID"}]},
+      {key:"variableId",label:"Variable",type:"select",default:"",options:valueSelectOptions,noPin:true},
+      {key:"operation",label:"Operation",type:"select",default:"set",options:["set","add","subtract","multiply","toggle"]},
+      {key:"value",label:"Value",type:"text",default:"0"}
+    ],isAction:true,
+    toAction:(n,inp)=>({type:"setDatabaseValue",source:n.data?.source??"self",variableId:n.data?.variableId??"",operation:n.data?.operation??"set",ref:inp.ref??"",value:inp.value??n.data?.value??0})
   },
   get_widget: {
     title:"Get Widget Value", color:"#1a4060", cat:"Get Data",
@@ -2043,7 +2088,7 @@ export const NODE_DEFS = {
       {id:"revert", label:"Revert (bool)", type:"value.bool"}
     ],
     outputs:[
-      {id:"completed", label:"Completed →", type:"exec"},
+      {id:"completed", label:"Completed ���", type:"exec"},
       {id:"exec",      label:"Exec →",      type:"exec"}
     ],
     fields:[
@@ -2093,6 +2138,7 @@ export const NODE_DEFS = {
 
   act_message: {
     title:"Message", color:"#4a4a1a", cat:"Chat",
+    desc:"Posts a chat message assembled from the fallback text and every connected Text input.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[{key:"message",label:"Message",type:"textarea",default:""}],
@@ -4594,7 +4640,7 @@ export const NODE_DEFS = {
     ],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[
-      {key:"src",    label:"Sound path / URL", type:"text",   default:"sounds/dice.wav", placeholder:"sounds/dice.wav"},
+      {key:"src",    label:"Sound file / URL", type:"text",   default:"sounds/dice.wav", placeholder:"sounds/dice.wav"},
       {key:"volume", label:"Volume (0вЂ“1)",      type:"number", default:0.8},
       {key:"loop",   label:"Loop",              type:"select", default:"no", options:["no","yes"]}
     ],
@@ -5283,15 +5329,16 @@ export const NODE_DEFS = {
 
   on_update: {
     title:"On Update", color:"#c04040", cat:"Events",
-    desc:"Fires whenever this document (actor/item) is updated. Useful for reacting to HP / resource changes.",
+    desc:"Fires when this Actor or Item is updated. Optionally select one Database variable; no path is required.",
     inputs:[], outputs:[
-      {id:"exec",     label:"→ On Update", type:"exec"},
-      {id:"path",     label:"Changed Path",type:"value.path"},
-      {id:"oldValue", label:"Old Value",   type:"value.any"},
-      {id:"newValue", label:"New Value",   type:"value.any"}
+      {id:"exec",label:"→ On Update",type:"exec"},
+      {id:"variableId",label:"Variable ID",type:"value.string"},
+      {id:"oldValue",label:"Old Value",type:"value.any"},
+      {id:"newValue",label:"New Value",type:"value.any"}
     ],
-    fields:[{key:"pathFilter",label:"Only path (optional)",type:"path",default:"",placeholder:"system.resources.hp.value"}],
-    isEvent:true, eventHook:"updateDocument"
+    fields:[{key:"variableId",label:"Only Variable (optional)",type:"select",default:"",options:valueSelectOptions,noPin:true}],
+    computeDynamicOutputs:n=>{const def=getValueDefinition(n.data?.variableId);const type=databaseTypePin(def?.type??"any");return [{id:"exec",label:"→",type:"exec"},{id:"variableId",label:"Variable ID",type:"value.string"},{id:"oldValue",label:"Old Value",type},{id:"newValue",label:"New Value",type}];},
+    isEvent:true,eventHook:"updateDocument"
   },
 
   on_create: {
@@ -8006,6 +8053,18 @@ export const NODE_DEFS = {
 })();
 
 (() => {
+  for (const [type, def] of Object.entries(NODE_DEFS)) {
+    if (["get_value","set_value"].includes(type)) continue;
+    const fields=Array.isArray(def?.fields)?def.fields:[];
+    const pins=[...(Array.isArray(def?.inputs)?def.inputs:[]),...(Array.isArray(def?.outputs)?def.outputs:[])];
+    const exposesPath=fields.some(f=>f?.type==="path"||/(^|_)(path|pathfilter|hppath|flagpath|saveattr|modifierpath|rerollpath|historypath|acpath)$/i.test(String(f?.key??"")))
+      || pins.some(pin=>pin?.type==="value.path")
+      || /path/i.test(String(def?.title??""));
+    if(exposesPath){def.hidden=true;def.internal=true;def.replacement=def.replacement??(def?.isAction?"set_value":"get_value");}
+  }
+})();
+
+(() => {
 
   const OUT_OF_SHEET_FIELD = {
     key:     "outOfSheet",
@@ -8121,7 +8180,7 @@ const EVENT_PIN_TOKENS = {
     actors:     "{__visionDetectedActors}",
     tokens:     "{__visionDetectedTokens}"
   },
-  on_update:       { path: "{__eventPath}", oldValue: "{__eventOldValue}", newValue: "{__eventNewValue}" },
+  on_update:       { variableId: "{__eventVariableId}", oldValue: "{__eventOldValue}", newValue: "{__eventNewValue}" },
   on_turn_start:   { round: "{__eventRound}", combatantId: "{__eventCombatantId}" },
   on_turn_end:     { round: "{__eventRound}", combatantId: "{__eventCombatantId}" },
   on_effect_apply: { effectName: "{__eventEffectName}" },
@@ -8402,7 +8461,10 @@ export function exportNodeCatalog(options = {}) {
     ..._sdSafeCatalogValue(category),
     label: category.labels?.[language] ?? category.labels?.[language.split("-")[0]] ?? category.label ?? category.id
   }));
-  const nodes = Object.entries(NODE_DEFS).map(([type, definition]) => {
+  const includeInternal = options.includeInternal === true;
+  const nodes = Object.entries(NODE_DEFS)
+    .filter(([, definition]) => includeInternal || (!definition?.hidden && !definition?.internal))
+    .map(([type, definition]) => {
     let localizedTitle = String(definition?.title ?? type);
     let localizedDescription = String(definition?.desc ?? "");
     try { localizedTitle = _NL(localizedTitle); localizedDescription = _NL(localizedDescription); } catch {}
@@ -8430,7 +8492,7 @@ export function exportNodeCatalog(options = {}) {
     schema: "sd.node-catalog",
     schemaVersion: 1,
     system: "sd",
-    systemVersion: String(globalThis.game?.system?.version ?? "0.22.10"),
+    systemVersion: String(globalThis.game?.system?.version ?? "dev"),
     language,
     generatedAt: new Date().toISOString(),
     categories,
@@ -8606,10 +8668,6 @@ const WIDGET_CONFIG_NODES = {
     inputs:[_mkPin("label","Label"),_mkPin("pathValue","Value Path"),_mkPin("pathMax","Max Path"),_mkPin("color","Color")],
     outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Resource"},{key:"pathValue",label:"Value Path",type:"path",default:"system.resources.hp.value"},{key:"pathMax",label:"Max Path",type:"path",default:"system.resources.hp.max"},{key:"color",label:"Bar Color",type:"text",default:"#e05a5a"}]
   },
-  wcfg_dice:      { title:"Dice Button",     color:"#1a3a1a", isWidgetConfig:true, widgetType:"dice",
-    inputs:[_mkPin("label","Label"),_mkPin("formula","Formula"),_mkPin("icon","Icon"),_mkPin("flavor","Flavor")],
-    outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Roll"},{key:"formula",label:"Formula",type:"text",default:"1d20"},{key:"icon",label:"FA Icon",type:"text",default:"fa-dice-d20"},{key:"flavor",label:"Flavor",type:"text",default:""}]
-  },
   wcfg_toggle:    { title:"Toggle",          color:"#2a1a4a", isWidgetConfig:true, widgetType:"toggle",
     inputs:[_mkPin("label","Label"),_mkPin("path","Path"),_mkPin("onLabel","On Label"),_mkPin("offLabel","Off Label")],
     outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Toggle"},{key:"path",label:"Data Path",type:"path",default:"system.flags.myToggle"},{key:"onLabel",label:"On Label",type:"text",default:"On"},{key:"offLabel",label:"Off Label",type:"text",default:"Off"}]
@@ -8623,8 +8681,8 @@ const WIDGET_CONFIG_NODES = {
     outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Attribute"},{key:"path",label:"Score Path",type:"path",default:"system.attributes.attr1.value"}]
   },
   wcfg_skill:     { title:"Skill",           color:"#1a4060", isWidgetConfig:true, widgetType:"skill",
-    inputs:[_mkPin("label","Label"),_mkPin("path","Rank Path"),_mkPin("attrMod","Attr Mod"),_mkPin("rollFormula","Roll Formula")],
-    outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Skill"},{key:"path",label:"Rank Path",type:"path",default:"system.skills.skill1.rank"},{key:"attrMod",label:"Attr Modifier",type:"number",default:0},{key:"rollFormula",label:"Roll Formula",type:"text",default:""}]
+    inputs:[_mkPin("label","Label"),_mkPin("path","Rank Path"),_mkPin("attrMod","Attr Mod")],
+    outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Skill"},{key:"path",label:"Rank Path",type:"path",default:"system.skills.skill1.rank"},{key:"attrMod",label:"Attr Modifier",type:"number",default:0}]
   },
   wcfg_progress:  { title:"Progress Bar",    color:"#1a2a5a", isWidgetConfig:true, widgetType:"progress",
     inputs:[_mkPin("label","Label"),_mkPin("pathValue","Value Path"),_mkPin("pathMax","Max Path"),_mkPin("color","Color")],
@@ -8720,6 +8778,24 @@ const WIDGET_CONFIG_NODES = {
   },
 };
 
+for (const [type, def] of Object.entries(WIDGET_CONFIG_NODES)) {
+  for (const field of (def.fields ?? [])) {
+    if (field.type !== "path") continue;
+    field.type = "select";
+    field.label = /max/i.test(field.key) ? "Max Variable" : "Database Variable";
+    field.default = "";
+    field.options = valueSelectOptions;
+    field.noPin = true;
+  }
+  for (const pin of (def.inputs ?? [])) {
+    if (/path/i.test(String(pin.id ?? ""))) pin.label = /max/i.test(pin.id) ? "Max Variable" : "Database Variable";
+  }
+  if (type === "wcfg_resource") { def.title="Resource Bar"; def.widgetType="resource"; }
+  if (["wcfg_attribute","wcfg_skill","wcfg_progress","wcfg_tokenPool"].includes(type)) {
+    def.hidden=true; def.internal=true; def.replacement= type==="wcfg_progress"||type==="wcfg_tokenPool" ? "wcfg_resource" : "wcfg_number";
+  }
+}
+
 for (const [, def] of Object.entries(WIDGET_CONFIG_NODES)) {
   const variants = WIDGET_VARIANTS?.[def.widgetType];
   if (!variants?.length) continue;
@@ -8738,6 +8814,25 @@ for (const [, def] of Object.entries(WIDGET_CONFIG_NODES)) {
 
 Object.assign(NODE_DEFS, WIDGET_CONFIG_NODES);
 
+// Public graphs are Database-variable only. Legacy path fields remain readable
+// internally, but every visible editor control and pin now works with Variable IDs.
+for (const [type, definition] of Object.entries(NODE_DEFS)) {
+  if (definition?.hidden || definition?.internal || definition?.isWidgetConfig) continue;
+  for (const field of (definition.fields ?? [])) {
+    if (field.type !== "path") continue;
+    field.type="select";
+    field.label=String(field.label??"Variable").replace(/\bpath\b/ig,"Variable").replace(/\bfield\b/ig,"Variable");
+    field.options=valueSelectOptions;
+    field.default=variableIdForLegacyPath(field.default)??getValueDefinition(field.default)?.id??"";
+  }
+  for (const pins of [definition.inputs,definition.outputs]) for (const pin of (pins??[])) {
+    if (pin.type!=="value.path") continue;
+    pin.type="value.string";
+    pin.label=String(pin.label??"Variable ID").replace(/\bpath\b/ig,"Variable ID").replace(/\bfield\b/ig,"Variable ID");
+  }
+  if(type==="get_widget_path"){definition.hidden=true;definition.internal=true;definition.replacement="get_value";}
+}
+
 // Machine-readable recipes for legacy nodes which were split into several
 // composable nodes. Saved legacy graphs remain executable; tooling can now
 // validate and present the exact replacement chain instead of parsing prose.
@@ -8749,7 +8844,7 @@ export const COMPOSITE_NODE_REPLACEMENTS = Object.freeze({
   act_roll_check:["act_roll_v2","act_compare_roll","act_present_roll"],
   act_tiered_roll:["act_roll_v2","act_compare_roll"],
   act_dice_pool:["act_roll_v2","act_compare_roll"],
-  act_progression:["act_roll_v2","get_path","act_compare_roll","act_modify"],
+  act_progression:["act_roll_v2","get_value","act_compare_roll","set_value"],
   act_throw_on_canvas:["act_roll_v2","act_present_roll"],
   act_throw_on_sheet:["act_roll_v2","act_present_roll"],
   act_create_effect:["act_effect_definition","act_effect_apply_v2"],
@@ -8763,6 +8858,11 @@ export const COMPOSITE_NODE_REPLACEMENTS = Object.freeze({
 });
 for (const [legacyId, replacementNodes] of Object.entries(COMPOSITE_NODE_REPLACEMENTS)) {
   if (NODE_DEFS[legacyId]) NODE_DEFS[legacyId].replacementNodes = replacementNodes;
+}
+for (const [type, definition] of Object.entries(NODE_DEFS)) {
+  if (type.startsWith("wcfg_") || definition?.isWidgetConfig || definition?.isFunctionAnchor) {
+    definition.internal = true;
+  }
 }
 
 export class FormulaGraph {
@@ -8782,6 +8882,9 @@ export class FormulaGraph {
     this.initiativeMode = opts.mode === "initiative";
     this.customLoad   = typeof opts.customLoad === "function" ? opts.customLoad : null;
     this.customSave   = typeof opts.customSave === "function" ? opts.customSave : null;
+    this.externalFunctionSignature = opts.functionSignature && typeof opts.functionSignature === "object"
+      ? opts.functionSignature
+      : null;
     /** Optional label for the trigger/entry node, set by embedding hosts. */
     this.entryTitle   = typeof opts.entryTitle === "string" ? opts.entryTitle : "";
     this.win          = null;
@@ -8809,6 +8912,7 @@ export class FormulaGraph {
     this._history     = [];
     this._historyIdx  = -1;
     this._suppressHistory = false;
+    this._previewTimer = null;
     this._palQuery    = "";
     this._migrationCount = 0;
     this._loadGraph();
@@ -9303,7 +9407,12 @@ export class FormulaGraph {
   }
 
   _runLint() {
-    const report = lintGraph({ nodes: this.nodes, edges: this.edges }, NODE_DEFS);
+    // Give the linter the widgets that actually exist on this document so it
+    // can flag widget nodes pointing at a renamed or deleted widget.
+    const widgetKeys = (this._smartIndex?.widgets ?? [])
+      .flatMap(w => [w?.key, w?.label])
+      .filter(Boolean);
+    const report = lintGraph({ nodes: this.nodes, edges: this.edges }, NODE_DEFS, { widgetKeys });
     const header = lintSummary(report);
     const rows = report.length
       ? report.map(r => {
@@ -9663,7 +9772,7 @@ export class FormulaGraph {
   _aiAssistantCoreNodeTypes() {
     return [
       "on_click", "branch", "if_node", "gate", "sequence",
-      "get_path", "literal", "literal_str",
+      "get_value", "set_value", "literal", "literal_str",
       "lt", "lte", "gt", "gte", "eq", "neq", "and", "or", "not",
       "act_message", "act_message_composer", "act_notify", "act_roll_v2", "act_analyze_roll", "act_compare_roll", "act_present_roll", "act_damage_simple", "act_heal_simple", "act_save_dc", "act_spell", "act_aura_definition", "act_place_aura_zone", "act_effect_definition", "act_effect_add_change", "act_effect_apply_v2", "act_modify",
       "act_ai_request", "act_ai_assistant", "ai_dialogue_choices", "act_dialog_builder",
@@ -9678,7 +9787,7 @@ export class FormulaGraph {
       branch: ["if", "else", "condition branch", "ветвление", "условие"],
       if_node: ["if compare", "if_node", "compare exec", "если", "сравнить", "меньше", "больше"],
       gate: ["if pass", "guard", "condition gate", "пропустить если"],
-      get_path: ["get field value", "field value", "get_field_value", "path value", "hp", "хп", "здоровье", "поле", "путь"],
+      get_value: ["get value", "database value", "variable value", "значение", "переменная"],
       literal: ["number", "constant number", "threshold", "число", "константа"],
       literal_str: ["text", "string", "message text", "текст", "строка"],
       lt: ["less than", "<", "меньше"],
@@ -9736,37 +9845,10 @@ export class FormulaGraph {
   }
 
   _aiPinsForDef(def, node = null, side = "input", catalog = false) {
-    if (!def) return [];
-    const pins = [];
-    const addPins = arr => {
-      for (const p of (arr ?? [])) {
-        if (!p?.id || pins.some(x => x.id === p.id)) continue;
-        pins.push(p);
-      }
-    };
-    addPins(side === "output" ? def.outputs : def.inputs);
-    if (catalog && side === "output") addPins(def.catalogOutputs);
-    if (side === "output" && node && typeof def.computeDynamicOutputs === "function") {
-      addPins(def.computeDynamicOutputs(node) ?? []);
-    }
-    if (side === "input" && node && typeof def.computeDynamicInputs === "function") {
-      addPins(def.computeDynamicInputs(node) ?? []);
-    }
-    if (side === "input" && def.dynamicPins) {
-      const groups = Array.isArray(def.dynamicPins) ? def.dynamicPins : [def.dynamicPins];
-      for (const grp of groups) {
-        const base = grp?.base;
-        const max = Math.max(0, Number(grp?.max ?? 0) || 0);
-        if (!base || !max) continue;
-        const limit = catalog ? Math.min(max, 4) : max;
-        for (let i = 0; i < limit; i++) {
-          const id = `${base}${i}`;
-          if (pins.some(x => x.id === id)) continue;
-          pins.push({ id, label: `${grp.label ?? base} ${i + 1}`, type: grp.type ?? "value.any" });
-        }
-      }
-    }
-    return pins;
+    return resolveNodePins(def, node, side, {
+      includeCatalogOutputs: catalog,
+      dynamicGroupLimit: catalog ? 4 : Infinity
+    });
   }
 
   _normalizeAIAssistantOp(op) {
@@ -9819,13 +9901,13 @@ export class FormulaGraph {
       trigger: "on_click",
       on_click: "on_click",
       click: "on_click",
-      get_field_value: "get_path",
-      get_field: "get_path",
-      field_value: "get_path",
-      get_path_value: "get_path",
-      path_value: "get_path",
-      hp: "get_path",
-      health: "get_path",
+      get_field_value: "get_value",
+      get_field: "get_value",
+      field_value: "get_value",
+      get_path_value: "get_value",
+      path_value: "get_value",
+      hp: "get_value",
+      health: "get_value",
       text: "literal_str",
       string: "literal_str",
       message_text: "literal_str",
@@ -9900,9 +9982,7 @@ export class FormulaGraph {
       const migrated = migration.dataMap ? migration.dataMap(clean) : { ...clean };
       clean = { ...(migrated ?? {}), ...clean };
     }
-    if (type === "get_path") {
-      clean.path = clean.path ?? clean.field ?? clean.fieldPath ?? clean.hpPath ?? clean.dataPath ?? "system.resources.hp.value";
-    }
+    if (type === "get_value") { clean.variableId = clean.variableId ?? clean.valueId ?? ""; }
     if (type === "literal") {
       clean.value = clean.value ?? clean.number ?? clean.threshold ?? clean.amount ?? 0;
     }
@@ -9996,7 +10076,7 @@ export class FormulaGraph {
     const byAlias = pins.find(p => wanted.has(this._aiNormKey(p.id)) || wanted.has(this._aiNormKey(p.label ?? "")));
     if (byAlias) return byAlias.id;
     if (preferredType) {
-      const compatible = pins.filter(p => arePinsCompatible(preferredType, p.type));
+      const compatible = pins.filter(p => canConnectPins(preferredType, p.type));
       if (compatible.length === 1) return compatible[0].id;
       const nonExec = compatible.find(p => p.type !== "exec");
       if (nonExec) return nonExec.id;
@@ -10193,7 +10273,7 @@ export class FormulaGraph {
             skipped.push(`connect ${from.id}.${fromPin} -> ${to.id}.${toPin}: pin not found`);
             continue;
           }
-          if (!arePinsCompatible(outPin.type, inPin.type)) {
+          if (!canConnectPins(outPin.type, inPin.type)) {
             skipped.push(`connect ${from.id}.${fromPin} -> ${to.id}.${toPin}: incompatible ${outPin.type} -> ${inPin.type}`);
             continue;
           }
@@ -10529,11 +10609,11 @@ export class FormulaGraph {
           "{\"op\":\"clearGraph\",\"keep\":[\"nodeIdOrNodeTypeToKeep\"]}",
           "Use setData to change any field/value inside an existing or newly added node.",
           "The provided catalog is authoritative. Use only exact node type ids, field keys, and pin ids from the catalog/current graph.",
-          "Do not invent node ids like get_field_value, send_chat, chat_output, compare, unless they appear in the catalog. Prefer catalog ids: get_path, if_node, branch, gate, act_message.",
+          "Do not invent node ids like get_field_value, send_chat, chat_output, compare, unless they appear in the catalog. Prefer catalog ids: get_value, set_value, if_node, branch, gate, act_message.",
           "Do not fan out one exec output directly into multiple independent nodes. Exec flow should be one chain. Use sequence for multiple independent actions, and branch/if_node for conditional flow.",
-          "For simple checks like HP < 5 then chat: add get_path(path=system.resources.hp.value), add if_node(operator=<, value=5), add act_message(message=...), connect trigger.exec -> if_node.exec, get_path.v -> if_node.a, if_node.exec -> act_message.exec. Do not add a duplicate second if_node.",
+          "For checks against document data, add get_value(variableId=<Database Variable ID>), connect get_value.v to the typed logic node, then continue the exec chain. Never invent or request a path.",
           "For constant text in chat, set act_message.data.message. For dynamic chat text, connect literal_str.v to act_message.text0.",
-          "Use availableDataPaths from Current graph JSON when choosing actor/item/system paths. Hidden fields are valid as system.hiddenFields.<key>.",
+          "Use only Database Variable IDs from the catalog/current graph. Never expose, request, or invent storage paths.",
           "Never delete protected output/init/noDelete nodes. Avoid destructive changes unless the user asks for deletion or clearing.",
           "Keep plans minimal, readable, and spatially arranged."
         ].join("\n"),
@@ -10622,8 +10702,11 @@ export class FormulaGraph {
         if (this.initiativeMode) this._ensureInitiativeNodes();
         const numIds = this.nodes.map(n=>{ const v=parseInt(n.id?.replace(/\D/g,"")??0); return isNaN(v)?0:v; });
         this._id = (Math.max(0,...numIds) + 2) || 2;
+        if (this.externalFunctionSignature) this._ensureFunctionAnchors();
       } else if (this.initiativeMode) {
         this._addInitiativeDefaultGraph();
+      } else if (this.externalFunctionSignature) {
+        this._ensureFunctionAnchors();
       } else if (this.actionGraph) {
         this._addTriggerOutputNodes();
       } else if (!this.chainTrigger && !this.questTrigger) {
@@ -10973,11 +11056,8 @@ export class FormulaGraph {
       // preserving the editor graph until the replacement is written.
       const previous = this.doc.system?.sdTriggerGraph;
       if (previous && typeof previous === "object") {
-        const stale = {};
-        for (const key of Object.keys(previous)) {
-          if (key === "_graphData") continue;
-          stale[`system.sdTriggerGraph.-=${key}`] = null;
-        }
+        const staleKeys = Object.keys(previous).filter(key => key !== "_graphData");
+        const stale = deletionUpdate("system.sdTriggerGraph", staleKeys);
         if (Object.keys(stale).length) {
           await this.doc.update(stale, { sdSkipEventBus: true });
         }
@@ -10986,6 +11066,15 @@ export class FormulaGraph {
         { "system.sdTriggerGraph": payload },
         { sdSkipEventBus: true }
       );
+      // Graph saves intentionally skip the event bus, so re-register this
+      // document right away: ordinary widget events (buttons, fields, meters)
+      // must fire immediately after "Graph saved", without a world reload.
+      try {
+        const { EVENT_BUS } = await import("../helpers/event-bus.mjs");
+        EVENT_BUS?.refreshDocument?.(this.doc);
+      } catch (error) {
+        console.warn("SD | event bus refresh after graph save failed", error);
+      }
     }
   }
 
@@ -11126,6 +11215,8 @@ export class FormulaGraph {
       return "0";
     }
 
+    if (this.externalFunctionSignature) return this._compileExternalFunction();
+
     const initOut = this.nodes.find(n=>n.type==="init_output");
     if (initOut) {
       const vEdge = this._incomingEdge(initOut.id, "value");
@@ -11236,6 +11327,31 @@ export class FormulaGraph {
     }
 
     return "0";
+  }
+
+  _compileExternalFunction() {
+    const signature = this.externalFunctionSignature ?? {};
+    const inputNode = this.nodes.find(node => node.type === "func_inputs");
+    const outputNode = this.nodes.find(node => node.type === "func_outputs");
+    const actions = [];
+    if (inputNode) {
+      const start = this.edges.find(edge => edge.fromNode === inputNode.id && edge.fromPin === "_exec");
+      if (start) {
+        try { actions.push(...JSON.parse(this._compileExecChain(start.toNode))); }
+        catch (error) { console.warn("[sd] Blueprint function exec compilation failed", error); }
+      }
+    }
+
+    const outputs = {};
+    for (const output of (signature.outputs ?? [])) {
+      const edge = outputNode ? this._incomingEdge(outputNode.id, output.id) : null;
+      const source = edge ? this.nodes.find(node => node.id === edge.fromNode) : null;
+      outputs[output.id] = source
+        ? this._compileValue(source, new Set(), edge.fromPin)
+        : (output.default ?? "");
+    }
+    actions.push({ type:"sdBlueprintReturn", outputs });
+    return JSON.stringify(actions);
   }
 
   _compileValue(node, vis, fromPin = null) {
@@ -11805,20 +11921,38 @@ export class FormulaGraph {
 
     const vars   = new Map();
     const macros = new Map();
+    const dbScope = this.doc?.documentName === "Item" ? "item" : this.doc?.documentName === "Actor" ? "actor" : "both";
+    const databaseVars = getValueDefinitions().filter(v => dbScope === "both" || v.scope === "both" || v.scope === dbScope);
+    const sheetWidgets = [];
+    const seenWidgets = new Set();
+    const collectWidgets = list => {
+      for (const widget of (list ?? [])) {
+        if (!widget || typeof widget !== "object") continue;
+        const key = String(widget.widgetKey || widget.id || "").trim();
+        if (key && !seenWidgets.has(key)) {
+          seenWidgets.add(key);
+          sheetWidgets.push({key,id:String(widget.id || key),name:String(widget.label || widget.widgetKey || widget.type || "Widget"),type:String(widget.type || "widget"),variableId:String(widget.variableId ?? "").trim()});
+        }
+        collectWidgets(widget.widgets);
+        collectWidgets((widget.elements ?? []).map(entry => entry?.widget).filter(Boolean));
+      }
+    };
+    for (const tab of (this.doc?.system?.customTabs ?? [])) for (const row of (tab.rows ?? [])) collectWidgets(row.widgets);
+    sheetWidgets.sort((a,b)=>a.name.localeCompare(b.name));
 
     for (const n of this.nodes) {
       if (["var_read", "var_get", "get_var"].includes(n.type)) {
         const scope = n.type === "get_var" ? "actor" : (n.type === "var_get" ? "local" : String(n.data?.scope ?? "local"));
         const name = String(n.data?.name ?? "").trim() || "(unnamed)";
         const k = `${scope}: ${name}`;
-        const rec = vars.get(k) ?? { nodes: [], hasSet:false, hasGet:false };
+        const rec = vars.get(k) ?? { nodes: [], hasSet:false, hasGet:false, scope, name, valueType:String(n.data?.valueType ?? "any") };
         rec.nodes.push(n.id); rec.hasGet = true;
         vars.set(k, rec);
       } else if (["var_write", "var_set", "act_set_var"].includes(n.type)) {
         const scope = n.type === "act_set_var" ? String(n.data?.scope ?? "actor") : (n.type === "var_set" ? "local" : String(n.data?.scope ?? "local"));
         const name = String(n.data?.name ?? "").trim() || "(unnamed)";
         const k = `${scope}: ${name}`;
-        const rec = vars.get(k) ?? { nodes: [], hasSet:false, hasGet:false };
+        const rec = vars.get(k) ?? { nodes: [], hasSet:false, hasGet:false, scope, name, valueType:String(n.data?.valueType ?? "any") };
         rec.nodes.push(n.id); rec.hasSet = true;
         vars.set(k, rec);
       } else if (n.type === "macro_input") {
@@ -11835,10 +11969,11 @@ export class FormulaGraph {
     }
 
     const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-    const sectionHeader = (label, count) => `
-      <div style="padding:6px 10px;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sd-accent);border-bottom:1px solid rgba(116,167,255,.15);background:rgba(116,167,255,.04);display:flex;align-items:center;gap:6px">
+    const sectionHeader = (label, count, action="") => `
+      <div class="gpanel-section-head" style="padding:6px 10px;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sd-accent);border-bottom:1px solid rgba(116,167,255,.15);background:rgba(116,167,255,.04);display:flex;align-items:center;gap:6px">
         <span style="flex:1">${label}</span>
         <span style="opacity:.55;font-weight:400">${count}</span>
+        ${action ? `<button type="button" class="gpanel-add" data-gpanel-action="${action}" title="Create ${label.toLowerCase()}" aria-label="Create ${label.toLowerCase()}"><i class="fas fa-plus"></i></button>` : ""}
       </div>`;
 
     const varRows = [...vars.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([name, rec]) => {
@@ -11846,7 +11981,7 @@ export class FormulaGraph {
       if (rec.hasSet) badges.push(`<span title="Set here" style="font-size:8px;background:#e0a02033;color:#e0a020;border-radius:3px;padding:0 4px;font-weight:700">SET</span>`);
       if (rec.hasGet) badges.push(`<span title="Read here" style="font-size:8px;background:#5ae07a33;color:#5ae07a;border-radius:3px;padding:0 4px;font-weight:700">GET</span>`);
       if (!rec.hasSet) badges.push(`<span title="No setter" style="font-size:8px;background:#e0505033;color:#e05050;border-radius:3px;padding:0 4px;font-weight:700">!</span>`);
-      return `<div class="gvar-row" data-nid="${esc(rec.nodes[0])}" style="padding:5px 10px;font-family:monospace;font-size:10px;display:flex;align-items:center;gap:5px;cursor:pointer;border-bottom:1px solid var(--sd-border);transition:background .1s" onmouseover="this.style.background='rgba(116,167,255,.08)'" onmouseout="this.style.background='transparent'">
+      return `<div class="gvar-row" draggable="true" data-nid="${esc(rec.nodes[0])}" data-var-name="${esc(rec.name)}" data-var-scope="${esc(rec.scope)}" data-var-type="${esc(rec.valueType)}" title="Drag to create Read Variable. Right-click to create Write Variable." style="padding:5px 10px;font-family:monospace;font-size:10px;display:flex;align-items:center;gap:5px;cursor:pointer;border-bottom:1px solid var(--sd-border);transition:background .1s" onmouseover="this.style.background='rgba(116,167,255,.08)'" onmouseout="this.style.background='transparent'">
         <span style="flex:1;color:#e0e0f0">${esc(name)}</span>
         ${badges.join("")}
       </div>`;
@@ -11863,14 +11998,45 @@ export class FormulaGraph {
       </div>`;
     }).join("");
 
+    const typeColor = type => ({number:"#67b7ff",integer:"#4da3ff",text:"#ef77d4",boolean:"#d43f48",color:"#ffb454",array:"#70d6a6",object:"#b58cff"}[type] ?? "#9aa4b2");
+    const databaseRows = databaseVars.map(variable => `<div class="gdbvar-row" draggable="true" data-variable-id="${esc(variable.id)}" data-variable-name="${esc(variable.name)}" title="Drag onto the graph and choose Get or Set. Double-click = Get, right-click = Set.">
+      <span class="gdbvar-icon" style="--gdb-color:${typeColor(variable.type)}"><i class="fas fa-cube"></i></span>
+      <span class="gdbvar-main"><b>${esc(variable.name)}</b><small>${esc(variable.id)}</small></span>
+      <span class="gdbvar-type" style="color:${typeColor(variable.type)}">${esc(variable.type)}</span>
+    </div>`).join("");
+    const widgetRows = sheetWidgets.map(widget => `<div class="gwidget-row" draggable="true" data-widget-key="${esc(widget.key)}" data-widget-id="${esc(widget.id)}" data-widget-type="${esc(widget.type)}" data-widget-name="${esc(widget.name)}" data-variable-id="${esc(widget.variableId)}" title="Drag onto the graph and choose Get, Set or the event node. Double-click creates the event node.">
+      <span class="gwidget-icon"><i class="fas fa-puzzle-piece"></i></span>
+      <span class="gwidget-main"><b>${esc(widget.name)}</b><small>${esc(widget.key)}</small></span>
+      <span class="gwidget-type">${esc(widget.type)}</span>
+    </div>`).join("");
+
     panel.innerHTML = `
-      ${sectionHeader("Variables", vars.size)}
-      ${varRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No variables. Use Read Variable and Write Variable.</div>`}
+      ${sectionHeader("DATABASE VARIABLES", databaseVars.length, "create-db")}
+      ${databaseRows || `<div class="gdbvar-empty">No Database variables. Press + to create one here.</div>`}
+      ${sectionHeader("SHEET WIDGETS", sheetWidgets.length)}
+      ${widgetRows || `<div class="gdbvar-empty">No widgets on this sheet yet.</div>`}
+      ${sectionHeader("GRAPH VARIABLES", vars.size, "create-graph")}
+      ${varRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No variables. Press + to create one.</div>`}
       ${sectionHeader("Macros", macros.size)}
       ${macroRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No macros. Use <b>macro_input</b> (define) / <b>macro_call</b> (invoke).</div>`}
     `;
 
     panel.querySelectorAll(".gvar-row").forEach(row => {
+      const variableData = {name:row.dataset.varName,scope:row.dataset.varScope,valueType:row.dataset.varType,default:"0"};
+      row.addEventListener("dragstart", event => {
+        event.dataTransfer.setData("text/plain",JSON.stringify({_sgMenu:[
+          {type:"var_read",label:`Get ${variableData.name}`,icon:"fa-arrow-right-from-bracket",data:{...variableData}},
+          {type:"var_write",label:`Set ${variableData.name}`,icon:"fa-arrow-right-to-bracket",data:{...variableData}}
+        ],...variableData}));
+        event.dataTransfer.effectAllowed="copy";
+      });
+      row.addEventListener("contextmenu", event => {
+        event.preventDefault();event.stopPropagation();
+        const wrap=this.win?.querySelector("#gwrap");
+        const gx=wrap?(wrap.clientWidth*.52-this._pan.x)/this._zoom:460;
+        const gy=wrap?(wrap.clientHeight*.42-this._pan.y)/this._zoom:280;
+        this._addNode("var_write",gx,gy,variableData);
+      });
       row.addEventListener("click", () => {
         const nid  = row.dataset.nid;
         const node = this.nodes.find(n => n.id === nid);
@@ -11888,6 +12054,158 @@ export class FormulaGraph {
         el.style.boxShadow = "0 0 0 2px var(--sd-accent), 0 0 24px var(--sd-accent-dim)";
         setTimeout(() => { el.style.boxShadow = ""; }, 1200);
       });
+    });
+
+    panel.querySelectorAll(".gdbvar-row").forEach(row => {
+      const variableId = row.dataset.variableId;
+      row.addEventListener("dragstart", event => {
+        const label = row.dataset.variableName || variableId;
+        event.dataTransfer.setData("text/plain", JSON.stringify({_sgMenu:[
+          {type:"get_value",label:`Get ${label}`,icon:"fa-arrow-right-from-bracket",data:{variableId, source:"self"}},
+          {type:"set_value",label:`Set ${label}`,icon:"fa-arrow-right-to-bracket",data:{variableId, source:"self"}}
+        ], variableId, source:"self"}));
+        event.dataTransfer.effectAllowed = "copy";
+      });
+      row.addEventListener("dblclick", () => {
+        const wrap = this.win?.querySelector("#gwrap");
+        const gx = wrap ? (wrap.clientWidth * .45 - this._pan.x) / this._zoom : 360;
+        const gy = wrap ? (wrap.clientHeight * .35 - this._pan.y) / this._zoom : 220;
+        this._addNode("get_value", gx, gy, {variableId, source:"self"});
+      });
+      row.addEventListener("contextmenu", event => {
+        event.preventDefault(); event.stopPropagation();
+        const wrap = this.win?.querySelector("#gwrap");
+        const gx = wrap ? (wrap.clientWidth * .52 - this._pan.x) / this._zoom : 460;
+        const gy = wrap ? (wrap.clientHeight * .42 - this._pan.y) / this._zoom : 280;
+        this._addNode("set_value", gx, gy, {variableId, source:"self"});
+      });
+    });
+    panel.querySelectorAll(".gwidget-row").forEach(row => {
+      const key=row.dataset.widgetKey;
+      row.addEventListener("dragstart",event=>{
+        const widgetId=row.dataset.widgetId;
+        const label=row.dataset.widgetName||key;
+        const variableId=String(row.dataset.variableId??"").trim();
+        const widgetType=String(row.dataset.widgetType||"");
+        // NODE_DEFS is the node table. SD_NODE_REGISTRY is the registry *API*
+        // object, so indexing it by node type always returned undefined and the
+        // dedicated per-widget Get/Set nodes never appeared in this menu.
+        const getType=`widget_get_${widgetType}`, setType=`widget_set_${widgetType}`;
+        const hasOwnGet=!!NODE_DEFS?.[getType], hasOwnSet=!!NODE_DEFS?.[setType];
+        const menu=[
+          ...(hasOwnGet?[{type:getType,label:`Get ${label} — widget node`,icon:"fa-cube",data:{widgetKey:key,widgetId}}]:[]),
+          ...(hasOwnSet?[{type:setType,label:`Set ${label} — widget node`,icon:"fa-pen-to-square",data:{widgetKey:key,widgetId}}]:[]),
+          {type:"sheet_widget_event",label:`On ${label} Event`,icon:"fa-bolt",data:{key,widgetId,event:"click"}},
+          {type:"get_widget",label:`Get ${label} (generic)`,icon:"fa-arrow-right-from-bracket",data:{key,widgetId}},
+          {type:"get_widget_path",label:`Get ${label} Path`,icon:"fa-route",data:{key,widgetId}},
+          // Only offered when the widget really is backed by a Database
+          // variable; otherwise set_value used to drop in with an empty
+          // "Select value..." and could not be configured.
+          ...(variableId?[{type:"set_value",label:`Set database variable`,icon:"fa-database",data:{variableId,source:"self"}}]:[])
+        ];
+        event.dataTransfer.setData("text/plain",JSON.stringify({_sgMenu:menu,key,widgetId,event:"click"}));
+        event.dataTransfer.effectAllowed="copy";
+      });
+      row.addEventListener("dblclick",()=>{
+        const wrap=this.win?.querySelector("#gwrap");
+        const gx=wrap?(wrap.clientWidth*.45-this._pan.x)/this._zoom:360;
+        const gy=wrap?(wrap.clientHeight*.35-this._pan.y)/this._zoom:220;
+        const widgetType=String(row.dataset.widgetType||"");
+        if(NODE_DEFS?.[`widget_get_${widgetType}`])this._addNode(`widget_get_${widgetType}`,gx,gy,{widgetKey:key,widgetId:row.dataset.widgetId});
+        else this._addNode("get_widget",gx,gy,{key,widgetId:row.dataset.widgetId});
+      });
+      row.addEventListener("contextmenu",event=>{
+        event.preventDefault();event.stopPropagation();
+        const wrap=this.win?.querySelector("#gwrap");
+        const gx=wrap?(wrap.clientWidth*.52-this._pan.x)/this._zoom:460;
+        const gy=wrap?(wrap.clientHeight*.42-this._pan.y)/this._zoom:280;
+        const widgetType=String(row.dataset.widgetType||"");
+        if(NODE_DEFS?.[`widget_set_${widgetType}`])this._addNode(`widget_set_${widgetType}`,gx,gy,{widgetKey:key,widgetId:row.dataset.widgetId});
+        else this._addNode("sheet_widget_event",gx,gy,{key,widgetId:row.dataset.widgetId,event:"click"});
+      });
+    });
+    panel.querySelector('[data-gpanel-action="create-db"]')?.addEventListener("click",async()=>{
+      const {createDatabaseVariable}=await import("../helpers/value-database.mjs");
+      const created=await createDatabaseVariable({scope:dbScope==="both"?"both":dbScope});
+      if(created)this._buildVarPanel();
+    });
+    panel.querySelector('[data-gpanel-action="create-graph"]')?.addEventListener("click",async()=>{
+      const created=await foundry.applications.api.DialogV2.prompt({
+        window:{title:"Create Graph Variable"},position:{width:460,height:"auto"},
+        content:`<div class="sd-graph-variable-create"><label><span>Name</span><input name="name" value="myVariable" required autofocus></label><div><label><span>Type</span><select name="valueType">${["any","number","integer","text","boolean","color","array","object"].map(type=>`<option value="${type}">${type}</option>`).join("")}</select></label><label><span>Scope</span><select name="scope">${["local","actor","item","world"].map(scope=>`<option value="${scope}">${scope}</option>`).join("")}</select></label></div><label><span>Default</span><input name="default" value="0"></label></div>`,
+        ok:{label:"Create Variable",icon:"fas fa-plus",callback:(event,button)=>({name:dialogText(event,button,"name")||"myVariable",valueType:dialogValue(event,button,"valueType","any"),scope:dialogValue(event,button,"scope","local"),default:dialogValue(event,button,"default","0")})}
+      }).catch(()=>null);
+      if(!created)return;
+      const wrap=this.win?.querySelector("#gwrap");
+      const gx=wrap?(wrap.clientWidth*.42-this._pan.x)/this._zoom:340;
+      const gy=wrap?(wrap.clientHeight*.34-this._pan.y)/this._zoom:210;
+      this._addNode("var_read",gx,gy,created);
+      this._buildVarPanel();
+    });
+  }
+
+  /**
+   * Native drop menu used when a dragged palette / My Blueprint entry can
+   * create more than one node (Get / Set / event).  DialogV2 cannot be used
+   * here: its content is rendered inside its own <form>, so a nested form is
+   * unreachable through the DialogV2 button form on Foundry v14.
+   * @returns {Promise<object|null>} the chosen option object, or null.
+   */
+  async _pickDropChoice(clientX, clientY, options) {
+    const list = (options ?? []).filter(option => option?.type);
+    if (!list.length) return null;
+    if (list.length === 1) return list[0];
+    const doc = this._uiDocument() ?? document;
+    const view = doc.defaultView ?? window;
+    return new Promise(resolve => {
+      const menu = doc.createElement("div");
+      menu.className = "sdgctx sdgdropmenu";
+      menu.style.cssText = "position:fixed;z-index:26000;min-width:196px;padding:4px;background:var(--sd-bg-2,#161a24);border:1px solid var(--sd-border,#2b3242);border-radius:8px;box-shadow:0 18px 44px rgba(0,0,0,.55);font-size:11px;color:var(--sd-text-1,#e6e9f2)";
+      const title = doc.createElement("div");
+      title.textContent = "Create node";
+      title.style.cssText = "padding:5px 8px 6px;font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--sd-text-3,#8b93a6)";
+      menu.appendChild(title);
+      let settled = false;
+      const finish = value => {
+        if (settled) return;
+        settled = true;
+        try { menu.remove(); } catch {  }
+        doc.removeEventListener("mousedown", onOutside, true);
+        doc.removeEventListener("keydown", onKey, true);
+        resolve(value);
+      };
+      const onOutside = event => { if (!menu.contains(event.target)) finish(null); };
+      const onKey = event => { if (event.key === "Escape") { event.preventDefault(); finish(null); } };
+      for (const option of list) {
+        const row = doc.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:7px;padding:6px 9px;border-radius:6px;cursor:pointer";
+        const icon = doc.createElement("i");
+        icon.className = `fas ${option.icon ?? "fa-plus"}`;
+        icon.style.cssText = "width:12px;text-align:center;opacity:.85;color:var(--sd-accent,#74a7ff)";
+        const label = doc.createElement("span");
+        label.textContent = String(option.label ?? option.type);
+        label.style.flex = "1";
+        row.append(icon, label);
+        row.addEventListener("mouseenter", () => { row.style.background = "rgba(116,167,255,.16)"; });
+        row.addEventListener("mouseleave", () => { row.style.background = ""; });
+        row.addEventListener("mousedown", event => { event.preventDefault(); event.stopPropagation(); });
+        row.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); finish(option); });
+        menu.appendChild(row);
+      }
+      (doc.body ?? doc.documentElement).appendChild(menu);
+      menu.style.left = `${Math.max(6, clientX)}px`;
+      menu.style.top = `${Math.max(6, clientY)}px`;
+      const clamp = () => {
+        const rect = menu.getBoundingClientRect();
+        const vw = view.innerWidth ?? 1280;
+        const vh = view.innerHeight ?? 720;
+        if (rect.right > vw - 8) menu.style.left = `${Math.max(6, vw - rect.width - 8)}px`;
+        if (rect.bottom > vh - 8) menu.style.top = `${Math.max(6, vh - rect.height - 8)}px`;
+      };
+      if (typeof view.requestAnimationFrame === "function") view.requestAnimationFrame(clamp);
+      else clamp();
+      doc.addEventListener("mousedown", onOutside, true);
+      doc.addEventListener("keydown", onKey, true);
     });
   }
 
@@ -11915,7 +12233,7 @@ export class FormulaGraph {
     win.innerHTML=`
       <div id="gbar" style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:default;user-select:none">
         <i class="fas fa-diagram-project" style="color:var(--sd-accent);font-size:13px"></i>
-        <b style="font-size:11px;text-transform:uppercase;letter-spacing:0;color:var(--sd-accent);flex:none">Graph Editor</b>
+        <b style="font-size:11px;text-transform:uppercase;letter-spacing:0;color:var(--sd-accent);flex:none">${this.sheetTrigger ? (this.doc?.documentName==="Item" ? "ITEM BLUEPRINT — ALL WIDGETS & EVENTS" : "SHEET BLUEPRINT — ALL WIDGETS") : this.databaseMode ? "SYSTEM DATABASE BLUEPRINT" : "Graph Editor"}</b>
         ${this._migrationCount ? `<span id="gmigration" title="Legacy nodes were updated in memory. Save & Apply to persist the migrated graph." style="display:flex;align-items:center;gap:5px;flex:none;padding:4px 7px;border:1px solid var(--sd-warning,#d7a53a);border-radius:6px;color:var(--sd-warning,#d7a53a);font-size:10px;letter-spacing:0"><i class="fas fa-wand-magic-sparkles"></i>${this._migrationCount} updated</span>` : ""}
         <div id="gfnbar" style="display:none;align-items:center;gap:6px;flex:none;background:var(--sd-control-bg,var(--sd-bg-3));border:1px solid var(--sd-control-border,var(--sd-border));border-radius:8px;padding:3px 8px;color:var(--sd-text-2);font-size:11px">
           <button id="gfnback" style="background:var(--sd-control-bg,var(--sd-bg-3));border:1px solid var(--sd-control-border,var(--sd-border));border-radius:6px;color:var(--sd-text);cursor:pointer;font-size:11px;padding:3px 8px" title="Return to outer graph"><i class="fas fa-arrow-left" style="margin-right:3px"></i>Back</button>
@@ -11944,7 +12262,7 @@ export class FormulaGraph {
           </div>
           <div id="gpal" style="flex:1;min-height:0;overflow-y:auto;padding:4px 0">${this._buildPal()}</div>
         </aside>
-        <div id="gvarpanel" style="width:180px;flex-shrink:0;background:var(--sd-bg-3);border-right:1px solid var(--sd-border);overflow-y:auto;padding:4px 0;font-size:10px;color:var(--sd-text-2)"></div>
+        <div id="gvarpanel" style="width:260px;flex-shrink:0;background:var(--sd-bg-3);border-right:1px solid var(--sd-border);overflow-y:auto;padding:4px 0;font-size:10px;color:var(--sd-text-2)"></div>
         <div id="gwrap" style="flex:1;position:relative;overflow:hidden;cursor:default;user-select:none;touch-action:none;
           background:
             linear-gradient(90deg,var(--sd-graph-grid-major,rgba(255,255,255,.045)) 1px,transparent 1px) 0 0/32px 32px,
@@ -12073,25 +12391,7 @@ export class FormulaGraph {
   }
 
   _dbgInputPins(node, def) {
-    const pins = [];
-    const add = list => {
-      for (const pin of (list ?? [])) {
-        if (!pin?.id || pins.some(existing => existing.id === pin.id)) continue;
-        pins.push(pin);
-      }
-    };
-    add(def?.inputs);
-    try {
-      if (typeof def?.computeDynamicInputs === "function") add(def.computeDynamicInputs(node));
-    } catch {}
-    const groups = Array.isArray(def?.dynamicPins) ? def.dynamicPins : (def?.dynamicPins ? [def.dynamicPins] : []);
-    for (const group of groups) {
-      const max = Math.max(0, Number(group?.max ?? 0) || 0);
-      for (let i = 0; i < max; i++) {
-        add([{ id:`${group.base}${i}`, label:`${group.label ?? group.base} ${i + 1}`, type:group.type ?? "value.any" }]);
-      }
-    }
-    return pins;
+    return resolveNodePins(def, node, "input");
   }
 
   _dbgExecInPins(node, def) {
@@ -12099,10 +12399,7 @@ export class FormulaGraph {
   }
 
   _dbgExecOutPins(node, def) {
-    let outs;
-    try { outs = def?.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def?.outputs ?? []); }
-    catch { outs = def?.outputs ?? []; }
-    return (outs ?? []).filter(p => p.type === "exec");
+    return resolveNodePins(def, node, "output").filter(p => p.type === "exec");
   }
 
   _debugEvalNode(node) {
@@ -12376,10 +12673,10 @@ export class FormulaGraph {
     const ALLOWED_NUMBER_CATS = new Set(["Values", "Conversion", "Get Data", "Math", "Logic"]);
     const ALLOWED_QUEST_CATS  = new Set(["Flow Control", "Dialogue", "Quest", "Values", "Conversion", "Get Data", "Math", "Logic"]);
     const ALLOWED_QUEST_SOURCES = new Set([
-      "literal", "literal_str", "get_path", "actor_ref", "item_uuid", "fa_icon"
+      "literal", "literal_str", "get_value", "actor_ref", "item_uuid", "fa_icon"
     ]);
     const IMPLICIT_CLICK_WIDGETS = new Set([
-      "counter","dice","toggle","tracker","clock",
+      "counter","toggle","tracker","clock",
       "tokenPool","diceTray","number","resource","progress","richtext"
     ]);
     const isWidgetGraph    = !!this.widget && !this.configMode;
@@ -12390,7 +12687,8 @@ export class FormulaGraph {
     const isQuestModeAny   = !!(this.chainTrigger || this.questTrigger);
     const hidesEvents      = !isSheetTrigger && !isQuestModeAny
       && ((isWidgetGraph && !isAttrGraph) || isAttrGraph || isItemGraph);
-    const hidesOnClick     = isSheetTrigger || isQuestModeAny || (isWidgetGraph && !isAttrGraph
+    const itemSheetBlueprint=isSheetTrigger&&this.doc?.documentName==="Item";
+    const hidesOnClick=(isSheetTrigger&&!itemSheetBlueprint)||isQuestModeAny||(isWidgetGraph&&!isAttrGraph
       && IMPLICIT_CLICK_WIDGETS.has(this.widget?.type));
 
     const isFuncEditMode = !!this._activeFunctionId;
@@ -12425,6 +12723,7 @@ export class FormulaGraph {
     if (ctx.isQuestModeAny && !ctx.ALLOWED_QUEST_CATS.has(d.cat)) return false;
     if (ctx.hidesEvents && d.isEvent) return false;
     if (ctx.hidesOnClick && type === "on_click") return false;
+    if (ctx.isSheetTrigger && type === "ui_widget_event") return false;
     if (ctx.isSheetTrigger && type === "output") return false;
     if (this.actionGraph && type === "output") return false;
     if (d.isInteractableOnly && this.actionGraphContext !== "interactable") return false;
@@ -12603,13 +12902,20 @@ export class FormulaGraph {
     });
 
     this._raf = 0;
+    this._schedulePreview = () => {
+      clearTimeout(this._previewTimer);
+      this._previewTimer = setTimeout(() => {
+        this._previewTimer = null;
+        this._updatePreview();
+      }, 140);
+    };
     this._scheduleEdges = () => {
       if (this._raf) return;
       this._raf = requestAnimationFrame(() => {
         this._raf = 0;
         this._redrawEdges();
-        this._updatePreview();
       });
+      this._schedulePreview();
     };
 
     const _move = ev => {
@@ -12905,16 +13211,26 @@ export class FormulaGraph {
     win.querySelector("#gpalFnManage")?.addEventListener("click", () => this._openManageFunctions?.());
 
     wrap.addEventListener("dragover", ev => ev.preventDefault());
-    wrap.addEventListener("drop", ev => {
+    wrap.addEventListener("drop", async ev => {
       ev.preventDefault();
       try {
         const d = JSON.parse(ev.dataTransfer.getData("text/plain"));
-        if (d._sg) {
+        if (d._sg || Array.isArray(d._sgMenu)) {
           const r = wrap.getBoundingClientRect();
           const gx = (ev.clientX - r.left - this._pan.x) / this._zoom;
           const gy = (ev.clientY - r.top  - this._pan.y) / this._zoom;
-          const extra = d._fnId ? { functionId: d._fnId } : null;
-          this._addNode(d._sg, gx, gy, extra);
+          const menu = Array.isArray(d._sgMenu) ? d._sgMenu.filter(option => option?.type) : [];
+          let choice = null;
+          if (d._sg) choice = { type: d._sg };
+          else if (menu.length === 1) choice = menu[0];
+          else if (menu.length > 1) choice = await this._pickDropChoice(ev.clientX, ev.clientY, menu);
+          if (choice?.type) {
+            const base = Object.fromEntries(Object.entries(d).filter(([key]) => !["_sg", "_sgMenu"].includes(key)));
+            const extra = { ...base, ...(choice.data ?? {}) };
+            if (choice.type === "ui_widget_event" && !extra.name) extra.name = `${extra.widgetId}:click`;
+            if (choice.type === "ui_custom_event_entry" && !extra.name) extra.name = extra.eventId;
+            this._addNode(choice.type, gx, gy, extra);
+          }
         }
         if (d.type === "Item" || d.uuid?.includes("Item")) {
           const focused = this._uiDocument()?.activeElement;
@@ -12923,7 +13239,9 @@ export class FormulaGraph {
             focused.dispatchEvent(new Event("input", { bubbles: true }));
           }
         }
-      } catch {}
+      } catch (error) {
+        console.warn("[sd] Graph drop failed", error);
+      }
     });
   }
 
@@ -12948,7 +13266,7 @@ export class FormulaGraph {
       if (!conn) return null;
       return (def?.inputs ?? []).find(pin => {
         if (conn.fromType === "exec") return pin.type === "exec";
-        return pin.type !== "exec" && arePinsCompatible(conn.fromType, pin.type);
+        return pin.type !== "exec" && canConnectPins(conn.fromType, pin.type);
       }) ?? null;
     };
     const build=(q="")=>{
@@ -13183,14 +13501,63 @@ export class FormulaGraph {
     this._pushHistory();
   }
 
+  _insertAutomaticConverter(fn, fp, tn, tp, converter) {
+    const source = this.nodes.find(node => node.id === fn);
+    const target = this.nodes.find(node => node.id === tn);
+    const def = NODE_DEFS[converter?.type ?? ""];
+    if (!source || !target || !def) return null;
+
+    const data = Object.fromEntries((def.fields ?? []).map(field => [field.key, field.default ?? ""]));
+    const node = {
+      id: `n${this._id++}`,
+      type: converter.type,
+      x: Math.round(((Number(source.x) || 0) + (Number(target.x) || 0)) / 2),
+      y: Math.round(((Number(source.y) || 0) + (Number(target.y) || 0)) / 2 + 36),
+      data
+    };
+
+    this.nodes.push(node);
+    this.edges.push(
+      { id: `e${uid()}`, fromNode: fn, fromPin: fp, toNode: node.id, toPin: converter.inputPin },
+      { id: `e${uid()}`, fromNode: node.id, fromPin: converter.outputPin, toNode: tn, toPin: tp }
+    );
+
+    for (const id of [fn, node.id, tn]) {
+      const touched = this.nodes.find(candidate => candidate.id === id);
+      if (touched) this._renderNode(touched);
+    }
+    this._scheduleEdges?.();
+    this._updatePreview?.();
+    this._pushHistory();
+    SDOnboarding.onGraphChanged?.(this);
+    const converterName = _NL(def.title ?? "Converter");
+    const translated = game.i18n?.format?.("SD.NodeGraph.AutoConverterInserted", { name: converterName });
+    ui.notifications?.info?.(translated && translated !== "SD.NodeGraph.AutoConverterInserted"
+      ? translated
+      : `${converterName} inserted automatically`);
+    return node;
+  }
+
   _addEdge(fn,fp,tn,tp) {
-    if(fn===tn) return;
+    if(fn===tn) return null;
     const exists = this.edges.some(e =>
       e.fromNode === fn && e.fromPin === fp &&
       e.toNode === tn && e.toPin === tp
     );
-    if (exists) return;
-    this.edges.push({id:`e${uid()}`,fromNode:fn,fromPin:fp,toNode:tn,toPin:tp});
+    if (exists) return null;
+
+    const source = this.nodes.find(node => node.id === fn);
+    const target = this.nodes.find(node => node.id === tn);
+    const output = source ? this._pinDefForAI(source, "output", fp) : null;
+    const input = target ? this._pinDefForAI(target, "input", tp) : null;
+    if (output && input && !arePinsCompatible(output.type, input.type)) {
+      const converter = automaticPinConverter(output.type, input.type);
+      if (converter) return this._insertAutomaticConverter(fn, fp, tn, tp, converter);
+      return null;
+    }
+
+    const edge = {id:`e${uid()}`,fromNode:fn,fromPin:fp,toNode:tn,toPin:tp};
+    this.edges.push(edge);
     const touched = new Set([fn, tn]);
     for (const id of touched) {
       const n = this.nodes.find(x => x.id === id);
@@ -13199,6 +13566,7 @@ export class FormulaGraph {
     this._scheduleEdges?.();
     this._pushHistory();
     SDOnboarding.onGraphChanged?.(this);
+    return edge;
   }
 
   _removeEdge(edgeId) {
@@ -13489,9 +13857,9 @@ export class FormulaGraph {
 
     const body=el.querySelector(".gnbody");
 
-    let inputPins  = def.computeDynamicInputs  ? def.computeDynamicInputs(node)  : (def.inputs  ?? []);
-    let outputPins = def.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def.outputs ?? []);
-    const fields     = def.fields??[];
+    let inputPins  = resolveNodePins(def, node, "input",  { includeDynamicGroups:false });
+    let outputPins = resolveNodePins(def, node, "output", { includeDynamicGroups:false });
+    const fields     = (def.fields??[]).filter(field=>field?.type!=="path");
 
     if (def.isOutput) {
       const PASSIVE = new Set(["text","derived","image","section","richtext","tags"]);
@@ -14073,13 +14441,36 @@ export class FormulaGraph {
 
     if(field.type==="widget-picker"){
       const cur=node.data[field.key]??field.default??"";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Widget key - auto-indexed from tabs";
-      { const o=document.createElement("option"); o.value=""; o.textContent="- any widget -"; if(!cur)o.selected=true; sel.appendChild(o); }
-      for(const w of idx.widgets){ const o=document.createElement("option"); o.value=w.key; o.textContent=`${w.label} [${w.type}]`; if(w.key===cur)o.selected=true; sel.appendChild(o); }
-      if(cur && !idx.widgets.find(w=>w.key===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom)"; o.selected=true; sel.appendChild(o); }
+      const all=idx.widgets??[];
+      // `field.widgetType` narrows the list to the node's own widget type. When
+      // the sheet has none of that type we fall back to the full list instead of
+      // showing an empty dropdown.
+      const wantType=String(field.widgetType??"").trim();
+      const typed=wantType?all.filter(w=>String(w.type??"")===wantType):all;
+      const list=(wantType&&!typed.length)?all:typed;
+      const known=k=>!!list.find(w=>w.key===k);
+      const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0";
+      const sel=document.createElement("select"); sel.style.cssText=SI;
+      sel.title=wantType?`Pick a "${wantType}" widget - auto-indexed from the sheet tabs`:"Widget key - auto-indexed from tabs";
+      { const o=document.createElement("option"); o.value=""; o.textContent=list.length?"- pick widget -":"- no widget on sheet -"; if(!cur)o.selected=true; sel.appendChild(o); }
+      for(const w of list){ const o=document.createElement("option"); o.value=w.key; o.textContent=`${w.label} [${w.type}]`; if(w.key===cur)o.selected=true; sel.appendChild(o); }
+      if(cur && !known(cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (by name)"; o.selected=true; sel.appendChild(o); }
       sel.addEventListener("mousedown",ev=>ev.stopPropagation());
-      sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; this._updatePreview(); });
-      wrap.appendChild(sel); return wrap;
+      container.appendChild(sel);
+      if(field.allowManual===false){
+        sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; this._updatePreview(); });
+      } else {
+        // Optional by-name entry. The node's "Widget" pin still wins at runtime.
+        const rawInp=document.createElement("input"); rawInp.type="text"; rawInp.placeholder="or type widget name...";
+        rawInp.value=(cur && !known(cur))?cur:"";
+        rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
+        rawInp.title=field.hint??"Type a widget name or key. A connected Widget pin overrides this field.";
+        rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
+        rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._updatePreview(); });
+        sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; rawInp.value=""; this._updatePreview(); });
+        container.appendChild(rawInp);
+      }
+      wrap.appendChild(container); return wrap;
     }
 
     if(field.type==="inv-item-slot"){
@@ -14468,11 +14859,7 @@ export class FormulaGraph {
 
       const fromNode  = this.nodes.find(n=>n.id===edge.fromNode);
       const def       = NODE_DEFS[fromNode?.type ?? ""];
-      const dynOuts   = (def && typeof def.computeDynamicOutputs === "function")
-        ? (def.computeDynamicOutputs(fromNode) ?? [])
-        : [];
-      const fromPinDef = dynOuts.find(p=>p.id===edge.fromPin)
-                       ?? [...(def?.outputs??[])].find(p=>p.id===edge.fromPin);
+      const fromPinDef = resolveNodePin(def, fromNode, "output", edge.fromPin);
       const isExec = fromPinDef?.type==="exec";
       const edgeMeta = pinTypeMeta(fromPinDef?.type);
       const subColor = edgeMeta.color;
@@ -14563,12 +14950,9 @@ export class FormulaGraph {
     if (pin.dataset.side !== "input" || pin.dataset.nid === conn.fromNode) return;
     const targetNode = this.nodes.find(n=>n.id===pin.dataset.nid);
     const targetDef  = NODE_DEFS[targetNode?.type??""];
-    const targetIns  = targetDef?.computeDynamicInputs
-      ? (targetDef.computeDynamicInputs(targetNode) ?? [])
-      : (targetDef?.inputs ?? []);
-    const targetPinDef = targetIns.find(p=>p.id===pin.dataset.pid);
+    const targetPinDef = resolveNodePin(targetDef, targetNode, "input", pin.dataset.pid);
     const targetType   = targetPinDef?.type;
-    if (!arePinsCompatible(conn.fromType, targetType)) {
+    if (!canConnectPins(conn.fromType, targetType)) {
       ui.notifications?.warn?.(`Incompatible pin types: ${pinSubtype(conn.fromType)} -> ${pinSubtype(targetType)}`);
       return;
     }
@@ -14587,10 +14971,10 @@ export class FormulaGraph {
     const ctx = this._nodeFilterContext();
     for (const [type, def] of Object.entries(NODE_DEFS)) {
       if (!this._isNodeAvailableInCurrentGraph(type, def, null, ctx)) continue;
-      const inputs = def.inputs ?? [];
+      const inputs = resolveNodePins(def, null, "input", { dynamicGroupLimit:4 });
       const compat = inputs.find(p => {
         if (fromType === "exec") return p.type === "exec";
-        return p.type !== "exec" && arePinsCompatible(fromType, p.type);
+        return p.type !== "exec" && canConnectPins(fromType, p.type);
       });
       if (!compat) continue;
       candidates.push({ type, def, pin: compat });
@@ -14764,7 +15148,7 @@ export class FormulaGraph {
 
   _hydrateFormula(f) {
     const m=f.match(/^\{([^}]+)\}$/);
-    if(m){const n=this._addNode("get_path",350,230);if(n)n.data.path=m[1];}
+    if(m){const n=this._addNode("get_value",350,230);if(n)n.data.legacyPath=m[1];}
   }
 
   _getFunctionLib() {
@@ -14946,6 +15330,7 @@ export class FormulaGraph {
       return { inputs: fn.inputs ?? [], outputs: fn.outputs ?? [] };
     }
     if (def.isFunctionAnchor) {
+      if (this.externalFunctionSignature) return this.externalFunctionSignature;
       const fid = this._activeFunctionId;
       const lib = this._getFunctionLib();
       const fn  = lib?.functions?.[fid];

@@ -36,7 +36,34 @@ const PACKAGE_SETTING_KEYS = [
   ,"localizationLanguages"
   ,"effectPresets"
   ,"allowPlayerEffectApplier"
+  // Shared (cross-document) Database variables and their stored world values.
+  // Without these, published systems arrive with graphs pointing at variables
+  // that do not exist in the installing world.
+  ,"sharedDatabases"
+  ,"sharedDatabaseWorldValues"
+  // Action HUD layout is part of how a system is meant to be played.
+  // Per-user placement (actionHudPos / actionHudLocked) is deliberately
+  // excluded so installing a system never moves someone's HUD.
+  ,"actionHud"
+  ,"actionHudEnabled"
+  ,"actionHudScale"
+  ,"actionHudSeparateWidgets"
+  ,"actionHudResponsivePosition"
+  ,"actionHudBgOpacity"
+  ,"actionHudDefaultTransparent"
+  ,"actionHudShowFrames"
+  ,"actionHudWidgetShadow"
 ];
+
+/**
+ * Settings that must never travel inside a package: private credentials,
+ * per-user preferences and market bookkeeping that would break the installer.
+ */
+const PACKAGE_EXCLUDED_SETTING_KEYS = Object.freeze([
+  "aiSettings", "marketInstallState", "marketRegistryUrl", "schemaVersion",
+  "onboardingEnabled", "onboardingSeenTours", "helperTooltips",
+  "localizationLanguage", "translationEditLanguage", "nodeGraphLanguage"
+]);
 
 export class SDMarketApp extends ApplicationV2 {
 
@@ -424,7 +451,128 @@ export class SDMarketApp extends ApplicationV2 {
     if(meta.withNpcs){try{pkg.content.npcs=game.actors.filter(a=>a.type==="npc").map(a=>a.toObject());}catch(e){console.warn("SD | Market NPC export",e);}}
     if(meta.withJournals){try{pkg.content.journals=game.journal.contents.map(j=>j.toObject());}catch(e){console.warn("SD | Market journal export",e);}}
     if(meta.withPacks)for(const p of(game.packs?.filter(pk=>pk.metadata?.packageType==="world")??[])){try{const docs=await p.getDocuments();pkg.content.packs.push({name:p.metadata.name,label:p.metadata.label||p.metadata.name,documentName:p.documentName,documents:docs.map(d=>d.toObject())});}catch(e){console.warn("SD | Market pack export",e);}}
+    for(const key of PACKAGE_EXCLUDED_SETTING_KEYS)delete pkg.settings[key];
     return pkg;
+  }
+
+  /**
+   * Inspect a built package before upload: count what it contains and find
+   * problems the author can still fix (empty package, bad version, graphs
+   * pointing at Database variables that are not being shipped).
+   *
+   * @returns {{blocking:string[], warnings:string[], counts:object}}
+   */
+  _validatePackage(pkg, meta = {}) {
+    const blocking = [], warnings = [];
+    const settings = pkg?.settings ?? {};
+    const asList = value => Array.isArray(value) ? value : (value && typeof value === "object" ? Object.values(value) : []);
+
+    const counts = {
+      variables:      asList(settings.systemSettings?.database).length,
+      shared:         asList(settings.sharedDatabases).length,
+      sheetTemplates: asList(settings.sheetTemplates).length,
+      functions:      asList(settings.functionLibrary).length,
+      nodeTemplates:  asList(settings.nodeTemplates).length,
+      effectPresets:  asList(settings.effectPresets).length,
+      languages:      asList(settings.localizationLanguages).length,
+      npcs:           pkg?.content?.npcs?.length ?? 0,
+      journals:       pkg?.content?.journals?.length ?? 0,
+      packs:          pkg?.content?.packs?.length ?? 0
+    };
+
+    const name = String(meta.name ?? pkg?.meta?.name ?? "").trim();
+    const author = String(meta.author ?? pkg?.meta?.author ?? "").trim();
+    const version = String(meta.version ?? pkg?.meta?.version ?? "").trim();
+    if (!name) blocking.push(fmt("SD.Market.CheckNoName", {}, "A system name is required."));
+    if (!author) warnings.push(fmt("SD.Market.CheckNoAuthor", {}, "No author is set."));
+    if (!/^\d+\.\d+(\.\d+)?([-+].+)?$/.test(version)) {
+      warnings.push(fmt("SD.Market.CheckVersion", { version }, `Version "${version}" is not in 1.2.3 form; updates may sort incorrectly.`));
+    }
+    if (String(meta.description ?? "").trim().length < 20) {
+      warnings.push(fmt("SD.Market.CheckDesc", {}, "The description is very short. Players use it to decide whether to install."));
+    }
+    if (!counts.variables && !counts.sheetTemplates && !counts.functions && !counts.nodeTemplates) {
+      blocking.push(fmt("SD.Market.CheckEmpty", {}, "This package contains no sheet templates, Database variables, functions or node templates - there is nothing to install."));
+    }
+
+    // Graphs address Database variables by id. Shipping a graph without its
+    // variable is the most common cause of "installed but nothing works".
+    const known = new Set();
+    for (const def of [...asList(settings.systemSettings?.database), ...asList(settings.sharedDatabases)]) {
+      const id = String(def?.id ?? "").trim();
+      if (id) known.add(id);
+    }
+    const missing = new Set();
+    const seen = new WeakSet();
+    const walk = value => {
+      if (!value || typeof value !== "object" || seen.has(value)) return;
+      seen.add(value);
+      if (Array.isArray(value)) { for (const entry of value) walk(entry); return; }
+      for (const [key, entry] of Object.entries(value)) {
+        if (key === "variableId" && typeof entry === "string") {
+          const id = entry.trim();
+          if (id && !known.has(id)) missing.add(id);
+          continue;
+        }
+        walk(entry);
+      }
+    };
+    walk(settings);
+    if (missing.size) {
+      const list = [...missing].slice(0, 8).join(", ");
+      warnings.push(fmt("SD.Market.CheckMissingVars", { count: missing.size, list },
+        `${missing.size} Database variable(s) are used by graphs but not included: ${list}${missing.size > 8 ? ", …" : ""}.`));
+    }
+
+    return { blocking, warnings, counts };
+  }
+
+  /**
+   * Show the validation result and let the author confirm or cancel.
+   * @returns {Promise<boolean>} true when the upload should continue.
+   */
+  async _confirmPackage(pkg, meta = {}, { isUpdate = false } = {}) {
+    const { blocking, warnings, counts } = this._validatePackage(pkg, meta);
+    const rows = [
+      [loc("SD.Market.ExportName"), meta.name ?? ""],
+      [fmt("SD.Market.CountVariables", {}, "Database variables"), counts.variables + counts.shared],
+      [fmt("SD.Market.CountTemplates", {}, "Sheet templates"), counts.sheetTemplates],
+      [fmt("SD.Market.CountFunctions", {}, "Saved functions"), counts.functions],
+      [fmt("SD.Market.CountNodeTemplates", {}, "Node templates"), counts.nodeTemplates],
+      [fmt("SD.Market.CountEffects", {}, "Effect presets"), counts.effectPresets],
+      [fmt("SD.Market.CountLanguages", {}, "Languages"), counts.languages],
+      [fmt("SD.Market.ExportNpc", {}, "NPCs"), counts.npcs],
+      [fmt("SD.Market.ExportJournals", {}, "Journals"), counts.journals],
+      [fmt("SD.Market.ExportPacks", {}, "Compendium packs"), counts.packs]
+    ];
+    const issueList = list => list.map(text => `<li>${esc(text)}</li>`).join("");
+    const content = `<div class="sd-market-precheck">
+      <p>${esc(fmt("SD.Market.PrecheckIntro", {}, "Check what will be uploaded:"))}</p>
+      <table class="sd-market-precheck-table">${rows.map(([label, value]) =>
+        `<tr><th style="text-align:left;padding:2px 10px 2px 0;font-weight:500">${esc(label)}</th><td style="text-align:right;font-variant-numeric:tabular-nums">${esc(value)}</td></tr>`).join("")}</table>
+      ${blocking.length ? `<div class="sd-market-precheck-block"><b><i class="fas fa-circle-exclamation"></i> ${esc(fmt("SD.Market.PrecheckBlocking", {}, "Must be fixed first"))}</b><ul>${issueList(blocking)}</ul></div>` : ""}
+      ${warnings.length ? `<div class="sd-market-precheck-warn"><b><i class="fas fa-triangle-exclamation"></i> ${esc(fmt("SD.Market.PrecheckWarnings", {}, "Worth checking"))}</b><ul>${issueList(warnings)}</ul></div>` : ""}
+      ${!blocking.length && !warnings.length ? `<p><i class="fas fa-circle-check"></i> ${esc(fmt("SD.Market.PrecheckClean", {}, "No problems found."))}</p>` : ""}
+    </div>`;
+
+    if (blocking.length) {
+      await DialogV2.prompt({
+        window: { title: loc("SD.Market.PrecheckTitle") === "SD.Market.PrecheckTitle" ? "Pre-publish check" : loc("SD.Market.PrecheckTitle") },
+        content,
+        ok: { label: fmt("SD.Market.PrecheckClose", {}, "Close"), icon: "fas fa-xmark" }
+      }).catch(() => null);
+      return false;
+    }
+    const answer = await DialogV2.wait({
+      window: { title: loc("SD.Market.PrecheckTitle") === "SD.Market.PrecheckTitle" ? "Pre-publish check" : loc("SD.Market.PrecheckTitle") },
+      content,
+      buttons: [
+        { action: "go", label: fmt(isUpdate ? "SD.Market.UpdateSubmitBtn" : "SD.Market.SubmitBtn", {}, "Upload"), icon: "fas fa-cloud-arrow-up", default: true },
+        { action: "cancel", label: fmt("SD.Market.PrecheckCancel", {}, "Cancel"), icon: "fas fa-xmark" }
+      ],
+      rejectClose: false
+    }).catch(() => "cancel");
+    return answer === "go";
   }
 
   async _publishCurrent() { return this._openSubmissionForm({mode:"create"}); }
@@ -440,7 +588,7 @@ export class SDMarketApp extends ApplicationV2 {
     const content=`<div class="sd-market-publish-form"><div class="sd-market-publish-intro"><i class="fas ${isUpdate?"fa-arrows-rotate":"fa-cloud-arrow-up"}"></i><div><b>${loc(isUpdate?"SD.Market.UpdateTitle":"SD.Market.SubmitTitle")}</b><span>${loc(isUpdate?"SD.Market.UpdateIntro":"SD.Market.SubmitIntro")}</span></div></div><div class="sd-market-publish-grid">${field(loc("SD.Market.ExportName"),"name",existing.name||game.world?.title||"","required")}${field(loc("SD.Market.ExportAuthor"),"author",existing.author||game.user?.name||"","required")}${field(loc("SD.Market.ExportVersion"),"version",existing.version||"1.0.0","required")}${field(loc("SD.Market.Contact"),"contact",existing.contact||"",'placeholder="Discord / email"')}${textArea(loc("SD.Market.ExportDesc"),"description",existing.description||"")}${isUpdate?textArea(loc("SD.Market.PatchNotes"),"patchNotes",""):""}<label class="wide">${loc("SD.Market.Tags")}<input name="tags" value="${esc(tags)}" placeholder="fantasy, sci-fi, rules-light"></label>${keyField}<label class="sd-market-media-upload"><input type="file" name="iconFile" accept="image/*"><span><i class="fas fa-icons"></i><b>${loc("SD.Market.IconImage")}</b><small>${loc(isUpdate?"SD.Market.ImageReplaceHint":"SD.Market.ImagePickHint")}</small><div class="sd-market-upload-preview">${existing.icon?`<img src="${esc(existing.icon)}">`:""}</div></span></label><label class="sd-market-media-upload"><input type="file" name="coverFile" accept="image/*"><span><i class="fas fa-panorama"></i><b>${loc("SD.Market.CoverImage")}</b><small>${loc(isUpdate?"SD.Market.ImageReplaceHint":"SD.Market.ImagePickHint")}</small><div class="sd-market-upload-preview">${existing.cover?`<img src="${esc(existing.cover)}">`:""}</div></span></label><label class="wide sd-market-media-upload is-screens"><input type="file" name="screenshotFiles" accept="image/*" multiple><span><i class="fas fa-images"></i><b>${loc("SD.Market.Screenshots")}</b><small>${loc(isUpdate?"SD.Market.ImagesReplaceHint":"SD.Market.ImagesPickHint")}</small><div class="sd-market-upload-preview">${(existing.screenshots??[]).map(u=>`<img src="${esc(u)}">`).join("")}</div></span></label><label class="wide sd-market-media-upload is-document"><input type="file" name="rulebookFile" accept=".txt,.md,.pdf,.rtf,.doc,.docx,.odt,text/*,application/pdf"><span><i class="fas fa-book-open"></i><b>${loc("SD.Market.RulebookFile")}</b><small>${loc(isUpdate?"SD.Market.RulebookReplaceHint":"SD.Market.RulebookHint")}</small><div class="sd-market-upload-preview">${existing.rulebook?`<a href="${esc(existing.rulebook)}" target="_blank">${loc("SD.Market.CurrentRulebook")}</a>`:""}</div></span></label></div><div class="sd-market-publish-options"><label><input type="checkbox" name="withNpcs" ${npcCount?"checked":""}> ${loc("SD.Market.ExportNpc")} (${npcCount})</label><label><input type="checkbox" name="withJournals" ${journalCount?"checked":""}> ${loc("SD.Market.ExportJournals")} (${journalCount})</label><label><input type="checkbox" name="withPacks" ${worldPacks.length?"checked":""}> ${loc("SD.Market.ExportPacks")} (${worldPacks.length})</label></div><p class="hint">${loc(isUpdate?"SD.Market.UpdateReviewHint":"SD.Market.SubmitReviewHint")}</p></div>`;
     const objectUrls=[],fileKey=file=>`${file.name}:${file.size}:${file.lastModified}`,renderPickedFiles=(input,files)=>{const box=input.closest(".sd-market-media-upload")?.querySelector(".sd-market-upload-preview");if(!box)return;box.innerHTML="";files.forEach((file,index)=>{const item=document.createElement("span");item.className="sd-market-picked-file";if(file.type.startsWith("image/")){const url=URL.createObjectURL(file);objectUrls.push(url);const img=document.createElement("img");img.src=url;img.title=file.name;item.append(img)}else{item.innerHTML=`<i class="fas fa-file"></i><small>${esc(file.name)}</small>`}if(input.name==="screenshotFiles"){const remove=document.createElement("button");remove.type="button";remove.dataset.removeMarketScreenshot=String(index);remove.title=loc("SD.Market.RemoveScreenshot");remove.innerHTML='<i class="fas fa-xmark"></i>';item.append(remove)}box.append(item)});if(input.name==="screenshotFiles"){const count=document.createElement("b");count.className="sd-market-screenshot-count";count.textContent=`${files.length}/6`;box.prepend(count)}},assignScreenshotFiles=(input,files)=>{input._sdMarketFiles=files.slice(0,6);try{const transfer=new DataTransfer();for(const file of input._sdMarketFiles)transfer.items.add(file);input.files=transfer.files}catch{}renderPickedFiles(input,input._sdMarketFiles)},onFormChange=event=>{const input=event.target;if(!input?.closest?.(".sd-market-publish-form")||!input.matches("input[type=file]"))return;const picked=[...(input.files??[])];if(input.name==="screenshotFiles"){const merged=[],seen=new Set();for(const file of[...(input._sdMarketFiles??[]),...picked]){const key=fileKey(file);if(seen.has(key))continue;seen.add(key);merged.push(file)}if(merged.length>6)ui.notifications?.warn?.(loc("SD.Market.ScreenshotLimit"));assignScreenshotFiles(input,merged.slice(0,6))}else renderPickedFiles(input,picked)},onFormClick=event=>{const remove=event.target?.closest?.("[data-remove-market-screenshot]");if(!remove)return;event.preventDefault();event.stopPropagation();const input=remove.closest(".sd-market-media-upload")?.querySelector("input[name='screenshotFiles']");if(!input)return;const files=[...(input._sdMarketFiles??input.files??[])];files.splice(Number(remove.dataset.removeMarketScreenshot),1);assignScreenshotFiles(input,files)};document.addEventListener("change",onFormChange,true);document.addEventListener("click",onFormClick,true);
     let values;try{values=await DialogV2.prompt({window:{title:loc(isUpdate?"SD.Market.UpdateTitle":"SD.Market.SubmitTitle"),resizable:true},position:{width:Math.min(980,window.innerWidth-40),height:Math.min(900,window.innerHeight-40)},content,ok:{label:loc(isUpdate?"SD.Market.UpdateSubmitBtn":"SD.Market.SubmitBtn"),icon:isUpdate?"fas fa-arrows-rotate":"fas fa-cloud-arrow-up",callback:(event,button)=>{const form=button.form,FDE=foundry.applications?.ux?.FormDataExtended??globalThis.FormDataExtended,obj=new FDE(form).object,getRich=name=>String(form.elements[name]?.value??obj[name]??"");return{...obj,description:getRich("description"),patchNotes:getRich("patchNotes"),secretKey:isUpdate?secretKey:String(form.elements.secretKey?.value??"").trim(),iconFile:form.querySelector("[name='iconFile']")?.files?.[0]??null,coverFile:form.querySelector("[name='coverFile']")?.files?.[0]??null,screenshotFiles:[...(form.querySelector("[name='screenshotFiles']")?._sdMarketFiles??form.querySelector("[name='screenshotFiles']")?.files??[])],rulebookFile:form.querySelector("[name='rulebookFile']")?.files?.[0]??null}}}})}catch{return}finally{document.removeEventListener("change",onFormChange,true);document.removeEventListener("click",onFormClick,true);for(const url of objectUrls)URL.revokeObjectURL(url)}if(!values)return;if(!values.secretKey)return ui.notifications?.warn?.(loc("SD.Market.SecretRequired"));
-    try{ui.notifications?.info?.(loc(isUpdate?"SD.Market.UpdateUploading":"SD.Market.SubmitUploading"));const pkg=await this._buildPackage(values),body=new FormData();body.append("secretKey",values.secretKey);body.append("meta",JSON.stringify({name:values.name,author:values.author,version:values.version,description:values.description,patchNotes:values.patchNotes,tags:values.tags,contact:values.contact,world:game.world?.title??"",foundryUser:game.user?.name??""}));const base=String(values.name||"sd-system").toLowerCase().replace(/[^a-z0-9\u0400-\u04ff]+/gi,"-").replace(/^-+|-+$/g,"")||"sd-system";body.append("package",new Blob([JSON.stringify(pkg,null,2)],{type:"application/json"}),`${base}.sd-system.json`);if(values.iconFile)body.append("icon",values.iconFile,values.iconFile.name);if(values.coverFile)body.append("cover",values.coverFile,values.coverFile.name);for(const file of values.screenshotFiles.slice(0,6))body.append("screenshots",file,file.name);if(values.rulebookFile)body.append("rulebook",values.rulebookFile,values.rulebookFile.name);const response=await fetch(`${api}/${isUpdate?"updates":"submissions"}`,{method:"POST",body}),result=await response.json().catch(()=>({}));if(!response.ok)throw Error(result.error||`HTTP ${response.status}`);ui.notifications?.info?.(fmt(isUpdate?"SD.Market.UpdateDone":"SD.Market.SubmitDone",{id:result.updateId||result.submissionId},"Request {id} is waiting for approval."))}catch(error){console.error("SD | Market submission",error);ui.notifications?.error?.(fmt(isUpdate?"SD.Market.UpdateError":"SD.Market.SubmitError",{error:error.message},`Request failed: ${error.message}`))}
+    try{const pkg=await this._buildPackage(values);if(!await this._confirmPackage(pkg,values,{isUpdate}))return;ui.notifications?.info?.(loc(isUpdate?"SD.Market.UpdateUploading":"SD.Market.SubmitUploading"));const body=new FormData();body.append("secretKey",values.secretKey);body.append("meta",JSON.stringify({name:values.name,author:values.author,version:values.version,description:values.description,patchNotes:values.patchNotes,tags:values.tags,contact:values.contact,world:game.world?.title??"",foundryUser:game.user?.name??""}));const base=String(values.name||"sd-system").toLowerCase().replace(/[^a-z0-9\u0400-\u04ff]+/gi,"-").replace(/^-+|-+$/g,"")||"sd-system";body.append("package",new Blob([JSON.stringify(pkg,null,2)],{type:"application/json"}),`${base}.sd-system.json`);if(values.iconFile)body.append("icon",values.iconFile,values.iconFile.name);if(values.coverFile)body.append("cover",values.coverFile,values.coverFile.name);for(const file of values.screenshotFiles.slice(0,6))body.append("screenshots",file,file.name);if(values.rulebookFile)body.append("rulebook",values.rulebookFile,values.rulebookFile.name);const response=await fetch(`${api}/${isUpdate?"updates":"submissions"}`,{method:"POST",body}),result=await response.json().catch(()=>({}));if(!response.ok)throw Error(result.error||`HTTP ${response.status}`);ui.notifications?.info?.(fmt(isUpdate?"SD.Market.UpdateDone":"SD.Market.SubmitDone",{id:result.updateId||result.submissionId},"Request {id} is waiting for approval."))}catch(error){console.error("SD | Market submission",error);ui.notifications?.error?.(fmt(isUpdate?"SD.Market.UpdateError":"SD.Market.SubmitError",{error:error.message},`Request failed: ${error.message}`))}
   }
 
   async _exportCurrent() {

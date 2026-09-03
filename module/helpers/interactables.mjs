@@ -660,9 +660,9 @@ function _renderEditorHTML(state) {
       </div>
       <div class="sd-iep-row sd-iep-row-graph">
         <button type="button" class="sd-iep-graph-btn">
-          <i class="fas fa-project-diagram"></i> Edit Action Graph
+          <i class="fas fa-diagram-project"></i> Interaction Blueprint
         </button>
-        <span class="sd-iep-graph-status">${(sel.graphData?.nodes?.length ?? 0) > 0 ? `graph: ${sel.graphData.nodes.length} nodes` : "no graph yet"}</span>
+        <span class="sd-iep-graph-status">${(sel.graphData?.nodes?.length ?? 0) > 0 ? `${sel.graphData.nodes.length} nodes · Database variables` : "Database-variable graph"}</span>
       </div>
     </div>` : `<div class="sd-iep-empty-right">Select a button on the left, or add one.</div>`;
 
@@ -720,8 +720,8 @@ export function openInteractablesEditor(doc) {
   const _closePopup = () => windowApp?.close?.() ?? popup.remove();
   windowApp = openFoundryWindow({
     id:`sd-interactables-${foundry.utils.randomID(8)}`,
-    title:`SD Interactables — ${state.docLabel}`,
-    icon:"fa-solid fa-bolt",
+    title:`Interactions — ${state.docLabel}`,
+    icon:"fa-solid fa-hand-pointer",
     width:Math.min(900, Math.floor(window.innerWidth * 0.90)),
     height:Math.min(650, Math.floor(window.innerHeight * 0.86)),
     minWidth:620,

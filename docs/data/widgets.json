@@ -7,7 +7,7 @@
     "defaultSpan": 1,
     "defaults": {
       "label": "Label",
-      "path": "system.flags.myField",
+      "path": "",
       "variant": "default"
     },
     "configFields": [
@@ -19,7 +19,7 @@
       {
         "key": "path",
         "type": "path",
-        "label": "Data Path"
+        "label": "Variable"
       },
       {
         "key": "variant",
@@ -75,21 +75,16 @@
       "dialogue"
     ]
   },
-  "number": {
-    "id": "number",
-    "label": "Number ±",
-    "icon": "fa-hashtag",
-    "desc": "Number + ± buttons",
-    "defaultSpan": 1,
+  "richtext": {
+    "id": "richtext",
+    "label": "Rich Text",
+    "icon": "fa-align-left",
+    "desc": "HTML notes field",
+    "defaultSpan": 3,
     "defaults": {
-      "label": "Value",
-      "path": "system.flags.myNumber",
-      "numberMode": "classic",
-      "min": null,
-      "max": null,
-      "step": 1,
-      "variant": "default",
-      "animationTag": ""
+      "label": "Notes",
+      "path": "",
+      "variant": "default"
     },
     "configFields": [
       {
@@ -100,545 +95,122 @@
       {
         "key": "path",
         "type": "path",
-        "label": "Data Path"
-      },
-      {
-        "key": "min",
-        "type": "text",
-        "label": "Min (number or path)"
-      },
-      {
-        "key": "max",
-        "type": "text",
-        "label": "Max (number or path)"
-      },
-      {
-        "key": "step",
-        "type": "number",
-        "label": "Step"
+        "label": "Variable"
       },
       {
         "key": "variant",
         "type": "variant",
         "label": "Variant",
-        "variantType": "number",
+        "variantType": "richtext",
         "options": [
           {
             "value": "default",
-            "label": "SD.WidgetVariants.number.default",
+            "label": "SD.WidgetVariants.richtext.default",
             "fallback": "Default"
           },
           {
-            "value": "chip",
-            "label": "SD.WidgetVariants.number.chip",
-            "fallback": "chip"
+            "value": "boxed",
+            "label": "SD.WidgetVariants.richtext.boxed",
+            "fallback": "boxed"
           },
           {
-            "value": "stat",
-            "label": "SD.WidgetVariants.number.stat",
-            "fallback": "stat"
+            "value": "scroll",
+            "label": "SD.WidgetVariants.richtext.scroll",
+            "fallback": "scroll"
+          },
+          {
+            "value": "codex",
+            "label": "SD.WidgetVariants.richtext.codex",
+            "fallback": "codex"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.richtext.terminal",
+            "fallback": "terminal"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      "default",
+      "boxed",
+      "scroll",
+      "codex",
+      "terminal"
+    ]
+  },
+  "image": {
+    "id": "image",
+    "label": "Image",
+    "icon": "fa-image",
+    "desc": "Static image",
+    "defaultSpan": 1,
+    "defaults": {
+      "label": "",
+      "staticSrc": "",
+      "width": 64,
+      "height": 64,
+      "borderRadius": 4,
+      "variant": "default"
+    },
+    "configFields": [
+      {
+        "key": "staticSrc",
+        "type": "text",
+        "label": "Image"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "image",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.image.default",
+            "fallback": "Default"
           },
           {
             "value": "framed",
-            "label": "SD.WidgetVariants.number.framed",
+            "label": "SD.WidgetVariants.image.framed",
             "fallback": "framed"
           },
           {
-            "value": "gauge",
-            "label": "SD.WidgetVariants.number.gauge",
-            "fallback": "gauge"
+            "value": "circle",
+            "label": "SD.WidgetVariants.image.circle",
+            "fallback": "circle"
           },
           {
-            "value": "terminal",
-            "label": "SD.WidgetVariants.number.terminal",
-            "fallback": "terminal"
+            "value": "polaroid",
+            "label": "SD.WidgetVariants.image.polaroid",
+            "fallback": "polaroid"
+          },
+          {
+            "value": "token",
+            "label": "SD.WidgetVariants.image.token",
+            "fallback": "token"
+          },
+          {
+            "value": "portrait",
+            "label": "SD.WidgetVariants.image.portrait",
+            "fallback": "portrait"
+          },
+          {
+            "value": "hologram",
+            "label": "SD.WidgetVariants.image.hologram",
+            "fallback": "hologram"
           }
         ]
-      },
-      {
-        "key": "animationTag",
-        "type": "text",
-        "label": "Animation Tag (Automated Animations)",
-        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
       "default",
-      "chip",
-      "stat",
       "framed",
-      "gauge",
-      "terminal"
-    ]
-  },
-  "counter": {
-    "id": "counter",
-    "label": "Counter",
-    "icon": "fa-plus-minus",
-    "desc": "Big ± stepper with min/max",
-    "defaultSpan": 1,
-    "defaults": {
-      "label": "Counter",
-      "path": "system.flags.myCounter",
-      "min": 0,
-      "max": 99,
-      "step": 1,
-      "color": "#e0a020",
-      "variant": "default",
-      "animationTag": ""
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "path",
-        "type": "path",
-        "label": "Data Path"
-      },
-      {
-        "key": "min",
-        "type": "number",
-        "label": "Min"
-      },
-      {
-        "key": "max",
-        "type": "number",
-        "label": "Max"
-      },
-      {
-        "key": "step",
-        "type": "number",
-        "label": "Step"
-      },
-      {
-        "key": "color",
-        "type": "color",
-        "label": "Accent colour"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "counter",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.counter.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "chunky",
-            "label": "SD.WidgetVariants.counter.chunky",
-            "fallback": "chunky"
-          },
-          {
-            "value": "minimal",
-            "label": "SD.WidgetVariants.counter.minimal",
-            "fallback": "minimal"
-          },
-          {
-            "value": "wheel",
-            "label": "SD.WidgetVariants.counter.wheel",
-            "fallback": "wheel"
-          },
-          {
-            "value": "ammo",
-            "label": "SD.WidgetVariants.counter.ammo",
-            "fallback": "ammo"
-          },
-          {
-            "value": "odometer",
-            "label": "SD.WidgetVariants.counter.odometer",
-            "fallback": "odometer"
-          }
-        ]
-      },
-      {
-        "key": "animationTag",
-        "type": "text",
-        "label": "Animation Tag (Automated Animations)",
-        "placeholder": "name matched by AA Auto Recognition"
-      }
-    ],
-    "variants": [
-      "default",
-      "chunky",
-      "minimal",
-      "wheel",
-      "ammo",
-      "odometer"
-    ]
-  },
-  "resource": {
-    "id": "resource",
-    "label": "Resource Bar",
-    "icon": "fa-heart-pulse",
-    "desc": "Value / Max + bar",
-    "defaultSpan": 2,
-    "defaults": {
-      "label": "Resource",
-      "resourceMode": "classic",
-      "pathValue": "system.resources.hp.value",
-      "pathMax": "system.resources.hp.max",
-      "color": "#e05a5a",
-      "variant": "default"
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "pathValue",
-        "type": "path",
-        "label": "Value Path"
-      },
-      {
-        "key": "pathMax",
-        "type": "path",
-        "label": "Max Path"
-      },
-      {
-        "key": "color",
-        "type": "color",
-        "label": "Bar Color"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "resource",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.resource.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "split",
-            "label": "SD.WidgetVariants.resource.split",
-            "fallback": "split"
-          },
-          {
-            "value": "heart",
-            "label": "SD.WidgetVariants.resource.heart",
-            "fallback": "heart"
-          },
-          {
-            "value": "stripes",
-            "label": "SD.WidgetVariants.resource.stripes",
-            "fallback": "stripes"
-          },
-          {
-            "value": "digital",
-            "label": "SD.WidgetVariants.resource.digital",
-            "fallback": "digital"
-          },
-          {
-            "value": "pulse",
-            "label": "SD.WidgetVariants.resource.pulse",
-            "fallback": "pulse"
-          },
-          {
-            "value": "orb",
-            "label": "SD.WidgetVariants.resource.orb",
-            "fallback": "orb"
-          },
-          {
-            "value": "rpg-bar",
-            "label": "SD.WidgetVariants.resource.rpg-bar",
-            "fallback": "rpg-bar"
-          },
-          {
-            "value": "boss",
-            "label": "SD.WidgetVariants.resource.boss",
-            "fallback": "boss"
-          },
-          {
-            "value": "survival",
-            "label": "SD.WidgetVariants.resource.survival",
-            "fallback": "survival"
-          }
-        ]
-      }
-    ],
-    "variants": [
-      "default",
-      "split",
-      "heart",
-      "stripes",
-      "digital",
-      "pulse",
-      "orb",
-      "rpg-bar",
-      "boss",
-      "survival"
-    ]
-  },
-  "derived": {
-    "id": "derived",
-    "label": "Derived Value",
-    "icon": "fa-function",
-    "desc": "Read-only computed value",
-    "defaultSpan": 1,
-    "defaults": {
-      "label": "Derived",
-      "formula": "0",
-      "decimalPlaces": 0,
-      "valueFontSize": 0,
-      "variant": "default"
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "formula",
-        "type": "text",
-        "label": "Formula",
-        "mono": true,
-        "placeholder": "{system.attributes.attr1.value} * 2"
-      },
-      {
-        "key": "decimalPlaces",
-        "type": "number",
-        "label": "Decimal places (0 = integer)"
-      },
-      {
-        "key": "valueFontSize",
-        "type": "number",
-        "label": "Value font size (px, 0 = default)"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "derived",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.derived.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "stat-card",
-            "label": "SD.WidgetVariants.derived.stat-card",
-            "fallback": "stat-card"
-          },
-          {
-            "value": "formula-badge",
-            "label": "SD.WidgetVariants.derived.formula-badge",
-            "fallback": "formula-badge"
-          },
-          {
-            "value": "inline",
-            "label": "SD.WidgetVariants.derived.inline",
-            "fallback": "inline"
-          },
-          {
-            "value": "pill",
-            "label": "SD.WidgetVariants.derived.pill",
-            "fallback": "pill"
-          },
-          {
-            "value": "hud",
-            "label": "SD.WidgetVariants.derived.hud",
-            "fallback": "hud"
-          },
-          {
-            "value": "terminal",
-            "label": "SD.WidgetVariants.derived.terminal",
-            "fallback": "terminal"
-          },
-          {
-            "value": "crystal",
-            "label": "SD.WidgetVariants.derived.crystal",
-            "fallback": "crystal"
-          }
-        ]
-      }
-    ],
-    "variants": [
-      "default",
-      "stat-card",
-      "formula-badge",
-      "inline",
-      "pill",
-      "hud",
-      "terminal",
-      "crystal"
-    ]
-  },
-  "dice": {
-    "id": "dice",
-    "label": "Dice Button",
-    "icon": "fa-dice-d20",
-    "desc": "Clickable roll",
-    "defaultSpan": 1,
-    "defaults": {
-      "label": "Roll",
-      "formula": "1d20",
-      "icon": "fa-dice-d20",
-      "flavor": "",
-      "variant": "default",
-      "animationTag": ""
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "formula",
-        "type": "text",
-        "label": "Formula",
-        "mono": true
-      },
-      {
-        "key": "icon",
-        "type": "text",
-        "label": "FA Icon"
-      },
-      {
-        "key": "flavor",
-        "type": "text",
-        "label": "Flavor text"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "dice",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.dice.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "d20-big",
-            "label": "SD.WidgetVariants.dice.d20-big",
-            "fallback": "d20-big"
-          },
-          {
-            "value": "chip",
-            "label": "SD.WidgetVariants.dice.chip",
-            "fallback": "chip"
-          },
-          {
-            "value": "flat",
-            "label": "SD.WidgetVariants.dice.flat",
-            "fallback": "flat"
-          },
-          {
-            "value": "rune",
-            "label": "SD.WidgetVariants.dice.rune",
-            "fallback": "rune"
-          },
-          {
-            "value": "tactical",
-            "label": "SD.WidgetVariants.dice.tactical",
-            "fallback": "tactical"
-          },
-          {
-            "value": "neon",
-            "label": "SD.WidgetVariants.dice.neon",
-            "fallback": "neon"
-          }
-        ]
-      },
-      {
-        "key": "animationTag",
-        "type": "text",
-        "label": "Animation Tag (Automated Animations)",
-        "placeholder": "name matched by AA Auto Recognition"
-      }
-    ],
-    "variants": [
-      "default",
-      "d20-big",
-      "chip",
-      "flat",
-      "rune",
-      "tactical",
-      "neon"
-    ]
-  },
-  "diceTray": {
-    "id": "diceTray",
-    "label": "Dice Tray",
-    "icon": "fa-dice",
-    "desc": "Shows the last dice roll",
-    "defaultSpan": 2,
-    "defaults": {
-      "label": "Last Roll",
-      "flagPath": "flags.sd.lastRoll",
-      "color": "#7ef0c3",
-      "compact": false,
-      "variant": "default"
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "flagPath",
-        "type": "path",
-        "label": "Flag Path (read-only)"
-      },
-      {
-        "key": "color",
-        "type": "color",
-        "label": "Accent colour"
-      },
-      {
-        "key": "compact",
-        "type": "toggle",
-        "label": "Compact (single line)"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "diceTray",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.diceTray.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "combat-log",
-            "label": "SD.WidgetVariants.diceTray.combat-log",
-            "fallback": "combat-log"
-          },
-          {
-            "value": "critical",
-            "label": "SD.WidgetVariants.diceTray.critical",
-            "fallback": "critical"
-          },
-          {
-            "value": "terminal",
-            "label": "SD.WidgetVariants.diceTray.terminal",
-            "fallback": "terminal"
-          }
-        ]
-      }
-    ],
-    "variants": [
-      "default",
-      "combat-log",
-      "critical",
-      "terminal"
+      "circle",
+      "polaroid",
+      "token",
+      "portrait",
+      "hologram"
     ]
   },
   "button": {
@@ -652,7 +224,6 @@
       "icon": "fa-bolt",
       "color": "#7b68ee",
       "btnId": "",
-      "formula": "",
       "flavor": "",
       "variant": "default",
       "animationTag": ""
@@ -672,12 +243,6 @@
         "key": "color",
         "type": "color",
         "label": "Color"
-      },
-      {
-        "key": "formula",
-        "type": "text",
-        "label": "Roll Formula (optional)",
-        "mono": true
       },
       {
         "key": "flavor",
@@ -768,6 +333,102 @@
       "menu"
     ]
   },
+  "number": {
+    "id": "number",
+    "label": "Number ±",
+    "icon": "fa-hashtag",
+    "desc": "Number + ± buttons",
+    "defaultSpan": 1,
+    "defaults": {
+      "label": "Value",
+      "path": "",
+      "numberMode": "classic",
+      "min": null,
+      "max": null,
+      "step": 1,
+      "variant": "default",
+      "animationTag": ""
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "path",
+        "type": "path",
+        "label": "Variable"
+      },
+      {
+        "key": "min",
+        "type": "text",
+        "label": "Min (number or Variable)"
+      },
+      {
+        "key": "max",
+        "type": "text",
+        "label": "Max (number or Variable)"
+      },
+      {
+        "key": "step",
+        "type": "number",
+        "label": "Step"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "number",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.number.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "chip",
+            "label": "SD.WidgetVariants.number.chip",
+            "fallback": "chip"
+          },
+          {
+            "value": "stat",
+            "label": "SD.WidgetVariants.number.stat",
+            "fallback": "stat"
+          },
+          {
+            "value": "framed",
+            "label": "SD.WidgetVariants.number.framed",
+            "fallback": "framed"
+          },
+          {
+            "value": "gauge",
+            "label": "SD.WidgetVariants.number.gauge",
+            "fallback": "gauge"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.number.terminal",
+            "fallback": "terminal"
+          }
+        ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
+      }
+    ],
+    "variants": [
+      "default",
+      "chip",
+      "stat",
+      "framed",
+      "gauge",
+      "terminal"
+    ]
+  },
   "toggle": {
     "id": "toggle",
     "label": "Toggle",
@@ -776,7 +437,7 @@
     "defaultSpan": 1,
     "defaults": {
       "label": "Toggle",
-      "path": "system.flags.myToggle",
+      "path": "",
       "onLabel": "On",
       "offLabel": "Off",
       "variant": "default",
@@ -791,7 +452,7 @@
       {
         "key": "path",
         "type": "path",
-        "label": "Data Path"
+        "label": "Variable"
       },
       {
         "key": "onLabel",
@@ -857,17 +518,17 @@
       "rune"
     ]
   },
-  "attribute": {
-    "id": "attribute",
-    "label": "Attribute",
-    "icon": "fa-chart-bar",
-    "desc": "Score + modifier + click graph",
+  "select": {
+    "id": "select",
+    "label": "Select",
+    "icon": "fa-list",
+    "desc": "Dropdown from comma-separated choices",
     "defaultSpan": 1,
     "defaults": {
-      "label": "Attribute",
-      "path": "system.attributes.attr1.value",
-      "variant": "default",
-      "animationTag": ""
+      "label": "Pick",
+      "path": "",
+      "choices": "option1,option2,option3",
+      "variant": "default"
     },
     "configFields": [
       {
@@ -878,265 +539,260 @@
       {
         "key": "path",
         "type": "path",
-        "label": "Score Path"
+        "label": "Variable"
       },
       {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "attribute",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.attribute.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "stat-card",
-            "label": "SD.WidgetVariants.attribute.stat-card",
-            "fallback": "stat-card"
-          },
-          {
-            "value": "inline",
-            "label": "SD.WidgetVariants.attribute.inline",
-            "fallback": "inline"
-          },
-          {
-            "value": "badge",
-            "label": "SD.WidgetVariants.attribute.badge",
-            "fallback": "badge"
-          },
-          {
-            "value": "roll-button",
-            "label": "SD.WidgetVariants.attribute.roll-button",
-            "fallback": "roll-button"
-          },
-          {
-            "value": "rpg",
-            "label": "SD.WidgetVariants.attribute.rpg",
-            "fallback": "rpg"
-          },
-          {
-            "value": "hex",
-            "label": "SD.WidgetVariants.attribute.hex",
-            "fallback": "hex"
-          },
-          {
-            "value": "tactical",
-            "label": "SD.WidgetVariants.attribute.tactical",
-            "fallback": "tactical"
-          }
-        ]
-      },
-      {
-        "key": "animationTag",
+        "key": "choices",
         "type": "text",
-        "label": "Animation Tag (Automated Animations)",
-        "placeholder": "name matched by AA Auto Recognition"
-      }
-    ],
-    "variants": [
-      "default",
-      "stat-card",
-      "inline",
-      "badge",
-      "roll-button",
-      "rpg",
-      "hex",
-      "tactical"
-    ]
-  },
-  "attributeGroup": {
-    "id": "attributeGroup",
-    "label": "Attribute Group",
-    "icon": "fa-dice-d20",
-    "desc": "Compact button → popover list of attributes",
-    "defaultSpan": 1,
-    "defaults": {
-      "label": "Attributes",
-      "attributeKeys": "",
-      "variant": "default",
-      "animationTag": ""
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Button label"
-      },
-      {
-        "key": "attributeKeys",
-        "type": "text",
-        "label": "Attribute keys or paths (comma, blank = all enabled)",
-        "placeholder": "attr1, attr2 — or system.attributes.attr1.value"
-      },
-      {
-        "key": "icon",
-        "type": "text",
-        "label": "FA icon (e.g. fa-dice-d20)"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "attributeGroup",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.attributeGroup.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "row",
-            "label": "SD.WidgetVariants.attributeGroup.row",
-            "fallback": "row"
-          },
-          {
-            "value": "grid",
-            "label": "SD.WidgetVariants.attributeGroup.grid",
-            "fallback": "grid"
-          },
-          {
-            "value": "dice",
-            "label": "SD.WidgetVariants.attributeGroup.dice",
-            "fallback": "dice"
-          },
-          {
-            "value": "character",
-            "label": "SD.WidgetVariants.attributeGroup.character",
-            "fallback": "character"
-          },
-          {
-            "value": "tactical",
-            "label": "SD.WidgetVariants.attributeGroup.tactical",
-            "fallback": "tactical"
-          }
-        ]
-      },
-      {
-        "key": "animationTag",
-        "type": "text",
-        "label": "Animation Tag (Automated Animations)",
-        "placeholder": "name matched by AA Auto Recognition"
-      }
-    ],
-    "variants": [
-      "default",
-      "row",
-      "grid",
-      "dice",
-      "character",
-      "tactical"
-    ]
-  },
-  "skill": {
-    "id": "skill",
-    "label": "Skill",
-    "icon": "fa-list-check",
-    "desc": "Rank + bonus + roll",
-    "defaultSpan": 1,
-    "defaults": {
-      "label": "Skill",
-      "path": "system.skills.skill1.rank",
-      "attrMod": 0,
-      "rollFormula": "",
-      "variant": "default",
-      "animationTag": ""
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "path",
-        "type": "path",
-        "label": "Rank Path"
-      },
-      {
-        "key": "attrMod",
-        "type": "number",
-        "label": "Attr Modifier"
-      },
-      {
-        "key": "rollFormula",
-        "type": "text",
-        "label": "Roll Formula (blank = 1d20+bonus)",
+        "label": "Choices (comma-separated)",
         "mono": true,
-        "placeholder": "e.g. 2d6+@skill1"
+        "placeholder": "low,medium,high"
       },
       {
         "key": "variant",
         "type": "variant",
         "label": "Variant",
-        "variantType": "skill",
+        "variantType": "select",
         "options": [
           {
             "value": "default",
-            "label": "SD.WidgetVariants.skill.default",
+            "label": "SD.WidgetVariants.select.default",
             "fallback": "Default"
           },
           {
-            "value": "pill",
-            "label": "SD.WidgetVariants.skill.pill",
-            "fallback": "pill"
+            "value": "pills",
+            "label": "SD.WidgetVariants.select.pills",
+            "fallback": "pills"
           },
           {
-            "value": "row-rank",
-            "label": "SD.WidgetVariants.skill.row-rank",
-            "fallback": "row-rank"
+            "value": "segmented",
+            "label": "SD.WidgetVariants.select.segmented",
+            "fallback": "segmented"
           },
           {
-            "value": "pips",
-            "label": "SD.WidgetVariants.skill.pips",
-            "fallback": "pips"
+            "value": "radio",
+            "label": "SD.WidgetVariants.select.radio",
+            "fallback": "radio"
           },
           {
-            "value": "skilltree",
-            "label": "SD.WidgetVariants.skill.skilltree",
-            "fallback": "skilltree"
+            "value": "menu",
+            "label": "SD.WidgetVariants.select.menu",
+            "fallback": "menu"
           },
           {
-            "value": "compact",
-            "label": "SD.WidgetVariants.skill.compact",
-            "fallback": "compact"
-          },
-          {
-            "value": "rune",
-            "label": "SD.WidgetVariants.skill.rune",
-            "fallback": "rune"
+            "value": "holographic",
+            "label": "SD.WidgetVariants.select.holographic",
+            "fallback": "holographic"
           }
         ]
-      },
-      {
-        "key": "animationTag",
-        "type": "text",
-        "label": "Animation Tag (Automated Animations)",
-        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
       "default",
-      "pill",
-      "row-rank",
-      "pips",
-      "skilltree",
-      "compact",
-      "rune"
+      "pills",
+      "segmented",
+      "radio",
+      "menu",
+      "holographic"
+    ]
+  },
+  "tags": {
+    "id": "tags",
+    "label": "Tags / Traits",
+    "icon": "fa-tags",
+    "desc": "Pill list of traits / keywords",
+    "defaultSpan": 3,
+    "defaults": {
+      "label": "Tags",
+      "path": "",
+      "color": "#5a6a9a",
+      "variant": "default"
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "path",
+        "type": "path",
+        "label": "Data path (string, comma-separated)"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "Pill colour"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "tags",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.tags.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "outline",
+            "label": "SD.WidgetVariants.tags.outline",
+            "fallback": "outline"
+          },
+          {
+            "value": "solid",
+            "label": "SD.WidgetVariants.tags.solid",
+            "fallback": "solid"
+          },
+          {
+            "value": "soft",
+            "label": "SD.WidgetVariants.tags.soft",
+            "fallback": "soft"
+          },
+          {
+            "value": "rarity",
+            "label": "SD.WidgetVariants.tags.rarity",
+            "fallback": "rarity"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.tags.terminal",
+            "fallback": "terminal"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      "default",
+      "outline",
+      "solid",
+      "soft",
+      "rarity",
+      "terminal"
+    ]
+  },
+  "resource": {
+    "id": "resource",
+    "label": "Resource Bar",
+    "icon": "fa-heart-pulse",
+    "desc": "Database value / max resource bar",
+    "defaultSpan": 2,
+    "defaults": {
+      "label": "Resource",
+      "resourceMode": "classic",
+      "pathValue": "",
+      "pathMax": "",
+      "color": "#e05a5a",
+      "variant": "default"
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "pathValue",
+        "type": "path",
+        "label": "Value Variable"
+      },
+      {
+        "key": "pathMax",
+        "type": "path",
+        "label": "Max Variable"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "Bar Color"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "resource",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.resource.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "split",
+            "label": "SD.WidgetVariants.resource.split",
+            "fallback": "split"
+          },
+          {
+            "value": "heart",
+            "label": "SD.WidgetVariants.resource.heart",
+            "fallback": "heart"
+          },
+          {
+            "value": "stripes",
+            "label": "SD.WidgetVariants.resource.stripes",
+            "fallback": "stripes"
+          },
+          {
+            "value": "digital",
+            "label": "SD.WidgetVariants.resource.digital",
+            "fallback": "digital"
+          },
+          {
+            "value": "pulse",
+            "label": "SD.WidgetVariants.resource.pulse",
+            "fallback": "pulse"
+          },
+          {
+            "value": "orb",
+            "label": "SD.WidgetVariants.resource.orb",
+            "fallback": "orb"
+          },
+          {
+            "value": "rpg-bar",
+            "label": "SD.WidgetVariants.resource.rpg-bar",
+            "fallback": "rpg-bar"
+          },
+          {
+            "value": "boss",
+            "label": "SD.WidgetVariants.resource.boss",
+            "fallback": "boss"
+          },
+          {
+            "value": "survival",
+            "label": "SD.WidgetVariants.resource.survival",
+            "fallback": "survival"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      "default",
+      "split",
+      "heart",
+      "stripes",
+      "digital",
+      "pulse",
+      "orb",
+      "rpg-bar",
+      "boss",
+      "survival"
     ]
   },
   "progress": {
     "id": "progress",
-    "label": "Progress Bar",
-    "icon": "fa-chart-bar",
-    "desc": "Read-only horizontal bar",
+    "label": "Meter",
+    "icon": "fa-gauge-high",
+    "desc": "Universal resource, progress, tracker and token-pool display",
     "defaultSpan": 2,
     "defaults": {
       "label": "Progress",
-      "pathValue": "system.advancement.xp.value",
-      "pathMax": "system.advancement.xp.max",
+      "pathValue": "",
+      "pathMax": "",
       "color": "#5a8aff",
+      "mode": "bar",
+      "segments": 10,
+      "interactive": false,
       "showLabel": true,
       "showPct": true,
       "variant": "default"
@@ -1150,17 +806,39 @@
       {
         "key": "pathValue",
         "type": "path",
-        "label": "Value Path"
+        "label": "Value Variable"
       },
       {
         "key": "pathMax",
         "type": "path",
-        "label": "Max Path"
+        "label": "Max Variable"
       },
       {
         "key": "color",
         "type": "color",
-        "label": "Bar Colour"
+        "label": "Meter Colour"
+      },
+      {
+        "key": "mode",
+        "type": "select",
+        "label": "Display",
+        "options": [
+          "bar",
+          "segments",
+          "pips",
+          "radial",
+          "number"
+        ]
+      },
+      {
+        "key": "segments",
+        "type": "number",
+        "label": "Segments / tokens"
+      },
+      {
+        "key": "interactive",
+        "type": "checkbox",
+        "label": "Allow click to change"
       },
       {
         "key": "showLabel",
@@ -1232,23 +910,19 @@
       "boss"
     ]
   },
-  "tracker": {
-    "id": "tracker",
-    "label": "Token Tracker",
-    "icon": "fa-circle-dot",
-    "desc": "Row of clickable pip icons",
-    "defaultSpan": 2,
+  "counter": {
+    "id": "counter",
+    "label": "Counter",
+    "icon": "fa-plus-minus",
+    "desc": "Big ± stepper with min/max",
+    "defaultSpan": 1,
     "defaults": {
-      "label": "Stress",
-      "path": "system.hiddenFields.myTracker",
-      "maxPath": "",
-      "maxCount": 6,
-      "icon": "fa-circle",
-      "emptyIcon": "",
-      "color": "#e04040",
-      "bgColor": "#2a2a3a",
-      "pipSize": 14,
-      "glow": true,
+      "label": "Counter",
+      "path": "",
+      "min": 0,
+      "max": 99,
+      "step": 1,
+      "color": "#e0a020",
       "variant": "default",
       "animationTag": ""
     },
@@ -1261,88 +935,63 @@
       {
         "key": "path",
         "type": "path",
-        "label": "Value Path (integer)"
+        "label": "Variable"
       },
       {
-        "key": "maxPath",
-        "type": "path",
-        "label": "Max Path (blank = use Max below)"
-      },
-      {
-        "key": "maxCount",
+        "key": "min",
         "type": "number",
-        "label": "Max (when no Max Path)"
+        "label": "Min"
       },
       {
-        "key": "icon",
-        "type": "text",
-        "label": "FA icon (e.g. fa-heart, fab fa-github)"
+        "key": "max",
+        "type": "number",
+        "label": "Max"
       },
       {
-        "key": "emptyIcon",
-        "type": "text",
-        "label": "Empty pip icon (blank = same glyph)"
-      },
-      {
-        "key": "iconImg",
-        "type": "image-pick",
-        "label": "Filled pip image (overrides FA icon)"
-      },
-      {
-        "key": "emptyIconImg",
-        "type": "image-pick",
-        "label": "Empty pip image (blank = use Empty icon)"
+        "key": "step",
+        "type": "number",
+        "label": "Step"
       },
       {
         "key": "color",
         "type": "color",
-        "label": "Filled colour"
-      },
-      {
-        "key": "bgColor",
-        "type": "color",
-        "label": "Empty colour"
-      },
-      {
-        "key": "pipSize",
-        "type": "number",
-        "label": "Pip size (px, 10–24)"
-      },
-      {
-        "key": "glow",
-        "type": "boolean",
-        "label": "Glow effect on filled pips"
+        "label": "Accent colour"
       },
       {
         "key": "variant",
         "type": "variant",
         "label": "Variant",
-        "variantType": "tracker",
+        "variantType": "counter",
         "options": [
           {
             "value": "default",
-            "label": "SD.WidgetVariants.tracker.default",
+            "label": "SD.WidgetVariants.counter.default",
             "fallback": "Default"
           },
           {
-            "value": "hearts",
-            "label": "SD.WidgetVariants.tracker.hearts",
-            "fallback": "hearts"
+            "value": "chunky",
+            "label": "SD.WidgetVariants.counter.chunky",
+            "fallback": "chunky"
           },
           {
-            "value": "stress",
-            "label": "SD.WidgetVariants.tracker.stress",
-            "fallback": "stress"
+            "value": "minimal",
+            "label": "SD.WidgetVariants.counter.minimal",
+            "fallback": "minimal"
+          },
+          {
+            "value": "wheel",
+            "label": "SD.WidgetVariants.counter.wheel",
+            "fallback": "wheel"
           },
           {
             "value": "ammo",
-            "label": "SD.WidgetVariants.tracker.ammo",
+            "label": "SD.WidgetVariants.counter.ammo",
             "fallback": "ammo"
           },
           {
-            "value": "hex",
-            "label": "SD.WidgetVariants.tracker.hex",
-            "fallback": "hex"
+            "value": "odometer",
+            "label": "SD.WidgetVariants.counter.odometer",
+            "fallback": "odometer"
           }
         ]
       },
@@ -1355,132 +1004,11 @@
     ],
     "variants": [
       "default",
-      "hearts",
-      "stress",
+      "chunky",
+      "minimal",
+      "wheel",
       "ammo",
-      "hex"
-    ]
-  },
-  "tokenPool": {
-    "id": "tokenPool",
-    "label": "Token Pool",
-    "icon": "fa-coins",
-    "desc": "Token pool with spend / gain",
-    "defaultSpan": 2,
-    "defaults": {
-      "label": "Tokens",
-      "path": "system.flags.myTokens",
-      "maxPath": "",
-      "maxCount": 10,
-      "icon": "fa-coins",
-      "color": "#f0c040",
-      "bgColor": "#2a2a3a",
-      "pipSize": 16,
-      "variant": "default",
-      "animationTag": ""
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "path",
-        "type": "path",
-        "label": "Value Path (integer)"
-      },
-      {
-        "key": "maxPath",
-        "type": "path",
-        "label": "Max Path (blank = use Max below)"
-      },
-      {
-        "key": "maxCount",
-        "type": "number",
-        "label": "Max (when no Max Path)"
-      },
-      {
-        "key": "icon",
-        "type": "text",
-        "label": "FA icon (e.g. fa-coins, fa-star)"
-      },
-      {
-        "key": "emptyIcon",
-        "type": "text",
-        "label": "Empty token icon (blank = same glyph)"
-      },
-      {
-        "key": "iconImg",
-        "type": "image-pick",
-        "label": "Filled token image (overrides FA icon)"
-      },
-      {
-        "key": "emptyIconImg",
-        "type": "image-pick",
-        "label": "Empty token image (blank = use Empty icon)"
-      },
-      {
-        "key": "color",
-        "type": "color",
-        "label": "Filled colour"
-      },
-      {
-        "key": "bgColor",
-        "type": "color",
-        "label": "Empty colour"
-      },
-      {
-        "key": "pipSize",
-        "type": "number",
-        "label": "Token size (px, 10–24)"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "tokenPool",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.tokenPool.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "coins",
-            "label": "SD.WidgetVariants.tokenPool.coins",
-            "fallback": "coins"
-          },
-          {
-            "value": "gems",
-            "label": "SD.WidgetVariants.tokenPool.gems",
-            "fallback": "gems"
-          },
-          {
-            "value": "charges",
-            "label": "SD.WidgetVariants.tokenPool.charges",
-            "fallback": "charges"
-          },
-          {
-            "value": "souls",
-            "label": "SD.WidgetVariants.tokenPool.souls",
-            "fallback": "souls"
-          }
-        ]
-      },
-      {
-        "key": "animationTag",
-        "type": "text",
-        "label": "Animation Tag (Automated Animations)",
-        "placeholder": "name matched by AA Auto Recognition"
-      }
-    ],
-    "variants": [
-      "default",
-      "coins",
-      "gems",
-      "charges",
-      "souls"
+      "odometer"
     ]
   },
   "clock": {
@@ -1491,7 +1019,7 @@
     "defaultSpan": 1,
     "defaults": {
       "label": "Clock",
-      "path": "system.flags.myClock",
+      "path": "",
       "segments": 4,
       "color": "#e0a020",
       "bgColor": "#1a1a2a",
@@ -1576,6 +1104,431 @@
       "fraction",
       "hex",
       "timeline"
+    ]
+  },
+  "derived": {
+    "id": "derived",
+    "label": "Derived Value",
+    "icon": "fa-function",
+    "desc": "Read-only computed value",
+    "defaultSpan": 1,
+    "defaults": {
+      "label": "Derived",
+      "formula": "0",
+      "decimalPlaces": 0,
+      "valueFontSize": 0,
+      "variant": "default"
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "formula",
+        "type": "text",
+        "label": "Formula",
+        "mono": true,
+        "placeholder": "{sdValue:...} * 2"
+      },
+      {
+        "key": "decimalPlaces",
+        "type": "number",
+        "label": "Decimal places (0 = integer)"
+      },
+      {
+        "key": "valueFontSize",
+        "type": "number",
+        "label": "Value font size (px, 0 = default)"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "derived",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.derived.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "stat-card",
+            "label": "SD.WidgetVariants.derived.stat-card",
+            "fallback": "stat-card"
+          },
+          {
+            "value": "formula-badge",
+            "label": "SD.WidgetVariants.derived.formula-badge",
+            "fallback": "formula-badge"
+          },
+          {
+            "value": "inline",
+            "label": "SD.WidgetVariants.derived.inline",
+            "fallback": "inline"
+          },
+          {
+            "value": "pill",
+            "label": "SD.WidgetVariants.derived.pill",
+            "fallback": "pill"
+          },
+          {
+            "value": "hud",
+            "label": "SD.WidgetVariants.derived.hud",
+            "fallback": "hud"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.derived.terminal",
+            "fallback": "terminal"
+          },
+          {
+            "value": "crystal",
+            "label": "SD.WidgetVariants.derived.crystal",
+            "fallback": "crystal"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      "default",
+      "stat-card",
+      "formula-badge",
+      "inline",
+      "pill",
+      "hud",
+      "terminal",
+      "crystal"
+    ]
+  },
+  "diceTray": {
+    "id": "diceTray",
+    "label": "Dice Tray",
+    "icon": "fa-dice",
+    "desc": "Shows the last dice roll",
+    "defaultSpan": 2,
+    "defaults": {
+      "label": "Last Roll",
+      "flagPath": "",
+      "color": "#7ef0c3",
+      "compact": false,
+      "variant": "default"
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "flagPath",
+        "type": "path",
+        "label": "Flag Path (read-only)"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "Accent colour"
+      },
+      {
+        "key": "compact",
+        "type": "toggle",
+        "label": "Compact (single line)"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "diceTray",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.diceTray.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "combat-log",
+            "label": "SD.WidgetVariants.diceTray.combat-log",
+            "fallback": "combat-log"
+          },
+          {
+            "value": "critical",
+            "label": "SD.WidgetVariants.diceTray.critical",
+            "fallback": "critical"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.diceTray.terminal",
+            "fallback": "terminal"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      "default",
+      "combat-log",
+      "critical",
+      "terminal"
+    ]
+  },
+  "section": {
+    "id": "section",
+    "label": "Section Header",
+    "icon": "fa-minus",
+    "desc": "Divider / heading",
+    "defaultSpan": 3,
+    "defaults": {
+      "label": "Section",
+      "collapsible": false,
+      "variant": "default"
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Title"
+      },
+      {
+        "key": "collapsible",
+        "type": "checkbox",
+        "label": "Collapsible"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "section",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.section.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "underline",
+            "label": "SD.WidgetVariants.section.underline",
+            "fallback": "underline"
+          },
+          {
+            "value": "divider",
+            "label": "SD.WidgetVariants.section.divider",
+            "fallback": "divider"
+          },
+          {
+            "value": "tab",
+            "label": "SD.WidgetVariants.section.tab",
+            "fallback": "tab"
+          },
+          {
+            "value": "pill",
+            "label": "SD.WidgetVariants.section.pill",
+            "fallback": "pill"
+          },
+          {
+            "value": "quest",
+            "label": "SD.WidgetVariants.section.quest",
+            "fallback": "quest"
+          },
+          {
+            "value": "gothic",
+            "label": "SD.WidgetVariants.section.gothic",
+            "fallback": "gothic"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.section.terminal",
+            "fallback": "terminal"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      "default",
+      "underline",
+      "divider",
+      "tab",
+      "pill",
+      "quest",
+      "gothic",
+      "terminal"
+    ]
+  },
+  "vsection": {
+    "id": "vsection",
+    "label": "Vertical Section",
+    "icon": "fa-bars",
+    "desc": "Vertical stack inside a cell",
+    "defaultSpan": 1,
+    "defaults": {
+      "label": "",
+      "widgets": [],
+      "variant": "default"
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Heading (optional)"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "vsection",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.vsection.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "panel",
+            "label": "SD.WidgetVariants.vsection.panel",
+            "fallback": "panel"
+          },
+          {
+            "value": "quest",
+            "label": "SD.WidgetVariants.vsection.quest",
+            "fallback": "quest"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.vsection.terminal",
+            "fallback": "terminal"
+          },
+          {
+            "value": "glass",
+            "label": "SD.WidgetVariants.vsection.glass",
+            "fallback": "glass"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      "default",
+      "panel",
+      "quest",
+      "terminal",
+      "glass"
+    ]
+  },
+  "widgetBuilder": {
+    "id": "widgetBuilder",
+    "label": "Widget Builder / UI Canvas",
+    "icon": "fa-shapes",
+    "desc": "Reusable visual canvas with nested child widgets and Blueprint events",
+    "defaultSpan": 3,
+    "defaults": {
+      "label": "",
+      "columns": 3,
+      "gap": 6,
+      "formula": "",
+      "elements": [],
+      "wbLayout": "free",
+      "canvasW": 0,
+      "canvasH": 140,
+      "gridSize": 16,
+      "snap": 4,
+      "clipOverflow": true,
+      "customCss": "",
+      "variant": "default"
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "wbLayout",
+        "type": "select",
+        "label": "Layout",
+        "options": [
+          "grid",
+          "free"
+        ]
+      },
+      {
+        "key": "columns",
+        "type": "number",
+        "label": "Columns (grid)"
+      },
+      {
+        "key": "gap",
+        "type": "number",
+        "label": "Gap (px, grid)"
+      },
+      {
+        "key": "canvasW",
+        "type": "number",
+        "label": "Canvas width (px; 0 = full)"
+      },
+      {
+        "key": "canvasH",
+        "type": "number",
+        "label": "Canvas height (px)"
+      },
+      {
+        "key": "gridSize",
+        "type": "number",
+        "label": "Visual grid size (px)"
+      },
+      {
+        "key": "snap",
+        "type": "number",
+        "label": "Snap step (px; 0 = off)"
+      },
+      {
+        "key": "clipOverflow",
+        "type": "toggle",
+        "label": "Clip outside canvas"
+      },
+      {
+        "key": "customCss",
+        "type": "textarea",
+        "label": "Safe scoped CSS"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "widgetBuilder",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.widgetBuilder.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "panel",
+            "label": "SD.WidgetVariants.widgetBuilder.panel",
+            "fallback": "panel"
+          },
+          {
+            "value": "hud",
+            "label": "SD.WidgetVariants.widgetBuilder.hud",
+            "fallback": "hud"
+          },
+          {
+            "value": "glass",
+            "label": "SD.WidgetVariants.widgetBuilder.glass",
+            "fallback": "glass"
+          },
+          {
+            "value": "terminal",
+            "label": "SD.WidgetVariants.widgetBuilder.terminal",
+            "fallback": "terminal"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      "default",
+      "panel",
+      "hud",
+      "glass",
+      "terminal"
     ]
   },
   "slot": {
@@ -1808,6 +1761,7 @@
       "label": "Effects",
       "showDisabled": true,
       "showPassive": true,
+      "showVariables": true,
       "variant": "default"
     },
     "configFields": [
@@ -1825,6 +1779,11 @@
         "key": "showPassive",
         "type": "checkbox",
         "label": "Show Passive (transfer) Effects"
+      },
+      {
+        "key": "showVariables",
+        "type": "checkbox",
+        "label": "Show Changed Variables"
       },
       {
         "key": "variant",
@@ -1973,439 +1932,6 @@
       "codex",
       "hotbar",
       "arcane"
-    ]
-  },
-  "select": {
-    "id": "select",
-    "label": "Select",
-    "icon": "fa-list",
-    "desc": "Dropdown from comma-separated choices",
-    "defaultSpan": 1,
-    "defaults": {
-      "label": "Pick",
-      "path": "system.flags.mySelect",
-      "choices": "option1,option2,option3",
-      "variant": "default"
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "path",
-        "type": "path",
-        "label": "Data Path"
-      },
-      {
-        "key": "choices",
-        "type": "text",
-        "label": "Choices (comma-separated)",
-        "mono": true,
-        "placeholder": "low,medium,high"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "select",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.select.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "pills",
-            "label": "SD.WidgetVariants.select.pills",
-            "fallback": "pills"
-          },
-          {
-            "value": "segmented",
-            "label": "SD.WidgetVariants.select.segmented",
-            "fallback": "segmented"
-          },
-          {
-            "value": "radio",
-            "label": "SD.WidgetVariants.select.radio",
-            "fallback": "radio"
-          },
-          {
-            "value": "menu",
-            "label": "SD.WidgetVariants.select.menu",
-            "fallback": "menu"
-          },
-          {
-            "value": "holographic",
-            "label": "SD.WidgetVariants.select.holographic",
-            "fallback": "holographic"
-          }
-        ]
-      }
-    ],
-    "variants": [
-      "default",
-      "pills",
-      "segmented",
-      "radio",
-      "menu",
-      "holographic"
-    ]
-  },
-  "tags": {
-    "id": "tags",
-    "label": "Tags / Traits",
-    "icon": "fa-tags",
-    "desc": "Pill list of traits / keywords",
-    "defaultSpan": 3,
-    "defaults": {
-      "label": "Tags",
-      "path": "system.flags.myTags",
-      "color": "#5a6a9a",
-      "variant": "default"
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "path",
-        "type": "path",
-        "label": "Data path (string, comma-separated)"
-      },
-      {
-        "key": "color",
-        "type": "color",
-        "label": "Pill colour"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "tags",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.tags.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "outline",
-            "label": "SD.WidgetVariants.tags.outline",
-            "fallback": "outline"
-          },
-          {
-            "value": "solid",
-            "label": "SD.WidgetVariants.tags.solid",
-            "fallback": "solid"
-          },
-          {
-            "value": "soft",
-            "label": "SD.WidgetVariants.tags.soft",
-            "fallback": "soft"
-          },
-          {
-            "value": "rarity",
-            "label": "SD.WidgetVariants.tags.rarity",
-            "fallback": "rarity"
-          },
-          {
-            "value": "terminal",
-            "label": "SD.WidgetVariants.tags.terminal",
-            "fallback": "terminal"
-          }
-        ]
-      }
-    ],
-    "variants": [
-      "default",
-      "outline",
-      "solid",
-      "soft",
-      "rarity",
-      "terminal"
-    ]
-  },
-  "image": {
-    "id": "image",
-    "label": "Image",
-    "icon": "fa-image",
-    "desc": "Static image",
-    "defaultSpan": 1,
-    "defaults": {
-      "label": "",
-      "staticSrc": "",
-      "width": 64,
-      "height": 64,
-      "borderRadius": 4,
-      "variant": "default"
-    },
-    "configFields": [
-      {
-        "key": "staticSrc",
-        "type": "text",
-        "label": "Image"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "image",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.image.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "framed",
-            "label": "SD.WidgetVariants.image.framed",
-            "fallback": "framed"
-          },
-          {
-            "value": "circle",
-            "label": "SD.WidgetVariants.image.circle",
-            "fallback": "circle"
-          },
-          {
-            "value": "polaroid",
-            "label": "SD.WidgetVariants.image.polaroid",
-            "fallback": "polaroid"
-          },
-          {
-            "value": "token",
-            "label": "SD.WidgetVariants.image.token",
-            "fallback": "token"
-          },
-          {
-            "value": "portrait",
-            "label": "SD.WidgetVariants.image.portrait",
-            "fallback": "portrait"
-          },
-          {
-            "value": "hologram",
-            "label": "SD.WidgetVariants.image.hologram",
-            "fallback": "hologram"
-          }
-        ]
-      }
-    ],
-    "variants": [
-      "default",
-      "framed",
-      "circle",
-      "polaroid",
-      "token",
-      "portrait",
-      "hologram"
-    ]
-  },
-  "section": {
-    "id": "section",
-    "label": "Section Header",
-    "icon": "fa-minus",
-    "desc": "Divider / heading",
-    "defaultSpan": 3,
-    "defaults": {
-      "label": "Section",
-      "collapsible": false,
-      "variant": "default"
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Title"
-      },
-      {
-        "key": "collapsible",
-        "type": "checkbox",
-        "label": "Collapsible"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "section",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.section.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "underline",
-            "label": "SD.WidgetVariants.section.underline",
-            "fallback": "underline"
-          },
-          {
-            "value": "divider",
-            "label": "SD.WidgetVariants.section.divider",
-            "fallback": "divider"
-          },
-          {
-            "value": "tab",
-            "label": "SD.WidgetVariants.section.tab",
-            "fallback": "tab"
-          },
-          {
-            "value": "pill",
-            "label": "SD.WidgetVariants.section.pill",
-            "fallback": "pill"
-          },
-          {
-            "value": "quest",
-            "label": "SD.WidgetVariants.section.quest",
-            "fallback": "quest"
-          },
-          {
-            "value": "gothic",
-            "label": "SD.WidgetVariants.section.gothic",
-            "fallback": "gothic"
-          },
-          {
-            "value": "terminal",
-            "label": "SD.WidgetVariants.section.terminal",
-            "fallback": "terminal"
-          }
-        ]
-      }
-    ],
-    "variants": [
-      "default",
-      "underline",
-      "divider",
-      "tab",
-      "pill",
-      "quest",
-      "gothic",
-      "terminal"
-    ]
-  },
-  "vsection": {
-    "id": "vsection",
-    "label": "Vertical Section",
-    "icon": "fa-bars",
-    "desc": "Vertical stack inside a cell",
-    "defaultSpan": 1,
-    "defaults": {
-      "label": "",
-      "widgets": [],
-      "variant": "default"
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Heading (optional)"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "vsection",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.vsection.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "panel",
-            "label": "SD.WidgetVariants.vsection.panel",
-            "fallback": "panel"
-          },
-          {
-            "value": "quest",
-            "label": "SD.WidgetVariants.vsection.quest",
-            "fallback": "quest"
-          },
-          {
-            "value": "terminal",
-            "label": "SD.WidgetVariants.vsection.terminal",
-            "fallback": "terminal"
-          },
-          {
-            "value": "glass",
-            "label": "SD.WidgetVariants.vsection.glass",
-            "fallback": "glass"
-          }
-        ]
-      }
-    ],
-    "variants": [
-      "default",
-      "panel",
-      "quest",
-      "terminal",
-      "glass"
-    ]
-  },
-  "richtext": {
-    "id": "richtext",
-    "label": "Rich Text",
-    "icon": "fa-align-left",
-    "desc": "HTML notes field",
-    "defaultSpan": 3,
-    "defaults": {
-      "label": "Notes",
-      "path": "system.biography.notes",
-      "variant": "default"
-    },
-    "configFields": [
-      {
-        "key": "label",
-        "type": "text",
-        "label": "Label"
-      },
-      {
-        "key": "path",
-        "type": "path",
-        "label": "Data Path"
-      },
-      {
-        "key": "variant",
-        "type": "variant",
-        "label": "Variant",
-        "variantType": "richtext",
-        "options": [
-          {
-            "value": "default",
-            "label": "SD.WidgetVariants.richtext.default",
-            "fallback": "Default"
-          },
-          {
-            "value": "boxed",
-            "label": "SD.WidgetVariants.richtext.boxed",
-            "fallback": "boxed"
-          },
-          {
-            "value": "scroll",
-            "label": "SD.WidgetVariants.richtext.scroll",
-            "fallback": "scroll"
-          },
-          {
-            "value": "codex",
-            "label": "SD.WidgetVariants.richtext.codex",
-            "fallback": "codex"
-          },
-          {
-            "value": "terminal",
-            "label": "SD.WidgetVariants.richtext.terminal",
-            "fallback": "terminal"
-          }
-        ]
-      }
-    ],
-    "variants": [
-      "default",
-      "boxed",
-      "scroll",
-      "codex",
-      "terminal"
     ]
   },
   "cardHand": {
@@ -2796,26 +2322,17 @@
       "hud"
     ]
   },
-  "widgetBuilder": {
-    "id": "widgetBuilder",
-    "label": "Widget Builder",
-    "icon": "fa-shapes",
-    "desc": "Composite widget: named buttons, values, icons and images; elements can be clickable and fire per-element On Click custom events",
-    "defaultSpan": 3,
+  "attribute": {
+    "id": "attribute",
+    "label": "Number Value",
+    "icon": "fa-chart-bar",
+    "desc": "Score + modifier + click graph",
+    "defaultSpan": 1,
     "defaults": {
-      "label": "",
-      "columns": 3,
-      "gap": 6,
-      "formula": "",
-      "elements": [],
-      "wbLayout": "grid",
-      "canvasW": 0,
-      "canvasH": 140,
-      "gridSize": 16,
-      "snap": 4,
-      "clipOverflow": true,
-      "customCss": "",
-      "variant": "default"
+      "label": "Number Value",
+      "path": "",
+      "variant": "default",
+      "animationTag": ""
     },
     "configFields": [
       {
@@ -2824,94 +2341,497 @@
         "label": "Label"
       },
       {
-        "key": "wbLayout",
-        "type": "select",
-        "label": "Layout",
-        "options": [
-          "grid",
-          "free"
-        ]
-      },
-      {
-        "key": "columns",
-        "type": "number",
-        "label": "Columns (grid)"
-      },
-      {
-        "key": "gap",
-        "type": "number",
-        "label": "Gap (px, grid)"
-      },
-      {
-        "key": "canvasW",
-        "type": "number",
-        "label": "Canvas width (px; 0 = full)"
-      },
-      {
-        "key": "canvasH",
-        "type": "number",
-        "label": "Canvas height (px)"
-      },
-      {
-        "key": "gridSize",
-        "type": "number",
-        "label": "Visual grid size (px)"
-      },
-      {
-        "key": "snap",
-        "type": "number",
-        "label": "Snap step (px; 0 = off)"
-      },
-      {
-        "key": "clipOverflow",
-        "type": "toggle",
-        "label": "Clip outside canvas"
-      },
-      {
-        "key": "customCss",
-        "type": "textarea",
-        "label": "Safe scoped CSS"
+        "key": "path",
+        "type": "path",
+        "label": "Score Path"
       },
       {
         "key": "variant",
         "type": "variant",
         "label": "Variant",
-        "variantType": "widgetBuilder",
+        "variantType": "attribute",
         "options": [
           {
             "value": "default",
-            "label": "SD.WidgetVariants.widgetBuilder.default",
+            "label": "SD.WidgetVariants.attribute.default",
             "fallback": "Default"
           },
           {
-            "value": "panel",
-            "label": "SD.WidgetVariants.widgetBuilder.panel",
-            "fallback": "panel"
+            "value": "stat-card",
+            "label": "SD.WidgetVariants.attribute.stat-card",
+            "fallback": "stat-card"
           },
           {
-            "value": "hud",
-            "label": "SD.WidgetVariants.widgetBuilder.hud",
-            "fallback": "hud"
+            "value": "inline",
+            "label": "SD.WidgetVariants.attribute.inline",
+            "fallback": "inline"
           },
           {
-            "value": "glass",
-            "label": "SD.WidgetVariants.widgetBuilder.glass",
-            "fallback": "glass"
+            "value": "badge",
+            "label": "SD.WidgetVariants.attribute.badge",
+            "fallback": "badge"
           },
           {
-            "value": "terminal",
-            "label": "SD.WidgetVariants.widgetBuilder.terminal",
-            "fallback": "terminal"
+            "value": "roll-button",
+            "label": "SD.WidgetVariants.attribute.roll-button",
+            "fallback": "roll-button"
+          },
+          {
+            "value": "rpg",
+            "label": "SD.WidgetVariants.attribute.rpg",
+            "fallback": "rpg"
+          },
+          {
+            "value": "hex",
+            "label": "SD.WidgetVariants.attribute.hex",
+            "fallback": "hex"
+          },
+          {
+            "value": "tactical",
+            "label": "SD.WidgetVariants.attribute.tactical",
+            "fallback": "tactical"
           }
         ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
       }
     ],
     "variants": [
       "default",
-      "panel",
-      "hud",
-      "glass",
-      "terminal"
+      "stat-card",
+      "inline",
+      "badge",
+      "roll-button",
+      "rpg",
+      "hex",
+      "tactical"
+    ]
+  },
+  "attributeGroup": {
+    "id": "attributeGroup",
+    "label": "Attribute Group",
+    "icon": "fa-dice-d20",
+    "desc": "Compact button → popover list of attributes",
+    "defaultSpan": 1,
+    "defaults": {
+      "label": "Attributes",
+      "attributeKeys": "",
+      "variant": "default",
+      "animationTag": ""
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Button label"
+      },
+      {
+        "key": "attributeKeys",
+        "type": "text",
+        "label": "Database variable IDs (comma, blank = all enabled)",
+        "placeholder": "health, stamina"
+      },
+      {
+        "key": "icon",
+        "type": "text",
+        "label": "FA icon (e.g. fa-dice-d20)"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "attributeGroup",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.attributeGroup.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "row",
+            "label": "SD.WidgetVariants.attributeGroup.row",
+            "fallback": "row"
+          },
+          {
+            "value": "grid",
+            "label": "SD.WidgetVariants.attributeGroup.grid",
+            "fallback": "grid"
+          },
+          {
+            "value": "dice",
+            "label": "SD.WidgetVariants.attributeGroup.dice",
+            "fallback": "dice"
+          },
+          {
+            "value": "character",
+            "label": "SD.WidgetVariants.attributeGroup.character",
+            "fallback": "character"
+          },
+          {
+            "value": "tactical",
+            "label": "SD.WidgetVariants.attributeGroup.tactical",
+            "fallback": "tactical"
+          }
+        ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
+      }
+    ],
+    "variants": [
+      "default",
+      "row",
+      "grid",
+      "dice",
+      "character",
+      "tactical"
+    ]
+  },
+  "skill": {
+    "id": "skill",
+    "label": "Skill",
+    "icon": "fa-list-check",
+    "desc": "Rank + bonus + roll",
+    "defaultSpan": 1,
+    "defaults": {
+      "label": "Skill",
+      "path": "",
+      "attrMod": 0,
+      "variant": "default",
+      "animationTag": ""
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "path",
+        "type": "path",
+        "label": "Rank Path"
+      },
+      {
+        "key": "attrMod",
+        "type": "number",
+        "label": "Attr Modifier"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "skill",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.skill.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "pill",
+            "label": "SD.WidgetVariants.skill.pill",
+            "fallback": "pill"
+          },
+          {
+            "value": "row-rank",
+            "label": "SD.WidgetVariants.skill.row-rank",
+            "fallback": "row-rank"
+          },
+          {
+            "value": "pips",
+            "label": "SD.WidgetVariants.skill.pips",
+            "fallback": "pips"
+          },
+          {
+            "value": "skilltree",
+            "label": "SD.WidgetVariants.skill.skilltree",
+            "fallback": "skilltree"
+          },
+          {
+            "value": "compact",
+            "label": "SD.WidgetVariants.skill.compact",
+            "fallback": "compact"
+          },
+          {
+            "value": "rune",
+            "label": "SD.WidgetVariants.skill.rune",
+            "fallback": "rune"
+          }
+        ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
+      }
+    ],
+    "variants": [
+      "default",
+      "pill",
+      "row-rank",
+      "pips",
+      "skilltree",
+      "compact",
+      "rune"
+    ]
+  },
+  "tracker": {
+    "id": "tracker",
+    "label": "Token Tracker",
+    "icon": "fa-circle-dot",
+    "desc": "Row of clickable pip icons",
+    "defaultSpan": 2,
+    "defaults": {
+      "label": "Stress",
+      "path": "",
+      "maxPath": "",
+      "maxCount": 6,
+      "icon": "fa-circle",
+      "emptyIcon": "",
+      "color": "#e04040",
+      "bgColor": "#2a2a3a",
+      "pipSize": 14,
+      "glow": true,
+      "variant": "default",
+      "animationTag": ""
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "path",
+        "type": "path",
+        "label": "Value Variable (integer)"
+      },
+      {
+        "key": "maxPath",
+        "type": "path",
+        "label": "Max Variable (blank = use Max below)"
+      },
+      {
+        "key": "maxCount",
+        "type": "number",
+        "label": "Max (when no Max Variable)"
+      },
+      {
+        "key": "icon",
+        "type": "text",
+        "label": "FA icon (e.g. fa-heart, fab fa-github)"
+      },
+      {
+        "key": "emptyIcon",
+        "type": "text",
+        "label": "Empty pip icon (blank = same glyph)"
+      },
+      {
+        "key": "iconImg",
+        "type": "image-pick",
+        "label": "Filled pip image (overrides FA icon)"
+      },
+      {
+        "key": "emptyIconImg",
+        "type": "image-pick",
+        "label": "Empty pip image (blank = use Empty icon)"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "Filled colour"
+      },
+      {
+        "key": "bgColor",
+        "type": "color",
+        "label": "Empty colour"
+      },
+      {
+        "key": "pipSize",
+        "type": "number",
+        "label": "Pip size (px, 10–24)"
+      },
+      {
+        "key": "glow",
+        "type": "boolean",
+        "label": "Glow effect on filled pips"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "tracker",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.tracker.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "hearts",
+            "label": "SD.WidgetVariants.tracker.hearts",
+            "fallback": "hearts"
+          },
+          {
+            "value": "stress",
+            "label": "SD.WidgetVariants.tracker.stress",
+            "fallback": "stress"
+          },
+          {
+            "value": "ammo",
+            "label": "SD.WidgetVariants.tracker.ammo",
+            "fallback": "ammo"
+          },
+          {
+            "value": "hex",
+            "label": "SD.WidgetVariants.tracker.hex",
+            "fallback": "hex"
+          }
+        ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
+      }
+    ],
+    "variants": [
+      "default",
+      "hearts",
+      "stress",
+      "ammo",
+      "hex"
+    ]
+  },
+  "tokenPool": {
+    "id": "tokenPool",
+    "label": "Token Pool",
+    "icon": "fa-coins",
+    "desc": "Token pool with spend / gain",
+    "defaultSpan": 2,
+    "defaults": {
+      "label": "Tokens",
+      "path": "",
+      "maxPath": "",
+      "maxCount": 10,
+      "icon": "fa-coins",
+      "color": "#f0c040",
+      "bgColor": "#2a2a3a",
+      "pipSize": 16,
+      "variant": "default",
+      "animationTag": ""
+    },
+    "configFields": [
+      {
+        "key": "label",
+        "type": "text",
+        "label": "Label"
+      },
+      {
+        "key": "path",
+        "type": "path",
+        "label": "Value Variable (integer)"
+      },
+      {
+        "key": "maxPath",
+        "type": "path",
+        "label": "Max Variable (blank = use Max below)"
+      },
+      {
+        "key": "maxCount",
+        "type": "number",
+        "label": "Max (when no Max Variable)"
+      },
+      {
+        "key": "icon",
+        "type": "text",
+        "label": "FA icon (e.g. fa-coins, fa-star)"
+      },
+      {
+        "key": "emptyIcon",
+        "type": "text",
+        "label": "Empty token icon (blank = same glyph)"
+      },
+      {
+        "key": "iconImg",
+        "type": "image-pick",
+        "label": "Filled token image (overrides FA icon)"
+      },
+      {
+        "key": "emptyIconImg",
+        "type": "image-pick",
+        "label": "Empty token image (blank = use Empty icon)"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "Filled colour"
+      },
+      {
+        "key": "bgColor",
+        "type": "color",
+        "label": "Empty colour"
+      },
+      {
+        "key": "pipSize",
+        "type": "number",
+        "label": "Token size (px, 10–24)"
+      },
+      {
+        "key": "variant",
+        "type": "variant",
+        "label": "Variant",
+        "variantType": "tokenPool",
+        "options": [
+          {
+            "value": "default",
+            "label": "SD.WidgetVariants.tokenPool.default",
+            "fallback": "Default"
+          },
+          {
+            "value": "coins",
+            "label": "SD.WidgetVariants.tokenPool.coins",
+            "fallback": "coins"
+          },
+          {
+            "value": "gems",
+            "label": "SD.WidgetVariants.tokenPool.gems",
+            "fallback": "gems"
+          },
+          {
+            "value": "charges",
+            "label": "SD.WidgetVariants.tokenPool.charges",
+            "fallback": "charges"
+          },
+          {
+            "value": "souls",
+            "label": "SD.WidgetVariants.tokenPool.souls",
+            "fallback": "souls"
+          }
+        ]
+      },
+      {
+        "key": "animationTag",
+        "type": "text",
+        "label": "Animation Tag (Automated Animations)",
+        "placeholder": "name matched by AA Auto Recognition"
+      }
+    ],
+    "variants": [
+      "default",
+      "coins",
+      "gems",
+      "charges",
+      "souls"
     ]
   }
 }

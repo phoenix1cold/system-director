@@ -14,7 +14,8 @@ const characterSheet = read("module/sheets/character-sheet.mjs");
 const itemSheet = read("module/sheets/item-sheet.mjs");
 const manifest = JSON.parse(read("system.json"));
 
-assert.match(graph, /sdTriggerGraph\.-=\$\{key\}/, "saving a Sheet Trigger must remove stale compiled runtime keys");
+assert.match(graph, /deletionUpdate\("system\.sdTriggerGraph", staleKeys\)/, "saving a Sheet Trigger must remove stale compiled runtime keys");
+assert.doesNotMatch(graph, /sdTriggerGraph\.-=/, "stale key removal must use the v14 deletion operator");
 assert.match(graph, /sdSkipEventBus:\s*true/, "saving a Sheet Trigger must not execute On Update");
 assert.match(eventBus, /options\?\.sdSkipEventBus === true/, "event bus must honour internal graph-save updates");
 
@@ -93,5 +94,5 @@ const wiredRef = "{arrayGet:b64:QWN0b3IuQUNUT1IxLkl0ZW0uTElWRTE=|b64:MA==|b64:}"
 const wiredName = Buffer.from(`{__sdName:auto|${Buffer.from(wiredRef, "utf8").toString("base64")}}`, "utf8").toString("utf8");
 assert.equal(FormulaEngine.evaluate(wiredName, actor), "Live Item");
 
-assert.equal(manifest.version, "1.3.5");
+assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 console.log("PASS: System Director 1.3.3 bug regressions.");

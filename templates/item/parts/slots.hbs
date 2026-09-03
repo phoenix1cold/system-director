@@ -148,9 +148,6 @@
         <li class="slot-item-row" data-slot-id="{{si._slotId}}" data-slot-index="{{si._slotIndex}}">
           <img src="{{si.img}}" class="item-img" alt="{{si.name}}" />
           <span class="item-name">{{si.name}}</span>
-          {{#each (hiddenFieldPairs si.system.hiddenFields) as |pair|}}
-          <span class="slotted-hidden-field" title="{{pair.key}}">{{pair.key}}: {{pair.value}}</span>
-          {{/each}}
           {{#if ../../../isEditable}}{{#if ../../def.removable}}
           <button type="button" class="item-btn delete-btn"
                   data-action="removeFromSlot"

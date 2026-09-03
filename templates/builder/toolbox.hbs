@@ -1,20 +1,21 @@
 <div style="display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--sd-bg);color:var(--sd-text);font-family:'Signika',sans-serif">
 
-  <div style="display:flex;gap:0;background:var(--sd-bg);border-bottom:1px solid var(--sd-bg-3);flex-shrink:0">
-    <button id="tb-tab-widgets" class="tb-tab active"
-      style="flex:1;padding:7px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:none;background:var(--sd-bg);color:var(--sd-accent);cursor:pointer;border-bottom:2px solid var(--sd-accent)">
-      <i class="fas fa-toolbox" style="margin-right:4px"></i>Widgets
-    </button>
-
-    <button id="tb-tab-paths" class="tb-tab"
-      style="flex:1;padding:7px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:none;background:var(--sd-bg);color:var(--sd-text-3);cursor:pointer;border-bottom:2px solid transparent">
-      <i class="fas fa-database" style="margin-right:4px"></i>Paths
-    </button>
-    <button type="button" data-action="openEffectApplier" title="Create effects and apply them to selected tokens"
-      style="padding:7px 9px;border:none;border-left:1px solid var(--sd-border);background:var(--sd-bg);color:var(--sd-accent);cursor:pointer">
-      <i class="fas fa-wand-magic-sparkles"></i>
-    </button>
-  </div>
+  <header class="sd-builder-studio-head">
+    <div class="sd-builder-studio-top">
+      <div class="sd-builder-studio-title"><i class="fas fa-grid-2"></i><span><b>SHEET BUILDER</b><small>Actor / Item layout studio</small></span></div>
+      <div class="sd-builder-focused {{#unless hasFocusedSheet}}is-empty{{/unless}}"><i class="fas fa-file-lines"></i><span><b>{{focusedSheetName}}</b><small>{{focusedSheetType}} · {{databaseCount}} variables</small></span></div>
+    </div>
+    <div class="sd-builder-iconbar" aria-label="Sheet Builder tools">
+      <button type="button" id="tb-tab-widgets" class="sd-builder-mode is-active" title="Widgets palette" aria-label="Widgets palette" aria-pressed="true"><i class="fas fa-toolbox"></i></button>
+      <button type="button" id="tb-tab-paths" class="sd-builder-mode" title="Database variables" aria-label="Database variables" aria-pressed="false"><i class="fas fa-database"></i></button>
+      <button type="button" data-action="toggleSheetEdit" title="Toggle canvas editing" aria-label="Toggle canvas editing" {{#unless hasFocusedSheet}}disabled{{/unless}}><i class="fas fa-pen-ruler"></i></button>
+      <button type="button" class="primary" data-action="openSheetGraph" title="Sheet Blueprint" aria-label="Sheet Blueprint" {{#unless hasFocusedSheet}}disabled{{/unless}}><i class="fas fa-diagram-project"></i></button>
+      <button type="button" data-action="openDocumentDatabase" title="Database values" aria-label="Database values" {{#unless hasFocusedSheet}}disabled{{/unless}}><i class="fas fa-table-list"></i></button>
+      <button type="button" data-action="openProgression" title="Progression" aria-label="Progression" {{#unless focusedIsActor}}disabled{{/unless}}><i class="fas fa-arrow-trend-up"></i></button>
+      <button type="button" data-action="openInteractions" title="Interactions" aria-label="Interactions" {{#unless focusedIsActor}}disabled{{/unless}}><i class="fas fa-hand-pointer"></i></button>
+      <button type="button" data-action="openEffectApplier" title="Effect Applier" aria-label="Effect Applier"><i class="fas fa-wand-magic-sparkles"></i></button>
+    </div>
+  </header>
 
   <div style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:12px">
 
@@ -33,7 +34,7 @@
         </div>
       </div>
 
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);padding:4px 2px;border-bottom:1px solid var(--sd-border);margin-bottom:6px">Widgets - drag onto a tab</div>
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);padding:4px 2px;border-bottom:1px solid var(--sd-border);margin-bottom:6px">Widgets — drag onto a tab</div>
       <div style="position:relative;margin-bottom:6px">
         <i class="fas fa-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--sd-text-3);font-size:10px;pointer-events:none"></i>
         <input type="text" id="tb-search-widgets" placeholder="Filter widgets..." autocomplete="off"
@@ -41,9 +42,9 @@
         <button type="button" data-action="clearWidgetSearch" tabindex="-1"
           style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--sd-text-3);cursor:pointer;font-size:13px;padding:0 4px;line-height:1">x</button>
       </div>
-      <div id="tb-widget-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">
+      <div id="tb-widget-grid" class="sd-builder-widget-grid">
         {{#each widgets as |w|}}
-        <div data-drag-type="widget" data-widget-type="{{w.id}}"
+        <div class="sd-builder-widget-card" data-drag-type="widget" data-widget-type="{{w.id}}"
              data-widget-label="{{w.label}}" data-widget-desc="{{w.desc}}"
              style="display:flex;align-items:center;gap:7px;padding:8px 9px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:5px;cursor:grab;user-select:none;transition:background .15s"
              title="{{w.desc}}">
@@ -58,25 +59,6 @@
         {{/each}}
       </div>
       <div id="tb-widget-empty" style="display:none;font-size:11px;color:var(--sd-text-3);font-style:italic;text-align:center;padding:8px 0 12px">No widgets match the search.</div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);padding:4px 2px;border-bottom:1px solid var(--sd-border);margin-bottom:6px">
-        <span>Custom Fields</span>
-        <button data-action="addCustomField" style="background:transparent;border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:1px 6px">+ Add</button>
-      </div>
-      {{#if customFields.length}}
-      <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px">
-        {{#each customFields as |cf cfIdx|}}
-        <div data-drag-type="path" data-path="system.flags.{{cf.name}}"
-             style="display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;font-size:11px;cursor:grab">
-          <span style="flex:1;font-family:monospace;color:var(--sd-accent)">{{cf.name}}</span>
-          <span style="color:var(--sd-text-3);font-size:10px">{{cf.type}}</span>
-          <button data-action="removeCustomField" data-index="{{cfIdx}}" style="background:transparent;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 3px">x</button>
-        </div>
-        {{/each}}
-      </div>
-      {{else}}
-      <p style="font-size:11px;color:var(--sd-text-3);font-style:italic;margin:0 0 10px">No custom fields. Click + Add to create one.</p>
-      {{/if}}
 
       <div style="display:flex;align-items:center;justify-content:space-between;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sd-text-3);padding:4px 2px;border-bottom:1px solid var(--sd-border);margin-bottom:6px">
         <span>Sheet Templates</span>
@@ -111,15 +93,15 @@
     <div id="tb-panel-paths" style="display:none">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
         <p style="font-size:11px;color:var(--sd-text-3);margin:0;flex:1;line-height:1.5">
-          {{#if knownPaths.length}}Paths from active sheet - drag into any path or formula field.{{else}}No sheet open - open a sheet to see its paths.{{/if}}
+          {{#if knownPaths.length}}Database variables available to this sheet — drag one onto a variable binding.{{else}}No sheet open — showing Database variables for both scopes.{{/if}}
         </p>
         <button data-action="refreshPaths" type="button"
           style="flex-shrink:0;background:none;border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:10px;padding:2px 7px"
-          title="Re-scan the currently focused sheet"><i class="fas fa-arrows-rotate"></i> Refresh</button>
+          title="Refresh Database variables for the focused sheet"><i class="fas fa-arrows-rotate"></i> Refresh</button>
       </div>
       <div style="position:relative;margin-bottom:6px">
         <i class="fas fa-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--sd-text-3);font-size:10px;pointer-events:none"></i>
-        <input type="text" id="tb-search-paths" placeholder="Filter paths..." autocomplete="off"
+        <input type="text" id="tb-search-paths" placeholder="Filter Database variables..." autocomplete="off"
           style="width:100%;padding:5px 22px 5px 24px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;box-sizing:border-box;outline:none">
         <button type="button" data-action="clearPathSearch" tabindex="-1"
           style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--sd-text-3);cursor:pointer;font-size:13px;padding:0 4px;line-height:1">x</button>
@@ -128,7 +110,7 @@
         {{#each knownPaths as |path|}}
         <div data-drag-type="path" data-path="{{path.path}}" data-path-label="{{path.label}}" data-action="copyPath"
              style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;cursor:pointer;user-select:none;transition:background .15s"
-             title="Click to copy path to clipboard - drag to insert into a field">
+             title="Click to copy Variable ID — drag to bind a widget">
           <i class="fas fa-code" style="color:var(--sd-mp);font-size:10px;flex-shrink:0"></i>
           <div style="flex:1;min-width:0">
             <div style="font-size:10px;color:var(--sd-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{path.label}}</div>
@@ -139,7 +121,7 @@
         {{#unless knownPaths.length}}
         <div style="font-size:11px;color:var(--sd-text-3);text-align:center;padding:16px 0">
           <i class="fas fa-file-alt" style="display:block;font-size:24px;margin-bottom:8px;opacity:.3"></i>
-          Open an actor or item sheet, then click Refresh
+          Add variables in System Settings → Database
         </div>
         {{/unless}}
       </div>

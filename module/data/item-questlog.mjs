@@ -61,6 +61,7 @@ export function QuestRewardField() {
 
     pathChanges: new ArrayField(new SchemaField({
       id:    new StringField({ required: true, blank: false, initial: "" }),
+      variableId: new StringField({ initial: "", blank: true }),
       path:  new StringField({ initial: "system.xp", blank: true }),
       op:    new StringField({
         initial: "add",
@@ -134,6 +135,7 @@ export function QuestField() {
 export class QuestLogData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
+      values: new ObjectField({ initial: {} }),
 
       chainName:        new StringField({ initial: "", blank: true }),
       chainIcon:        new StringField({ initial: "fa-scroll", blank: true }),
@@ -141,6 +143,8 @@ export class QuestLogData extends foundry.abstract.TypeDataModel {
 
 
       chainGraph: new ObjectField({ initial: {} }),
+      /** Internal typed UI Blueprint persistence; never exposed as a data path. */
+      blueprintState: new ObjectField({ initial: {} }),
 
 
       quests: new ArrayField(QuestField(), { initial: [] }),

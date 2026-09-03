@@ -1,3 +1,4 @@
+import { fieldChangeStoragePath, getValueDefinition, variableIdForLegacyPath } from "./value-database.mjs";
 const { ApplicationV2 } = foundry.applications.api;
 
 function esc(str) {
@@ -80,7 +81,7 @@ export class LevelUpWizard extends ApplicationV2 {
   /* ------------------------------------------------------------------ */
 
   _fcDiff(fc) {
-    let cur = Number(foundry.utils.getProperty(this._actor, fc.path));
+    let cur = Number(foundry.utils.getProperty(this._actor, fieldChangeStoragePath(fc)));
     if (isNaN(cur)) cur = 0;
     const val  = Number(fc.value);
     const safe = isNaN(val) ? 0 : val;
@@ -199,7 +200,7 @@ export class LevelUpWizard extends ApplicationV2 {
         if (!fc?.path) continue;
         const d = this._fcDiff(fc);
         html += `<li class="${fc.__chosen ? "chosen" : ""}">
-          <code>${esc(fc.path)}</code>
+          <code>${esc(getValueDefinition(fc.variableId)?.name ?? variableIdForLegacyPath(fc.path) ?? "Database value")}</code>
           <span class="sd-luw-fc-op">${d.sym} ${esc(String(fc.value ?? ""))}</span>
           <span class="sd-luw-fc-diff">${d.from} <i class="fas fa-arrow-right"></i> <strong>${d.to}</strong></span>
           ${fc.__chosen && markChoice ? `<i class="fas fa-hand-pointer" title="${loc("SD.Progression.WizardYourChoice") || "Your choice"}"></i>` : ""}

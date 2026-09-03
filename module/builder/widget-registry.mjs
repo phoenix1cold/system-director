@@ -8,11 +8,11 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label: "Label",
-      path:  "system.flags.myField"
+      path:  ""
     },
     configFields: [
       { key: "label", type: "text", label: "Label" },
-      { key: "path",  type: "path", label: "Data Path" }
+      { key: "path",  type: "path", label: "Variable" }
     ]
   },
 
@@ -24,7 +24,7 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label: "Value",
-      path:  "system.flags.myNumber",
+      path:  "",
       numberMode: "classic",
       min:   null,
       max:   null,
@@ -32,9 +32,9 @@ export const WIDGET_TYPES = {
     },
     configFields: [
       { key: "label", type: "text",   label: "Label" },
-      { key: "path",  type: "path",   label: "Data Path" },
-      { key: "min",   type: "text",   label: "Min (number or path)" },
-      { key: "max",   type: "text",   label: "Max (number or path)" },
+      { key: "path",  type: "path",   label: "Variable" },
+      { key: "min",   type: "text",   label: "Min (number or Variable)" },
+      { key: "max",   type: "text",   label: "Max (number or Variable)" },
       { key: "step",  type: "number", label: "Step" }
     ]
   },
@@ -43,40 +43,20 @@ export const WIDGET_TYPES = {
     id:    "resource",
     label: "Resource Bar",
     icon:  "fa-heart-pulse",
-    desc:  "Value / Max + bar",
+    desc:  "Database value / max resource bar",
     defaultSpan: 2,
     defaults: {
       label:     "Resource",
       resourceMode: "classic",
-      pathValue: "system.resources.hp.value",
-      pathMax:   "system.resources.hp.max",
+      pathValue: "",
+      pathMax:   "",
       color:     "#e05a5a"
     },
     configFields: [
       { key: "label",     type: "text",  label: "Label" },
-      { key: "pathValue", type: "path",  label: "Value Path" },
-      { key: "pathMax",   type: "path",  label: "Max Path" },
+      { key: "pathValue", type: "path",  label: "Value Variable" },
+      { key: "pathMax",   type: "path",  label: "Max Variable" },
       { key: "color",     type: "color", label: "Bar Color" }
-    ]
-  },
-
-  dice: {
-    id:    "dice",
-    label: "Dice Button",
-    icon:  "fa-dice-d20",
-    desc:  "Clickable roll",
-    defaultSpan: 1,
-    defaults: {
-      label:   "Roll",
-      formula: "1d20",
-      icon:    "fa-dice-d20",
-      flavor:  ""
-    },
-    configFields: [
-      { key: "label",   type: "text", label: "Label" },
-      { key: "formula", type: "text", label: "Formula", mono: true },
-      { key: "icon",    type: "text", label: "FA Icon" },
-      { key: "flavor",  type: "text", label: "Flavor text" }
     ]
   },
 
@@ -88,13 +68,13 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label:    "Toggle",
-      path:     "system.flags.myToggle",
+      path:     "",
       onLabel:  "On",
       offLabel: "Off"
     },
     configFields: [
       { key: "label",    type: "text", label: "Label" },
-      { key: "path",     type: "path", label: "Data Path" },
+      { key: "path",     type: "path", label: "Variable" },
       { key: "onLabel",  type: "text", label: "On Label" },
       { key: "offLabel", type: "text", label: "Off Label" }
     ]
@@ -157,12 +137,14 @@ export const WIDGET_TYPES = {
     defaults: {
       label:        "Effects",
       showDisabled: true,
-      showPassive:  true
+      showPassive:  true,
+      showVariables: true
     },
     configFields: [
       { key: "label",        type: "text",     label: "Title" },
       { key: "showDisabled", type: "checkbox", label: "Show Disabled Effects" },
-      { key: "showPassive",  type: "checkbox", label: "Show Passive (transfer) Effects" }
+      { key: "showPassive",  type: "checkbox", label: "Show Passive (transfer) Effects" },
+      { key: "showVariables", type: "checkbox", label: "Show Changed Variables" }
     ]
   },
 
@@ -185,17 +167,17 @@ export const WIDGET_TYPES = {
 
   attribute: {
     id:    "attribute",
-    label: "Attribute",
+    label: "Number Value",
     icon:  "fa-chart-bar",
     desc:  "Score + modifier + click graph",
     defaultSpan: 1,
     defaults: {
-      label: "Attribute",
-      path:  "system.attributes.attr1.value"
+      label: "Number Value",
+      path:  ""
     },
     configFields: [
       { key: "label", type: "text", label: "Label" },
-      { key: "path",  type: "path", label: "Score Path" }
+      { key: "path",  type: "path", label: "Variable" }
     ]
   },
 
@@ -211,7 +193,7 @@ export const WIDGET_TYPES = {
     },
     configFields: [
       { key: "label",         type: "text", label: "Button label" },
-      { key: "attributeKeys", type: "text", label: "Attribute keys or paths (comma, blank = all enabled)", placeholder: "attr1, attr2 — or system.attributes.attr1.value" },
+      { key: "attributeKeys", type: "text", label: "Database variable IDs (comma, blank = all enabled)", placeholder: "health, stamina" },
       { key: "icon",          type: "text", label: "FA icon (e.g. fa-dice-d20)" }
     ]
   },
@@ -224,15 +206,13 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label:       "Skill",
-      path:        "system.skills.skill1.rank",
-      attrMod:     0,
-      rollFormula: ""
+      path:        "",
+      attrMod:     0
     },
     configFields: [
       { key: "label",       type: "text",   label: "Label" },
-      { key: "path",        type: "path",   label: "Rank Path" },
-      { key: "attrMod",     type: "number", label: "Attr Modifier" },
-      { key: "rollFormula", type: "text",   label: "Roll Formula (blank = 1d20+bonus)", mono: true, placeholder: "e.g. 2d6+@skill1" }
+      { key: "path",        type: "path",   label: "Variable" },
+      { key: "attrMod",     type: "number", label: "Attr Modifier" }
     ]
   },
 
@@ -263,14 +243,12 @@ export const WIDGET_TYPES = {
       icon:    "fa-bolt",
       color:   "#7b68ee",
       btnId:   "",
-      formula: "",
       flavor:  ""
     },
     configFields: [
       { key: "label",   type: "text",  label: "Label" },
       { key: "icon",    type: "text",  label: "FA Icon (e.g. fa-bolt)" },
       { key: "color",   type: "color", label: "Color" },
-      { key: "formula", type: "text",  label: "Roll Formula (optional)", mono: true },
       { key: "flavor",  type: "text",  label: "Flavor text" }
     ]
   },
@@ -283,33 +261,39 @@ export const WIDGET_TYPES = {
     defaultSpan: 3,
     defaults: {
       label: "Notes",
-      path:  "system.biography.notes"
+      path:  ""
     },
     configFields: [
       { key: "label", type: "text", label: "Label" },
-      { key: "path",  type: "path", label: "Data Path" }
+      { key: "path",  type: "path", label: "Variable" }
     ]
   },
 
   progress: {
     id:    "progress",
-    label: "Progress Bar",
-    icon:  "fa-chart-bar",
-    desc:  "Read-only horizontal bar",
+    label: "Meter",
+    icon:  "fa-gauge-high",
+    desc:  "Universal resource, progress, tracker and token-pool display",
     defaultSpan: 2,
     defaults: {
       label:     "Progress",
-      pathValue: "system.advancement.xp.value",
-      pathMax:   "system.advancement.xp.max",
+      pathValue: "",
+      pathMax:   "",
       color:     "#5a8aff",
+      mode:      "bar",
+      segments:  10,
+      interactive: false,
       showLabel: true,
       showPct:   true
     },
     configFields: [
       { key: "label",     type: "text",     label: "Label" },
-      { key: "pathValue", type: "path",     label: "Value Path" },
-      { key: "pathMax",   type: "path",     label: "Max Path" },
-      { key: "color",     type: "color",    label: "Bar Colour" },
+      { key: "pathValue", type: "path",     label: "Value Variable" },
+      { key: "pathMax",   type: "path",     label: "Max Variable" },
+      { key: "color",     type: "color",    label: "Meter Colour" },
+      { key: "mode",      type: "select",   label: "Display", options: ["bar", "segments", "pips", "radial", "number"] },
+      { key: "segments",  type: "number",   label: "Segments / tokens" },
+      { key: "interactive", type: "checkbox", label: "Allow click to change" },
       { key: "showLabel", type: "checkbox", label: "Show label text" },
       { key: "showPct",   type: "checkbox", label: "Show percentage" }
     ]
@@ -323,12 +307,12 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label:   "Pick",
-      path:    "system.flags.mySelect",
+      path:    "",
       choices: "option1,option2,option3"
     },
     configFields: [
       { key: "label",   type: "text", label: "Label" },
-      { key: "path",    type: "path", label: "Data Path" },
+      { key: "path",    type: "path", label: "Variable" },
       { key: "choices", type: "text", label: "Choices (comma-separated)", mono: true, placeholder: "low,medium,high" }
     ]
   },
@@ -341,7 +325,7 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label:     "Clock",
-      path:      "system.flags.myClock",
+      path:      "",
       segments:  4,
       color:     "#e0a020",
       bgColor:   "#1a1a2a"
@@ -363,7 +347,7 @@ export const WIDGET_TYPES = {
     defaultSpan: 2,
     defaults: {
       label:    "Stress",
-      path:     "system.hiddenFields.myTracker",
+      path:     "",
       maxPath:  "",
       maxCount: 6,
       icon:     "fa-circle",
@@ -375,9 +359,9 @@ export const WIDGET_TYPES = {
     },
     configFields: [
       { key: "label",        type: "text",       label: "Label" },
-      { key: "path",         type: "path",       label: "Value Path (integer)" },
-      { key: "maxPath",      type: "path",       label: "Max Path (blank = use Max below)" },
-      { key: "maxCount",     type: "number",     label: "Max (when no Max Path)" },
+      { key: "path",         type: "path",       label: "Value Variable (integer)" },
+      { key: "maxPath",      type: "path",       label: "Max Variable (blank = use Max below)" },
+      { key: "maxCount",     type: "number",     label: "Max (when no Max Variable)" },
       { key: "icon",         type: "text",       label: "FA icon (e.g. fa-heart, fab fa-github)" },
       { key: "emptyIcon",    type: "text",       label: "Empty pip icon (blank = same glyph)" },
 
@@ -398,7 +382,7 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label: "Counter",
-      path:  "system.flags.myCounter",
+      path:  "",
       min:   0,
       max:   99,
       step:  1,
@@ -406,7 +390,7 @@ export const WIDGET_TYPES = {
     },
     configFields: [
       { key: "label", type: "text",   label: "Label" },
-      { key: "path",  type: "path",   label: "Data Path" },
+      { key: "path",  type: "path",   label: "Variable" },
       { key: "min",   type: "number", label: "Min" },
       { key: "max",   type: "number", label: "Max" },
       { key: "step",  type: "number", label: "Step" },
@@ -422,7 +406,7 @@ export const WIDGET_TYPES = {
     defaultSpan: 2,
     defaults: {
       label:    "Tokens",
-      path:     "system.flags.myTokens",
+      path:     "",
       maxPath:  "",
       maxCount: 10,
       icon:     "fa-coins",
@@ -432,9 +416,9 @@ export const WIDGET_TYPES = {
     },
     configFields: [
       { key: "label",        type: "text",       label: "Label" },
-      { key: "path",         type: "path",       label: "Value Path (integer)" },
-      { key: "maxPath",      type: "path",       label: "Max Path (blank = use Max below)" },
-      { key: "maxCount",     type: "number",     label: "Max (when no Max Path)" },
+      { key: "path",         type: "path",       label: "Value Variable (integer)" },
+      { key: "maxPath",      type: "path",       label: "Max Variable (blank = use Max below)" },
+      { key: "maxCount",     type: "number",     label: "Max (when no Max Variable)" },
       { key: "icon",         type: "text",       label: "FA icon (e.g. fa-coins, fa-star)" },
       { key: "emptyIcon",    type: "text",       label: "Empty token icon (blank = same glyph)" },
 
@@ -454,7 +438,7 @@ export const WIDGET_TYPES = {
     defaultSpan: 2,
     defaults: {
       label:     "Last Roll",
-      flagPath:  "flags.sd.lastRoll",
+      flagPath:  "",
       color:     "#7ef0c3",
       compact:   false
     },
@@ -474,7 +458,7 @@ export const WIDGET_TYPES = {
     defaultSpan: 3,
     defaults: {
       label: "Tags",
-      path:  "system.flags.myTags",
+      path:  "",
       color: "#5a6a9a"
     },
     configFields: [
@@ -531,7 +515,7 @@ export const WIDGET_TYPES = {
     },
     configFields: [
       { key: "label",         type: "text",   label: "Label" },
-      { key: "formula",       type: "text",   label: "Formula", mono: true, placeholder: "{system.attributes.attr1.value} * 2" },
+      { key: "formula",       type: "text",   label: "Formula", mono: true, placeholder: "{sdValue:...} * 2" },
       { key: "decimalPlaces", type: "number", label: "Decimal places (0 = integer)" },
       { key: "valueFontSize", type: "number", label: "Value font size (px, 0 = default)" }
     ]
@@ -630,9 +614,9 @@ export const WIDGET_TYPES = {
 
   widgetBuilder: {
     id:    "widgetBuilder",
-    label: "Widget Builder",
+    label: "Widget Builder / UI Canvas",
     icon:  "fa-shapes",
-    desc:  "Composite widget: named buttons, values, icons and images; elements can be clickable and fire per-element On Click custom events",
+    desc:  "Reusable visual canvas with nested child widgets and Blueprint events",
     defaultSpan: 3,
     defaults: {
       label:    "",
@@ -640,7 +624,7 @@ export const WIDGET_TYPES = {
       gap:      6,
       formula:  "",
       elements: [],
-      wbLayout: "grid",
+      wbLayout: "free",
       canvasW: 0,
       canvasH: 140,
       gridSize: 16,
@@ -671,7 +655,6 @@ export const WIDGET_VARIANTS = {
   progress: ["default", "thin", "thick", "striped", "segmented", "xp", "quest", "boss"],
   clock: ["default", "ring", "bar", "fraction", "hex", "timeline"],
   counter: ["default", "chunky", "minimal", "wheel", "ammo", "odometer"],
-  dice: ["default", "d20-big", "chip", "flat", "rune", "tactical", "neon"],
   button: ["default", "pill", "outline", "ghost", "raised", "danger", "soft", "tactical", "rune", "neon", "menu"],
   toggle: ["default", "checkbox", "pill", "led", "power", "rune"],
   select: ["default", "pills", "segmented", "radio", "menu", "holographic"],
@@ -721,7 +704,6 @@ for (const [type, def] of Object.entries(WIDGET_TYPES)) {
 }
 
 export const CLICKABLE_WIDGET_TYPES = new Set([
-  "dice",
   "button",
   "attribute",
   "attributeGroup",
@@ -752,14 +734,38 @@ for (const type of CLICKABLE_WIDGET_TYPES) {
 }
 
 export const WIDGET_PALETTE_ORDER = [
-  "text", "number", "counter", "resource", "derived", "dice", "diceTray", "button",
-  "toggle", "attribute", "attributeGroup", "skill", "progress", "tracker", "tokenPool", "clock",
-  "slot", "inventory", "effects", "spellbook",
-  "select", "tags", "image", "section", "vsection", "richtext",
-  "cardHand", "cardDrawButton",
-  "questMarker",
-  "widgetBuilder"
+  "text", "richtext", "image", "button", "number", "toggle", "select", "tags",
+  "attribute", "skill", "attributeGroup",
+  "resource", "progress", "counter", "clock", "derived", "diceTray",
+  "section", "vsection", "widgetBuilder",
+  "slot", "inventory", "effects", "spellbook", "cardHand", "cardDrawButton", "questMarker"
 ];
+
+/**
+ * Safety net: any widget type that exists in WIDGET_TYPES but is missing from
+ * WIDGET_PALETTE_ORDER is appended at the end instead of silently disappearing
+ * from every palette. Legacy/removed types stay hidden.
+ */
+export function getWidgetPaletteOrder({ includeLegacy = false } = {}) {
+  const seen = new Set();
+  const order = [];
+  for (const id of WIDGET_PALETTE_ORDER) {
+    if (!WIDGET_TYPES[id] || seen.has(id)) continue;
+    seen.add(id); order.push(id);
+  }
+  for (const id of Object.keys(WIDGET_TYPES)) {
+    if (seen.has(id)) continue;
+    if (!includeLegacy && LEGACY_WIDGET_TYPES.has(id)) continue;
+    seen.add(id); order.push(id);
+  }
+  return order;
+}
+
+/** Removed widget types. Existing sheets are migrated to the replacement type. */
+export const REMOVED_WIDGET_TYPES = Object.freeze({ dice: "button" });
+
+/** Imported sheets may still contain these widgets; they render normally but new layouts use Meter/UI Components. */
+export const LEGACY_WIDGET_TYPES = new Set(["tracker", "tokenPool"]);
 
 export function createWidget(type, overrides = {}) {
   const def = WIDGET_TYPES[type];
@@ -772,4 +778,3 @@ export function createWidget(type, overrides = {}) {
     ...overrides
   };
 }
-

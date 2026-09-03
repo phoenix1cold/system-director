@@ -1,6 +1,7 @@
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { durationForRounds } from "../helpers/effect-duration.mjs";
 import { injectWidgetFieldsSnapshot, refreshWidgetFieldsRuntime } from "../helpers/widget-fields.mjs";
+import { getValueDefinition, valueStoragePath } from "../helpers/value-database.mjs";
 
 export class SDItem extends Item {
 
@@ -119,6 +120,19 @@ export class SDItem extends Item {
 
     try { AutoanimationsIntegration.playForItem(this, this.actor ?? null); } catch (e) { console.warn("SD | AutoAnimations trigger failed:", e); }
 
+    const common=system.sdTriggerGraph;
+    const commonEvent=common?._events?.onClick;
+    const commonActions=Array.isArray(commonEvent)?commonEvent:(Array.isArray(commonEvent?.actions)?commonEvent.actions:[]);
+    if(commonActions.length){
+      try{
+        const {ButtonExecutor}=await import("../helpers/button-executor.mjs");
+        const buttonDef={label:this.name,__macros:common?._macros??null};
+        const runtime={};
+        for(const action of commonActions)await ButtonExecutor._runAction(action,this,this.actor??null,buttonDef,runtime);
+      }catch(e){console.error("SD | common Item Blueprint On Click error:",e);}
+      return;
+    }
+
     const formula = system.onClickFormula;
     if (formula && formula !== "0") {
       try {
@@ -156,7 +170,7 @@ export class SDItem extends Item {
     }
 
     if (this.parent && system.cost?.resource && system.cost.value > 0) {
-      const resourcePath = `system.${system.cost.resource}.value`;
+      const resourcePath=getValueDefinition(system.cost.resource)?valueStoragePath(system.cost.resource):`system.${system.cost.resource}.value`;
       const current = foundry.utils.getProperty(this.parent, resourcePath) ?? 0;
       if (current < system.cost.value) {
         ui.notifications.warn(game.i18n.format("SD.InsufficientResource", { name: this.name }));
@@ -199,7 +213,7 @@ export class SDItem extends Item {
       }
     }
 
-    const _renderTpl = foundry.applications?.handlebars?.renderTemplate ?? renderTemplate;
+    const _renderTpl = foundry.applications.handlebars.renderTemplate;
     const html = await _renderTpl("systems/sd/templates/chat/item-card.hbs", {
       item:   this,
       system: this.system,

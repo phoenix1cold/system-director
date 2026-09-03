@@ -303,6 +303,82 @@ export const MIGRATIONS = [
       if (convert(cfg)) await game.settings.set("sd","systemSettings",cfg);
     }
   }
+,
+  {
+    version:     "1.11.0",
+    description: "Dice Button widgets become ordinary Buttons, widget roll formulas are dropped, and every widget keeps its own values.",
+    run: async () => {
+      const { widgetVariables, widgetVarPath, isWidgetVarPath, coerceWidgetValue } =
+        await import("./widget-variables.mjs");
+
+      /**
+       * Rewrite one widget tree in place.
+       * Returns the `system.widgetVars.*` patch that keeps the values currently
+       * shown on the sheet, so nothing visually changes after the update.
+       */
+      const convertWidget = (widget, doc, patch) => {
+        if (!widget || typeof widget !== "object") return;
+
+        // 1. The Dice Button widget no longer exists.
+        if (widget.type === "dice") {
+          widget.type = "button";
+          if (!widget.icon) widget.icon = "fa-dice-d20";
+          if (["d20", "flat", "stamp"].includes(String(widget.variant ?? ""))) widget.variant = "default";
+        }
+
+        // 2. Dice are rolled from nodes now, so widget roll formulas are gone.
+        if (widget.type === "button") delete widget.formula;
+        if (widget.type === "skill") delete widget.rollFormula;
+
+        // 3. Widgets own their values instead of pointing at Database variables.
+        for (const descriptor of widgetVariables(widget)) {
+          const previous = widget[descriptor.field];
+          const selfPath = widgetVarPath(widget, descriptor.field);
+          widget.varDefaults = (widget.varDefaults && typeof widget.varDefaults === "object") ? widget.varDefaults : {};
+          if (widget.varDefaults[descriptor.field] === undefined) {
+            let carried;
+            if (typeof previous === "string" && previous && !isWidgetVarPath(previous)) {
+              try { carried = foundry.utils.getProperty(doc, previous); } catch {}
+            }
+            widget.varDefaults[descriptor.field] = coerceWidgetValue(
+              carried !== undefined ? carried : descriptor.initial, descriptor.type);
+          }
+          widget[descriptor.field] = selfPath;
+          let stored;
+          try { stored = foundry.utils.getProperty(doc, selfPath); } catch {}
+          if (stored === undefined) {
+            patch[selfPath] = coerceWidgetValue(widget.varDefaults[descriptor.field], descriptor.type);
+          }
+        }
+
+        for (const child of (widget.widgets ?? [])) convertWidget(child, doc, patch);
+        for (const element of (widget.elements ?? [])) if (element?.widget) convertWidget(element.widget, doc, patch);
+      };
+
+      const migrateDocument = async doc => {
+        const tabs = foundry.utils.deepClone(doc.system?.customTabs ?? null);
+        if (!Array.isArray(tabs) || !tabs.length) return;
+        const patch = {};
+        for (const tab of tabs) for (const row of (tab?.rows ?? [])) for (const widget of (row?.widgets ?? [])) {
+          convertWidget(widget, doc, patch);
+        }
+        try { await doc.update({ "system.customTabs": tabs, ...patch }); }
+        catch (error) { console.warn(`SD | 1.11.0 migration skipped ${doc?.name}:`, error); }
+      };
+
+      for (const actor of game.actors ?? []) {
+        await migrateDocument(actor);
+        for (const item of actor.items ?? []) await migrateDocument(item);
+      }
+      for (const item of game.items ?? []) await migrateDocument(item);
+      for (const scene of game.scenes ?? []) {
+        for (const token of scene.tokens ?? []) {
+          if (token.actorLink || !token.actor) continue;
+          await migrateDocument(token.actor);
+        }
+      }
+    }
+  }
 
 
 ];

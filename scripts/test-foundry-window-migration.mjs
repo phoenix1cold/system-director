@@ -29,7 +29,8 @@ assert.doesNotMatch(interact,/document\.body\.appendChild\(popup\)/);
 
 const dialogue=read("module/helpers/dialogue-builder.mjs");
 assert.match(dialogue,/sd-dialogue-foundry-window/);
-assert.doesNotMatch(dialogue,/document\.body\.appendChild\(overlay\)/);
+assert.match(dialogue,/if\s*\(isFullscreen\)[\s\S]{0,240}document\.body\.appendChild\(overlay\)/);
+assert.match(dialogue,/else[\s\S]{0,700}openFoundryWindow\(/);
 
 for(const p of ["module/helpers/system-config.mjs","module/helpers/shared-database.mjs","module/helpers/action-hud-inline-editor.mjs","module/builder/toolbox-app.mjs"]){
   assert.match(read(p),/ApplicationV2/,`${p} must remain a Foundry ApplicationV2 window`);

@@ -14,16 +14,14 @@ export class SdRollDialog {
   static async prompt({ actor, title, formula = "1d20", label = "" } = {}) {
     const parsed = SdRollDialog.parseFormula(formula);
 
-    const renderTpl = foundry.applications?.handlebars?.renderTemplate
-      ?? foundry.utils.fetchJsonWithTimeout
-      ?? renderTemplate;
+    const renderTpl = foundry.applications.handlebars.renderTemplate;
 
     const rollModes = Object.entries(CONFIG.Dice.rollModes ?? {}).map(([key, val]) => ({
       value: key,
       label: (typeof val === "object" ? val.label : val) ?? key
     }));
 
-    const content = await (foundry.applications?.handlebars?.renderTemplate ?? renderTemplate)(
+    const content = await renderTpl(
       "systems/sd/templates/dialog/roll-dialog.hbs",
       {
         formula,

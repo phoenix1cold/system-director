@@ -24,7 +24,9 @@ export function SlotDefinitionField() {
     accentColor:     new StringField({ initial: "", blank: true }),
     changes: new ArrayField(new SchemaField({
       id:             new StringField({ required: true, blank: false, initial: () => foundry.utils.randomID(8) }),
+      itemVariableId: new StringField({ initial: "", blank: true }),
       itemFieldPath:  new StringField({ initial: "", blank: true }),
+      actorVariableId:new StringField({ initial: "", blank: true }),
       actorFieldPath: new StringField({ initial: "", blank: true }),
       mode:           new NumberField({ required: true, integer: true, initial: 2, min: 0, max: 5, nullable: false }),
       priority:       new NumberField({ required: true, integer: true, initial: 20, nullable: false })

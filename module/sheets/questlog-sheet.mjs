@@ -1,6 +1,7 @@
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
+import { getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
 
 function _gid(prefix) {
   return `${prefix}${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36).slice(-3)}`;
@@ -1248,7 +1249,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const inp = document.createElement("input");
         inp.type = "text";
         inp.value = r.conditionFormula ?? "";
-        inp.placeholder = "{system.attributes.attr1.value} >= 5";
+        inp.placeholder = "Use a Database variable in the Node Graph";
         inp.style.cssText = "flex:1;background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text);border-radius:3px;padding:2px 6px;font-size:11px;font-family:monospace";
         inp.addEventListener("change", () => this._patchReward(q.id, r.id, { conditionFormula: inp.value }));
         condRow.appendChild(lab); condRow.appendChild(inp);
@@ -1512,12 +1513,12 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     block.style.cssText = "display:flex;flex-direction:column;gap:4px";
     const head = document.createElement("div");
     head.style.cssText = "display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sd-text-3);text-transform:uppercase;letter-spacing:.04em";
-    head.innerHTML = `<i class="fas fa-pen-to-square"></i> ${_esc(_i18n("SD.QuestLog.Reward.PathChanges","Path changes"))}`;
+    head.innerHTML = `<i class="fas fa-pen-to-square"></i> ${_esc(_i18n("SD.QuestLog.Reward.PathChanges","Variable changes"))}`;
     if (isGM) {
       const add = document.createElement("button");
       add.className = "sd-btn"; add.style.cssText = "margin-left:auto;padding:1px 6px;font-size:10px";
       add.innerHTML = `<i class="fas fa-plus"></i>`;
-      add.title = _i18n("SD.QuestLog.Reward.AddPathChange","Add path change");
+      add.title = _i18n("SD.QuestLog.Reward.AddPathChange","Add variable change");
       add.addEventListener("click", () => this._addRewardPathChange(q.id, r.id));
       head.appendChild(add);
     }
@@ -1527,7 +1528,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     if (!list.length) {
       const e = document.createElement("div");
       e.style.cssText = "font-size:11px;color:var(--sd-text-3);font-style:italic;padding:3px 6px";
-      e.textContent = _i18n("SD.QuestLog.Reward.NoPathChanges","No path changes.");
+      e.textContent = _i18n("SD.QuestLog.Reward.NoPathChanges","No variable changes.");
       block.appendChild(e);
     }
 
@@ -1539,10 +1540,11 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const row = document.createElement("div");
       row.style.cssText = "display:grid;grid-template-columns:1fr auto 1fr auto auto;gap:4px;align-items:center";
       if (isGM) {
-        const path = document.createElement("input");
-        path.type = "text"; path.value = pc.path ?? ""; path.placeholder = "system.xp";
-        path.style.cssText = "background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text);border-radius:3px;padding:2px 6px;font-size:11px;font-family:monospace";
-        path.addEventListener("change", () => this._patchRewardPathChange(q.id, r.id, pc.id, { path: path.value }));
+        const path = document.createElement("select");
+        const selected=pc.variableId||variableIdForLegacyPath(pc.path);
+        path.innerHTML=`<option value="">Select Database variable…</option>${getValueDefinitions().map(v=>`<option value="${_esc(v.id)}" ${selected===v.id?"selected":""}>${_esc(v.name)} · ${_esc(v.type)} [${_esc(v.id)}]</option>`).join("")}`;
+        path.style.cssText = "background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text);border-radius:3px;padding:2px 6px;font-size:11px";
+        path.addEventListener("change", () => this._patchRewardPathChange(q.id, r.id, pc.id, { variableId: path.value }));
         row.appendChild(path);
 
         const op = document.createElement("select");
@@ -1579,7 +1581,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         txt.style.cssText = "font-size:11px;color:var(--sd-text)";
         const opSym = (opOpts.find(o => o.v === pc.op) ?? {l:pc.op})?.l;
         const scopeTxt = pc.scope === "all" ? _i18n("SD.QuestLog.Reward.ScopeAll","All on claim") : _i18n("SD.QuestLog.Reward.ScopeClaimer","Claimer");
-        txt.textContent = `${pc.path} ${opSym} ${pc.value}  (${scopeTxt})`;
+        txt.textContent = `${getValueDefinition(pc.variableId)?.name ?? "Database value"} ${opSym} ${pc.value}  (${scopeTxt})`;
         row.appendChild(txt);
       }
       block.appendChild(row);
@@ -1692,7 +1694,7 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const q = quests.find(x => x.id === qid); if (!q) return;
     const r = (q.rewards ?? []).find(x => x.id === rid); if (!r) return;
     r.pathChanges = r.pathChanges ?? [];
-    r.pathChanges.push({ id: _gid("pc_"), path: "system.xp", op: "add", value: "0", scope: "claimer", label: "" });
+    r.pathChanges.push({ id: _gid("pc_"), variableId: getValueDefinitions()[0]?.id ?? "", op: "add", value: "0", scope: "claimer", label: "" });
     await this.document.update({ "system.quests": quests });
   }
 

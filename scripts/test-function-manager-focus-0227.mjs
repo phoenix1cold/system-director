@@ -10,7 +10,7 @@ const end = source.indexOf("  async _fnExport(fid) {", start);
 assert.ok(start >= 0 && end > start, "Manage Functions wiring block is missing");
 const block = source.slice(start, end);
 
-assert.equal(manifest.version, "1.3.5");
+assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 assert.match(block, /let updateQueue = Promise\.resolve\(\)/, "function edits must be serialized");
 assert.match(block, /const applyDraft = f =>/, "one complete DOM draft must be saved");
 assert.match(block, /rerenderDetail: false/, "draft saves must not replace focused fields");

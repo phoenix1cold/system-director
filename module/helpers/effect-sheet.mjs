@@ -1,0 +1,325 @@
+import { getValueDefinitions, getValueDefinition, valueStoragePath } from "./value-database.mjs";
+
+/**
+ * SD Active Effect window.
+ *
+ * Replaces Foundry's native effect config (with its raw "Attribute Key" text
+ * field) by a window that only ever speaks in Database variables. A change is
+ * stored as `system.values.<variableId>` so the SD effect handler
+ * (module/documents/active-effect.mjs) can resolve and apply it.
+ */
+
+const { DocumentSheetV2 } = foundry.applications.api;
+
+const esc = (s) => String(s ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;");
+
+/** Active Effect change modes, mirrored from CONST.ACTIVE_EFFECT_MODES. */
+export const SD_EFFECT_MODES = [
+  { value: 0, label: "SD.Effects.ModeCustom",    fallback: "Custom" },
+  { value: 1, label: "SD.Effects.ModeMultiply",  fallback: "Multiply" },
+  { value: 2, label: "SD.Effects.ModeAdd",       fallback: "Add" },
+  { value: 3, label: "SD.Effects.ModeDowngrade", fallback: "Downgrade" },
+  { value: 4, label: "SD.Effects.ModeUpgrade",   fallback: "Upgrade" },
+  { value: 5, label: "SD.Effects.ModeOverride",  fallback: "Override" }
+];
+
+function t(key, fallback) {
+  try {
+    const out = game.i18n?.localize?.(key);
+    if (out && out !== key) return out;
+  } catch { /* ignore */ }
+  return fallback;
+}
+
+/** Numeric mode for a stored change, tolerating v14 string `type` values. */
+function changeMode(change) {
+  const raw = change?.mode;
+  if (raw !== undefined && raw !== null && raw !== "") return Number(raw) || 0;
+  const byType = { custom: 0, multiply: 1, add: 2, downgrade: 3, upgrade: 4, override: 5 };
+  return byType[String(change?.type ?? "").toLowerCase()] ?? 2;
+}
+
+/** Resolve the Database variable id a stored change points at. */
+function changeVariableId(change, defs) {
+  const direct = String(change?.variableId ?? "").trim();
+  if (direct) return direct;
+  const key = String(change?.key ?? "").trim();
+  if (!key) return "";
+  const hit = defs.find(d => valueStoragePath(d.id) === key || d.legacyPath === key || d.id === key);
+  return hit?.id ?? "";
+}
+
+export class SDEffectSheet extends DocumentSheetV2 {
+  static DEFAULT_OPTIONS = {
+    classes: ["sd", "sd-effect-sheet"],
+    tag: "div",
+    window: { icon: "fa-solid fa-sparkles", resizable: true, minimizable: true },
+    position: { width: 640, height: 640 },
+    sheetConfig: false
+  };
+
+  get title() {
+    const name = this.document?.name ?? t("SD.Effects.SheetTitle", "Effect");
+    return `${t("SD.Effects.SheetTitle", "Effect")}: ${name}`;
+  }
+
+  /** Working copy so unsaved edits survive re-renders. */
+  _draft() {
+    if (this._sdDraft) return this._sdDraft;
+    const ef = this.document;
+    const defs = getValueDefinitions();
+    this._sdDraft = {
+      name: String(ef?.name ?? ""),
+      img: String(ef?.img ?? ef?.icon ?? "icons/svg/aura.svg"),
+      description: String(ef?.description ?? ""),
+      disabled: !!ef?.disabled,
+      transfer: !!ef?.transfer,
+      rounds: Number(ef?.duration?.rounds ?? 0) || 0,
+      seconds: Number(ef?.duration?.seconds ?? 0) || 0,
+      changes: (ef?.changes ?? []).map(c => ({
+        variableId: changeVariableId(c, defs),
+        legacyKey: changeVariableId(c, defs) ? "" : String(c?.key ?? ""),
+        mode: changeMode(c),
+        value: String(c?.value ?? ""),
+        priority: Number(c?.priority ?? 20) || 20
+      }))
+    };
+    return this._sdDraft;
+  }
+
+  async _renderHTML() {
+    const d = this._draft();
+    const defs = getValueDefinitions();
+    const canEdit = this.document?.isOwner !== false;
+    const lock = canEdit ? "" : "disabled";
+
+    const noVars = !defs.length;
+
+    const rows = d.changes.map((c, i) => {
+      const options = [
+        `<option value="">${esc(t("SD.Effects.SelectVariable", "Select variable…"))}</option>`,
+        ...defs.map(v => `<option value="${esc(v.id)}" ${c.variableId === v.id ? "selected" : ""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`)
+      ].join("");
+      const legacy = (!c.variableId && c.legacyKey)
+        ? `<span class="sd-es-legacy" title="${esc(t("SD.Effects.LegacyKeyHint", "This change still points at a raw path. Pick a variable to migrate it."))}"><i class="fas fa-triangle-exclamation"></i> ${esc(c.legacyKey)}</span>`
+        : "";
+      return `<div class="sd-es-change" data-index="${i}">
+        <label class="sd-es-var"><span>${esc(t("SD.Effects.Variable", "Database variable"))}</span>
+          <select data-change="variableId" ${lock}>${options}</select>${legacy}
+        </label>
+        <label class="sd-es-mode"><span>${esc(t("SD.Effects.Mode", "Mode"))}</span>
+          <select data-change="mode" ${lock}>${SD_EFFECT_MODES.map(m => `<option value="${m.value}" ${Number(c.mode) === m.value ? "selected" : ""}>${esc(t(m.label, m.fallback))}</option>`).join("")}</select>
+        </label>
+        <label class="sd-es-value"><span>${esc(t("SD.Effects.Value", "Value"))}</span>
+          <input data-change="value" value="${esc(c.value)}" placeholder="${esc(t("SD.Effects.ValuePlaceholder", "Number or formula"))}" ${lock}>
+        </label>
+        <label class="sd-es-priority"><span>${esc(t("SD.Effects.Priority", "Priority"))}</span>
+          <input type="number" data-change="priority" value="${Number(c.priority ?? 20)}" ${lock}>
+        </label>
+        <button type="button" class="sd-es-icon danger" data-action="removeChange" title="${esc(t("SD.Effects.RemoveChange", "Remove change"))}" ${lock}><i class="fas fa-trash"></i></button>
+      </div>`;
+    }).join("");
+
+    const empty = `<div class="sd-es-empty"><i class="fas fa-code-branch"></i>
+      <span>${esc(noVars
+        ? t("SD.Effects.NoVariables", "No Database variables yet. Add one in Settings → Configure System → Database.")
+        : t("SD.Effects.NoChanges", "No changes yet. Add one below."))}</span></div>`;
+
+    return `<div class="sd-es-root">
+      <section class="sd-es-card">
+        <div class="sd-es-head">
+          <img class="sd-es-icon-preview" src="${esc(d.img)}" alt="" data-action="pickImage" title="${esc(t("SD.Effects.PickIcon", "Change icon"))}">
+          <label class="sd-es-name"><span>${esc(t("SD.Effects.Name", "Name"))}</span>
+            <input name="name" value="${esc(d.name)}" ${canEdit ? "" : "readonly"}>
+          </label>
+        </div>
+        <label class="sd-es-desc"><span>${esc(t("SD.Effects.Description", "Description"))}</span>
+          <textarea name="description" rows="3" ${canEdit ? "" : "readonly"}>${esc(d.description)}</textarea>
+        </label>
+        <div class="sd-es-duration">
+          <label><span>${esc(t("SD.Effects.Rounds", "Rounds"))}</span><input type="number" min="0" name="rounds" value="${d.rounds}" ${lock}></label>
+          <label><span>${esc(t("SD.Effects.Seconds", "Seconds"))}</span><input type="number" min="0" name="seconds" value="${d.seconds}" ${lock}></label>
+          <label class="sd-es-toggle"><input type="checkbox" name="disabled" ${d.disabled ? "checked" : ""} ${lock}><span>${esc(t("SD.Effects.Disabled", "Disabled"))}</span></label>
+          <label class="sd-es-toggle"><input type="checkbox" name="transfer" ${d.transfer ? "checked" : ""} ${lock}><span>${esc(t("SD.Effects.Transfer", "Transfer to actor"))}</span></label>
+        </div>
+      </section>
+
+      <section class="sd-es-card sd-es-changes-card">
+        <header>
+          <div>
+            <span class="sd-es-eyebrow">${esc(t("SD.Effects.ChangesEyebrow", "Database variables"))}</span>
+            <h3>${esc(t("SD.Effects.Changes", "Changes"))}</h3>
+          </div>
+          <button type="button" class="sd-es-add" data-action="addChange" ${noVars ? "disabled" : lock}><i class="fas fa-plus"></i> ${esc(t("SD.Effects.AddChange", "Add change"))}</button>
+        </header>
+        <div class="sd-es-changes">${rows || empty}</div>
+      </section>
+
+      <footer class="sd-es-footer">
+        <span class="sd-es-hint"><i class="fas fa-info-circle"></i> ${esc(t("SD.Effects.StorageHint", "Changes are written to system.values.<variable>."))}</span>
+        <button type="button" class="sd-es-save primary" data-action="save" ${lock}><i class="fas fa-floppy-disk"></i> ${esc(t("SD.Effects.Save", "Save changes"))}</button>
+      </footer>
+    </div>`;
+  }
+
+  _replaceHTML(html, content) {
+    content.innerHTML = html;
+    content.style.padding = "0";
+  }
+
+  /** Read the form back into the draft. */
+  _collect() {
+    const root = this.element;
+    const d = this._draft();
+    if (!root) return d;
+    const val = (sel, fb) => root.querySelector(sel)?.value ?? fb;
+    d.name = String(val('[name="name"]', d.name));
+    d.description = String(val('[name="description"]', d.description));
+    d.rounds = Number(val('[name="rounds"]', d.rounds)) || 0;
+    d.seconds = Number(val('[name="seconds"]', d.seconds)) || 0;
+    d.disabled = !!root.querySelector('[name="disabled"]')?.checked;
+    d.transfer = !!root.querySelector('[name="transfer"]')?.checked;
+    d.changes = [...root.querySelectorAll(".sd-es-change")].map((row, i) => {
+      const prev = d.changes[i] ?? {};
+      const variableId = row.querySelector('[data-change="variableId"]')?.value ?? "";
+      return {
+        variableId: String(variableId),
+        legacyKey: variableId ? "" : String(prev.legacyKey ?? ""),
+        mode: Number(row.querySelector('[data-change="mode"]')?.value ?? 2),
+        value: String(row.querySelector('[data-change="value"]')?.value ?? ""),
+        priority: Number(row.querySelector('[data-change="priority"]')?.value ?? 20) || 20
+      };
+    });
+    return d;
+  }
+
+  async _save({ close = false } = {}) {
+    const d = this._collect();
+    const changes = d.changes
+      .map(c => {
+        const key = c.variableId ? valueStoragePath(c.variableId) : String(c.legacyKey ?? "");
+        if (!key) return null;
+        return {
+          key,
+          mode: Number(c.mode ?? 2),
+          value: String(c.value ?? ""),
+          priority: Number(c.priority ?? 20) || 20
+        };
+      })
+      .filter(Boolean);
+
+    const payload = {
+      name: d.name,
+      img: d.img,
+      description: d.description,
+      disabled: d.disabled,
+      transfer: d.transfer,
+      changes,
+      "duration.rounds": d.rounds || null,
+      "duration.seconds": d.seconds || null
+    };
+
+    try {
+      await this.document.update(payload);
+    } catch (err) {
+      console.error("SD | failed to save effect:", err);
+      ui.notifications?.error?.(t("SD.Effects.SaveFailed", "Could not save the effect."));
+      return false;
+    }
+    this._sdDraft = null;
+    if (close) await this.close();
+    else await this.render();
+    return true;
+  }
+
+  _onRender(context, options) {
+    super._onRender?.(context, options);
+    const root = this.element;
+    if (!root) return;
+
+    root.querySelector('[data-action="save"]')?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      this._save({ close: false });
+    });
+
+    root.querySelector('[data-action="addChange"]')?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const d = this._collect();
+      const first = getValueDefinitions()[0];
+      d.changes.push({ variableId: first?.id ?? "", legacyKey: "", mode: 2, value: "", priority: 20 });
+      await this.render();
+      this.element?.querySelector('.sd-es-change:last-child [data-change="value"]')?.focus();
+    });
+
+    root.querySelectorAll('[data-action="removeChange"]').forEach(btn => {
+      btn.addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        const d = this._collect();
+        const idx = Number(btn.closest(".sd-es-change")?.dataset?.index ?? -1);
+        if (idx >= 0) d.changes.splice(idx, 1);
+        await this.render();
+      });
+    });
+
+    root.querySelector('[data-action="pickImage"]')?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const FP = foundry.applications?.apps?.FilePicker?.implementation ?? FilePicker;
+      try {
+        const picker = new FP({
+          type: "image",
+          current: this._draft().img,
+          callback: async (path) => {
+            this._collect();
+            this._draft().img = String(path || "");
+            await this.render();
+          }
+        });
+        picker.render(true);
+      } catch (err) {
+        console.warn("SD | file picker unavailable:", err);
+      }
+    });
+
+    // Selecting a variable clears the legacy-path warning immediately.
+    root.querySelectorAll('[data-change="variableId"]').forEach(sel => {
+      sel.addEventListener("change", () => {
+        const row = sel.closest(".sd-es-change");
+        if (sel.value) row?.querySelector(".sd-es-legacy")?.remove();
+        const def = getValueDefinition(sel.value);
+        const input = row?.querySelector('[data-change="value"]');
+        if (def && input && !input.value) input.placeholder = String(def.initial ?? "");
+      });
+    });
+  }
+}
+
+/**
+ * Register the SD effect window as the default ActiveEffect sheet so every
+ * entry point (sheets, action HUD, progression) opens it instead of the
+ * native "Attribute Key" dialog.
+ */
+export function registerEffectSheet() {
+  const DSC = foundry.applications?.apps?.DocumentSheetConfig;
+  if (!DSC?.registerSheet) {
+    console.warn("SD | DocumentSheetConfig unavailable; effect sheet not registered");
+    return;
+  }
+  try {
+    const core = foundry.applications?.sheets?.ActiveEffectConfig;
+    if (core) DSC.unregisterSheet(ActiveEffect, "core", core);
+  } catch (err) {
+    console.warn("SD | could not unregister the core effect sheet:", err);
+  }
+  try {
+    DSC.registerSheet(ActiveEffect, "sd", SDEffectSheet, {
+      makeDefault: true,
+      label: "SD.Sheets.Effect"
+    });
+  } catch (err) {
+    console.error("SD | failed to register the SD effect sheet:", err);
+  }
+}

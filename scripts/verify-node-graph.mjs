@@ -93,7 +93,7 @@ for (const id of nodeIds) {
 pass("Validated static titles, pins, pin types, and replacement targets.");
 
 for (const [oldType, rule] of Object.entries(migrations.NODE_TYPE_MIGRATIONS ?? {})) {
-  if (!rule?.newType || !nodeIdSet.has(rule.newType)) {
+  if (!rule?.newType || (!rule.externalTarget && !nodeIdSet.has(rule.newType))) {
     fail(`Migration ${oldType}: target "${rule?.newType ?? ""}" does not exist.`);
   }
 }

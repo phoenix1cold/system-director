@@ -11,6 +11,7 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
     return {
+      values: new ObjectField({ initial: {} }),
 
       category: new StringField({
         initial: "active",
@@ -94,6 +95,11 @@ export class AbilityData extends foundry.abstract.TypeDataModel {
 
       widgetFields: new ObjectField({ initial: {} }),
 
+      widgetVars: new ObjectField({ initial: {} }),
+
+      // Internal typed Blueprint persistence; never exposed as a user-authored path.
+      blueprintState: new ObjectField({ initial: {} }),
+
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
       slotDefinitions: new ArrayField(SlotDefinitionField()),
@@ -149,6 +155,7 @@ export class FeatureData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
     return {
+      values: new ObjectField({ initial: {} }),
       category: new StringField({ initial: "general", blank: true }),
       level: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
       activation: new SchemaField({
@@ -165,6 +172,12 @@ export class FeatureData extends foundry.abstract.TypeDataModel {
       description: new HTMLField({ initial: "", blank: true }),
       source:      new StringField({ initial: "", blank: true }),
       flags:       new ObjectField({ initial: {} }),
+      customTabs:  new ArrayField(new ObjectField(), { initial: [] }),
+      widgetFields:new ObjectField({ initial: {} }),
+      widgetVars: new ObjectField({ initial: {} }),
+      /** Internal typed Blueprint persistence; never exposed as a data path. */
+      blueprintState:new ObjectField({ initial: {} }),
+      sdTriggerGraph:new ObjectField({ initial: {} }),
       onClickGraph:   new ObjectField({ initial: {} }),
       onClickFormula: new StringField({ initial: "", blank: true })
     };

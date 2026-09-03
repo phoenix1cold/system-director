@@ -3,7 +3,7 @@
   <header class="sd-db-toolbar">
     <div>
       <h2><i class="fas fa-database"></i> Shared Database</h2>
-      <p>One schema for the whole world. Document databases keep separate values on each Actor or Item; world databases keep one shared value.</p>
+      <p>Typed variables, UE-style Enum assets and Data Tables. Document values may be stored per Actor/Item or shared across the world.</p>
     </div>
     {{#if isGM}}
     <button type="button" data-action="addDatabase" class="config-btn primary"><i class="fas fa-plus"></i> Add database</button>
@@ -16,12 +16,17 @@
       <div class="sd-db-card-head">
         <code>{{db.id}}</code>
         <input type="text" name="db_{{db.index}}_name" value="{{db.name}}" placeholder="Database name" {{#unless @root.isGM}}disabled{{/unless}}>
+        <select name="db_{{db.index}}_kind" {{#unless @root.isGM}}disabled{{/unless}}>
+          <option value="variables" {{#if db.isVariables}}selected{{/if}}>Variables</option>
+          <option value="enum" {{#if db.isEnum}}selected{{/if}}>Enum Asset</option>
+          <option value="dataTable" {{#if db.isDataTable}}selected{{/if}}>Data Table</option>
+        </select>
         <select name="db_{{db.index}}_storage" {{#unless @root.isGM}}disabled{{/unless}}>
           <option value="document" {{#unless db.isWorld}}selected{{/unless}}>Per Actor / Item</option>
           <option value="world" {{#if db.isWorld}}selected{{/if}}>World shared</option>
         </select>
         {{#if @root.isGM}}
-        <button type="button" data-action="addRecord" data-index="{{db.index}}"><i class="fas fa-plus"></i> Record</button>
+        <button type="button" data-action="addRecord" data-index="{{db.index}}"><i class="fas fa-plus"></i> Entry / Row</button>
         <button type="button" data-action="removeDatabase" data-index="{{db.index}}" class="danger"><i class="fas fa-trash"></i></button>
         {{/if}}
       </div>
@@ -44,7 +49,7 @@
           <input class="sd-db-description" type="text" name="rec_{{record.databaseIndex}}_{{record.index}}_description" value="{{record.description}}" placeholder="Record description" {{#unless @root.isGM}}disabled{{/unless}}>
         </article>
         {{/each}}
-        {{#unless db.records.length}}<div class="sd-db-empty">No records. Add a typed record.</div>{{/unless}}
+        {{#unless db.records.length}}<div class="sd-db-empty">No entries yet. Add a variable, Enum entry, or Data Table row.</div>{{/unless}}
       </div>
     </section>
     {{/each}}

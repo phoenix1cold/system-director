@@ -1,8 +1,8 @@
 {
   "id": "sd",
   "title": "System Director",
-  "description": "System Director — visual sheets, typed node graphs, quests and progression for Foundry VTT.",
-  "version": "1.4.0",
+  "description": "System Director for Foundry VTT v14 with one unified typed Blueprint graph, stable Widget IDs, nested UI Canvas editing and modern Sheet Builder widgets.",
+  "version": "2.0.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
@@ -23,7 +23,8 @@
     "styles/sd-widget-variants.css",
     "styles/sd-widget-modern.css",
     "styles/sd-native-ui.css",
-    "styles/shared-database.css"
+    "styles/shared-database.css",
+    "styles/ui-blueprint.css"
   ],
   "packs": [
     {
@@ -143,7 +144,7 @@
   "secondaryTokenAttribute": "resources.mp",
   "url": "https://github.com/phoenix1cold/system-director",
   "manifest": "https://github.com/phoenix1cold/system-director/releases/latest/download/system.json",
-  "download": "https://github.com/phoenix1cold/system-director/releases/download/v0.19.0/system.zip",
+  "download": "https://github.com/phoenix1cold/system-director/releases/download/v1.7.0/system.zip",
   "readme": "https://github.com/phoenix1cold/system-director/blob/main/README.md",
   "bugs": "https://github.com/phoenix1cold/system-director/issues",
   "changelog": "https://github.com/phoenix1cold/system-director/releases"

@@ -10,63 +10,18 @@ import {
 import { SDOnboarding } from "./onboarding.mjs";
 import { getAISettings, openAISettingsDialog } from "./ai-context.mjs";
 import { getLanguages, saveLanguages, currentLanguage, setCurrentLanguage, translationEditLanguage, setTranslationEditLanguage, exportLocalizationBundle } from "./localization.mjs";
+import { normalizeValueDatabase, normalizeValueId, buildInitialDatabaseValues, remapVariableIdsInObject, migrateVariableIds } from "./value-database.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 export function getDefaultSettings() {
   return {
-    attributes: {
-      attr1: "Strength",
-      attr2: "Dexterity",
-      attr3: "Constitution",
-      attr4: "Intelligence",
-      attr5: "Wisdom",
-      attr6: "Charisma"
-    },
-
-    attributesEnabled: {
-      attr1: true, attr2: true, attr3: true,
-      attr4: true, attr5: true, attr6: true
-    },
-
-    attributesInitial: {
-      attr1: 10, attr2: 10, attr3: 10,
-      attr4: 10, attr5: 10, attr6: 10
-    },
-
-    resources: {
-      hp:      { label: "Hit Points",  enabled: true,  color: "#e05a5a", initialValue: 10, initialMax: 10, initialMin: 0 },
-      mp:      { label: "Mana Points", enabled: true,  color: "#5a8ae0", initialValue: 10, initialMax: 10, initialMin: 0 },
-      stamina: { label: "Stamina",     enabled: false, color: "#5ae07a", initialValue: 10, initialMax: 10, initialMin: 0 }
-    },
-
-    currencies: [
-      { key: "primary",   label: "Gold"   },
-      { key: "secondary", label: "Silver" },
-      { key: "tertiary",  label: "Copper" }
-    ],
-
-    calculations: {
-      defense: [
-        { key: "total", label: "Defense Total", default: 10, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED }
-      ],
-      initiative: [
-        { key: "total", label: "Initiative Total", default: 0, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED }
-      ],
-      movement: [
-        { key: "walk",  label: "Walk",  default: 30, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED },
-        { key: "swim",  label: "Swim",  default: 15, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED },
-        { key: "fly",   label: "Fly",   default: 0,  parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED },
-        { key: "climb", label: "Climb", default: 15, parts: [], useGraph: true, graphData: defaultCalcGraph(), compiledFormula: DEFAULT_CALC_COMPILED }
-      ],
-      other: []
-    },
-
-    modifierFormula: "halved",
-
-    uiScale: 100,
-
-    colorScheme: "default"
+    database: [],
+    databaseGraph: { nodes: [], edges: [], comments: [] },
+    // Kept as empty internal compatibility buckets so old worlds can be migrated.
+    attributes: {}, attributesEnabled: {}, attributesInitial: {}, resources: {}, currencies: [],
+    calculations: { defense: [], initiative: [], movement: [], other: [] },
+    modifierFormula: "none", uiScale: 100, colorScheme: "default"
   };
 }
 
@@ -281,74 +236,26 @@ export function applyCalculationsToActor(actor) {
 
 export function loadSettings() {
   let stored = {};
-  try {
-    stored = game.settings.get("sd", "systemSettings") ?? {};
-  } catch(e) {
-  }
-
-  if (Object.keys(stored).length === 0) {
-    return foundry.utils.deepClone(getDefaultSettings());
-  }
-
+  try { stored = game.settings.get("sd", "systemSettings") ?? {}; } catch {}
   const defaults = getDefaultSettings();
-  const result = foundry.utils.deepClone(stored);
+  const result = foundry.utils.deepClone(Object.keys(stored).length ? stored : defaults);
+  for (const [key, val] of Object.entries(defaults)) if (result[key] === undefined) result[key] = foundry.utils.deepClone(val);
 
-  for (const [key, val] of Object.entries(defaults)) {
-    if (result[key] === undefined) {
-      result[key] = foundry.utils.deepClone(val);
-    }
-  }
+  // One-time, lossless import of the old hard-coded attributes/resources/paths
+  // into generic typed Database variables. Legacy storage paths remain private.
+  result.database = normalizeValueDatabase(result.database, result);
+  result.databaseGraph = result.databaseGraph && typeof result.databaseGraph === "object"
+    ? result.databaseGraph : { nodes: [], edges: [], comments: [] };
 
-  if (result.attributes && !result.attributesEnabled) {
-    result.attributesEnabled = {};
-  }
-  if (!result.attributesInitial || typeof result.attributesInitial !== "object") {
-    result.attributesInitial = {};
-  }
-  for (const key of Object.keys(result.attributes ?? {})) {
-    if (result.attributesEnabled[key] === undefined) {
-      result.attributesEnabled[key] = true;
-    }
-    if (result.attributesInitial[key] === undefined) {
-      result.attributesInitial[key] = 10;
-    }
-  }
-
-  for (const [, res] of Object.entries(result.resources ?? {})) {
-    if (!res || typeof res !== "object") continue;
-    if (res.initialValue === undefined) res.initialValue = 10;
-    if (res.initialMax   === undefined) res.initialMax   = res.initialValue ?? 10;
-    if (res.initialMin   === undefined) res.initialMin   = 0;
-  }
-
-  if (!Array.isArray(result.currencies)) {
-    if (result.currency && typeof result.currency === "object") {
-      result.currencies = [
-        { key: "primary",   label: result.currency.primary   ?? "Gold"   },
-        { key: "secondary", label: result.currency.secondary ?? "Silver" },
-        { key: "tertiary",  label: result.currency.tertiary  ?? "Copper" }
-      ];
-    } else {
-      result.currencies = foundry.utils.deepClone(defaults.currencies);
-    }
-  }
-  delete result.currency;
-
-  if (result.uiScale === undefined) {
-    const oldSize = Number(result.uiFontSize ?? 13);
-    result.uiScale = Math.round((oldSize / 13) * 100 / 5) * 5;
-    result.uiScale = Math.min(Math.max(result.uiScale, 50), 200);
-  }
-  delete result.uiFontSize;
-  delete result.uiBtnFontSize;
-
-  result.calculations = normalizeCalculations(result.calculations ?? defaults.calculations);
-  for (const sec of CALC_SECTIONS) {
-    if (!result.calculations[sec].length) {
-      result.calculations[sec] = foundry.utils.deepClone(defaults.calculations[sec] ?? []);
-    }
-  }
-
+  // Public configuration is Database-only. Old buckets are never rendered or
+  // used for new documents, but their values are represented by migrated vars.
+  result.attributes = {};
+  result.attributesEnabled = {};
+  result.attributesInitial = {};
+  result.resources = {};
+  result.currencies = [];
+  result.calculations = { defense: [], initiative: [], movement: [], other: [] };
+  result.modifierFormula = "none";
   return result;
 }
 
@@ -358,51 +265,16 @@ export async function saveSettings(data) {
   delete clean.__initiativeUseGraph;
   delete clean.__onboardingEnabled;
   delete clean.__helperTooltips;
+  delete clean.__variableIdRenames;
   await game.settings.set("sd", "systemSettings", clean);
 }
 
 export function buildActorBaseDefaults(actorType) {
   let cfg;
-  try {
-    cfg = loadSettings();
-  } catch {
-    return null;
-  }
-  if (!cfg) return null;
-
-  const updates = {};
-
-  for (const [key, score] of Object.entries(cfg.attributesInitial ?? {})) {
-    const enabled = cfg.attributesEnabled?.[key] ?? true;
-    if (!enabled) continue;
-    const n = Number(score);
-    if (!Number.isFinite(n)) continue;
-    updates[`system.attributes.${key}.value`] = Math.trunc(n);
-  }
-
-  for (const [key, res] of Object.entries(cfg.resources ?? {})) {
-    if (!res || res.enabled === false) continue;
-    const v = Number(res.initialValue);
-    const mx = Number(res.initialMax);
-    const mn = Number(res.initialMin);
-    if (Number.isFinite(v))  updates[`system.resources.${key}.value`] = Math.trunc(v);
-    if (Number.isFinite(mx)) updates[`system.resources.${key}.max`]   = Math.max(0, Math.trunc(mx));
-    if (Number.isFinite(mn)) updates[`system.resources.${key}.min`]   = Math.trunc(mn);
-  }
-
-  for (const sec of CALC_SECTIONS) {
-    const list = cfg.calculations?.[sec];
-    if (!Array.isArray(list)) continue;
-    for (const entry of list) {
-      const k = entry?.key;
-      if (!k) continue;
-      const dn = Number(entry.default);
-      if (!Number.isFinite(dn)) continue;
-      updates[`system.${sec}.${k}`] = Math.trunc(dn);
-    }
-  }
-
-  return Object.keys(updates).length ? updates : null;
+  try { cfg = loadSettings(); } catch { return null; }
+  const scope = actorType === "Item" || String(actorType).toLowerCase().includes("item") ? "item" : "actor";
+  const values = buildInitialDatabaseValues(cfg, scope);
+  return Object.keys(values).length ? { "system.values": values } : null;
 }
 
 export function computeModifier(score) {
@@ -446,6 +318,12 @@ export function applyInitiativeFormulaFromSettings() {
 
 export function applySettings(cfg) {
   if (!CONFIG.SD) return;
+  cfg = { ...getDefaultSettings(), ...(cfg ?? {}), database: normalizeValueDatabase(cfg?.database, cfg) };
+  CONFIG.SD.attributes = {};
+  CONFIG.SD.currencies = [];
+  CONFIG.SD.currencyConfig = {};
+  CONFIG.SD.calculations = { defense: [], initiative: [], movement: [], other: [] };
+  CONFIG.SD.valueDatabase = cfg.database;
 
   for (const [key, label] of Object.entries(cfg.attributes ?? {})) {
     CONFIG.SD.attributes[key] = label;
@@ -498,6 +376,9 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     },
     position: { width: 600, height: 550 },
     actions: {
+      addDatabaseValue: SystemConfig._onAddDatabaseValue,
+      removeDatabaseValue: SystemConfig._onRemoveDatabaseValue,
+      editDatabaseGraph: SystemConfig._onEditDatabaseGraph,
       addAttribute:     SystemConfig._onAddAttribute,
       removeAttribute:  SystemConfig._onRemoveAttribute,
       addResource:      SystemConfig._onAddResource,
@@ -532,6 +413,20 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
   _onRender(context, options) {
     super._onRender?.(context, options);
+
+    const syncDatabaseIds=()=>{
+      const used=new Set();
+      this.element.querySelectorAll("[data-db-name]").forEach(input=>{
+        const index=input.dataset.dbName;
+        let next=normalizeValueId(input.value,`value_${Number(index)+1}`),base=next,n=2;
+        while(used.has(next))next=`${base}_${n++}`;
+        used.add(next);
+        const preview=this.element.querySelector(`[data-db-id-preview="${index}"]`);
+        if(preview){preview.value=next;preview.title=next;}
+      });
+    };
+    this.element.querySelectorAll("[data-db-name]").forEach(input=>input.addEventListener("input",syncDatabaseIds));
+    syncDatabaseIds();
 
     const slider = this.element.querySelector("#uiScaleSlider");
     const output = this.element.querySelector("#uiScaleOutput");
@@ -638,6 +533,16 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       languages: languageRows.map(l=>({...l,selected:l.id===currentLanguage(),editing:l.id===translationEditLanguage(),isBase:l.id==="base",fallbackOptions:languageRows.map(f=>({...f,selected:f.id===l.fallback}))})),
       allowPlayerEffectApplier: !!game.settings.get("sd","allowPlayerEffectApplier"),
       cfg,
+      databaseEntries: normalizeValueDatabase(cfg.database).map((v,index)=>({
+        ...v,index,
+        isNumber:v.type==="number",isInteger:v.type==="integer",isText:v.type==="text",
+        isBoolean:v.type==="boolean",isColor:v.type==="color",isArray:v.type==="array",isObject:v.type==="object",
+        scopeActor:v.scope==="actor",scopeItem:v.scope==="item",scopeBoth:v.scope==="both"
+      })),
+      databaseGraph: {
+        hasGraph: !!cfg.databaseGraph?.nodes?.length,
+        nodeCount: cfg.databaseGraph?.nodes?.length ?? 0
+      },
       ai: {
         hasWorldKnowledge: worldKnowledge.trim().length > 0,
         worldKnowledgePreview: (() => {
@@ -700,6 +605,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
           }))
         }))
       })),
+      uiScale:         Math.min(Math.max(Number(cfg.uiScale ?? 100), 50), 200),
       currentScheme:   cfg.colorScheme ?? "default",
       schemeEntries:   COLOR_SCHEMES.map(s => ({
         id:       s.id,
@@ -719,6 +625,39 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const FDE = foundry.applications?.ux?.FormDataExtended ?? FormDataExtended;
     const raw = new FDE(form).object;
+
+    const renameMap={};
+    const usedIds=new Set();
+    cfg.database = normalizeValueDatabase(cfg.database).map((entry,index) => {
+      const prefix = `db_${index}_`;
+      const type = String(raw[`${prefix}type`] ?? entry.type);
+      const scope = String(raw[`${prefix}scope`] ?? entry.scope);
+      let initial = raw[`${prefix}initial`] ?? entry.initial;
+      if (type === "number" || type === "integer") initial = Number(initial) || 0;
+      if (type === "integer") initial = Math.trunc(initial);
+      if (type === "boolean") initial = !!raw[`${prefix}initialBool`];
+      const name=String(raw[`${prefix}name`] ?? entry.name).trim() || entry.id;
+      let nextId=normalizeValueId(name,entry.id),baseId=nextId,n=2;
+      while(usedIds.has(nextId))nextId=`${baseId}_${n++}`;
+      usedIds.add(nextId);
+      if(entry.id!==nextId)renameMap[entry.id]=nextId;
+      return {
+        ...entry,
+        id: nextId,
+        name,
+        type, scope, initial,
+        min: raw[`${prefix}min`] === "" || raw[`${prefix}min`] === undefined ? null : Number(raw[`${prefix}min`]),
+        max: raw[`${prefix}max`] === "" || raw[`${prefix}max`] === undefined ? null : Number(raw[`${prefix}max`])
+      };
+    });
+    if(Object.keys(renameMap).length){
+      cfg.databaseGraph=remapVariableIdsInObject(cfg.databaseGraph??{},renameMap);
+      cfg.__variableIdRenames=renameMap;
+    }
+    cfg.attributes = {}; cfg.attributesEnabled = {}; cfg.attributesInitial = {};
+    cfg.resources = {}; cfg.currencies = [];
+    cfg.calculations = { defense: [], initiative: [], movement: [], other: [] };
+    cfg.modifierFormula = "none";
 
     if (!cfg.attributesInitial || typeof cfg.attributesInitial !== "object") {
       cfg.attributesInitial = {};
@@ -901,6 +840,38 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     graph.open();
   }
 
+  static async _onAddDatabaseValue() {
+    const cfg = this._collectFormCfg();
+    const used = new Set((cfg.database ?? []).map(v=>v.id));
+    let n=(cfg.database?.length??0)+1,id=`value_${n}`;
+    while(used.has(id)) id=`value_${++n}`;
+    cfg.database=[...(cfg.database??[]),{id,name:`Value ${n}`,type:"number",scope:"both",initial:0,min:null,max:null,legacyPath:""}];
+    await saveSettings(cfg); this.render();
+  }
+
+  static async _onRemoveDatabaseValue(_event,target) {
+    const index=Number(target.dataset.index); if(!Number.isInteger(index))return;
+    const cfg=this._collectFormCfg(); cfg.database=(cfg.database??[]).filter((_v,i)=>i!==index);
+    await saveSettings(cfg); this.render();
+  }
+
+  static async _onEditDatabaseGraph() {
+    let FormulaGraph;
+    try { ({FormulaGraph}=await import("../builder/formula-graph.mjs")); }
+    catch(e){console.warn("SD | Failed to load Database graph",e);ui.notifications?.error?.("Could not open Database graph.");return;}
+    const app=this;
+    const prepared=app._collectFormCfg();
+    const renameMap=prepared.__variableIdRenames??{};
+    delete prepared.__variableIdRenames;
+    if(Object.keys(renameMap).length){await saveSettings(prepared);await migrateVariableIds(renameMap);applySettings(prepared);}
+    const graph=new FormulaGraph(null,null,null,null,null,{
+      mode:"database",
+      customLoad:()=>app._collectFormCfg().databaseGraph??{nodes:[],edges:[],comments:[]},
+      customSave:async(data)=>{const fresh=app._collectFormCfg();fresh.databaseGraph=data;await saveSettings(fresh);app.render();ui.notifications?.info?.("Database graph saved.");}
+    });
+    graph.open();
+  }
+
   static async _onSaveAndClose(event, target) {
     if (!game.user?.isGM) { this.close(); return; }
     const rows=[...this.element.querySelectorAll(".sd-language-row")].map(row=>({
@@ -911,8 +882,10 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       primary:!!row.querySelector("[data-language-primary]")?.checked
     }));
     if(rows.length) await saveLanguages(rows);
-    await game.settings.set("sd","allowPlayerEffectApplier",!!this.element.querySelector("[name='allowPlayerEffectApplier']")?.checked);
+    const effectPermission=this.element.querySelector("[name='allowPlayerEffectApplier']");
+    if(effectPermission) await game.settings.set("sd","allowPlayerEffectApplier",!!effectPermission.checked);
     const cfg = this._collectFormCfg();
+    const variableIdRenames=cfg.__variableIdRenames??{};
 
     const initFormula  = cfg.__initiativeFormula;
     const initUseGraph = cfg.__initiativeUseGraph;
@@ -922,8 +895,10 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     delete cfg.__initiativeUseGraph;
     delete cfg.__onboardingEnabled;
     delete cfg.__helperTooltips;
+    delete cfg.__variableIdRenames;
 
     await saveSettings(cfg);
+    if(Object.keys(variableIdRenames).length)await migrateVariableIds(variableIdRenames);
 
     try {
       if (typeof initFormula === "string") {

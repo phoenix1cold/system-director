@@ -6,10 +6,14 @@ import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { decodeMacroScript } from "../helpers/widget-macro.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
+import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "../helpers/sheet-widget-events.mjs";
+import { deletionUpdate } from "../helpers/foundry-compat.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { persistWidgetValue } from "../helpers/widget-fields.mjs";
-import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate, getWidgetPathRows, releaseWidgetDataPath } from "../builder/widget-paths.mjs";
+import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "../builder/widget-paths.mjs";
+import { promptWidgetIdentity } from "../builder/widget-identity.mjs";
+import { getValueDefinition, getValueDefinitions, readDatabaseValue } from "../helpers/value-database.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -109,10 +113,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       resizable: true,
       controls: [
         { icon: "fas fa-toolbox",     label: "Sheet Builder",    action: "openBuilder"      },
-        { icon: "fas fa-bolt",        label: "Sheet Triggers",   action: "openSheetTriggers"},
         { icon: "fas fa-database",    label: "Database",         action: "openDatabase"     },
         { icon: "fas fa-hand-sparkles", label: "Interactions",   action: "openInteractions" },
-        { icon: "fas fa-brain",       label: "AI Bio",           action: "openAIBio"        },
         { icon: "fas fa-pen-ruler",   label: "Toggle Edit Mode", action: "toggleEditMode"   }
       ]
     },
@@ -158,6 +160,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const base   = await super._prepareContext(options);
     const actor  = this.document;
     const system = actor.system;
+    const progCfg=actor.getFlag?.("sd","progression.config")??{};
+    const progTabs=Array.isArray(progCfg.tabs)?progCfg.tabs:[];
+    const progTab=progTabs.find(t=>t.id===progCfg.activeTabId)??progTabs[0]??progCfg;
+    const levelId=getValueDefinition(progTab?.levelVariableId)?.id??getValueDefinition("level")?.id??getValueDefinitions("actor").find(v=>String(v.name).toLowerCase()==="level")?.id??"";
+    const progressionLevel=levelId?readDatabaseValue(actor,levelId):"";
 
     return {
       ...base,
@@ -166,8 +173,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       isEditable: this.isEditable,
       editMode:   this._editMode,
       customTabs: system.customTabs ?? [],
-      hp: system.resources?.hp ?? { value: 0, max: 0 },
-      mp: system.resources?.mp ?? { value: 0, max: 0 }
+      values: system.values ?? {}
+      ,progressionLevel
     };
   }
 
@@ -413,23 +420,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     spacer.style.cssText = "flex:1";
     nav.appendChild(spacer);
 
-    const isHFActive = this.tabGroups.sheet === "_sys_hidden";
-    const hfTab = document.createElement("a");
-    hfTab.className = "sd-tab-btn";
-    hfTab.dataset.tabId = "_sys_hidden";
-    hfTab.style.cssText = `padding:5px 9px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid ${isHFActive?"var(--sd-border)":"transparent"};border-bottom:none;color:${isHFActive?"var(--sd-stamina)":"#444"};background:${isHFActive?"var(--sd-bg)":"transparent"};display:inline-flex;align-items:center;gap:3px;`;
-    hfTab.innerHTML = `<i class='fas fa-eye-slash'></i>`;
-    hfTab.title = "Hidden Fields";
-    hfTab.addEventListener("click", () => {
-      if (this.tabGroups.sheet === "_sys_hidden") {
-        const tabs = this.document.system.customTabs ?? [];
-        this._switchTab(tabs[0]?.id ?? "");
-      } else {
-        this._switchTab("_sys_hidden");
-      }
-    });
-    nav.appendChild(hfTab);
-
     const tplBtn = document.createElement("a");
     tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-w-bd,var(--sd-border));border-bottom:none;color:var(--sd-w-label, var(--sd-text-3));background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;";
     tplBtn.innerHTML = `<i class="fas fa-floppy-disk"></i> Template`;
@@ -459,12 +449,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const tabs = this.document.system.customTabs ?? [];
 
-    const validIds = [...tabs.map(t => t.id), "_sys_hidden"];
+    const validIds = tabs.map(t => t.id);
     if (!this.tabGroups.sheet || !validIds.includes(this.tabGroups.sheet)) {
       this.tabGroups.sheet = tabs[0]?.id ?? "";
     }
-
-    container.appendChild(this._buildHiddenFieldsPanel(this.tabGroups.sheet === "_sys_hidden"));
 
     tabs.forEach(tab => {
       const panel = document.createElement("div");
@@ -500,40 +488,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       `;
       container.appendChild(empty);
     }
-  }
-
-  _buildHiddenFieldsPanel(isActive) {
-    const panel = document.createElement("div");
-    panel.className = "sd-tab-panel";
-    panel.dataset.tab = "_sys_hidden";
-    panel.style.cssText = `display:${isActive?"flex":"none"};flex:1;overflow-y:auto;padding:12px 14px;flex-direction:column;gap:8px;min-height:0;`;
-    const ed = this.isEditable;
-    const e = value => String(value ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-    const fields = Object.entries(this.document.system?.hiddenFields ?? {});
-    const widgetPaths = getWidgetPathRows(this.document);
-    let html = `<div style="font-size:11px;color:var(--sd-text-3);margin-bottom:8px;line-height:1.6">GM-only key/value pairs attached to this actor. Module-owned values remain ordinary hidden fields when their module is disabled. Path: <code style="background:var(--sd-bg);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--sd-accent)">system.hiddenFields.name</code>${ed ? `<button type="button" data-hf-action="add" style="margin-left:8px;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));border-radius:3px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:2px 8px">+ Add</button>` : ""}</div>`;
-    if (!fields.length) html += `<div style="color:var(--sd-text-3);font-size:11px;font-style:italic;text-align:center;padding:20px 0">No hidden fields yet.</div>`;
-    else for (const [key,value] of fields) html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--sd-bg)"><input type="text" data-hf-key="${e(key)}" data-hf-rename value="${e(key)}" style="width:150px;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-accent);font-size:11px;font-family:monospace;padding:3px 6px" ${!ed?"disabled":""}>${typeof value === "boolean" ? `<input type="checkbox" data-hf-key="${e(key)}" data-hf-val ${value?"checked":""} style="inline-size:15px;block-size:15px;min-inline-size:15px;min-block-size:15px;max-inline-size:15px;max-block-size:15px;width:15px;height:15px;margin:0" ${!ed?"disabled":""}>` : `<input type="text" data-hf-key="${e(key)}" data-hf-val value="${e(String(value))}" style="flex:1;background:var(--sd-bg);border:1px solid var(--sd-w-bd,var(--sd-bg-3));border-radius:4px;color:var(--sd-w-fg,var(--sd-text));font-size:11px;padding:3px 6px" ${!ed?"disabled":""}>`}<button type="button" data-hf-action="copy-path" data-hf-key="${e(key)}" title="Copy path" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer"><i class="fas fa-copy"></i></button>${ed?`<button type="button" data-hf-action="remove" data-hf-key="${e(key)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer">✕</button>`:""}</div>`;
-    html += `<div style="border-top:1px solid var(--sd-w-bd,var(--sd-border));margin-top:10px;padding-top:10px">
-      <div style="display:flex;align-items:center;gap:6px;color:var(--sd-w-label,var(--sd-text-2));font-size:12px;font-weight:700;margin-bottom:4px"><i class="fas fa-route"></i> Widget Data Paths</div>
-      <p style="font-size:10px;color:var(--sd-text-3);line-height:1.5;margin:0 0 7px">Every created widget reserves its own path. Removed widgets keep their reservation until you delete it here; the next widget of that type can then reuse the free number.</p>
-      ${widgetPaths.length ? widgetPaths.map(entry => `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--sd-bg)">
-        <code style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sd-accent);font-size:10px" title="${e(entry.path)}">${e(entry.path)}</code>
-        <span style="font-size:9px;color:${entry.inUse?"var(--sd-stamina)":"var(--sd-text-3)"};white-space:nowrap">${entry.inUse?"in use":"unused"}</span>
-        <button type="button" data-widget-path-action="copy" data-widget-path="${e(entry.path)}" title="Copy path" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer"><i class="fas fa-copy"></i></button>
-        ${ed?`<button type="button" data-widget-path-action="remove" data-widget-path="${e(entry.path)}" ${entry.inUse?"disabled":""} title="${entry.inUse?"Remove the widget before deleting this path":"Delete reservation and stored value"}" style="background:none;border:none;color:${entry.inUse?"var(--sd-text-3)":"var(--sd-hp)"};cursor:${entry.inUse?"not-allowed":"pointer"};opacity:${entry.inUse?".35":"1"}"><i class="fas fa-trash"></i></button>`:""}
-      </div>`).join("") : `<div style="color:var(--sd-text-3);font-size:11px;font-style:italic;padding:5px 0">No widget data paths yet.</div>`}
-    </div>`;
-    panel.innerHTML = html;
-    const replace = async next => { const current=this.document.system?.hiddenFields??{}, patch={}; for(const key of Object.keys(current))if(!(key in next))patch[`system.hiddenFields.-=${key}`]=null;for(const [key,value] of Object.entries(next))patch[`system.hiddenFields.${key}`]=value;await this.document.update(patch); };
-    panel.querySelector("[data-hf-action='add']")?.addEventListener("click",async()=>{const next=foundry.utils.deepClone(this.document.system?.hiddenFields??{});let i=Object.keys(next).length+1,key=`field${i}`;while(key in next)key=`field${++i}`;next[key]="";await replace(next);});
-    panel.querySelectorAll("[data-hf-action='remove']").forEach(btn=>btn.addEventListener("click",async()=>{const next=foundry.utils.deepClone(this.document.system?.hiddenFields??{});delete next[btn.dataset.hfKey];await replace(next);}));
-    panel.querySelectorAll("[data-hf-action='copy-path']").forEach(btn=>btn.addEventListener("click",async()=>{const path=`system.hiddenFields.${btn.dataset.hfKey}`;try{await navigator.clipboard.writeText(path);ui.notifications.info(`Copied: ${path}`);}catch{ui.notifications.warn("Could not copy to clipboard");}}));
-    panel.querySelectorAll("[data-hf-val]").forEach(input=>input.addEventListener("change",async()=>{const value=input.type==="checkbox"?input.checked:input.value;await this.document.update({[`system.hiddenFields.${input.dataset.hfKey}`]:value});}));
-    panel.querySelectorAll("[data-hf-rename]").forEach(input=>input.addEventListener("change",async()=>{const oldKey=input.dataset.hfKey,newKey=input.value.trim().replace(/\s+/g,"_").replace(/[^a-zA-Z0-9_]/g,"");if(!newKey||newKey===oldKey)return;const next=foundry.utils.deepClone(this.document.system?.hiddenFields??{});next[newKey]=next[oldKey]??"";delete next[oldKey];await replace(next);}));
-    panel.querySelectorAll("[data-widget-path-action='copy']").forEach(btn=>btn.addEventListener("click",async()=>{const path=btn.dataset.widgetPath;try{await navigator.clipboard.writeText(path);ui.notifications.info(`Copied: ${path}`);}catch{ui.notifications.warn("Could not copy to clipboard");}}));
-    panel.querySelectorAll("[data-widget-path-action='remove']").forEach(btn=>btn.addEventListener("click",async()=>{const path=btn.dataset.widgetPath;if(btn.disabled)return;const ok=await foundry.applications.api.DialogV2.confirm({window:{title:"Delete Widget Data Path"},content:`<p>Delete <code>${e(path)}</code> and its stored value? The next matching widget can reuse this path.</p>`}).catch(()=>false);if(!ok)return;const result=await releaseWidgetDataPath(this.document,path);if(!result.ok)ui.notifications.warn(result.reason==="in-use"?"This path is still used by a widget.":"Could not delete widget path.");}));
-    return panel;
   }
 
   async _saveAsTemplate() {
@@ -650,9 +604,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     cell.dataset.widgetId = w.id;
     cell.dataset.rowId    = row.id;
     cell.dataset.tabId    = tab.id;
-    if (parentVS) cell.dataset.parentVsId = parentVS.id;
+    if (parentVS) {
+      cell.dataset.parentVsId = parentVS.id;
+      cell.classList.add("sd-vsection-child");
+    }
     cell.dataset.widgetIdx = idx;
-    cell.style.cssText    = `grid-column:${parentVS ? "auto" : `span ${span}`}; position:relative; min-width:0;`;
+    cell.style.cssText = `grid-column:${parentVS ? "1 / -1" : `span ${span}`}; position:relative; min-width:0;${parentVS ? "width:100%;max-width:100%;box-sizing:border-box;" : ""}`;
 
     if (w.type === "vsection") {
       cell.innerHTML = "";
@@ -682,9 +639,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   _buildVSection(tab, row, vs) {
     const box = document.createElement("div");
+    box.className = "sd-vsection-runtime";
     box.dataset.vsId = vs.id;
     box.style.cssText = `
-      display:flex; flex-direction:column; gap:6px;
+      display:flex; flex-direction:column; align-items:stretch; gap:6px;
+      width:100%; max-width:100%; min-width:0; box-sizing:border-box;
       padding:6px; border:1px dashed var(--sd-accent-glow); border-radius:5px;
       background:rgba(123,104,238,.03); min-height:40px;
     `;
@@ -808,6 +767,48 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return Number.isFinite(fromDoc) ? fromDoc : 0;
     };
 
+    // Ordinary Actor/Item sheet events use the single common Sheet Blueprint.
+    // They are intentionally separate from UI Blueprint events.
+    const emitSheetWidgetEvent=(eventName,sourceEvent=null,detail={})=>{
+      if(this._editMode)return;
+      const target=sourceEvent?.target??null;
+      let value;
+      if(Object.prototype.hasOwnProperty.call(detail,"value"))value=detail.value;
+      else if(target?.type==="checkbox")value=!!target.checked;
+      else if(target&&"value" in target)value=target.value;
+      else {
+        const variableId=String(w.variableId??w.path??w.pathValue??"").trim();
+        try{value=variableId?foundry.utils.getProperty(doc,variableId.startsWith("system.")?variableId:`system.values.${variableId}`):w.value??"";}
+        catch{value=w.value??"";}
+      }
+      const actor=doc instanceof Actor?doc:doc?.actor??null;
+      // Runs this document's own Sheet Blueprint immediately and notifies every
+      // other listener through the sdSheetWidgetEvent hook.
+      return dispatchSheetWidgetEvent(doc,{
+        event:String(eventName||"click").toLowerCase(),
+        value,
+        widgetKey:String(w.widgetKey||w.id||""),
+        widgetId:String(w.id||""),
+        widgetLabel:String(w.label||""),
+        widgetType:String(w.type||""),
+        elementKey:String(detail.elementKey??""),
+        actorId:String(actor?.id||""),
+        documentUuid:String(doc?.uuid||""),
+        sourceUuid:String(doc?.uuid||"")
+      });
+    };
+    cell._sdEmitWidgetEvent=emitSheetWidgetEvent;
+    // Capture phase: inner controls (steppers, select pills, rich text, widget
+    // builder elements) call stopPropagation, which used to swallow ordinary
+    // widget events before the Sheet Blueprint ever saw them.
+    cell.addEventListener("click",event=>{
+      if(event.target?.closest?.("[data-action='wbElement']"))return;
+      emitSheetWidgetEvent("click",event);
+      if(String(w.type)==="toggle")emitSheetWidgetEvent("toggle",event);
+    },true);
+    cell.addEventListener("input",event=>emitSheetWidgetEvent("input",event),true);
+    cell.addEventListener("change",event=>emitSheetWidgetEvent("change",event),true);
+
     cell.querySelectorAll("input[data-path], input[name], select[data-path], select[name], textarea[data-path], textarea[name]").forEach(inp => {
       inp.addEventListener("change", async () => {
         const path = inp.dataset.path || inp.getAttribute("name");
@@ -893,7 +894,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             return;
           }
         }
-        let formula = onClickFml || btn.dataset.attrRoll || "1d20";
+        // Event-only widget: nothing configured, so the Sheet Blueprint owns it.
+        let formula = onClickFml || btn.dataset.attrRoll || "";
+        if (!String(formula).trim()) return;
         try {
           const { FormulaEngine } = await import("../helpers/formula-engine.mjs");
           formula = FormulaEngine.resolveForRoll(formula, doc);
@@ -908,7 +911,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     cell.querySelectorAll("[data-action='widgetRoll']").forEach(btn => {
       btn.addEventListener("click", async () => {
-        let formula = btn.dataset.formulaRaw || btn.dataset.formula || "1d20";
+        let formula = btn.dataset.formulaRaw || btn.dataset.formula || "";
+        if (!String(formula).trim()) return;
           if (formula.trim().startsWith("[")) {
             try {
               const actions = JSON.parse(formula.trim());
@@ -954,12 +958,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     cell.querySelectorAll("[data-action='widgetButton']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const rawFormula = btn.dataset.formulaRaw || btn.dataset.formula;
-        if (!rawFormula) {
-          if (btn.dataset.flavor) {
-            ChatMessage.create({ content: btn.dataset.flavor, speaker: ChatMessage.getSpeaker({ actor: doc }) });
-          }
-          return;
-        }
+        // No configured action: the capture-phase emitter already delivered the
+        // "click" event to the Sheet Blueprint, so do nothing else here.
+        if (!rawFormula) return;
 
         const trimmed = rawFormula.trim();
         if (trimmed.startsWith("[") || trimmed.startsWith("{\"_trigger\"")) {
@@ -1007,16 +1008,20 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     cell.querySelectorAll("[data-action='wbElement']").forEach(el => {
       el.addEventListener("click", ev => {
+        ev.preventDefault();
         ev.stopPropagation();
-        const name = el.dataset.eventName ?? "";
-        if (!name) return;
+        const name=String(el.dataset.eventName??"").trim();
+        const elementKey=String(el.dataset.elementKey??name.replace(/^On Click\s+/,"")).trim();
+        if(!name&&!elementKey)return;
+        emitSheetWidgetEvent("click",ev,{value:elementKey,elementKey});
         try {
+          const actor=doc instanceof Actor?doc:doc?.actor??null;
           Hooks.callAll("sdCustomEvent", {
-            name,
-            scope: "actor",
-            actorId: doc?.id ?? "",
-            sourceUuid: doc?.uuid ?? "",
-            payload: ""
+            name:name||`On Click ${elementKey}`,
+            scope: actor?"actor":"item",
+            actorId: actor?.id??"",
+            sourceUuid: doc?.uuid??"",
+            payload: elementKey
           });
         } catch (e) { console.error("SD | wbElement event failed:", e); }
       });
@@ -1773,7 +1778,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     cell.querySelectorAll("[data-action='slotRemoveLevel']").forEach(btn => {
       btn.addEventListener("click", async () => {
         const lvl = btn.dataset.level;
-        await doc.update({ [`system.spellSlots.-=${lvl}`]: null });
+        await doc.update(deletionUpdate("system.spellSlots", lvl));
       });
     });
 
@@ -2129,14 +2134,14 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const defaults = {
       text:      { label: "Label",    path: "system.flags.myField" },
       number:    { label: "Number",   path: "system.flags.myNumber" },
-      resource:  { label: "Resource", pathValue: "system.resources.hp.value", pathMax: "system.resources.hp.max", color: "var(--sd-hp)" },
+      resource:  { label: "Value Meter", pathValue: "", pathMax: "", color: "var(--sd-accent)" },
       dice:      { label: "Roll",     formula: "1d20" },
       button:    { label: "Action",   icon: "fa-bolt", color: "var(--sd-accent)", formula: "", flavor: "" },
       toggle:    { label: "Toggle",   path: "system.flags.myToggle", onLabel: "On", offLabel: "Off" },
       section:   { label: "Section",  span: 3 },
       vsection:  { label: "",         widgets: [], span: 1 },
       richtext:  { label: "Notes",    path: "system.biography.notes", span: 3 },
-      attribute: { label: "Attribute", path: "system.attributes.attr1.value" },
+      attribute: { label: "Number Value", path: "" },
       skill:     { label: "Skill",    path: "system.skills.skill1.rank" },
       slot:      { label: "Slot",     slotId: "", maxCount: 1, span: 2 },
       inventory: { label: "Inventory", categories: [], columns: [], showCurrency: true, showWeight: true, span: 3 },
@@ -2144,16 +2149,21 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       spellbook: { label: "Spellbook", abilityType: "", span: 3 }
     };
 
+    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
+    const baseDefaults=defaults[widgetType] ?? { label: widgetType };
+    const identity=await promptWidgetIdentity({widgetType,defaultLabel:baseDefaults.label||widgetType,tabs});
+    if(!identity)return;
     const numberMode = widgetType === "number" ? await _chooseNumberWidgetMode() : null;
     const widget = {
       id:   foundry.utils.randomID(8),
       span: 1,
-      ...(defaults[widgetType] ?? { label: widgetType }),
-      type: widgetType
+      ...baseDefaults,
+      type: widgetType,
+      label: identity.label,
+      widgetKey: identity.widgetKey
     };
     if (widgetType === "number") _applyNumberWidgetMode(widget, numberMode);
 
-    const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     assignUniqueWidgetDataPaths(widget, this.document, { tabs });
     const tab  = tabs.find(t => t.id === tabId);
     if (!tab) return;
@@ -2520,8 +2530,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
 
   static async _onOpenDatabase() {
-    const { openSharedDatabaseApp } = await import("../helpers/shared-database.mjs");
-    openSharedDatabaseApp(this.document);
+    const { openDocumentValueDatabase } = await import("../helpers/value-database.mjs");
+    await openDocumentValueDatabase(this.document);
   }
 
   static async _onOpenSheetTriggers(event, target) {

@@ -4,7 +4,8 @@ import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { durationForRounds } from "./effect-duration.mjs";
 import { SDDialogueBuilder } from "./dialogue-builder.mjs";
 import { materializeDeferredActionSnapshot } from "./deferred-action-snapshot.mjs";
-import { runNodeActionHandler } from "./node-runtime-api.mjs";
+import { runNodeActionHandler, storeNodeResult, readNodeResult } from "./node-runtime-api.mjs";
+import { getValueDefinition, readDatabaseValue, valueStoragePath, coerceDatabaseValue } from "./value-database.mjs";
 import {
   addActorAIInteraction,
   addActorAIMemory,
@@ -762,6 +763,17 @@ export class ButtonExecutor {
   }
 
   static async _runAction(action, item, actor, buttonDef = null, runtime = {}) {
+    const variablePathKeys=new Set(["path","hpPath","rerollPath","historyPath","modifierPath","acPath","saveAttr","distPath","anglePath","costPath","valuePath","maxPath","pathValue","pathMax"]);
+    const resolveVariablePaths=value=>{
+      if(Array.isArray(value)){for(const entry of value)resolveVariablePaths(entry);return value;}
+      if(!value||typeof value!=="object")return value;
+      for(const [key,entry] of Object.entries(value)){
+        if(variablePathKeys.has(key)&&typeof entry==="string"&&getValueDefinition(entry))value[key]=valueStoragePath(entry);
+        else if(entry&&typeof entry==="object")resolveVariablePaths(entry);
+      }
+      return value;
+    };
+    resolveVariablePaths(action);
     const _sanitizeRollData = (data) => Object.fromEntries(
       Object.entries(data ?? {}).map(([k, v]) =>
         [k, (typeof v === "string" && /^\s*\d*d\d+/i.test(v)) ? 0 : v]
@@ -775,6 +787,8 @@ export class ButtonExecutor {
       if (exactMatch) return runtime.__databaseValues?.[exactMatch[1]];
       exactMatch = exact.match(/^\{__dbRecordId:([A-Za-z0-9_-]+)\}$/);
       if (exactMatch) return runtime.__databaseRecordIds?.[exactMatch[1]] ?? "";
+      exactMatch = exact.match(/^\{__nodeResult:([^|}]+)\|([^}]*)\}$/);
+      if (exactMatch) return readNodeResult(runtime, exactMatch[1], exactMatch[2] || "value") ?? "";
       const exactStructuredValues = {
         "{__aoeTemplates}": runtime.__aoeTemplates ?? buttonDef?.__aoeTemplates,
         "{__aoeTemplate}": runtime.__aoeTemplate ?? buttonDef?.__aoeTemplate,
@@ -1122,7 +1136,10 @@ export class ButtonExecutor {
       },
       resolveBool: _resolveBoolPin
     });
-    if (extensionResult.handled) return extensionResult.value;
+    if (extensionResult.handled) {
+      if (action?.__resultNodeId) storeNodeResult(runtime, action.__resultNodeId, extensionResult.value);
+      return extensionResult.value;
+    }
 
     switch (action.type) {
 
@@ -1244,6 +1261,30 @@ export class ButtonExecutor {
             ...(_rrFlag ? { flags: { sd: { reroll: _rrFlag } } } : {})
           });
         }
+        break;
+      }
+
+      case "setDatabaseValue": {
+        const variableId=String(action.variableId??"");
+        const definition=getValueDefinition(variableId);
+        if(!definition){ui.notifications?.warn?.("Select a Database variable.");break;}
+        let ref=String(_injectRuntime(String(action.ref??""))??"");
+        let target=item??actor;
+        if(action.source==="first target") target=game.user?.targets?.first?.()?.actor??canvas?.tokens?.controlled?.[0]?.actor??null;
+        else if(action.source==="token by id") target=canvas?.tokens?.get?.(ref)?.actor??null;
+        else if(action.source==="by uuid") target=await fromUuid(ref).catch(()=>null);
+        if(!target){ui.notifications?.warn?.("Database target was not found.");break;}
+        let incoming=action.value;
+        try{incoming=FormulaEngine.evaluate(String(_injectRuntime(String(incoming??""))),item??actor??target);}catch{}
+        const current=readDatabaseValue(target,variableId);
+        let next=incoming;
+        switch(String(action.operation??"set")){
+          case "add": next=(Number(current)||0)+(Number(incoming)||0); break;
+          case "subtract": next=(Number(current)||0)-(Number(incoming)||0); break;
+          case "multiply": next=(Number(current)||0)*(Number(incoming)||0); break;
+          case "toggle": next=!current; break;
+        }
+        await target.update({[valueStoragePath(variableId)]:coerceDatabaseValue(next,definition)});
         break;
       }
 
@@ -6894,7 +6935,7 @@ export class ButtonExecutor {
     : m === "disadvantage" ? (disFormula || baseFormula)
     : baseFormula;
 
-    const renderTpl = foundry.applications?.handlebars?.renderTemplate ?? renderTemplate;
+    const renderTpl = foundry.applications.handlebars.renderTemplate;
     const content = await renderTpl("systems/sd/templates/dialog/roll-mode-dialog.hbs", {
       baseFormula,
       baseShort: fmtShort(baseFormula),
@@ -7021,7 +7062,7 @@ export class ButtonExecutor {
     static _showLocalSaveDialog({ saveActor, saveMod, dc, flavor, rollFormula = "1d20", timeout }) {
     return new Promise(async (resolve) => {
       const sign  = saveMod >= 0 ? `+${saveMod}` : String(saveMod);
-      const renderTpl = foundry.applications?.handlebars?.renderTemplate ?? renderTemplate;
+      const renderTpl = foundry.applications.handlebars.renderTemplate;
       const content = await renderTpl("systems/sd/templates/dialog/local-save-dialog.hbs", {
         actorName: saveActor.name,
         rollFormula,

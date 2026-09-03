@@ -1,4 +1,5 @@
 import { resolveNodeFormulaToken } from "./node-runtime-api.mjs";
+import { readDatabaseValue } from "./value-database.mjs";
 
 export class FormulaEngine {
 
@@ -171,6 +172,8 @@ export class FormulaEngine {
   }
 
   static _readDocProperty(doc, path) {
+    const databaseDefinition=getValueDefinition(path);
+    if(databaseDefinition)path=valueStoragePath(databaseDefinition.id);
     if (typeof path === "string" && path.startsWith("system.widgetFields.")) {
       const rest   = path.slice("system.widgetFields.".length);
       const dotIdx = rest.indexOf(".");
@@ -1474,6 +1477,31 @@ export class FormulaEngine {
       return v;
     }
 
+    if (token.startsWith("sdLegacyValue:")) {
+      const parts=token.slice("sdLegacyValue:".length).split("|");
+      const source=String(this._resolveArrayArg(parts[0]??"",doc)??"self");
+      const path=String(this._resolveArrayArg(parts[1]??"",doc)??"");
+      const ref=String(this._resolveArrayArg(parts.slice(2).join("|")??"",doc)??"");
+      let target=doc;
+      if(source==="first target")target=game?.user?.targets?.first?.()?.actor??null;
+      else if(source==="token by id")target=canvas?.tokens?.get?.(ref)?.actor??null;
+      else if(source==="by uuid")target=this._docByUuidSync(ref);
+      return path?this._readDocField(target,path):0;
+    }
+
+    if (token.startsWith("sdValue:")) {
+      const parts=token.slice("sdValue:".length).split("|");
+      const source=String(this._resolveArrayArg(parts[0]??"",doc)??"self");
+      const variableId=String(this._resolveArrayArg(parts[1]??"",doc)??"");
+      const ref=String(this._resolveArrayArg(parts.slice(2).join("|")??"",doc)??"");
+      let target=doc;
+      if(source==="first target") target=game?.user?.targets?.first?.()?.actor??canvas?.tokens?.controlled?.[0]?.actor??null;
+      else if(source==="token by id") target=canvas?.tokens?.get?.(ref)?.actor??null;
+      else if(source==="by uuid") target=this._docByUuidSync(ref);
+      const value=readDatabaseValue(target,variableId);
+      return value===undefined||value===null?0:value;
+    }
+
     if (token.startsWith("tokenField:")) {
       const rest = token.slice("tokenField:".length);
       const dot  = rest.indexOf(".");
@@ -2721,3 +2749,4 @@ export const BLUEPRINT_NODES = [
 ];
 
 export const BLUEPRINT_CATS = ["Sources", "Dice", "Math", "Compare", "Logic"];
+import { getValueDefinition, valueStoragePath } from "./value-database.mjs";

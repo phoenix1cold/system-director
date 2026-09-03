@@ -23,65 +23,30 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
     return {
+      values: new ObjectField({ initial: {} }),
 
-      attributes: new TypedObjectField(AttributeField({ initial: 10 }), {
-        initial: DEFAULT_ATTRIBUTES
-      }),
+      attributes: new ObjectField({ initial: {} }),
 
-      resources: new TypedObjectField(ResourceField({ initial: 10 }), {
-        initial: () => ({
-          hp:      { value: 10, max: 10, min: 0 },
-          mp:      { value: 10, max: 10, min: 0 },
-          stamina: { value: 10, max: 10, min: 0 }
-        })
-      }),
+      resources: new ObjectField({ initial: {} }),
 
-      defense: new ObjectField({
-        initial: () => ({ armor: 10, bonus: 0, total: 10 })
-      }),
+      defense: new ObjectField({ initial: {} }),
 
-      movement: new ObjectField({
-        initial: () => ({ walk: 30, swim: 15, fly: 0, climb: 15, units: "ft" })
-      }),
+      movement: new ObjectField({ initial: {} }),
 
       other: new ObjectField({
         initial: () => ({})
       }),
 
-  advancement: new SchemaField({
-    level: new NumberField({ required: true, integer: true, initial: 1, min: 1, nullable: false }),
-    xp: new SchemaField({
-      value: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
-      max: new NumberField({ required: true, integer: true, initial: 300, min: 0, nullable: false })
-    }),
-    proficiencyBonus: new NumberField({ required: true, integer: true, initial: 2, nullable: false })
-  }),
+      advancement: new ObjectField({ initial: {} }),
+      skillPoints: new ObjectField({ initial: {} }),
 
-  skillPoints: new SchemaField({
-    value: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false }),
-    max: new NumberField({ required: true, integer: true, initial: 0, min: 0, nullable: false })
-  }),
+      skills: new ObjectField({ initial: {} }),
 
-      skills: new SchemaField({
-        skill1:  SkillField({ label: "Skill 1" }),
-        skill2:  SkillField({ label: "Skill 2" }),
-        skill3:  SkillField({ label: "Skill 3" }),
-        skill4:  SkillField({ label: "Skill 4" }),
-        skill5:  SkillField({ label: "Skill 5" }),
-        skill6:  SkillField({ label: "Skill 6" }),
-        skill7:  SkillField({ label: "Skill 7" }),
-        skill8:  SkillField({ label: "Skill 8" }),
-        skill9:  SkillField({ label: "Skill 9" }),
-        skill10: SkillField({ label: "Skill 10" })
-      }),
-
-      initiative: new ObjectField({
-        initial: () => ({ bonus: 0, total: 0 })
-      }),
+      initiative: new ObjectField({ initial: {} }),
 
       rollConfig: RollConfigField({ label: "Default Roll" }),
 
-      currency: CurrencyField(),
+      currency: new ObjectField({ initial: {} }),
 
       encumbrance: new SchemaField({
         current: new NumberField({ required: true, integer: false, initial: 0, min: 0, nullable: false }),
@@ -93,6 +58,11 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
       customTabs: new ArrayField(new ObjectField()),
 
       widgetFields: new ObjectField({ initial: {} }),
+
+      widgetVars: new ObjectField({ initial: {} }),
+
+      // Internal typed Blueprint persistence; never exposed as a user-authored path.
+      blueprintState: new ObjectField({ initial: {} }),
 
       sdTriggerGraph: new ObjectField({ initial: {} }),
 
@@ -126,11 +96,8 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
 
   prepareDerivedData() {
     super.prepareDerivedData();
-    this._prepareAttributes();
-    this._prepareResources();
-    this._prepareDefense();
-    this._prepareInitiative();
-    applyCalculationsToActor(this.parent);
+    // Database variables are stored verbatim in system.values. Legacy fields
+    // are retained only for loading old documents and are not derived.
     this._prepareSkills();
     this._prepareEncumbrance();
   }

@@ -6,6 +6,7 @@ import { openInlineWidgetEditor } from "./action-hud-inline-editor.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { persistWidgetValue } from "./widget-fields.mjs";
 import { localizeTree } from "./localization.mjs";
+import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "./sheet-widget-events.mjs";
 
 function _sanitizeHudVariant(raw, widgetType) {
   const v = String(raw ?? "").trim().toLowerCase();
@@ -239,6 +240,50 @@ function wireHudWidget(cell, widgetDef, actor) {
     const fromDoc = Number(_readPath(path));
     return Number.isFinite(fromDoc) ? fromDoc : 0;
   };
+
+  // Every HUD widget raises the same Sheet Blueprint events as sheet widgets,
+  // so a graph can react to any widget type (button, toggle, counter, slot,
+  // inventory, cards, quest marker, plain text...) with no preset roll.
+  const emitHudWidgetEvent = (eventName, sourceEvent = null, detail = {}) => {
+    try { if (SDActionHUD?._builderMode) return; } catch {}
+    const target = sourceEvent?.target ?? null;
+    let value;
+    if (Object.prototype.hasOwnProperty.call(detail, "value")) value = detail.value;
+    else if (target?.type === "checkbox") value = !!target.checked;
+    else if (target && "value" in target) value = target.value;
+    else {
+      const variableId = String(widgetDef?.variableId ?? widgetDef?.path ?? "").trim();
+      try {
+        value = variableId
+          ? foundry.utils.getProperty(actor, variableId.startsWith("system.") ? variableId : `system.values.${variableId}`)
+          : widgetDef?.value ?? "";
+      } catch { value = widgetDef?.value ?? ""; }
+    }
+    return dispatchSheetWidgetEvent(actor, {
+      event: String(eventName || "click").toLowerCase(),
+      value,
+      widgetKey: String(widgetDef?.widgetKey || widgetDef?.id || ""),
+      widgetId: String(widgetDef?.id || ""),
+      widgetLabel: String(widgetDef?.label || ""),
+      widgetType: String(widgetDef?.type || ""),
+      elementKey: String(detail.elementKey ?? ""),
+      actorId: String(actor?.id || ""),
+      documentUuid: String(actor?.uuid || ""),
+      sourceUuid: String(actor?.uuid || "")
+    });
+  };
+  cell._sdEmitWidgetEvent = emitHudWidgetEvent;
+  // Capture phase: HUD controls call stopPropagation, which would otherwise
+  // swallow the interaction before the graph ever sees it.
+  cell.addEventListener("click", (event) => {
+    if (event.target?.closest?.("[data-action='wbElement']")) return;
+    // Builder chrome (configure/duplicate/span/delete) is not a game event.
+    if (event.target?.closest?.("[data-action='wcfg'], [data-action='wdup'], [data-action='wspan'], [data-action='wdel']")) return;
+    emitHudWidgetEvent("click", event);
+    if (String(widgetDef?.type) === "toggle") emitHudWidgetEvent("toggle", event);
+  }, true);
+  cell.addEventListener("input", (event) => emitHudWidgetEvent("input", event), true);
+  cell.addEventListener("change", (event) => emitHudWidgetEvent("change", event), true);
 
   if (cell.dataset.sdAaDelegated !== "1") {
     cell.dataset.sdAaDelegated = "1";
@@ -706,19 +751,13 @@ function wireHudWidget(cell, widgetDef, actor) {
     btn.addEventListener("click", async () => {
       const raw = btn.dataset.formulaRaw || btn.dataset.formula;
       const flavor = btn.dataset.flavor ?? "";
-      if (!raw) {
-        if (flavor) {
-          ChatMessage.create({ content: flavor, speaker: ChatMessage.getSpeaker({ actor }) });
-        }
-        return;
-      }
+      // No formula: the button is event-only. Its click was already emitted in
+      // the capture phase, so nothing is posted or rolled implicitly.
+      if (!raw) return;
       const parsed = _parseHudPayload(raw);
       if (parsed.kind === "actions") {
-        if (parsed.actions.length === 0 && flavor) {
-
-          ChatMessage.create({ content: flavor, speaker: ChatMessage.getSpeaker({ actor }) });
-          return;
-        }
+        // An empty graph is not an implicit chat message.
+        if (parsed.actions.length === 0) return;
         return _runActionGraph(parsed.actions, flavor, parsed.macros);
       }
       if (parsed.kind === "formula") return _runRollFormula(parsed.formula, flavor);
@@ -727,7 +766,8 @@ function wireHudWidget(cell, widgetDef, actor) {
 
   cell.querySelectorAll("[data-action='widgetRoll']").forEach(btn => {
     btn.addEventListener("click", async () => {
-      const raw = btn.dataset.formulaRaw || btn.dataset.formula || "1d20";
+      const raw = btn.dataset.formulaRaw || btn.dataset.formula || "";
+      if (!String(raw).trim()) return;
       const flavor = btn.dataset.flavor ?? "";
       const parsed = _parseHudPayload(raw);
       if (parsed.kind === "actions") return _runActionGraph(parsed.actions, flavor, parsed.macros);
@@ -747,7 +787,8 @@ function wireHudWidget(cell, widgetDef, actor) {
       if (onClickFml && onClickFml.trim().startsWith("[")) {
         return _runActionGraph(onClickFml, btn.dataset.flavor);
       }
-      let formula = btn.dataset.attrRoll || "1d20";
+      let formula = btn.dataset.attrRoll || "";
+      if (!String(formula).trim()) return;
       try { formula = FormulaEngine.resolveForRoll(formula, actor); } catch(e) {}
       try {
         const roll = new Roll(formula, actor.getRollData?.() ?? {});

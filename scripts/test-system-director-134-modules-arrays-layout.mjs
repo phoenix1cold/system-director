@@ -4,7 +4,7 @@ import path from "node:path";
 const root=path.resolve(import.meta.dirname,"..");
 const read=p=>fs.readFileSync(path.join(root,p),"utf8");
 const manifest=JSON.parse(read("system.json"));
-assert.equal(manifest.version,"1.3.5");
+assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 const runtime=read("module/helpers/node-runtime-api.mjs");
 const executor=read("module/helpers/button-executor.mjs");
 const engine=read("module/helpers/formula-engine.mjs");

@@ -1,3 +1,4 @@
+import { valueStoragePath } from "./value-database.mjs";
 const HOOK_MAP = {
   updateDocument:        ["updateActor", "updateItem"],
   createDocument:        ["createActor", "createItem"],
@@ -23,8 +24,17 @@ const HOOK_MAP = {
 
   sdMacroUse:         ["sdMacroUse"],
 
-  sdCustomEvent:      ["sdCustomEvent"]
+  sdCustomEvent:      ["sdCustomEvent"],
+  sdSheetWidgetEvent: ["sdSheetWidgetEvent"]
 };
+
+
+function _changedDatabaseVariableId(diff={}) {
+  const nested=diff?.system?.values;
+  if(nested&&typeof nested==="object") return Object.keys(nested).find(k=>!String(k).startsWith("-="))??"";
+  const flat=Object.keys(diff??{}).find(k=>String(k).startsWith("system.values."));
+  return flat?String(flat).slice("system.values.".length).split(".")[0]:"";
+}
 
 function _installCombatHookBridge() {
   if (globalThis.__sdCombatBridgeInstalled) return;
@@ -218,6 +228,26 @@ class EventBus {
     }
   }
 
+  /**
+   * Re-scan a single document immediately after a graph save.  Graph saves use
+   * `sdSkipEventBus: true`, so without this the registry kept the previous
+   * compiled events until the next ordinary update or world reload.
+   */
+  refreshDocument(doc) {
+    if (!doc) return;
+    try {
+      const name = String(doc.documentName ?? "");
+      if (name === "Actor") return this._registerActor(doc);
+      if (name === "Item") {
+        if (doc.actor) return this._registerActor(doc.actor);
+        if (typeof this._registerWorldItem === "function") return this._registerWorldItem(doc);
+        if (typeof this._scanDoc === "function") return this._scanDoc(doc);
+      }
+    } catch (error) {
+      console.warn("SD | event bus refresh failed", error);
+    }
+  }
+
   _registerActor(actor) {
     if (!actor) return;
     this._unregisterByActor(actor.id);
@@ -283,13 +313,14 @@ class EventBus {
 
       const outOfSheet = !!ev?.data?.outOfSheet;
 
-      if (isWorldItem && !isQuestGraph && !outOfSheet) continue;
+      if (isWorldItem && !isQuestGraph && !outOfSheet && eventHook !== "sdSheetWidgetEvent") continue;
 
       const validForWorld = (h) => h === "updateItem" || h === "createItem" || h === "deleteItem"
         || h === "createCard" || h === "combatTurnStart" || h === "combatTurnEnd"
         || h === "combatEncounterStart" || h === "combatEncounterEnd"
         || h === "sdMacroUse"
         || h === "sdCustomEvent"
+        || h === "sdSheetWidgetEvent"
         || QUEST_HOOKS.has(h);
 
       for (const hookName of foundryHooks) {
@@ -439,10 +470,39 @@ class EventBus {
         const payload = firstDoc ?? {};
         const want = String(entry.data?.name ?? "").trim();
         if (!want || want !== String(payload?.name ?? "").trim()) return false;
+        const filters = [
+          ["blueprintId", payload?.blueprintId],
+          ["widgetId", payload?.widgetId],
+          ["eventId", payload?.name]
+        ];
+        for (const [key, actual] of filters) {
+          const expected = String(entry.data?.[key] ?? "").trim();
+          if (expected && expected !== String(actual ?? "").trim()) return false;
+        }
         if (payload?.scope === "global") return true;
         const pActor = String(payload?.actorId ?? "");
         if (!pActor) return true;
         return String(entry.actorId ?? "") === pActor;
+      }
+
+      case "sdSheetWidgetEvent": {
+        const payload=firstDoc??{};
+        // The sheet that produced the event already ran its own Sheet Blueprint
+        // locally (see helpers/sheet-widget-events.mjs), so skip it here and
+        // let only the other documents react.
+        const localOwner=String(payload.__sdSheetGraphOwner??"");
+        if(localOwner&&entry.docUuid&&localOwner===String(entry.docUuid))return false;
+        const documentUuid=String(payload.documentUuid??payload.sourceUuid??"");
+        if(entry.docUuid&&documentUuid&&entry.docUuid!==documentUuid)return false;
+        if(!isWorldItemEntry&&String(payload.actorId??"")!==String(entry.actorId??""))return false;
+        const wantedKey=String(entry.data?.key??entry.data?.widgetKey??entry.data?.widgetId??"").trim();
+        const actualKey=String(payload.widgetKey??"").trim();
+        const actualId=String(payload.widgetId??"").trim();
+        if(wantedKey&&wantedKey!==actualKey&&wantedKey!==actualId)return false;
+        const wantedElement=String(entry.data?.elementKey??"").trim();
+        if(wantedElement&&wantedElement!==String(payload.elementKey??"").trim())return false;
+        const wantedEvent=String(entry.data?.event??"click").trim().toLowerCase();
+        return wantedEvent===String(payload.event??"click").trim().toLowerCase();
       }
 
       case "sdMacroUse": {
@@ -476,9 +536,11 @@ class EventBus {
         entry.eventHook === "deleteDocument") {
       if (entry.eventHook !== "updateDocument") return true;
       const diff = args[1] ?? {};
-      const pathFilter = entry.data?.pathFilter;
-      if (!pathFilter) return true;
-      return foundry.utils.getProperty(diff, pathFilter) !== undefined;
+      const variableId=String(entry.data?.variableId??"");
+      if(!variableId) return true;
+      const changed=_changedDatabaseVariableId(diff);
+      if(changed) return changed===variableId;
+      return foundry.utils.getProperty(diff,valueStoragePath(variableId))!==undefined;
     }
     if (entry.eventHook === "hpDecrease") {
       const [doc, diff] = args;
@@ -668,11 +730,12 @@ class EventBus {
     switch (entry.eventHook) {
       case "updateDocument": {
         const [doc, diff] = args;
-        const path = entry.data?.pathFilter;
-        if (path) {
-          rt.__eventPath     = path;
-          rt.__eventNewValue = foundry.utils.getProperty(doc, path);
-          rt.__eventOldValue = _oldValueFromDiff(diff, path, doc);
+        const variableId=String(entry.data?.variableId??"")||_changedDatabaseVariableId(diff);
+        if(variableId){
+          const path=valueStoragePath(variableId);
+          rt.__eventVariableId=variableId;
+          rt.__eventNewValue=foundry.utils.getProperty(doc,path);
+          rt.__eventOldValue=_oldValueFromDiff(diff,path,doc);
         }
         break;
       }
@@ -721,6 +784,19 @@ class EventBus {
         rt.__customEventName       = String(payload?.name ?? "");
         rt.__customEventPayload    = payload?.payload ?? "";
         rt.__customEventSourceUuid = String(payload?.sourceUuid ?? "");
+        rt.__customEventBlueprintId= String(payload?.blueprintId ?? "");
+        rt.__customEventInstanceId = String(payload?.instanceId ?? "");
+        rt.__customEventWidgetId   = String(payload?.widgetId ?? "");
+        break;
+      }
+      case "sdSheetWidgetEvent": {
+        const payload=args[0]??{};
+        rt.__sheetWidgetValue=payload.value??"";
+        rt.__sheetWidgetKey=String(payload.widgetKey??"");
+        rt.__sheetWidgetId=String(payload.widgetId??"");
+        rt.__sheetWidgetElementKey=String(payload.elementKey??"");
+        rt.__sheetWidgetEvent=String(payload.event??"");
+        rt.__sheetWidgetDocumentUuid=String(payload.documentUuid??payload.sourceUuid??"");
         break;
       }
 

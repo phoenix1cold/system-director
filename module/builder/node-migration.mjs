@@ -1,5 +1,28 @@
 export const NODE_TYPE_MIGRATIONS = {
 
+  get_path: {
+    newType: "get_value",
+    dataMap: d => ({ source: d?.source ?? "self", variableId: d?.variableId ?? "", legacyPath: d?.legacyPath ?? d?.path ?? "" })
+  },
+
+  ui_set_variable_v2: {
+    newType: "ui_set_variable_v3",
+    externalTarget: true
+  },
+
+  ui_open_widget: {
+    newType: "ui_blueprint_call",
+    externalTarget: true,
+    dataMap: (d) => ({
+      blueprintId: String(d?.widgetKey ?? d?.blueprintId ?? ""),
+      audience: String(d?.audience ?? "self"),
+      users: String(d?.users ?? ""),
+      mode: String(d?.mode ?? ""),
+      unique: d?.unique ?? "yes",
+      title: String(d?.title ?? "")
+    })
+  },
+
   get_var: {
     newType: "var_read",
     dataMap: (d) => ({
@@ -132,8 +155,8 @@ export const NODE_TYPE_MIGRATIONS = {
   },
 
   actor_level: {
-    newType: "get_path",
-    dataMap: (d) => ({ path: d?.path ?? "system.advancement.level" })
+    newType: "get_value",
+    dataMap: (d) => ({ source:"self", variableId:"", legacyPath:d?.path ?? "system.advancement.level" })
   },
 
   condition_check: {

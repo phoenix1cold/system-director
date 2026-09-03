@@ -1,0 +1,35 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const read=(name)=>fs.readFileSync(new URL(`../${name}`,import.meta.url),"utf8");
+const template=read("templates/builder/toolbox.hbs");
+const toolbox=read("module/builder/toolbox-app.mjs");
+const sheet=read("module/sheets/character-sheet.mjs");
+const renderer=read("module/builder/widget-renderer.mjs");
+const config=read("module/builder/widget-config-popup.mjs");
+const graph=read("module/builder/formula-graph.mjs");
+const bus=read("module/helpers/event-bus.mjs");
+const css=read("styles/system.css");
+const manifest=JSON.parse(read("system.json"));
+
+const iconbar=template.match(/<div class="sd-builder-iconbar"[\s\S]*?<\/div>/)?.[0]??"";
+for(const token of ["tb-tab-widgets","tb-tab-paths","toggleSheetEdit","openSheetGraph","openDocumentDatabase","openProgression","openInteractions","openEffectApplier"])assert.match(iconbar,new RegExp(token));
+assert.doesNotMatch(template,/class="tb-tab(?: active)?"/);
+assert.match(toolbox,/classList\.toggle\("is-active",active\)/);
+assert.match(sheet,/grid-column:\$\{parentVS \? "1 \/ -1"/);
+assert.match(sheet,/className = "sd-vsection-runtime"/);
+assert.match(css,/sd-vsection-runtime>[.]sd-vsection-child/);
+assert.match(css,/sd-vsection-runtime [.]widget-richtext/);
+assert.match(css,/sd-vsection-runtime [.]widget-builder/);
+assert.match(renderer,/data-element-key=/);
+assert.match(sheet,/emitSheetWidgetEvent\("click",ev,\{value:elementKey,elementKey\}\)/);
+assert.match(bus,/wantedElement/);
+assert.match(bus,/__sheetWidgetElementKey/);
+const node=graph.match(/sheet_widget_event:\s*\{[\s\S]*?\n  \},\n\n  sequence:/)?.[0]??"";
+assert.match(node,/Element Key \(optional\)/);
+assert.match(node,/__sheetWidgetElementKey/);
+const wbLine=config.match(/widgetBuilder:\s*\[\[[^\n]+/)?.[0]??"";
+assert.match(wbLine,/Widget Key/);
+assert.doesNotMatch(wbLine,/On Click Graph/);
+assert.ok(/^1\.(10\.[3-9]\d*|(1[1-9]|[2-9]\d)\.\d+)$/.test(manifest.version));
+console.log("PASS: one-row Sheet Builder toolbar and Vertical Section nested widget runtime.");

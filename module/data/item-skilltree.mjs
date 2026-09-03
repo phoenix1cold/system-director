@@ -11,6 +11,7 @@ export class SkillTreeData extends foundry.abstract.TypeDataModel {
 
   static defineSchema() {
     return {
+      values: new ObjectField({ initial: {} }),
 
       description: new HTMLField({ required: false, blank: true, initial: "" }),
 
@@ -51,6 +52,10 @@ export class SkillTreeData extends foundry.abstract.TypeDataModel {
 
       customTabs:   new ArrayField(new ObjectField(), { initial: [] }),
       widgetFields: new ObjectField({ initial: {} }),
+      widgetVars: new ObjectField({ initial: {} }),
+
+      // Internal typed Blueprint persistence; never exposed as a user-authored path.
+      blueprintState: new ObjectField({ initial: {} }),
       slotDefs:     new ArrayField(SlotDefinitionField(),   { initial: [] }),
       slotContents: new ObjectField({ initial: {} }),
       buttons:      new ArrayField(ButtonDefinitionField(), { initial: [] }),

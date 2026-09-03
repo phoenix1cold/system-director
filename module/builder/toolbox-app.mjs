@@ -1,9 +1,26 @@
 import { BLUEPRINT_NODES, BLUEPRINT_CATS } from "../helpers/formula-engine.mjs";
-import { getConfiguredDataPathEntries, getSystemPathEntries, loadSettings } from "../helpers/system-config.mjs";
+import { loadSettings } from "../helpers/system-config.mjs";
+import { getValueDefinitions } from "../helpers/value-database.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { getLanguages, saveLanguages } from "../helpers/localization.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+/**
+ * Sheet template payload version.
+ *  1/2 - tabs + graphs only (widget values and world dependencies were lost)
+ *  3   - full snapshot: widget values, per-widget node data, the unique
+ *        data-path registry and the world pieces the sheet depends on.
+ */
+export const SHEET_TEMPLATE_FORMAT = 3;
+
+/** Read one world setting without throwing when it is not registered. */
+function safeSetting(key, fallback) {
+  try {
+    const value = game.settings.get("sd", key);
+    return value === undefined ? fallback : value;
+  } catch { return fallback; }
+}
 
 export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
 
@@ -17,7 +34,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       resizable:   true,
       minimizable: true
     },
-    position: { width: 300, height: 620, top: 80, left: 80 }
+    position: { width: 520, height: 780, top: 54, left: 54 }
   };
 
   static PARTS = {
@@ -61,6 +78,11 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
 
     return {
       ...base,
+      focusedSheetName: focusedDoc?.name ?? "No sheet selected",
+      focusedSheetType: focusedDoc ? `${focusedDoc.documentName} · ${focusedDoc.type}` : "Open an Actor or Item sheet",
+      hasFocusedSheet: !!focusedDoc,
+      focusedIsActor: focusedDoc?.documentName === "Actor",
+      databaseCount: knownPaths.length,
       widgets: WIDGET_TYPES,
       knownPaths,
       templates,
@@ -74,143 +96,13 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   _buildSettingsPaths() {
-    const paths = [];
-    const _add = (path, label) => { if (!paths.find(p => p.path === path)) paths.push({ path, label }); };
-
-    try {
-      const cfg = loadSettings();
-
-      for (const p of getConfiguredDataPathEntries(cfg)) {
-        _add(p.path, p.label);
-      }
-
-      for (const [key, label] of Object.entries(cfg.attributes ?? {})) {
-        if (cfg.attributesEnabled?.[key] === false) continue;
-        _add(`system.attributes.${key}.value`, `${label} — Score`);
-        _add(`system.attributes.${key}.mod`,   `${label} — Modifier`);
-      }
-
-      for (const [key, res] of Object.entries(cfg.resources ?? {})) {
-        if (res.enabled === false) continue;
-        const lbl = res.label ?? key;
-        _add(`system.resources.${key}.value`, `${lbl} — Current`);
-        _add(`system.resources.${key}.max`,   `${lbl} — Max`);
-      }
-
-      for (const c of (cfg.currencies ?? [])) {
-        if (!c?.key) continue;
-        const lbl = c.label && String(c.label).trim() ? c.label : c.key;
-        _add(`system.currency.${c.key}`, `Currency — ${lbl}`);
-      }
-      for (const p of getSystemPathEntries(cfg)) {
-        _add(p.path, `System Path - ${p.sectionLabel}: ${p.label}`);
-      }
-    } catch {}
-
-    _add("system.advancement.level",        "Level");
-    _add("system.advancement.xp.value",     "XP — Current");
-    _add("system.advancement.xp.max",       "XP — Max");
-    _add("system.defense.total",            "Defense — Total");
-    _add("system.defense.armor",            "Defense — Armor");
-    _add("system.initiative.total",         "Initiative — Total");
-    _add("system.initiative.bonus",         "Initiative — Bonus");
-    _add("system.movement.walk",            "Movement — Walk");
-    _add("system.movement.fly",             "Movement — Fly");
-
-    try {
-      for (const cf of (game.settings.get("sd", "customFields") ?? [])) {
-        _add(`system.flags.${cf.name}`, `Custom: ${cf.name}`);
-      }
-    } catch {}
-
-    return paths;
+    return getValueDefinitions().map(value=>({path:value.id,label:`${value.name} · ${value.type} [${value.id}]`}));
   }
 
   _buildDocPaths(doc) {
-    const paths = [];
-    const isActor = doc instanceof Actor;
-    const cfg = (() => { try { return loadSettings(); } catch { return null; } })();
-
-    const _add = (path, label) => { if (!paths.find(p => p.path === path)) paths.push({ path, label }); };
-
-    if (isActor) {
-      const sys = doc.system ?? {};
-      for (const p of getConfiguredDataPathEntries(cfg)) {
-        _add(p.path, p.label);
-      }
-
-      for (const [key, attr] of Object.entries(sys.attributes ?? {})) {
-        const cfgLabel = cfg?.attributes?.[key] ?? key;
-        if (attr?.value !== undefined) _add(`system.attributes.${key}.value`, `${cfgLabel} — Score`);
-        if (attr?.mod   !== undefined) _add(`system.attributes.${key}.mod`,   `${cfgLabel} — Modifier`);
-      }
-      for (const [key, res] of Object.entries(sys.resources ?? {})) {
-        const cfgLabel = cfg?.resources?.[key]?.label ?? key.toUpperCase();
-        if (res?.value !== undefined) _add(`system.resources.${key}.value`, `${cfgLabel} — Current`);
-        if (res?.max   !== undefined) _add(`system.resources.${key}.max`,   `${cfgLabel} — Max`);
-      }
-      const _seenCur = new Set();
-      for (const [key, val] of Object.entries(sys.currency ?? {})) {
-        if (val === null || typeof val === "object") continue;
-        const cfgLabel = (cfg?.currencies ?? []).find(c => c.key === key)?.label;
-        const lbl = cfgLabel && String(cfgLabel).trim() ? cfgLabel : key;
-        _add(`system.currency.${key}`, `Currency — ${lbl}`);
-        _seenCur.add(key);
-      }
-      for (const c of (cfg?.currencies ?? [])) {
-        if (!c?.key || _seenCur.has(c.key)) continue;
-        const lbl = c.label && String(c.label).trim() ? c.label : c.key;
-        _add(`system.currency.${c.key}`, `Currency — ${lbl}`);
-      }
-
-      for (const p of getSystemPathEntries(cfg)) {
-        _add(p.path, `System Path - ${p.sectionLabel}: ${p.label}`);
-      }
-
-      if (sys.advancement?.level !== undefined) _add("system.advancement.level", "Level");
-      if (sys.advancement?.xp?.value !== undefined) _add("system.advancement.xp.value", "XP — Current");
-      if (sys.advancement?.xp?.max   !== undefined) _add("system.advancement.xp.max",   "XP — Max");
-      if (sys.defense?.total    !== undefined) _add("system.defense.total",       "Defense — Total");
-      if (sys.defense?.armor    !== undefined) _add("system.defense.armor",       "Defense — Armor");
-      if (sys.initiative?.total !== undefined) _add("system.initiative.total",    "Initiative — Total");
-      if (sys.initiative?.bonus !== undefined) _add("system.initiative.bonus",    "Initiative — Bonus");
-      if (sys.movement?.walk    !== undefined) _add("system.movement.walk",       "Movement — Walk");
-      if (sys.movement?.fly     !== undefined) _add("system.movement.fly",        "Movement — Fly");
-    }
-
-    for (const [k] of Object.entries(doc.system?.hiddenFields ?? {})) {
-      _add(`system.hiddenFields.${k}`, `Hidden: ${k}`);
-    }
-
-    for (const a of (doc.system?.declaredAttrs ?? [])) {
-      if (a.path) _add(a.path, `Attr: ${a.name || a.id}`);
-    }
-
-    for (const def of (doc.system?.slotDefinitions ?? [])) {
-      _add(`system.slotContents.${def.id}.count`, `Slot count: ${def.label}`);
-    }
-
-    if (isActor) {
-      for (const item of (doc.items ?? [])) {
-        for (const [k] of Object.entries(item.system?.hiddenFields ?? {})) {
-          _add(`system.hiddenFields.${k}`, `${item.name}: hidden.${k}`);
-        }
-        for (const a of (item.system?.declaredAttrs ?? [])) {
-          if (a.path) _add(a.path, `${item.name}: ${a.name || a.id}`);
-        }
-        for (const def of (item.system?.slotDefinitions ?? [])) {
-          _add(`system.slotContents.${def.id}.count`, `${item.name}: slot '${def.label}'`);
-        }
-      }
-    }
-
-    try {
-      for (const cf of (game.settings.get("sd", "customFields") ?? [])) {
-        _add(`system.flags.${cf.name}`, `Custom: ${cf.name}`);
-      }
-    } catch {}
-
-    return paths;
+    const scope=doc?.documentName==="Item"?"item":"actor";
+    return getValueDefinitions().filter(value=>value.scope==="both"||value.scope===scope)
+      .map(value=>({path:value.id,label:`${value.name} · ${value.type} [${value.id}]`}));
   }
 
   _onRender(context, options) {
@@ -225,6 +117,38 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       EffectApplierApp.open();
     });
     this.element?.querySelector("[data-action='refreshPaths']")?.addEventListener("click", () => this.render());
+    this.element?.querySelector("[data-action='openSheetGraph']")?.addEventListener("click", async () => {
+      const sheet=this._getFocusedSheet();
+      if(!sheet?.document)return ui.notifications?.warn?.("Open an Actor or Item sheet first.");
+      const {FormulaGraph}=await import("./formula-graph.mjs");
+      new FormulaGraph(null,sheet.document,null,null,null,{mode:"sheetTrigger"}).open();
+    });
+    this.element?.querySelector("[data-action='toggleSheetEdit']")?.addEventListener("click", async () => {
+      const sheet=this._getFocusedSheet();
+      if(!sheet)return ui.notifications?.warn?.("Open an Actor or Item sheet first.");
+      const handler=sheet.constructor?._onToggleEditMode;
+      if(typeof handler==="function")await handler.call(sheet,null,null);
+      else { sheet._editMode=!sheet._editMode; sheet.render?.(); }
+      this.render();
+    });
+    this.element?.querySelector("[data-action='openDocumentDatabase']")?.addEventListener("click", async () => {
+      const sheet=this._getFocusedSheet();
+      if(!sheet?.document)return ui.notifications?.warn?.("Open an Actor or Item sheet first.");
+      const {openDocumentValueDatabase}=await import("../helpers/value-database.mjs");
+      await openDocumentValueDatabase(sheet.document);
+    });
+    this.element?.querySelector("[data-action='openProgression']")?.addEventListener("click", async () => {
+      const sheet=this._getFocusedSheet();
+      if(sheet?.document?.documentName!=="Actor")return ui.notifications?.warn?.("Open an Actor sheet first.");
+      const {ProgressionApp}=await import("../helpers/progression-app.mjs");
+      ProgressionApp.open(sheet.document);
+    });
+    this.element?.querySelector("[data-action='openInteractions']")?.addEventListener("click", async () => {
+      const sheet=this._getFocusedSheet();
+      if(sheet?.document?.documentName!=="Actor")return ui.notifications?.warn?.("Open an Actor sheet first.");
+      const {openInteractablesEditor}=await import("../helpers/interactables.mjs");
+      openInteractablesEditor(sheet.document);
+    });
     SDOnboarding.bindToolbox(this.element);
   }
 
@@ -288,35 +212,24 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!root) return;
 
     const tabs = [
-      { btnId: "tb-tab-widgets",    panelId: "tb-panel-widgets" },
-      { btnId: "tb-tab-paths",      panelId: "tb-panel-paths" }
+      { btnId: "tb-tab-widgets", panelId: "tb-panel-widgets" },
+      { btnId: "tb-tab-paths", panelId: "tb-panel-paths" }
     ];
-
-    tabs.forEach(({ btnId, panelId }) => {
-      const btn   = root.querySelector(`#${btnId}`);
-      const panel = root.querySelector(`#${panelId}`);
-      if (!btn || !panel) return;
-
-      btn.addEventListener("click", () => {
-
-        tabs.forEach(t => {
-          const b = root.querySelector(`#${t.btnId}`);
-          const p = root.querySelector(`#${t.panelId}`);
-          if (b) {
-            b.style.background = "var(--sd-bg)";
-            b.style.color = "var(--sd-text-3)";
-            b.style.borderBottom = "2px solid transparent";
-          }
-          if (p) p.style.display = "none";
-        });
-
-        btn.style.background   = "var(--sd-bg)";
-        btn.style.color        = "var(--sd-accent)";
-        btn.style.borderBottom = "2px solid var(--sd-accent)";
-        panel.style.display    = "flex";
-        panel.style.flexDirection = "column";
+    const activate = (activeId) => {
+      tabs.forEach(({btnId,panelId}) => {
+        const button=root.querySelector(`#${btnId}`);
+        const panel=root.querySelector(`#${panelId}`);
+        const active=btnId===activeId;
+        button?.classList.toggle("is-active",active);
+        button?.setAttribute("aria-pressed",active?"true":"false");
+        if(panel){
+          panel.style.display=active?"flex":"none";
+          if(active)panel.style.flexDirection="column";
+        }
       });
-    });
+    };
+    tabs.forEach(({btnId})=>root.querySelector(`#${btnId}`)?.addEventListener("click",()=>activate(btnId)));
+    activate(root.querySelector(".sd-builder-mode.is-active")?.id||"tb-tab-widgets");
   }
 
   _wireDrag() {
@@ -393,10 +306,13 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       const docType  = isActor ? "Actor" : "Item";
       const itemType = doc.type ?? (isActor ? "character" : "ability");
       const stored = foundry.utils.deepClone(game.settings.get("sd", "sheetTemplates") ?? {});
+      const worldSettings = safeSetting("systemSettings", {}) ?? {};
       stored[name] = {
         name,
         docType,
         itemType,
+        formatVersion: SHEET_TEMPLATE_FORMAT,
+        sdVersion: game.system?.version ?? "",
 
         customTabs:      foundry.utils.deepClone(sys.customTabs      ?? []),
 
@@ -409,6 +325,24 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         buttons:         foundry.utils.deepClone(sys.buttons          ?? []),
         onClickGraph:    foundry.utils.deepClone(sys.onClickGraph      ?? {}),
         effectTemplates: foundry.utils.deepClone(sys.effectTemplates   ?? []),
+
+        // Widget-owned values, per-widget node data and the unique data-path
+        // registry. Without these a restored sheet shows empty widgets and
+        // re-assigns paths, which silently breaks existing graphs.
+        widgetVars:         foundry.utils.deepClone(sys.widgetVars ?? {}),
+        nodes:              foundry.utils.deepClone(sys.nodes      ?? {}),
+        widgetPathRegistry: foundry.utils.deepClone(sys.flags?.__widgetPaths ?? {}),
+
+        // World-level pieces the sheet depends on. Restoring a template into a
+        // fresh world used to produce graphs pointing at variables and
+        // functions that did not exist there.
+        dependencies: {
+          database:        foundry.utils.deepClone(worldSettings.database ?? []),
+          functionLibrary: foundry.utils.deepClone(safeSetting("functionLibrary", {}) ?? {}),
+          nodeTemplates:   foundry.utils.deepClone(safeSetting("nodeTemplates", {}) ?? {}),
+          customFields:    foundry.utils.deepClone(safeSetting("customFields", {}) ?? {})
+        },
+
         languages:       foundry.utils.deepClone(getLanguages()),
         effectPresets:   foundry.utils.deepClone(game.settings.get("sd","effectPresets") ?? {}),
         created: Date.now()
@@ -432,6 +366,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
             ...foundry.utils.deepClone(tmpl.effectPresets)
           });
         }
+        const restored = await this._restoreTemplateDependencies(tmpl);
 
         const docName = await this._prompt(`Name for new ${tmpl.docType ?? "document"}:`, tmpl.name);
         if (!docName) return;
@@ -450,6 +385,22 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
           sdTriggerGraph:  foundry.utils.deepClone(tmpl.sdTriggerGraph ?? {}),
         };
 
+        // Widget values keep the sheet showing real numbers instead of blanks.
+        // They are keyed by Widget Key, which `_freshenIds` deliberately keeps
+        // stable, so they survive the id refresh above.
+        if (tmpl.widgetVars && typeof tmpl.widgetVars === "object") {
+          systemPayload.widgetVars = foundry.utils.deepClone(tmpl.widgetVars);
+        }
+        if (tmpl.nodes && typeof tmpl.nodes === "object") {
+          systemPayload.nodes = foundry.utils.deepClone(tmpl.nodes);
+        }
+        if (tmpl.widgetPathRegistry && typeof tmpl.widgetPathRegistry === "object") {
+          systemPayload.flags = {
+            ...(systemPayload.flags ?? {}),
+            __widgetPaths: foundry.utils.deepClone(tmpl.widgetPathRegistry)
+          };
+        }
+
         if (tmpl.docType !== "Actor") {
           systemPayload.buttons         = foundry.utils.deepClone(tmpl.buttons          ?? []);
           systemPayload.onClickGraph    = foundry.utils.deepClone(tmpl.onClickGraph      ?? {});
@@ -463,7 +414,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
             system: systemPayload
           });
           created?.sheet?.render(true);
-          ui.notifications.info(`Actor "${docName}" created from template.`);
+          ui.notifications.info(`Actor "${docName}" created from template.${restored.summary}`);
         } else {
           const created = await Item.create({
             name:   docName,
@@ -471,8 +422,9 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
             system: systemPayload
           });
           created?.sheet?.render(true);
-          ui.notifications.info(`Item "${docName}" created from template.`);
+          ui.notifications.info(`Item "${docName}" created from template.${restored.summary}`);
         }
+        if (restored.warnings.length) ui.notifications.warn(restored.warnings.join(" "));
       });
     });
 
@@ -492,7 +444,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         const stored = game.settings.get("sd", "sheetTemplates") ?? {};
         const tmpl   = stored[name];
         if (!tmpl) return ui.notifications.warn(`Template "${name}" not found.`);
-        const payload = { sdSheetTemplate: 2, localizationSchema:1, ...foundry.utils.deepClone(tmpl), languages:getLanguages(), effectPresets:game.settings.get("sd","effectPresets")??{} };
+        const payload = { sdSheetTemplate: SHEET_TEMPLATE_FORMAT, localizationSchema:1, ...foundry.utils.deepClone(tmpl), languages:getLanguages(), effectPresets:game.settings.get("sd","effectPresets")??{} };
         Toolbox._downloadJSON(payload, `${name}.sheet-template.json`);
       });
     });
@@ -501,7 +453,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       const stored = foundry.utils.deepClone(game.settings.get("sd", "sheetTemplates") ?? {});
       const names  = Object.keys(stored);
       if (!names.length) return ui.notifications.warn("No templates to export.");
-      const payload = { sdSheetTemplateBundle: 2, localizationSchema:1, templates: stored, languages:getLanguages(), effectPresets:game.settings.get("sd","effectPresets")??{}, exported: Date.now() };
+      const payload = { sdSheetTemplateBundle: SHEET_TEMPLATE_FORMAT, localizationSchema:1, templates: stored, languages:getLanguages(), effectPresets:game.settings.get("sd","effectPresets")??{}, exported: Date.now() };
       Toolbox._downloadJSON(payload, `sd-sheet-templates.json`);
     });
 
@@ -519,6 +471,99 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
       });
       inp.click();
     });
+  }
+
+  /**
+   * Backfill the world-level pieces a sheet template depends on (Database
+   * variables, saved functions, node templates, custom field groups).
+   *
+   * Entries that already exist in this world always win - importing a template
+   * must never silently overwrite something the GM authored.
+   *
+   * @param {object} tmpl Stored template payload.
+   * @returns {Promise<{added:object, warnings:string[], summary:string}>}
+   */
+  async _restoreTemplateDependencies(tmpl) {
+    const added = { variables: 0, functions: 0, nodeTemplates: 0, customFields: 0 };
+    const warnings = [];
+    const deps = tmpl?.dependencies;
+
+    if (!deps || typeof deps !== "object") {
+      if (Number(tmpl?.formatVersion ?? 0) < SHEET_TEMPLATE_FORMAT) {
+        warnings.push("This template was saved by an older version: Database variables and functions it relies on are not included, so some nodes may point at missing values.");
+      }
+      return { added, warnings, summary: "" };
+    }
+
+    // Database variables live inside the systemSettings blob.
+    if (Array.isArray(deps.database) && deps.database.length) {
+      const settings = foundry.utils.deepClone(safeSetting("systemSettings", {}) ?? {});
+      const list = Array.isArray(settings.database) ? settings.database : [];
+      const have = new Set(list.map(def => String(def?.id ?? "")));
+      let changed = 0;
+      for (const def of deps.database) {
+        const id = String(def?.id ?? "").trim();
+        if (!id || have.has(id)) continue;
+        list.push(foundry.utils.deepClone(def));
+        have.add(id);
+        changed++;
+      }
+      if (changed) {
+        settings.database = list;
+        try {
+          await game.settings.set("sd", "systemSettings", settings);
+          added.variables = changed;
+        } catch (err) {
+          console.warn("SD | template dependencies: database restore failed", err);
+          warnings.push("Database variables from the template could not be restored.");
+        }
+      }
+    }
+
+    // Object-keyed or array settings: add what is missing, keep what is local.
+    const mergeSetting = async (key, source, counter) => {
+      if (!source) return;
+      const local = foundry.utils.deepClone(safeSetting(key, Array.isArray(source) ? [] : {}));
+      let changed = 0;
+      if (Array.isArray(source)) {
+        if (!Array.isArray(local)) return;
+        const idOf = entry => String(entry?.id ?? entry?.key ?? entry?.name ?? "");
+        const have = new Set(local.map(idOf).filter(Boolean));
+        for (const entry of source) {
+          const id = idOf(entry);
+          if (!id || have.has(id)) continue;
+          local.push(foundry.utils.deepClone(entry));
+          have.add(id);
+          changed++;
+        }
+      } else if (typeof source === "object") {
+        if (!local || typeof local !== "object" || Array.isArray(local)) return;
+        for (const [name, value] of Object.entries(source)) {
+          if (name in local) continue;
+          local[name] = foundry.utils.deepClone(value);
+          changed++;
+        }
+      } else return;
+      if (!changed) return;
+      try {
+        await game.settings.set("sd", key, local);
+        added[counter] = changed;
+      } catch (err) {
+        console.warn(`SD | template dependencies: ${key} restore failed`, err);
+      }
+    };
+
+    await mergeSetting("functionLibrary", deps.functionLibrary, "functions");
+    await mergeSetting("nodeTemplates",   deps.nodeTemplates,   "nodeTemplates");
+    await mergeSetting("customFields",    deps.customFields,    "customFields");
+
+    const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
+    const parts = [];
+    if (added.variables)     parts.push(plural(added.variables, "database variable"));
+    if (added.functions)     parts.push(plural(added.functions, "saved function"));
+    if (added.nodeTemplates) parts.push(plural(added.nodeTemplates, "node template"));
+    if (added.customFields)  parts.push(plural(added.customFields, "custom field group"));
+    return { added, warnings, summary: parts.length ? ` Also restored ${parts.join(", ")}.` : "" };
   }
 
   async _importSheetTemplates(parsed) {
@@ -648,9 +693,13 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   _getFocusedSheet() {
-    return Object.values(ui.windows ?? {})
-      .filter(w => w.document instanceof Actor || w.document instanceof Item)
-      .sort((a, b) => (b._renderTime ?? 0) - (a._renderTime ?? 0))[0] ?? null;
+    const apps=[...Object.values(ui.windows??{})];
+    const instances=foundry.applications?.instances;
+    if(instances?.values)apps.push(...instances.values());
+    else if(instances&&typeof instances==="object")apps.push(...Object.values(instances));
+    return [...new Set(apps)]
+      .filter(w=>w!==this&&w?.rendered!==false&&(w.document instanceof Actor||w.document instanceof Item))
+      .sort((a,b)=>(b.position?.zIndex??b._renderTime??0)-(a.position?.zIndex??a._renderTime??0))[0]??null;
   }
 
   _freshenIds(tabs) {

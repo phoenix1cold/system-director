@@ -81,6 +81,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "attr_score_val"
   },
   "attr_output": {
@@ -132,6 +135,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "skill_rank_val"
   },
   "skill_output": {
@@ -311,6 +317,95 @@
     "fields": [],
     "isTrigger": true,
     "id": "on_click"
+  },
+  "sheet_widget_event": {
+    "title": "On Sheet Widget Event",
+    "color": "#c64646",
+    "cat": "Events",
+    "desc": "Entry point for an ordinary widget placed on this Actor/Item sheet. It uses Widget Key and runs directly in the common Sheet Blueprint.",
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "On Event",
+        "type": "exec"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      },
+      {
+        "id": "widgetKey",
+        "label": "Widget Key",
+        "type": "value.string"
+      },
+      {
+        "id": "widgetId",
+        "label": "Widget ID",
+        "type": "value.string"
+      },
+      {
+        "id": "elementKey",
+        "label": "Element Key",
+        "type": "value.string"
+      },
+      {
+        "id": "event",
+        "label": "Event",
+        "type": "value.string"
+      }
+    ],
+    "fields": [
+      {
+        "key": "key",
+        "label": "Sheet Widget",
+        "type": "widget-picker",
+        "default": ""
+      },
+      {
+        "key": "elementKey",
+        "label": "Element Key (optional)",
+        "type": "text",
+        "default": ""
+      },
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "select",
+        "default": "click",
+        "options": [
+          {
+            "value": "click",
+            "label": "On Click"
+          },
+          {
+            "value": "change",
+            "label": "On Change"
+          },
+          {
+            "value": "input",
+            "label": "On Input"
+          },
+          {
+            "value": "toggle",
+            "label": "On Toggle"
+          }
+        ]
+      },
+      {
+        "key": "outOfSheet",
+        "label": "Standalone (fire when item is not on an actor)",
+        "type": "bool",
+        "default": false
+      }
+    ],
+    "isEvent": true,
+    "eventHook": "sdSheetWidgetEvent",
+    "compilePin": {
+      "__fn": true
+    },
+    "id": "sheet_widget_event"
   },
   "sequence": {
     "title": "Sequence",
@@ -617,23 +712,17 @@
     "id": "is_valid"
   },
   "get_path": {
-    "title": "Get Field Value",
+    "title": "Legacy Get Path",
     "color": "#1a4060",
     "cat": "Get Data",
-    "wideNode": true,
-    "keywords": "target field token field uuid field get field value read",
-    "desc": "Read any field by dot-path from a chosen Source: Self (this actor/item), First Target (first targeted token's actor), Token by Id (wire a Token Id, e.g. from For Each Token; defaults to the current loop token), or By UUID (wire an actor/item UUID into Ref). Replaces the old Target Field / Token Field nodes.",
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "inputs": [
       {
         "id": "ref",
-        "label": "Token Id / UUID",
+        "label": "Ref",
         "type": "value.any"
-      },
-      {
-        "id": "path",
-        "label": "Path",
-        "type": "value.any",
-        "__autoFromField": true
       }
     ],
     "outputs": [
@@ -643,6 +732,36 @@
         "type": "value.any"
       }
     ],
+    "fields": [],
+    "compile": {
+      "__fn": true
+    },
+    "id": "get_path"
+  },
+  "get_value": {
+    "title": "Get Value",
+    "color": "#1a4060",
+    "cat": "Get Data",
+    "wideNode": true,
+    "keywords": "database variable typed actor item value read",
+    "desc": "Reads a typed Database variable from the selected Actor or Item. No storage path is exposed.",
+    "inputs": [
+      {
+        "id": "ref",
+        "label": "Actor / Item Ref",
+        "type": "value.any"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "v",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "computeDynamicOutputs": {
+      "__fn": true
+    },
     "fields": [
       {
         "key": "source",
@@ -650,23 +769,132 @@
         "type": "select",
         "default": "self",
         "options": [
-          "self",
-          "first target",
-          "token by id",
-          "by uuid"
+          {
+            "value": "self",
+            "label": "Self"
+          },
+          {
+            "value": "first target",
+            "label": "First Target"
+          },
+          {
+            "value": "token by id",
+            "label": "Token by ID"
+          },
+          {
+            "value": "by uuid",
+            "label": "By UUID"
+          }
         ]
       },
       {
-        "key": "path",
-        "label": "Path",
-        "type": "path",
-        "default": "system.resources.hp.value"
+        "key": "variableId",
+        "label": "Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       }
     ],
     "compile": {
       "__fn": true
     },
-    "id": "get_path"
+    "id": "get_value"
+  },
+  "set_value": {
+    "title": "Set Value",
+    "color": "#6a2f70",
+    "cat": "Database",
+    "wideNode": true,
+    "keywords": "database variable typed actor item write add subtract multiply toggle",
+    "desc": "Writes or modifies a typed Database variable on an Actor or Item. No storage path is exposed.",
+    "inputs": [
+      {
+        "id": "exec",
+        "label": "",
+        "type": "exec"
+      },
+      {
+        "id": "ref",
+        "label": "Actor / Item Ref",
+        "type": "value.any"
+      },
+      {
+        "id": "value",
+        "label": "Value",
+        "type": "value.any"
+      }
+    ],
+    "computeDynamicInputs": {
+      "__fn": true
+    },
+    "outputs": [
+      {
+        "id": "exec",
+        "label": "Done →",
+        "type": "exec"
+      }
+    ],
+    "fields": [
+      {
+        "key": "source",
+        "label": "Target",
+        "type": "select",
+        "default": "self",
+        "options": [
+          {
+            "value": "self",
+            "label": "Self"
+          },
+          {
+            "value": "first target",
+            "label": "First Target"
+          },
+          {
+            "value": "token by id",
+            "label": "Token by ID"
+          },
+          {
+            "value": "by uuid",
+            "label": "By UUID"
+          }
+        ]
+      },
+      {
+        "key": "variableId",
+        "label": "Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
+      },
+      {
+        "key": "operation",
+        "label": "Operation",
+        "type": "select",
+        "default": "set",
+        "options": [
+          "set",
+          "add",
+          "subtract",
+          "multiply",
+          "toggle"
+        ]
+      },
+      {
+        "key": "value",
+        "label": "Value",
+        "type": "text",
+        "default": "0"
+      }
+    ],
+    "isAction": true,
+    "toAction": {
+      "__fn": true
+    },
+    "id": "set_value"
   },
   "get_widget": {
     "title": "Get Widget Value",
@@ -724,6 +952,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "get_widget_path"
   },
   "get_name": {
@@ -911,6 +1142,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "slot_field"
   },
   "item_uuid": {
@@ -957,6 +1191,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "item_uuid"
   },
   "target_field": {
@@ -992,6 +1229,7 @@
     "compile": {
       "__fn": true
     },
+    "internal": true,
     "id": "target_field"
   },
   "fa_icon": {
@@ -2904,6 +3142,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_roll_v2",
       "act_analyze_roll",
@@ -3081,6 +3320,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "id": "act_damage"
   },
   "act_heal": {
@@ -3226,6 +3466,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "id": "act_heal"
   },
   "act_effect": {
@@ -3536,6 +3777,7 @@
     "compile": {
       "__fn": true
     },
+    "internal": true,
     "id": "tok_field"
   },
   "arr_length": {
@@ -3638,6 +3880,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "arr_map_field"
   },
   "arr_aggregate_field": {
@@ -3689,6 +3934,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "arr_aggregate_field"
   },
   "arr_find_extreme": {
@@ -3737,6 +3985,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "arr_find_extreme"
   },
   "arr_filter": {
@@ -3803,6 +4054,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "arr_filter"
   },
   "arr_compare_two": {
@@ -3872,6 +4126,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "arr_compare_two"
   },
   "arr_sort": {
@@ -3920,6 +4177,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "arr_sort"
   },
   "arr_slice": {
@@ -5306,6 +5566,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "set_value",
     "id": "act_modify"
   },
   "act_set_text_field": {
@@ -5382,6 +5645,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "set_value",
     "id": "act_set_text_field"
   },
   "act_cast_to": {
@@ -5427,7 +5693,7 @@
     "outputs": [
       {
         "id": "completed",
-        "label": "Completed →",
+        "label": "Completed ���",
         "type": "exec"
       },
       {
@@ -5476,6 +5742,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "act_cast_to"
   },
   "act_set_initiative": {
@@ -5553,6 +5822,7 @@
     "title": "Message",
     "color": "#4a4a1a",
     "cat": "Chat",
+    "desc": "Posts a chat message assembled from the fallback text and every connected Text input.",
     "inputs": [
       {
         "id": "exec",
@@ -6334,6 +6604,9 @@
     "compilePin": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "widget_value_array"
   },
   "item_arr_names": {
@@ -6397,6 +6670,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "item_arr_map_field"
   },
   "item_arr_aggregate": {
@@ -6448,6 +6724,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "item_arr_aggregate"
   },
   "item_arr_filter": {
@@ -6514,6 +6793,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "item_arr_filter"
   },
   "item_arr_sort": {
@@ -6562,6 +6844,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "item_arr_sort"
   },
   "item_arr_find_extreme": {
@@ -6610,6 +6895,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "item_arr_find_extreme"
   },
   "act_use_slot_item": {
@@ -6999,6 +7287,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "id": "act_modify_slot_item_field"
   },
   "act_modify_item_field": {
@@ -7149,6 +7438,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "set_value",
     "id": "act_modify_item_field"
   },
   "act_modify_inv_item_field": {
@@ -7260,6 +7552,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "id": "act_modify_inv_item_field"
   },
   "inv_item_field": {
@@ -7337,6 +7630,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "inv_item_field"
   },
   "slot_item_uuid": {
@@ -7836,6 +8132,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_roll_v2",
       "act_compare_roll",
@@ -8143,6 +8440,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_roll_v2",
       "act_compare_roll",
@@ -8415,6 +8713,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_roll_v2",
       "act_compare_roll"
@@ -8647,6 +8946,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_roll_v2",
       "act_compare_roll"
@@ -8737,6 +9037,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "act_spend_token"
   },
   "act_gain_token": {
@@ -8818,6 +9121,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "set_value",
     "id": "act_gain_token"
   },
   "get_token_count": {
@@ -8862,6 +9168,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "get_token_count"
   },
   "act_progression": {
@@ -9049,11 +9358,12 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_roll_v2",
-      "get_path",
+      "get_value",
       "act_compare_roll",
-      "act_modify"
+      "set_value"
     ],
     "id": "act_progression"
   },
@@ -9290,6 +9600,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_roll_v2",
       "act_present_roll"
@@ -9517,6 +9828,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_roll_v2",
       "act_present_roll"
@@ -12439,6 +12751,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_place_aura_zone",
       "act_damage_simple"
@@ -12680,6 +12993,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_place_aura_zone",
       "act_heal_simple"
@@ -12962,6 +13276,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_place_aura_zone",
       "act_save_dc",
@@ -13396,6 +13711,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "replacementNodes": [
       "act_place_aura_zone",
       "act_save_dc"
@@ -13775,6 +14091,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "id": "act_place_aoe_damage"
   },
   "act_place_aoe_heal": {
@@ -13982,6 +14299,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "id": "act_place_aoe_heal"
   },
   "act_place_aoe_save_effect": {
@@ -14241,6 +14559,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "id": "act_place_aoe_save_effect"
   },
   "act_place_aoe_targets": {
@@ -14540,6 +14859,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "id": "act_place_aoe_save_branch"
   },
   "act_remove_aura": {
@@ -14945,7 +15265,7 @@
     "fields": [
       {
         "key": "src",
-        "label": "Sound path / URL",
+        "label": "Sound file / URL",
         "type": "text",
         "default": "sounds/dice.wav",
         "placeholder": "sounds/dice.wav"
@@ -15530,6 +15850,7 @@
     "toAction": {
       "__fn": true
     },
+    "internal": true,
     "id": "chat_save_button"
   },
   "act_damage_simple": {
@@ -15627,6 +15948,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "set_value",
     "id": "act_damage_simple"
   },
   "act_heal_simple": {
@@ -15724,6 +16048,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "set_value",
     "id": "act_heal_simple"
   },
   "act_save_dc": {
@@ -17158,6 +17485,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "act_effect_add_change"
   },
   "act_effect_apply_v2": {
@@ -17275,7 +17605,7 @@
     "title": "On Update",
     "color": "#c04040",
     "cat": "Events",
-    "desc": "Fires whenever this document (actor/item) is updated. Useful for reacting to HP / resource changes.",
+    "desc": "Fires when this Actor or Item is updated. Optionally select one Database variable; no path is required.",
     "inputs": [],
     "outputs": [
       {
@@ -17284,9 +17614,9 @@
         "type": "exec"
       },
       {
-        "id": "path",
-        "label": "Changed Path",
-        "type": "value.path"
+        "id": "variableId",
+        "label": "Variable ID",
+        "type": "value.string"
       },
       {
         "id": "oldValue",
@@ -17301,11 +17631,13 @@
     ],
     "fields": [
       {
-        "key": "pathFilter",
-        "label": "Only path (optional)",
-        "type": "path",
+        "key": "variableId",
+        "label": "Only Variable (optional)",
+        "type": "select",
         "default": "",
-        "placeholder": "system.resources.hp.value"
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "outOfSheet",
@@ -17314,6 +17646,9 @@
         "default": false
       }
     ],
+    "computeDynamicOutputs": {
+      "__fn": true
+    },
     "isEvent": true,
     "eventHook": "updateDocument",
     "id": "on_update"
@@ -17573,6 +17908,9 @@
     ],
     "isEvent": true,
     "eventHook": "hpDecrease",
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "on_damage_taken"
   },
   "on_rest": {
@@ -17609,6 +17947,9 @@
     ],
     "isEvent": true,
     "eventHook": "restFlag",
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "on_rest"
   },
   "on_equip": {
@@ -17879,6 +18220,7 @@
     ],
     "isEvent": true,
     "eventHook": "updateDocument",
+    "internal": true,
     "replacementNodes": [
       "on_update",
       "on_create",
@@ -18240,6 +18582,9 @@
     "compilePin": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "get_actors_array"
   },
   "get_uuid_from_array": {
@@ -18335,6 +18680,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "get_field_by_uuid"
   },
   "get_fields_from_array": {
@@ -18374,6 +18722,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "get_fields_from_array"
   },
   "get_field_by_actor_name": {
@@ -18430,6 +18781,9 @@
     "compile": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "get_field_by_actor_name"
   },
   "equipped_count": {
@@ -21983,6 +22337,9 @@
     "compilePin": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "field_equals"
   },
   "vision_visible_tokens": {
@@ -22201,6 +22558,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "set_value",
     "id": "act_vision_scan"
   },
   "on_vision_detect": {
@@ -22307,6 +22667,9 @@
     ],
     "isEvent": true,
     "eventHook": "sdVisionDetect",
+    "hidden": true,
+    "internal": true,
+    "replacement": "get_value",
     "id": "on_vision_detect"
   },
   "tok_elevation": {
@@ -22796,6 +23159,7 @@
     "compilePin": {
       "__fn": true
     },
+    "internal": true,
     "id": "func_inputs"
   },
   "func_outputs": {
@@ -22815,6 +23179,7 @@
     "computeDynamicInputs": {
       "__fn": true
     },
+    "internal": true,
     "id": "func_outputs"
   },
   "function_call": {
@@ -23937,6 +24302,9 @@
     "toAction": {
       "__fn": true
     },
+    "hidden": true,
+    "internal": true,
+    "replacement": "set_value",
     "id": "act_set_doc_field"
   },
   "act_add_to_combat": {
@@ -24170,7 +24538,7 @@
       },
       {
         "id": "path",
-        "label": "Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -24194,9 +24562,12 @@
       },
       {
         "key": "path",
-        "label": "Data Path",
-        "type": "path",
-        "default": "system.flags.myField"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "placeholder",
@@ -24220,6 +24591,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_text"
   },
   "wcfg_number": {
@@ -24235,7 +24607,7 @@
       },
       {
         "id": "path",
-        "label": "Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -24269,9 +24641,12 @@
       },
       {
         "key": "path",
-        "label": "Data Path",
-        "type": "path",
-        "default": "system.flags.myNumber"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "min",
@@ -24306,6 +24681,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_number"
   },
   "wcfg_resource": {
@@ -24321,12 +24697,12 @@
       },
       {
         "id": "pathValue",
-        "label": "Value Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
         "id": "pathMax",
-        "label": "Max Path",
+        "label": "Max Variable",
         "type": "value"
       },
       {
@@ -24350,15 +24726,21 @@
       },
       {
         "key": "pathValue",
-        "label": "Value Path",
-        "type": "path",
-        "default": "system.resources.hp.value"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "pathMax",
-        "label": "Max Path",
-        "type": "path",
-        "default": "system.resources.hp.max"
+        "label": "Max Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "color",
@@ -24385,83 +24767,8 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_resource"
-  },
-  "wcfg_dice": {
-    "title": "Dice Button",
-    "color": "#1a3a1a",
-    "isWidgetConfig": true,
-    "widgetType": "dice",
-    "inputs": [
-      {
-        "id": "label",
-        "label": "Label",
-        "type": "value"
-      },
-      {
-        "id": "formula",
-        "label": "Formula",
-        "type": "value"
-      },
-      {
-        "id": "icon",
-        "label": "Icon",
-        "type": "value"
-      },
-      {
-        "id": "flavor",
-        "label": "Flavor",
-        "type": "value"
-      },
-      {
-        "id": "variant",
-        "label": "Variant",
-        "type": "value"
-      }
-    ],
-    "outputs": [],
-    "fields": [
-      {
-        "key": "label",
-        "label": "Label",
-        "type": "text",
-        "default": "Roll"
-      },
-      {
-        "key": "formula",
-        "label": "Formula",
-        "type": "text",
-        "default": "1d20"
-      },
-      {
-        "key": "icon",
-        "label": "FA Icon",
-        "type": "text",
-        "default": "fa-dice-d20"
-      },
-      {
-        "key": "flavor",
-        "label": "Flavor",
-        "type": "text",
-        "default": ""
-      },
-      {
-        "key": "variant",
-        "label": "Variant",
-        "type": "select",
-        "options": [
-          "default",
-          "d20-big",
-          "chip",
-          "flat",
-          "rune",
-          "tactical",
-          "neon"
-        ],
-        "default": "default"
-      }
-    ],
-    "id": "wcfg_dice"
   },
   "wcfg_toggle": {
     "title": "Toggle",
@@ -24476,7 +24783,7 @@
       },
       {
         "id": "path",
-        "label": "Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -24505,9 +24812,12 @@
       },
       {
         "key": "path",
-        "label": "Data Path",
-        "type": "path",
-        "default": "system.flags.myToggle"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "onLabel",
@@ -24536,6 +24846,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_toggle"
   },
   "wcfg_slot": {
@@ -24624,6 +24935,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_slot"
   },
   "wcfg_attribute": {
@@ -24639,7 +24951,7 @@
       },
       {
         "id": "path",
-        "label": "Score Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -24658,9 +24970,12 @@
       },
       {
         "key": "path",
-        "label": "Score Path",
-        "type": "path",
-        "default": "system.attributes.attr1.value"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "variant",
@@ -24679,6 +24994,9 @@
         "default": "default"
       }
     ],
+    "hidden": true,
+    "internal": true,
+    "replacement": "wcfg_number",
     "id": "wcfg_attribute"
   },
   "wcfg_skill": {
@@ -24694,17 +25012,12 @@
       },
       {
         "id": "path",
-        "label": "Rank Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
         "id": "attrMod",
         "label": "Attr Mod",
-        "type": "value"
-      },
-      {
-        "id": "rollFormula",
-        "label": "Roll Formula",
         "type": "value"
       },
       {
@@ -24723,21 +25036,18 @@
       },
       {
         "key": "path",
-        "label": "Rank Path",
-        "type": "path",
-        "default": "system.skills.skill1.rank"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "attrMod",
         "label": "Attr Modifier",
         "type": "number",
         "default": 0
-      },
-      {
-        "key": "rollFormula",
-        "label": "Roll Formula",
-        "type": "text",
-        "default": ""
       },
       {
         "key": "variant",
@@ -24755,6 +25065,9 @@
         "default": "default"
       }
     ],
+    "hidden": true,
+    "internal": true,
+    "replacement": "wcfg_number",
     "id": "wcfg_skill"
   },
   "wcfg_progress": {
@@ -24770,12 +25083,12 @@
       },
       {
         "id": "pathValue",
-        "label": "Value Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
         "id": "pathMax",
-        "label": "Max Path",
+        "label": "Max Variable",
         "type": "value"
       },
       {
@@ -24799,15 +25112,21 @@
       },
       {
         "key": "pathValue",
-        "label": "Value Path",
-        "type": "path",
-        "default": "system.advancement.xp.value"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "pathMax",
-        "label": "Max Path",
-        "type": "path",
-        "default": "system.advancement.xp.max"
+        "label": "Max Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "color",
@@ -24832,6 +25151,9 @@
         "default": "default"
       }
     ],
+    "hidden": true,
+    "internal": true,
+    "replacement": "wcfg_resource",
     "id": "wcfg_progress"
   },
   "wcfg_clock": {
@@ -24847,7 +25169,7 @@
       },
       {
         "id": "path",
-        "label": "Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -24876,9 +25198,12 @@
       },
       {
         "key": "path",
-        "label": "Filled Count Path",
-        "type": "path",
-        "default": "system.flags.myClock"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "segments",
@@ -24907,6 +25232,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_clock"
   },
   "wcfg_tracker": {
@@ -24922,7 +25248,7 @@
       },
       {
         "id": "path",
-        "label": "Value Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -24966,9 +25292,12 @@
       },
       {
         "key": "path",
-        "label": "Value Path",
-        "type": "path",
-        "default": "system.flags.myTracker"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "maxCount",
@@ -25020,6 +25349,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_tracker"
   },
   "wcfg_tokenPool": {
@@ -25035,12 +25365,12 @@
       },
       {
         "id": "path",
-        "label": "Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
         "id": "maxPath",
-        "label": "Max Path",
+        "label": "Max Variable",
         "type": "value"
       },
       {
@@ -25084,15 +25414,21 @@
       },
       {
         "key": "path",
-        "label": "Value Path",
-        "type": "path",
-        "default": "system.flags.myTokens"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "maxPath",
-        "label": "Max Path (blank = use Max)",
-        "type": "path",
-        "default": ""
+        "label": "Max Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "maxCount",
@@ -25138,6 +25474,9 @@
         "default": "default"
       }
     ],
+    "hidden": true,
+    "internal": true,
+    "replacement": "wcfg_resource",
     "id": "wcfg_tokenPool"
   },
   "wcfg_select": {
@@ -25153,7 +25492,7 @@
       },
       {
         "id": "path",
-        "label": "Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -25177,9 +25516,12 @@
       },
       {
         "key": "path",
-        "label": "Data Path",
-        "type": "path",
-        "default": "system.flags.mySelect"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "choices",
@@ -25202,6 +25544,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_select"
   },
   "wcfg_derived": {
@@ -25268,6 +25611,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_derived"
   },
   "wcfg_tags": {
@@ -25283,7 +25627,7 @@
       },
       {
         "id": "path",
-        "label": "Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -25307,9 +25651,12 @@
       },
       {
         "key": "path",
-        "label": "Data Path",
-        "type": "path",
-        "default": "system.flags.myTags"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "color",
@@ -25332,6 +25679,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_tags"
   },
   "wcfg_image": {
@@ -25342,7 +25690,7 @@
     "inputs": [
       {
         "id": "path",
-        "label": "Image Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -25365,9 +25713,12 @@
     "fields": [
       {
         "key": "path",
-        "label": "Image Path",
-        "type": "path",
-        "default": ""
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "staticSrc",
@@ -25409,6 +25760,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_image"
   },
   "wcfg_richtext": {
@@ -25424,7 +25776,7 @@
       },
       {
         "id": "path",
-        "label": "Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -25443,9 +25795,12 @@
       },
       {
         "key": "path",
-        "label": "Data Path",
-        "type": "path",
-        "default": "system.biography.notes"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "variant",
@@ -25461,6 +25816,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_richtext"
   },
   "wcfg_section": {
@@ -25505,6 +25861,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_section"
   },
   "wcfg_counter": {
@@ -25520,7 +25877,7 @@
       },
       {
         "id": "path",
-        "label": "Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -25559,9 +25916,12 @@
       },
       {
         "key": "path",
-        "label": "Data Path",
-        "type": "path",
-        "default": "system.flags.myCounter"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "min",
@@ -25602,6 +25962,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_counter"
   },
   "wcfg_diceTray": {
@@ -25617,7 +25978,7 @@
       },
       {
         "id": "flagPath",
-        "label": "Flag Path",
+        "label": "Database Variable",
         "type": "value"
       },
       {
@@ -25641,9 +26002,12 @@
       },
       {
         "key": "flagPath",
-        "label": "Flag Path (read-only)",
-        "type": "path",
-        "default": "flags.sd.lastRoll"
+        "label": "Database Variable",
+        "type": "select",
+        "default": "",
+        "options": [],
+        "noPin": true,
+        "dynamicOptions": true
       },
       {
         "key": "color",
@@ -25670,6 +26034,7 @@
         "default": "default"
       }
     ],
+    "internal": true,
     "id": "wcfg_diceTray"
   }
 }
