@@ -115,21 +115,98 @@ export class SDItem extends Item {
     }
   }
 
+  /**
+   * Read the Use / On Click action list out of a compiled common-graph payload.
+   * Accepts every shape the graph compiler has ever produced:
+   * `_events.onClick` as an array, as `{ actions }`, or keyed per entry node
+   * (`on_click::n1`).
+   * @param {object} payload  `system.sdTriggerGraph`
+   * @returns {Array<object>} actions to run (possibly empty)
+   */
+  _commonOnClickActions(payload) {
+    const events = payload?._events;
+    if (!events || typeof events !== "object") return [];
+    const pick = (entry) => Array.isArray(entry) ? entry : (Array.isArray(entry?.actions) ? entry.actions : []);
+    const direct = pick(events.onClick);
+    if (direct.length) return direct;
+    for (const [key, entry] of Object.entries(events)) {
+      if (key === "onClick") continue;
+      const hook = entry?.hook ?? key;
+      if (hook !== "onClick" && !String(key).startsWith("on_click")) continue;
+      const actions = pick(entry);
+      if (actions.length) return actions;
+    }
+    return [];
+  }
+
+  /** True when the stored common graph contains a Use / On Click entry node. */
+  _hasUseOnClickNode(payload) {
+    const nodes = payload?._graphData?.nodes;
+    return Array.isArray(nodes) && nodes.some(n => n?.type === "on_click");
+  }
+
+  /**
+   * Recompile `sdTriggerGraph._graphData` and cache the result on the document.
+   * Used to recover items whose compiled payload was dropped by older saves.
+   * @returns {Promise<{actions:Array<object>, macros:?object}|null>}
+   */
+  async _recompileCommonGraph() {
+    try {
+      const { FormulaGraph } = await import("../builder/formula-graph.mjs");
+      // The editor compiles without any DOM; constructing it is side-effect free.
+      const graph = new FormulaGraph(null, this, null, null, null, { mode: "sheetTrigger" });
+      let compiled = null;
+      try { compiled = JSON.parse(graph.compile()); } catch { compiled = null; }
+      let actions = [];
+      let macros  = null;
+      if (Array.isArray(compiled)) actions = compiled;
+      else if (compiled?._trigger === "onClick") actions = compiled.actions ?? [];
+      else if (compiled?._trigger === "multi") {
+        actions = compiled._events?.onClick?.actions ?? compiled._events?.onClick ?? [];
+        macros  = compiled._macros ?? null;
+      } else if (compiled?._trigger === "macrosOnly") macros = compiled._macros ?? null;
+      if (!Array.isArray(actions)) actions = [];
+      if (actions.length && game.user?.isGM && !this.pack) {
+        const payload = foundry.utils.deepClone(this.system?.sdTriggerGraph ?? {});
+        payload._trigger = "multi";
+        payload._events  = (payload._events && typeof payload._events === "object") ? payload._events : {};
+        payload._events.onClick = { hook: "onClick", data: {}, actions };
+        if (macros) payload._macros = macros;
+        try { await this.update({ "system.sdTriggerGraph": payload }, { sdSkipEventBus: true }); }
+        catch (e) { console.warn("SD | could not cache recompiled Item Blueprint:", e); }
+      }
+      return { actions, macros };
+    } catch (e) {
+      console.warn("SD | could not recompile the common Item Blueprint:", e);
+      return null;
+    }
+  }
+
   async use({ event } = {}) {
     const system = this.system;
 
     try { AutoanimationsIntegration.playForItem(this, this.actor ?? null); } catch (e) { console.warn("SD | AutoAnimations trigger failed:", e); }
 
-    const common=system.sdTriggerGraph;
-    const commonEvent=common?._events?.onClick;
-    const commonActions=Array.isArray(commonEvent)?commonEvent:(Array.isArray(commonEvent?.actions)?commonEvent.actions:[]);
-    if(commonActions.length){
-      try{
-        const {ButtonExecutor}=await import("../helpers/button-executor.mjs");
-        const buttonDef={label:this.name,__macros:common?._macros??null};
-        const runtime={};
-        for(const action of commonActions)await ButtonExecutor._runAction(action,this,this.actor??null,buttonDef,runtime);
-      }catch(e){console.error("SD | common Item Blueprint On Click error:",e);}
+    const common = system.sdTriggerGraph;
+    let commonActions = this._commonOnClickActions(common);
+    let commonMacros  = common?._macros ?? null;
+    // Self-heal: graphs saved by older builds kept their nodes in `_graphData`
+    // but lost the compiled actions, so Use silently fell through to the chat
+    // card. Recompile the stored graph on demand instead of ignoring it.
+    if (!commonActions.length && this._hasUseOnClickNode(common)) {
+      const healed = await this._recompileCommonGraph();
+      if (healed?.actions?.length) {
+        commonActions = healed.actions;
+        commonMacros  = healed.macros ?? commonMacros;
+      }
+    }
+    if (commonActions.length) {
+      try {
+        const { ButtonExecutor } = await import("../helpers/button-executor.mjs");
+        const buttonDef = { label: this.name, __macros: commonMacros };
+        const runtime = {};
+        for (const action of commonActions) await ButtonExecutor._runAction(action, this, this.actor ?? null, buttonDef, runtime);
+      } catch (e) { console.error("SD | common Item Blueprint On Click error:", e); }
       return;
     }
 

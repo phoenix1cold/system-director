@@ -433,7 +433,10 @@ function wireHudWidget(cell, widgetDef, actor) {
       const item = actor.items?.get(btn.dataset.itemId);
       if (!item || item.type !== "inventory") return;
       if (!item.system?.equippable) {
-        ui.notifications?.warn(`"${item.name}" is not marked Equippable.`);
+        const msg = game.i18n?.format?.("SD.NotEquippableHint", { name: item.name });
+        ui.notifications?.warn((!msg || msg === "SD.NotEquippableHint")
+          ? `"${item.name}" is not marked Equippable. Open the item → Details tab and tick Equippable.`
+          : msg);
         return;
       }
       const next = !item.system.equipped;

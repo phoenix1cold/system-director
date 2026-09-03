@@ -45,8 +45,13 @@
     </div>
 
     <div class="detail-group checkboxes">
-      <label><input type="checkbox" name="system.equipped"
+      <label title="{{localize 'SD.EquippableHint'}}"><input type="checkbox" name="system.equippable"
+             {{#if system.equippable}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Equippable"}}</label>
+      <label title="{{localize 'SD.EquippedHint'}}"><input type="checkbox" name="system.equipped"
              {{#if system.equipped}}checked{{/if}}
+             {{#unless system.equippable}}disabled{{/unless}}
              {{#unless isEditable}}disabled{{/unless}} />
         {{localize "SD.Equipped"}}</label>
       <label><input type="checkbox" name="system.identified"
@@ -58,6 +63,22 @@
              {{#unless isEditable}}disabled{{/unless}} />
         {{localize "SD.Attuned"}}</label>
     </div>
+
+    {{#if system.equippable}}
+    <div class="detail-group">
+      <label>{{localize "SD.EquipRequirements"}}</label>
+      <input type="text" name="system.equipRequirements" value="{{system.equipRequirements}}"
+             placeholder="{{localize 'SD.EquipRequirementsPlaceholder'}}"
+             {{#unless isEditable}}disabled{{/unless}} />
+      <p style="margin:4px 0 0;font-size:11px;line-height:1.35;color:var(--sd-text-3)">{{localize "SD.EquipRequirementsHint"}}</p>
+    </div>
+    <div class="detail-group checkboxes">
+      <label title="{{localize 'SD.ConcentrationHint'}}"><input type="checkbox" name="system.concentration"
+             {{#if system.concentration}}checked{{/if}}
+             {{#unless isEditable}}disabled{{/unless}} />
+        {{localize "SD.Concentration"}}</label>
+    </div>
+    {{/if}}
   </div>
 
   <div class="subsection-block">

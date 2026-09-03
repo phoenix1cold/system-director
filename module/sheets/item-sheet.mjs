@@ -3214,7 +3214,14 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   static async _onToggleEquipped(event) {
     event?.preventDefault?.();
     const doc = this.document;
-    if (doc?.type !== "inventory" || !doc.system?.equippable) return;
+    if (doc?.type !== "inventory") return;
+    if (!doc.system?.equippable) {
+      const msg = game.i18n?.format?.("SD.NotEquippableHint", { name: doc.name });
+      ui.notifications?.warn((!msg || msg === "SD.NotEquippableHint")
+        ? `"${doc.name}" is not marked Equippable. Open the Details tab and tick Equippable.`
+        : msg);
+      return;
+    }
     const next = !doc.system.equipped;
     if (next && typeof doc.canEquip === "function") {
       const { ok, reason } = await doc.canEquip();

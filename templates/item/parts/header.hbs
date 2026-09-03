@@ -23,6 +23,7 @@
     <button type="button" data-action="openBuilder" title="Sheet Builder" aria-label="Sheet Builder"><i class="fas fa-grid-2"></i></button>
     <button type="button" class="sd-sheet-blueprint-button" data-action="openSheetTriggers" title="Item Blueprint" aria-label="Item Blueprint"><i class="fas fa-diagram-project"></i></button>
     <button type="button" data-action="openDatabase" title="Database values" aria-label="Database values"><i class="fas fa-database"></i></button>
+    <button type="button" data-action="openEffectApplier" title="Effect Applier" aria-label="Effect Applier"><i class="fas fa-wand-magic-sparkles"></i></button>
     {{#if isEditable}}<button type="button" data-action="toggleEditMode" title="Toggle edit mode" aria-label="Toggle edit mode"><i class="fas fa-pen-ruler"></i></button>{{/if}}
     {{#if isEditable}}{{#if isInventory}}{{#if system.equippable}}
     <button type="button" data-action="toggleEquipped" title="{{#if system.equipped}}{{localize 'SD.Unequip'}}{{else}}{{localize 'SD.Equip'}}{{/if}}" aria-label="Toggle equipped"><i class="fas fa-{{#if system.equipped}}shield-halved{{else}}shield{{/if}}"></i></button>

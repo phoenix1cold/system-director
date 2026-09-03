@@ -11043,11 +11043,38 @@ export class FormulaGraph {
         comments: this.comments.map(c => this._serialiseComment(c))
       };
       const compiledStr = this.compile();
-      let compiledObj = {};
-      try { compiledObj = JSON.parse(compiledStr); } catch { compiledObj = {}; }
-      const payload = (compiledObj && compiledObj._trigger === "multi")
-        ? compiledObj
-        : {};
+      let compiledObj = null;
+      try { compiledObj = JSON.parse(compiledStr); } catch { compiledObj = null; }
+      // `compile()` returns different shapes depending on the graph content:
+      //   { _trigger:"multi", _events:{…} }        – events (optionally + onClick)
+      //   { _trigger:"onClick", actions:[…] }      – ONLY a Use / On Click entry
+      //   { _trigger:"macrosOnly", _macros:{…} }   – only macro inputs
+      //   [ … ] or "0"                             – bare action list / empty
+      // Only the "multi" shape used to survive here, so an item whose graph
+      // contained just the Use / On Click entry silently lost every action on
+      // save: `sdTriggerGraph._events.onClick` stayed empty and `Item#use()`
+      // fell through to the plain chat card. Normalise every shape into the
+      // multi payload the runtime reads.
+      const payload = { _trigger: "multi", _events: {} };
+      const _asOnClick = (actions) => ({ hook: "onClick", data: {}, actions });
+      if (Array.isArray(compiledObj)) {
+        if (compiledObj.length) payload._events.onClick = _asOnClick(compiledObj);
+      } else if (compiledObj && typeof compiledObj === "object") {
+        if (compiledObj._trigger === "multi") {
+          payload._events = (compiledObj._events && typeof compiledObj._events === "object") ? compiledObj._events : {};
+          if (compiledObj._macros) payload._macros = compiledObj._macros;
+        } else if (compiledObj._trigger === "onClick") {
+          const acts = Array.isArray(compiledObj.actions) ? compiledObj.actions : [];
+          if (acts.length) payload._events.onClick = _asOnClick(acts);
+        } else if (compiledObj._trigger === "macrosOnly") {
+          if (compiledObj._macros) payload._macros = compiledObj._macros;
+        }
+      }
+      // The multi shape stores onClick as a bare array; the runtime accepts both,
+      // but normalising keeps saved documents consistent and easy to inspect.
+      if (Array.isArray(payload._events.onClick)) {
+        payload._events.onClick = _asOnClick(payload._events.onClick);
+      }
       payload._graphData = data;
       // Foundry recursively merges ObjectField updates.  Writing a newly
       // compiled graph without first deleting the old runtime keys therefore

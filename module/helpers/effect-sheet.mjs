@@ -58,7 +58,7 @@ export class SDEffectSheet extends DocumentSheetV2 {
     classes: ["sd", "sd-effect-sheet"],
     tag: "div",
     window: { icon: "fa-solid fa-sparkles", resizable: true, minimizable: true },
-    position: { width: 640, height: 640 },
+    position: { width: 680, height: 720 },
     sheetConfig: false
   };
 
@@ -96,72 +96,151 @@ export class SDEffectSheet extends DocumentSheetV2 {
     const defs = getValueDefinitions();
     const canEdit = this.document?.isOwner !== false;
     const lock = canEdit ? "" : "disabled";
-
     const noVars = !defs.length;
+
+    const roundsLabel  = t("SD.Effects.Rounds", "Rounds");
+    const secondsLabel = t("SD.Effects.Seconds", "Seconds");
+    const duration = d.rounds
+      ? `${d.rounds} ${roundsLabel.toLowerCase()}`
+      : (d.seconds ? `${d.seconds} ${secondsLabel.toLowerCase()}` : t("SD.Effects.Permanent", "Permanent"));
+
+    const chips = [
+      d.disabled
+        ? `<span class="sd-es-chip is-off"><i class="fas fa-circle-pause"></i> ${esc(t("SD.Effects.Disabled", "Disabled"))}</span>`
+        : `<span class="sd-es-chip is-on"><i class="fas fa-circle-play"></i> ${esc(t("SD.Effects.Active", "Active"))}</span>`,
+      `<span class="sd-es-chip"><i class="fas fa-hourglass-half"></i> ${esc(duration)}</span>`,
+      `<span class="sd-es-chip is-accent"><i class="fas fa-sliders"></i> ${d.changes.length} ${esc(t("SD.Effects.Changes", "Changes"))}</span>`,
+      d.transfer
+        ? `<span class="sd-es-chip"><i class="fas fa-user-shield"></i> ${esc(t("SD.Effects.Transfer", "Transfer to actor"))}</span>`
+        : ""
+    ].filter(Boolean).join("");
 
     const rows = d.changes.map((c, i) => {
       const options = [
         `<option value="">${esc(t("SD.Effects.SelectVariable", "Select variable…"))}</option>`,
-        ...defs.map(v => `<option value="${esc(v.id)}" ${c.variableId === v.id ? "selected" : ""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`)
+        ...defs.map(v => `<option value="${esc(v.id)}" ${c.variableId === v.id ? "selected" : ""}>${esc(v.name)} · ${esc(v.type)}</option>`)
       ].join("");
-      const legacy = (!c.variableId && c.legacyKey)
-        ? `<span class="sd-es-legacy" title="${esc(t("SD.Effects.LegacyKeyHint", "This change still points at a raw path. Pick a variable to migrate it."))}"><i class="fas fa-triangle-exclamation"></i> ${esc(c.legacyKey)}</span>`
-        : "";
+      let meta = "";
+      if (c.variableId) {
+        const path = valueStoragePath(c.variableId);
+        meta = `<span class="sd-es-storage" title="${esc(path)}">${esc(path)}</span>`;
+      } else if (c.legacyKey) {
+        meta = `<span class="sd-es-legacy" title="${esc(t("SD.Effects.LegacyKeyHint", "This change still points at a raw path. Pick a variable to migrate it."))}"><i class="fas fa-triangle-exclamation"></i> ${esc(c.legacyKey)}</span>`;
+      }
       return `<div class="sd-es-change" data-index="${i}">
-        <label class="sd-es-var"><span>${esc(t("SD.Effects.Variable", "Database variable"))}</span>
-          <select data-change="variableId" ${lock}>${options}</select>${legacy}
+        <label>
+          <span class="sd-es-colname">${esc(t("SD.Effects.Variable", "Database variable"))}</span>
+          <select data-change="variableId" ${lock}>${options}</select>${meta}
         </label>
-        <label class="sd-es-mode"><span>${esc(t("SD.Effects.Mode", "Mode"))}</span>
+        <label>
+          <span class="sd-es-colname">${esc(t("SD.Effects.Mode", "Mode"))}</span>
           <select data-change="mode" ${lock}>${SD_EFFECT_MODES.map(m => `<option value="${m.value}" ${Number(c.mode) === m.value ? "selected" : ""}>${esc(t(m.label, m.fallback))}</option>`).join("")}</select>
         </label>
-        <label class="sd-es-value"><span>${esc(t("SD.Effects.Value", "Value"))}</span>
-          <input data-change="value" value="${esc(c.value)}" placeholder="${esc(t("SD.Effects.ValuePlaceholder", "Number or formula"))}" ${lock}>
+        <label>
+          <span class="sd-es-colname">${esc(t("SD.Effects.Value", "Value"))}</span>
+          <input type="text" data-change="value" value="${esc(c.value)}" placeholder="${esc(t("SD.Effects.ValuePlaceholder", "Number or formula"))}" ${lock}>
         </label>
-        <label class="sd-es-priority"><span>${esc(t("SD.Effects.Priority", "Priority"))}</span>
+        <label>
+          <span class="sd-es-colname">${esc(t("SD.Effects.Priority", "Priority"))}</span>
           <input type="number" data-change="priority" value="${Number(c.priority ?? 20)}" ${lock}>
         </label>
         <button type="button" class="sd-es-icon danger" data-action="removeChange" title="${esc(t("SD.Effects.RemoveChange", "Remove change"))}" ${lock}><i class="fas fa-trash"></i></button>
       </div>`;
     }).join("");
 
-    const empty = `<div class="sd-es-empty"><i class="fas fa-code-branch"></i>
-      <span>${esc(noVars
-        ? t("SD.Effects.NoVariables", "No Database variables yet. Add one in Settings → Configure System → Database.")
-        : t("SD.Effects.NoChanges", "No changes yet. Add one below."))}</span></div>`;
+    const empty = noVars
+      ? `<div class="sd-es-empty"><i class="fas fa-database"></i>
+          <b>${esc(t("SD.Effects.NoVariablesTitle", "No Database variables yet"))}</b>
+          <span>${esc(t("SD.Effects.NoVariables", "No Database variables yet. Add one in Settings → Configure System → Database."))}</span>
+        </div>`
+      : `<div class="sd-es-empty"><i class="fas fa-sliders"></i>
+          <b>${esc(t("SD.Effects.NoChangesTitle", "No changes yet"))}</b>
+          <span>${esc(t("SD.Effects.NoChangesHint", "Add a change to make this effect modify a Database variable."))}</span>
+        </div>`;
+
+    const head = rows
+      ? `<div class="sd-es-change-head">
+          <span>${esc(t("SD.Effects.Variable", "Database variable"))}</span>
+          <span>${esc(t("SD.Effects.Mode", "Mode"))}</span>
+          <span>${esc(t("SD.Effects.Value", "Value"))}</span>
+          <span>${esc(t("SD.Effects.Priority", "Priority"))}</span>
+          <span></span>
+        </div>`
+      : "";
 
     return `<div class="sd-es-root">
-      <section class="sd-es-card">
-        <div class="sd-es-head">
-          <img class="sd-es-icon-preview" src="${esc(d.img)}" alt="" data-action="pickImage" title="${esc(t("SD.Effects.PickIcon", "Change icon"))}">
-          <label class="sd-es-name"><span>${esc(t("SD.Effects.Name", "Name"))}</span>
-            <input name="name" value="${esc(d.name)}" ${canEdit ? "" : "readonly"}>
-          </label>
+      <header class="sd-es-hero">
+        <button type="button" class="sd-es-avatar" data-action="pickImage" title="${esc(t("SD.Effects.PickIcon", "Change icon"))}" ${lock}>
+          <img src="${esc(d.img)}" alt="">
+          <span class="sd-es-avatar-edit"><i class="fas fa-camera"></i></span>
+        </button>
+        <div class="sd-es-hero-main">
+          <input class="sd-es-title" type="text" name="name" value="${esc(d.name)}" placeholder="${esc(t("SD.Effects.NamePlaceholder", "Effect name"))}" ${canEdit ? "" : "readonly"}>
+          <div class="sd-es-chips">${chips}</div>
         </div>
-        <label class="sd-es-desc"><span>${esc(t("SD.Effects.Description", "Description"))}</span>
-          <textarea name="description" rows="3" ${canEdit ? "" : "readonly"}>${esc(d.description)}</textarea>
-        </label>
-        <div class="sd-es-duration">
-          <label><span>${esc(t("SD.Effects.Rounds", "Rounds"))}</span><input type="number" min="0" name="rounds" value="${d.rounds}" ${lock}></label>
-          <label><span>${esc(t("SD.Effects.Seconds", "Seconds"))}</span><input type="number" min="0" name="seconds" value="${d.seconds}" ${lock}></label>
-          <label class="sd-es-toggle"><input type="checkbox" name="disabled" ${d.disabled ? "checked" : ""} ${lock}><span>${esc(t("SD.Effects.Disabled", "Disabled"))}</span></label>
-          <label class="sd-es-toggle"><input type="checkbox" name="transfer" ${d.transfer ? "checked" : ""} ${lock}><span>${esc(t("SD.Effects.Transfer", "Transfer to actor"))}</span></label>
-        </div>
-      </section>
+      </header>
 
-      <section class="sd-es-card sd-es-changes-card">
-        <header>
-          <div>
-            <span class="sd-es-eyebrow">${esc(t("SD.Effects.ChangesEyebrow", "Database variables"))}</span>
-            <h3>${esc(t("SD.Effects.Changes", "Changes"))}</h3>
+      <div class="sd-es-body">
+        <section class="sd-es-card">
+          <div class="sd-es-card-head">
+            <h3><i class="fas fa-circle-info"></i> ${esc(t("SD.Effects.Overview", "Overview"))}</h3>
           </div>
-          <button type="button" class="sd-es-add" data-action="addChange" ${noVars ? "disabled" : lock}><i class="fas fa-plus"></i> ${esc(t("SD.Effects.AddChange", "Add change"))}</button>
-        </header>
-        <div class="sd-es-changes">${rows || empty}</div>
-      </section>
+          <div class="sd-es-card-body">
+            <label class="sd-es-field">
+              <span>${esc(t("SD.Effects.Description", "Description"))}</span>
+              <textarea name="description" rows="3" placeholder="${esc(t("SD.Effects.DescriptionPlaceholder", "What does this effect do?"))}" ${canEdit ? "" : "readonly"}>${esc(d.description)}</textarea>
+            </label>
+            <div class="sd-es-duration">
+              <label class="sd-es-field">
+                <span>${esc(roundsLabel)}</span>
+                <input type="number" min="0" name="rounds" value="${d.rounds}" ${lock}>
+                <em class="sd-es-unit">${esc(t("SD.Effects.UnitRounds", "rd"))}</em>
+              </label>
+              <label class="sd-es-field">
+                <span>${esc(secondsLabel)}</span>
+                <input type="number" min="0" name="seconds" value="${d.seconds}" ${lock}>
+                <em class="sd-es-unit">${esc(t("SD.Effects.UnitSeconds", "sec"))}</em>
+              </label>
+            </div>
+            <div class="sd-es-switches">
+              <label class="sd-es-switch">
+                <input type="checkbox" name="disabled" ${d.disabled ? "checked" : ""} ${lock}>
+                <span class="sd-es-track"></span>
+                <span class="sd-es-switch-text">
+                  <b>${esc(t("SD.Effects.Disabled", "Disabled"))}</b>
+                  <small>${esc(t("SD.Effects.DisabledHint", "Keeps the effect on the document but stops applying it."))}</small>
+                </span>
+              </label>
+              <label class="sd-es-switch">
+                <input type="checkbox" name="transfer" ${d.transfer ? "checked" : ""} ${lock}>
+                <span class="sd-es-track"></span>
+                <span class="sd-es-switch-text">
+                  <b>${esc(t("SD.Effects.Transfer", "Transfer to actor"))}</b>
+                  <small>${esc(t("SD.Effects.TransferHint", "Copies the effect onto the owning actor instead of staying on the item."))}</small>
+                </span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="sd-es-card">
+          <div class="sd-es-card-head">
+            <div>
+              <span class="sd-es-eyebrow">${esc(t("SD.Effects.ChangesEyebrow", "Database variables"))}</span>
+              <h3>${esc(t("SD.Effects.Changes", "Changes"))} <span class="sd-es-count">${d.changes.length}</span></h3>
+            </div>
+            <button type="button" class="sd-es-add" data-action="addChange" ${noVars ? "disabled" : lock}><i class="fas fa-plus"></i> ${esc(t("SD.Effects.AddChange", "Add change"))}</button>
+          </div>
+          <div class="sd-es-changes">${head}${rows || empty}</div>
+        </section>
+      </div>
 
       <footer class="sd-es-footer">
-        <span class="sd-es-hint"><i class="fas fa-info-circle"></i> ${esc(t("SD.Effects.StorageHint", "Changes are written to system.values.<variable>."))}</span>
-        <button type="button" class="sd-es-save primary" data-action="save" ${lock}><i class="fas fa-floppy-disk"></i> ${esc(t("SD.Effects.Save", "Save changes"))}</button>
+        <span class="sd-es-hint"><i class="fas fa-database"></i> ${esc(t("SD.Effects.StorageHintShort", "Changes are written to"))} <code>system.values.&lt;variable&gt;</code></span>
+        <div class="sd-es-actions">
+          <button type="button" class="sd-es-btn" data-action="cancel">${esc(t("SD.Cancel", "Cancel"))}</button>
+          <button type="button" class="sd-es-btn primary" data-action="save" ${lock}><i class="fas fa-floppy-disk"></i> ${esc(t("SD.Effects.Save", "Save changes"))}</button>
+        </div>
       </footer>
     </div>`;
   }
@@ -243,7 +322,21 @@ export class SDEffectSheet extends DocumentSheetV2 {
 
     root.querySelector('[data-action="save"]')?.addEventListener("click", (ev) => {
       ev.preventDefault();
-      this._save({ close: false });
+      this._save({ close: true });
+    });
+
+    root.querySelector('[data-action="cancel"]')?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      this._sdDraft = null;
+      this.close();
+    });
+
+    // Keep the header chips (Active / duration / change count) in sync while editing.
+    root.querySelectorAll('[name="disabled"], [name="transfer"], [name="rounds"], [name="seconds"]').forEach(el => {
+      el.addEventListener("change", async () => {
+        this._collect();
+        await this.render();
+      });
     });
 
     root.querySelector('[data-action="addChange"]')?.addEventListener("click", async (ev) => {
