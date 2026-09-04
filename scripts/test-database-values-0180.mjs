@@ -12,7 +12,7 @@ game.settings.get=()=>({database:[{id:"health",name:"Health",type:"number",scope
 assert.equal(db.readDatabaseValue(actor,"health"),7);
 
 const cfg=fs.readFileSync(new URL("../templates/config/system-config.hbs",import.meta.url),"utf8");
-assert.match(cfg,/Database/);assert.match(cfg,/Node Graph/);assert.doesNotMatch(cfg,/Resource Bars|System Paths|Attributes/);
+assert.match(cfg,/Database/);assert.doesNotMatch(cfg,/Node Graph/);assert.doesNotMatch(cfg,/Resource Bars|System Paths|Attributes/);
 const graph=fs.readFileSync(new URL("../module/builder/formula-graph.mjs",import.meta.url),"utf8");
 assert.match(graph,/get_value:/);assert.match(graph,/set_value:/);assert.match(graph,/Only Variable/);assert.match(graph,/Legacy Get Path/);
 const effects=fs.readFileSync(new URL("../module/helpers/effect-applier.mjs",import.meta.url),"utf8");

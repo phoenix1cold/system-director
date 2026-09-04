@@ -357,6 +357,11 @@ export class UIWidgetTree {
     const tree = this;
 
     const readProp = (el, key) => {
+      // A per-instance override written by a "Set <Element>" node wins: it is the
+      // imperative current value for this window only, and never touches the
+      // blueprint document.
+      const elId = el?.id ?? "";
+      if (elId && tree.state?.hasWidgetProperty?.(elId, key)) return tree.state.getWidgetProperty(elId, key);
       const binding = el?.bind?.[key];
       if (binding !== undefined && binding !== null && String(binding).trim() !== "") {
         if (typeof binding === "object" && binding.kind === "variable") return tree.state?.getVariable?.(binding.variableId);

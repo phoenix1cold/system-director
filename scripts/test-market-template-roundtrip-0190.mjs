@@ -9,5 +9,5 @@ for(const token of ["export const SHEET_TEMPLATE_FORMAT = 3","widgetVars:","widg
 // Packaging ships shared Database variables and screens the package first.
 for(const token of ['"sharedDatabases"',"PACKAGE_EXCLUDED_SETTING_KEYS","_validatePackage","_confirmPackage"])assert.ok(market.includes(token),`market packaging missing ${token}`);
 for(const token of ['"localizationLanguages"','"effectPresets"','"allowPlayerEffectApplier"','localizations:true','effectPresets:true'])assert.ok(market.includes(token),`market bridge missing ${token}`);
-assert.ok(config.includes("{{#if isGM}}"));assert.ok(config.includes("Database"));assert.ok(config.includes("Node Graph"));assert.ok(!config.includes("localizationLanguage"),"System Configuration must stay Database-only");
+assert.ok(config.includes("{{#if isGM}}"));assert.ok(config.includes("Database"));assert.ok(!config.includes("Node Graph"),"1.11.5: the settings node graph was removed");assert.ok(config.includes("localizationLanguage"),"1.11.4: the display language picker belongs to System Configuration");
 console.log("Market/template bridge with Database-only SystemConfig regression: OK");

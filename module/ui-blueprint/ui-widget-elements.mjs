@@ -858,7 +858,7 @@ define("list", {
     }
 
     const template = String(p.rowTemplate ?? "{item}");
-    const selected = api.state?.getVar?.(`${el.name ?? el.id}__index`);
+    const selected = api.state?.getVariable?.(`${el.name ?? el.id}__index`);
     rows.forEach((item, index) => {
       const label = labelOf(item);
       const text = template.replaceAll("{item}", label).replaceAll("{index}", String(index + 1));
@@ -877,7 +877,7 @@ define("list", {
         row.style.cursor = "pointer";
         row.addEventListener("click", async () => {
           const value = valueOf(item);
-          try { await api.state?.setVar?.(`${el.name ?? el.id}__index`, index); } catch {}
+          try { await api.state?.setVariable?.(`${el.name ?? el.id}__index`, index); } catch {}
           await api.commitValue(el, value, { silentEvent: true });
           api.emit(el, "click", value, { index, item, label, count: rows.length });
           api.emit(el, "change", value, { index, item, label, count: rows.length });

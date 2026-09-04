@@ -108,6 +108,7 @@ assert.doesNotMatch(read("module/data/item-inventory.mjs"), /source\.equippable 
   "the category heuristic must live behind the full-source guard");
 
 const manifest = JSON.parse(read("system.json"));
-assert.equal(manifest.version, "1.11.3");
+assert.match(manifest.version, /^1\.(11\.([3-9]|\d{2,})|(1[2-9]|[2-9]\d)\.\d+)$/,
+  `unexpected manifest version ${manifest.version}`);
 
 console.log("PASS: equip toggles keep the Equippable flag (1.11.3).");

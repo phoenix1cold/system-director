@@ -378,7 +378,6 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     actions: {
       addDatabaseValue: SystemConfig._onAddDatabaseValue,
       removeDatabaseValue: SystemConfig._onRemoveDatabaseValue,
-      editDatabaseGraph: SystemConfig._onEditDatabaseGraph,
       addAttribute:     SystemConfig._onAddAttribute,
       removeAttribute:  SystemConfig._onRemoveAttribute,
       addResource:      SystemConfig._onAddResource,
@@ -476,17 +475,35 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     });
     this.element.querySelector("[data-action='addLanguage']")?.addEventListener("click", async () => {
       if (!game.user?.isGM) return;
-      const id = await foundry.applications.api.DialogV2.prompt({
-        window:{title:"Add language"},content:'<div class="form-group"><label>Language code</label><input name="id" placeholder="de"></div>',
-        ok:{callback:(_e,b)=>String(b.form?.elements?.id?.value??"").trim().toLowerCase()}
-      }).catch(()=>"");
+      const L=key=>game.i18n.localize(`SD.Settings.${key}`);
+      const created = await foundry.applications.api.DialogV2.prompt({
+        window:{title:L("AddLanguageTitle")},
+        content:`<div class="form-group"><label>${L("LanguageCode")}</label><input name="id" placeholder="de" autofocus></div>`
+          +`<div class="form-group"><label>${L("LanguageName")}</label><input name="name" placeholder="Deutsch"></div>`
+          +`<p class="notes">${L("AddLanguageHint")}</p>`,
+        ok:{label:L("AddLanguage"),callback:(_e,b)=>({
+          id:String(b.form?.elements?.id?.value??"").trim().toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/^-+|-+$/g,""),
+          name:String(b.form?.elements?.name?.value??"").trim()
+        })}
+      }).catch(()=>null);
+      const id=created?.id;
       if (!id) return;
-      const rows=getLanguages(); if(rows.some(l=>l.id===id)) return ui.notifications?.warn?.("Language code already exists.");
-      rows.push({id,name:id.toUpperCase(),enabled:true,fallback:"base"}); await saveLanguages(rows); this.render();
+      const rows=getLanguages();
+      if(rows.some(l=>l.id===id)) return ui.notifications?.warn?.(L("LanguageExists"));
+      const name=created.name||id.toUpperCase();
+      rows.push({id,name,enabled:true,fallback:"base"});
+      await saveLanguages(rows);
+      this.render();
+      ui.notifications?.info?.(game.i18n.format("SD.Settings.LanguageAdded",{name}));
     });
     this.element.querySelectorAll("[data-remove-language]").forEach(btn=>btn.addEventListener("click",async()=>{
-      if(!game.user?.isGM||btn.dataset.removeLanguage==="base")return;
-      await saveLanguages(getLanguages().filter(l=>l.id!==btn.dataset.removeLanguage));this.render();
+      if(!game.user?.isGM)return;
+      const target=btn.dataset.removeLanguage;
+      if(target==="base")return ui.notifications?.warn?.(game.i18n.localize("SD.Settings.BaseLanguageLocked"));
+      await saveLanguages(getLanguages().filter(l=>l.id!==target));
+      try { if(game.settings.get("sd","localizationLanguage")===target) await setCurrentLanguage("base"); } catch {}
+      try { if(game.settings.get("sd","translationEditLanguage")===target) await setTranslationEditLanguage("base"); } catch {}
+      this.render();
     }));
     this.element.querySelectorAll("[data-duplicate-language]").forEach(btn=>btn.addEventListener("click",async()=>{
       if(!game.user?.isGM)return;const src=getLanguages().find(l=>l.id===btn.dataset.duplicateLanguage);if(!src)return;
@@ -495,7 +512,8 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
     this.element.querySelector("[data-action='exportLanguages']")?.addEventListener("click",()=>{
       const bundle={...exportLocalizationBundle(),sheetTemplates:game.settings.get("sd","sheetTemplates")??{},effectPresets:game.settings.get("sd","effectPresets")??{}};
-      saveDataToFile(JSON.stringify(bundle,null,2),"application/json","system-director-translations.json");
+      const save=foundry.utils?.saveDataToFile??globalThis.saveDataToFile;
+      save?.(JSON.stringify(bundle,null,2),"application/json","system-director-translations.json");
     });
     const importInput=this.element.querySelector("[data-role='importLanguagesFile']");
     this.element.querySelector("[data-action='importLanguages']")?.addEventListener("click",()=>importInput?.click());
@@ -505,8 +523,8 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         if(Array.isArray(data.languages))await saveLanguages(data.languages);
         if(data.sheetTemplates)await game.settings.set("sd","sheetTemplates",{...(game.settings.get("sd","sheetTemplates")??{}),...data.sheetTemplates});
         if(data.effectPresets)await game.settings.set("sd","effectPresets",{...(game.settings.get("sd","effectPresets")??{}),...data.effectPresets});
-        ui.notifications?.info?.("Translations imported.");this.render();
-      }catch(err){console.error(err);ui.notifications?.error?.("Invalid translation file.");}
+        ui.notifications?.info?.(game.i18n.localize("SD.Settings.TranslationsImported"));this.render();
+      }catch(err){console.error(err);ui.notifications?.error?.(game.i18n.localize("SD.Settings.TranslationsInvalid"));}
     });
   }
 
@@ -530,7 +548,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     return {
       ...base,
       isGM: !!game.user?.isGM,
-      languages: languageRows.map(l=>({...l,selected:l.id===currentLanguage(),editing:l.id===translationEditLanguage(),isBase:l.id==="base",fallbackOptions:languageRows.map(f=>({...f,selected:f.id===l.fallback}))})),
+      languages: languageRows.map(l=>({...l,selected:l.id===currentLanguage(),editing:l.id===translationEditLanguage(),isBase:l.id==="base",fallbackOptions:languageRows.filter(f=>f.id!==l.id).map(f=>({...f,selected:f.id===l.fallback}))})),
       allowPlayerEffectApplier: !!game.settings.get("sd","allowPlayerEffectApplier"),
       cfg,
       databaseEntries: normalizeValueDatabase(cfg.database).map((v,index)=>({
@@ -539,10 +557,6 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         isBoolean:v.type==="boolean",isColor:v.type==="color",isArray:v.type==="array",isObject:v.type==="object",
         scopeActor:v.scope==="actor",scopeItem:v.scope==="item",scopeBoth:v.scope==="both"
       })),
-      databaseGraph: {
-        hasGraph: !!cfg.databaseGraph?.nodes?.length,
-        nodeCount: cfg.databaseGraph?.nodes?.length ?? 0
-      },
       ai: {
         hasWorldKnowledge: worldKnowledge.trim().length > 0,
         worldKnowledgePreview: (() => {
@@ -853,23 +867,6 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const index=Number(target.dataset.index); if(!Number.isInteger(index))return;
     const cfg=this._collectFormCfg(); cfg.database=(cfg.database??[]).filter((_v,i)=>i!==index);
     await saveSettings(cfg); this.render();
-  }
-
-  static async _onEditDatabaseGraph() {
-    let FormulaGraph;
-    try { ({FormulaGraph}=await import("../builder/formula-graph.mjs")); }
-    catch(e){console.warn("SD | Failed to load Database graph",e);ui.notifications?.error?.("Could not open Database graph.");return;}
-    const app=this;
-    const prepared=app._collectFormCfg();
-    const renameMap=prepared.__variableIdRenames??{};
-    delete prepared.__variableIdRenames;
-    if(Object.keys(renameMap).length){await saveSettings(prepared);await migrateVariableIds(renameMap);applySettings(prepared);}
-    const graph=new FormulaGraph(null,null,null,null,null,{
-      mode:"database",
-      customLoad:()=>app._collectFormCfg().databaseGraph??{nodes:[],edges:[],comments:[]},
-      customSave:async(data)=>{const fresh=app._collectFormCfg();fresh.databaseGraph=data;await saveSettings(fresh);app.render();ui.notifications?.info?.("Database graph saved.");}
-    });
-    graph.open();
   }
 
   static async _onSaveAndClose(event, target) {

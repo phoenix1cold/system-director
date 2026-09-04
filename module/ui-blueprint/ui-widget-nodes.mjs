@@ -56,6 +56,20 @@ function unquote(value) {
   return s;
 }
 
+/**
+ * Read a UI variable, falling back to the value of a placed element with that
+ * name. `UIWidgetState` never had a `getVar()` method, so the previous calls
+ * silently resolved to `undefined` and every Get node returned an empty value.
+ */
+function readVar(rec, name) {
+  const state = rec?.state;
+  const key = String(name ?? "");
+  if (!state || !key) return undefined;
+  const direct = state.getVariable?.(key);
+  if (direct !== undefined) return direct;
+  return state.getWidgetProperty?.(key, "value");
+}
+
 function resolveActor(ref, fallbackDoc) {
   const fallback = () => {
     if (fallbackDoc?.documentName === "Actor") return fallbackDoc;
@@ -168,7 +182,7 @@ export function installFormulaTokens() {
         const instanceId = unarg(instanceRef);
         const name = unarg(nameRef ?? "");
         const rec = resolveInstance({ instanceId, widgetKey: instanceId });
-        const raw = rec?.state?.getVar?.(name);
+        const raw = readVar(rec, name);
         if (raw === undefined) return "";
         if (pin === "text") return String(raw ?? "");
         if (pin === "number") { const n = Number(raw); return Number.isFinite(n) ? n : 0; }
@@ -186,7 +200,7 @@ export function installFormulaTokens() {
         const instanceId = unarg(instanceRef);
         const name = unarg(nameRef ?? "");
         const rec = resolveInstance({ instanceId, widgetKey: instanceId });
-        const raw = rec?.state?.getVar?.(name);
+        const raw = readVar(rec, name);
         let items = [];
         if (Array.isArray(raw)) items = raw;
         else {
@@ -195,7 +209,7 @@ export function installFormulaTokens() {
           if (!items.length && text) items = text.split(/[,\n]/).map(entry => entry.trim()).filter(Boolean);
         }
         const labelOf = item => (item && typeof item === "object") ? String(item.name ?? item.label ?? item.value ?? "") : String(item ?? "");
-        const index = Number(rec?.state?.getVar?.(`${name}__index`) ?? -1);
+        const index = Number(readVar(rec, `${name}__index`) ?? -1);
         if (pin === "count") return items.length;
         if (pin === "csv") return items.map(labelOf).join(", ");
         if (pin === "first") return items[0] ?? "";
@@ -312,7 +326,7 @@ export function installActionHandlers() {
     let next = items;
     if (mode !== "set") {
       const rec = resolveInstance({ instanceId, widgetKey: key });
-      const current = rec?.state?.getVar?.(name);
+      const current = readVar(rec, name);
       const list = Array.isArray(current) ? [...current] : [];
       if (mode === "append") next = [...list, ...items];
       else if (mode === "prepend") next = [...items, ...list];

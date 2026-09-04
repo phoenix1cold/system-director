@@ -36,13 +36,34 @@ export function registerLocalizationSettings() {
     name:"Languages",scope:"world",config:false,type:Array,default:clone(DEFAULT_LANGUAGES),
     onChange:()=>rerenderLocalizedWindows()
   });
+  // Visible in Foundry's own settings list as well, so every player can pick the
+  // language their widgets, effects and dialogues are displayed in.
   game.settings.register("sd","localizationLanguage",{
-    name:"Language",scope:"client",config:false,type:String,default:"base",
-    onChange:()=>rerenderLocalizedWindows()
+    name:"SD.Settings.DisplayLanguage",hint:"SD.Settings.DisplayLanguageHint",
+    scope:"client",config:true,type:String,default:"base",choices:languageChoices(),
+    onChange:()=>{refreshLanguageChoices();rerenderLocalizedWindows();}
   });
   game.settings.register("sd","translationEditLanguage",{
-    name:"Translation editing language",scope:"client",config:false,type:String,default:"base"
+    name:"SD.Settings.TranslationEditLanguage",hint:"SD.Settings.TranslationEditLanguageHint",
+    scope:"client",config:false,type:String,default:"base"
   });
+  refreshLanguageChoices();
+}
+
+/** Choice map for the display-language picker, keyed by language id. */
+export function languageChoices({enabledOnly=true}={}) {
+  const out={};
+  for (const row of getLanguages({enabledOnly})) out[row.id]=`${row.name} [${row.id}]`;
+  if (!Object.keys(out).length) out.base="Base [base]";
+  return out;
+}
+
+/** Keep the picker in sync after languages are created, renamed or removed. */
+export function refreshLanguageChoices() {
+  try {
+    const config=game.settings?.settings?.get?.("sd.localizationLanguage");
+    if (config) config.choices=languageChoices();
+  } catch {}
 }
 
 export function getLanguages({ enabledOnly=false }={}) {
@@ -64,7 +85,11 @@ export function translationEditLanguage() {
 }
 export async function setCurrentLanguage(id) { return game.settings.set("sd","localizationLanguage",safeId(id)||"base"); }
 export async function setTranslationEditLanguage(id) { return game.settings.set("sd","translationEditLanguage",safeId(id)||"base"); }
-export async function saveLanguages(rows) { return game.settings.set("sd","localizationLanguages",normalizeLanguages(rows)); }
+export async function saveLanguages(rows) {
+  const saved=await game.settings.set("sd","localizationLanguages",normalizeLanguages(rows));
+  refreshLanguageChoices();
+  return saved;
+}
 
 function languageChain(lang=currentLanguage()) {
   const map=new Map(getLanguages().map(l=>[l.id,l]));
@@ -130,9 +155,30 @@ export function languageOptions({enabledOnly=false,selected=currentLanguage()}={
   return getLanguages({enabledOnly}).map(l=>({ ...l, selected:l.id===selected }));
 }
 
+/**
+ * Every open window that renders localized content. Foundry v13+ keeps
+ * ApplicationV2 windows in a Map (`foundry.applications.instances`), which the
+ * old `Object.values()` lookup silently returned as an empty list — switching
+ * the language then changed nothing on screen until a sheet was reopened.
+ */
+export function localizedWindowInstances() {
+  const apps=new Set();
+  const collect=source=>{
+    if (!source) return;
+    if (typeof source.values==="function") { for (const app of source.values()) if (app) apps.add(app); return; }
+    for (const app of Object.values(source)) if (app) apps.add(app);
+  };
+  collect(globalThis.foundry?.applications?.instances);
+  collect(globalThis.ui?.windows);
+  return [...apps];
+}
+
 export function rerenderLocalizedWindows() {
-  for (const app of Object.values(ui?.windows ?? foundry.applications?.instances ?? {})) {
-    try { app?.render?.(); } catch {}
+  for (const app of localizedWindowInstances()) {
+    try {
+      if (app.rendered===false) continue;
+      app.render?.();
+    } catch {}
   }
   try { Hooks.callAll("sdLanguageChanged",currentLanguage()); } catch {}
 }

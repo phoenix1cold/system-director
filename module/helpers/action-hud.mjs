@@ -157,6 +157,8 @@ export function registerActionHudSettings() {
 }
 
 export function mountActionHudHooks() {
+  // Follow the display language immediately instead of waiting for a reload.
+  Hooks.on("sdLanguageChanged", () => { try { SDActionHUD.refresh(); } catch(_) {} });
   Hooks.on("controlToken", (token, controlled) => {
     try {
       if (controlled) SDActionHUD.showFor(token);

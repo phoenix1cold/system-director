@@ -6,6 +6,7 @@ import { MODULE_ID, SETTINGS, AUDIENCES } from "./ui-widget-const.mjs";
 import { UIWidgetItemData, installUIWidgetIndexHooks, rebuildUIWidgetIndex, findUIWidgetItem, listUIWidgetItems } from "./ui-widget-document.mjs";
 import { SDUIWidgetEditor } from "./ui-widget-editor.mjs";
 import { initUINodes } from "./ui-widget-nodes.mjs";
+import { initUIElementNodes } from "./ui-element-nodes.mjs";
 import { SDUIWidgetApp } from "./ui-widget-app.mjs";
 import { loadWidgetRenderer } from "./ui-widget-runtime.mjs";
 import {
@@ -105,6 +106,7 @@ Hooks.once("ready", async () => {
   installUIWidgetIndexHooks();
   rebuildUIWidgetIndex();
   initUINodes();
+  initUIElementNodes();
   initBlueprintNodes();
 
   setNetHandlers({

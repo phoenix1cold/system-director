@@ -80,14 +80,69 @@
 
     <div class="config-section">
       <h3 class="config-section-title">
-        <i class="fas fa-diagram-project"></i> Node Graph
-        <span class="section-hint">One system graph operating on Database variables</span>
-        <button type="button" class="config-add-btn" data-action="editDatabaseGraph"><i class="fas fa-diagram-project"></i> Open Graph{{#if databaseGraph.hasGraph}} ({{databaseGraph.nodeCount}}){{/if}}</button>
+        <i class="fas fa-language"></i> {{localize "SD.Settings.Localization"}}
+        <span class="section-hint">{{localize "SD.Settings.LocalizationHint"}}</span>
+        <button type="button" class="config-add-btn" data-action="addLanguage"><i class="fas fa-plus"></i> {{localize "SD.Settings.AddLanguage"}}</button>
       </h3>
-      <p class="section-hint-text"><i class="fas fa-info-circle"></i> The graph uses typed variables. Legacy path nodes are compatibility-only and do not appear in the library.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--sd-text-2);display:flex;align-items:center;gap:5px"><i class="fas fa-globe"></i> {{localize "SD.Settings.DisplayLanguage"}}</label>
+          <select name="localizationLanguage">
+            {{#each languages as |l|}}{{#if l.enabled}}<option value="{{l.id}}" {{#if l.selected}}selected{{/if}}>{{l.name}} [{{l.id}}]</option>{{/if}}{{/each}}
+          </select>
+          <span class="section-hint">{{localize "SD.Settings.DisplayLanguageHint"}}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--sd-text-2);display:flex;align-items:center;gap:5px"><i class="fas fa-pen-to-square"></i> {{localize "SD.Settings.TranslationEditLanguage"}}</label>
+          <select name="translationEditLanguage">
+            {{#each languages as |l|}}<option value="{{l.id}}" {{#if l.editing}}selected{{/if}}>{{l.name}} [{{l.id}}]</option>{{/each}}
+          </select>
+          <span class="section-hint">{{localize "SD.Settings.TranslationEditLanguageHint"}}</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:86px minmax(120px,1.4fr) minmax(110px,1fr) 74px 74px 66px;gap:6px;align-items:center;font-size:10px;color:var(--sd-text-3);padding:0 4px 5px">
+        <span>{{localize "SD.Settings.LanguageCode"}}</span><span>{{localize "SD.Settings.LanguageName"}}</span><span>{{localize "SD.Settings.LanguageFallback"}}</span><span>{{localize "SD.Settings.LanguageEnabled"}}</span><span>{{localize "SD.Settings.LanguagePrimary"}}</span><span></span>
+      </div>
+      {{#each languages as |l|}}
+      <div class="sd-language-row" data-language-id="{{l.id}}" style="display:grid;grid-template-columns:86px minmax(120px,1.4fr) minmax(110px,1fr) 74px 74px 66px;gap:6px;align-items:center;margin-bottom:6px;padding:6px;border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg-2,rgba(255,255,255,.02))">
+        <input value="{{l.id}}" readonly title="{{localize 'SD.Settings.LanguageCode'}}" style="font-family:monospace;color:var(--sd-accent);background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;padding:4px 6px;min-width:0">
+        <input data-language-name value="{{l.name}}" placeholder="{{localize 'SD.Settings.LanguageName'}}">
+        <select data-language-fallback {{#if l.isBase}}disabled{{/if}} title="{{localize 'SD.Settings.LanguageFallback'}}">
+          {{#each l.fallbackOptions as |f|}}<option value="{{f.id}}" {{#if f.selected}}selected{{/if}}>{{f.name}} [{{f.id}}]</option>{{/each}}
+        </select>
+        <label style="display:flex;align-items:center;justify-content:center"><input type="checkbox" data-language-enabled {{#if l.enabled}}checked{{/if}} {{#if l.isBase}}disabled{{/if}} title="{{localize 'SD.Settings.LanguageEnabled'}}"></label>
+        <label style="display:flex;align-items:center;justify-content:center"><input type="radio" name="sdPrimaryLanguage" data-language-primary {{#if l.primary}}checked{{/if}} title="{{localize 'SD.Settings.LanguagePrimary'}}"></label>
+        <div style="display:flex;gap:4px;justify-content:flex-end">
+          <button type="button" class="config-add-btn" data-duplicate-language="{{l.id}}" title="{{localize 'SD.Settings.DuplicateLanguage'}}"><i class="fas fa-clone"></i></button>
+          {{#unless l.isBase}}<button type="button" class="config-remove-btn" data-remove-language="{{l.id}}" title="{{localize 'SD.Settings.RemoveLanguage'}}"><i class="fas fa-trash"></i></button>{{/unless}}
+        </div>
+      </div>
+      {{/each}}
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 2px">
+        <button type="button" class="config-add-btn" data-action="addLanguage"><i class="fas fa-plus"></i> {{localize "SD.Settings.AddLanguage"}}</button>
+        <button type="button" class="config-add-btn" data-action="exportLanguages"><i class="fas fa-download"></i> {{localize "SD.Settings.ExportTranslations"}}</button>
+        <button type="button" class="config-add-btn" data-action="importLanguages"><i class="fas fa-upload"></i> {{localize "SD.Settings.ImportTranslations"}}</button>
+        <input type="file" accept="application/json" data-role="importLanguagesFile" style="display:none">
+      </div>
+      <p class="section-hint-text"><i class="fas fa-info-circle"></i> {{localize "SD.Settings.BaseLanguageNote"}}</p>
     </div>
     {{else}}
-    <div class="config-section"><p>Only the GM can configure the Database and system graph.</p></div>
+    <div class="config-section">
+      <h3 class="config-section-title">
+        <i class="fas fa-language"></i> {{localize "SD.Settings.Localization"}}
+        <span class="section-hint">{{localize "SD.Settings.DisplayLanguageHint"}}</span>
+      </h3>
+      <div style="display:flex;flex-direction:column;gap:4px;max-width:340px">
+        <label style="font-size:11px;color:var(--sd-text-2);display:flex;align-items:center;gap:5px"><i class="fas fa-globe"></i> {{localize "SD.Settings.DisplayLanguage"}}</label>
+        <select name="localizationLanguage">
+          {{#each languages as |l|}}{{#if l.enabled}}<option value="{{l.id}}" {{#if l.selected}}selected{{/if}}>{{l.name}} [{{l.id}}]</option>{{/if}}{{/each}}
+        </select>
+      </div>
+    </div>
+    <div class="config-section"><p>Only the GM can configure the Database.</p></div>
     {{/if}}
   </div>
   <footer class="config-footer">

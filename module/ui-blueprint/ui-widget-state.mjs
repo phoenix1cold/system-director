@@ -145,6 +145,26 @@ export class UIWidgetState {
     return value === undefined ? fallback : value;
   }
 
+  /** True when a node (or macro) wrote a per-instance override for this property. */
+  hasWidgetProperty(ref, property = "value") {
+    const widget = this.widgetDef(ref);
+    const id = widget?.id ?? String(ref);
+    const runtime = this._widgets[id];
+    return !!runtime && Object.hasOwn(runtime, property);
+  }
+
+  /** Drop a per-instance override so the designed value / binding applies again. */
+  clearWidgetProperty(ref, property = "value", { emit = true } = {}) {
+    const widget = this.widgetDef(ref);
+    const id = widget?.id ?? String(ref);
+    const runtime = this._widgets[id];
+    if (!runtime || !Object.hasOwn(runtime, property)) return false;
+    const previous = runtime[property];
+    delete runtime[property];
+    if (emit) this._notify({ kind: "widget", widgetId: id, property, value: this.getWidgetProperty(id, property), previous });
+    return true;
+  }
+
   async setWidgetProperty(ref, property = "value", value, { emit = true } = {}) {
     const widget = this.widgetDef(ref);
     const id = widget?.id ?? String(ref);

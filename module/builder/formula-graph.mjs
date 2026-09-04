@@ -11151,7 +11151,7 @@ export class FormulaGraph {
     const actor  = isItem ? (doc.parent ?? doc.actor ?? null) : (doc ?? null);
     const self   = doc ?? null;
 
-    const idx = { slots:[], ownedItems:[], effects:[], widgets:[], invItemSlots:[] };
+    const idx = { slots:[], ownedItems:[], effects:[], widgets:[], invItemSlots:[], uiElements:[] };
 
     const _indexItemSlots = (itemData, displayName, sourceId, depth = 0, slotPath = null) => {
       if (depth > 5) return;
@@ -11219,6 +11219,30 @@ export class FormulaGraph {
     _indexDoc(self);
     if (actor && actor !== self) _indexDoc(actor);
     for (const item of (actor?.items ?? [])) _indexDoc(item);
+
+    // UI Blueprint: the elements actually placed in this blueprint, so the
+    // per-element "Get/Set <Element>" nodes can offer a real dropdown instead of
+    // asking for a hand typed name.
+    const _collectUiElements = (item, withTitle = false) => {
+      const list = item?.system?.elements;
+      if (!Array.isArray(list)) return;
+      const title = String(item?.name ?? item?.system?.title ?? "");
+      for (const el of list) {
+        if (!el?.id) continue;
+        const name = String(el.name || el.id);
+        idx.uiElements.push({
+          id: el.id,
+          key: el.id,
+          name,
+          type: String(el.type ?? ""),
+          label: withTitle && title ? `${name} - ${title}` : name
+        });
+      }
+    };
+    if (self?.type === "uiwidget") _collectUiElements(self);
+    else for (const item of (globalThis.game?.items ?? [])) {
+      if (item?.type === "uiwidget") _collectUiElements(item, true);
+    }
 
     return idx;
   }
@@ -14511,6 +14535,40 @@ export class FormulaGraph {
         rawInp.value=(cur && !known(cur))?cur:"";
         rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
         rawInp.title=field.hint??"Type a widget name or key. A connected Widget pin overrides this field.";
+        rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
+        rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._updatePreview(); });
+        sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; rawInp.value=""; this._updatePreview(); });
+        container.appendChild(rawInp);
+      }
+      wrap.appendChild(container); return wrap;
+    }
+
+    if(field.type==="ui-element-picker"){
+      const cur=node.data[field.key]??field.default??"";
+      const all=idx.uiElements??[];
+      // `field.elementType` narrows the list to the node's own element type. When
+      // the blueprint has none of that type we fall back to the full list rather
+      // than showing an empty dropdown.
+      const wantType=String(field.elementType??"").trim();
+      const typed=wantType?all.filter(e=>String(e.type??"")===wantType):all;
+      const list=(wantType&&!typed.length)?all:typed;
+      const known=k=>!!list.find(e=>e.id===k);
+      const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0";
+      const sel=document.createElement("select"); sel.style.cssText=SI;
+      sel.title=wantType?`Pick a "${wantType}" element placed in this UI Widget`:"UI Widget element - auto-indexed from the blueprint";
+      { const o=document.createElement("option"); o.value=""; o.textContent=list.length?"- pick element -":"- no element placed -"; if(!cur)o.selected=true; sel.appendChild(o); }
+      for(const e of list){ const o=document.createElement("option"); o.value=e.id; o.textContent=`${e.label??e.name} [${e.type}]`; if(e.id===cur)o.selected=true; sel.appendChild(o); }
+      if(cur && !known(cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (by name)"; o.selected=true; sel.appendChild(o); }
+      sel.addEventListener("mousedown",ev=>ev.stopPropagation());
+      container.appendChild(sel);
+      if(field.allowManual===false){
+        sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; this._updatePreview(); });
+      } else {
+        // Optional by-name entry. The node's "Element" pin still wins at runtime.
+        const rawInp=document.createElement("input"); rawInp.type="text"; rawInp.placeholder="or type element name...";
+        rawInp.value=(cur && !known(cur))?cur:"";
+        rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
+        rawInp.title=field.hint??"Type an element name or id. A connected Element pin overrides this field.";
         rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
         rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._updatePreview(); });
         sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; rawInp.value=""; this._updatePreview(); });
