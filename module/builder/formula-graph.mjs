@@ -384,7 +384,7 @@ export const NODE_DEFS = {
     ],
     fields:[
       {key:"key",label:"Sheet Widget",type:"widget-picker",default:""},
-      {key:"elementKey",label:"Element Key (optional)",type:"text",default:""},
+      {key:"elementKey",label:"Element Key (optional)",type:"widget-element-picker",default:"",widgetField:"key",allowManual:true,hint:"Blank = any element. Attribute Group lists its Database variables, Widget Builder its elements."},
       {key:"event",label:"Event",type:"select",default:"click",options:[
         {value:"click",label:"On Click"},
         {value:"change",label:"On Change"},
@@ -11203,11 +11203,29 @@ export class FormulaGraph {
       }
     }
 
+    // Sub-elements a widget can fire events for / be read by element key.
+    const _widgetElementKeys = (w) => {
+      const out = [];
+      const push = (key, label) => {
+        const id = String(key ?? "").trim();
+        if (!id || out.some(entry => entry.key === id)) return;
+        out.push({ key: id, label: String(label || id) });
+      };
+      const raw = Array.isArray(w?.attributeKeys) ? w.attributeKeys : String(w?.attributeKeys ?? "").split(",");
+      for (const entry of raw) {
+        const id = String(entry ?? "").trim();
+        if (!id) continue;
+        const def = getValueDefinition(id) ?? getValueDefinition(variableIdForLegacyPath(id));
+        push(def?.id ?? id, def ? `${def.name} [${def.id}]` : id);
+      }
+      for (const el of (w?.elements ?? [])) push(el?.name ?? el?.id, el?.name ?? el?.id);
+      return out;
+    };
     const _collectWidgets = (list) => {
       if (!Array.isArray(list)) return;
       for (const w of list) {
         if (!w) continue;
-        if (w.widgetKey) idx.widgets.push({ key: w.widgetKey, label: `${w.label || w.type} (${w.widgetKey})`, type: w.type });
+        if (w.widgetKey) idx.widgets.push({ key: w.widgetKey, label: `${w.label || w.type} (${w.widgetKey})`, type: w.type, id: String(w.id ?? ""), elements: _widgetElementKeys(w) });
         if (Array.isArray(w.widgets)) _collectWidgets(w.widgets);
         if (Array.isArray(w.elements)) _collectWidgets(w.elements.map(el => el?.widget).filter(Boolean));
       }
@@ -12010,6 +12028,22 @@ export class FormulaGraph {
     for (const tab of (this.doc?.system?.customTabs ?? [])) for (const row of (tab.rows ?? [])) collectWidgets(row.widgets);
     sheetWidgets.sort((a,b)=>a.name.localeCompare(b.name));
 
+    // UI Blueprint: the elements actually placed in this widget, so they can be
+    // dragged onto the graph just like sheet widgets. Scoped to the open
+    // blueprint - the smart index also covers every other UI Widget item, which
+    // would flood this panel when the graph belongs to a character sheet.
+    const uiElements = [];
+    const seenElements = new Set();
+    const pushElement = entry => {
+      const id = String(entry?.id ?? "").trim();
+      if (!id || seenElements.has(id)) return;
+      seenElements.add(id);
+      uiElements.push({ id, name: String(entry.label ?? entry.name ?? id), type: String(entry.type ?? "") });
+    };
+    const isUiBlueprintDoc = this.doc?.type === "uiwidget";
+    if (isUiBlueprintDoc) for (const entry of (this.doc?.system?.elements ?? [])) pushElement(entry);
+    else for (const entry of (this._smartIndex?.uiElements ?? [])) pushElement(entry);
+
     for (const n of this.nodes) {
       if (["var_read", "var_get", "get_var"].includes(n.type)) {
         const scope = n.type === "get_var" ? "actor" : (n.type === "var_get" ? "local" : String(n.data?.scope ?? "local"));
@@ -12080,11 +12114,19 @@ export class FormulaGraph {
       <span class="gwidget-type">${esc(widget.type)}</span>
     </div>`).join("");
 
+    const uiElRows = uiElements.map(el => `<div class="guiel-row" draggable="true" data-el-id="${esc(el.id)}" data-el-name="${esc(el.name)}" data-el-type="${esc(el.type)}" title="Drag onto the graph and choose Get or Set. Double-click = Get, right-click = Set.">
+      <span class="guiel-icon"><i class="fas fa-vector-square"></i></span>
+      <span class="gwidget-main"><b>${esc(el.name)}</b><small>${esc(el.id)}</small></span>
+      <span class="guiel-type">${esc(el.type)}</span>
+    </div>`).join("");
+
     panel.innerHTML = `
       ${sectionHeader("DATABASE VARIABLES", databaseVars.length, "create-db")}
       ${databaseRows || `<div class="gdbvar-empty">No Database variables. Press + to create one here.</div>`}
       ${sectionHeader("SHEET WIDGETS", sheetWidgets.length)}
       ${widgetRows || `<div class="gdbvar-empty">No widgets on this sheet yet.</div>`}
+      ${(isUiBlueprintDoc || uiElements.length) ? `${sectionHeader("UI ELEMENTS", uiElements.length)}
+      ${uiElRows || `<div class="gdbvar-empty">No elements placed yet. Add them in the Designer.</div>`}` : ""}
       ${sectionHeader("GRAPH VARIABLES", vars.size, "create-graph")}
       ${varRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No variables. Press + to create one.</div>`}
       ${sectionHeader("Macros", macros.size)}
@@ -12192,6 +12234,45 @@ export class FormulaGraph {
         const widgetType=String(row.dataset.widgetType||"");
         if(NODE_DEFS?.[`widget_set_${widgetType}`])this._addNode(`widget_set_${widgetType}`,gx,gy,{widgetKey:key,widgetId:row.dataset.widgetId});
         else this._addNode("sheet_widget_event",gx,gy,{key,widgetId:row.dataset.widgetId,event:"click"});
+      });
+    });
+    panel.querySelectorAll(".guiel-row").forEach(row => {
+      const id = String(row.dataset.elId || "");
+      const label = row.dataset.elName || id;
+      const elType = String(row.dataset.elType || "");
+      // Every element type registers its own pair of nodes with typed pins.
+      const getType = `ui_el_get_${elType}`, setType = `ui_el_set_${elType}`;
+      const hasOwnGet = !!NODE_DEFS?.[getType], hasOwnSet = !!NODE_DEFS?.[setType];
+      const isList = elType === "list";
+      const buildMenu = () => [
+        ...(hasOwnGet ? [{type:getType,label:`Get ${label} — element node`,icon:"fa-arrow-right-from-bracket",data:{elementRef:id}}] : []),
+        ...(hasOwnSet ? [{type:setType,label:`Set ${label} — element node`,icon:"fa-arrow-right-to-bracket",data:{elementRef:id}}] : []),
+        ...(isList ? [
+          {type:"ui_list_get",label:`Get ${label} rows (array)`,icon:"fa-list",data:{elementName:id}},
+          {type:"ui_list_set",label:`Set ${label} rows (array)`,icon:"fa-list-check",data:{elementName:id}}
+        ] : []),
+        {type:"ui_on_event",label:`On ${label} Event`,icon:"fa-bolt",data:{name:`${id}:click`}},
+        {type:"ui_get_field",label:`Get ${label} (generic)`,icon:"fa-magnifying-glass",data:{elementName:id}},
+        {type:"ui_set_field",label:`Set ${label} (generic)`,icon:"fa-pen-to-square",data:{elementName:id}}
+      ];
+      row.addEventListener("dragstart", event => {
+        event.dataTransfer.setData("text/plain", JSON.stringify({_sgMenu:buildMenu(), elementRef:id, elementName:id}));
+        event.dataTransfer.effectAllowed = "copy";
+      });
+      row.addEventListener("dblclick", () => {
+        const wrap = this.win?.querySelector("#gwrap");
+        const gx = wrap ? (wrap.clientWidth * .45 - this._pan.x) / this._zoom : 360;
+        const gy = wrap ? (wrap.clientHeight * .35 - this._pan.y) / this._zoom : 220;
+        if (hasOwnGet) this._addNode(getType, gx, gy, { elementRef: id });
+        else this._addNode("ui_get_field", gx, gy, { elementName: id });
+      });
+      row.addEventListener("contextmenu", event => {
+        event.preventDefault(); event.stopPropagation();
+        const wrap = this.win?.querySelector("#gwrap");
+        const gx = wrap ? (wrap.clientWidth * .52 - this._pan.x) / this._zoom : 460;
+        const gy = wrap ? (wrap.clientHeight * .42 - this._pan.y) / this._zoom : 280;
+        if (hasOwnSet) this._addNode(setType, gx, gy, { elementRef: id });
+        else this._addNode("ui_set_field", gx, gy, { elementName: id });
       });
     });
     panel.querySelector('[data-gpanel-action="create-db"]')?.addEventListener("click",async()=>{
@@ -14507,6 +14588,33 @@ export class FormulaGraph {
       sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; rawInp.value=sel.value; this._updatePreview(); });
       rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._updatePreview(); });
       container.appendChild(sel); container.appendChild(rawInp); wrap.appendChild(container); return wrap;
+    }
+
+    if(field.type==="widget-element-picker"){
+      const cur=node.data[field.key]??field.default??"";
+      const keyField=field.widgetField??"widgetKey";
+      const widgetKey=String(node.data[keyField]??"").trim();
+      const norm=v=>String(v??"").trim().toLowerCase().replace(/[\s\-.]+/g,"_");
+      const hit=widgetKey?(idx.widgets.find(entry=>norm(entry.key)===norm(widgetKey)||norm(entry.id)===norm(widgetKey))??null):null;
+      const list=hit?.elements??[];
+      const sel=document.createElement("select"); sel.style.cssText=SI;
+      sel.title=widgetKey?`Elements of "${widgetKey}"`:"Pick the widget first";
+      { const o=document.createElement("option"); o.value="";
+        o.textContent=list.length?"- any / first -":(widgetKey?"- no elements on this widget -":"- pick the widget first -");
+        if(!cur)o.selected=true; sel.appendChild(o); }
+      for(const el of list){ const o=document.createElement("option"); o.value=el.key; o.textContent=el.label; if(el.key===cur)o.selected=true; sel.appendChild(o); }
+      if(cur && !list.some(el=>el.key===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom)"; o.selected=true; sel.appendChild(o); }
+      sel.addEventListener("mousedown",ev=>ev.stopPropagation());
+      sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; this._updatePreview(); this._renderNode(node); });
+      wrap.appendChild(sel);
+      if(field.allowManual!==false){
+        const manual=document.createElement("input"); manual.type="text"; manual.placeholder="or type an element key..."; manual.value=cur;
+        manual.style.cssText=SI+";margin-top:3px";
+        manual.addEventListener("mousedown",ev=>ev.stopPropagation());
+        manual.addEventListener("change",()=>{ node.data[field.key]=manual.value.trim(); this._updatePreview(); this._renderNode(node); });
+        wrap.appendChild(manual);
+      }
+      return wrap;
     }
 
     if(field.type==="widget-picker"){

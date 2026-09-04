@@ -15,6 +15,7 @@
 
 import { WIDGET_TYPES } from "./widget-registry.mjs";
 import { WIDGET_VARIABLES, widgetVarKey, widgetVarPath, coerceWidgetValue } from "../helpers/widget-variables.mjs";
+import { getValueDefinition, readDatabaseValue, variableIdForLegacyPath } from "../helpers/value-database.mjs";
 
 const OWNER = "sd-widget-nodes";
 const CATEGORY = "Sheet Widgets";
@@ -106,9 +107,60 @@ const docItems = (doc, types) => {
 const docEffects = doc => [...(doc?.effects ?? []), ...(doc?.appliedEffects ?? [])]
   .filter((effect, index, all) => all.findIndex(entry => entry.id === effect.id) === index);
 
+/** Database variable ids listed on an Attribute Group widget. */
+export function attributeGroupKeys(widget) {
+  return Array.isArray(widget?.attributeKeys)
+    ? widget.attributeKeys.map(entry => String(entry ?? "").trim()).filter(Boolean)
+    : String(widget?.attributeKeys ?? "").split(",").map(entry => String(entry ?? "").trim()).filter(Boolean);
+}
+
+/**
+ * Every attribute of an Attribute Group widget, resolved to `{ key, name,
+ * score, mod }`. Database variables are read from their own storage, anything
+ * else keeps the legacy `system.attributes.<key>.value` behaviour.
+ */
+export function attributeGroupEntries(widget, doc) {
+  const cfg = globalThis.CONFIG?.SD ?? {};
+  const compute = cfg.computeModifier ?? (score => Math.floor((num(score) - 10) / 2));
+  const labels = cfg.attributes ?? {};
+  let keys = attributeGroupKeys(widget);
+  if (!keys.length) {
+    const enabled = cfg.attributesEnabled ?? {};
+    keys = Object.keys(labels).filter(key => enabled[key] !== false);
+    if (!keys.length) keys = Object.keys(doc?.system?.attributes ?? {});
+  }
+  return keys.map(raw => {
+    const def = getValueDefinition(raw) ?? getValueDefinition(variableIdForLegacyPath(raw));
+    let score, name;
+    if (def) {
+      score = readDatabaseValue(doc, def.id);
+      name = def.name;
+    } else {
+      const path = String(raw).includes(".") ? String(raw) : `system.attributes.${raw}.value`;
+      score = doc ? foundry.utils.getProperty(doc, path) : undefined;
+      name = labels[raw] ?? (String(raw).charAt(0).toUpperCase() + String(raw).slice(1));
+    }
+    if (score && typeof score === "object") score = score.value ?? score.score ?? 0;
+    const value = num(score);
+    return { key: def?.id ?? String(raw), name: String(name ?? raw), score: value, mod: num(compute(value)) };
+  });
+}
+
+/** One attribute of an Attribute Group widget; a blank key picks the first. */
+export function attributeGroupEntry(widget, doc, elementKey) {
+  const entries = attributeGroupEntries(widget, doc);
+  const want = String(elementKey ?? "").trim().toLowerCase();
+  if (!want) return entries[0] ?? null;
+  return entries.find(entry => String(entry.key).toLowerCase() === want)
+    ?? entries.find(entry => String(entry.name).toLowerCase() === want)
+    ?? null;
+}
+
 /**
  * Output pins of every widget type.
- * `get(widget, doc)` runs on the client that resolves the token.
+ * `get(widget, doc, elementKey)` runs on the client that resolves the token.
+ * `elementKey` is only used by widgets that own sub-elements (Attribute Group)
+ * and stays empty for every other widget type.
  */
 export const WIDGET_NODE_CONTRACTS = Object.freeze({
   text:      [["value", "Text", "value.string", (w, d) => String(readWidgetValue(d, w, "path") ?? "")],
@@ -118,6 +170,13 @@ export const WIDGET_NODE_CONTRACTS = Object.freeze({
   counter:   [["value", "Count", "value.number", (w, d) => num(readWidgetValue(d, w, "path"))]],
   attribute: [["value", "Score", "value.number", (w, d) => num(readWidgetValue(d, w, "path"))],
               ["mod", "Modifier", "value.number", (w, d) => Math.floor((num(readWidgetValue(d, w, "path")) - 10) / 2)]],
+  attributeGroup: [["score", "Score", "value.number", (w, d, el) => num(attributeGroupEntry(w, d, el)?.score)],
+              ["mod", "Modifier", "value.number", (w, d, el) => num(attributeGroupEntry(w, d, el)?.mod)],
+              ["name", "Name", "value.string", (w, d, el) => String(attributeGroupEntry(w, d, el)?.name ?? "")],
+              ["keys", "Element keys", "value.array", (w, d) => attributeGroupEntries(w, d).map(entry => entry.key)],
+              ["names", "Names", "value.array", (w, d) => attributeGroupEntries(w, d).map(entry => entry.name)],
+              ["scores", "Scores", "value.array", (w, d) => attributeGroupEntries(w, d).map(entry => entry.score)],
+              ["count", "Count", "value.number", (w, d) => attributeGroupEntries(w, d).length]],
   skill:     [["value", "Rank", "value.number", (w, d) => num(readWidgetValue(d, w, "path"))],
               ["total", "Rank + Modifier", "value.number", (w, d) => num(readWidgetValue(d, w, "path")) + num(w.attrMod)]],
   toggle:    [["value", "Enabled", "value.bool", (w, d) => readWidgetValue(d, w, "path") ? 1 : 0]],
@@ -183,11 +242,14 @@ export function installWidgetTokens() {
   RUNTIME.registerToken("sdWidget:", (rest, ctx) => {
     const doc = ctx?.doc ?? ctx?.actor ?? ctx?.item ?? null;
     const [type, pin, ...tail] = String(rest ?? "").split(":");
-    const widgetKey = unarg(tail.join(":"));
+    // "<widgetKey>" or "<widgetKey>|<elementKey>"; base64 args never contain "|".
+    const [keyPart, elementPart = ""] = tail.join(":").split("|");
+    const widgetKey = unarg(keyPart);
+    const elementKey = unarg(elementPart);
     const widget = findWidget(doc, widgetKey);
     if (!widget) return "";
     const entry = pinsOf(widget.type ?? type).find(item => item[0] === pin) ?? pinsOf(widget.type ?? type)[0];
-    try { return entry?.[3]?.(widget, doc) ?? ""; }
+    try { return entry?.[3]?.(widget, doc, elementKey) ?? ""; }
     catch (error) { console.warn("[sd] widget node read failed", error); return ""; }
   }, { owner: OWNER });
 }
@@ -224,6 +286,27 @@ export function installWidgetActions() {
 // Node definitions
 // ---------------------------------------------------------------------------
 
+/**
+ * Widgets that own sub-elements get an extra "Element Key" dropdown on their
+ * dedicated Get node. The picked element travels with the token, so one node
+ * can read any single attribute of an Attribute Group.
+ */
+const EXTRA_GET_FIELDS = {
+  attributeGroup: [{
+    key: "elementKey", label: "Element Key", type: "widget-element-picker", default: "",
+    widgetField: "widgetKey", widgetType: "attributeGroup", allowManual: true,
+    hint: "Pick one of the Database variables listed on the widget. Blank = the first one."
+  }]
+};
+const EXTRA_GET_INPUTS = {
+  attributeGroup: [{ id: "elementKey", label: "Element Key", type: "value.string" }]
+};
+const elementSuffix = (type, n, i = {}) => {
+  if (!EXTRA_GET_FIELDS[type]) return "";
+  const key = i.elementKey ?? n?.data?.elementKey ?? "";
+  return String(key).trim() ? `|${arg(key)}` : "";
+};
+
 export function registerWidgetNodes() {
   const REG = globalThis.SD?.nodeRegistry ?? globalThis.CONFIG?.SD?.nodeRegistry;
   const registerNode = REG?.registerNode ?? REG?.registerNodeDefinition;
@@ -239,17 +322,17 @@ export function registerWidgetNodes() {
       title: `Get ${label}`,
       color: COLOR_GET, cat: CATEGORY, wideNode: true,
       desc: `Read the ${label} widget: ${pins.map(pin => pin[1]).join(", ")}.`,
-      inputs: [{ id: "widgetKey", label: "Widget (by name)", type: "value.string" }],
+      inputs: [{ id: "widgetKey", label: "Widget (by name)", type: "value.string" }, ...(EXTRA_GET_INPUTS[type] ?? [])],
       outputs: pins.map(([id, pinLabel, pinType]) => ({ id, label: pinLabel, type: pinType })),
       fields: [{
         key: "widgetKey", label: "Widget", type: "widget-picker", default: "",
         widgetType: type, allowManual: true,
         hint: "Pick a widget, type a name, or drive it from the Widget pin."
-      }],
-      compile: (n, i) => `{sdWidget:${type}:${pins[0][0]}:${arg(i.widgetKey ?? n.data.widgetKey ?? "")}}`,
+      }, ...(EXTRA_GET_FIELDS[type] ?? [])],
+      compile: (n, i) => `{sdWidget:${type}:${pins[0][0]}:${arg(i.widgetKey ?? n.data.widgetKey ?? "")}${elementSuffix(type, n, i)}}`,
       compilePin: (n, i, pin) => {
         const valid = pins.some(entry => entry[0] === pin) ? pin : pins[0][0];
-        return `{sdWidget:${type}:${valid}:${arg(i.widgetKey ?? n.data.widgetKey ?? "")}}`;
+        return `{sdWidget:${type}:${valid}:${arg(i.widgetKey ?? n.data.widgetKey ?? "")}${elementSuffix(type, n, i)}}`;
       }
     }, { owner: OWNER });
 

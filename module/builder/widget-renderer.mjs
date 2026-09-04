@@ -2627,6 +2627,68 @@ export class WidgetRenderer {
 </details></div>`;
   }
 
+  /**
+   * Radar (spider) chart for the Attribute Group widget.
+   *
+   * Diagram only - no list is rendered. Axis labels and vertices carry
+   * `data-action="wbElement"`, the same hit-area contract the Widget Builder
+   * elements use, so a click fires the widget's On Click event with
+   * `elementKey` set to that attribute's Database variable id.
+   */
+  static _render_attributeGroup_radar(w, items, lbl, ic) {
+    const e = this._esc;
+    const n = items.length;
+    const CX = 160, CY = 160, R = 104, GAP = 16;
+    const RINGS = [0.25, 0.5, 0.75, 1];
+
+    let max = Number(w.radarMax);
+    if (!Number.isFinite(max) || max <= 0) max = Math.max(...items.map(it => Number(it.score) || 0), 1);
+
+    const fmt = v => Math.round(Number(v) * 100) / 100;
+    const angleFor = i => -Math.PI / 2 + i * ((2 * Math.PI) / n);
+    const polar = (angle, radius) => ({ x: CX + radius * Math.sin(angle), y: CY - radius * Math.cos(angle) });
+    const ringPoints = f => items.map((_, i) => { const p = polar(angleFor(i), R * f); return `${fmt(p.x)},${fmt(p.y)}`; }).join(" ");
+
+    const grid = RINGS.map(f => `<polygon class="attr-radar-ring" points="${ringPoints(f)}"></polygon>`).join("");
+    const axes = items.map((_, i) => {
+      const p = polar(angleFor(i), R);
+      return `<line class="attr-radar-axis" x1="${CX}" y1="${CY}" x2="${fmt(p.x)}" y2="${fmt(p.y)}"></line>`;
+    }).join("");
+
+    const points = items.map((it, i) => polar(angleFor(i), Math.max(0, Math.min(1, (Number(it.score) || 0) / max)) * R));
+    const shape = `<polygon class="attr-radar-shape" points="${points.map(p => `${fmt(p.x)},${fmt(p.y)}`).join(" ")}"></polygon>`;
+
+    // Same contract as Widget Builder elements: the sheet already binds these
+    // and emits the widget event with the element key attached.
+    const hit = it => `data-action="wbElement" data-element-key="${e(it.key)}" data-event-name="On Click ${e(it.key)}" data-attr-key="${e(it.key)}" data-flavor="${e(it.name)}" role="button" tabindex="0"`;
+
+    const dots = items.map((it, i) => `<circle class="attr-radar-dot" cx="${fmt(points[i].x)}" cy="${fmt(points[i].y)}" r="5" ${hit(it)}><title>${e(it.name)}: ${e(String(it.score))} (${e(it.modStr)})</title></circle>`).join("");
+
+    const labels = items.map((it, i) => {
+      const angle = angleFor(i);
+      const dx = Math.sin(angle), dy = -Math.cos(angle);
+      const p = polar(angle, R + GAP);
+      const anchor = dx > 0.12 ? "start" : (dx < -0.12 ? "end" : "middle");
+      const shift = dy > 0.25 ? -10 : (dy < -0.25 ? 9 : 0);
+      return `<g class="attr-radar-label-group" ${hit(it)}>
+      <text class="attr-radar-label" x="${fmt(p.x)}" y="${fmt(p.y + shift)}" text-anchor="${anchor}">${e(it.name)}</text>
+      <text class="attr-radar-value" x="${fmt(p.x)}" y="${fmt(p.y + shift + 12)}" text-anchor="${anchor}">${e(String(it.score))} · ${e(it.modStr)}</text>
+    </g>`;
+    }).join("");
+
+    const header = w.label
+      ? `<div class="widget-label" style="display:flex;align-items:center;gap:6px"><i class="${ic}"></i>${lbl}</div>`
+      : "";
+    return `<div class="widget widget-attribute-group attr-radar-widget">
+  ${header}
+  <div class="attr-radar-wrap">
+    <svg class="attr-radar" viewBox="0 0 320 320" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${lbl}">
+      ${grid}${axes}${shape}${dots}${labels}
+    </svg>
+  </div>
+</div>`;
+  }
+
   static _render_attributeGroup(w, doc) {
     const e   = this._esc;
     const lbl = e(w.label || "Attributes");
@@ -2640,11 +2702,21 @@ export class WidgetRenderer {
 
     const cfgLabels  = CONFIG?.SD?.attributes ?? {};
     const cfgEnabled = CONFIG?.SD?.attributesEnabled ?? {};
-    const explicit   = String(w.attributeKeys ?? "").trim();
+    // The widget config stores a list of Database variable ids picked from a
+    // dropdown. A legacy comma-separated string is still accepted.
+    const rawKeys    = Array.isArray(w.attributeKeys)
+      ? w.attributeKeys.map(entry => String(entry ?? "").trim()).filter(Boolean)
+      : String(w.attributeKeys ?? "").split(",").map(entry => String(entry ?? "").trim()).filter(Boolean);
+    const explicit   = rawKeys.length > 0;
 
     const parseToken = (raw) => {
       const s = String(raw).trim();
       if (!s) return null;
+
+      // Database variables win: read them from their own storage path and reuse
+      // their display name instead of guessing a system.attributes.* path.
+      const dbDef = getValueDefinition(s) ?? getValueDefinition(variableIdForLegacyPath(s));
+      if (dbDef) return { key: dbDef.id, scorePath: valueStoragePath(dbDef.id), name: dbDef.name };
 
       if (s.includes(".")) {
         let p = s.replace(/^\.+|\.+$/g, "");
@@ -2667,7 +2739,7 @@ export class WidgetRenderer {
 
     let tokens;
     if (explicit) {
-      tokens = explicit.split(",").map(parseToken).filter(Boolean);
+      tokens = rawKeys.map(parseToken).filter(Boolean);
     } else {
 
       const cfgKeys = Object.keys(cfgLabels);
@@ -2681,7 +2753,7 @@ export class WidgetRenderer {
 
     const attrGraphs = (w.attrGraphs && typeof w.attrGraphs === "object") ? w.attrGraphs : {};
 
-    const items = tokens.map(({ key, scorePath }) => {
+    const items = tokens.map(({ key, scorePath, name: dbName }) => {
 
       let score = foundry.utils.getProperty(doc, scorePath);
       if (score && typeof score === "object") {
@@ -2699,7 +2771,8 @@ export class WidgetRenderer {
         mod = compute(score);
       }
 
-      const name   = cfgLabels[key]
+      const name   = dbName
+        || cfgLabels[key]
         || (key.charAt(0).toUpperCase() + key.slice(1));
       return {
         key,
@@ -2715,6 +2788,12 @@ export class WidgetRenderer {
     const _btnDataAttrs = (it) => it.onClickFormula
       ? { action: "attrModClick", attrs: `data-attr-onclick="${e(it.onClickFormula)}"` }
       : { action: "widgetEvent",  attrs: `data-attr-key="${e(it.key)}" data-element-key="${e(it.key)}" data-flavor="${e(it.name)}"` };
+
+    // Radar variant: the diagram replaces the list entirely. Needs at least a
+    // triangle, otherwise fall through to the ordinary cards.
+    if (this._sanitizeVariant(w.variant) === "radar" && items.length >= 3) {
+      return this._render_attributeGroup_radar(w, items, lbl, ic);
+    }
 
     if (w.compact) {
       const rows = items.map(it => {

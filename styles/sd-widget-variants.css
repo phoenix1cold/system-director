@@ -754,6 +754,19 @@
   display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important;
 }
 
+/* Radar (spider) variant: diagram only, no list. */
+.sd-w-attributegroup.sd-v-radar .attr-radar-wrap { display:flex !important; align-items:center !important; justify-content:center !important; padding:2px 0 0 !important; }
+.sd-w-attributegroup.sd-v-radar .attr-radar { width:100% !important; height:auto !important; max-width:340px !important; display:block !important; overflow:visible !important; }
+.sd-w-attributegroup.sd-v-radar .attr-radar-ring { fill:none !important; stroke:var(--sd-border) !important; stroke-width:1 !important; opacity:.7 !important; }
+.sd-w-attributegroup.sd-v-radar .attr-radar-axis { stroke:var(--sd-border) !important; stroke-width:1 !important; }
+.sd-w-attributegroup.sd-v-radar .attr-radar-shape { fill:color-mix(in srgb,var(--sd-accent) 22%,transparent) !important; stroke:var(--sd-accent) !important; stroke-width:2 !important; stroke-linejoin:round !important; }
+.sd-w-attributegroup.sd-v-radar .attr-radar-dot { fill:var(--sd-bg) !important; stroke:var(--sd-accent) !important; stroke-width:2 !important; cursor:pointer !important; transition:r .12s ease, fill .12s ease; }
+.sd-w-attributegroup.sd-v-radar .attr-radar-dot:hover { fill:var(--sd-accent) !important; r:7 !important; }
+.sd-w-attributegroup.sd-v-radar .attr-radar-label-group { cursor:pointer !important; }
+.sd-w-attributegroup.sd-v-radar .attr-radar-label { fill:var(--sd-text-1) !important; font-size:10px !important; font-weight:700 !important; text-transform:uppercase !important; letter-spacing:.06em !important; }
+.sd-w-attributegroup.sd-v-radar .attr-radar-value { fill:var(--sd-accent) !important; font-size:10px !important; font-weight:800 !important; }
+.sd-w-attributegroup.sd-v-radar .attr-radar-label-group:hover .attr-radar-label { fill:var(--sd-accent) !important; }
+
 .sd-w-attributegroup .attr-group-body {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)) !important;

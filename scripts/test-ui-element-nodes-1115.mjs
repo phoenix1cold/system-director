@@ -306,8 +306,36 @@ assert.equal(state.hasWidgetProperty("hp-bar", "visible"), false, "reset drops t
 // ---------------------------------------------------------------------------
 
 const manifest = JSON.parse(read("system.json"));
+/* 8. The graph sidebar lists the placed elements ------------------------ */
+// 1.11.6: the per-element nodes existed, but the "My Blueprint" panel never
+// showed the elements, so they could not be dragged onto the canvas.
+assert.ok(graph.includes('sectionHeader("UI ELEMENTS"'), "panel must have a UI ELEMENTS section");
+assert.ok(graph.includes('const isUiBlueprintDoc = this.doc?.type === "uiwidget";'),
+  "the section is scoped to the open blueprint");
+assert.ok(graph.includes("for (const entry of (this.doc?.system?.elements ?? [])) pushElement(entry)"),
+  "placed elements are read straight off the edited widget");
+assert.ok(graph.includes('<div class="guiel-row" draggable="true" data-el-id='),
+  "element rows must be draggable");
+assert.ok(graph.includes('panel.querySelectorAll(".guiel-row")'), "element rows need handlers");
+assert.ok(graph.includes('const getType = `ui_el_get_${elType}`, setType = `ui_el_set_${elType}`;'),
+  "rows resolve the dedicated per-element node pair");
+assert.ok(graph.includes('data:{elementRef:id}'), "the drop menu prefills the element reference");
+assert.ok(graph.includes('this._addNode(getType, gx, gy, { elementRef: id })')
+       && graph.includes('this._addNode(setType, gx, gy, { elementRef: id })'),
+  "double-click creates Get, right-click creates Set");
+assert.ok(graph.includes('{type:"ui_list_get",label:`Get ${label} rows (array)`'),
+  "list rows also offer the array nodes");
+assert.ok(graph.includes('{type:"ui_on_event",label:`On ${label} Event`'),
+  "element rows offer their event node");
+for (const legacyKey of ["elementName", "ui_get_field", "ui_set_field"]) {
+  assert.ok(graph.includes(legacyKey), `generic fallback ${legacyKey} must stay available`);
+}
+const css = read("styles/system.css");
+assert.ok(css.includes(".guiel-row{") && css.includes(".guiel-icon{") && css.includes(".guiel-type{"),
+  "element rows need their styles");
+
 assert.match(manifest.version, /^1\.(11\.([5-9]|\d{2,})|(1[2-9]|[2-9]\d)\.\d+)$/,
   `unexpected version ${manifest.version}`);
 assert.ok(elementDef("list"), "the list element definition is still registered");
 
-console.log(`PASS: settings graph removed, ${types.length * 2} per-element UI nodes with typed array pins (1.11.5).`);
+console.log(`PASS: settings graph removed, ${types.length * 2} per-element UI nodes, panel drag & drop (${manifest.version}).`);

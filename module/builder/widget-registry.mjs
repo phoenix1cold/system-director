@@ -196,11 +196,13 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label: "Attributes",
-      attributeKeys: ""
+      attributeKeys: [],
+      radarMax: ""
     },
     configFields: [
       { key: "label",         type: "text", label: "Button label" },
-      { key: "attributeKeys", type: "text", label: "Database variable IDs (comma, blank = all enabled)", placeholder: "health, stamina" },
+      { key: "attributeKeys", type: "dbvarlist", label: "Attributes (Database variables)" },
+      { key: "radarMax",      type: "number", label: "Radar scale max (blank = highest score)" },
       { key: "icon",          type: "text", label: "FA icon (e.g. fa-dice-d20)" }
     ]
   },
@@ -666,7 +668,7 @@ export const WIDGET_VARIANTS = {
   toggle: ["default", "checkbox", "pill", "led", "power", "rune"],
   select: ["default", "pills", "segmented", "radio", "menu", "holographic"],
   attribute: ["default", "stat-card", "inline", "badge", "roll-button", "rpg", "hex", "tactical"],
-  attributeGroup: ["default", "row", "grid", "dice", "character", "tactical"],
+  attributeGroup: ["default", "row", "grid", "dice", "character", "tactical", "radar"],
   tags: ["default", "outline", "solid", "soft", "rarity", "terminal"],
   image: ["default", "framed", "circle", "polaroid", "token", "portrait", "hologram"],
   section: ["default", "underline", "divider", "tab", "pill", "quest", "gothic", "terminal"],

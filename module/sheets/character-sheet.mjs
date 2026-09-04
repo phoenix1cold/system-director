@@ -791,7 +791,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         widgetId:String(w.id||""),
         widgetLabel:String(w.label||""),
         widgetType:String(w.type||""),
-        elementKey:String(detail.elementKey??""),
+        elementKey:String(detail.elementKey??target?.closest?.("[data-element-key]")?.dataset?.elementKey??""),
         actorId:String(actor?.id||""),
         documentUuid:String(doc?.uuid||""),
         sourceUuid:String(doc?.uuid||"")
