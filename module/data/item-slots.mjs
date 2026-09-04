@@ -1,3 +1,4 @@
+import { snapshotEquippable } from "../helpers/equip-guard.mjs";
 const {
   StringField, NumberField, BooleanField,
   ArrayField, ObjectField, SchemaField
@@ -119,7 +120,7 @@ export class SlotManager {
     const snap = this.getContents(host, sid)[idx];
     if (!snap) return null;
 
-    if (snap.type !== "inventory" || !snap.system?.equippable) {
+    if (snap.type !== "inventory" || !snapshotEquippable(snap)) {
       ui.notifications?.warn(this._loc(
         "SD.Slots.NotEquippable",
         `“${snap.name ?? "Item"}” is not marked Equippable.`,
@@ -216,7 +217,7 @@ export class SlotManager {
     let _autoEquippedSnapshot = false;
     const _wantsAutoEquip = this._slotAutoEquip(parentItem, sid)
       && itemData.type === "inventory"
-      && itemData.system?.equippable === true
+      && snapshotEquippable(itemData)
       && itemData.system?.equipped !== true;
     if (_wantsAutoEquip) {
       const hostActor = this._resolveHostActor(parentItem);
@@ -240,7 +241,7 @@ export class SlotManager {
         if (droppedItem instanceof Item && droppedItem.parent?.items?.has?.(droppedItem.id)) {
           // The live source still exists until the move completes. Keep it in sync;
           // its normal SDItem update fires the equip event exactly once.
-          try { await droppedItem.update({ "system.equipped": true }); }
+          try { await droppedItem.update({ "system.equipped": true }, { sdEquipToggle: true }); }
           catch (error) { console.warn("SD | slot auto-equip failed:", error); }
         } else {
           // Snapshot-only sources have no Document update hook.

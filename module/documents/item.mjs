@@ -2,6 +2,7 @@ import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { durationForRounds } from "../helpers/effect-duration.mjs";
 import { injectWidgetFieldsSnapshot, refreshWidgetFieldsRuntime } from "../helpers/widget-fields.mjs";
 import { getValueDefinition, valueStoragePath } from "../helpers/value-database.mjs";
+import { isEquipToggleUpdate, stripEquipToggleNoise } from "../helpers/equip-guard.mjs";
 
 export class SDItem extends Item {
 
@@ -11,6 +12,11 @@ export class SDItem extends Item {
   }
 
   async _preUpdate(changed, options, userId) {
+    // An equip / unequip toggle may only write `system.equipped`. Anything else
+    // that ends up in the payload (schema defaults injected while the update
+    // data is migrated, for example) would silently reset item flags such as
+    // Equippable, so it is stripped before the update is persisted.
+    if (isEquipToggleUpdate(options)) stripEquipToggleNoise(changed);
     injectWidgetFieldsSnapshot(this, changed);
     return super._preUpdate(changed, options, userId);
   }

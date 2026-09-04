@@ -3279,7 +3279,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         return;
       }
     }
-    await doc.update({ "system.equipped": next });
+    await doc.update({ "system.equipped": next }, { sdEquipToggle: true });
   }
   static async _onFireButton(event, target) { const i=parseInt(target.dataset.btnIndex); const b=this.document.system.buttons?.[i]; if(b) await ButtonExecutor.execute(b,this.document,this.document.actor); }
 

@@ -4,6 +4,7 @@ import {
 } from "./common.mjs";
 import { SlotDefinitionField } from "./item-slots.mjs";
 import { applyCalculationsToActor } from "../helpers/system-config.mjs";
+import { isFullDocumentSource } from "../helpers/equip-guard.mjs";
 
 const {
   StringField, NumberField, BooleanField,
@@ -88,7 +89,11 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
       source.attributes = source.stats;
       delete source.stats;
     }
-    if (!source.skillPoints) {
+    // `migrateData` also receives partial update payloads, so defaults may only
+    // be added to a complete source. Otherwise any small update (an equip
+    // toggle, a resource tick) would write the default back and reset the data.
+    if (!source.skillPoints && isFullDocumentSource(source,
+      ["attributes", "resources", "skills", "currency", "hiddenFields", "biography"], 4)) {
       source.skillPoints = { value: 0, max: 0 };
     }
     return super.migrateData(source);

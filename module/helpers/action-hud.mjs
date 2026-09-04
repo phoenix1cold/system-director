@@ -444,7 +444,7 @@ function wireHudWidget(cell, widgetDef, actor) {
         const { ok, reason } = await item.canEquip();
         if (!ok) { ui.notifications?.warn(reason ?? "Cannot equip."); return; }
       }
-      try { await item.update({ "system.equipped": next }); } catch(e) {}
+      try { await item.update({ "system.equipped": next }, { sdEquipToggle: true }); } catch(e) {}
     });
   });
   cell.querySelectorAll("[data-action='itemEdit']").forEach(btn => {

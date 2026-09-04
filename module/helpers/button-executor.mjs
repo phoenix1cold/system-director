@@ -1750,7 +1750,7 @@ export class ButtonExecutor {
           ui.notifications?.warn?.(`${action.type}: item no longer exists.`);
           break;
         }
-        try { await _eqTarget.update({ "system.equipped": _eqNext }); }
+        try { await _eqTarget.update({ "system.equipped": _eqNext }, { sdEquipToggle: true }); }
         catch (e) { console.warn("SD | equip update failed:", e); }
         break;
       }

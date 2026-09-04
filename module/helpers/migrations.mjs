@@ -378,8 +378,38 @@ export const MIGRATIONS = [
         }
       }
     }
-  }
+  },
 
+  {
+    version:     "1.11.3",
+    description: "Persist system.equippable on inventory items so equip toggles can no longer clear it.",
+    run: async () => {
+      const migrateItem = async item => {
+        if (item?.type !== "inventory") return;
+        const update = { "system.equippable": item.system?.equippable === true };
+        const hidden = item._source?.system?.hiddenFields ?? item.system?.hiddenFields;
+        if (hidden && typeof hidden === "object"
+          && Object.prototype.hasOwnProperty.call(hidden, "equippable")) {
+          const clean = foundry.utils.deepClone(hidden);
+          delete clean.equippable;
+          update["system.hiddenFields"] = clean;
+        }
+        try { await item.update(update); }
+        catch (error) { console.warn(`SD | 1.11.3 equip flag migration skipped ${item?.name}:`, error); }
+      };
+
+      for (const item of game.items ?? []) await migrateItem(item);
+      for (const actor of game.actors ?? []) {
+        for (const item of actor.items ?? []) await migrateItem(item);
+      }
+      for (const scene of game.scenes ?? []) {
+        for (const token of scene.tokens ?? []) {
+          if (token.actorLink || !token.actor) continue;
+          for (const item of token.actor.items ?? []) await migrateItem(item);
+        }
+      }
+    }
+  }
 
 ];
 

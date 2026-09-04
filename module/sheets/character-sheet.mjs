@@ -1599,7 +1599,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             return;
           }
         }
-        await item.update({ "system.equipped": next });
+        await item.update({ "system.equipped": next }, { sdEquipToggle: true });
       });
     });
     cell.querySelectorAll("[data-action='itemEdit']").forEach(btn => {

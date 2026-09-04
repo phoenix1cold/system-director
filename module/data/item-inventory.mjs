@@ -1,4 +1,5 @@
 import { RollConfigField }    from "./common.mjs";
+import { applyEquippableMigration, asEquipBool } from "../helpers/equip-guard.mjs";
 import { SlotDefinitionField, SlotContentField } from "./item-slots.mjs";
 import { ButtonDefinitionField } from "../helpers/button-executor.mjs";
 
@@ -82,26 +83,22 @@ export class InventoryData extends foundry.abstract.TypeDataModel {
 
   /** Coerce the loose values legacy worlds stored in `hiddenFields`. */
   static _asBool(value) {
-    return !(value === false || value === "false" || value === 0 || value === "0"
-      || value === "" || value === null || value === undefined);
+    return asEquipBool(value);
   }
 
+  /**
+   * `system.equippable` is a real schema field and the single source of truth.
+   * Older builds mirrored it into `system.hiddenFields.equippable`, which then
+   * overwrote the checkbox on every data prep.
+   *
+   * Foundry runs `migrateData` on complete document sources *and* on partial
+   * update payloads, so a default may only ever be derived for a complete
+   * source. Deriving it for a payload such as `{ equipped: true }` writes that
+   * default straight back to the database, which is how equipping an item used
+   * to clear its Equippable checkbox.
+   */
   static migrateData(source) {
-    // `system.equippable` is a real schema field and the single source of truth.
-    // Older builds mirrored it into `system.hiddenFields.equippable`, which then
-    // overwrote the checkbox on every data prep. Adopt the legacy value once and
-    // drop the mirror so the checkbox on the item sheet actually sticks.
-    const legacy = source?.hiddenFields?.equippable;
-    if (source && source.equippable === undefined && legacy !== undefined) {
-      source.equippable = InventoryData._asBool(legacy);
-    }
-    if (source && source.equippable === undefined) {
-      const cat = source.category ?? "gear";
-      source.equippable = ["weapon","armor","shield","tool"].includes(cat);
-    }
-    if (source?.hiddenFields && Object.prototype.hasOwnProperty.call(source.hiddenFields, "equippable")) {
-      delete source.hiddenFields.equippable;
-    }
+    applyEquippableMigration(source);
     return super.migrateData(source);
   }
 
