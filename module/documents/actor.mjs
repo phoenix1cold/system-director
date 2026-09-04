@@ -240,6 +240,30 @@ export class SDActor extends Actor {
     });
   }
 
+  /**
+   * Foundry paints token icons only for *temporary* effects (ones with a
+   * duration in rounds/seconds/turns). SD effects are usually permanent value
+   * modifiers, so custom effects were invisible on the token and in the token
+   * HUD. Include every active effect that carries an image unless it opts out
+   * through `flags.sd.hideOnToken`.
+   */
+  get temporaryEffects() {
+    const out = [...(super.temporaryEffects ?? [])];
+    const seen = new Set(out.map(ef => ef?.id).filter(Boolean));
+    for (const ef of this.allApplicableEffects()) {
+      if (!ef || (ef.id && seen.has(ef.id))) continue;
+      if (ef.active === false || ef.disabled || ef.isSuppressed) continue;
+      let hidden = false;
+      try { hidden = ef.getFlag?.("sd", "hideOnToken") === true; } catch { hidden = false; }
+      if (hidden) continue;
+      const img = ef.img ?? ef.icon ?? null;
+      if (!img) continue;
+      out.push(ef);
+      if (ef.id) seen.add(ef.id);
+    }
+    return out;
+  }
+
   /** Skip equip-gated effects (flags.sd.activateOnEquip) while the source item is unequipped. */
   *allApplicableEffects() {
     for (const effect of super.allApplicableEffects()) {

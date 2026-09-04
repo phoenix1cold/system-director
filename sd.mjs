@@ -2277,3 +2277,104 @@ try {
 }
 
 });
+
+/* ------------------------------------------------------------------------- *
+ * Custom effects in the token HUD                                           *
+ * Foundry only lists CONFIG.statusEffects in the token HUD palette, so       *
+ * user-made SD effects never appeared there. Inject the actor's own effects  *
+ * by cloning the core markup, so they inherit the palette styling.          *
+ * ------------------------------------------------------------------------- */
+function _sdHudEffectPalette(root) {
+  if (!root?.querySelector) return null;
+  return root.querySelector(".status-effects")
+      ?? root.querySelector("[class*=status-effects]")
+      ?? root.querySelector(".palette")
+      ?? null;
+}
+
+function _sdIsStatusBackedEffect(ef) {
+  try {
+    if (ef?.statuses?.size) return true;
+    if (ef?.flags?.core?.statusId) return true;
+    return false;
+  } catch { return false; }
+}
+
+function _sdMakeHudEffectNode(palette, ef) {
+  const img = ef.img ?? ef.icon ?? "icons/svg/aura.svg";
+  const proto = palette.querySelector(".effect-control") ?? palette.querySelector("img");
+  let node;
+  if (proto) {
+    node = proto.cloneNode(true);
+    node.removeAttribute("data-status-id");
+    node.removeAttribute("data-action");
+    node.classList.remove("active", "overlay");
+    const inner = (node.tagName === "IMG") ? node : node.querySelector("img");
+    if (inner) {
+      inner.setAttribute("src", img);
+      inner.removeAttribute("data-status-id");
+    } else {
+      node.style.backgroundImage = "url(" + img + ")";
+    }
+  } else {
+    node = document.createElement("img");
+    node.className = "effect-control";
+    node.setAttribute("src", img);
+  }
+  node.classList.add("sd-custom-effect");
+  node.dataset.sdEffectId = ef.id;
+  node.dataset.sdEffectUuid = ef.uuid ?? "";
+  node.dataset.tooltip = ef.name ?? "";
+  node.setAttribute("aria-label", ef.name ?? "");
+  node.setAttribute("title", ef.name ?? "");
+  if (!ef.disabled) node.classList.add("active");
+  return node;
+}
+
+Hooks.on("renderTokenHUD", (hud, html) => {
+  try {
+    const root = html?.[0] ?? html;
+    const actor = hud?.object?.actor ?? hud?.document?.actor ?? hud?.object?.document?.actor ?? null;
+    if (!root || !actor) return;
+    const palette = _sdHudEffectPalette(root);
+    if (!palette) return;
+
+    const own = [];
+    for (const ef of (actor.allApplicableEffects?.() ?? actor.effects ?? [])) {
+      if (!ef?.id || _sdIsStatusBackedEffect(ef)) continue;
+      let hidden = false;
+      try { hidden = ef.getFlag?.("sd", "hideOnToken") === true; } catch { hidden = false; }
+      if (hidden) continue;
+      own.push(ef);
+    }
+    if (!own.length) return;
+
+    palette.classList.add("sd-has-custom");
+    for (const ef of own) {
+      if (palette.querySelector("[data-sd-effect-id=\"" + ef.id + "\"]")) continue;
+      const node = _sdMakeHudEffectNode(palette, ef);
+      node.addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation();
+        try {
+          await ef.update({ disabled: !ef.disabled });
+          node.classList.toggle("active", !ef.disabled);
+        } catch (err) {
+          console.warn("SD | could not toggle the effect:", err);
+        }
+      }, true);
+      node.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation();
+        try { ef.sheet?.render(true); } catch (err) {
+          console.warn("SD | could not open the effect window:", err);
+        }
+      }, true);
+      palette.appendChild(node);
+    }
+  } catch (err) {
+    console.warn("SD | token HUD effect injection failed:", err);
+  }
+});

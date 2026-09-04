@@ -17,6 +17,18 @@ import { deletionUpdate, dialogText, dialogValue } from "../helpers/foundry-comp
 function uid() { return Math.random().toString(36).slice(2,9); }
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
 
+/** Readable text of any pin value: arrays join, documents use their name. */
+function _pinText(value, separator = ", ") {
+  if (value === undefined || value === null) return "";
+  if (Array.isArray(value)) return value.map(entry => _pinText(entry)).filter(entry => entry !== "").join(separator);
+  if (typeof value === "object") {
+    const named = value.name ?? value.label ?? value.title ?? value.uuid ?? value.id ?? value._id;
+    if (named !== undefined && named !== null && typeof named !== "object" && String(named) !== "") return String(named);
+    try { return JSON.stringify(value); } catch { return ""; }
+  }
+  return String(value);
+}
+
 function _arrayArg(value) {
   try {
     return `b64:${btoa(unescape(encodeURIComponent(String(value ?? ""))))}`;
@@ -443,10 +455,15 @@ export const NODE_DEFS = {
   },
   convert_text: {
     title:"To Text", color:"#2f8a72", cat:"Conversion",
-    desc:"Convert a number, boolean, UUID or any scalar value to text.",
-    inputs:[{id:"value",label:"Value",type:"value.any"}],
+    desc:"Convert any value to text. Arrays (inventory items, spells, targets, array variables) are joined with the Separator and every item shows its name, so an array never prints as [object Object].",
+    keywords:"to text to string stringify array join tostring",
+    inputs:[{id:"value",label:"Value",type:"value.any"},{id:"sep",label:"Separator",type:"value.string"}],
     outputs:[{id:"v",label:"Text",type:"value.string"}],
-    fields:[], compile:(_n,i)=>`{convertValue:text|${_arrayArg(i.value ?? "")}}`
+    fields:[{key:"sep",label:"Separator (arrays)",type:"text",default:", "}],
+    compile:(n,i)=>{
+      const sep = (i.sep !== undefined && i.sep !== null && i.sep !== "") ? i.sep : (n?.data?.sep ?? ", ");
+      return `{convertValue:text|${_arrayArg(i.value ?? "")}|${_arrayArg(sep)}}`;
+    }
   },
   convert_boolean: {
     title:"To Boolean", color:"#2f8a72", cat:"Conversion",
@@ -2138,7 +2155,7 @@ export const NODE_DEFS = {
 
   act_message: {
     title:"Message", color:"#4a4a1a", cat:"Chat",
-    desc:"Posts a chat message assembled from the fallback text and every connected Text input.",
+    desc:"Posts a chat message assembled from the fallback text and every connected Text input. Arrays are printed as a readable list (item names), not [object Object].",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[{id:"exec",label:"",type:"exec"}],
     fields:[{key:"message",label:"Message",type:"textarea",default:""}],
@@ -2150,7 +2167,9 @@ export const NODE_DEFS = {
       if (base) parts.push(base);
       for(let i=0;i<10;i++){
         const v=inp[`text${i}`];
-        if(v!==undefined && v!==null && v!=="") parts.push(String(v));
+        if(v===undefined || v===null || v==="") continue;
+        // Arrays / documents are stringified as a readable list.
+        parts.push(_pinText(v));
       }
       return {type:"message", messageParts:parts};
     }

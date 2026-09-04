@@ -1,6 +1,21 @@
 const TYPES = new Set(["number","integer","text","boolean","color","array","object"]);
 const SCOPES = new Set(["actor","item","both"]);
 
+/** How a value of each variable type has to be typed in. Shown in every Database editor. */
+export const VALUE_TYPE_FORMATS = {
+  number:  { placeholder:"0",                    example:"0 | 10 | 2.5 | -3",              hint:"Any number, decimal point allowed. Empty = 0." },
+  integer: { placeholder:"0",                    example:"0 | 3 | -2",                     hint:"Whole number only, decimals are cut off." },
+  text:    { placeholder:"sword",                example:"sword | fire bolt",              hint:"Plain text, no quotes needed." },
+  boolean: { placeholder:"false",                example:"true | false",                   hint:"true or false (1 / 0 and yes / no also work)." },
+  color:   { placeholder:"#7aa2ff",              example:"#7aa2ff",                        hint:"HEX color starting with #." },
+  array:   { placeholder:'["ammo","magazine"]',  example:'["ammo","magazine"] or ammo, magazine', hint:"JSON list or comma separated values. Use the Array nodes to read it." },
+  object:  { placeholder:'{"key":1}',            example:'{"key":1,"label":"x"}',          hint:"JSON object, keys in double quotes." }
+};
+
+export function valueTypeFormat(type){ return VALUE_TYPE_FORMATS[String(type??"")] ?? VALUE_TYPE_FORMATS.text; }
+export function valueTypePlaceholder(type){ return valueTypeFormat(type).placeholder; }
+export function valueTypeFormatHint(type){ const format=valueTypeFormat(type); return `${format.example} - ${format.hint}`; }
+
 function clone(value){
   try { return foundry.utils.deepClone(value); } catch { return structuredClone(value); }
 }
@@ -103,6 +118,51 @@ export function readDatabaseValue(doc,id,{fallback=true}={}){
   if(direct!==undefined)return direct;
   if(fallback&&def.legacyPath){const legacy=foundry.utils.getProperty(doc,def.legacyPath);if(legacy!==undefined)return legacy;}
   return clone(def.initial);
+}
+
+/** Readable text of a Database value: arrays become "a, b", objects use name/JSON. */
+export function databaseValueToText(value,separator=", "){
+  if(value===undefined||value===null)return "";
+  if(Array.isArray(value))return value.map(entry=>databaseValueToText(entry)).filter(entry=>entry!=="").join(separator);
+  if(typeof value==="object"){
+    const named=value.name??value.label??value.title??value.uuid??value.id;
+    if(named!==undefined&&named!==null&&typeof named!=="object"&&String(named)!=="")return String(named);
+    try{return JSON.stringify(value);}catch{return "";}
+  }
+  if(typeof value==="boolean")return value?"true":"false";
+  return String(value);
+}
+
+/** Any Database value as a flat list of strings (arrays stay lists, text is split by commas). */
+export function databaseValueList(value){
+  if(value===undefined||value===null||value==="")return [];
+  if(Array.isArray(value))return value.map(entry=>databaseValueToText(entry).trim()).filter(Boolean);
+  if(typeof value==="object"){const only=databaseValueToText(value).trim();return only?[only]:[];}
+  const text=String(value).trim();
+  if(text.startsWith("[")&&text.endsWith("]")){
+    try{const parsed=JSON.parse(text);if(Array.isArray(parsed))return parsed.map(entry=>databaseValueToText(entry).trim()).filter(Boolean);}catch{}
+  }
+  return text.split(",").map(entry=>entry.trim()).filter(Boolean);
+}
+
+/** Value of one Database variable on a document as a list of strings. */
+export function readDatabaseValueList(doc,id){
+  if(!doc||!id)return [];
+  return databaseValueList(readDatabaseValue(doc,id));
+}
+
+/**
+ * True when the document's Database variable matches at least one accepted value.
+ * Both sides may be arrays; the comparison is case insensitive.
+ * With no accepted values everything matches (empty filter = all).
+ */
+export function databaseValueMatchesAny(doc,id,accepted,{emptyMatchesAll=true}={}){
+  const wanted=databaseValueList(accepted).map(entry=>entry.toLowerCase());
+  if(!wanted.length)return emptyMatchesAll;
+  if(!id)return emptyMatchesAll;
+  const own=readDatabaseValueList(doc,id).map(entry=>entry.toLowerCase());
+  if(!own.length)return false;
+  return own.some(entry=>wanted.includes(entry));
 }
 
 export async function writeDatabaseValue(doc,id,value){
@@ -298,7 +358,9 @@ export async function createDatabaseVariable({name="",type="number",scope="both"
         <div class="sd-db-create-hero"><i class="fas fa-cube"></i><div><b>New Database Variable</b><small>Available immediately in every matching Actor/Item sheet and Blueprint.</small></div></div>
         <label><span>Name</span><input name="name" value="${escape(draft.name)}" placeholder="Health" autofocus required></label>
         <div class="sd-db-create-grid"><label><span>Type</span><select name="type">${[...TYPES].map(value=>`<option value="${value}" ${draft.type===value?"selected":""}>${value}</option>`).join("")}</select></label><label><span>Scope</span><select name="scope">${[...SCOPES].map(value=>`<option value="${value}" ${draft.scope===value?"selected":""}>${value}</option>`).join("")}</select></label></div>
-        <label><span>Initial value</span><input name="initial" value="${escape(draft.initial??(draft.type==="boolean"?"false":draft.type==="array"?"[]":draft.type==="object"?"{}":draft.type==="color"?"#7aa2ff":draft.type==="text"?"":0))}"></label>
+        <label><span>Initial value</span><input name="initial" value="${escape(draft.initial??(draft.type==="boolean"?"false":draft.type==="array"?"[]":draft.type==="object"?"{}":draft.type==="color"?"#7aa2ff":draft.type==="text"?"":0))}" placeholder="${escape(valueTypePlaceholder(draft.type))}"></label>
+        <div class="sd-db-create-formats">${[...TYPES].map(value=>{const format=valueTypeFormat(value);return `<div class="sd-db-fmt" data-type="${value}"><i class="fas fa-keyboard"></i><div><b>${value}</b> <code>${escape(format.example)}</code><small>${escape(format.hint)}</small></div></div>`;}).join("")}</div>
+        <style>${[...TYPES].map(value=>`.sd-db-variable-create:has(select[name="type"] option[value="${value}"]:checked) .sd-db-create-formats .sd-db-fmt:not([data-type="${value}"]){display:none}`).join("")}</style>
         <div class="sd-db-create-id"><i class="fas fa-fingerprint"></i> Variable ID is generated from the name.</div>
       </div>`,
       ok:{label:"Create Variable",icon:"fas fa-plus",callback:(event,button)=>({name:dialogText(event,button,"name"),type:dialogValue(event,button,"type","number"),scope:dialogValue(event,button,"scope","both"),initial:dialogValue(event,button,"initial","")})}

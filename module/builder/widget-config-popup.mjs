@@ -39,9 +39,9 @@ const FIELD_DEFS = {
   attribute: [["Label","label"],["Widget Key","widgetKey","text"],["Variable","path","path"],["Chat Flavor","flavor","text"]],
   skill:     [["Label","label"],["Widget Key","widgetKey","text"],["Variable","path","path"],["Attr Modifier","attrMod","number"],["Chat Flavor","flavor","text"],["Pips count (Pips variant only)","pipMax","number"]],
   slot:      [["Label","label"],["Widget Key","widgetKey","text"],["Slot ID","slotId","text"],["Max Items","maxCount","number"],["SD.Slots.AutoEquip","autoEquip","boolean"]],
-  inventory: [["Label","label"],["Widget Key","widgetKey","text"],["Filter Categories","categories","array"],["Extra Columns (hidden field names)","columns","array"],["Show Currency Section","showCurrency","boolean"],["Currency Path (optional)","currencyPath","path"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
+  inventory: [["Label","label"],["Widget Key","widgetKey","text"],["Category Variable (Database)","categoryVariable","dbvar"],["Accepted Categories","categories","array"],["Extra Columns (Database variables)","columnVariables","dbvarlist"],["Show Currency Section","showCurrency","boolean"],["Currency Path (optional)","currencyPath","path"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   effects:   [["Label","label"],["Widget Key","widgetKey","text"],["Show Disabled","showDisabled","boolean"],["Show Passive","showPassive","boolean"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
-  spellbook: [["Label","label"],["Widget Key","widgetKey","text"],["Ability type filter (empty = all)","abilityType","text"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
+  spellbook: [["Label","label"],["Widget Key","widgetKey","text"],["Type Variable (Database)","typeVariable","dbvar"],["Accepted Types","abilityTypes","array"],["Extra Columns (Database variables)","columnVariables","dbvarlist"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
   attributeGroup: [["Button Label","label"],["Widget Key","widgetKey","text"],["Database Variable IDs (comma-separated)","attributeKeys","text"],["FA icon","icon","text"]],
 
   counter:   [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["Step","step","number"],["Min","min","number"],["Max","max","number"]],
@@ -153,6 +153,11 @@ const STYLE_DEFS = {
 
 const FIELD_HINTS = {
   path:         "Choose a typed Actor or Item property. The technical path is kept internally and never needs to be typed.",
+  categoryVariable: "Database variable that stores the item category. Items are matched by its value - HiddenFields are no longer used.",
+  categories:   "Accepted values of the Category Variable, comma separated (weapon, armor, ...). An item is shown when at least one value matches. Empty = show everything.",
+  columnVariables: "Database variables shown as extra columns. Ctrl / Cmd + click to select several - each one becomes a column with the value of that item.",
+  typeVariable: "Database variable that stores the ability type. Abilities are matched by its value - HiddenFields are no longer used.",
+  abilityTypes: "Accepted values of the Type Variable, comma separated (spell, technique, ...). An ability is shown when at least one value matches. Empty = show everything.",
   valueFormula: "Formula — computed at display time. Use {system.path}, {item:Name.field}, {widget:key}, 1d20+{@attr1}",
   formula:      "Roll formula — connect values from the Database graph",
   widgetKey:    "Optional unique name for this widget. Other widgets can read its value via {widget:thisKey}",
@@ -367,6 +372,30 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         ${control}
         <input type="hidden" data-field="${esc(key)}" data-ftype="text" value="${esc(selfPath)}">
         <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">This widget stores its own value. Type it here, or drive it from the Blueprint node of this widget.</div>
+      </div>`;
+    }
+
+    if (type === "dbvar") {
+      return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(lbl)} <span style="background:var(--sd-mp);color:#10131a;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;text-transform:none">database</span></label>
+        ${hint ? `<div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;line-height:1.4">${esc(hint)}</div>` : ""}
+        <select data-field="${esc(key)}" data-ftype="dbvar" style="${IS}">${_dbOptions(w[key] ?? "")}</select>
+      </div>`;
+    }
+
+    if (type === "dbvarlist") {
+      const rawList = Array.isArray(w[key]) ? w[key] : String(w[key] ?? "").split(",");
+      const selected = rawList.map(entry => String(entry ?? "").trim()).filter(Boolean)
+        .map(entry => getValueDefinition(entry)?.id || variableIdForLegacyPath(entry) || entry);
+      const defs = getValueDefinitions();
+      const options = defs.map(v => `<option value="${esc(v.id)}" ${selected.includes(v.id) ? "selected" : ""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join("");
+      return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(lbl)} <span style="background:var(--sd-mp);color:#10131a;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;text-transform:none">database</span></label>
+        ${hint ? `<div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;line-height:1.4">${esc(hint)}</div>` : ""}
+        <select multiple data-field="${esc(key)}" data-ftype="dbvarlist" size="${Math.min(6, Math.max(3, defs.length || 3))}" style="${IS};height:auto">${options || `<option value="" disabled>No Database variables yet</option>`}</select>
+        <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">Ctrl / Cmd + click to select several. ${defs.length ? "Each selected variable becomes a column." : "Create variables in the Database window first."}</div>
       </div>`;
     }
 
@@ -1490,6 +1519,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       changes[key] = val;
     });
     popup.querySelectorAll("select[data-field]").forEach(el => {
+      if (el.multiple || el.dataset.ftype === "dbvarlist") {
+        changes[el.dataset.field] = Array.from(el.selectedOptions ?? []).map(option => option.value).filter(Boolean);
+        return;
+      }
       changes[el.dataset.field] = el.value;
     });
 

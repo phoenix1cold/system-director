@@ -53,6 +53,14 @@ function changeVariableId(change, defs) {
   return hit?.id ?? "";
 }
 
+/** Resolve the SD transfer mode of an effect: "always" | "equipped" | "item". */
+export function effectTransferMode(ef) {
+  const explicit = ef?.flags?.sd?.effectTransferMode;
+  if (["always", "equipped", "item"].includes(explicit)) return explicit;
+  if (ef?.transfer === false) return "item";
+  return ef?.flags?.sd?.activateOnEquip ? "equipped" : "always";
+}
+
 export class SDEffectSheet extends DocumentSheetV2 {
   static DEFAULT_OPTIONS = {
     classes: ["sd", "sd-effect-sheet"],
@@ -78,6 +86,7 @@ export class SDEffectSheet extends DocumentSheetV2 {
       description: String(ef?.description ?? ""),
       disabled: !!ef?.disabled,
       transfer: !!ef?.transfer,
+      mode: effectTransferMode(ef),
       rounds: Number(ef?.duration?.rounds ?? 0) || 0,
       seconds: Number(ef?.duration?.seconds ?? 0) || 0,
       changes: (ef?.changes ?? []).map(c => ({
@@ -97,6 +106,22 @@ export class SDEffectSheet extends DocumentSheetV2 {
     const canEdit = this.document?.isOwner !== false;
     const lock = canEdit ? "" : "disabled";
     const noVars = !defs.length;
+    const parentDoc = this.document?.parent ?? null;
+    const isItem = parentDoc?.documentName === "Item";
+    const isInventory = isItem && parentDoc?.type === "inventory";
+    const equippableNow = isInventory && parentDoc?.system?.equippable === true;
+    const equippedNow = isInventory && parentDoc?.system?.equipped === true;
+    const modeLabel = d.mode === "equipped"
+      ? t("SD.Effects.ModeEquipped", "Transfer while equipped")
+      : (d.mode === "item" ? t("SD.Effects.ModeItemOnly", "Item only") : t("SD.Effects.ModeAlways", "Always transfer"));
+    const modeHint = d.mode === "equipped"
+      ? t("SD.Effects.ModeEquippedHint", "Applied only while the item is equipped.")
+      : (d.mode === "item"
+        ? t("SD.Effects.ModeItemOnlyHint", "Never transferred to the actor.")
+        : t("SD.Effects.ModeAlwaysHint", "Applied whenever the item is owned."));
+    const modeIcon = d.mode === "equipped"
+      ? "fa-shield-halved"
+      : (d.mode === "item" ? "fa-lock" : "fa-arrow-right-to-bracket");
 
     const roundsLabel  = t("SD.Effects.Rounds", "Rounds");
     const secondsLabel = t("SD.Effects.Seconds", "Seconds");
@@ -110,9 +135,11 @@ export class SDEffectSheet extends DocumentSheetV2 {
         : `<span class="sd-es-chip is-on"><i class="fas fa-circle-play"></i> ${esc(t("SD.Effects.Active", "Active"))}</span>`,
       `<span class="sd-es-chip"><i class="fas fa-hourglass-half"></i> ${esc(duration)}</span>`,
       `<span class="sd-es-chip is-accent"><i class="fas fa-sliders"></i> ${d.changes.length} ${esc(t("SD.Effects.Changes", "Changes"))}</span>`,
-      d.transfer
-        ? `<span class="sd-es-chip"><i class="fas fa-user-shield"></i> ${esc(t("SD.Effects.Transfer", "Transfer to actor"))}</span>`
-        : ""
+      isItem
+        ? `<span class="sd-es-chip ${(d.mode === "equipped" && !equippableNow) ? "is-warn" : ""}"><i class="fas ${modeIcon}"></i> ${esc(modeLabel)}</span>`
+        : (d.transfer
+          ? `<span class="sd-es-chip"><i class="fas fa-user-shield"></i> ${esc(t("SD.Effects.Transfer", "Transfer to actor"))}</span>`
+          : "")
     ].filter(Boolean).join("");
 
     const rows = d.changes.map((c, i) => {
@@ -211,15 +238,29 @@ export class SDEffectSheet extends DocumentSheetV2 {
                   <small>${esc(t("SD.Effects.DisabledHint", "Keeps the effect on the document but stops applying it."))}</small>
                 </span>
               </label>
-              <label class="sd-es-switch">
+              ${isItem ? "" : `<label class="sd-es-switch">
                 <input type="checkbox" name="transfer" ${d.transfer ? "checked" : ""} ${lock}>
                 <span class="sd-es-track"></span>
                 <span class="sd-es-switch-text">
                   <b>${esc(t("SD.Effects.Transfer", "Transfer to actor"))}</b>
                   <small>${esc(t("SD.Effects.TransferHint", "Copies the effect onto the owning actor instead of staying on the item."))}</small>
                 </span>
-              </label>
+              </label>`}
             </div>
+            ${isItem ? `<div class="sd-es-modecard">
+              <div class="sd-es-modecard-head">
+                <i class="fas ${modeIcon}"></i>
+                <b>${esc(t("SD.Effects.TransferMode", "Transfer mode"))}</b>
+              </div>
+              <select name="transferMode" ${lock}>
+                <option value="always" ${d.mode === "always" ? "selected" : ""}>${esc(t("SD.Effects.ModeAlways", "Always transfer"))}</option>
+                ${isInventory ? `<option value="equipped" ${d.mode === "equipped" ? "selected" : ""}>${esc(t("SD.Effects.ModeEquipped", "Transfer while equipped"))}</option>` : ""}
+                <option value="item" ${d.mode === "item" ? "selected" : ""}>${esc(t("SD.Effects.ModeItemOnly", "Item only"))}</option>
+              </select>
+              <p class="sd-es-modehint">${esc(modeHint)}</p>
+              ${(d.mode === "equipped" && !equippableNow) ? `<p class="sd-es-modewarn"><i class="fas fa-triangle-exclamation"></i> ${esc(t("SD.Effects.EquipAutoHint", "Saving marks this item Equippable so the equip gate can open."))}</p>` : ""}
+              ${(d.mode === "equipped" && equippableNow && !equippedNow) ? `<p class="sd-es-modehint"><i class="fas fa-circle-info"></i> ${esc(t("SD.Effects.EquipInactiveHint", "The item is not equipped right now, so the effect stays inactive."))}</p>` : ""}
+            </div>` : ""}
           </div>
         </section>
 
@@ -261,7 +302,14 @@ export class SDEffectSheet extends DocumentSheetV2 {
     d.rounds = Number(val('[name="rounds"]', d.rounds)) || 0;
     d.seconds = Number(val('[name="seconds"]', d.seconds)) || 0;
     d.disabled = !!root.querySelector('[name="disabled"]')?.checked;
-    d.transfer = !!root.querySelector('[name="transfer"]')?.checked;
+    const modeEl = root.querySelector('[name="transferMode"]');
+    if (modeEl) {
+      d.mode = ["always", "equipped", "item"].includes(modeEl.value) ? modeEl.value : "always";
+      d.transfer = d.mode !== "item";
+    } else {
+      d.transfer = !!root.querySelector('[name="transfer"]')?.checked;
+      d.mode = d.transfer ? (d.mode === "equipped" ? "equipped" : "always") : "item";
+    }
     d.changes = [...root.querySelectorAll(".sd-es-change")].map((row, i) => {
       const prev = d.changes[i] ?? {};
       const variableId = row.querySelector('[data-change="variableId"]')?.value ?? "";
@@ -302,6 +350,25 @@ export class SDEffectSheet extends DocumentSheetV2 {
       "duration.seconds": d.seconds || null
     };
 
+    const parentDoc = this.document?.parent ?? null;
+    if (parentDoc?.documentName === "Item") {
+      const mode = ["always", "equipped", "item"].includes(d.mode) ? d.mode : "always";
+      payload.transfer = mode !== "item";
+      payload["flags.sd.effectTransferMode"] = mode;
+      payload["flags.sd.activateOnEquip"] = mode === "equipped";
+      if (mode === "equipped") {
+        if (parentDoc.type === "inventory" && parentDoc.system?.equippable !== true) {
+          try {
+            await parentDoc.update({ "system.equippable": true });
+            ui.notifications?.info?.(t("SD.Effects.AutoEquippable", "The item is now marked Equippable."));
+          } catch (err) {
+            console.warn("SD | could not mark the item equippable:", err);
+          }
+        }
+        payload.disabled = d.disabled || parentDoc.system?.equipped !== true;
+      }
+    }
+
     try {
       await this.document.update(payload);
     } catch (err) {
@@ -332,7 +399,7 @@ export class SDEffectSheet extends DocumentSheetV2 {
     });
 
     // Keep the header chips (Active / duration / change count) in sync while editing.
-    root.querySelectorAll('[name="disabled"], [name="transfer"], [name="rounds"], [name="seconds"]').forEach(el => {
+    root.querySelectorAll('[name="disabled"], [name="transfer"], [name="transferMode"], [name="rounds"], [name="seconds"]').forEach(el => {
       el.addEventListener("change", async () => {
         this._collect();
         await this.render();

@@ -5,7 +5,10 @@ import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { effectChangeLabel } from "../helpers/effects.mjs";
 import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 import { localizeTree } from "../helpers/localization.mjs";
-import { getValueDefinition, readDatabaseValue, valueStoragePath, variableIdForLegacyPath } from "../helpers/value-database.mjs";
+import {
+  getValueDefinition, readDatabaseValue, valueStoragePath, variableIdForLegacyPath,
+  databaseValueList, databaseValueToText, readDatabaseValueList
+} from "../helpers/value-database.mjs";
 
 export class WidgetRenderer {
 
@@ -860,17 +863,68 @@ export class WidgetRenderer {
 </div>`;
   }
 
+  /** Accepted values of a widget filter (list or comma separated text). */
+  static _sdAcceptedList(value) {
+    return databaseValueList(value ?? []);
+  }
+
+  /**
+   * Values of the filter variable on one item.
+   * Uses the selected Database variable, falling back to the legacy field.
+   */
+  static _sdFilterValues(item, variableId, legacyValue) {
+    const id = String(variableId ?? "").trim();
+    if (id) {
+      const resolved = getValueDefinition(id)?.id || variableIdForLegacyPath(id) || id;
+      const list = readDatabaseValueList(item, resolved);
+      if (list.length) return list;
+    }
+    return databaseValueList(legacyValue);
+  }
+
+  /** True when at least one accepted value matches the item's variable value. */
+  static _sdFilterMatches(item, variableId, legacyValue, accepted) {
+    const wanted = this._sdAcceptedList(accepted).map(entry => entry.toLowerCase());
+    if (!wanted.length) return true;
+    const own = this._sdFilterValues(item, variableId, legacyValue).map(entry => entry.toLowerCase());
+    if (!own.length) return false;
+    return own.some(entry => wanted.includes(entry));
+  }
+
+  /**
+   * Extra columns of a widget as [{id,label,variable}].
+   * Database variables are preferred; legacy hidden field names still work.
+   */
+  static _sdExtraColumns(w) {
+    const pick = value => (Array.isArray(value) ? value : String(value ?? "").split(","))
+      .map(entry => String(entry ?? "").trim()).filter(Boolean);
+    const cols = [];
+    for (const entry of pick(w?.columnVariables)) {
+      const def = getValueDefinition(entry) ?? getValueDefinition(variableIdForLegacyPath(entry));
+      cols.push(def ? { id: def.id, label: def.name, type: def.type, variable: true } : { id: entry, label: entry, variable: false });
+    }
+    if (cols.length) return cols;
+    return pick(w?.columns).map(entry => ({ id: entry, label: entry, variable: false }));
+  }
+
+  /** Text of one extra column for a document. */
+  static _sdColumnValue(col, item) {
+    if (col?.variable) return databaseValueToText(readDatabaseValue(item, col.id));
+    const legacy = item?.system?.hiddenFields?.[col?.id] ?? item?.system?.[col?.id] ?? "";
+    return databaseValueToText(legacy);
+  }
+
   static _render_inventory(w, doc) {
     const e = this._esc;
     const isActor = doc instanceof Actor;
     if (!isActor) return `<div class="widget widget-inventory"><p style="color:var(--sd-text-3)">Inventory widget only works on Actor sheets</p></div>`;
 
     let items = [...(doc.items ?? [])].filter(item => item.type === "inventory");
-    const categories = w.categories ?? [];
-    const columns = w.columns ?? [];
+    const categories = this._sdAcceptedList(w.categories);
+    const columns = this._sdExtraColumns(w);
 
     if (categories.length > 0) {
-      items = items.filter(item => categories.includes(item.system?.category));
+      items = items.filter(item => this._sdFilterMatches(item, w.categoryVariable, item.system?.category, categories));
     }
 
     if (w.compact) {
@@ -884,7 +938,7 @@ export class WidgetRenderer {
 
     const grouped = {};
     items.forEach(item => {
-      const cat = item.system?.category ?? "other";
+      const cat = this._sdFilterValues(item, w.categoryVariable, item.system?.category)[0] ?? "other";
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(item);
     });
@@ -892,7 +946,7 @@ export class WidgetRenderer {
     let colHeaders = "";
     let colCells = "";
     if (columns.length > 0) {
-      colHeaders = columns.map(col => `<span class="item-col-header">${e(col)}</span>`).join("");
+      colHeaders = columns.map(col => `<span class="item-col-header">${e(col.label)}</span>`).join("");
     }
 
     let html = `<div class="widget widget-inventory">
@@ -968,8 +1022,8 @@ export class WidgetRenderer {
         let extraCols = "";
         if (columns.length > 0) {
           for (const col of columns) {
-            const val = item.system?.hiddenFields?.[col] ?? item.system?.[col] ?? "";
-            extraCols += `<span class="item-col">${e(String(val))}</span>`;
+            const val = this._sdColumnValue(col, item);
+            extraCols += `<span class="item-col" title="${e(col.label)}">${e(val)}</span>`;
           }
         }
 
@@ -1397,14 +1451,18 @@ export class WidgetRenderer {
       return `<div class="widget widget-spellbook"><p class="sb-only-actor">Spellbook works on Actor sheets only</p></div>`;
     }
 
-    const wantType = String(w.abilityType ?? (w.type && w.type !== "spellbook" ? w.type : "") ?? "").trim();
+    // Accepted ability types come from a Database variable; the legacy single
+    // hidden field type is still used as a fallback.
+    const acceptedTypes = this._sdAcceptedList(w.abilityTypes);
+    const legacyType = String(w.abilityType ?? (w.type && w.type !== "spellbook" ? w.type : "") ?? "").trim();
+    const wantTypes = acceptedTypes.length ? acceptedTypes : (legacyType ? [legacyType] : []);
+    const wantType = wantTypes.join(", ");
+
+    const sbColumns = this._sdExtraColumns(w);
 
     let abilities = [...(doc.items ?? [])].filter(i => i.type === "ability");
-    if (wantType) {
-      abilities = abilities.filter(i => {
-        const t = String(i.system?.hiddenFields?.type ?? "").trim();
-        return t === wantType;
-      });
+    if (wantTypes.length) {
+      abilities = abilities.filter(i => this._sdFilterMatches(i, w.typeVariable, i.system?.hiddenFields?.type, wantTypes));
     }
 
     if (w.compact) {
@@ -1429,7 +1487,7 @@ export class WidgetRenderer {
       html += `
   <ul class="sb-ability-list">`;
       for (const ab of abilities) {
-        html += this._sbAbilityRow(ab, e);
+        html += this._sbAbilityRow(ab, e, sbColumns);
       }
       html += `
   </ul>`;
@@ -1506,8 +1564,9 @@ export class WidgetRenderer {
       if (Array.isArray(columns) && columns.length > 0) {
         let cells = "";
         for (const col of columns) {
-          const val = sys?.hiddenFields?.[col] ?? sys?.[col] ?? "";
-          cells += `<div class="sd-item-card-col"><span class="sd-item-card-col-label">${e(col)}</span><span class="sd-item-card-col-value">${e(String(val))}</span></div>`;
+          const spec = (col && typeof col === "object") ? col : { id: col, label: col, variable: false };
+          const val = this._sdColumnValue(spec, item);
+          cells += `<div class="sd-item-card-col"><span class="sd-item-card-col-label">${e(spec.label)}</span><span class="sd-item-card-col-value">${e(val)}</span></div>`;
         }
         extraColsHtml = `<div class="sd-item-card-extra-cols">${cells}</div>`;
       }
@@ -2328,7 +2387,7 @@ export class WidgetRenderer {
     </div>`;
   }
 
-  static _sbAbilityRow(ab, esc) {
+  static _sbAbilityRow(ab, esc, columns = []) {
     const hf       = ab.system?.hiddenFields ?? {};
     const cost     = Number(hf.cost ?? 0) || 0;
     const pathUses = String(hf.pathUses ?? "").trim();
@@ -2337,6 +2396,15 @@ export class WidgetRenderer {
     const costBadge = (cost > 0)
       ? `<span class="sb-ability-cost" style="font-size:10px;color:var(--sd-accent);white-space:nowrap" title="${esc(pathUses || "no resource path")}">${cost}</span>`
       : "";
+
+    // Extra columns configured as Database variables.
+    let extraCols = "";
+    for (const col of (Array.isArray(columns) ? columns : [])) {
+      const spec = (col && typeof col === "object") ? col : { id: col, label: col, variable: false };
+      const value = this._sdColumnValue(spec, ab);
+      if (value === "") continue;
+      extraCols += `<span class="sb-ability-col" title="${esc(spec.label)}" style="font-size:10px;color:var(--sd-text-3);white-space:nowrap">${esc(value)}</span>`;
+    }
 
     return `
       <li class="sb-ability-row ${equipped}" data-item-id="${esc(ab.id)}" data-sd-preview-ref="item:${esc(ab.id)}" draggable="true"
@@ -2348,6 +2416,7 @@ export class WidgetRenderer {
              style="width:20px;height:20px;object-fit:cover;border-radius:3px;flex-shrink:0">
         <span class="sb-ability-name" style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="${esc(ab.name)}">${esc(ab.name)}</span>
+        ${extraCols}
         ${costBadge}
         <div class="sb-ability-controls" style="display:flex;gap:2px;flex-shrink:0">
           <button type="button" data-action="abilityCast"

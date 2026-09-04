@@ -1587,7 +1587,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (!item.system?.equippable) {
           const msg = game.i18n?.format?.("SD.NotEquippableHint", { name: item.name });
           ui.notifications?.warn((!msg || msg === "SD.NotEquippableHint")
-            ? `"${item.name}" is not marked Equippable. Open the item → Details tab and tick Equippable.`
+            ? `"${item.name}" is not marked Equippable. Open the item → Effects tab → Equipment and tick Equippable.`
             : msg);
           return;
         }
@@ -2770,7 +2770,7 @@ async function _sdCycleEffectMode(ef) {
   const current = ["always", "equipped", "item"].includes(explicit)
     ? explicit
     : (ef.transfer === false ? "item" : (ef.flags?.sd?.activateOnEquip ? "equipped" : "always"));
-  const canEquipGate = item.type === "inventory" && item.system?.equippable === true;
+  const canEquipGate = item.type === "inventory";
 
   if (current === "item") {
     await ef.update({
@@ -2788,6 +2788,18 @@ async function _sdCycleEffectMode(ef) {
   }
 
   if (current === "always" && canEquipGate) {
+    if (item.system?.equippable !== true) {
+      try {
+        await item.update({ "system.equippable": true });
+        ui.notifications?.info?.(_sdLoc(
+          "SD.Effects.AutoEquippable",
+          `“${item.name}” is now marked Equippable.`,
+          { name: item.name }
+        ));
+      } catch (err) {
+        console.warn("SD | could not mark the item equippable:", err);
+      }
+    }
     await ef.update({
       transfer: true,
       disabled: item.system?.equipped !== true,
@@ -2815,8 +2827,8 @@ async function _sdCycleEffectMode(ef) {
   ));
   if (current === "always" && !canEquipGate) {
     ui.notifications?.warn?.(_sdLoc(
-      "SD.Effects.ItemOnlyWarning",
-      "Mark the item as Equippable to use the equipped-only mode."
+      "SD.Effects.EquippedOnlyInventory",
+      "Only inventory items can use the equipped-only mode."
     ));
   }
 }

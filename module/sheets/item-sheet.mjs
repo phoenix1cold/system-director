@@ -1767,6 +1767,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const doc = this.document;
     const e   = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     const effects = [...(doc.effects ?? [])];
+    const ed = this.isEditable !== false;
+    const canEquipMode = doc.type === "inventory";
 
     let rows = "";
     for (const ef of effects) {
@@ -1787,6 +1789,11 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const tTitle    = aoe
         ? _sdLoc("SD.Effects.ModeEquippedHint", "Applied only while the item is equipped.")
         : (transfers ? _sdLoc("SD.Effects.ModeAlwaysHint", "Applied whenever the item is owned.") : _sdLoc("SD.Effects.ModeItemOnlyHint", "Never transferred to the actor."));
+      const modeOptions = [
+        { value: "always", label: _sdLoc("SD.Effects.ModeAlways", "Always transfer") },
+        ...(canEquipMode ? [{ value: "equipped", label: _sdLoc("SD.Effects.ModeEquipped", "Transfer while equipped") }] : []),
+        { value: "item", label: _sdLoc("SD.Effects.ModeItemOnly", "Item only") }
+      ].map(o => `<option value="${o.value}" ${mode === o.value ? "selected" : ""}>${e(o.label)}</option>`).join("");
       rows += `
       <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;background:var(--sd-bg-2);margin-bottom:5px;border-left:3px solid ${transfers ? "var(--sd-success)" : "var(--sd-border)"}">
         <img src="${e(ef.img ?? ef.icon ?? "icons/svg/aura.svg")}" alt="${e(ef.name)}"
@@ -1794,19 +1801,16 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;color:${ef.disabled ? "var(--sd-text-3)" : "var(--sd-text)"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">${e(ef.name)}</div>
           <div style="display:flex;gap:6px;margin-top:2px;align-items:center">
-            <span title="${tTitle}" style="font-size:9px;color:${tColor};display:flex;align-items:center;gap:3px;cursor:default">
-              <i class="fas ${tIcon}"></i>${e(tLabel)}
+            <span style="display:flex;align-items:center;gap:4px;min-width:0" title="${tTitle}">
+              <i class="fas ${tIcon}" style="font-size:9px;color:${tColor};flex-shrink:0"></i>
+              <select data-effect-mode data-effect-id="${e(ef.id)}" title="${tTitle}" aria-label="${e(tLabel)}"
+                style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:${tColor};font-size:9px;padding:1px 3px;max-width:180px;min-width:0" ${ed ? "" : "disabled"}>${modeOptions}</select>
             </span>
             ${dur ? `<span style="font-size:9px;color:var(--sd-text-3)">⏱ ${e(dur)}</span>` : ""}
             ${ef.changes?.length ? `<span style="font-size:9px;color:var(--sd-accent-2,var(--sd-accent))">${ef.changes.length} change${ef.changes.length!==1?"s":""}</span>` : ""}
           </div>
         </div>
         <div style="display:flex;gap:2px;flex-shrink:0">
-          <button type="button" data-action="sysEffectTransfer" data-effect-id="${e(ef.id)}"
-            title="${tTitle}"
-            style="background:none;border:none;color:${tColor};cursor:pointer;font-size:12px;padding:2px 5px">
-            <i class="fas ${tIcon}"></i>
-          </button>
           <button type="button" data-action="sysEffectToggle" data-effect-id="${e(ef.id)}"
             title="${ef.disabled ? "Enable" : "Disable"}"
             style="background:none;border:none;color:${ef.disabled ? "var(--sd-text-3)" : "var(--sd-accent)"};cursor:pointer;font-size:12px;padding:2px 5px">
@@ -1824,7 +1828,39 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       </li>`;
     }
 
+    const equipped = doc.system?.equipped === true;
+    const equippable = doc.system?.equippable === true;
+    const equipCard = canEquipMode ? `
+      <div style="background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:5px;padding:9px 10px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sd-text-3)">
+          <i class="fas fa-shield-halved" style="color:var(--sd-accent)"></i>${e(_sdLoc("SD.Effects.EquipSettings", "Equipment"))}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sd-text);cursor:pointer" title="${e(_sdLoc("SD.EquippableHint", "Allows this item to be equipped and unequipped."))}">
+            <input type="checkbox" data-sys-field="equippable" ${equippable ? "checked" : ""} ${ed ? "" : "disabled"}>
+            ${e(_sdLoc("SD.Equippable", "Equippable"))}
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sd-text-2);cursor:pointer" title="${e(_sdLoc("SD.ConcentrationHint", "Only one concentration item can be equipped at a time."))}">
+            <input type="checkbox" data-sys-field="concentration" ${doc.system?.concentration ? "checked" : ""} ${ed ? "" : "disabled"}>
+            ${e(_sdLoc("SD.Concentration", "Concentration"))}
+          </label>
+          <button type="button" data-action="sysEffectEquipToggle" ${(ed && equippable) ? "" : "disabled"}
+            title="${e(equippable ? _sdLoc("SD.ToggleEquip", "Toggle equipped") : _sdLoc("SD.Effects.EquipGateHint", "Tick Equippable first."))}"
+            style="margin-left:auto;display:flex;align-items:center;gap:5px;background:${equipped ? "var(--sd-accent-glow)" : "var(--sd-bg-3)"};border:1px solid ${equipped ? "var(--sd-accent)" : "var(--sd-border)"};border-radius:4px;color:${equipped ? "var(--sd-accent)" : "var(--sd-text-2)"};cursor:${(ed && equippable) ? "pointer" : "not-allowed"};font-size:11px;font-weight:600;padding:4px 12px;opacity:${(ed && equippable) ? "1" : ".5"}">
+            <i class="fas fa-${equipped ? "shield-halved" : "shield"}"></i> ${e(equipped ? _sdLoc("SD.Equipped", "Equipped") : _sdLoc("SD.Equip", "Equip"))}
+          </button>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:10px;color:var(--sd-text-3)">
+          ${e(_sdLoc("SD.Item.EquipRequirements", "Equip requirements"))}
+          <input type="text" data-sys-field="equipRequirements" value="${e(doc.system?.equipRequirements ?? "")}"
+            placeholder="${e(_sdLoc("SD.Item.EquipRequirementsHint", "Formula that must be true to equip, e.g. @attr1 >= 3"))}"
+            style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;font-family:monospace;padding:3px 7px" ${ed ? "" : "disabled"}>
+        </label>
+        ${equippable ? "" : `<div style="font-size:10px;color:var(--sd-stamina,#d8a23a);line-height:1.5"><i class="fas fa-circle-info" style="margin-right:4px"></i>${e(_sdLoc("SD.Effects.EquipGateHint", "Tick Equippable to unlock the “transfer while equipped” effect mode."))}</div>`}
+      </div>` : "";
+
     p.innerHTML = `
+      ${equipCard}
       <div style="background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:5px;padding:8px 10px;margin-bottom:10px;font-size:10px;color:var(--sd-text-3);line-height:1.6">
         <i class="fas fa-circle-info" style="color:var(--sd-accent);margin-right:4px"></i>
         ${e(_sdLoc("SD.Effects.Info", "Effect mode: always transfer, transfer only while equipped, or item only."))}
@@ -1887,6 +1923,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           });
           break;
         }
+        case "sysEffectEquipToggle": {
+          await SDItemSheet._onToggleEquipped.call(this, ev);
+          break;
+        }
         case "sysEffectDelete": {
           const ef = doc.effects?.get(efId);
           if (!ef) break;
@@ -1898,6 +1938,15 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           break;
         }
       }
+    });
+
+    panel.addEventListener("change", async ev => {
+      const sel = ev.target?.closest?.("[data-effect-mode]");
+      if (!sel) return;
+      ev.stopPropagation();
+      const ef = doc.effects?.get(sel.dataset.effectId);
+      if (!ef) return;
+      await _sdSetEffectMode(ef, sel.value);
     });
   }
 
@@ -3218,7 +3267,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     if (!doc.system?.equippable) {
       const msg = game.i18n?.format?.("SD.NotEquippableHint", { name: doc.name });
       ui.notifications?.warn((!msg || msg === "SD.NotEquippableHint")
-        ? `"${doc.name}" is not marked Equippable. Open the Details tab and tick Equippable.`
+        ? `"${doc.name}" is not marked Equippable. Open the Effects tab → Equipment and tick Equippable.`
         : msg);
       return;
     }
@@ -3340,6 +3389,93 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 }
 
 
+/** Resolve the SD transfer mode of an effect: "always" | "equipped" | "item". */
+function _sdEffectMode(ef) {
+  const explicit = ef?.flags?.sd?.effectTransferMode;
+  if (["always", "equipped", "item"].includes(explicit)) return explicit;
+  if (ef?.transfer === false) return "item";
+  return ef?.flags?.sd?.activateOnEquip ? "equipped" : "always";
+}
+
+/**
+ * Apply an explicit transfer mode to an item-owned Active Effect.
+ * Picking "equipped" on an inventory item also marks that item Equippable,
+ * otherwise the equip gate could never open.
+ */
+async function _sdSetEffectMode(ef, mode) {
+  const item = ef?.parent;
+  if (!item || item.documentName !== "Item") {
+    ui.notifications?.warn?.(_sdLoc(
+      "SD.Effects.OnlyOnItems",
+      "Effect modes can only be changed on effects owned by an item."
+    ));
+    return false;
+  }
+  const next = ["always", "equipped", "item"].includes(mode) ? mode : "always";
+
+  if (next === "equipped") {
+    if (item.type !== "inventory") {
+      ui.notifications?.warn?.(_sdLoc(
+        "SD.Effects.EquippedOnlyInventory",
+        "Only inventory items can use the equipped-only mode."
+      ));
+      return false;
+    }
+    if (item.system?.equippable !== true) {
+      try {
+        await item.update({ "system.equippable": true });
+        ui.notifications?.info?.(_sdLoc(
+          "SD.Effects.AutoEquippable",
+          `“${item.name}” is now marked Equippable.`,
+          { name: item.name }
+        ));
+      } catch (err) {
+        console.warn("SD | could not mark the item equippable:", err);
+      }
+    }
+    await ef.update({
+      transfer: true,
+      disabled: item.system?.equipped !== true,
+      "flags.sd.activateOnEquip": true,
+      "flags.sd.effectTransferMode": "equipped"
+    });
+    ui.notifications?.info?.(_sdLoc(
+      "SD.Effects.ModeChangedEquipped",
+      `“${ef.name}”: transfers only while “${item.name}” is equipped.`,
+      { name: ef.name, item: item.name }
+    ));
+    return true;
+  }
+
+  if (next === "item") {
+    await ef.update({
+      transfer: false,
+      disabled: false,
+      "flags.sd.activateOnEquip": false,
+      "flags.sd.effectTransferMode": "item"
+    });
+    ui.notifications?.info?.(_sdLoc(
+      "SD.Effects.ModeChangedItemOnly",
+      `“${ef.name}”: remains on the item and does not transfer.`,
+      { name: ef.name }
+    ));
+    return true;
+  }
+
+  await ef.update({
+    transfer: true,
+    disabled: false,
+    "flags.sd.activateOnEquip": false,
+    "flags.sd.effectTransferMode": "always"
+  });
+  ui.notifications?.info?.(_sdLoc(
+    "SD.Effects.ModeChangedAlways",
+    `“${ef.name}”: always transfers to the actor.`,
+    { name: ef.name }
+  ));
+  return true;
+}
+
 /**
  * Cycle an item-owned Active Effect between three modes:
  *  1) transfers to actor (always active),
@@ -3360,7 +3496,7 @@ async function _sdCycleEffectMode(ef) {
   const current = ["always", "equipped", "item"].includes(explicit)
     ? explicit
     : (ef.transfer === false ? "item" : (ef.flags?.sd?.activateOnEquip ? "equipped" : "always"));
-  const canEquipGate = item.type === "inventory" && item.system?.equippable === true;
+  const canEquipGate = item.type === "inventory";
 
   if (current === "item") {
     await ef.update({
@@ -3378,18 +3514,7 @@ async function _sdCycleEffectMode(ef) {
   }
 
   if (current === "always" && canEquipGate) {
-    await ef.update({
-      transfer: true,
-      disabled: item.system?.equipped !== true,
-      "flags.sd.activateOnEquip": true,
-      "flags.sd.effectTransferMode": "equipped"
-    });
-    ui.notifications?.info?.(_sdLoc(
-      "SD.Effects.ModeChangedEquipped",
-      `“${ef.name}”: transfers only while “${item.name}” is equipped.`,
-      { name: ef.name, item: item.name }
-    ));
-    return;
+    return _sdSetEffectMode(ef, "equipped");
   }
 
   await ef.update({
@@ -3405,8 +3530,8 @@ async function _sdCycleEffectMode(ef) {
   ));
   if (current === "always" && !canEquipGate) {
     ui.notifications?.warn?.(_sdLoc(
-      "SD.Effects.ItemOnlyWarning",
-      "Mark the item as Equippable to use the equipped-only mode."
+      "SD.Effects.EquippedOnlyInventory",
+      "Only inventory items can use the equipped-only mode."
     ));
   }
 }

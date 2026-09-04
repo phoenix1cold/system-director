@@ -3451,20 +3451,33 @@ export class ButtonExecutor {
           ? action.messageParts
           : [action.messageText ?? action.text ?? ""];
 
+        // A pin can deliver a real array or document - print it as text.
+        const _partToText = value => {
+          if (value === null || value === undefined) return "";
+          if (Array.isArray(value)) return value.map(entry => _partToText(entry)).filter(entry => entry !== "").join(", ");
+          if (typeof value === "object") {
+            const named = value.name ?? value.label ?? value.title ?? value.uuid ?? value.id ?? value._id;
+            if (named !== undefined && named !== null && typeof named !== "object" && String(named) !== "") return String(named);
+            try { return JSON.stringify(value); } catch { return ""; }
+          }
+          return String(value);
+        };
+
         const resolvedParts = [];
         for (let rawPart of rawParts) {
-          let p = _injectRuntime(String(rawPart));
+          let p = _injectRuntime(_partToText(rawPart));
           if (!p) continue;
           try {
             const { FormulaEngine } = await import("./formula-engine.mjs");
             const doc = item ?? actor ?? {};
             p = p.replace(/\{([^}]+)\}/g, (match, inner) => {
               const val = FormulaEngine.evaluate(`{${inner}}`, doc);
-              return (val === match || val === undefined || val === null) ? "0" : String(val);
+              if (val === match || val === undefined || val === null) return "0";
+              return FormulaEngine.valueToText(val);
             });
             if (p && !p.startsWith("{")) {
               const evaled = FormulaEngine.evaluate(p, doc);
-              if (evaled !== undefined && evaled !== p) p = String(evaled);
+              if (evaled !== undefined && evaled !== p) p = FormulaEngine.valueToText(evaled);
             }
           } catch {}
           if (p) resolvedParts.push(p);

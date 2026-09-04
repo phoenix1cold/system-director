@@ -113,18 +113,21 @@ export const WIDGET_TYPES = {
     desc:  "Items table with filters",
     defaultSpan: 3,
     defaults: {
-      label:        "Inventory",
-      showCurrency: true,
-      showWeight:   true,
-      categories:   [],
-      columns:      []
+      label:            "Inventory",
+      showCurrency:     true,
+      showWeight:       true,
+      categoryVariable: "",
+      categories:       [],
+      columnVariables:  [],
+      columns:          []
     },
     configFields: [
-      { key: "label",        type: "text",     label: "Title" },
-      { key: "showCurrency", type: "checkbox", label: "Show Currency" },
-      { key: "showWeight",   type: "checkbox", label: "Show Weight" },
-      { key: "categories",   type: "tags",     label: "Filter Categories (empty = all)" },
-      { key: "columns",      type: "tags",     label: "Extra Columns (hidden attr names: weight, damage, etc)" }
+      { key: "label",            type: "text",      label: "Title" },
+      { key: "showCurrency",     type: "checkbox",  label: "Show Currency" },
+      { key: "showWeight",       type: "checkbox",  label: "Show Weight" },
+      { key: "categoryVariable", type: "dbvar",     label: "Category Variable (Database)" },
+      { key: "categories",       type: "tags",      label: "Accepted Categories (empty = all)" },
+      { key: "columnVariables",  type: "dbvarlist", label: "Extra Columns (Database variables)" }
     ]
   },
 
@@ -156,12 +159,16 @@ export const WIDGET_TYPES = {
     defaultSpan: 3,
     defaults: {
       label: "Spellbook",
-      abilityType: ""
+      abilityType: "",
+      typeVariable: "",
+      abilityTypes: [],
+      columnVariables: []
     },
     configFields: [
-      { key: "label",       type: "text", label: "Title" },
-      { key: "abilityType", type: "text", label: "Ability type filter",
-        placeholder: "spell / technique / power (empty = all)" }
+      { key: "label",           type: "text",      label: "Title" },
+      { key: "typeVariable",    type: "dbvar",     label: "Type Variable (Database)" },
+      { key: "abilityTypes",    type: "tags",      label: "Accepted Types (empty = all)" },
+      { key: "columnVariables", type: "dbvarlist", label: "Extra Columns (Database variables)" }
     ]
   },
 

@@ -50,7 +50,17 @@ export function registerEffectDurationHooks() {
 
 export function effectDurationLabel(effect) {
   const d = effect?.duration ?? {};
-  if (typeof d.label === "string" && d.label.trim()) return d.label;
+
+  // Permanent effects: Foundry reports duration.label === "None", which used to
+  // leak into every effect row as an ugly "None" badge. Passive effects get no
+  // badge at all.
+  const hasRounds  = Number(d.rounds)  > 0;
+  const hasSeconds = Number(d.seconds) > 0;
+  const hasTurns   = Number(d.turns)   > 0;
+  if (!hasRounds && !hasSeconds && !hasTurns) return "";
+
+  const rawLabel = (typeof d.label === "string") ? d.label.trim() : "";
+  if (rawLabel && rawLabel.toLowerCase() !== "none") return rawLabel;
 
   const remaining = Number(d.remaining);
   if (Number.isFinite(remaining) && remaining >= 0) {
@@ -58,7 +68,8 @@ export function effectDurationLabel(effect) {
     if (Number(d.seconds) > 0) return `${Math.ceil(remaining)}s`;
   }
 
-  if (Number(d.rounds) > 0) return `${Number(d.rounds)}r`;
-  if (Number(d.seconds) > 0) return `${Number(d.seconds)}s`;
+  if (hasRounds) return `${Number(d.rounds)}r`;
+  if (hasSeconds) return `${Number(d.seconds)}s`;
+  if (hasTurns) return `${Number(d.turns)}t`;
   return "";
 }

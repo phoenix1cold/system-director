@@ -615,12 +615,17 @@
     "title": "To Text",
     "color": "#2f8a72",
     "cat": "Conversion",
-    "desc": "Convert a number, boolean, UUID or any scalar value to text.",
+    "desc": "Convert any value to text. Arrays (inventory items, spells, targets, array variables) are joined with the Separator and every item shows its name, so an array never prints as [object Object].",
     "inputs": [
       {
         "id": "value",
         "label": "Value",
         "type": "value.any"
+      },
+      {
+        "id": "sep",
+        "label": "Separator",
+        "type": "value.string"
       }
     ],
     "outputs": [
@@ -630,7 +635,14 @@
         "type": "value.string"
       }
     ],
-    "fields": [],
+    "fields": [
+      {
+        "key": "sep",
+        "label": "Separator (arrays)",
+        "type": "text",
+        "default": ", "
+      }
+    ],
     "compile": {
       "__fn": true
     },
@@ -5822,7 +5834,7 @@
     "title": "Message",
     "color": "#4a4a1a",
     "cat": "Chat",
-    "desc": "Posts a chat message assembled from the fallback text and every connected Text input.",
+    "desc": "Posts a chat message assembled from the fallback text and every connected Text input. Arrays are printed as a readable list (item names), not [object Object].",
     "inputs": [
       {
         "id": "exec",
