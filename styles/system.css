@@ -8485,3 +8485,10 @@ html body .sd.sd-wcfg-popup .wcfg-input-row[data-wcfg-row="formula"]>.wcfg-clear
 .status-effects .effect-control.sd-custom-effect{position:relative;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(123,104,238,.85)}
 .status-effects .effect-control.sd-custom-effect.active{box-shadow:inset 0 0 0 1px #7b68ee,0 0 6px rgba(123,104,238,.55)}
 .status-effects.sd-has-custom{max-height:min(60vh,420px);overflow-y:auto;scrollbar-width:thin}
+.config-db-formats{display:grid;gap:5px;margin:8px 0 6px;padding:9px 10px;border:1px solid var(--sd-border);border-radius:8px;background:var(--sd-bg-2)}
+.config-db-formats-title{display:flex;align-items:center;gap:6px;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--sd-text-3)}
+.config-db-fmt{display:grid;grid-template-columns:74px minmax(120px,auto) 1fr;gap:8px;align-items:baseline;font-size:10px}
+.config-db-fmt b{font-size:9px;font-weight:800;text-transform:uppercase;color:var(--sd-accent)}
+.config-db-fmt code{padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.28);font-family:ui-monospace,monospace;font-size:10px;color:var(--sd-text)}
+.config-db-fmt small{color:var(--sd-text-3)}
+@media(max-width:720px){.config-db-fmt{grid-template-columns:1fr}}

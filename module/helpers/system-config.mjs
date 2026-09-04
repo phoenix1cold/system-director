@@ -10,7 +10,7 @@ import {
 import { SDOnboarding } from "./onboarding.mjs";
 import { getAISettings, openAISettingsDialog } from "./ai-context.mjs";
 import { getLanguages, saveLanguages, currentLanguage, setCurrentLanguage, translationEditLanguage, setTranslationEditLanguage, exportLocalizationBundle } from "./localization.mjs";
-import { normalizeValueDatabase, normalizeValueId, buildInitialDatabaseValues, remapVariableIdsInObject, migrateVariableIds } from "./value-database.mjs";
+import { normalizeValueDatabase, normalizeValueId, buildInitialDatabaseValues, remapVariableIdsInObject, migrateVariableIds, valueTypeFormat, valueTypePlaceholder, VALUE_DATABASE_TYPES } from "./value-database.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -555,8 +555,10 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         ...v,index,
         isNumber:v.type==="number",isInteger:v.type==="integer",isText:v.type==="text",
         isBoolean:v.type==="boolean",isColor:v.type==="color",isArray:v.type==="array",isObject:v.type==="object",
-        scopeActor:v.scope==="actor",scopeItem:v.scope==="item",scopeBoth:v.scope==="both"
+        scopeActor:v.scope==="actor",scopeItem:v.scope==="item",scopeBoth:v.scope==="both",
+        formatPlaceholder:valueTypePlaceholder(v.type),formatExample:valueTypeFormat(v.type).example,formatHint:valueTypeFormat(v.type).hint
       })),
+      databaseFormats: VALUE_DATABASE_TYPES.map(type=>({type,example:valueTypeFormat(type).example,hint:valueTypeFormat(type).hint})),
       ai: {
         hasWorldKnowledge: worldKnowledge.trim().length > 0,
         worldKnowledgePreview: (() => {

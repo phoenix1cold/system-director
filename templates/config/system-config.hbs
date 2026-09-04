@@ -32,19 +32,23 @@
         {{#if v.isBoolean}}
           <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" name="db_{{v.index}}_initialBool" {{#if v.initial}}checked{{/if}}> Enabled</label>
         {{else}}
-          <input name="db_{{v.index}}_initial" value="{{v.initial}}" placeholder="Default">
+          <input name="db_{{v.index}}_initial" value="{{v.initial}}" placeholder="{{v.formatPlaceholder}}" title="{{v.formatHint}}">
         {{/if}}
         <input type="number" step="any" name="db_{{v.index}}_min" value="{{v.min}}" {{#unless v.isNumber}}{{#unless v.isInteger}}disabled{{/unless}}{{/unless}}>
         <input type="number" step="any" name="db_{{v.index}}_max" value="{{v.max}}" {{#unless v.isNumber}}{{#unless v.isInteger}}disabled{{/unless}}{{/unless}}>
         <button type="button" class="config-remove-btn" data-action="removeDatabaseValue" data-index="{{v.index}}" title="Remove value"><i class="fas fa-trash"></i></button>
       </div>
       {{/each}}
-      <div style="display:flex;justify-content:flex-start;margin:4px 0 2px">
-        <button type="button" class="config-add-btn" data-action="addDatabaseValue"><i class="fas fa-plus"></i> Add Variable</button>
-      </div>
+      {{!-- the single Add Variable button lives in the section header --}}
       {{#unless databaseEntries.length}}
       <div style="padding:18px;text-align:center;color:var(--sd-text-3);font-style:italic;border:1px dashed var(--sd-border);border-radius:6px">Database is empty. Add a typed value; no path is required.</div>
       {{/unless}}
+      <div class="config-db-formats">
+        <span class="config-db-formats-title"><i class="fas fa-keyboard"></i> How a value of each type has to be typed in</span>
+        {{#each databaseFormats as |f|}}
+        <span class="config-db-fmt"><b>{{f.type}}</b><code>{{f.example}}</code><small>{{f.hint}}</small></span>
+        {{/each}}
+      </div>
       <p class="section-hint-text"><i class="fas fa-info-circle"></i> Variable ID is generated from the variable name and changes with it. Existing sheet values, widgets, graphs and effects are migrated automatically.</p>
     </div>
 

@@ -28,6 +28,13 @@
 .sd-db-empty { padding:18px; text-align:center; opacity:.6; font-size:12px; }
 .sd-db-foot { display:flex; align-items:center; gap:8px; padding:10px 12px; border-top:1px solid var(--sd-border,#2b2b3a); }
 .sd-db-spacer { flex:1; }
+.sd-db-draft-format { grid-column:1 / -1; display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:2px 0 0; font-size:10px; }
+.sd-db-draft-format b { font-size:9px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--sd-accent,#5a8aff); }
+.sd-db-draft-format code { padding:1px 5px; border-radius:4px; background:rgba(0,0,0,.28); font-family:ui-monospace,monospace; font-size:10px; }
+.sd-db-draft-format small { opacity:.65; }
+.sd-db-fmt-chip { display:inline-flex; align-items:center; gap:4px; margin-top:1px; font-size:9px; opacity:.7; }
+.sd-db-fmt-chip code { font-family:ui-monospace,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sd-db-foot-note { display:inline-flex; align-items:center; gap:6px; font-size:10px; opacity:.6; }
 .sd-db-secondary, .sd-db-primary { padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:600; border:1px solid var(--sd-border,#2b2b3a); background:var(--sd-bg-3,#262633); color:inherit; }
 .sd-db-primary { border-color:var(--sd-accent,#5a8aff); background:var(--sd-accent,#5a8aff); color:#0d0d14; }
 
