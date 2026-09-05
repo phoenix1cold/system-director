@@ -1102,6 +1102,11 @@ export class ButtonExecutor {
           try {
             const decoded = decodeURIComponent(escape(atob(payload)));
             if (!decoded.includes("{__")) return match;
+            // Roll Result is structured data. Keep its runtime token encoded so
+            // FormulaEngine's To Text / To Number converters receive the real
+            // object and can extract result.total. String() here used to turn it
+            // into "[object Object]" before the converter ever saw it.
+            if (decoded.trim() === "{__rollResult}") return match;
             const injected = _injectRuntime(decoded);
             const encoded = btoa(unescape(encodeURIComponent(String(injected ?? ""))));
             return `${prefix}${encoded}`;
