@@ -6,7 +6,7 @@ import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 import { getConfiguredDataPathEntries, getSystemPathEntries, isConfiguredSettingsPath } from "../helpers/system-config.mjs";
 import { getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
-import { widgetVariables, widgetVarPath, coerceWidgetValue } from "../helpers/widget-variables.mjs";
+import { widgetVariables, widgetVarPath, coerceWidgetValue, widgetDataMode, widgetVarBinding, WIDGET_VARIABLES } from "../helpers/widget-variables.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { getLanguages, translationEditLanguage, setTranslationEditLanguage, localizedField, setLocalizedField, TRANSLATABLE_KEYS } from "../helpers/localization.mjs";
 
@@ -214,6 +214,16 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   }
   const _commonFields = [
   ];
+  // Placement mode: bind the widget to Database variables, or keep its own value.
+  const _hasWidgetVars = (WIDGET_VARIABLES[String(w.type ?? "")] ?? []).length > 0;
+  if (_hasWidgetVars && !_typeFields.some(f => Array.isArray(f) && f[1] === "dataMode")) {
+    const _labelRow = _typeFields.findIndex(f => Array.isArray(f) && f[1] === "label");
+    _typeFields = [
+      ..._typeFields.slice(0, _labelRow + 1),
+      ["Data Source", "dataMode", "bindmode"],
+      ..._typeFields.slice(_labelRow + 1)
+    ];
+  }
   const fields = [..._typeFields, ..._commonFields];
   const esc      = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
   const editLanguage = translationEditLanguage();
@@ -355,23 +365,45 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     const hint = FIELD_HINTS[key] ?? FIELD_HINTS[type] ?? "";
     const noteColor = type === "formula" ? "var(--sd-accent-2)" : type === "path" ? "var(--sd-mp)" : "";
 
+    if (type === "bindmode") {
+      const mode = widgetDataMode(w);
+      return `
+      <div class="wcfg-f" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(lbl)}</label>
+        <select data-field="dataMode" data-ftype="bindmode" style="${IS}">
+          <option value="own" ${mode === "own" ? "selected" : ""}>Own value — this widget stores its own data</option>
+          <option value="variable" ${mode === "variable" ? "selected" : ""}>Database variable — read and write a shared variable</option>
+        </select>
+        <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">Variable mode: editing the widget on the sheet writes the Database variable, so every widget, node and effect bound to it follows.</div>
+      </div>`;
+    }
+
     if (type === "path") {
+      const bindMode = widgetDataMode(w);
+      const isVarMode = bindMode === "variable";
       const varLabel = String(lbl).replace(/path/ig, "Value");
       const descriptor = (widgetVariables(w) ?? []).find(entry => entry.field === key) ?? { field: key, label: varLabel, type: "text", initial: "" };
       const selfPath = widgetVarPath(w, key);
       const stored = doc ? foundry.utils.getProperty(doc, selfPath) : undefined;
       const current = stored !== undefined ? stored : (w.varDefaults?.[key] ?? descriptor.initial ?? "");
       const shown = Array.isArray(current) ? current.join(", ") : current;
+      const boundId = widgetVarBinding(w, key);
       const control = descriptor.type === "boolean"
         ? `<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sd-text-2)"><input type="checkbox" data-field="__wvar_${esc(key)}" data-ftype="widgetvar" ${current ? "checked" : ""}> Enabled</label>`
         : `<input type="${descriptor.type === "number" ? "number" : "text"}" ${descriptor.type === "number" ? `step="any"` : ""} data-field="__wvar_${esc(key)}" data-ftype="widgetvar" value="${esc(shown)}" placeholder="${esc(descriptor.type === "array" ? "a, b, c" : "value")}" style="${IS}">`;
       return `
-      <div class="wcfg-f" style="margin-bottom:10px">
-        <label class="wcfg-lbl">${esc(descriptor.label ?? varLabel)} <span style="background:var(--sd-accent-2);color:#10131a;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;text-transform:none">own value</span></label>
+      <div class="wcfg-f wcfg-bind" data-bind-mode="${isVarMode ? "variable" : "own"}" style="margin-bottom:10px">
+        <label class="wcfg-lbl">${esc(descriptor.label ?? varLabel)} <span class="wcfg-bind-badge" style="background:${isVarMode ? "var(--sd-mp)" : "var(--sd-accent-2)"};color:#10131a;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;text-transform:none">${isVarMode ? "database" : "own value"}</span></label>
         ${hint ? `<div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;line-height:1.4">${esc(hint)}</div>` : ""}
-        ${control}
-        <input type="hidden" data-field="${esc(key)}" data-ftype="text" value="${esc(selfPath)}">
-        <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">This widget stores its own value. Type it here, or drive it from the Blueprint node of this widget.</div>
+        <div class="wcfg-bind-variable" style="${isVarMode ? "" : "display:none"}">
+          <select ${isVarMode ? `data-field="${esc(key)}"` : `data-field-off="${esc(key)}"`} data-ftype="dbvar" data-bind-field="${esc(key)}" style="${IS}">${_dbOptions(boundId)}</select>
+          <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">Changing the value in the widget updates this Database variable.</div>
+        </div>
+        <div class="wcfg-bind-own" style="${isVarMode ? "display:none" : ""}">
+          ${control}
+          <input type="hidden" ${isVarMode ? `data-field-off="${esc(key)}"` : `data-field="${esc(key)}"`} data-ftype="text" data-bind-field="${esc(key)}" value="${esc(selfPath)}">
+          <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">This widget stores its own value. Type it here, or drive it from the Blueprint node of this widget.</div>
+        </div>
       </div>`;
     }
 
@@ -890,6 +922,39 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         block.style.display = variantSel.value === "tile" ? "" : "none";
       });
     }
+  })();
+
+  // Live switch between "own value" and "Database variable" placement modes.
+  (() => {
+    const modeSel = popup.querySelector('select[data-ftype="bindmode"]');
+    if (!modeSel) return;
+    const apply = () => {
+      const isVarMode = modeSel.value === "variable";
+      popup.querySelectorAll(".wcfg-bind").forEach(row => {
+        row.dataset.bindMode = isVarMode ? "variable" : "own";
+        const varBox = row.querySelector(".wcfg-bind-variable");
+        const ownBox = row.querySelector(".wcfg-bind-own");
+        if (varBox) varBox.style.display = isVarMode ? "" : "none";
+        if (ownBox) ownBox.style.display = isVarMode ? "none" : "";
+        const badge = row.querySelector(".wcfg-bind-badge");
+        if (badge) {
+          badge.textContent = isVarMode ? "database" : "own value";
+          badge.style.background = isVarMode ? "var(--sd-mp)" : "var(--sd-accent-2)";
+        }
+        const active = isVarMode ? varBox : ownBox;
+        const idle = isVarMode ? ownBox : varBox;
+        active?.querySelectorAll("[data-field-off]").forEach(el => {
+          el.setAttribute("data-field", el.dataset.fieldOff);
+          el.removeAttribute("data-field-off");
+        });
+        idle?.querySelectorAll("[data-bind-field][data-field]").forEach(el => {
+          el.setAttribute("data-field-off", el.dataset.field);
+          el.removeAttribute("data-field");
+        });
+      });
+    };
+    modeSel.addEventListener("change", apply);
+    apply();
   })();
 
   popup.querySelectorAll("button.wcfg-fp-btn[data-fp-target]").forEach(btn => {
@@ -1538,6 +1603,17 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       _varWrites[widgetVarPath(w, field)] = value;
       delete changes[changeKey];
     }
+    // Remember the Database variable picked for each binding field, so switching
+    // placement mode back and forth never loses the selection.
+    const _varBindings = { ...(w.varBindings ?? {}) };
+    let _varBindingsTouched = false;
+    popup.querySelectorAll("select[data-bind-field]").forEach(el => {
+      const field = el.dataset.bindField;
+      if (!field) return;
+      const value = String(el.value ?? "").trim();
+      if (value) { _varBindings[field] = value; _varBindingsTouched = true; }
+    });
+    if (_varBindingsTouched) changes.varBindings = _varBindings;
     if (Object.keys(_varWrites).length) changes.varDefaults = _varDefaults;
 
     if (editLanguage !== "base") {

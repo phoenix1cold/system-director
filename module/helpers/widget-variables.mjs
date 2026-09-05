@@ -7,6 +7,11 @@
  * field) or driven by nodes.
  */
 
+import {
+  getValueDefinition, valueStoragePath, variableIdForLegacyPath,
+  readDatabaseValue, coerceDatabaseValue
+} from "./value-database.mjs";
+
 const ROOT = "widgetVars";
 
 /** Storage root for one widget, e.g. `system.widgetVars.hp_bar`. */
@@ -29,6 +34,41 @@ export function widgetVarPath(widget, field = "value") {
 /** True when a stored binding already points at the widget's own storage. */
 export function isWidgetVarPath(path) {
   return /^system\.widgetVars\./.test(String(path ?? ""));
+}
+
+/** The two placement modes a value widget can be dropped in. */
+export const WIDGET_DATA_MODES = Object.freeze(["own", "variable"]);
+
+/** Placement mode of one widget: "variable" (Database) or "own" (self storage). */
+export function widgetDataMode(widget) {
+  return String(widget?.dataMode ?? "own") === "variable" ? "variable" : "own";
+}
+
+/** Database variable id chosen for one binding field, if any. */
+export function widgetVarBinding(widget, field = "value") {
+  const resolve = raw => {
+    const value = String(raw ?? "").trim();
+    if (!value || isWidgetVarPath(value)) return "";
+    return getValueDefinition(value)?.id || variableIdForLegacyPath(value) || "";
+  };
+  return resolve(widget?.varBindings?.[field]) || resolve(widget?.[field]);
+}
+
+/**
+ * Where one binding field reads and writes.  Variable mode points at the shared
+ * Database variable, own mode at the widget's private storage.
+ */
+export function widgetBindingTarget(widget, field = "value") {
+  if (widgetDataMode(widget) === "variable") {
+    const variableId = widgetVarBinding(widget, field);
+    if (variableId) return { mode: "variable", variableId, path: valueStoragePath(variableId) };
+  }
+  return { mode: "own", variableId: "", path: widgetVarPath(widget, field) };
+}
+
+/** Document path one binding field reads and writes. */
+export function widgetBindingPath(widget, field = "value") {
+  return widgetBindingTarget(widget, field).path;
 }
 
 /**
@@ -70,12 +110,17 @@ export const WIDGET_VARIABLES = Object.freeze({
 /** Variable descriptors of one widget instance. */
 export function widgetVariables(widget) {
   const list = WIDGET_VARIABLES[String(widget?.type ?? "")] ?? [];
-  return list.map(entry => ({
-    ...entry,
-    key: entry.field,
-    path: widgetVarPath(widget, entry.field),
-    name: `${String(widget?.label ?? widget?.type ?? "Widget")} · ${entry.label}`
-  }));
+  return list.map(entry => {
+    const target = widgetBindingTarget(widget, entry.field);
+    return {
+      ...entry,
+      key: entry.field,
+      path: target.path,
+      mode: target.mode,
+      variableId: target.variableId,
+      name: `${String(widget?.label ?? widget?.type ?? "Widget")} · ${entry.label}`
+    };
+  });
 }
 
 /** Coerce a raw input into the declared variable type. */
@@ -105,10 +150,12 @@ export function ensureWidgetVariables(widget, doc = null) {
   if (!widget || typeof widget !== "object") return widget;
   const descriptors = WIDGET_VARIABLES[String(widget.type ?? "")] ?? [];
   widget.varDefaults = (widget.varDefaults && typeof widget.varDefaults === "object") ? widget.varDefaults : {};
+  widget.varBindings = (widget.varBindings && typeof widget.varBindings === "object") ? widget.varBindings : {};
+  if (descriptors.length) widget.dataMode = widgetDataMode(widget);
   for (const descriptor of descriptors) {
     const previous = widget[descriptor.field];
     const selfPath = widgetVarPath(widget, descriptor.field);
-    if (typeof previous === "string" && previous && !isWidgetVarPath(previous) && doc) {
+    if (widgetDataMode(widget) === "own" && typeof previous === "string" && previous && !isWidgetVarPath(previous) && doc) {
       // Carry the currently displayed value over as the widget's own value.
       try {
         const legacy = foundry.utils.getProperty(doc, previous);
@@ -120,7 +167,14 @@ export function ensureWidgetVariables(widget, doc = null) {
     if (widget.varDefaults[descriptor.field] === undefined) {
       widget.varDefaults[descriptor.field] = coerceWidgetValue(descriptor.initial, descriptor.type);
     }
-    widget[descriptor.field] = selfPath;
+    // Variable mode keeps the chosen Database variable, own mode keeps self storage.
+    const boundVariable = widgetDataMode(widget) === "variable" ? widgetVarBinding(widget, descriptor.field) : "";
+    if (boundVariable) {
+      widget.varBindings[descriptor.field] = boundVariable;
+      widget[descriptor.field] = boundVariable;
+    } else {
+      widget[descriptor.field] = selfPath;
+    }
   }
   for (const child of (widget.widgets ?? [])) ensureWidgetVariables(child, doc);
   for (const element of (widget.elements ?? [])) if (element?.widget) ensureWidgetVariables(element.widget, doc);
@@ -131,8 +185,13 @@ export function ensureWidgetVariables(widget, doc = null) {
 export function readWidgetVar(doc, widget, field = "value") {
   const descriptor = (WIDGET_VARIABLES[String(widget?.type ?? "")] ?? []).find(entry => entry.field === field)
     ?? { field, type: "text", initial: "" };
+  const target = widgetBindingTarget(widget, field);
   let stored;
-  try { stored = foundry.utils.getProperty(doc, widgetVarPath(widget, field)); } catch {}
+  if (target.mode === "variable") {
+    try { stored = readDatabaseValue(doc, target.variableId); } catch {}
+  } else {
+    try { stored = foundry.utils.getProperty(doc, target.path); } catch {}
+  }
   if (stored !== undefined && stored !== null) return stored;
   const fallback = widget?.varDefaults?.[field];
   return coerceWidgetValue(fallback !== undefined ? fallback : descriptor.initial, descriptor.type);
@@ -142,7 +201,13 @@ export function readWidgetVar(doc, widget, field = "value") {
 export async function writeWidgetVar(doc, widget, field, value) {
   if (!doc?.update || !widget) return false;
   const descriptor = (WIDGET_VARIABLES[String(widget?.type ?? "")] ?? []).find(entry => entry.field === field);
-  await doc.update({ [widgetVarPath(widget, field)]: coerceWidgetValue(value, descriptor?.type ?? "text") });
+  const target = widgetBindingTarget(widget, field);
+  if (target.mode === "variable") {
+    const definition = getValueDefinition(target.variableId) ?? { id: target.variableId, type: descriptor?.type ?? "text" };
+    await doc.update({ [target.path]: coerceDatabaseValue(value, definition) });
+    return true;
+  }
+  await doc.update({ [target.path]: coerceWidgetValue(value, descriptor?.type ?? "text") });
   return true;
 }
 
@@ -153,6 +218,7 @@ export function buildWidgetVarSeed(doc, tabs = null) {
     for (const widget of (list ?? [])) {
       if (!widget || typeof widget !== "object") continue;
       for (const descriptor of widgetVariables(widget)) {
+        if (descriptor.mode === "variable") continue;
         let current;
         try { current = foundry.utils.getProperty(doc, descriptor.path); } catch {}
         if (current === undefined) {

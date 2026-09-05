@@ -747,10 +747,80 @@ export class FormulaEngine {
    * name / label, then uuid / id, so an array of documents is never rendered
    * as "[object Object]".
    */
+  /** Roll Results (and Foundry Roll instances) collapse to their numeric total. */
+  static _sdRollTotal(value) {
+    if (!value || typeof value !== "object") return null;
+    const looksLikeRoll = value.type === "sd.roll-result"
+      || (typeof globalThis.Roll === "function" && value instanceof globalThis.Roll)
+      || (value.total !== undefined && (value.formula !== undefined || value.dice !== undefined
+          || value.roll !== undefined || value._formula !== undefined || value.terms !== undefined));
+    if (!looksLikeRoll) return null;
+    const total = Number(value.total ?? value._total);
+    return Number.isFinite(total) ? total : null;
+  }
+
+  /** Structured values (Roll Result, {value}) become the scalar they carry. */
+  static unwrapStructured(value) {
+    const rollTotal = this._sdRollTotal(value);
+    if (rollTotal !== null) return rollTotal;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const inner = value.value ?? value.total;
+      if (inner !== undefined && inner !== null && typeof inner !== "object") return inner;
+    }
+    return value;
+  }
+
+  /** Any value as a number: Roll Results use their total, text is parsed. */
+  static valueToNumber(value, fallback = 0) {
+    const unwrapped = this.unwrapStructured(value);
+    if (Array.isArray(unwrapped)) {
+      return unwrapped.length === 1 ? this.valueToNumber(unwrapped[0], fallback) : fallback;
+    }
+    if (typeof unwrapped === "boolean") return unwrapped ? 1 : 0;
+    const direct = Number(unwrapped);
+    if (unwrapped !== "" && unwrapped !== null && unwrapped !== undefined && Number.isFinite(direct)) return direct;
+    const text = this.valueToText(unwrapped).trim().replace(/^\+/, "");
+    const parsed = Number(text);
+    if (text !== "" && Number.isFinite(parsed)) return parsed;
+    const match = text.match(/-?\d+(?:\.\d+)?/);
+    return match ? Number(match[0]) : fallback;
+  }
+
+  /** Publish the Roll Result of the running graph so tokens can resolve it. */
+  static setRollRuntime(result) {
+    this._sdRollRuntime = result ?? null;
+    return result;
+  }
+
+  /** Roll Result tokens fed straight from a running graph. */
+  static _sdRollRuntimeValue(token) {
+    const runtime = this._sdRollRuntime ?? null;
+    if (!runtime) return undefined;
+    const name = String(token ?? "");
+    if (!name.startsWith("__roll")) return undefined;
+    const values = {
+      __rollResult: runtime,
+      __rollTotal: runtime.total ?? 0,
+      __rollFormula: runtime.formula ?? "",
+      __rollDice: runtime.dice ?? [],
+      __rollNatural: runtime.natural ?? 0,
+      __rollMin: runtime.min ?? 0,
+      __rollMax: runtime.max ?? 0,
+      __rollAvg: runtime.avg ?? 0,
+      __rollSuccesses: runtime.successes ?? 0,
+      __rollBotches: runtime.botches ?? 0,
+      __rollIsCrit: runtime.isCrit ? 1 : 0,
+      __rollIsFumble: runtime.isFumble ? 1 : 0
+    };
+    return Object.prototype.hasOwnProperty.call(values, name) ? values[name] : undefined;
+  }
+
   static _sdElementToText(value) {
     if (value === undefined || value === null) return "";
     if (typeof value !== "object") return String(value);
     if (Array.isArray(value)) return value.map(entry => this._sdElementToText(entry)).filter(entry => entry !== "").join(", ");
+    const rollTotal = this._sdRollTotal(value);
+    if (rollTotal !== null) return String(rollTotal);
     const named = value.name ?? value.label ?? value.title;
     if (named !== undefined && named !== null && String(named) !== "") return String(named);
     const ref = value.uuid ?? value._sourceUuid ?? value.id ?? value._id ?? value.value;
@@ -1078,6 +1148,8 @@ export class FormulaEngine {
   }
 
   static _resolveToken(token, doc) {
+    const rollRuntimeValue = this._sdRollRuntimeValue(token);
+    if (rollRuntimeValue !== undefined) return rollRuntimeValue;
     const extensionToken = resolveNodeFormulaToken(token, { doc, engine: this });
     if (extensionToken.handled) return extensionToken.value;
     if (token.startsWith("__sdHasEffect:")) {
@@ -2104,7 +2176,7 @@ export class FormulaEngine {
       const mode = String(parts[0] ?? "text").toLowerCase();
       const value = this._resolveArrayValue(parts[1] ?? "", doc);
       if (mode === "number") {
-        const n = Number(value);
+        const n = this.valueToNumber(value, NaN);
         if (value !== "" && value !== null && value !== undefined && Number.isFinite(n)) return n;
         const fallback = Number(this._resolveArrayArg(parts[2] ?? "", doc));
         return Number.isFinite(fallback) ? fallback : 0;

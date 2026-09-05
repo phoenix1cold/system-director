@@ -96,6 +96,14 @@ function _sdMsgMode() {
   return "publicroll";
 }
 
+/** Publish the active Roll Result so Formula tokens can resolve it too. */
+async function _sdPublishRollRuntime(result) {
+  try {
+    const { FormulaEngine } = await import("./formula-engine.mjs");
+    FormulaEngine.setRollRuntime(result ?? null);
+  } catch {}
+}
+
 function _sdEscapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -1265,25 +1273,50 @@ export class ButtonExecutor {
       }
 
       case "setDatabaseValue": {
+        const { FormulaEngine: _SDFormula } = await import("./formula-engine.mjs");
         const variableId=String(action.variableId??"");
         const definition=getValueDefinition(variableId);
         if(!definition){ui.notifications?.warn?.("Select a Database variable.");break;}
-        let ref=String(_injectRuntime(String(action.ref??""))??"");
+        const refRaw=_injectRuntime(String(action.ref??""));
+        const refDoc=(refRaw && typeof refRaw==="object" && typeof refRaw.update==="function") ? refRaw : null;
+        const ref=refDoc?"":_SDFormula.valueToText(refRaw).trim().replace(/^["']|["']$/g,"");
         let target=item??actor;
         if(action.source==="first target") target=game.user?.targets?.first?.()?.actor??canvas?.tokens?.controlled?.[0]?.actor??null;
         else if(action.source==="token by id") target=canvas?.tokens?.get?.(ref)?.actor??null;
         else if(action.source==="by uuid") target=await fromUuid(ref).catch(()=>null);
-        if(!target){ui.notifications?.warn?.("Database target was not found.");break;}
-        let incoming=action.value;
-        try{incoming=FormulaEngine.evaluate(String(_injectRuntime(String(incoming??""))),item??actor??target);}catch{}
+        // A wired Actor / Item Ref always wins over the static Target dropdown.
+        if(refDoc) target=refDoc;
+        else if(ref){
+          let resolved=null;
+          try{ resolved=canvas?.tokens?.get?.(ref)?.actor??null; }catch{}
+          if(!resolved){ try{ resolved=await fromUuid(ref); }catch{} }
+          if(!resolved){ try{ resolved=game?.actors?.get?.(ref)??game?.items?.get?.(ref)??null; }catch{} }
+          if(!resolved){ try{ resolved=game?.actors?.getName?.(ref)??null; }catch{} }
+          if(resolved?.update) target=resolved;
+        }
+        if(!target){ui.notifications?.warn?.("Database target was not found. Target a token, or wire an Actor / Item Ref.");break;}
+        if(target.isOwner===false){ui.notifications?.warn?.(`You do not have permission to change "${target.name??"this document"}".`);break;}
+        // Resolve the value pin first, then unwrap it: a Roll Result carries its
+        // total, so stringifying it before injection used to yield [object Object].
+        let incoming=_injectRuntime(String(action.value??""));
+        if(incoming===null||incoming===undefined||typeof incoming!=="object"){
+          const asText=String(incoming??"");
+          try{
+            const evaluated=_SDFormula.evaluate(asText,item??actor??target);
+            if(evaluated!==undefined&&evaluated!==null&&!String(evaluated).startsWith("!err")) incoming=evaluated;
+            else incoming=asText;
+          }catch{ incoming=asText; }
+        }
+        incoming=_SDFormula.unwrapStructured(incoming);
         const current=readDatabaseValue(target,variableId);
         let next=incoming;
         switch(String(action.operation??"set")){
-          case "add": next=(Number(current)||0)+(Number(incoming)||0); break;
-          case "subtract": next=(Number(current)||0)-(Number(incoming)||0); break;
-          case "multiply": next=(Number(current)||0)*(Number(incoming)||0); break;
+          case "add": next=_SDFormula.valueToNumber(current)+_SDFormula.valueToNumber(incoming); break;
+          case "subtract": next=_SDFormula.valueToNumber(current)-_SDFormula.valueToNumber(incoming); break;
+          case "multiply": next=_SDFormula.valueToNumber(current)*_SDFormula.valueToNumber(incoming); break;
           case "toggle": next=!current; break;
         }
+        if(definition.type==="number"||definition.type==="integer") next=_SDFormula.valueToNumber(next);
         await target.update({[valueStoragePath(variableId)]:coerceDatabaseValue(next,definition)});
         break;
       }
@@ -3456,6 +3489,9 @@ export class ButtonExecutor {
           if (value === null || value === undefined) return "";
           if (Array.isArray(value)) return value.map(entry => _partToText(entry)).filter(entry => entry !== "").join(", ");
           if (typeof value === "object") {
+            const rollTotal = Number(value.total ?? value._total);
+            if (Number.isFinite(rollTotal) && (value.type === "sd.roll-result" || value.formula !== undefined
+                || value.dice !== undefined || value.terms !== undefined)) return String(rollTotal);
             const named = value.name ?? value.label ?? value.title ?? value.uuid ?? value.id ?? value._id;
             if (named !== undefined && named !== null && typeof named !== "object" && String(named) !== "") return String(named);
             try { return JSON.stringify(value); } catch { return ""; }
@@ -3466,6 +3502,13 @@ export class ButtonExecutor {
         const resolvedParts = [];
         for (let rawPart of rawParts) {
           let p = _injectRuntime(_partToText(rawPart));
+          // Structured runtime values (Roll Result, arrays) must never reach join().
+          if (p !== null && p !== undefined && typeof p !== "string") {
+            try {
+              const { FormulaEngine } = await import("./formula-engine.mjs");
+              p = FormulaEngine.valueToText(p);
+            } catch { p = String(p); }
+          }
           if (!p) continue;
           try {
             const { FormulaEngine } = await import("./formula-engine.mjs");
@@ -5112,7 +5155,7 @@ export class ButtonExecutor {
           successes,botches,successTarget,successCompare:String(action.successCompare??">="),botchFace,dieFaces,
           isCrit,isFumble,actorUuid:actor?.uuid??null,itemUuid:item?.uuid??null,createdAt:Date.now(),roll
         };
-        runtime.__rollResult=result;
+        runtime.__rollResult=result; await _sdPublishRollRuntime(result);
         if (buttonDef) {
           buttonDef.__rollResult=result;
           buttonDef.__lastRoll=total;
@@ -5127,7 +5170,7 @@ export class ButtonExecutor {
       case "analyzeRollResult": {
         const result=_injectRuntime(action.result??"{__rollResult}");
         if (!result || typeof result!=="object") { ui.notifications?.warn?.("SD | Analyze Roll requires a Roll Result."); break; }
-        runtime.__rollResult=result;
+        runtime.__rollResult=result; await _sdPublishRollRuntime(result);
         if (buttonDef) buttonDef.__rollResult=result;
         for (const sub of (action.execActions??[])) await this._runAction(sub,item,actor,buttonDef,runtime);
         break;
@@ -5143,7 +5186,7 @@ export class ButtonExecutor {
         if (!Number.isFinite(target)) target=0;
         const op=String(action.operator??">=");
         const passed=op===">"?compared>target:op==="<"?compared<target:op==="<="?compared<=target:op==="=="?compared===target:op==="!="?compared!==target:compared>=target;
-        runtime.__rollResult=result;
+        runtime.__rollResult=result; await _sdPublishRollRuntime(result);
         runtime.__rollCompared=compared;
         runtime.__rollTarget=target;
         runtime.__rollMargin=compared-target;
@@ -5157,7 +5200,7 @@ export class ButtonExecutor {
       case "presentRollResult": {
         const result=_injectRuntime(action.result??"{__rollResult}");
         if (!result || typeof result!=="object") { ui.notifications?.warn?.("SD | Present Roll requires a Roll Result."); break; }
-        runtime.__rollResult=result;
+        runtime.__rollResult=result; await _sdPublishRollRuntime(result);
         const destination=String(action.destination??"chat");
         const label=String(action.label||result.flavor||"Roll");
         if (destination==="canvas" || destination==="sheet") {

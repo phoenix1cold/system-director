@@ -14,7 +14,7 @@
  */
 
 import { WIDGET_TYPES } from "./widget-registry.mjs";
-import { WIDGET_VARIABLES, widgetVarKey, widgetVarPath, coerceWidgetValue } from "../helpers/widget-variables.mjs";
+import { WIDGET_VARIABLES, widgetVarKey, widgetVarPath, widgetBindingPath, coerceWidgetValue } from "../helpers/widget-variables.mjs";
 import { getValueDefinition, readDatabaseValue, variableIdForLegacyPath } from "../helpers/value-database.mjs";
 
 const OWNER = "sd-widget-nodes";
@@ -77,7 +77,7 @@ export function findWidget(doc, key, { widgetType = "" } = {}) {
 export function readWidgetValue(doc, widget, field = "value") {
   if (!widget) return undefined;
   const descriptor = (WIDGET_VARIABLES[widget.type] ?? []).find(entry => entry.field === field);
-  const stored = doc ? foundry.utils.getProperty(doc, widgetVarPath(widget, field)) : undefined;
+  const stored = doc ? foundry.utils.getProperty(doc, widgetBindingPath(widget, field)) : undefined;
   if (stored !== undefined) return stored;
   const local = widget.varDefaults?.[field];
   if (local !== undefined) return local;
@@ -278,7 +278,7 @@ export function installWidgetActions() {
       case "clear":  next = descriptor?.type === "array" ? [] : descriptor?.type === "number" ? 0 : ""; break;
       default:       next = raw;
     }
-    await doc.update({ [widgetVarPath(widget, field)]: coerceWidgetValue(next, descriptor?.type ?? "text") });
+    await doc.update({ [widgetBindingPath(widget, field)]: coerceWidgetValue(next, descriptor?.type ?? "text") });
   }, { owner: OWNER });
 }
 
