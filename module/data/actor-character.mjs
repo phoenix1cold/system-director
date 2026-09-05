@@ -58,6 +58,9 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
 
       customTabs: new ArrayField(new ObjectField()),
 
+      // Character-sheet layout, palette, density and navigation preferences.
+      sheetStyle: new ObjectField({ initial: {} }),
+
       widgetFields: new ObjectField({ initial: {} }),
 
       widgetVars: new ObjectField({ initial: {} }),

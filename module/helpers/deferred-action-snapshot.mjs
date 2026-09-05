@@ -16,7 +16,7 @@ export function materializeDeferredActionSnapshot(value, resolveRuntime, depth =
   if (depth > 12 || value === null || value === undefined) return value;
 
   if (typeof value === "string") {
-    if (DEFERRED_RUNTIME_TOKENS.has(value)) return value;
+    if (DEFERRED_RUNTIME_TOKENS.has(value) || /\{__messageField:[A-Za-z0-9_-]+\}/.test(value)) return value;
     return resolveRuntime(value);
   }
 

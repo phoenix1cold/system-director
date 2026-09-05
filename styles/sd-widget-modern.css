@@ -678,8 +678,8 @@
    while Attribute and Derived retain a single, slightly taller footprint. */
 .sd .widget:is(.widget-text, .widget-button, .widget-number, .widget-skill, .widget-toggle, .widget-select) {
   box-sizing: border-box;
-  height: 60px !important;
-  min-height: 60px !important;
+  height: var(--sd-widget-height, 60px) !important;
+  min-height: var(--sd-widget-height, 60px) !important;
   padding: 6px 8px !important;
   gap: 4px !important;
 }
@@ -715,8 +715,33 @@
 
 .sd .widget:is(.widget-attribute, .widget-derived) {
   box-sizing: border-box;
-  height: 104px !important;
-  min-height: 104px !important;
+  height: var(--sd-widget-height, 104px) !important;
+  min-height: var(--sd-widget-height, 104px) !important;
   padding: 8px !important;
   gap: 4px !important;
+}
+
+
+/* 1.12 configurable widget dimensions and label decoration. */
+.sd .widget[style*="--sd-widget-height"] { box-sizing:border-box; }
+.sd .widget-button[style*="--sd-widget-height"] .sd-action-btn,
+.sd .widget-dice[style*="--sd-widget-height"] .dice-btn {
+  height:100% !important;
+  min-height:0 !important;
+  margin-block:0 !important;
+}
+.sd .widget[style*="--sd-widget-height"]:is(.widget-inventory,.widget-effects,.widget-spellbook,.widget-richtext,.widget-cardHand,.widget-widgetBuilder,.widget-vsection) {
+  overflow:auto;
+}
+.sd .widget :is(.widget-label,.skill-name,.sec-title,.vsection-title,.sd-wb-title) {
+  color:var(--sd-w-label, inherit);
+  font-size:var(--sd-widget-label-size, inherit);
+}
+.sd .widget i { --sd-current-icon-color:var(--sd-widget-icon-color, currentColor); }
+.sd .widget .sd-widget-label-deco { color:var(--sd-widget-icon-color, var(--sd-w-label, var(--sd-accent))); }
+.sd-wcfg-popup .wcfg-style-select,
+.sd-wcfg-popup .wcfg-style-text {
+  width:100%; min-width:0; box-sizing:border-box; padding:4px 6px;
+  border:1px solid var(--sd-border); border-radius:4px;
+  background:var(--sd-bg); color:var(--sd-text); font-size:11px;
 }

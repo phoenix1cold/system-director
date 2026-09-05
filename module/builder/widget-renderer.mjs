@@ -91,6 +91,7 @@ export class WidgetRenderer {
           html = html.replace(/^(<[^>]+)(>)/, `$1 style="${styleStr}"$2`);
         }
       }
+      html = this._decorateWidgetLabel(html, widgetDef);
       return html;
     } catch(e) {
       console.warn("SD | Widget render error:", e, widgetDef);
@@ -199,48 +200,111 @@ export class WidgetRenderer {
 
   static _buildStyle(w) {
     const parts = [];
-    const px = (v) => {
-      const n = Number(v);
-      return Number.isFinite(n) && n > 0 ? `${n}px` : null;
+    const px = value => {
+      const number = Number(value);
+      return Number.isFinite(number) && number > 0 ? `${number}px` : null;
     };
-    const colour = (v) => {
-      if (typeof v !== "string") return null;
-      const t = v.trim();
-      return this._isCssColour(t) ? t : null;
+    const colour = value => {
+      if (typeof value !== "string") return null;
+      const source = value.trim();
+      return this._isCssColour(source) ? source : null;
     };
+    const choose = (value, allowed) => allowed.includes(String(value ?? "")) ? String(value) : "";
+    const number = value => { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; };
+    const cssVar = (name, value) => { if (value !== null && value !== "") parts.push(`${name}:${value}`); };
 
-    const wPx = px(w.boxW);    if (wPx) parts.push(`width:${wPx}`);
-    const hPx = px(w.boxH);    if (hPx) { parts.push(`height:${hPx}`); parts.push(`min-height:${hPx}`); }
-    const minHPx = px(w.boxMinH); if (minHPx) parts.push(`min-height:${minHPx}`);
-    const maxHPx = px(w.boxMaxH); if (maxHPx) parts.push(`max-height:${maxHPx}`);
-    const bg  = colour(w.boxBg);      if (bg) { parts.push(`background:${bg}`); parts.push(`--sd-w-bg:${bg}`); }
-    const fg  = colour(w.boxFg);      if (fg) { parts.push(`color:${fg}`);      parts.push(`--sd-w-fg:${fg}`); parts.push(`--sd-w-label:${fg}`); }
-    const bd  = colour(w.boxBorder);  if (bd && w.type !== "image") { parts.push(`border:1px solid ${bd}`); parts.push(`--sd-w-bd:${bd}`); }
-    const br  = px(w.boxRadius);      if (br) parts.push(`border-radius:${br}`);
-    const pd  = px(w.boxPad);         if (pd) parts.push(`padding:${pd}`);
+    const width = px(w.boxW);
+    if (width) parts.push(`width:${width}`);
+    const height = px(w.boxH);
+    if (height) {
+      // Inline !important plus the shared variable wins over old fixed 60/104px rules.
+      parts.push(`--sd-widget-height:${height}`);
+      parts.push(`height:var(--sd-widget-height)!important`);
+      parts.push(`min-height:var(--sd-widget-height)!important`);
+    }
+    const minHeight = px(w.boxMinH); if (minHeight) parts.push(`min-height:${minHeight}!important`);
+    const maxHeight = px(w.boxMaxH); if (maxHeight) parts.push(`max-height:${maxHeight}!important`);
 
-    const cvar = (name, val) => { if (val) parts.push(`${name}:${val}`); };
-    cvar("--sd-w-bar-h",     px(w.barH));
-    cvar("--sd-w-bar-track", colour(w.barTrack));
-    cvar("--sd-w-btn-bg",    colour(w.btnBg));
-    cvar("--sd-w-btn-fg",    colour(w.btnFg));
-    cvar("--sd-w-btn-bd",    colour(w.btnBorder));
-    cvar("--sd-w-icon",      colour(w.iconColor));
-    cvar("--sd-w-num-btn",   colour(w.btnColor));
-    cvar("--sd-w-on",        colour(w.onColor));
-    cvar("--sd-w-off",       colour(w.offColor));
-    cvar("--sd-w-line",      colour(w.lineColor));
-    cvar("--sd-w-title",     colour(w.titleColor));
-    cvar("--sd-w-line-th",   px(w.lineThickness));
-    cvar("--sd-w-pip-size",  px(w.pipSize));
-    cvar("--sd-w-pip-bd",    px(w.pipBorder));
-    cvar("--sd-w-empty",     colour(w.emptyColor));
-    cvar("--sd-w-header",    colour(w.headerColor));
-    cvar("--sd-w-tag-fg",    colour(w.tagFg));
-    cvar("--sd-w-bw",        px(w.borderWidth));
-    cvar("--sd-tile-size",   px(w.tileSize));
+    const background = colour(w.boxBg);
+    if (background) { parts.push(`background:${background}`); cssVar("--sd-w-bg", background); }
+    const foreground = colour(w.boxFg);
+    if (foreground) { parts.push(`color:${foreground}`); cssVar("--sd-w-fg", foreground); }
+    const label = colour(w.labelColor) ?? foreground;
+    if (label) cssVar("--sd-w-label", label);
 
+    const borderColour = colour(w.boxBorder);
+    const borderWidth = px(w.boxBorderWidth) ?? "1px";
+    const borderStyle = choose(w.boxBorderStyle, ["solid","dashed","dotted","double","none"]) || "solid";
+    if (borderColour && w.type !== "image") {
+      parts.push(`border:${borderWidth} ${borderStyle} ${borderColour}`);
+      cssVar("--sd-w-bd", borderColour);
+    } else if (w.boxBorderStyle === "none") parts.push("border:none");
+    const radius = px(w.boxRadius); if (radius) parts.push(`border-radius:${radius}`);
+    const padding = px(w.boxPad); if (padding) parts.push(`padding:${padding}`);
+    const margin = px(w.boxMargin); if (margin) parts.push(`margin:${margin}`);
+    const gap = px(w.boxGap); if (gap) parts.push(`gap:${gap}`);
+
+    const fontSize = px(w.fontSize); if (fontSize) parts.push(`font-size:${fontSize}`);
+    const labelFontSize = px(w.labelFontSize); if (labelFontSize) cssVar("--sd-widget-label-size", labelFontSize);
+    const fontWeight = number(w.fontWeight); if (fontWeight !== null) parts.push(`font-weight:${Math.max(100, Math.min(900, fontWeight))}`);
+    const textAlign = choose(w.textAlign, ["left","center","right"]); if (textAlign) parts.push(`text-align:${textAlign}`);
+    const contentAlign = choose(w.contentAlign, ["start","center","end","stretch"]);
+    if (contentAlign) parts.push(`align-items:${contentAlign === "start" ? "flex-start" : contentAlign === "end" ? "flex-end" : contentAlign}`);
+    const opacity = number(w.opacity); if (opacity !== null) parts.push(`opacity:${Math.max(0, Math.min(1, opacity))}`);
+    let overflow = choose(w.overflow, ["visible","hidden","auto","scroll"]);
+    if (!overflow && height && ["inventory","effects","spellbook","richtext","cardHand","widgetBuilder","vsection"].includes(w.type)) overflow = "auto";
+    if (overflow) parts.push(`overflow:${overflow}`);
+
+    cssVar("--sd-w-bar-h",     px(w.barH));
+    cssVar("--sd-w-bar-track", colour(w.barTrack));
+    cssVar("--sd-w-btn-bg",    colour(w.btnBg));
+    cssVar("--sd-w-btn-fg",    colour(w.btnFg));
+    cssVar("--sd-w-btn-bd",    colour(w.btnBorder));
+    cssVar("--sd-w-icon",      colour(w.iconColor));
+    cssVar("--sd-widget-icon-color", colour(w.iconColor));
+    cssVar("--sd-widget-icon-size", px(w.iconSize));
+    cssVar("--sd-w-num-btn",   colour(w.btnColor));
+    cssVar("--sd-w-on",        colour(w.onColor));
+    cssVar("--sd-w-off",       colour(w.offColor));
+    cssVar("--sd-w-line",      colour(w.lineColor));
+    cssVar("--sd-w-title",     colour(w.titleColor));
+    cssVar("--sd-w-line-th",   px(w.lineThickness));
+    cssVar("--sd-w-pip-size",  px(w.pipSize));
+    cssVar("--sd-w-pip-bd",    px(w.pipBorder));
+    cssVar("--sd-w-empty",     colour(w.emptyColor));
+    cssVar("--sd-w-header",    colour(w.headerColor));
+    cssVar("--sd-w-tag-fg",    colour(w.tagFg));
+    cssVar("--sd-w-bw",        px(w.borderWidth));
+    cssVar("--sd-tile-size",   px(w.tileSize));
     return parts.join(";");
+  }
+
+  static _decorateWidgetLabel(html, widget) {
+    const emoji = String(widget?.labelEmoji ?? "").slice(0, 16);
+    const iconRaw = String(widget?.labelIcon ?? "").trim();
+    if (!emoji && !iconRaw) return html;
+    const icon = iconRaw ? `<i class="${this._esc(this._faClass(iconRaw, "fas"))}"></i>` : "";
+    const decoration = `<span class="sd-widget-label-deco">${emoji ? `<span aria-hidden="true">${this._esc(emoji)}</span>` : ""}${icon}</span>`;
+    const labelClasses = new Set(["widget-label","skill-name","sec-title","vsection-title","sd-wb-title"]);
+    const candidates = [...String(html).matchAll(/<(div|span|label|h[1-6])\b[^>]*class="([^"]*)"[^>]*>/gi)];
+    const target = candidates.find(match => match[2].split(/\s+/).some(name => labelClasses.has(name)));
+    if (target) {
+      const openEnd = target.index + target[0].length;
+      if (String(widget.labelIconPosition ?? "before") === "after") {
+        const close = `</${target[1].toLowerCase()}>`;
+        const closeAt = html.toLowerCase().indexOf(close, openEnd);
+        if (closeAt >= 0) return html.slice(0, closeAt) + decoration + html.slice(closeAt);
+      }
+      return html.slice(0, openEnd) + decoration + html.slice(openEnd);
+    }
+    const button = String(html).match(/<button\b[^>]*class="[^"]*(?:sd-action-btn|dice-btn)[^"]*"[^>]*>/i);
+    if (button) {
+      const at = button.index + button[0].length;
+      return html.slice(0, at) + decoration + html.slice(at);
+    }
+    const root = String(html).match(/^<[^>]+>/);
+    if (!root) return html;
+    return root[0] + decoration + html.slice(root[0].length);
   }
 
   static _esc(str) {

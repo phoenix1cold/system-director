@@ -8492,3 +8492,28 @@ html body .sd.sd-wcfg-popup .wcfg-input-row[data-wcfg-row="formula"]>.wcfg-clear
 .config-db-fmt code{padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.28);font-family:ui-monospace,monospace;font-size:10px;color:var(--sd-text)}
 .config-db-fmt small{color:var(--sd-text-3)}
 @media(max-width:720px){.config-db-fmt{grid-template-columns:1fr}}
+
+
+/* 1.12 Message Composer embedded roll and interactive form fields. */
+.sd-message-composer-roll {
+  padding:10px;
+  border-bottom:1px solid var(--sd-border, #444653);
+  background:color-mix(in srgb, var(--sd-message-accent) 8%, var(--sd-bg-3, #181923));
+}
+.sd-message-composer-roll .dice-roll { margin:0; }
+.sd-message-roll-fallback { display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 12px; }
+.sd-message-roll-formula { color:var(--sd-text-2,#d2d3db);font-family:monospace;font-size:11px;overflow-wrap:anywhere; }
+.sd-message-roll-total { color:var(--sd-message-accent);font-size:26px;line-height:1; }
+.sd-message-roll-dice { display:flex;grid-column:1/-1;flex-wrap:wrap;gap:4px; }
+.sd-message-roll-dice i { min-width:24px;padding:3px 5px;border:1px solid var(--sd-border,#555);border-radius:4px;background:var(--sd-bg-2,#20212d);font-style:normal;text-align:center; }
+.sd-message-composer-fields { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px;border-top:1px solid var(--sd-border,#444653); }
+.sd-message-composer-field { display:flex;min-width:0;flex-direction:column;gap:4px;color:var(--sd-text-3,#a6a7b2);font-size:10px;font-weight:650; }
+.sd-message-composer-field > span b { color:#d95858; }
+.sd-message-composer-field :is(input:not([type="checkbox"]),textarea,select) { width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--sd-border,#555764);border-radius:5px;background:var(--sd-bg-3,#181923);color:var(--sd-text,#ececf3);font:inherit;font-size:11px;padding:6px 8px; }
+.sd-message-composer-field textarea { min-height:58px;resize:vertical; }
+.sd-message-composer-field :is(input,textarea,select):focus { outline:1px solid var(--sd-message-accent);border-color:var(--sd-message-accent); }
+.sd-message-composer-field--checkbox { flex-direction:row;align-items:center;gap:7px;min-height:31px; }
+.sd-message-composer-field--checkbox input { width:16px;height:16px;margin:0;accent-color:var(--sd-message-accent); }
+.sd-present-roll-flavor > strong { display:block;margin-bottom:3px; }
+.sd-present-roll-flavor > div { color:var(--sd-text-2,#d2d3db);font-size:12px; }
+@media (max-width:420px) { .sd-message-composer-fields { grid-template-columns:minmax(0,1fr); } }

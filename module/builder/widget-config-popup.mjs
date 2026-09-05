@@ -151,6 +151,42 @@ const STYLE_DEFS = {
   cardDrawButton:[["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]]
 };
 
+const COMMON_STYLE_DEFS = [
+  ["Width (px)","boxW","style-px"],
+  ["Height (px)","boxH","style-px"],
+  ["Minimum height (px)","boxMinH","style-px"],
+  ["Maximum height (px)","boxMaxH","style-px"],
+  ["Padding (px)","boxPad","style-px"],
+  ["Margin (px)","boxMargin","style-px"],
+  ["Content gap (px)","boxGap","style-px"],
+  ["Background","boxBg","style-color"],
+  ["Text colour","boxFg","style-color"],
+  ["Label colour","labelColor","style-color"],
+  ["Border colour","boxBorder","style-color"],
+  ["Border width (px)","boxBorderWidth","style-px"],
+  ["Border style","boxBorderStyle","style-select",["solid","dashed","dotted","double","none"]],
+  ["Corner radius (px)","boxRadius","style-px"],
+  ["Font size (px)","fontSize","style-px"],
+  ["Label font size (px)","labelFontSize","style-px"],
+  ["Font weight","fontWeight","style-select",["100","200","300","400","500","600","700","800","900"]],
+  ["Text alignment","textAlign","style-select",["left","center","right"]],
+  ["Content alignment","contentAlign","style-select",["start","center","end","stretch"]],
+  ["Opacity","opacity","style-number"],
+  ["Overflow","overflow","style-select",["visible","hidden","auto","scroll"]],
+  ["Icon colour","iconColor","style-color"],
+  ["Icon size (px)","iconSize","style-px"],
+  ["Label FA icon","labelIcon","style-text"],
+  ["Label emoji","labelEmoji","style-text"],
+  ["Adornment position","labelIconPosition","style-select",["before","after"]]
+];
+for (const type of Object.keys(WIDGET_TYPES ?? {})) {
+  STYLE_DEFS[type] ??= [];
+  const existing = new Set(STYLE_DEFS[type].map(entry => entry?.[1]));
+  for (const entry of COMMON_STYLE_DEFS) {
+    if (!existing.has(entry[1])) STYLE_DEFS[type].push(entry);
+  }
+}
+
 const FIELD_HINTS = {
   path:         "Choose a typed Actor or Item property. The technical path is kept internally and never needs to be typed.",
   categoryVariable: "Database variable that stores the item category. Items are matched by its value - HiddenFields are no longer used.",
@@ -267,17 +303,43 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     </div>`;
   };
 
+  const _styleSelectCell = (key, label, cur, options=[]) => `
+    <div class="wcfg-style-field">
+      <label class="wcfg-style-lbl">${esc(label)}</label>
+      <select data-field="${esc(key)}" data-ftype="style-select" class="wcfg-style-select">
+        <option value="">— default —</option>
+        ${options.map(option => {
+          const value = typeof option === "object" ? option.value : option;
+          const text = typeof option === "object" ? option.label : option;
+          return `<option value="${esc(value)}" ${String(cur ?? "") === String(value) ? "selected" : ""}>${esc(text)}</option>`;
+        }).join("")}
+      </select>
+    </div>`;
+  const _styleNumberCell = (key, label, cur) => `
+    <div class="wcfg-style-field">
+      <label class="wcfg-style-lbl">${esc(label)}</label>
+      <input type="number" ${key === "opacity" ? 'min="0" max="1" step="0.05"' : 'step="any"'}
+        data-field="${esc(key)}" data-ftype="style-number" value="${esc(cur ?? "")}" placeholder="default" class="wcfg-style-num">
+    </div>`;
+  const _styleTextCell = (key, label, cur) => `
+    <div class="wcfg-style-field">
+      <label class="wcfg-style-lbl">${esc(label)}</label>
+      <input type="text" data-field="${esc(key)}" data-ftype="style-text" value="${esc(cur ?? "")}" placeholder="default" class="wcfg-style-text">
+    </div>`;
+
   const styleRow = _styleDefs.length ? `
     <div class="wcfg-style-section">
       <div class="wcfg-style-title"><i class="fas fa-palette"></i> Style</div>
       <div class="wcfg-style-grid">
-        ${_styleDefs.map(([lbl, key, type]) =>
-          type === "style-px"
-            ? _stylePxCell(key, lbl, w[key])
-            : _styleColorCell(key, lbl, w[key])
-        ).join("")}
+        ${_styleDefs.map(([lbl, key, type, options=[]]) => {
+          if (type === "style-px") return _stylePxCell(key, lbl, w[key]);
+          if (type === "style-color") return _styleColorCell(key, lbl, w[key]);
+          if (type === "style-select") return _styleSelectCell(key, lbl, w[key], options);
+          if (type === "style-number") return _styleNumberCell(key, lbl, w[key]);
+          return _styleTextCell(key, lbl, w[key]);
+        }).join("")}
       </div>
-      <div class="wcfg-style-hint">All fields are optional. Blank = default.</div>
+      <div class="wcfg-style-hint">All fields are optional. Blank = default. Label icon accepts e.g. <code>fas fa-shield-halved</code>; emoji stays plain text.</div>
     </div>` : "";
 
   const slotTileRow = (w.type === "slot") ? (() => {
@@ -1571,7 +1633,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       let val;
       if (type === "color" || type === "style-color") {
         val = el.dataset.empty === "1" ? "" : el.value;
-      } else if (type === "number" || type === "style-px") {
+      } else if (type === "number" || type === "style-px" || type === "style-number") {
         const raw = el.value;
         val = raw === "" || raw == null ? "" : (parseFloat(raw) || 0);
       } else {

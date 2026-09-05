@@ -42,6 +42,8 @@ import { migrateDocumentDatabaseValues } from "./module/helpers/value-database.m
 import { SharedDatabaseApp, registerSharedDatabaseSettings } from "./module/helpers/shared-database.mjs";
 import "./module/helpers/data-asset-nodes.mjs";
 import { initWidgetNodes } from "./module/builder/widget-nodes.mjs";
+import { initStyleNodes } from "./module/builder/style-nodes.mjs";
+import { sheetStyleFromPreset } from "./module/helpers/sheet-style.mjs";
 import { installColorSchemeObserver } from "./module/helpers/color-schemes.mjs";
 import { registerEffectSheet } from "./module/helpers/effect-sheet.mjs";
 import { Toolbox }             from "./module/builder/toolbox-app.mjs";
@@ -157,6 +159,7 @@ function registerConfig() {
 }
 
 Hooks.once("init", () => { try { initWidgetNodes(); } catch (error) { console.error("SD | widget nodes failed to register", error); } });
+Hooks.once("init", () => { try { initStyleNodes(); } catch (error) { console.error("SD | style nodes failed to register", error); } });
 
 Hooks.once("init", () => {
   console.log("SD | Initialising system…");
@@ -478,6 +481,13 @@ Hooks.on("preCreateActor", (actor, data, _options, _userId) => {
     const ptLink = foundry.utils.getProperty(data, "prototypeToken.actorLink");
     if (ptLink === undefined) {
       actor.updateSource({ "prototypeToken.actorLink": true });
+    }
+    const existingStyle = foundry.utils.getProperty(data, "system.sheetStyle");
+    if (existingStyle === undefined || existingStyle === null) {
+      actor.updateSource({
+        "system.sheetStyle":sheetStyleFromPreset("classic"),
+        "flags.sd.chooseSheetLayout":true
+      });
     }
   }
 
@@ -1014,6 +1024,25 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
           return;
         }
 
+        const card = btn.closest(".sd-message-composer");
+        const messageFields = {};
+        let invalidField = null;
+        card?.querySelectorAll?.("[data-sd-message-field]").forEach(field => {
+          const id = String(field.dataset.sdMessageField ?? "");
+          if (!id) return;
+          const type = String(field.dataset.fieldType ?? field.type ?? "text");
+          let value = type === "checkbox" ? !!field.checked : field.value ?? "";
+          if (type === "number") { const number=Number(value); value=Number.isFinite(number)?number:0; }
+          messageFields[id] = value;
+          const empty = type === "checkbox" ? !value : String(value).trim() === "";
+          if (!invalidField && field.dataset.required === "1" && empty) invalidField = field;
+        });
+        if (invalidField) {
+          invalidField.focus?.();
+          ui.notifications.warn(_sdChatText("SD.Chat.MessageFieldRequired", "Please fill all required message fields."));
+          return;
+        }
+
         const icon = btn.querySelector("i");
         const previousIcon = icon?.className ?? "";
         btn.disabled = true;
@@ -1058,6 +1087,8 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             label:composerConfig.title ?? buttonConfig.label ?? "Message"
           };
           const runtime = foundry.utils.deepClone(composerConfig.runtimeSnapshot ?? {});
+          runtime.__messageFields = { ...(runtime.__messageFields ?? {}), ...messageFields };
+          if (composerConfig.rollResult && !runtime.__rollResult) runtime.__rollResult = foundry.utils.deepClone(composerConfig.rollResult);
           for (const action of (buttonConfig.actions ?? [])) {
             await ButtonExecutor._runAction(action, item, actionActor, buttonDef, runtime);
           }

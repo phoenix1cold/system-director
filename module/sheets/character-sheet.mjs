@@ -14,6 +14,10 @@ import { persistWidgetValue } from "../helpers/widget-fields.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "../builder/widget-paths.mjs";
 import { promptWidgetIdentity } from "../builder/widget-identity.mjs";
 import { getValueDefinition, getValueDefinitions, readDatabaseValue } from "../helpers/value-database.mjs";
+import {
+  applySheetStyle, normalizeSheetStyle, sheetStyleFromPreset,
+  SHEET_LAYOUTS, SHEET_HEADER_STYLES, SHEET_DENSITIES, SHEET_STYLE_PRESETS
+} from "../helpers/sheet-style.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -46,24 +50,51 @@ function _stripInvalidNumbers(obj, schemaField) {
   }
 }
 
-function _promptTabName(current = "") {
+const _sheetEsc = value => String(value ?? "")
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+const _safeTabIcon = value => {
+  let source = String(value ?? "").trim().replace(/[^a-z0-9 _-]/gi, "");
+  if (!source) return "";
+  if (!/\bfa(?:s|r|b|l|d)?\b/.test(source)) source = `fas ${source.startsWith("fa-") ? source : `fa-${source}`}`;
+  return source;
+};
+const _safeTabColour = value => {
+  const source = String(value ?? "").trim();
+  return /^(?:#[0-9a-f]{3,8}|var\(--[a-z0-9_-]+\)|[a-z]+)$/i.test(source) ? source : "";
+};
+
+function _promptTabSettings(current = {}) {
   return new Promise(resolve => {
-    const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-    const readInput = btn => {
-      const r = btn?.closest?.("[data-application]") ?? btn?.closest?.("dialog") ?? document;
-      return r.querySelector("input[name='tabName']")?.value?.trim() || null;
+    const tab = current && typeof current === "object" ? current : {label:String(current ?? "")};
+    const read = button => {
+      const root = button?.closest?.("[data-application]") ?? button?.closest?.("dialog") ?? document;
+      const value = name => root.querySelector(`[name="${name}"]`)?.value?.trim() ?? "";
+      return {
+        label:value("tabName") || "Tab",
+        icon:_safeTabIcon(value("tabIcon")),
+        emoji:value("tabEmoji").slice(0, 16),
+        tooltip:value("tabTooltip"),
+        color:_safeTabColour(value("tabColor")),
+        showLabel:!!root.querySelector('[name="tabShowLabel"]')?.checked
+      };
     };
     new foundry.applications.api.DialogV2({
-      modal: true,
-      window: { title: "Tab Name" },
-      content: `<div style="padding:6px 0"><input type="text" name="tabName" value="${esc(current)}" style="width:100%;background:var(--sd-w-bg,var(--sd-bg-3));border:1px solid var(--sd-w-bd,var(--sd-border));color:var(--sd-w-fg,var(--sd-text));border-radius:4px;padding:4px 8px;font-size:13px" autofocus></div>`,
-      buttons: [
-        { action:"save", label:"Save", icon:"fas fa-floppy-disk", default:true,
-          callback:(ev,btn)=>{ resolve(readInput(btn)); } },
-        { action:"cancel", label:"Cancel", icon:"fas fa-xmark",
-          callback:()=>resolve(null) }
+      modal:true,
+      window:{title:"Tab Settings"},
+      content:`<div class="sd-tab-settings-grid" style="display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px 10px;align-items:center;padding:8px">
+        <label>Name</label><input type="text" name="tabName" value="${_sheetEsc(tab.label ?? "")}" autofocus>
+        <label>FA icon</label><input type="text" name="tabIcon" value="${_sheetEsc(tab.icon ?? "")}" placeholder="fas fa-shield-halved">
+        <label>Emoji</label><input type="text" name="tabEmoji" value="${_sheetEsc(tab.emoji ?? "")}" placeholder="⚔️">
+        <label>Tooltip</label><input type="text" name="tabTooltip" value="${_sheetEsc(tab.tooltip ?? "")}" placeholder="Displayed on hover">
+        <label>Accent colour</label><input type="text" name="tabColor" value="${_sheetEsc(tab.color ?? "")}" placeholder="#8a6cff">
+        <label>Show name</label><input type="checkbox" name="tabShowLabel" ${tab.showLabel === false ? "" : "checked"}>
+      </div>`,
+      buttons:[
+        {action:"save",label:"Save",icon:"fas fa-floppy-disk",default:true,callback:(ev,button)=>resolve(read(button))},
+        {action:"cancel",label:"Cancel",icon:"fas fa-xmark",callback:()=>resolve(null)}
       ],
-      submit: () => {}
+      submit:()=>{}
     }).render(true);
   });
 }
@@ -113,6 +144,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       resizable: true,
       controls: [
         { icon: "fas fa-toolbox",     label: "Sheet Builder",    action: "openBuilder"      },
+        { icon: "fas fa-palette",     label: "Sheet Appearance", action: "openSheetAppearance" },
         { icon: "fas fa-database",    label: "Database",         action: "openDatabase"     },
         { icon: "fas fa-hand-sparkles", label: "Interactions",   action: "openInteractions" },
         { icon: "fas fa-pen-ruler",   label: "Toggle Edit Mode", action: "toggleEditMode"   }
@@ -123,6 +155,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       openRollDialog:    CharacterSheet._onOpenRollDialog,
       openProgression:   CharacterSheet._onOpenProgression,
       openBuilder:       CharacterSheet._onOpenBuilder,
+      openSheetAppearance: CharacterSheet._onOpenSheetAppearance,
       openSheetTriggers: CharacterSheet._onOpenSheetTriggers,
       openDatabase:      CharacterSheet._onOpenDatabase,
       openInteractions:  CharacterSheet._onOpenInteractions,
@@ -173,13 +206,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       isEditable: this.isEditable,
       editMode:   this._editMode,
       customTabs: system.customTabs ?? [],
-      values: system.values ?? {}
-      ,progressionLevel
+      sheetStyle: normalizeSheetStyle(system.sheetStyle ?? {}),
+      values: system.values ?? {},
+      progressionLevel
     };
   }
 
   _onRender(context, options) {
     this._captureScrollMemory();
+    this._applySheetAppearance();
     this._buildTabNav();
     this._buildTabPanels();
     this._wireHeaderInputs();
@@ -192,6 +227,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     SDOnboarding.bindCharacterSheet(this.element);
     this._wireScrollMemory();
     this._restoreScrollMemory();
+    queueMicrotask(() => this._maybeChooseInitialLayout());
+  }
+
+  _applySheetAppearance() {
+    return applySheetStyle(this.element, this.document.system?.sheetStyle ?? {});
   }
 
   _wireAnimationTagDelegation() {
@@ -351,19 +391,26 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     tabs.forEach(tab => {
       const isActive = tab.id === activeTab;
       const a = document.createElement("a");
-      a.className       = "sd-tab-btn";
+      a.className       = `sd-tab-btn${isActive ? " is-active active" : ""}`;
       a.dataset.tabId   = tab.id;
-      a.style.cssText   = `
+      a.dataset.showLabel = tab.showLabel === false ? "0" : "";
+      a.title = String(tab.tooltip || tab.label || "Tab");
+      const tabColour = _safeTabColour(tab.color);
+      if (tabColour) a.style.setProperty("--sd-tab-color", tabColour);
+      a.style.cssText += `
         padding:5px 11px; font-size:11px; font-weight:700; text-transform:uppercase;
         letter-spacing:.04em; cursor:pointer; border-radius:4px 4px 0 0;
-        border:1px solid ${isActive ? "var(--sd-border)" : "transparent"}; border-bottom:none;
-        color:${isActive ? "var(--sd-accent)" : "#666"}; background:${isActive ? "var(--sd-bg)" : "transparent"};
+        border:1px solid transparent; border-bottom:none;
+        color:var(--sd-text-3); background:transparent;
         display:inline-flex; align-items:center; gap:4px; white-space:nowrap; user-select:none;
       `;
-      a.innerHTML = `${tab.label}
+      const tabIcon = _safeTabIcon(tab.icon);
+      const iconHtml = tabIcon ? `<i class="sd-tab-icon ${_sheetEsc(tabIcon)}"></i>` : "";
+      const emojiHtml = tab.emoji ? `<span class="sd-tab-emoji">${_sheetEsc(tab.emoji)}</span>` : "";
+      a.innerHTML = `${iconHtml}${emojiHtml}<span class="sd-tab-label">${_sheetEsc(tab.label || "Tab")}</span>
         ${this._editMode
-          ? `<span data-rename="${tab.id}" style="opacity:.35;font-size:9px;cursor:pointer" title="Rename">✎</span>
-             <span data-deltab="${tab.id}" style="opacity:.35;font-size:9px;cursor:pointer" title="Delete">✕</span>`
+          ? `<span data-rename="${_sheetEsc(tab.id)}" style="opacity:.5;font-size:9px;cursor:pointer" title="Tab settings"><i class="fas fa-gear"></i></span>
+             <span data-deltab="${_sheetEsc(tab.id)}" style="opacity:.5;font-size:9px;cursor:pointer" title="Delete">✕</span>`
           : ""}`;
 
       a.addEventListener("click", ev => {
@@ -529,6 +576,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       docType:         "Actor",
       itemType:        doc.type ?? "character",
       customTabs:      foundry.utils.deepClone(sys.customTabs      ?? []),
+      sheetStyle:      foundry.utils.deepClone(sys.sheetStyle      ?? {}),
       hiddenFields:    foundry.utils.deepClone(sys.hiddenFields     ?? {}),
       declaredAttrs:   foundry.utils.deepClone(sys.declaredAttrs    ?? []),
       slotDefinitions: foundry.utils.deepClone(sys.slotDefinitions  ?? []),
@@ -2081,6 +2129,80 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     return dz;
   }
 
+
+  async _maybeChooseInitialLayout() {
+    if (this._layoutChoiceOpen || !this.document?.isOwner) return;
+    if (this.document.getFlag?.("sd", "chooseSheetLayout") !== true) return;
+    this._layoutChoiceOpen = true;
+    try {
+      const presets = Object.values(SHEET_STYLE_PRESETS);
+      const choice = await foundry.applications.api.DialogV2.wait({
+        modal:true,
+        window:{title:"Choose Character Sheet"},
+        content:`<div style="padding:8px 4px 12px;line-height:1.5">Choose the initial layout. You can change every option later with <i class="fas fa-palette"></i> <b>Sheet Appearance</b>.</div>`,
+        buttons:presets.map((preset, index) => ({action:preset.id,label:preset.label,icon:preset.icon,default:index === 0})),
+        rejectClose:false
+      }).catch(() => "classic");
+      const presetId = SHEET_STYLE_PRESETS[String(choice ?? "")] ? String(choice) : "classic";
+      await this.document.update({
+        "system.sheetStyle":sheetStyleFromPreset(presetId),
+        "flags.sd.chooseSheetLayout":false
+      });
+    } finally {
+      this._layoutChoiceOpen = false;
+    }
+  }
+
+  async _openSheetAppearanceDialog() {
+    const current = normalizeSheetStyle(this.document.system?.sheetStyle ?? {});
+    const opts = (items, selected) => items.map(item => `<option value="${_sheetEsc(item.value)}" ${item.value === selected ? "selected" : ""}>${_sheetEsc(item.label)}</option>`).join("");
+    const presetOptions = Object.values(SHEET_STYLE_PRESETS).map(preset => `<option value="${preset.id}" ${preset.id === current.preset ? "selected" : ""}>${_sheetEsc(preset.label)}</option>`).join("");
+    const result = await foundry.applications.api.DialogV2.wait({
+      modal:true,
+      window:{title:"Sheet Appearance"},
+      content:`<div class="sd-sheet-style-dialog" style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 10px;align-items:center;padding:8px;max-height:62vh;overflow:auto">
+        <label>Preset</label><select name="preset"><option value="custom" ${current.preset === "custom" ? "selected" : ""}>Custom / keep values below</option>${presetOptions}</select>
+        <label>Layout</label><select name="layout">${opts(SHEET_LAYOUTS, current.layout)}</select>
+        <label>Header</label><select name="headerStyle">${opts(SHEET_HEADER_STYLES, current.headerStyle)}</select>
+        <label>Density</label><select name="density">${opts(SHEET_DENSITIES, current.density)}</select>
+        <label>Show tab labels</label><input type="checkbox" name="tabLabels" ${current.tabLabels ? "checked" : ""}>
+        <label>Tab size</label><input type="number" name="tabSize" min="30" max="84" value="${current.tabSize}">
+        <label>Rail width</label><input type="number" name="railWidth" min="48" max="220" value="${current.railWidth}">
+        <label>Panel padding</label><input type="number" name="panelPadding" min="0" max="48" value="${current.panelPadding}">
+        <label>Widget gap</label><input type="number" name="widgetGap" min="0" max="32" value="${current.widgetGap}">
+        <label>Corner radius</label><input type="number" name="cornerRadius" min="0" max="32" value="${current.cornerRadius}">
+        <label>Font scale</label><input type="number" name="fontScale" min="0.7" max="1.6" step="0.05" value="${current.fontScale}">
+        <label>Accent colour</label><input type="text" name="accent" value="${_sheetEsc(current.accent)}" placeholder="#8a6cff">
+        <label>Sheet background</label><input type="text" name="background" value="${_sheetEsc(current.background)}" placeholder="#14151d">
+        <label>Panel background</label><input type="text" name="panelBackground" value="${_sheetEsc(current.panelBackground)}" placeholder="transparent">
+        <label>Header background</label><input type="text" name="headerBackground" value="${_sheetEsc(current.headerBackground)}" placeholder="#20212d">
+        <label>Background image</label><input type="text" name="backgroundImage" value="${_sheetEsc(current.backgroundImage)}" placeholder="systems/sd/assets/…">
+        <div style="grid-column:1/-1;color:var(--sd-text-3);font-size:10px">Choosing a preset applies all of its values. Choose Custom to save the fields shown above.</div>
+      </div>`,
+      buttons:[
+        {action:"save",label:"Apply",icon:"fas fa-check",default:true,callback:(event,button,dialog) => {
+          const root = dialog.element;
+          const val = name => root.querySelector(`[name="${name}"]`)?.value ?? "";
+          return {
+            preset:val("preset"), layout:val("layout"), headerStyle:val("headerStyle"), density:val("density"),
+            tabLabels:!!root.querySelector('[name="tabLabels"]')?.checked,
+            tabSize:Number(val("tabSize")), railWidth:Number(val("railWidth")), panelPadding:Number(val("panelPadding")),
+            widgetGap:Number(val("widgetGap")), cornerRadius:Number(val("cornerRadius")), fontScale:Number(val("fontScale")),
+            accent:val("accent"), background:val("background"), panelBackground:val("panelBackground"),
+            headerBackground:val("headerBackground"), backgroundImage:val("backgroundImage")
+          };
+        }},
+        {action:"cancel",label:"Cancel",icon:"fas fa-xmark",callback:()=>null}
+      ],
+      rejectClose:false
+    }).catch(() => null);
+    if (!result) return;
+    const style = result.preset !== "custom" && SHEET_STYLE_PRESETS[result.preset]
+      ? sheetStyleFromPreset(result.preset)
+      : normalizeSheetStyle({...result, preset:"custom"});
+    await this.document.update({"system.sheetStyle":style, "flags.sd.chooseSheetLayout":false});
+  }
+
   _switchTab(tabId) {
     this._captureScrollMemory();
     this.tabGroups.sheet = tabId;
@@ -2088,9 +2210,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     root.querySelectorAll(".sd-tab-btn[data-tab-id]").forEach(a => {
       const active = a.dataset.tabId === tabId;
-      a.style.color      = active ? "var(--sd-accent)" : "#666";
-      a.style.background = active ? "var(--sd-bg)" : "transparent";
-      a.style.borderColor = active ? "var(--sd-border) var(--sd-border) var(--sd-bg)" : "transparent";
+      a.classList.toggle("is-active", active);
+      a.classList.toggle("active", active);
     });
 
     root.querySelectorAll(".sd-tab-panel").forEach(p => {
@@ -2102,18 +2223,21 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   async _addTab(label = "New Tab") {
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const id   = foundry.utils.randomID(8);
-    tabs.push({ id, label, icon: "", order: tabs.length + 1, rows: [] });
+    tabs.push({ id, label, icon:"", emoji:"", tooltip:"", color:"", showLabel:true, order:tabs.length + 1, rows:[] });
     await this.document.update({ "system.customTabs": tabs });
-    this._renameTab(id);
+    await this._renameTab(id);
   }
 
   async _renameTab(tabId) {
-    const tab  = this.document.system.customTabs?.find(t => t.id === tabId);
-    const name = await _promptTabName(tab?.label ?? "");
-    if (name == null) return;
+    const tab = this.document.system.customTabs?.find(entry => entry.id === tabId);
+    const settings = await _promptTabSettings(tab ?? {});
+    if (!settings) return;
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
-    const t    = tabs.find(t => t.id === tabId);
-    if (t) { t.label = name; await this.document.update({ "system.customTabs": tabs }); }
+    const target = tabs.find(entry => entry.id === tabId);
+    if (target) {
+      Object.assign(target, settings);
+      await this.document.update({"system.customTabs":tabs});
+    }
   }
 
   async _deleteTab(tabId) {
@@ -2535,6 +2659,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static async _onOpenDatabase() {
     const { openDocumentValueDatabase } = await import("../helpers/value-database.mjs");
     await openDocumentValueDatabase(this.document);
+  }
+
+  static async _onOpenSheetAppearance() {
+    await this._openSheetAppearanceDialog();
   }
 
   static async _onOpenSheetTriggers(event, target) {

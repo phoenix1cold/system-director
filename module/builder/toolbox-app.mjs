@@ -315,6 +315,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
         sdVersion: game.system?.version ?? "",
 
         customTabs:      foundry.utils.deepClone(sys.customTabs      ?? []),
+        sheetStyle:      foundry.utils.deepClone(sys.sheetStyle      ?? {}),
 
         hiddenFields:    foundry.utils.deepClone(sys.hiddenFields     ?? {}),
 
@@ -377,6 +378,7 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
 
         const systemPayload = {
           customTabs:      freshTabs,
+          sheetStyle:      foundry.utils.deepClone(tmpl.sheetStyle ?? {}),
           hiddenFields:    foundry.utils.deepClone(tmpl.hiddenFields  ?? {}),
           declaredAttrs:   foundry.utils.deepClone(tmpl.declaredAttrs ?? []),
           slotDefinitions: this._freshenSlotIds(

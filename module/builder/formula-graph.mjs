@@ -61,6 +61,31 @@ function _messageComposerButtons(data = {}) {
   });
 }
 
+function _messageComposerControls(data = {}) {
+  const stored = Array.isArray(data?.controls) ? data.controls : [];
+  const types = new Set(["text", "number", "textarea", "select", "checkbox"]);
+  return Array.from({length:8}, (_, index) => {
+    const fallback = {id:`field${index}`, enabled:false, label:`Field ${index + 1}`, type:"text", defaultValue:"", placeholder:"", options:"", required:false};
+    const source = stored.find(control => String(control?.id ?? "") === fallback.id) ?? stored[index] ?? {};
+    return {
+      id:fallback.id,
+      enabled:!!source.enabled,
+      label:String(source.label ?? fallback.label).trim() || fallback.label,
+      type:types.has(String(source.type ?? "")) ? String(source.type) : fallback.type,
+      defaultValue:source.defaultValue ?? source.default ?? fallback.defaultValue,
+      placeholder:String(source.placeholder ?? "").slice(0, 180),
+      options:Array.isArray(source.options) ? source.options.map(option => typeof option === "object" ? `${option.label ?? option.value}|${option.value ?? option.label}` : String(option)).join("\n") : String(source.options ?? ""),
+      required:!!source.required
+    };
+  });
+}
+
+function _messageComposerControlPinType(control) {
+  if (control?.type === "number") return "value.number";
+  if (control?.type === "checkbox") return "value.bool";
+  return "value.string";
+}
+
 function _cleanGraphText(value) {
   return String(value ?? "")
     .replaceAll("РІвЂ вЂ™", "->")
@@ -461,8 +486,14 @@ export const NODE_DEFS = {
     outputs:[{id:"v",label:"Text",type:"value.string"}],
     fields:[{key:"sep",label:"Separator (arrays)",type:"text",default:", "}],
     compile:(n,i)=>{
+      const value = i.value ?? "";
+      const normalized = String(value).trim();
+      // Roll Result is a structured object, but its text representation is the
+      // rolled total. Compile this common wire directly to the scalar token so
+      // it can never be stringified as [object Object] by an intermediate layer.
+      if (normalized === "{__rollResult}" || normalized === "{raw:__rollResult}") return "{__rollTotal}";
       const sep = (i.sep !== undefined && i.sep !== null && i.sep !== "") ? i.sep : (n?.data?.sep ?? ", ");
-      return `{convertValue:text|${_arrayArg(i.value ?? "")}|${_arrayArg(sep)}}`;
+      return `{convertValue:text|${_arrayArg(value)}|${_arrayArg(sep)}}`;
     }
   },
   convert_boolean: {
@@ -2177,78 +2208,71 @@ export const NODE_DEFS = {
 
   act_message_composer: {
     title:"Message Composer", color:"#7a4a22", cat:"Chat", wideNode:true,
-    desc:"Build one styled chat card from text, a result or damage value, an image, and up to six interactive buttons. Each button output runs its connected exec branch when clicked. For an Apply Damage button, connect it to Damage with Chat card set to no.",
-    keywords:"message compiler compilator composer chat card damage message buttons interactive action card",
+    desc:"Build one interactive chat card with an optional embedded Roll Result, buttons, text/number inputs, text areas, selectors and checkboxes. Every enabled form element creates a typed output pin.",
+    keywords:"message compiler compilator composer chat card roll buttons interactive form input select checkbox textarea",
     inputs:[
       {id:"exec",       label:"",            type:"exec"},
       {id:"title",      label:"Title",       type:"value.string"},
       {id:"message",    label:"Message",     type:"value.string"},
       {id:"value",      label:"Value",       type:"value.any"},
       {id:"valueLabel", label:"Value label", type:"value.string"},
-      {id:"image",      label:"Image",       type:"value.string"}
+      {id:"image",      label:"Image",       type:"value.string"},
+      {id:"rollResult", label:"Roll Result", type:"value.roll_result"}
     ],
-    outputs:[{id:"posted", label:"Posted ->", type:"exec"}],
+    outputs:[{id:"posted",label:"Posted ->",type:"exec"},{id:"rollResult",label:"Roll Result",type:"value.roll_result"}],
     catalogOutputs:[
-      {id:"btn0", label:"Button 1 ->", type:"exec"},
-      {id:"btn1", label:"Button 2 ->", type:"exec"},
-      {id:"btn2", label:"Button 3 ->", type:"exec"},
-      {id:"btn3", label:"Button 4 ->", type:"exec"},
-      {id:"btn4", label:"Button 5 ->", type:"exec"},
-      {id:"btn5", label:"Button 6 ->", type:"exec"}
+      {id:"rollResult", label:"Roll Result", type:"value.roll_result"},
+      {id:"btn0", label:"Button 1 ->", type:"exec"}, {id:"btn1", label:"Button 2 ->", type:"exec"},
+      {id:"btn2", label:"Button 3 ->", type:"exec"}, {id:"btn3", label:"Button 4 ->", type:"exec"},
+      {id:"btn4", label:"Button 5 ->", type:"exec"}, {id:"btn5", label:"Button 6 ->", type:"exec"},
+      ...Array.from({length:8}, (_,index) => ({id:`field${index}`, label:`Form field ${index + 1}`, type:"value.any"}))
     ],
     fields:[
-      {key:"style",      label:"Card style", type:"select", default:"message", options:[
-        {value:"message", label:"Message"},
-        {value:"damage",  label:"Damage"},
-        {value:"healing", label:"Healing"},
-        {value:"check",   label:"Check"},
-        {value:"notice",  label:"Notice"}
+      {key:"style",label:"Card style",type:"select",default:"message",options:[
+        {value:"message",label:"Message"},{value:"damage",label:"Damage"},{value:"healing",label:"Healing"},{value:"check",label:"Check"},{value:"notice",label:"Notice"}
       ]},
-      {key:"title",      label:"Title",       type:"text",     default:"Message"},
-      {key:"message",    label:"Message",     type:"textarea", default:"", rows:4},
-      {key:"value",      label:"Value",       type:"text",     default:""},
-      {key:"valueLabel", label:"Value label", type:"text",     default:""},
-      {key:"image",      label:"Image",       type:"text",     default:"", placeholder:"Actor portrait, item image, or path"},
-      {key:"access", label:"Button access", type:"select", default:"actorOwner", options:[
-        {value:"actorOwner", label:"Actor owners"},
-        {value:"author",     label:"Message author"},
-        {value:"gm",         label:"GM only"},
-        {value:"everyone",   label:"Everyone"}
+      {key:"title",label:"Title",type:"text",default:"Message"},
+      {key:"message",label:"Message",type:"textarea",default:"",rows:4},
+      {key:"value",label:"Value",type:"text",default:""},
+      {key:"valueLabel",label:"Value label",type:"text",default:""},
+      {key:"image",label:"Image",type:"text",default:"",placeholder:"Actor portrait, item image, or path"},
+      {key:"includeRoll",label:"Embed Present Roll",type:"bool",default:false,noPin:true},
+      {key:"access",label:"Button access",type:"select",default:"actorOwner",options:[
+        {value:"actorOwner",label:"Actor owners"},{value:"author",label:"Message author"},{value:"gm",label:"GM only"},{value:"everyone",label:"Everyone"}
       ]},
-      {key:"buttonUse", label:"Button use", type:"select", default:"once", options:[
-        {value:"once",     label:"Once"},
-        {value:"reusable", label:"Reusable"}
-      ]},
-      {key:"visibility", label:"Message visibility", type:"select", default:"public", options:[
-        {value:"public", label:"Public"},
-        {value:"gm",     label:"Whisper to GM"},
-        {value:"self",   label:"Whisper to self"}
-      ]},
-      {key:"buttons", label:"Buttons", type:"message-buttons-editor", default:[]}
+      {key:"buttonUse",label:"Button use",type:"select",default:"once",options:[{value:"once",label:"Once"},{value:"reusable",label:"Reusable"}]},
+      {key:"visibility",label:"Message visibility",type:"select",default:"public",options:[{value:"public",label:"Public"},{value:"gm",label:"Whisper to GM"},{value:"self",label:"Whisper to self"}]},
+      {key:"controls",label:"Form fields",type:"message-controls-editor",default:[],noPin:true},
+      {key:"buttons",label:"Buttons",type:"message-buttons-editor",default:[],noPin:true}
     ],
     isAction:true,
     isGenericBranch:true,
     computeDynamicOutputs(node) {
       const buttons = _messageComposerButtons(node?.data).filter(button => button.enabled);
+      const controls = _messageComposerControls(node?.data).filter(control => control.enabled);
       return [
-        {id:"posted", label:"Posted ->", type:"exec"},
-        ...buttons.map(button => ({id:button.id, label:`${button.label} ->`, type:"exec"}))
+        {id:"posted",label:"Posted ->",type:"exec"},
+        ...buttons.map(button => ({id:button.id,label:`${button.label} ->`,type:"exec"})),
+        {id:"rollResult",label:"Roll Result",type:"value.roll_result"},
+        ...controls.map(control => ({id:control.id,label:control.label,type:_messageComposerControlPinType(control)}))
       ];
+    },
+    dynamicBranchToken(node, fromPin) {
+      if (fromPin === "rollResult") return "{__rollResult}";
+      const control = _messageComposerControls(node?.data).find(entry => entry.enabled && entry.id === fromPin);
+      return control ? `{__messageField:${control.id}}` : null;
     },
     toAction(n, inp = {}) {
       const buttons = _messageComposerButtons(n?.data).filter(button => button.enabled);
+      const controls = _messageComposerControls(n?.data).filter(control => control.enabled);
       return {
-        type:"messageComposer",
-        style:String(n.data?.style ?? "message"),
-        title:inp.title ?? n.data?.title ?? "Message",
-        message:inp.message ?? n.data?.message ?? "",
-        value:inp.value ?? n.data?.value ?? "",
-        valueLabel:inp.valueLabel ?? n.data?.valueLabel ?? "",
-        image:inp.image ?? n.data?.image ?? "",
-        access:String(n.data?.access ?? "actorOwner"),
-        buttonUse:String(n.data?.buttonUse ?? "once"),
-        visibility:String(n.data?.visibility ?? "public"),
-        buttons:buttons.map(({id, label, icon, variant}) => ({id, label, icon, variant}))
+        type:"messageComposer", style:String(n.data?.style ?? "message"),
+        title:inp.title ?? n.data?.title ?? "Message", message:inp.message ?? n.data?.message ?? "",
+        value:inp.value ?? n.data?.value ?? "", valueLabel:inp.valueLabel ?? n.data?.valueLabel ?? "", image:inp.image ?? n.data?.image ?? "",
+        includeRoll:!!n.data?.includeRoll, rollResult:inp.rollResult ?? "{__rollResult}",
+        access:String(n.data?.access ?? "actorOwner"), buttonUse:String(n.data?.buttonUse ?? "once"), visibility:String(n.data?.visibility ?? "public"),
+        controls:controls.map(({id,label,type,defaultValue,placeholder,options,required}) => ({id,label,type,defaultValue,placeholder,options,required})),
+        buttons:buttons.map(({id,label,icon,variant}) => ({id,label,icon,variant}))
       };
     }
   },
@@ -5194,18 +5218,24 @@ export const NODE_DEFS = {
 
   act_present_roll: {
     title:"Present Roll", color:"#31705a", cat:"Dice & Rolls", wideNode:true,
-    desc:"Displays an existing Roll Result in chat, on the canvas, or over the current actor sheet. It never rolls again.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"result",label:"Roll Result",type:"value.roll_result"}],
+    desc:"Displays an existing Roll Result in chat, on the canvas, or over the current actor sheet. Label and Roll text accept pins and never roll again.",
+    inputs:[
+      {id:"exec",label:"",type:"exec"},
+      {id:"result",label:"Roll Result",type:"value.roll_result"},
+      {id:"label",label:"Label",type:"value.string"},
+      {id:"text",label:"Roll text",type:"value.string"}
+    ],
     outputs:[{id:"exec",label:"Presented →",type:"exec"},{id:"result",label:"Roll Result",type:"value.roll_result"}],
     fields:[
       {key:"destination",label:"Destination",type:"select",default:"chat",options:["chat","canvas","sheet"],noPin:true},
-      {key:"label",label:"Label override",type:"text",default:"",noPin:true},
+      {key:"label",label:"Label override",type:"text",default:""},
+      {key:"text",label:"Roll text",type:"textarea",default:"",rows:3},
       {key:"rollMode",label:"Chat visibility",type:"select",default:"default",options:["default","publicroll","gmroll","blindroll","selfroll"],noPin:true},
       {key:"area",label:"Canvas area (px)",type:"number",default:300,noPin:true},
       {key:"duration",label:"Overlay duration (s)",type:"number",default:6,noPin:true}
     ],
     isGenericBranch:true,
-    toAction:(n,inp)=>({type:"presentRollResult",result:inp.result??"{__rollResult}",destination:n.data.destination??"chat",label:n.data.label??"",rollMode:n.data.rollMode??"default",area:Number(n.data.area??300),duration:Number(n.data.duration??6)})
+    toAction:(n,inp)=>({type:"presentRollResult",result:inp.result??"{__rollResult}",destination:n.data.destination??"chat",label:inp.label??n.data.label??"",text:inp.text??n.data.text??"",rollMode:n.data.rollMode??"default",area:Number(n.data.area??300),duration:Number(n.data.duration??6)})
   },
 
   act_aura_definition: {
@@ -8245,6 +8275,7 @@ const BRANCH_PIN_TOKENS = {
   act_analyze_roll: { result:"{__rollResult}", total:"{__rollTotal}", formula:"{__rollFormula}", dice:"{__rollDice}", natural:"{__rollNatural}", min:"{__rollMin}", max:"{__rollMax}", avg:"{__rollAvg}", successes:"{__rollSuccesses}", botches:"{__rollBotches}", isCrit:"{__rollIsCrit}", isFumble:"{__rollIsFumble}" },
   act_compare_roll: { result:"{__rollResult}", compared:"{__rollCompared}", target:"{__rollTarget}", margin:"{__rollMargin}", passed:"{__rollPassed}" },
   act_present_roll: { result:"{__rollResult}" },
+  act_message_composer: { rollResult:"{__rollResult}" },
   act_aura_definition: { aura:"{__auraDefinition}" },
   act_place_aura_zone: { targets:"{__allTargets}", aura:"{__auraRegion}" },
   act_tokens_from_aura: { targets:"{__allTargets}", count:"{__targetCount}" },
@@ -14475,6 +14506,49 @@ export class FormulaGraph {
     this._pushHistory();
   }
 
+  async _editMessageComposerControls(node) {
+    const controls = _messageComposerControls(node?.data);
+    const typeOptions = [["text","Text input"],["number","Number input"],["textarea","Text area"],["select","Selector"],["checkbox","Checkbox"]];
+    const rows = controls.map((control,index) => `
+      <div data-index="${index}" style="display:grid;grid-template-columns:30px 110px minmax(125px,1fr) minmax(110px,.8fr) minmax(170px,1.25fr) 42px;gap:7px;align-items:center;padding:6px 0;border-bottom:1px solid var(--sd-border)">
+        <input type="checkbox" name="fieldEnabled${index}" ${control.enabled ? "checked" : ""} title="Enable field ${index + 1}">
+        <select name="fieldType${index}">${typeOptions.map(([value,label]) => `<option value="${value}" ${control.type === value ? "selected" : ""}>${label}</option>`).join("")}</select>
+        <input type="text" name="fieldLabel${index}" value="${esc(control.label)}" placeholder="Label">
+        <input type="text" name="fieldDefault${index}" value="${esc(control.defaultValue)}" placeholder="Default">
+        <input type="text" name="fieldDetails${index}" value="${esc(control.type === "select" ? control.options : control.placeholder)}" placeholder="Placeholder; for selector: One|value, Two|value">
+        <input type="checkbox" name="fieldRequired${index}" ${control.required ? "checked" : ""} title="Required">
+      </div>`).join("");
+    const result = await foundry.applications.api.DialogV2.wait({
+      window:{title:"Message Composer Form Fields",resizable:true}, position:{width:980}, modal:true,
+      content:`<div style="min-width:850px;padding:4px 2px">
+        <div style="display:grid;grid-template-columns:30px 110px minmax(125px,1fr) minmax(110px,.8fr) minmax(170px,1.25fr) 42px;gap:7px;color:var(--sd-text-3);font-size:10px;font-weight:700;text-transform:uppercase;padding-bottom:5px">
+          <span>On</span><span>Type</span><span>Label / output</span><span>Default</span><span>Placeholder / options</span><span>Req.</span>
+        </div>${rows}
+        <div style="margin-top:7px;color:var(--sd-text-3);font-size:10px;line-height:1.4">Selector options: one per line or comma-separated. Use <code>Label|value</code> to store a value different from the visible label. Stable outputs are field0…field7; changing a Label does not break wires.</div>
+      </div>`,
+      buttons:[
+        {action:"save",label:"Save",icon:"fas fa-floppy-disk",default:true,callback:(event,button,dialog) => {
+          const root=dialog?.element ?? dialog;
+          return controls.map((existing,index) => {
+            const type=root?.querySelector?.(`[name="fieldType${index}"]`)?.value || existing.type;
+            const details=root?.querySelector?.(`[name="fieldDetails${index}"]`)?.value ?? "";
+            return {
+              id:`field${index}`, enabled:!!root?.querySelector?.(`[name="fieldEnabled${index}"]`)?.checked,
+              type, label:root?.querySelector?.(`[name="fieldLabel${index}"]`)?.value?.trim() || existing.label,
+              defaultValue:root?.querySelector?.(`[name="fieldDefault${index}"]`)?.value ?? "",
+              placeholder:type === "select" ? "" : details, options:type === "select" ? details : "",
+              required:!!root?.querySelector?.(`[name="fieldRequired${index}"]`)?.checked
+            };
+          });
+        }},
+        {action:"cancel",label:"Cancel",callback:()=>null}
+      ], rejectClose:false
+    }).catch(()=>null);
+    if (!Array.isArray(result)) return;
+    node.data.controls=result;
+    this._renderNode(node); this._redrawEdges(); this._updatePreview(); this._pushHistory();
+  }
+
   _fldEl(node,field,opts){
     opts = opts || {};
     const wrap=document.createElement("div");
@@ -14492,6 +14566,19 @@ export class FormulaGraph {
     const IS="background:var(--sd-graph-field-bg,var(--sd-bg-3));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:6px;color:var(--sd-text);font-size:12px;padding:5px 8px;font-family:monospace;outline:none;min-width:0;max-width:100%;width:100%;box-sizing:border-box;height:28px";
     const SI=IS+";cursor:pointer";
     const idx=this._smartIndex??{slots:[],ownedItems:[],effects:[],widgets:[],invItemSlots:[]};
+
+    if (field.type === "message-controls-editor") {
+      const controls = _messageComposerControls(node?.data).filter(control => control.enabled);
+      const control = document.createElement("button");
+      control.type="button";
+      control.title="Configure text, number, textarea, selector and checkbox fields";
+      control.style.cssText="width:100%;height:30px;display:flex;align-items:center;justify-content:center;gap:7px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text-2);cursor:pointer;font-size:11px";
+      control.innerHTML=`<i class="fas fa-list-check"></i><span>${controls.length} form field${controls.length === 1 ? "" : "s"}</span>`;
+      control.addEventListener("mousedown",event=>event.stopPropagation());
+      control.addEventListener("click",event=>{event.stopPropagation();this._editMessageComposerControls(node);});
+      wrap.appendChild(control);
+      return wrap;
+    }
 
     if (field.type === "message-buttons-editor") {
       const buttons = _messageComposerButtons(node?.data);

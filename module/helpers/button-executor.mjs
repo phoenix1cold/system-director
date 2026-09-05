@@ -791,7 +791,9 @@ export class ButtonExecutor {
     const _injectRuntime = (formula) => {
       if (typeof formula !== "string") return formula;
       const exact = formula;
-      let exactMatch = exact.match(/^\{__dbValue:([A-Za-z0-9_-]+)\}$/);
+      let exactMatch = exact.match(/^\{__messageField:([A-Za-z0-9_-]+)\}$/);
+      if (exactMatch) return runtime.__messageFields?.[exactMatch[1]] ?? "";
+      exactMatch = exact.match(/^\{__dbValue:([A-Za-z0-9_-]+)\}$/);
       if (exactMatch) return runtime.__databaseValues?.[exactMatch[1]];
       exactMatch = exact.match(/^\{__dbRecordId:([A-Za-z0-9_-]+)\}$/);
       if (exactMatch) return runtime.__databaseRecordIds?.[exactMatch[1]] ?? "";
@@ -1067,6 +1069,13 @@ export class ButtonExecutor {
       if (runtime.__sdInputText !== undefined) {
         formula = formula.replace(/\{__sdInputText\}/g, String(runtime.__sdInputText ?? ""));
       }
+      formula = formula.replace(/\{__messageField:([A-Za-z0-9_-]+)\}/g, (_, id) => {
+        const value = runtime.__messageFields?.[id];
+        if (value === undefined || value === null) return "";
+        if (typeof value === "boolean") return value ? "1" : "0";
+        if (typeof value === "object") { try { return JSON.stringify(value); } catch { return ""; } }
+        return String(value);
+      });
       formula = formula.replace(/\{__var:([A-Za-z0-9_]+)\|([^}]*)\}/g, (_, name, dflt) => {
         const localVars = (runtime.__vars && typeof runtime.__vars === "object") ? runtime.__vars : {};
         const actorVars = foundry.utils.getProperty(actor ?? {}, "flags.sd.vars") ?? {};
@@ -1102,13 +1111,26 @@ export class ButtonExecutor {
           try {
             const decoded = decodeURIComponent(escape(atob(payload)));
             if (!decoded.includes("{__")) return match;
-            // Roll Result is structured data. Keep its runtime token encoded so
-            // FormulaEngine's To Text / To Number converters receive the real
-            // object and can extract result.total. String() here used to turn it
-            // into "[object Object]" before the converter ever saw it.
-            if (decoded.trim() === "{__rollResult}") return match;
-            const injected = _injectRuntime(decoded);
-            const encoded = btoa(unescape(encodeURIComponent(String(injected ?? ""))));
+            // Runtime tokens inside converter arguments may resolve to a real
+            // structured value. A Roll Result must become its numeric total;
+            // String(result) here is the exact source of "[object Object]".
+            let tokenText = decoded.trim();
+            if (tokenText.length >= 2 && ((tokenText.startsWith('"') && tokenText.endsWith('"'))
+                || (tokenText.startsWith("'") && tokenText.endsWith("'")))) tokenText = tokenText.slice(1, -1).trim();
+            tokenText = tokenText.replace(/^\{\{([^{}]+)\}\}$/, "{$1}");
+            const injected = ((tokenText === "{__rollResult}" || tokenText === "{raw:__rollResult}") && _rr)
+              ? _rr
+              : _injectRuntime(decoded);
+            let encodedValue = injected;
+            if (injected && typeof injected === "object") {
+              const total = Number(injected.total ?? injected._total);
+              const isRollResult = injected.type === "sd.roll-result"
+                || (Number.isFinite(total) && (injected.formula !== undefined || injected.dice !== undefined
+                  || injected.roll !== undefined || injected._formula !== undefined || injected.terms !== undefined));
+              if (isRollResult && Number.isFinite(total)) encodedValue = total;
+              else return match; // Never degrade another structured value to [object Object].
+            }
+            const encoded = btoa(unescape(encodeURIComponent(String(encodedValue ?? ""))));
             return `${prefix}${encoded}`;
           } catch {
             return match;
@@ -3360,28 +3382,33 @@ export class ButtonExecutor {
         const { FormulaEngine } = await import("./formula-engine.mjs");
         const doc = item ?? actor ?? {};
         const resolveText = (raw) => {
-          let text = _injectRuntime(String(raw ?? ""));
+          let injected = _injectRuntime(raw ?? "");
+          if (injected !== null && typeof injected === "object") {
+            try { return FormulaEngine.valueToText(injected); }
+            catch { return ""; }
+          }
+          let text = String(injected ?? "");
           text = text.replace(/\{([^{}]+)\}/g, (match, inner) => {
             try {
               const value = FormulaEngine.evaluate(`{${inner}}`, doc);
-              return (value === match || value === undefined || value === null) ? match : String(value);
+              return (value === match || value === undefined || value === null) ? match : FormulaEngine.valueToText(value);
             } catch { return match; }
           });
           const trimmed = text.trim();
           if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
             try {
               const value = FormulaEngine.evaluate(trimmed, doc);
-              if (value !== undefined && value !== trimmed) text = String(value);
+              if (value !== undefined && value !== trimmed) text = FormulaEngine.valueToText(value);
             } catch {}
           }
           return String(_sdStripQuotedString(text));
         };
         const styles = {
-          message: { accent:"#3b73a6", icon:"fas fa-message", valueLabel:"Result" },
-          damage:  { accent:"#b83232", icon:"fas fa-heart-crack", valueLabel:"Damage" },
-          healing: { accent:"#2e8b57", icon:"fas fa-heart", valueLabel:"Healing" },
-          check:   { accent:"#7652a8", icon:"fas fa-dice-d20", valueLabel:"Check" },
-          notice:  { accent:"#b06d20", icon:"fas fa-circle-info", valueLabel:"Notice" }
+          message:{accent:"#3b73a6",icon:"fas fa-message",valueLabel:"Result"},
+          damage:{accent:"#b83232",icon:"fas fa-heart-crack",valueLabel:"Damage"},
+          healing:{accent:"#2e8b57",icon:"fas fa-heart",valueLabel:"Healing"},
+          check:{accent:"#7652a8",icon:"fas fa-dice-d20",valueLabel:"Check"},
+          notice:{accent:"#b06d20",icon:"fas fa-circle-info",valueLabel:"Notice"}
         };
         const styleKey = Object.prototype.hasOwnProperty.call(styles, action.style) ? action.style : "message";
         const visual = styles[styleKey];
@@ -3394,93 +3421,88 @@ export class ButtonExecutor {
         let bodyHtml = _sdEscapeHtml(body).replace(/\r?\n/g, "<br>");
         try {
           const editor = globalThis.TextEditor?.implementation ?? globalThis.TextEditor;
-          if (body && typeof editor?.enrichHTML === "function") {
-            bodyHtml = await editor.enrichHTML(body, {
-              async:true,
-              documents:true,
-              links:true,
-              rolls:true,
-              secrets:!!actor?.isOwner,
-              relativeTo:item ?? actor ?? undefined
-            });
-          }
+          if (body && typeof editor?.enrichHTML === "function") bodyHtml = await editor.enrichHTML(body, {async:true,documents:true,links:true,rolls:true,secrets:!!actor?.isOwner,relativeTo:item ?? actor ?? undefined});
         } catch {}
 
-        const variants = new Set(["primary", "secondary", "success", "danger", "warning"]);
-        const sourceButtons = Array.isArray(action.buttons) ? action.buttons.slice(0, 6) : [];
-        const flagButtons = sourceButtons.map((button, index) => {
-          const id = /^btn[0-5]$/.test(String(button?.id ?? "")) ? String(button.id) : `btn${index}`;
-          const variant = variants.has(String(button?.variant ?? "")) ? String(button.variant) : "secondary";
-          return {
-            id,
-            label:resolveText(button?.label ?? `Button ${index + 1}`),
-            icon:_sdSafeIcon(button?.icon, "fas fa-circle"),
-            variant,
-            actions:materializeDeferredActionSnapshot(action[`${id}Actions`] ?? [], _injectRuntime)
-          };
+        let rollResult = action.includeRoll ? _injectRuntime(action.rollResult ?? "{__rollResult}") : null;
+        if (typeof rollResult === "string" && rollResult.trim().startsWith("{")) {
+          try { rollResult = JSON.parse(rollResult); } catch {}
+        }
+        const hasRoll = !!(action.includeRoll && rollResult && typeof rollResult === "object");
+        if (hasRoll) {
+          runtime.__rollResult = rollResult;
+          if (buttonDef) buttonDef.__rollResult = rollResult;
+          await _sdPublishRollRuntime(rollResult);
+        }
+        let rollHtml = "";
+        if (hasRoll) {
+          let rendered = "";
+          try { if (typeof rollResult.roll?.render === "function") rendered = await rollResult.roll.render(); } catch {}
+          if (!rendered) {
+            const formula = _sdEscapeHtml(rollResult.formula ?? rollResult._formula ?? "Roll");
+            const total = Number(rollResult.total ?? rollResult._total) || 0;
+            const dice = Array.isArray(rollResult.dice) ? rollResult.dice : [];
+            rendered = `<div class="sd-message-roll-fallback"><span class="sd-message-roll-formula">${formula}</span><strong class="sd-message-roll-total">${total}</strong>${dice.length ? `<span class="sd-message-roll-dice">${dice.map(die => `<i>${_sdEscapeHtml(die)}</i>`).join("")}</span>` : ""}</div>`;
+          }
+          rollHtml = `<section class="sd-message-composer-roll" data-roll-total="${Number(rollResult.total ?? rollResult._total) || 0}">${rendered}</section>`;
+        }
+
+        const allowedTypes = new Set(["text","number","textarea","select","checkbox"]);
+        const controls = (Array.isArray(action.controls) ? action.controls : []).slice(0,8).map((source,index) => {
+          const id = /^field[0-7]$/.test(String(source?.id ?? "")) ? String(source.id) : `field${index}`;
+          const type = allowedTypes.has(String(source?.type ?? "")) ? String(source.type) : "text";
+          const label = resolveText(source?.label ?? `Field ${index + 1}`) || `Field ${index + 1}`;
+          let defaultValue = source?.defaultValue ?? "";
+          if (type === "checkbox") defaultValue = [true,1,"1","true","yes","on"].includes(typeof defaultValue === "string" ? defaultValue.toLowerCase() : defaultValue);
+          else if (type === "number") { const number=Number(resolveText(defaultValue)); defaultValue=Number.isFinite(number)?number:0; }
+          else defaultValue = resolveText(defaultValue);
+          return {id,type,label,defaultValue,placeholder:resolveText(source?.placeholder ?? ""),options:source?.options ?? "",required:!!source?.required};
         });
-        const buttonsHtml = flagButtons.length ? `
-          <div class="sd-message-composer-actions">
-            ${flagButtons.map(button => `
-              <button type="button" class="sd-message-composer-btn is-${button.variant}" data-sd-message-button="${button.id}">
-                <i class="${button.icon}"></i><span>${_sdEscapeHtml(button.label)}</span>
-              </button>`).join("")}
-          </div>` : "";
-        const imageHtml = image ? `<img class="sd-message-composer-image" src="${_sdEscapeHtml(image)}" alt="">` : "";
-        const valueHtml = value !== "" ? `
-          <div class="sd-message-composer-value">
-            <strong>${_sdEscapeHtml(value)}</strong>
-            <span>${_sdEscapeHtml(valueLabel)}</span>
-          </div>` : "";
-        const content = `
-          <article class="sd-message-composer sd-message-composer--${styleKey}" style="--sd-message-accent:${visual.accent}">
-            <header class="sd-message-composer-header">
-              ${imageHtml}
-              <div class="sd-message-composer-heading">
-                <i class="${visual.icon}"></i>
-                <h3>${_sdEscapeHtml(title)}</h3>
-              </div>
-              ${valueHtml}
-            </header>
-            ${bodyHtml ? `<div class="sd-message-composer-body">${bodyHtml}</div>` : ""}
-            ${buttonsHtml}
-          </article>`;
-
-        const buttonSnapshot = {};
-        for (const [key, entry] of Object.entries(buttonDef ?? {})) {
-          if (!key.startsWith("__")) continue;
-          const cloned = _sdSerializableClone(entry);
-          if (cloned !== undefined) buttonSnapshot[key] = cloned;
-        }
-        const runtimeSnapshot = _sdSerializableClone(runtime) ?? {};
-        const visibility = ["public", "gm", "self"].includes(action.visibility) ? action.visibility : "public";
-        const access = ["actorOwner", "author", "gm", "everyone"].includes(action.access) ? action.access : "actorOwner";
-        const messageComposer = {
-          version:1,
-          actorId:actor?.id ?? "",
-          itemUuid:item?.uuid ?? "",
-          authorId:game.user?.id ?? "",
-          access,
-          reusable:action.buttonUse === "reusable",
-          usedButtons:[],
-          buttons:flagButtons,
-          buttonSnapshot,
-          runtimeSnapshot,
-          title
+        runtime.__messageFields = Object.fromEntries(controls.map(control => [control.id, control.defaultValue]));
+        const optionList = raw => {
+          const list = Array.isArray(raw) ? raw : String(raw ?? "").split(/[\n,]+/);
+          return list.map(entry => {
+            if (entry && typeof entry === "object") return {label:String(entry.label ?? entry.value ?? ""),value:String(entry.value ?? entry.label ?? "")};
+            const source=String(entry ?? "").trim(); if(!source)return null;
+            const split=source.indexOf("|"); return split>=0?{label:source.slice(0,split).trim(),value:source.slice(split+1).trim()}:{label:source,value:source};
+          }).filter(Boolean);
         };
-        const chatData = {
-          speaker:ChatMessage.getSpeaker({actor:actor ?? null}),
-          content,
-          flags:{sd:{messageComposer}}
-        };
-        if (visibility === "gm") chatData.whisper = (game.users ?? []).filter(user => user.isGM).map(user => user.id);
-        else if (visibility === "self" && game.user?.id) chatData.whisper = [game.user.id];
+        const controlsHtml = controls.length ? `<div class="sd-message-composer-fields">${controls.map(control => {
+          const common=`data-sd-message-field="${control.id}" data-field-type="${control.type}" data-required="${control.required ? "1" : "0"}"`;
+          const required=control.required?" required":"";
+          const label=`<span>${_sdEscapeHtml(control.label)}${control.required ? " <b>*</b>" : ""}</span>`;
+          if(control.type==="textarea")return `<label class="sd-message-composer-field">${label}<textarea ${common}${required} placeholder="${_sdEscapeHtml(control.placeholder)}">${_sdEscapeHtml(control.defaultValue)}</textarea></label>`;
+          if(control.type==="select")return `<label class="sd-message-composer-field">${label}<select ${common}${required}>${optionList(control.options).map(option=>`<option value="${_sdEscapeHtml(option.value)}" ${String(control.defaultValue)===option.value?"selected":""}>${_sdEscapeHtml(option.label)}</option>`).join("")}</select></label>`;
+          if(control.type==="checkbox")return `<label class="sd-message-composer-field sd-message-composer-field--checkbox"><input type="checkbox" ${common}${control.defaultValue?" checked":""}${required}>${label}</label>`;
+          return `<label class="sd-message-composer-field">${label}<input type="${control.type}" ${common}${required} value="${_sdEscapeHtml(control.defaultValue)}" placeholder="${_sdEscapeHtml(control.placeholder)}"${control.type==="number"?' step="any"':""}></label>`;
+        }).join("")}</div>` : "";
 
-        const posted = await ChatMessage.create(chatData);
-        if (buttonDef && posted?.id) buttonDef.__lastMessageId = posted.id;
-        for (const subAction of (action.postedActions ?? [])) {
-          await this._runAction(subAction, item, actor, buttonDef, runtime);
-        }
+        const variants = new Set(["primary","secondary","success","danger","warning"]);
+        const sourceButtons = Array.isArray(action.buttons) ? action.buttons.slice(0,6) : [];
+        const flagButtons = sourceButtons.map((button,index) => {
+          const id=/^btn[0-5]$/.test(String(button?.id??""))?String(button.id):`btn${index}`;
+          const variant=variants.has(String(button?.variant??""))?String(button.variant):"secondary";
+          return {id,label:resolveText(button?.label??`Button ${index+1}`),icon:_sdSafeIcon(button?.icon,"fas fa-circle"),variant,actions:materializeDeferredActionSnapshot(action[`${id}Actions`]??[],_injectRuntime)};
+        });
+        const buttonsHtml = flagButtons.length ? `<div class="sd-message-composer-actions">${flagButtons.map(button=>`<button type="button" class="sd-message-composer-btn is-${button.variant}" data-sd-message-button="${button.id}"><i class="${button.icon}"></i><span>${_sdEscapeHtml(button.label)}</span></button>`).join("")}</div>` : "";
+        const imageHtml=image?`<img class="sd-message-composer-image" src="${_sdEscapeHtml(image)}" alt="">`:"";
+        const valueHtml=value!==""?`<div class="sd-message-composer-value"><strong>${_sdEscapeHtml(value)}</strong><span>${_sdEscapeHtml(valueLabel)}</span></div>`:"";
+        const content=`<article class="sd-message-composer sd-message-composer--${styleKey}" style="--sd-message-accent:${visual.accent}">
+          <header class="sd-message-composer-header">${imageHtml}<div class="sd-message-composer-heading"><i class="${visual.icon}"></i><h3>${_sdEscapeHtml(title)}</h3></div>${valueHtml}</header>
+          ${rollHtml}${bodyHtml?`<div class="sd-message-composer-body">${bodyHtml}</div>`:""}${controlsHtml}${buttonsHtml}</article>`;
+
+        const buttonSnapshot={};
+        for(const [key,entry] of Object.entries(buttonDef??{})){if(!key.startsWith("__"))continue;const cloned=_sdSerializableClone(entry);if(cloned!==undefined)buttonSnapshot[key]=cloned;}
+        const runtimeSnapshot=_sdSerializableClone(runtime)??{};
+        const visibility=["public","gm","self"].includes(action.visibility)?action.visibility:"public";
+        const access=["actorOwner","author","gm","everyone"].includes(action.access)?action.access:"actorOwner";
+        const messageComposer={version:2,actorId:actor?.id??"",itemUuid:item?.uuid??"",authorId:game.user?.id??"",access,reusable:action.buttonUse==="reusable",usedButtons:[],buttons:flagButtons,controls:_sdSerializableClone(controls)??[],rollResult:_sdSerializableClone(rollResult),buttonSnapshot,runtimeSnapshot,title};
+        const chatData={speaker:ChatMessage.getSpeaker({actor:actor??null}),content,flags:{sd:{messageComposer}}};
+        if(visibility==="gm")chatData.whisper=(game.users??[]).filter(user=>user.isGM).map(user=>user.id);
+        else if(visibility==="self"&&game.user?.id)chatData.whisper=[game.user.id];
+        const posted=await ChatMessage.create(chatData);
+        if(buttonDef&&posted?.id)buttonDef.__lastMessageId=posted.id;
+        for(const subAction of (action.postedActions??[]))await this._runAction(subAction,item,actor,buttonDef,runtime);
         break;
       }
 
@@ -5203,11 +5225,14 @@ export class ButtonExecutor {
       }
 
       case "presentRollResult": {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
         const result=_injectRuntime(action.result??"{__rollResult}");
         if (!result || typeof result!=="object") { ui.notifications?.warn?.("SD | Present Roll requires a Roll Result."); break; }
         runtime.__rollResult=result; await _sdPublishRollRuntime(result);
+        const resolveText=raw=>{const value=_injectRuntime(raw??"");if(value&&typeof value==="object")return FormulaEngine.valueToText(value);let text=String(value??"");try{text=text.replace(/\{([^{}]+)\}/g,(match,inner)=>{const resolved=FormulaEngine.evaluate(`{${inner}}`,item??actor??{});return resolved===match?match:FormulaEngine.valueToText(resolved);});}catch{}return String(_sdStripQuotedString(text));};
         const destination=String(action.destination??"chat");
-        const label=String(action.label||result.flavor||"Roll");
+        const label=resolveText(action.label)||String(result.flavor||"Roll");
+        const rollText=resolveText(action.text??"");
         if (destination==="canvas" || destination==="sheet") {
           const { ThrowOverlay } = await import("./throw-overlay.mjs");
           const faces=Array.isArray(result.dice)?result.dice:[];
@@ -5215,9 +5240,10 @@ export class ButtonExecutor {
           if (destination==="canvas") ThrowOverlay.scatterOnCanvas(faces,die,{area:Number(action.area??300),duration:Number(action.duration??6),actor});
           else ThrowOverlay.scatterOnSheet(faces,die,{duration:Number(action.duration??6),actor});
         } else if (result.roll?.toMessage) {
-          await result.roll.toMessage({speaker:ChatMessage.getSpeaker({actor}),flavor:label,rollMode:action.rollMode&&action.rollMode!=="default"?action.rollMode:_sdMsgMode()});
+          const flavor=rollText?`<div class="sd-present-roll-flavor"><strong>${_sdEscapeHtml(label)}</strong><div>${_sdEscapeHtml(rollText).replace(/\r?\n/g,"<br>")}</div></div>`:label;
+          await result.roll.toMessage({speaker:ChatMessage.getSpeaker({actor}),flavor,rollMode:action.rollMode&&action.rollMode!=="default"?action.rollMode:_sdMsgMode()});
         } else {
-          await ChatMessage.create({speaker:ChatMessage.getSpeaker({actor}),content:`<div class="sd-chat-card"><strong>${_sdEscapeHtml(label)}</strong><div>${_sdEscapeHtml(result.formula)} = <strong>${Number(result.total)||0}</strong></div></div>`});
+          await ChatMessage.create({speaker:ChatMessage.getSpeaker({actor}),content:`<div class="sd-chat-card"><strong>${_sdEscapeHtml(label)}</strong>${rollText?`<div>${_sdEscapeHtml(rollText).replace(/\r?\n/g,"<br>")}</div>`:""}<div>${_sdEscapeHtml(result.formula)} = <strong>${Number(result.total)||0}</strong></div></div>`});
         }
         for (const sub of (action.execActions??[])) await this._runAction(sub,item,actor,buttonDef,runtime);
         break;
