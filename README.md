@@ -25,6 +25,21 @@ The system is designed for projects of any genre and scale, from small home camp
 * Optional modules for additional features.
 * Built-in access to community systems and content through the System Director Market.
 
+## Installation
+
+### Foundry VTT
+
+1. Open **Foundry VTT Setup**.
+2. Select **Game Systems**.
+3. Select **Install System**.
+4. Paste the manifest URL:
+
+   ```text
+   https://github.com/phoenix1cold/system-director/releases/latest/download/system.json
+   ```
+
+5. Select **Install**.
+
 https://discord.gg/Qfx5y8cPCw
 https://sdmarket.flamegogang.com/
 https://sdwiki.flamegogang.com/
