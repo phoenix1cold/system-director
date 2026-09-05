@@ -167,5 +167,20 @@ export function applySheetStyle(element, raw = {}) {
     if (value) element.style.setProperty(key, value);
     else element.style.removeProperty(key);
   }
+
+  // "Accent colour" has to reach every control that reads --sd-accent, not only
+  // the tab rail, otherwise the setting looks like it does nothing at all.
+  // `style.accent` already passed safeColour(), so it cannot break out of the
+  // declaration.
+  const ACCENT_VARS = ["--sd-accent", "--sd-accent-2", "--sd-accent-dim", "--sd-accent-glow"];
+  if (style.accent) {
+    element.style.setProperty("--sd-accent", style.accent);
+    element.style.setProperty("--sd-accent-2", `color-mix(in srgb, ${style.accent} 74%, #000)`);
+    element.style.setProperty("--sd-accent-dim", `color-mix(in srgb, ${style.accent} 46%, transparent)`);
+    element.style.setProperty("--sd-accent-glow", `color-mix(in srgb, ${style.accent} 18%, transparent)`);
+  } else {
+    for (const name of ACCENT_VARS) element.style.removeProperty(name);
+  }
+
   return style;
 }

@@ -468,8 +468,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     nav.appendChild(spacer);
 
     const tplBtn = document.createElement("a");
+    tplBtn.className = "sd-tpl-btn";
     tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-w-bd,var(--sd-border));border-bottom:none;color:var(--sd-w-label, var(--sd-text-3));background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;";
-    tplBtn.innerHTML = `<i class="fas fa-floppy-disk"></i> Template`;
+    // The label is a separate span so the vertical rail layouts can collapse it
+    // to just the icon instead of clipping the text.
+    tplBtn.innerHTML = `<i class="fas fa-floppy-disk"></i><span class="sd-tpl-label">Template</span>`;
     tplBtn.title = "Save sheet layout as template (use Sheet Builder → Templates → Create)";
     tplBtn.addEventListener("click", () => this._saveAsTemplate());
     nav.appendChild(tplBtn);
@@ -506,10 +509,15 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       panel.className     = "sd-tab-panel";
       panel.dataset.tab   = tab.id;
       const isActive      = tab.id === this.tabGroups.sheet;
+      // Inline defaults must follow the Sheet Appearance variables, otherwise
+      // "Panel padding" and "Widget gap" are silently overridden per panel.
       panel.style.cssText = `
         display:${isActive ? "flex" : "none"};
-        flex:1; overflow-y:auto; padding:12px 14px;
-        flex-direction:column; gap:8px; min-height:0;
+        flex:1; overflow-y:auto;
+        padding:var(--sd-sheet-panel-padding, 14px);
+        flex-direction:column;
+        gap:var(--sd-sheet-widget-gap, 8px);
+        min-height:0;
       `;
 
       (tab.rows ?? []).forEach(row => {
@@ -2176,7 +2184,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         <label>Sheet background</label><input type="text" name="background" value="${_sheetEsc(current.background)}" placeholder="#14151d">
         <label>Panel background</label><input type="text" name="panelBackground" value="${_sheetEsc(current.panelBackground)}" placeholder="transparent">
         <label>Header background</label><input type="text" name="headerBackground" value="${_sheetEsc(current.headerBackground)}" placeholder="#20212d">
-        <label>Background image</label><input type="text" name="backgroundImage" value="${_sheetEsc(current.backgroundImage)}" placeholder="systems/sd/assets/…">
+        <label>Background image</label>
+        <div style="display:flex;gap:4px;align-items:center;min-width:0">
+          <input type="text" name="backgroundImage" value="${_sheetEsc(current.backgroundImage)}" placeholder="systems/sd/assets/…" style="flex:1;min-width:0">
+          <button type="button" class="sd-sheet-style-fp" data-fp-target="backgroundImage" title="Browse files"
+            style="flex:0 0 auto;width:30px;height:26px;padding:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer"><i class="fas fa-folder-open"></i></button>
+        </div>
         <div style="grid-column:1/-1;color:var(--sd-text-3);font-size:10px">Choosing a preset applies all of its values. Choose Custom to save the fields shown above.</div>
       </div>`,
       buttons:[
@@ -2194,7 +2207,30 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         }},
         {action:"cancel",label:"Cancel",icon:"fas fa-xmark",callback:()=>null}
       ],
-      rejectClose:false
+      rejectClose:false,
+      render:(event, dialog) => {
+        const root = dialog?.element ?? event?.target ?? event?.currentTarget ?? null;
+        if (!root) return;
+        root.querySelectorAll("button.sd-sheet-style-fp[data-fp-target]").forEach(btn => {
+          btn.addEventListener("click", ev => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const input = root.querySelector(`[name="${btn.dataset.fpTarget}"]`);
+            if (!input) return;
+            const FP = foundry.applications?.apps?.FilePicker?.implementation
+              ?? foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+            if (!FP) { ui.notifications?.error?.("FilePicker is not available"); return; }
+            new FP({
+              type: "image",
+              current: input.value || "",
+              callback: src => {
+                input.value = src;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+            }).render(true);
+          });
+        });
+      }
     }).catch(() => null);
     if (!result) return;
     const style = result.preset !== "custom" && SHEET_STYLE_PRESETS[result.preset]

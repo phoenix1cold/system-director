@@ -315,12 +315,20 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         }).join("")}
       </select>
     </div>`;
-  const _styleNumberCell = (key, label, cur) => `
+  const _styleNumberCell = (key, label, cur) => {
+    // Opacity must show its real default of 1. It used to render blank, and a
+    // blank value was read back as 0, which made the whole widget invisible
+    // after saving any setting.
+    const isBlank = cur === "" || cur === null || cur === undefined
+      || (typeof cur === "string" && !cur.trim());
+    const shown = isBlank && key === "opacity" ? 1 : (isBlank ? "" : cur);
+    return `
     <div class="wcfg-style-field">
       <label class="wcfg-style-lbl">${esc(label)}</label>
       <input type="number" ${key === "opacity" ? 'min="0" max="1" step="0.05"' : 'step="any"'}
-        data-field="${esc(key)}" data-ftype="style-number" value="${esc(cur ?? "")}" placeholder="default" class="wcfg-style-num">
+        data-field="${esc(key)}" data-ftype="style-number" value="${esc(shown)}" placeholder="${key === "opacity" ? "1" : "default"}" class="wcfg-style-num">
     </div>`;
+  };
   const _styleTextCell = (key, label, cur) => `
     <div class="wcfg-style-field">
       <label class="wcfg-style-lbl">${esc(label)}</label>

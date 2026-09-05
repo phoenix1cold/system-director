@@ -31,11 +31,12 @@
 
 .sd.sheet .sd-tab-panel {
   box-sizing: border-box;
-  padding: var(--sd-sheet-panel-padding) !important;
+  padding: calc(var(--sd-sheet-panel-padding) * var(--sd-density-multiplier, 1)) !important;
+  gap: calc(var(--sd-sheet-widget-gap) * var(--sd-density-multiplier, 1)) !important;
 }
 
 .sd.sheet .sd-tab-panel > [data-row-id] {
-  gap: var(--sd-sheet-widget-gap) !important;
+  gap: calc(var(--sd-sheet-widget-gap) * var(--sd-density-multiplier, 1)) !important;
   border-radius: var(--sd-sheet-radius) !important;
 }
 
@@ -99,7 +100,8 @@
 }
 .sd.sheet[data-sd-sheet-header="banner"] .sheet-header > img { width: 70px !important; height: 70px !important; border-radius: var(--sd-sheet-radius) !important; }
 
-/* Density */
+/* Density — the multiplier scales every spacing token above. */
+.sd.sheet[data-sd-sheet-density="comfortable"] { --sd-density-multiplier: 1; }
 .sd.sheet[data-sd-sheet-density="compact"] { --sd-density-multiplier: .78; }
 .sd.sheet[data-sd-sheet-density="compact"] .sd-tab-panel > [data-row-id] { padding: 5px !important; }
 .sd.sheet[data-sd-sheet-density="spacious"] { --sd-density-multiplier: 1.2; }
@@ -142,6 +144,24 @@
 .sd.sheet:is([data-sd-sheet-layout="tabs-right"],[data-sd-sheet-layout="tabs-left"],[data-sd-sheet-layout="dashboard"]) .sd-tab-add {
   flex: 0 0 32px !important;
   width: 100% !important;
+}
+
+/* The Template button never shrinks, so its label would be clipped by the
+   narrow vertical rails. Collapse it to the icon there and keep the tooltip. */
+.sd.sheet .sd-tpl-btn { flex: 0 0 auto; }
+.sd.sheet:is([data-sd-sheet-layout="tabs-right"],[data-sd-sheet-layout="tabs-left"],[data-sd-sheet-layout="dashboard"]) .sd-tpl-btn {
+  flex: 0 0 32px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  padding: 5px !important;
+  margin-top: 6px !important;
+  border-radius: 4px !important;
+  border-bottom: 1px solid var(--sd-w-bd, var(--sd-border)) !important;
+}
+.sd.sheet:is([data-sd-sheet-layout="tabs-right"],[data-sd-sheet-layout="tabs-left"],[data-sd-sheet-layout="dashboard"]) .sd-tpl-btn .sd-tpl-label {
+  display: none !important;
 }
 .sd.sheet[data-sd-sheet-layout="tabs-right"] .sd-tab-nav,
 .sd.sheet[data-sd-sheet-layout="dashboard"] .sd-tab-nav { right: 0; border-left: 1px solid var(--sd-border) !important; }

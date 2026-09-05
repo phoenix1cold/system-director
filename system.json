@@ -2,7 +2,7 @@
   "id": "sd",
   "title": "System Director",
   "description": "System Director for Foundry VTT v14 with one unified typed Blueprint graph, stable Widget IDs, nested UI Canvas editing and modern Sheet Builder widgets.",
-  "version": "2.0.9",
+  "version": "2.1.1",
   "compatibility": {
     "minimum": "14",
     "verified": "14"

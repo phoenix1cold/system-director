@@ -198,9 +198,27 @@ export class WidgetRenderer {
     return FormulaEngine.resolveForRoll(raw, doc);
   }
 
+  /**
+   * True when a style field carries no author value.
+   *
+   * The Widget Config popup stores every untouched numeric style field as an
+   * empty string. `Number("")`, `Number(null)`, `Number([])` and `Number(" ")`
+   * all evaluate to `0`, so a blank field used to be read as a real zero. That
+   * turned an untouched "Opacity" field into `opacity:0` and made the whole
+   * widget invisible as soon as any setting was saved.
+   */
+  static _isBlankStyle(value) {
+    if (value === null || value === undefined) return true;
+    if (typeof value === "boolean") return true;
+    if (typeof value === "number") return !Number.isFinite(value);
+    if (typeof value === "string") return value.trim() === "";
+    return true;
+  }
+
   static _buildStyle(w) {
     const parts = [];
     const px = value => {
+      if (this._isBlankStyle(value)) return null;
       const number = Number(value);
       return Number.isFinite(number) && number > 0 ? `${number}px` : null;
     };
@@ -210,7 +228,11 @@ export class WidgetRenderer {
       return this._isCssColour(source) ? source : null;
     };
     const choose = (value, allowed) => allowed.includes(String(value ?? "")) ? String(value) : "";
-    const number = value => { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; };
+    const number = value => {
+      if (this._isBlankStyle(value)) return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
     const cssVar = (name, value) => { if (value !== null && value !== "") parts.push(`${name}:${value}`); };
 
     const width = px(w.boxW);
