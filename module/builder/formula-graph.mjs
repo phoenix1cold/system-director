@@ -8841,8 +8841,8 @@ for (const [type, def] of Object.entries(WIDGET_CONFIG_NODES)) {
     if (/path/i.test(String(pin.id ?? ""))) pin.label = /max/i.test(pin.id) ? "Max Variable" : "Database Variable";
   }
   if (type === "wcfg_resource") { def.title="Resource Bar"; def.widgetType="resource"; }
-  if (["wcfg_attribute","wcfg_skill","wcfg_progress","wcfg_tokenPool"].includes(type)) {
-    def.hidden=true; def.internal=true; def.replacement= type==="wcfg_progress"||type==="wcfg_tokenPool" ? "wcfg_resource" : "wcfg_number";
+  if (["wcfg_attribute","wcfg_skill","wcfg_progress"].includes(type)) {
+    def.hidden=true; def.internal=true; def.replacement= type==="wcfg_progress" ? "wcfg_resource" : "wcfg_number";
   }
 }
 

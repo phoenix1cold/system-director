@@ -36,7 +36,7 @@ const FIELD_DEFS = {
   section:   [["Section Title","label"],["Widget Key","widgetKey","text"]],
   vsection:  [["Title","label"],["Widget Key","widgetKey","text"]],
   richtext:  [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"]],
-  attribute: [["Label","label"],["Widget Key","widgetKey","text"],["Variable","path","path"],["Chat Flavor","flavor","text"]],
+  attribute: [["Label","label"],["Widget Key","widgetKey","text"],["Variable","path","path"],["Modifier source","modSource","select",["derived","own"]],["Modifier","pathMod","path"],["Chat Flavor","flavor","text"]],
   skill:     [["Label","label"],["Widget Key","widgetKey","text"],["Variable","path","path"],["Attr Modifier","attrMod","number"],["Chat Flavor","flavor","text"],["Pips count (Pips variant only)","pipMax","number"]],
   slot:      [["Label","label"],["Widget Key","widgetKey","text"],["Slot ID","slotId","text"],["Max Items","maxCount","number"],["SD.Slots.AutoEquip","autoEquip","boolean"]],
   inventory: [["Label","label"],["Widget Key","widgetKey","text"],["Category Variable (Database)","categoryVariable","dbvar"],["Accepted Categories","categories","array"],["Extra Columns (Database variables)","columnVariables","dbvarlist"],["Show Currency Section","showCurrency","boolean"],["Currency Path (optional)","currencyPath","path"],["Compact (button + popover)","compact","boolean"],["FA icon (compact only)","icon","text"]],
@@ -204,6 +204,9 @@ const FIELD_HINTS = {
   icon:         "FontAwesome icon class. Examples: fa-circle, fa-heart, fa-star",
   bgColor:      "Colour of empty/unfilled segments",
   staticSrc:    "Path to the image. Click the folder to pick via FilePicker.",
+  modSource:    "derived = the modifier is computed from the score with the world modifier formula. " +
+                "own = the modifier is a second value you set yourself, on the sheet, from a Database variable, or from this widget's node.",
+  pathMod:      "The modifier's own value, stored apart from the score. Only used when Modifier source is «own».",
   decimalPlaces:"Decimal places to show for derived numeric values (0 = whole number)",
   showCurrency: "Show a currency row at the top of the inventory. " +
                 "Leave Currency Path blank to use the world's configured currencies (Settings → System Configuration → Currency). " +

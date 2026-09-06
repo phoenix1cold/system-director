@@ -126,4 +126,44 @@ assert.match(charSheet, /class="sd-sheet-style-fp" data-fp-target="backgroundIma
 assert.match(charSheet, /foundry\.applications\?\.apps\?\.FilePicker\?\.implementation/,
   "the picker must resolve the configured FilePicker implementation");
 
+// ---------------------------------------------------------------------------
+// Attribute widget: the modifier is a value of its own, not only a derivation.
+// ---------------------------------------------------------------------------
+const widgetVars = read("module/helpers/widget-variables.mjs");
+const widgetNodes = read("module/builder/widget-nodes.mjs");
+const rendererSrc = read("module/builder/widget-renderer.mjs");
+const registrySrc = read("module/builder/widget-registry.mjs");
+
+// A second declared variable is what gives the widget's Set node a Modifier
+// entry, because those inputs are generated from WIDGET_VARIABLES.
+assert.match(widgetVars, /field: "pathMod",\s+label: "Modifier"/,
+  "the attribute widget must declare its own Modifier variable");
+assert.match(widgetNodes, /export function attributeModifier\(widget, doc\)/,
+  "the modifier must be resolved through a shared helper");
+assert.match(widgetNodes, /\["mod", "Modifier", "value\.number", \(w, d\) => attributeModifier\(w, d\)\]/,
+  "the node mod pin must go through attributeModifier");
+assert.doesNotMatch(widgetNodes, /Math\.floor\(\(num\(readWidgetValue\(d, w, "path"\)\) - 10\) \/ 2\)/,
+  "the hardcoded modifier formula must be gone from the node contract");
+assert.match(registrySrc, /modSource: "derived"/,
+  "existing sheets must keep the derived modifier by default");
+assert.match(popup, /\["Modifier","pathMod","path"\]/,
+  "the config popup must expose the modifier variable");
+assert.match(rendererSrc, /const ownMod\s+= String\(w\.modSource \?\? "derived"\) === "own"/,
+  "the renderer must honour the modifier source");
+
+// Rendered output: derived stays a button, own becomes an editable input.
+const derivedHtml = WidgetRenderer._render_attribute(
+  { type: "attribute", label: "Might", path: "", varDefaults: {} }, null);
+assert.match(derivedHtml, /class="attr-mod"/, "derived modifier stays a button");
+assert.doesNotMatch(derivedHtml, /attr-mod-input/, "derived modifier is not editable");
+
+const ownHtml = WidgetRenderer._render_attribute(
+  { type: "attribute", label: "Might", path: "", pathMod: "", modSource: "own", varDefaults: {} }, null);
+assert.match(ownHtml, /class="attr-mod-input"/, "an own modifier is editable on the sheet");
+assert.match(ownHtml, /fa-dice-d20/, "an own modifier keeps a roll affordance");
+
+// The score and the modifier must be two independent inputs.
+assert.equal((ownHtml.match(/<input /g) ?? []).length, 2,
+  "score and modifier must be separate inputs");
+
 console.log("test-widget-blank-style-values: all assertions passed");

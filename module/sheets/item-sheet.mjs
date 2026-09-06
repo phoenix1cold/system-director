@@ -485,6 +485,13 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     // elements) call stopPropagation, which used to swallow widget events.
     cell.addEventListener("click",event=>{
       if(event.target?.closest?.("[data-action='wbElement']"))return;
+      // Rank pips set the rank themselves; they report as "pip" so the widget's
+      // "click" event stays tied to the value.
+      const pip=event.target?.closest?.(".skill-pip[data-rank]");
+      if(pip){
+        emit("pip",event,{value:Number(pip.dataset.rank)||0});
+        return;
+      }
       emit("click",event);
       if(String(w.type)==="toggle")emit("toggle",event);
     },true);

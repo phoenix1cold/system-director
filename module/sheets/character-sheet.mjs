@@ -859,6 +859,14 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // widget events before the Sheet Blueprint ever saw them.
     cell.addEventListener("click",event=>{
       if(event.target?.closest?.("[data-action='wbElement']"))return;
+      // Rank pips are a control of their own: clicking one sets the rank, so it
+      // must not also fire the widget's "click" event, which belongs to the
+      // value. Pips report as "pip" instead, carrying the rank they represent.
+      const pip=event.target?.closest?.(".skill-pip[data-rank]");
+      if(pip){
+        emitSheetWidgetEvent("pip",event,{value:Number(pip.dataset.rank)||0});
+        return;
+      }
       emitSheetWidgetEvent("click",event);
       if(String(w.type)==="toggle")emitSheetWidgetEvent("toggle",event);
     },true);

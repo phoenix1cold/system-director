@@ -482,10 +482,21 @@
   }
 }
 
-.sd-w-progress.sd-v-thin  .prog-bar,
-.sd-w-progress.sd-v-thin  .progress-bar { height: 3px !important; }
-.sd-w-progress.sd-v-thick .prog-bar,
-.sd-w-progress.sd-v-thick .progress-bar { height: 14px !important; }
+/* The meter bar is an inline-styled div and segments are spans; there has never
+   been a .prog-bar element, so Thin and Thick changed nothing. */
+.sd-w-progress.sd-v-thin.widget-meter--bar > div:last-child,
+.sd-w-progress.sd-v-thin.widget-meter--bar > div:last-child > div,
+.sd-w-progress.sd-v-thin .sd-meter-segments > span {
+  height: 4px !important; min-height: 4px !important;
+}
+.sd-w-progress.sd-v-thin .sd-meter-segments { min-height: 4px !important; }
+
+.sd-w-progress.sd-v-thick.widget-meter--bar > div:last-child,
+.sd-w-progress.sd-v-thick.widget-meter--bar > div:last-child > div,
+.sd-w-progress.sd-v-thick .sd-meter-segments > span {
+  height: 18px !important; min-height: 18px !important;
+}
+.sd-w-progress.sd-v-thick .sd-meter-segments { min-height: 18px !important; }
 .sd-w-progress.sd-v-striped .prog-bar-fill,
 .sd-w-progress.sd-v-striped .progress-bar-fill {
   background-image: linear-gradient(45deg, rgba(255,255,255,.22) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.22) 50%, rgba(255,255,255,.22) 75%, transparent 75%) !important;
@@ -945,38 +956,62 @@
 }
 .sd-w-section.sd-v-pill .sec-divider { display: none !important; }
 
-.sd-w-inventory.sd-v-list .inv-row,
-.sd-w-inventory.sd-v-list .inventory-item { padding: 2px 6px !important; font-size: 11px !important; }
-.sd-w-inventory.sd-v-grid .inventory-grid,
-.sd-w-inventory.sd-v-grid .inv-list {
+/* Inventory layouts.
+   The renderer emits .item-list / .item-row / .item-img / .item-name, so the
+   variants have to target those. The old .inv-* / .inventory-* selectors
+   matched no element at all, which is why Grid, Icons and Cards rendered
+   exactly like Default. The redundant "list" variant was dropped because the
+   default layout already is a list. */
+.sd-w-inventory.sd-v-grid .item-list {
   display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)) !important;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)) !important;
   gap: 6px !important;
 }
-.sd-w-inventory.sd-v-iconbar .inv-list,
-.sd-w-inventory.sd-v-iconbar .inventory-list {
+.sd-w-inventory.sd-v-grid .item-row {
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+  gap: 3px !important;
+  padding: 6px 4px !important;
+}
+.sd-w-inventory.sd-v-grid .item-img { width: 38px !important; height: 38px !important; }
+.sd-w-inventory.sd-v-grid .item-name { font-size: 10px !important; line-height: 1.2 !important; }
+.sd-w-inventory.sd-v-grid :is(.item-weight, .item-col, .item-col-header) { display: none !important; }
+
+.sd-w-inventory.sd-v-iconbar .item-list {
   display: flex !important; flex-wrap: wrap !important; gap: 4px !important;
 }
-.sd-w-inventory.sd-v-iconbar .inv-row,
-.sd-w-inventory.sd-v-iconbar .inventory-item {
-  width: 38px !important; height: 38px !important; overflow: hidden !important;
-  padding: 0 !important; border-radius: 6px !important;
+.sd-w-inventory.sd-v-iconbar .item-row {
+  position: relative !important;
+  width: 40px !important; height: 40px !important;
+  padding: 0 !important; border-radius: 6px !important; overflow: hidden !important;
   display: flex !important; align-items: center !important; justify-content: center !important;
 }
-.sd-w-inventory.sd-v-cards .inventory-grid,
-.sd-w-inventory.sd-v-cards .inv-list {
+.sd-w-inventory.sd-v-iconbar .item-img { width: 34px !important; height: 34px !important; }
+.sd-w-inventory.sd-v-iconbar :is(.item-name, .item-weight, .item-controls, .item-col, .item-col-header) { display: none !important; }
+.sd-w-inventory.sd-v-iconbar .item-qty {
+  position: absolute !important; right: 1px; bottom: 0;
+  font-size: 9px !important; font-weight: 700 !important;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+.sd-w-inventory.sd-v-iconbar .category-header { display: none !important; }
+
+.sd-w-inventory.sd-v-cards .item-list {
   display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)) !important;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)) !important;
   gap: 8px !important;
 }
-.sd-w-inventory.sd-v-cards .inv-row,
-.sd-w-inventory.sd-v-cards .inventory-item {
+.sd-w-inventory.sd-v-cards .item-row {
   background: var(--sd-bg-2) !important;
-  border: 1px solid var(--sd-border) !important;
-  border-radius: var(--sd-r) !important;
+  border: 1px solid var(--sd-w-bd, var(--sd-border)) !important;
+  border-radius: var(--sd-r, 6px) !important;
   padding: 8px !important;
-  display: flex !important; flex-direction: column !important; gap: 4px !important;
+  display: flex !important; flex-direction: column !important;
+  align-items: center !important; text-align: center !important; gap: 5px !important;
 }
+.sd-w-inventory.sd-v-cards .item-img { width: 52px !important; height: 52px !important; }
+.sd-w-inventory.sd-v-cards .item-controls { justify-content: center !important; }
+.sd-w-inventory.sd-v-cards :is(.item-col, .item-col-header) { display: none !important; }
 
 .sd-w-slot.sd-v-framed .slot-mini-item,
 .sd-w-slot.sd-v-framed .slot-box,
@@ -1191,16 +1226,24 @@
 .sd-w-cardhand.sd-v-fan .card-hand-card:nth-child(2) { transform: rotate(-4deg); }
 .sd-w-cardhand.sd-v-fan .card-hand-card:nth-child(3) { transform: rotate(4deg); }
 .sd-w-cardhand.sd-v-fan .card-hand-card:nth-child(4) { transform: rotate(10deg); }
-.sd-w-cardhand.sd-v-stack .card-hand-cards,
-.sd-w-cardhand.sd-v-stack .cards-row {
+/* Card containers are .sd-cardhand-fan / -grid / -strip and cards are .sd-card;
+   .card-hand-card does not exist, so Stack used to be a no-op. */
+.sd-w-cardhand.sd-v-stack :is(.sd-cardhand-fan, .sd-cardhand-grid, .sd-cardhand-strip) {
   display: flex !important;
+  flex-wrap: nowrap !important;
 }
-.sd-w-cardhand.sd-v-stack .card-hand-card,
-.sd-w-cardhand.sd-v-stack .cards-row > * {
-  margin-left: -60% !important;
+.sd-w-cardhand.sd-v-stack :is(.sd-cardhand-fan, .sd-cardhand-grid, .sd-cardhand-strip) > .sd-card {
+  margin-left: -42px !important;
+  transition: margin .12s, transform .12s !important;
 }
-.sd-w-cardhand.sd-v-stack .card-hand-card:first-child,
-.sd-w-cardhand.sd-v-stack .cards-row > *:first-child { margin-left: 0 !important; }
+.sd-w-cardhand.sd-v-stack :is(.sd-cardhand-fan, .sd-cardhand-grid, .sd-cardhand-strip) > .sd-card:first-child {
+  margin-left: 0 !important;
+}
+.sd-w-cardhand.sd-v-stack :is(.sd-cardhand-fan, .sd-cardhand-grid, .sd-cardhand-strip) > .sd-card:hover {
+  margin-left: 0 !important;
+  transform: translateY(-6px) !important;
+  z-index: 5 !important;
+}
 .sd-w-cardhand.sd-v-grid .card-hand-cards,
 .sd-w-cardhand.sd-v-grid .cards-row {
   display: grid !important;
@@ -1269,19 +1312,19 @@
   box-shadow:
     inset 0 0 24px rgba(0,0,0,.35) !important;
 }
-.sd-w-spellbook.sd-v-grid .sp-list,
-.sd-w-spellbook.sd-v-grid .spellbook-list {
+/* The spell list is .sb-ability-list; .sp-list / .spell-row never existed. */
+.sd-w-spellbook.sd-v-grid .sb-ability-list {
   display: grid !important;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
   gap: 6px !important;
 }
-.sd-w-spellbook.sd-v-minimal .sp-row,
-.sd-w-spellbook.sd-v-minimal .spell-row {
+.sd-w-spellbook.sd-v-minimal .sb-ability-list > * {
   padding: 1px 4px !important;
   font-size: 11px !important;
   border: 0 !important;
   background: transparent !important;
 }
+.sd-w-spellbook.sd-v-minimal .sb-type-badge { display: none !important; }
 
 .sd-w-derived.sd-v-stat-card {
   display: flex !important; flex-direction: column !important; align-items: center !important;

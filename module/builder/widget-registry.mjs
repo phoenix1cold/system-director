@@ -180,11 +180,15 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label: "Number Value",
-      path:  ""
+      path:  "",
+      pathMod: "",
+      modSource: "derived"
     },
     configFields: [
       { key: "label", type: "text", label: "Label" },
-      { key: "path",  type: "path", label: "Variable" }
+      { key: "path",  type: "path", label: "Variable" },
+      { key: "modSource", type: "select", label: "Modifier source", options: ["derived", "own"] },
+      { key: "pathMod",   type: "path",   label: "Modifier variable" }
     ]
   },
 
@@ -672,11 +676,11 @@ export const WIDGET_VARIANTS = {
   tags: ["default", "outline", "solid", "soft", "rarity", "terminal"],
   image: ["default", "framed", "circle", "polaroid", "token", "portrait", "hologram"],
   section: ["default", "underline", "divider", "tab", "pill", "quest", "gothic", "terminal"],
-  inventory: ["default", "list", "grid", "iconbar", "cards", "card-slider", "card-grid", "loot", "tactical", "survival"],
+  inventory: ["default", "grid", "iconbar", "cards", "card-slider", "card-grid", "loot", "tactical", "survival"],
   slot: ["default", "framed", "round", "ghost", "tile", "equipment", "diamond", "hotbar"],
   cardHand: ["default", "fan", "stack", "grid", "tabletop", "tactical"],
   cardDrawButton: ["default", "deck", "pile", "arcane", "casino"],
-  questMarker: ["default", "compact", "framed", "ghost", "objective", "journal", "hud"],
+  questMarker: ["default", "objective", "journal", "hud"],
   effects: ["default", "chips", "icons", "card-slider", "card-grid", "buffbar", "combat", "timeline"],
   spellbook: ["default", "grimoire", "grid", "minimal", "card-slider", "card-grid", "codex", "hotbar", "arcane"],
   skill: ["default", "pill", "row-rank", "pips", "skilltree", "compact", "rune"],
@@ -745,7 +749,7 @@ for (const type of CLICKABLE_WIDGET_TYPES) {
 export const WIDGET_PALETTE_ORDER = [
   "text", "richtext", "image", "button", "number", "toggle", "select", "tags",
   "attribute", "skill", "attributeGroup",
-  "resource", "progress", "counter", "clock", "derived", "diceTray",
+  "resource", "progress", "counter", "tokenPool", "clock", "derived", "diceTray",
   "section", "vsection", "widgetBuilder",
   "slot", "inventory", "effects", "spellbook", "cardHand", "cardDrawButton", "questMarker"
 ];
@@ -774,7 +778,7 @@ export function getWidgetPaletteOrder({ includeLegacy = false } = {}) {
 export const REMOVED_WIDGET_TYPES = Object.freeze({ dice: "button" });
 
 /** Imported sheets may still contain these widgets; they render normally but new layouts use Meter/UI Components. */
-export const LEGACY_WIDGET_TYPES = new Set(["tracker", "tokenPool"]);
+export const LEGACY_WIDGET_TYPES = new Set(["tracker"]);
 
 export function createWidget(type, overrides = {}) {
   const def = WIDGET_TYPES[type];

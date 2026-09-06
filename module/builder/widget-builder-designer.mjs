@@ -11,7 +11,7 @@ const id = () => foundry.utils.randomID(8);
 // Only self-nesting is forbidden: a Widget Builder cannot contain another
 // Widget Builder. Everything else (Attribute, Skill, Progress, ...) is allowed
 // inside a builder canvas and drives its own widget variables.
-const BLOCKED = new Set(["widgetBuilder","tokenPool","tracker"]);
+const BLOCKED = new Set(["widgetBuilder","tracker"]);
 const BINDINGS = ["path","pathValue","pathMax","maxPath"];
 
 function normalizeElement(source={}, index=0) {

@@ -1152,14 +1152,22 @@ export class WidgetRenderer {
     const score = (n => Number.isFinite(n) ? n : 10)(Number(this._get(doc, w.path, 10)));
     const e     = this._esc;
 
+    // The modifier is a number of its own. "own" reads the widget's second
+    // variable, so it can be set apart from the score - by hand, from a Database
+    // variable, or by the widget's Set node. "derived" keeps the old behaviour of
+    // computing it from the score.
+    const ownMod  = String(w.modSource ?? "derived") === "own";
     const compute = CONFIG?.SD?.computeModifier
       ?? (s => Math.floor((Number(s) - 10) / 2));
+    const baseMod = ownMod
+      ? (n => Number.isFinite(n) ? n : 0)(Number(this._get(doc, w.pathMod, 0)))
+      : compute(score);
     let mod;
     if (w.modValueFormula) {
       const resolved = Number(FormulaEngine.evaluate(w.modValueFormula, doc));
-      mod = isNaN(resolved) ? compute(score) : resolved;
+      mod = isNaN(resolved) ? baseMod : resolved;
     } else {
-      mod = compute(score);
+      mod = baseMod;
     }
     const ms = mod >= 0 ? `+${mod}` : `${mod}`;
 
@@ -1191,13 +1199,24 @@ export class WidgetRenderer {
 </div>`;
     }
 
+    // An own modifier is editable right on the sheet; the dice button keeps the
+    // roll that the derived modifier button used to carry.
+    const modCell = (ownMod && !w.modValueFormula)
+      ? `<div class="attr-mod-row">
+      <input type="number" step="any" name="${e(this._bindingPath(w.pathMod))}" value="${e(mod)}" class="attr-mod-input" title="Modifier — stored separately from the score">
+      <button type="button" class="attr-mod attr-mod--dice" data-action="${attrAction}"
+              ${dataOnClick}
+              title="Click to roll ${e(w.label)}"><i class="fas fa-dice-d20"></i></button>
+    </div>`
+      : `<button type="button" class="attr-mod" data-action="${attrAction}"
+            ${dataOnClick}
+            title="Click to roll ${e(w.label)}">${ms}</button>`;
+
     return `<div class="widget widget-attribute">
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${w.path ? this._copyBtn(w.path, "score") : ""}</div>
   <div class="attr-box">
     <input type="number" name="${e(this._bindingPath(w.path))}" value="${e(score)}" class="attr-score">
-    <button type="button" class="attr-mod" data-action="${attrAction}"
-            ${dataOnClick}
-            title="Click to roll ${e(w.label)}">${ms}</button>
+    ${modCell}
   </div>
 </div>`;
   }
@@ -1888,7 +1907,9 @@ export class WidgetRenderer {
     const lbl     = esc(w.label ?? "Tracker");
     const rawPath = w.path ?? "";
     const bindingPath=this._bindingPath(rawPath);
-    const path    = esc(rawPath);
+    // Same as Token Pool: the handlers update data-path, so it has to be the
+    // resolved binding path rather than the raw variable id.
+    const path    = esc(bindingPath);
 
     const filled = Math.max(0, Number(this._get(doc, rawPath, 0)) || 0);
 
@@ -1998,7 +2019,9 @@ export class WidgetRenderer {
     const e       = this._esc;
     const rawPath = w.path ?? "";
     const bindingPath=this._bindingPath(rawPath);
-    const path    = e(rawPath);
+    // data-path is what the click handlers write to, so it must be the resolved
+    // binding path. Using the raw id broke every Database-variable binding.
+    const path    = e(bindingPath);
     const filled  = Math.max(0, Number(this._get(doc, rawPath, 0)) || 0);
 
     const defaultMax = Number(w.maxCount ?? 10) || 10;

@@ -157,6 +157,23 @@ export function attributeGroupEntry(widget, doc, elementKey) {
 }
 
 /**
+ * Modifier of an Attribute widget.
+ *
+ * `modSource: "own"` reads the widget's second variable, so the modifier can be
+ * set independently of the score - by hand on the sheet, from a Database
+ * variable, or by the widget's Set node. `"derived"` (the default) keeps
+ * computing it from the score with the world modifier formula.
+ */
+export function attributeModifier(widget, doc) {
+  if (String(widget?.modSource ?? "derived") === "own") {
+    return num(readWidgetValue(doc, widget, "pathMod"));
+  }
+  const compute = globalThis.CONFIG?.SD?.computeModifier
+    ?? (score => Math.floor((num(score) - 10) / 2));
+  return num(compute(num(readWidgetValue(doc, widget, "path"))));
+}
+
+/**
  * Output pins of every widget type.
  * `get(widget, doc, elementKey)` runs on the client that resolves the token.
  * `elementKey` is only used by widgets that own sub-elements (Attribute Group)
@@ -169,7 +186,7 @@ export const WIDGET_NODE_CONTRACTS = Object.freeze({
   number:    [["value", "Number", "value.number", (w, d) => num(readWidgetValue(d, w, "path"))]],
   counter:   [["value", "Count", "value.number", (w, d) => num(readWidgetValue(d, w, "path"))]],
   attribute: [["value", "Score", "value.number", (w, d) => num(readWidgetValue(d, w, "path"))],
-              ["mod", "Modifier", "value.number", (w, d) => Math.floor((num(readWidgetValue(d, w, "path")) - 10) / 2)]],
+              ["mod", "Modifier", "value.number", (w, d) => attributeModifier(w, d)]],
   attributeGroup: [["score", "Score", "value.number", (w, d, el) => num(attributeGroupEntry(w, d, el)?.score)],
               ["mod", "Modifier", "value.number", (w, d, el) => num(attributeGroupEntry(w, d, el)?.mod)],
               ["name", "Name", "value.string", (w, d, el) => String(attributeGroupEntry(w, d, el)?.name ?? "")],

@@ -2637,6 +2637,30 @@ button:not(:where(.window-header button, .window-controls button, .header-contro
 }
 
 .sd .widget-attribute .attr-mod:hover { background: var(--sd-accent-glow); }
+
+/* Editable modifier: its own number input plus a compact dice button. */
+.sd .widget-attribute .attr-mod-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.sd .widget-attribute .attr-mod-input {
+  width: 44px;
+  text-align: center;
+  font-size: var(--sd-btn-font-size);
+  font-weight: 700;
+  color: var(--sd-accent);
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--sd-w-bd, var(--sd-border));
+  padding: 0;
+  height: auto;
+  line-height: 1.4;
+}
+
+.sd .widget-attribute .attr-mod--dice { padding: 2px 5px; }
 .sd .widget-attribute.widget-attribute--roll .attr-roll-btn,
 .sd .sd-w-attribute.sd-v-roll-button .attr-roll-btn {
   display: inline-flex;
@@ -8517,3 +8541,52 @@ html body .sd.sd-wcfg-popup .wcfg-input-row[data-wcfg-row="formula"]>.wcfg-clear
 .sd-present-roll-flavor > strong { display:block;margin-bottom:3px; }
 .sd-present-roll-flavor > div { color:var(--sd-text-2,#d2d3db);font-size:12px; }
 @media (max-width:420px) { .sd-message-composer-fields { grid-template-columns:minmax(0,1fr); } }
+
+/* ------------------------------------------------------------------ *
+ * Message Composer checkbox inside a chat message.
+ *
+ * Foundry v13/v14 restyles `input[type="checkbox"]` with `appearance:none`
+ * and draws the tick with a pseudo-element glyph. In a posted chat card that
+ * glyph loses its font (the chat card rules force `font-family: Signika` and
+ * a fixed `color` onto every descendant), so the box rendered empty or with a
+ * broken square instead of a checkmark. Forcing the native control back on is
+ * the same fix already used for the widget config popup.
+ * ------------------------------------------------------------------ */
+.sd-message-composer-field--checkbox input[type="checkbox"],
+.sd-message-composer input[type="checkbox"],
+.sd-chat-card input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  width: 15px !important;
+  min-width: 15px !important;
+  height: 15px !important;
+  min-height: 15px !important;
+  flex: 0 0 15px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  font-family: inherit !important;
+  accent-color: var(--sd-message-accent, var(--sd-accent, #7b68ee)) !important;
+  cursor: pointer;
+}
+
+.sd-message-composer-field--checkbox input[type="checkbox"]::before,
+.sd-message-composer-field--checkbox input[type="checkbox"]::after,
+.sd-message-composer input[type="checkbox"]::before,
+.sd-message-composer input[type="checkbox"]::after,
+.sd-chat-card input[type="checkbox"]::before,
+.sd-chat-card input[type="checkbox"]::after {
+  content: none !important;
+  display: none !important;
+}
+
+.sd-message-composer-field--checkbox {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer;
+}
