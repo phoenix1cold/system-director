@@ -10930,10 +10930,12 @@ export class FormulaGraph {
         if (String(widget.type ?? "") === "resource") {
           widget.resourceMode = "node";
         } else {
-          widget.numberMode = "node";
-          delete widget.min;
-          delete widget.max;
-          delete widget.step;
+          // Number is single-mode now: clearing the literal Min / Max / Step
+          // lets the compiled graph formulas below drive them.
+          delete widget.numberMode;
+          widget.min  = "";
+          widget.max  = "";
+          widget.step = "";
         }
         widget.numberGraph = graphData;
         widget.minFormula  = compilePin("min", "");

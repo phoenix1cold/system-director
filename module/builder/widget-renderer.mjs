@@ -412,18 +412,22 @@ export class WidgetRenderer {
 
   static _render_number(w, doc) {
     const e   = this._esc;
-    const nodeMode = w.numberMode === "node";
-    const val = nodeMode && w.path ? this._get(doc, w.path, 0) : this._getValue(w, doc, 0);
-    const hasFormula = !nodeMode && w.valueFormula && FormulaEngine.isFormula(w.valueFormula);
+    // Single unified mode: the value is always the widget variable (own storage
+    // or Database), and Min / Max / Step take a plain number, a Variable, or a
+    // formula compiled by the Blueprint graph when left blank.
+    const val = this._getValue(w, doc, 0);
+    const hasFormula = w.valueFormula && FormulaEngine.isFormula(w.valueFormula);
+    const pickSpec = (primary, fallback) =>
+      (primary === undefined || primary === null || String(primary).trim() === "") ? fallback : primary;
     if (hasFormula) {
       return `<div class="widget widget-number">
   <div class="widget-label">${e(w.label)} <span style="color:var(--sd-accent-2);font-size:9px" title="Formula: ${e(w.valueFormula)}">ƒ</span></div>
   <div class="widget-formula-val" style="font-size:18px;font-weight:700;text-align:center">${e(String(val))}</div>
 </div>`;
     }
-    const minVal  = this._numberSpec(nodeMode ? w.minFormula  : w.min,  doc, "", { allowBlank: true });
-    const maxVal  = this._numberSpec(nodeMode ? w.maxFormula  : w.max,  doc, "", { allowBlank: true });
-    let stepVal   = this._numberSpec(nodeMode ? w.stepFormula : w.step, doc, 1);
+    const minVal  = this._numberSpec(pickSpec(w.min,  w.minFormula),  doc, "", { allowBlank: true });
+    const maxVal  = this._numberSpec(pickSpec(w.max,  w.maxFormula),  doc, "", { allowBlank: true });
+    let stepVal   = this._numberSpec(pickSpec(w.step, w.stepFormula), doc, 1);
     stepVal = Math.abs(Number(stepVal));
     if (!Number.isFinite(stepVal) || stepVal <= 0) stepVal = 1;
     const minAttr  = Number.isFinite(Number(minVal)) ? String(Number(minVal)) : "";
@@ -2024,12 +2028,13 @@ export class WidgetRenderer {
     const path    = e(bindingPath);
     const filled  = Math.max(0, Number(this._get(doc, rawPath, 0)) || 0);
 
-    const defaultMax = Number(w.maxCount ?? 10) || 10;
-    let maxVal = defaultMax;
+    // One single Max: the widget's own Max variable. `maxCount` survives only
+    // as a fallback for pools saved before the variable architecture.
+    let maxVal = Number(w.maxCount ?? 10) || 10;
     if (w.maxPath) {
       const rawMax = this._get(doc, w.maxPath, null);
       const parsed = Number(rawMax);
-      if (rawMax !== null && rawMax !== "" && !isNaN(parsed) && parsed > 0) maxVal = parsed;
+      if (rawMax !== null && rawMax !== "" && Number.isFinite(parsed) && parsed > 0) maxVal = parsed;
     }
     maxVal = Math.min(Math.max(1, Math.round(maxVal)), 50);
 
@@ -2325,9 +2330,16 @@ export class WidgetRenderer {
   static _render_derived(w, doc) {
     const esc  = this._esc.bind(this);
     const lbl  = esc(w.label ?? "Derived");
-    const raw  = w.formula ?? "0";
-    let   val  = 0;
-    try { val = FormulaEngine.evaluate(raw, doc); } catch { val = "!err"; }
+    // The value is this widget's own variable (own storage or Database).
+    // `formula` is no longer a config row: it is written only by this widget's
+    // Blueprint graph (or by a pre-1.12.6 save) and still wins when present.
+    const graphFormula = String(w.formula ?? "").trim();
+    let   val = 0;
+    if (graphFormula && graphFormula !== "0") {
+      try { val = FormulaEngine.evaluate(graphFormula, doc); } catch { val = "!err"; }
+    } else {
+      val = this._getValue(w, doc, 0);
+    }
     const dp   = Number(w.decimalPlaces ?? 0);
     const disp = (typeof val === "number" && isFinite(val))
       ? (dp > 0 ? val.toFixed(dp) : Math.round(val))

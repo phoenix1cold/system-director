@@ -82,40 +82,14 @@ function _promptTabName(current = "") {
   });
 }
 
-async function _chooseNumberWidgetMode() {
-  const mode = await foundry.applications.api.DialogV2.wait({
-    modal: true,
-    window: { title: "Number Widget" },
-    content: `<div style="padding:8px 0;font-size:12px;color:var(--sd-text-2);line-height:1.4">Choose Number widget version.</div>`,
-    buttons: [
-      { action: "classic", label: "Classic", icon: "fas fa-keyboard", default: true },
-      { action: "node",    label: "Node",    icon: "fas fa-diagram-project" }
-    ],
-    rejectClose: false
-  }).catch(() => "classic");
-  return mode === "node" ? "node" : "classic";
-}
-
-function _applyNumberWidgetMode(widget, mode) {
+function _applyNumberWidgetDefaults(widget) {
   if (!widget || widget.type !== "number") return;
-  if (mode === "node") {
-    widget.numberMode  = "node";
-    widget.minFormula  = "";
-    widget.maxFormula  = "";
-    widget.stepFormula = "1";
-    delete widget.min;
-    delete widget.max;
-    delete widget.step;
-  } else {
-    widget.numberMode = "classic";
-    widget.min = "";
-    widget.max = "";
-    widget.step = 1;
-    delete widget.minFormula;
-    delete widget.maxFormula;
-    delete widget.stepFormula;
-    delete widget.numberGraph;
-  }
+  // Number has one single unified mode. Min / Max / Step accept a plain number
+  // or a Variable, and the Blueprint graph fills them in when left blank.
+  widget.min  = "";
+  widget.max  = "";
+  widget.step = 1;
+  delete widget.numberMode;
 }
 
 export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
@@ -3036,9 +3010,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const baseDefaults=defaults[widgetType]??{label:widgetType};
     const identity=await promptWidgetIdentity({widgetType,defaultLabel:baseDefaults.label||widgetType,tabs});
     if(!identity)return;
-    const numberMode = widgetType === "number" ? await _chooseNumberWidgetMode() : null;
     const widget={id:foundry.utils.randomID(8),span:1,...baseDefaults,type:widgetType,label:identity.label,widgetKey:identity.widgetKey};
-    if (widgetType === "number") _applyNumberWidgetMode(widget, numberMode);
+    if (widgetType === "number") _applyNumberWidgetDefaults(widget);
     assignUniqueWidgetDataPaths(widget, this.document, { tabs });
     if (rowId) {
       const row=tab.rows?.find(r=>r.id===rowId); if(!row) return;

@@ -219,6 +219,13 @@ export class FormulaEngine {
     if (t === "button" || t === "cardDrawButton" || t === "section" || t === "vsection" || t === "widgetBuilder") return undefined;
 
     if (t === "derived" || t === "calc" || t === "computed") {
+      // No Blueprint formula: the widget reads its own Value variable, so it
+      // matches what the sheet renders.
+      const f = String(w.formula ?? "").trim();
+      if (!f || f === "0") {
+        const own = this._asScalar(this._readDocProperty(owner, w.path));
+        if (own !== undefined && own !== null && typeof own !== "object") return own;
+      }
       const v = this.evaluate(w.formula ?? "0", owner);
       const dp = Number(w.decimalPlaces ?? 0);
       if (typeof v === "number" && Number.isFinite(v) && dp > 0) {

@@ -45,17 +45,17 @@ const FIELD_DEFS = {
   attributeGroup: [["Button Label","label"],["Widget Key","widgetKey","text"],["Attributes (Database variables)","attributeKeys","dbvarlist"],["Radar scale max (blank = highest score)","radarMax","number"],["FA icon","icon","text"]],
 
   counter:   [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["Step","step","number"],["Min","min","number"],["Max","max","number"]],
-  tokenPool: [["Label","label"],["Widget Key","widgetKey","text"],["Value Variable","path","path"],["Max Variable (blank = use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
+  tokenPool: [["Label","label"],["Widget Key","widgetKey","text"],["Value Variable","path","path"],["Max","maxPath","path"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
 
   diceTray:  [["Label","label"],["Widget Key","widgetKey","text"],["Flag Path (default flags.sd.lastRoll)","flagPath","text"]],
 
   progress: [["Display Name","label"],["Widget Key","widgetKey","text"],["Value Property","pathValue","path"],["Maximum Property","pathMax","path"],["Show label","showLabel","boolean"],["Show percentage","showPct","boolean"]],
   select:   [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["Choices (comma-separated)","choices","text"]],
   clock:    [["Label","label"],["Widget Key","widgetKey","text"],["Filled count path","path","path"],["Segments (2–12)","segments","number"]],
-  tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value Variable","path","path"],["Max Variable (blank = use Max)","maxPath","path"],["Max","maxCount","number"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
+  tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value Variable","path","path"],["Max","maxPath","path"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
   tags:     [["Label","label"],["Widget Key","widgetKey","text"],["Data path","path","path"]],
   image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
-  derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Formula","formula","formula"],["Decimal places","decimalPlaces","number"]],
+  derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Value","path","path"],["Decimal places","decimalPlaces","number"],["Value font size (px, 0 = default)","valueFontSize","number"]],
 
   widgetBuilder: [["Display Name","label"],["Widget Key","widgetKey","text"],["Layout","wbLayout","select",["grid","free"]],["Columns (grid layout)","columns","number"],["Gap (px, grid layout)","gap","number"],["Canvas width (px, free layout; 0 = full width)","canvasW","number"],["Canvas height (px, free layout)","canvasH","number"],["Visual grid size (px)","gridSize","number"],["Snap step (px; 0 = off)","snap","number"],["Clip elements outside canvas","clipOverflow","boolean"],["Elements","elements","wbElements"],["Scoped CSS","customCss","css"]],
 
@@ -242,12 +242,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     return;
   }
 
-  const _numberMode = w.type === "number" && w.numberMode === "node" ? "node" : "classic";
   const _resourceMode = w.type === "resource" && w.resourceMode === "node" ? "node" : "classic";
   let _typeFields = FIELD_DEFS[w.type] ?? [["Label","label"]];
-  if (w.type === "number" && _numberMode === "node") {
-    _typeFields = [["Label","label"],["Widget Key","widgetKey","text"],["Variable","path","path"]];
-  }
+  // Number is single-mode: it always shows Variable + Min / Max / Step.
   if (w.type === "resource" && _resourceMode === "node") {
     _typeFields = _typeFields.filter(f => Array.isArray(f) && f[1] !== "pathMax");
   }
@@ -1765,12 +1762,14 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     const widget   = freshRow ? _findWidgetDeep(freshRow.widgets, w.id) : null;
     if (widget) {
       Object.assign(widget, changes);
-      if (widget.type === "number" && widget.numberMode === "node") {
-        delete widget.min;
-        delete widget.max;
-        delete widget.step;
-      } else if (widget.type === "number") {
-        widget.numberMode = "classic";
+      if (widget.type === "number") {
+        // Single unified mode: drop the legacy Classic / Node marker.
+        delete widget.numberMode;
+      }
+      if (widget.type === "derived" && String(widget.formula ?? "").trim() === "0") {
+        // Legacy placeholder formula: it would shadow the new Value variable.
+        // Real formulas written by the Blueprint graph are kept.
+        delete widget.formula;
       }
       if (widget.type === "resource" && widget.resourceMode !== "node") {
         widget.resourceMode = "classic";

@@ -5051,8 +5051,9 @@ button:not(:where(.window-header button, .window-controls button, .header-contro
 
 .sd .widget-tracker .tracker-pip { width: var(--sd-w-pip-size, 18px); height: var(--sd-w-pip-size, 18px); }
 .sd .widget-tracker .tracker-pip:not(.filled) { background: var(--sd-w-empty, transparent); }
-.sd .widget-tokenPool .pool-pip { width: var(--sd-w-pip-size, 14px); height: var(--sd-w-pip-size, 14px); }
-.sd .widget-tokenPool .pool-pip:not(.filled) { background: var(--sd-w-empty, transparent); }
+/* Token Pool pips are .sd-tracker-pip inside .widget-token-pool and are sized
+   inline from the widget's own Token size setting. The old .widget-tokenPool
+   .pool-pip rules matched nothing and were removed in 1.12.6. */
 
 .sd .widget-inventory .inv-header,
 .sd .widget-inventory .inv-cat-title { color: var(--sd-w-header, var(--sd-text)); }

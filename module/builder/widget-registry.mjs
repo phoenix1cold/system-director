@@ -25,7 +25,6 @@ export const WIDGET_TYPES = {
     defaults: {
       label: "Value",
       path:  "",
-      numberMode: "classic",
       min:   null,
       max:   null,
       step:  1
@@ -420,18 +419,19 @@ export const WIDGET_TYPES = {
     defaults: {
       label:    "Tokens",
       path:     "",
-      maxPath:  "",
-      maxCount: 10,
-      icon:     "fa-coins",
-      color:    "#f0c040",
-      bgColor:  "#2a2a3a",
-      pipSize:  16
+      maxPath:   "",
+      maxCount:  10,
+      icon:      "fa-coins",
+      emptyIcon: "",
+      color:     "#f0c040",
+      bgColor:   "#2a2a3a",
+      pipSize:   16,
+      glow:      true
     },
     configFields: [
       { key: "label",        type: "text",       label: "Label" },
       { key: "path",         type: "path",       label: "Value Variable (integer)" },
-      { key: "maxPath",      type: "path",       label: "Max Variable (blank = use Max below)" },
-      { key: "maxCount",     type: "number",     label: "Max (when no Max Variable)" },
+      { key: "maxPath",      type: "path",       label: "Max" },
       { key: "icon",         type: "text",       label: "FA icon (e.g. fa-coins, fa-star)" },
       { key: "emptyIcon",    type: "text",       label: "Empty token icon (blank = same glyph)" },
 
@@ -522,13 +522,13 @@ export const WIDGET_TYPES = {
     defaultSpan: 1,
     defaults: {
       label:         "Derived",
-      formula:       "0",
+      path:          "",
       decimalPlaces: 0,
       valueFontSize: 0
     },
     configFields: [
       { key: "label",         type: "text",   label: "Label" },
-      { key: "formula",       type: "text",   label: "Formula", mono: true, placeholder: "{sdValue:...} * 2" },
+      { key: "path",          type: "path",   label: "Value" },
       { key: "decimalPlaces", type: "number", label: "Decimal places (0 = integer)" },
       { key: "valueFontSize", type: "number", label: "Value font size (px, 0 = default)" }
     ]
