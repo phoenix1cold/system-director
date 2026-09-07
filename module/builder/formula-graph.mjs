@@ -1,4 +1,5 @@
 import { migrateGraph, NODE_TYPE_MIGRATIONS } from "./node-migration.mjs";
+import { GraphRenderView } from "./graph-render-view.mjs";
 import { pinSubtype, pinTypeMeta, subtypeColor, arePinsCompatible, automaticPinConverter, canConnectPins } from "./pin-types.mjs";
 import { resolveNodePins, resolveNodePin } from "./node-pin-resolver.mjs";
 import { lintGraph, lintSummary } from "./graph-linter.mjs";
@@ -9026,7 +9027,6 @@ export class FormulaGraph {
       this._selected.clear();
       this._selectedComments?.clear?.();
       this._renderAll();
-      this._updatePreview?.();
     } finally {
       this._suppressHistory = false;
     }
@@ -9153,7 +9153,7 @@ export class FormulaGraph {
 
   _refreshSelectionHighlights() {
     if (this.nodesEl) {
-      this.nodesEl.querySelectorAll("[data-nid]").forEach(el => {
+      this.nodesEl.querySelectorAll(":scope > [data-nid]").forEach(el => {
         if (this._selected.has(el.dataset.nid)) {
           el.style.outline      = "2px solid #ffca6b";
           el.style.outlineOffset = "0";
@@ -11161,9 +11161,25 @@ export class FormulaGraph {
     // Drop focus from the button that opened the editor (e.g. "Edit graph" in
     // system settings) so Space/Delete/Ctrl+Z immediately work in the editor.
     try { if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur(); } catch {  }
-    this._smartIndex = this._buildSmartIndex(); this._buildWin(); this._renderAll(); setTimeout(()=>this._fitView(),120);
+    this._smartIndex = this._buildSmartIndex();
+    this._buildWin();
+    this._renderAll();
+    clearTimeout(this._fitTimer);
+    this._fitTimer = setTimeout(() => { this._fitTimer = null; this._fitView(); }, 120);
   }
   close(options={}) {
+    clearTimeout(this._previewTimer);
+    clearTimeout(this._fitTimer);
+    this._previewTimer = this._fitTimer = null;
+    if (this._graphRaf) this._graphRafView?.cancelAnimationFrame(this._graphRaf);
+    this._graphRaf = 0;
+    this._graphRafView = null;
+    this._graphView?.dispose();
+    this._graphView = null;
+    this._conn?.line?.remove();
+    this._conn = this._drag = this._panDrag = this._commentDrag = this._commentResize = null;
+    this._pendingConnectionPoint = null;
+    this._transformDirty = false;
     this._cleanup.forEach(fn=>fn());
     this._cleanup = [];
     this._functionManagerApp?.close?.({ sdSkipCallback:true });
@@ -11175,6 +11191,7 @@ export class FormulaGraph {
     this._windowApp = null;
     this.win?.remove();
     this.win = null;
+    this.edgeSVG = this.nodesEl = this.commentsEl = null;
     if (!options.fromHost) app?.close?.({ sdSkipCallback:true });
   }
 
@@ -11967,13 +11984,15 @@ export class FormulaGraph {
   }
 
   _updatePreview() {
-    const f = this.compile();
+    clearTimeout(this._previewTimer);
+    this._previewTimer = null;
     if (!this.win) return;
+    const f = this.compile();
     this.win.querySelector("#gpreview").textContent = f || "-";
 
     this._buildVarPanel();
 
-    this.nodesEl?.querySelectorAll("[data-nid]").forEach(el => {
+    this.nodesEl?.querySelectorAll(":scope > [data-nid]").forEach(el => {
       if (typeof el._refreshAttrCard === "function") el._refreshAttrCard();
     });
 
@@ -12194,7 +12213,7 @@ export class FormulaGraph {
           this._pan.x = wrap.clientWidth  / 2 - node.x * this._zoom - w / 2;
           this._pan.y = wrap.clientHeight / 2 - node.y * this._zoom - h / 2;
           this._applyTransform();
-          this._scheduleEdges?.();
+          this._scheduleEdges(false);
         }
         el.style.boxShadow = "0 0 0 2px var(--sd-accent), 0 0 24px var(--sd-accent-dim)";
         setTimeout(() => { el.style.boxShadow = ""; }, 1200);
@@ -13085,23 +13104,6 @@ export class FormulaGraph {
       this._refreshPalette(false);
     });
 
-    this._raf = 0;
-    this._schedulePreview = () => {
-      clearTimeout(this._previewTimer);
-      this._previewTimer = setTimeout(() => {
-        this._previewTimer = null;
-        this._updatePreview();
-      }, 140);
-    };
-    this._scheduleEdges = () => {
-      if (this._raf) return;
-      this._raf = requestAnimationFrame(() => {
-        this._raf = 0;
-        this._redrawEdges();
-      });
-      this._schedulePreview();
-    };
-
     const _move = ev => {
       // A detached browser window may miss mouseup when the pointer leaves its
       // right/bottom edge.  Do not keep a stale drag alive when the pointer
@@ -13117,13 +13119,8 @@ export class FormulaGraph {
         }
         this._pan.x = ev.clientX - this._panDrag.ox;
         this._pan.y = ev.clientY - this._panDrag.oy;
-        if (!this._panRaf) {
-          this._panRaf = requestAnimationFrame(() => {
-            this._panRaf = 0;
-            this._applyTransform();
-            this._scheduleEdges();
-          });
-        }
+        this._transformDirty = true;
+        this._scheduleEdges(false);
       }
       if (this._drag) {
         this._doDrag(ev);
@@ -13247,6 +13244,8 @@ export class FormulaGraph {
       _unbindEventDocument();
       eventDoc = nextDoc;
       eventView = nextDoc.defaultView ?? globalThis.window;
+      this._getGraphView()?.syncDocument();
+      this._scheduleEdges(false);
       eventDoc.addEventListener("mousemove", _move);
       eventDoc.addEventListener("mouseup", _up);
       eventDoc.addEventListener("keydown", _kd);
@@ -13342,8 +13341,8 @@ export class FormulaGraph {
       this._zoom = Math.max(0.15, Math.min(3.0, this._zoom * (delta > 0 ? 0.92 : 1.08)));
       this._pan.x = mx - wx0 * this._zoom;
       this._pan.y = my - wy0 * this._zoom;
-      this._applyTransform();
-      this._scheduleEdges();
+      this._transformDirty = true;
+      this._scheduleEdges(false);
     };
 
     win.querySelectorAll(".gz").forEach(b => b.addEventListener("click", () => {
@@ -13680,7 +13679,7 @@ export class FormulaGraph {
     if (target && NODE_DEFS[target.type]?.noDelete) return;
     this.nodes=this.nodes.filter(n=>n.id!==id);
     this.edges=this.edges.filter(e=>e.fromNode!==id&&e.toNode!==id);
-    this.nodesEl.querySelector(`[data-nid="${id}"]`)?.remove();
+    this._getGraphView()?.removeNode(id);
     this._scheduleEdges?.();
     this._pushHistory();
   }
@@ -13775,12 +13774,14 @@ export class FormulaGraph {
   }
 
   _renderAll() {
+    this._getGraphView()?.resetNodes();
     this.nodesEl.innerHTML="";
     this.nodes.forEach(n=>this._renderNode(n));
     this._renderComments();
     this._applyTransform();
-    this._redrawEdges();
+    // Live cards can change node height: build them before measuring sockets.
     this._updatePreview();
+    this._redrawEdges();
   }
 
   _renderComments() {
@@ -13936,14 +13937,13 @@ export class FormulaGraph {
       if (el) { el.style.left = cc.x + "px"; el.style.top = cc.y + "px"; }
     }
     for (const g of this._commentDrag.nodeGroup) {
-      const n = this.nodes.find(x => x.id === g.id);
+      const n = this._nodeById(g.id);
       if (!n) continue;
       n.x = Math.round(g.ox + dx);
       n.y = Math.round(g.oy + dy);
-      const el = this.nodesEl.querySelector(`[data-nid="${n.id}"]`);
-      if (el) { el.style.left = n.x + "px"; el.style.top = n.y + "px"; }
+      this._getGraphView()?.moveNode(n);
     }
-    this._scheduleEdges?.();
+    this._scheduleEdges(false);
   }
 
   _doCommentResize(ev) {
@@ -13961,7 +13961,8 @@ export class FormulaGraph {
   }
 
   _renderNode(node) {
-    this.nodesEl.querySelector(`[data-nid="${node.id}"]`)?.remove();
+    const graphView = this._getGraphView();
+    graphView?.removeNode(node.id);
     const def=NODE_DEFS[node.type]; if(!def) return;
     const isOut = node.type==="output" || node.type==="attr_output" || node.type==="attr_score_val" || node.type==="skill_output" || node.type==="skill_rank_val" || node.type==="on_click";
     const noDelete = !!def.noDelete;
@@ -14003,7 +14004,7 @@ export class FormulaGraph {
       border-radius:8px;
       box-shadow:var(--sd-graph-node-shadow,0 18px 45px rgba(0,0,0,.5)), 0 0 0 1px ${_accent}22 inset${_funcBroken?", 0 0 0 2px rgba(224,64,64,.4) inset":""};
       overflow:hidden;
-      transform:translateZ(0);`;
+      contain:layout style paint;`;
 
     let _hdrTitle = def.title;
     // Hosts that reuse the generic trigger node for a specific event (UI widget
@@ -14063,7 +14064,7 @@ export class FormulaGraph {
         let connected = -1;
         for (let i = 0; i < maxAll; i++) {
           for (const grp of groups) {
-            if (this.edges.some(e => e.toNode === node.id && e.toPin === `${grp.base}${i}`)) {
+            if (graphView.isConnected(node.id, `${grp.base}${i}`, "input")) {
               connected = i;
               break;
             }
@@ -14081,7 +14082,7 @@ export class FormulaGraph {
           const {base, label, max, type} = grp;
           let connected = -1;
           for(let i=0;i<max;i++){
-            if(this.edges.some(e=>e.toNode===node.id&&e.toPin===`${base}${i}`)) connected=i;
+            if(graphView.isConnected(node.id, `${base}${i}`, "input")) connected=i;
           }
           const show = Math.min(connected+2, max);
           const pinType = type ?? "value.any";
@@ -14101,8 +14102,7 @@ export class FormulaGraph {
     });
     const valOuts = outputPins.filter(p=>p.type!=="exec");
 
-    const _pinConnected = (pinId) =>
-      this.edges.some(e => e.toNode === node.id && e.toPin === pinId);
+    const _pinConnected = pinId => graphView.isConnected(node.id, pinId, "input");
 
     const pinKeys      = new Set(valIns.map(p => p.id));
     const connectedKeys = new Set(valIns.filter(p => _pinConnected(p.id)).map(p => p.id));
@@ -14303,6 +14303,8 @@ export class FormulaGraph {
         }catch{}
       });
     });
+    graphView?.registerNode(node, el);
+    this._scheduleEdges(false);
   }
 
   _pinEl(node,pin,side) {
@@ -14339,9 +14341,7 @@ export class FormulaGraph {
     glyph.textContent=meta.glyph;
     dot.appendChild(glyph);
     const _typeColor = meta.color;
-    const _connected = (side === "output")
-      ? this.edges.some(e => e.fromNode === node.id && e.fromPin === pin.id)
-      : this.edges.some(e => e.toNode  === node.id && e.toPin   === pin.id);
+    const _connected = this._getGraphView().isConnected(node.id, pin.id, side);
     dot.dataset.connected = _connected ? "1" : "0";
     const _fill = _connected ? _typeColor : "transparent";
     const _restingShadow = _connected ? "0 0 0 1px rgba(0,0,0,.35) inset" : "none";
@@ -14357,18 +14357,14 @@ export class FormulaGraph {
     dot.addEventListener("contextmenu",ev=>{
       ev.preventDefault();
       ev.stopPropagation();
-      const hasEdge = side==="output"
-        ? this.edges.some(e=>e.fromNode===node.id&&e.fromPin===pin.id)
-        : this.edges.some(e=>e.toNode===node.id&&e.toPin===pin.id);
+      const hasEdge = this._getGraphView().isConnected(node.id, pin.id, side);
       if (isExec) { if (hasEdge) this._disconnectPin(node, pin, side); return; }
       this._pinContextMenu(ev, node, pin, side, hasEdge);
     });
     dot.addEventListener("mouseenter",()=>{
       dot.classList.add("is-hovered");
       dot.style.boxShadow="0 0 0 6px rgba(255,255,255,.1)";
-      const hasEdge = side==="output"
-        ? this.edges.some(e=>e.fromNode===node.id&&e.fromPin===pin.id)
-        : this.edges.some(e=>e.toNode===node.id&&e.toPin===pin.id);
+      const hasEdge = this._getGraphView().isConnected(node.id, pin.id, side);
       const actionHint=isExec ? (hasEdge ? " · RMB: disconnect" : "") : " · RMB: Promote to Var / Disconnect";
       dot.title = `${meta.label} pin${actionHint}`;
     });
@@ -15139,71 +15135,73 @@ export class FormulaGraph {
     return [...names].sort((a, b) => a.localeCompare(b));
   }
 
-  _redrawEdges() {
-    const svg=this.edgeSVG; if(!svg) return;
-
-    const defs = svg.querySelector("defs");
-    while(svg.lastChild && svg.lastChild !== defs) svg.removeChild(svg.lastChild);
-    if (!defs) {
-      const d = document.createElementNS("http://www.w3.org/2000/svg","defs");
-      d.innerHTML = `<linearGradient id="sd-link-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" style="stop-color:var(--sd-accent)"/>
-        <stop offset="100%" style="stop-color:var(--sd-success)"/>
-      </linearGradient>`;
-      svg.insertBefore(d, svg.firstChild);
+  _getGraphView() {
+    if (!this.edgeSVG || !this.nodesEl) return null;
+    if (!this._graphView || this._graphView.svg !== this.edgeSVG || this._graphView.root !== this.nodesEl) {
+      this._graphView?.dispose();
+      this._graphView = new GraphRenderView(this);
     }
-
-    for(const edge of this.edges) {
-      const from=this._pinScreen(edge.fromNode,edge.fromPin,"output");
-      const to  =this._pinScreen(edge.toNode,  edge.toPin,  "input");
-      if(!from||!to) continue;
-
-      const fromNode  = this.nodes.find(n=>n.id===edge.fromNode);
-      const def       = NODE_DEFS[fromNode?.type ?? ""];
-      const fromPinDef = resolveNodePin(def, fromNode, "output", edge.fromPin);
-      const isExec = fromPinDef?.type==="exec";
-      const edgeMeta = pinTypeMeta(fromPinDef?.type);
-      const subColor = edgeMeta.color;
-
-      const bez = this._bez(from,to);
-
-      const hit=document.createElementNS("http://www.w3.org/2000/svg","path");
-      hit.setAttribute("d",bez);
-      hit.setAttribute("fill","none");
-      hit.setAttribute("stroke","transparent");
-      hit.setAttribute("stroke-width","14");
-      hit.setAttribute("pointer-events","stroke");
-      hit.style.cursor="pointer";
-      hit.addEventListener("dblclick",()=>{
-        this._removeEdge(edge.id);
-      });
-      svg.appendChild(hit);
-
-      const path=document.createElementNS("http://www.w3.org/2000/svg","path");
-      path.setAttribute("d",bez);
-      path.setAttribute("fill","none");
-      const stroke = isExec ? "#ffca6b" : (subColor ?? "url(#sd-link-grad)");
-      path.setAttribute("stroke", stroke);
-      path.setAttribute("stroke-width",edgeMeta.container?"4.2":edgeMeta.structured?"3.8":"3.5");
-      if(edgeMeta.container) path.setAttribute("stroke-dasharray","10,4");
-      path.setAttribute("stroke-linecap","round");
-      path.setAttribute("opacity","0.92");
-      path.setAttribute("pointer-events","none");
-      svg.appendChild(path);
-    }
+    return this._graphView;
   }
+
+  _schedulePreview() {
+    clearTimeout(this._previewTimer);
+    if (!this.win) return;
+    this._previewTimer = setTimeout(() => {
+      this._previewTimer = null;
+      if (!this.win) return;
+      if (this._panDrag || this._drag || this._commentDrag || this._commentResize) {
+        this._schedulePreview();
+        return;
+      }
+      this._updatePreview();
+    }, 140);
+  }
+
+  _scheduleEdges(refreshPreview = true) {
+    if (!this.win) return;
+    const view = this._uiWindow();
+    // A detached v14 editor must use its own window's animation frames.
+    if (this._graphRaf && this._graphRafView !== view) {
+      this._graphRafView?.cancelAnimationFrame(this._graphRaf);
+      this._graphRaf = 0;
+    }
+    if (!this._graphRaf && view?.requestAnimationFrame) {
+      this._graphRafView = view;
+      this._graphRaf = view.requestAnimationFrame(() => {
+        this._graphRaf = 0;
+        if (this.win) this._redrawEdges();
+      });
+    }
+    if (refreshPreview) this._schedulePreview();
+  }
+
+  _redrawEdges() {
+    if (this._transformDirty) {
+      this._transformDirty = false;
+      this._applyTransform();
+    }
+    this._getGraphView()?.draw();
+    if (this._conn && this._pendingConnectionPoint) this._drawConnectionPreview();
+  }
+
   _bez(a,b) {
     const dx=Math.abs(b.x-a.x);
     const c=Math.max(dx*0.55,60);
     return `M${a.x},${a.y} C${a.x+c},${a.y} ${b.x-c},${b.y} ${b.x},${b.y}`;
   }
 
-  _pinScreen(nodeId,pinId,side) {
-    const el=this.nodesEl.querySelector(`[data-nid="${nodeId}"] [data-pid="${pinId}"][data-side="${side}"]`);
-    if(!el) return null;
-    const r=el.getBoundingClientRect();
-    const wr=this.edgeSVG.getBoundingClientRect();
-    return {x:r.left-wr.left+r.width/2, y:r.top-wr.top+r.height/2};
+  _nodeById(id) {
+    return this._getGraphView()?.nodeById(id) ?? this.nodes.find(node => node.id === id) ?? null;
+  }
+  _pinOffset(nodeId, pinId, side) {
+    return this._getGraphView()?.pinOffset(nodeId, pinId, side) ?? null;
+  }
+  _pinGraph(nodeId, pinId, side) {
+    return this._getGraphView()?.pinGraph(nodeId, pinId, side) ?? null;
+  }
+  _pinScreen(nodeId, pinId, side) {
+    return this._getGraphView()?.pinScreen(nodeId, pinId, side) ?? null;
   }
 
   _startConn(nodeId,pinId,isExec,ev,pinType) {
@@ -15222,16 +15220,23 @@ export class FormulaGraph {
   }
 
   _doConn(ev) {
-    if(!this._conn) return;
-    const wr=this.edgeSVG.getBoundingClientRect();
-    const mx=ev.clientX-wr.left;
-    const my=ev.clientY-wr.top;
-    this._conn.line.setAttribute("d",this._bez({x:this._conn.sx,y:this._conn.sy},{x:mx,y:my}));
+    if (!this._conn) return;
+    this._pendingConnectionPoint = { x: ev.clientX, y: ev.clientY };
+    this._scheduleEdges(false);
+  }
+  _drawConnectionPreview() {
+    const conn = this._conn, point = this._pendingConnectionPoint;
+    if (!conn || !point) return;
+    const start = this._pinScreen(conn.fromNode, conn.fromPin, "output");
+    if (!start) return;
+    const wr = this.edgeSVG.getBoundingClientRect();
+    conn.line.setAttribute("d", this._bez(start, { x: point.x - wr.left, y: point.y - wr.top }));
   }
 
   _endConn(ev) {
     if(!this._conn) return;
     const conn=this._conn; this._conn=null;
+    this._pendingConnectionPoint = null;
     conn.line.remove();
     const doc = this._uiDocument();
     const clientX = Number.isFinite(ev?.clientX) ? ev.clientX : -1;
@@ -15359,14 +15364,13 @@ export class FormulaGraph {
       : [{ id: this._drag.nodeId, ox: this._drag.ox, oy: this._drag.oy }];
 
     for (const g of group) {
-      const n = this.nodes.find(x => x.id === g.id);
+      const n = this._nodeById(g.id);
       if (!n) continue;
       n.x = Math.round(g.ox + dx);
       n.y = Math.round(g.oy + dy);
-      const el = this.nodesEl.querySelector(`[data-nid="${n.id}"]`);
-      if (el) { el.style.left = n.x + "px"; el.style.top = n.y + "px"; }
+      this._getGraphView()?.moveNode(n);
     }
-    this._scheduleEdges?.();
+    this._scheduleEdges(false);
   }
 
   _doMarquee(ev) {
@@ -15418,6 +15422,8 @@ export class FormulaGraph {
   _applyTransform() {
     if (!Number.isFinite(this._zoom) || this._zoom <= 0) this._zoom = 1;
     if (!this._pan || !Number.isFinite(this._pan.x) || !Number.isFinite(this._pan.y)) this._pan = { x: 60, y: 60 };
+    this._renderedZoom = this._zoom;
+    this._transformDirty = false;
     const tf = `translate(${this._pan.x}px,${this._pan.y}px) scale(${this._zoom})`;
     if(this.nodesEl)    this.nodesEl.style.transform    = tf;
     if(this.commentsEl) this.commentsEl.style.transform = tf;
@@ -15444,7 +15450,7 @@ export class FormulaGraph {
     this._pan.y=(H-(maxY-minY)*this._zoom)/2-minY*this._zoom;
     if(!Number.isFinite(this._pan.x)||!Number.isFinite(this._pan.y)) this._pan={x:60,y:60};
     this._applyTransform();
-    setTimeout(()=>this._redrawEdges(),50);
+    this._scheduleEdges(false);
   }
 
   _hydrateFormula(f) {

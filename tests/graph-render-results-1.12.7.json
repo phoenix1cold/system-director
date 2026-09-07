@@ -1,0 +1,59 @@
+{
+  "version": "1.12.7",
+  "nodeRegressionTests": 53,
+  "browserChecks": [
+    "Real node DOM, fractional coordinates and borders",
+    "Pan/zoom alignment and stable SVG identities",
+    "Warm pan: zero node/pin rectangle reads",
+    "Group dragging and final model coordinates",
+    "Dynamic sockets and node replacement",
+    "Undo/Redo with unchanged IDs and node count",
+    "Connection preview survives redraw",
+    "Double-click disconnect and pool cleanup",
+    "Culling preserves crossing/backwards wires and restores nodes",
+    "DOM mutation invalidates socket geometry",
+    "Real ResizeObserver corrects CSS-only resizing",
+    "Detach/reattach and observer rebinding",
+    "Closing releases caches and observers",
+    "Frame batching, semantic-only preview and timer cancellation"
+  ],
+  "benchmark": {
+    "status": "PASS",
+    "kind": "Synchronous Chromium JS/layout timing; not full Foundry FPS",
+    "metrics": [
+      {
+        "label": "1.12.6",
+        "nodes": 250,
+        "edges": 249,
+        "frames": 12,
+        "initialRenderMs": 430.6,
+        "medianFrameMs": 52,
+        "p95FrameMs": 68.4,
+        "rectReads": 11964,
+        "svgElementsCreated": 5976
+      },
+      {
+        "label": "1.12.7",
+        "nodes": 250,
+        "edges": 249,
+        "frames": 12,
+        "initialRenderMs": 267.5,
+        "medianFrameMs": 2.5,
+        "p95FrameMs": 7.5,
+        "rectReads": 12,
+        "svgElementsCreated": 0
+      },
+      {
+        "label": "1.12.7 stress",
+        "nodes": 1000,
+        "edges": 999,
+        "frames": 12,
+        "initialRenderMs": 1347.3,
+        "medianFrameMs": 3.3,
+        "p95FrameMs": 8.8,
+        "rectReads": 12,
+        "svgElementsCreated": 0
+      }
+    ]
+  }
+}

@@ -155,5 +155,7 @@ assert.ok(graphSource.includes('return "{__rollTotal}";'),
   "new Roll Result → To Text wires must compile directly to Roll Total");
 
 const manifest = JSON.parse(read("system.json"));
-assert.equal(manifest.version, "1.12.0");
+// Check a valid compatible release, not an obsolete exact patch version.
+assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
+assert.equal(String(manifest.compatibility.minimum), "14");
 console.log("PASS: canonical and saved Roll Result → To Text → Message paths render total (1.11.11).");
