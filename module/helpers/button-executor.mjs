@@ -1305,23 +1305,52 @@ export class ButtonExecutor {
         const definition=getValueDefinition(variableId);
         if(!definition){ui.notifications?.warn?.("Select a Database variable.");break;}
         const refRaw=_injectRuntime(String(action.ref??""));
-        const refDoc=(refRaw && typeof refRaw==="object" && typeof refRaw.update==="function") ? refRaw : null;
+        const rawDocument=(value)=>value?.document??value;
+        const normalizedDocument=(value)=>{
+          const doc=rawDocument(value);
+          if(doc?.documentName==="Token"||doc?.constructor?.name==="TokenDocument")return doc.actor??null;
+          if(doc?.actor&&doc?.documentName!=="Item"&&doc?.constructor?.name!=="Item")return doc.actor;
+          return doc?.update?doc:null;
+        };
+        const refDoc=normalizedDocument(refRaw);
         const ref=refDoc?"":_SDFormula.valueToText(refRaw).trim().replace(/^["']|["']$/g,"");
-        let target=item??actor;
-        if(action.source==="first target") target=game.user?.targets?.first?.()?.actor??canvas?.tokens?.controlled?.[0]?.actor??null;
-        else if(action.source==="token by id") target=canvas?.tokens?.get?.(ref)?.actor??null;
-        else if(action.source==="by uuid") target=await fromUuid(ref).catch(()=>null);
+        const contextItem=item?.documentName==="Item"||item?.constructor?.name==="Item"?item:null;
+        const contextActor=actor??contextItem?.actor??contextItem?.parent??null;
+        const ownedItems=contextActor?.items?.contents??(Array.isArray(contextActor?.items)?contextActor.items:[]);
+        const findOwnedItem=(value)=>{
+          const key=String(value??"").trim();
+          if(!key)return null;
+          return contextActor?.items?.get?.(key)
+            ??ownedItems.find(entry=>entry?.id===key||entry?.uuid===key||String(entry?.name??"").toLowerCase()===key.toLowerCase())
+            ??null;
+        };
+        const source=String(action.source??"self");
+        let target=contextItem??contextActor;
+        if(source==="actor")target=contextActor;
+        else if(source==="item")target=contextItem;
+        else if(source==="owned item")target=findOwnedItem(action.itemId??ref);
+        else if(source==="first target") target=game.user?.targets?.first?.()?.actor??canvas?.tokens?.controlled?.[0]?.actor??null;
+        else if(source==="token by id") target=canvas?.tokens?.get?.(ref)?.actor??null;
+        else if(source==="by uuid") target=normalizedDocument(await fromUuid(ref).catch(()=>null));
         // A wired Actor / Item Ref always wins over the static Target dropdown.
         if(refDoc) target=refDoc;
         else if(ref){
           let resolved=null;
-          try{ resolved=canvas?.tokens?.get?.(ref)?.actor??null; }catch{}
-          if(!resolved){ try{ resolved=await fromUuid(ref); }catch{} }
+          // Prefer an owned Item when the selected variable/target is Item-scoped.
+          if(source==="item"||source==="owned item"||definition.scope==="item")resolved=findOwnedItem(ref);
+          if(!resolved){ try{ resolved=canvas?.tokens?.get?.(ref)?.actor??null; }catch{} }
+          if(!resolved){ try{ resolved=normalizedDocument(await fromUuid(ref)); }catch{} }
           if(!resolved){ try{ resolved=game?.actors?.get?.(ref)??game?.items?.get?.(ref)??null; }catch{} }
           if(!resolved){ try{ resolved=game?.actors?.getName?.(ref)??null; }catch{} }
+          if(!resolved)resolved=findOwnedItem(ref);
           if(resolved?.update) target=resolved;
         }
         if(!target){ui.notifications?.warn?.("Database target was not found. Target a token, or wire an Actor / Item Ref.");break;}
+        const targetScope=target?.documentName==="Item"||target?.constructor?.name==="Item"?"item":target?.documentName==="Actor"||target?.constructor?.name==="Actor"?"actor":"";
+        if(definition.scope!=="both"&&targetScope&&definition.scope!==targetScope){
+          ui.notifications?.warn?.(`Variable "${definition.name??variableId}" belongs to ${definition.scope}, but the resolved target is ${targetScope}.`);
+          break;
+        }
         if(target.isOwner===false){ui.notifications?.warn?.(`You do not have permission to change "${target.name??"this document"}".`);break;}
         // Resolve the value pin first, then unwrap it: a Roll Result carries its
         // total, so stringifying it before injection used to yield [object Object].

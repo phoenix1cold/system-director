@@ -89,10 +89,31 @@ export function getValueDefinitions(settings=null) {
 }
 
 export function getValueDefinition(id, settings=null){return getValueDefinitions(settings).find(v=>v.id===String(id??""))??null;}
+export function valueSelectOptionsForScope(scope="", {selected="", placeholder="Select value…", grouped=false}={}){
+  const wanted=SCOPES.has(String(scope??""))?String(scope):"";
+  const current=String(selected??"");
+  const definitions=getValueDefinitions();
+  const visible=definitions.filter(def=>!wanted||def.scope==="both"||def.scope===wanted);
+  const options=[{value:"",label:placeholder}];
+  for(const def of visible){
+    const group=def.scope==="both"?"Actor & Item":def.scope==="item"?"Item":"Actor";
+    options.push({value:def.id,label:`${def.name} · ${def.type} [${def.id}]`,...(grouped?{group}:{})});
+  }
+  // Never hide an already-saved selection. This makes an incompatible legacy
+  // graph obvious and lets the user repair it without silently losing data.
+  if(current&&!options.some(option=>option.value===current)){
+    const def=definitions.find(entry=>entry.id===current);
+    options.push({
+      value:current,
+      label:def?`${def.name} · ${def.type} [${def.id}] — incompatible target`:`${current} — missing variable`,
+      ...(grouped?{group:"Saved selection"}:{})
+    });
+  }
+  return options;
+}
 export function valueSelectOptions(_node=null, graph=null){
-  const defs=getValueDefinitions();
   const scope=graph?.doc?.documentName==="Item"?"item":graph?.doc?.documentName==="Actor"?"actor":"";
-  return [{value:"",label:"Select value…"},...defs.filter(d=>!scope||d.scope==="both"||d.scope===scope).map(d=>({value:d.id,label:`${d.name} · ${d.type} [${d.id}]`}))];
+  return valueSelectOptionsForScope(scope,{selected:_node?.data?.variableId});
 }
 export function valueStoragePath(id){return `system.values.${normalizeValueId(id)}`;}
 

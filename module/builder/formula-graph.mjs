@@ -12,10 +12,41 @@ import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { databaseSelectOptions, databaseRecordSelectOptions, databaseTypeOptions, databaseTypePin, getDatabaseRecord } from "../helpers/shared-database.mjs";
-import { valueSelectOptions, getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
+import { valueSelectOptions, valueSelectOptionsForScope, getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
 import { deletionUpdate, dialogText, dialogValue } from "../helpers/foundry-compat.mjs";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
+
+/** Scope the Set Value picker to the document its static target will resolve to. */
+export function setValueTargetScope(node=null, graph=null) {
+  const hasDynamicRef=!!graph?.edges?.some?.(edge=>edge.toNode===node?.id&&edge.toPin==="ref");
+  if(hasDynamicRef)return "";
+  const source=String(node?.data?.source??"self");
+  if(["actor","first target","token by id"].includes(source))return "actor";
+  if(["item","owned item"].includes(source))return "item";
+  if(source==="by uuid")return "";
+  return graph?.doc?.documentName==="Item"?"item":graph?.doc?.documentName==="Actor"?"actor":"";
+}
+
+export function setValueVariableOptions(node=null, graph=null) {
+  const scope=setValueTargetScope(node,graph);
+  const label=scope==="actor"?"Select Actor variable…":scope==="item"?"Select Item variable…":"Select Actor / Item variable…";
+  return valueSelectOptionsForScope(scope,{selected:node?.data?.variableId,placeholder:label,grouped:!scope});
+}
+
+export function setValueOwnedItemOptions(node=null, graph=null) {
+  const doc=graph?.doc??null;
+  const actor=doc?.documentName==="Actor"?doc:(doc?.actor??doc?.parent??null);
+  const items=actor?.items?.contents??(Array.isArray(actor?.items)?actor.items:[]);
+  const options=[{value:"",label:items.length?"Select owned item…":"No owned items available"}];
+  for(const item of [...items].sort((a,b)=>String(a?.name??"").localeCompare(String(b?.name??"")))){
+    const id=String(item?.id??item?.uuid??"");
+    if(id)options.push({value:id,label:`${item?.name??id} · ${item?.type??"Item"}`});
+  }
+  const current=String(node?.data?.itemId??"");
+  if(current&&!options.some(option=>option.value===current))options.push({value:current,label:`${current} — unavailable`});
+  return options;
+}
 function esc(s) { return String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
 
 /** Readable text of any pin value: arrays join, documents use their name. */
@@ -539,18 +570,27 @@ export const NODE_DEFS = {
   },
   set_value: {
     title:"Set Value", color:"#6a2f70", cat:"Database", wideNode:true,
-    keywords:"database variable typed actor item write add subtract multiply toggle",
-    desc:"Writes or modifies a typed Database variable on an Actor or Item. No storage path is exposed.",
+    keywords:"database variable typed actor item owned item target uuid write add subtract multiply toggle",
+    desc:"Writes a typed Database variable on the graph owner, its Actor, its current/owned Item, a token target, UUID, or a wired Actor / Item. A wired Ref always wins; otherwise Auto uses the graph document.",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"ref",label:"Actor / Item Ref",type:"value.any"},{id:"value",label:"Value",type:"value.any"}],
     computeDynamicInputs:n=>{const def=getValueDefinition(n.data?.variableId);return [{id:"exec",label:"",type:"exec"},{id:"ref",label:"Actor / Item Ref",type:"value.any"},{id:"value",label:def?.name??"Value",type:databaseTypePin(def?.type??"any")}];},
     outputs:[{id:"exec",label:"Done →",type:"exec"}],
     fields:[
-      {key:"source",label:"Target",type:"select",default:"self",options:[{value:"self",label:"Self"},{value:"first target",label:"First Target"},{value:"token by id",label:"Token by ID"},{value:"by uuid",label:"By UUID"}]},
-      {key:"variableId",label:"Variable",type:"select",default:"",options:valueSelectOptions,noPin:true},
+      {key:"source",label:"Target",type:"select",default:"self",options:[
+        {value:"self",label:"Auto — graph owner"},
+        {value:"actor",label:"Actor — self / item owner"},
+        {value:"item",label:"Item — current graph item"},
+        {value:"owned item",label:"Owned Item — from current actor"},
+        {value:"first target",label:"Actor — first target"},
+        {value:"token by id",label:"Actor — token by ID"},
+        {value:"by uuid",label:"Actor / Item — by UUID"}
+      ],hint:"A connected Actor / Item Ref overrides this target."},
+      {key:"itemId",label:"Owned Item",type:"select",default:"",options:setValueOwnedItemOptions,noPin:true,visibleIf:data=>data.source==="owned item"},
+      {key:"variableId",label:"Variable",type:"select",default:"",options:setValueVariableOptions,noPin:true,hint:"Only variables compatible with the resolved static target are shown. A wired Ref allows both scopes."},
       {key:"operation",label:"Operation",type:"select",default:"set",options:["set","add","subtract","multiply","toggle"]},
       {key:"value",label:"Value",type:"text",default:"0"}
     ],isAction:true,
-    toAction:(n,inp)=>({type:"setDatabaseValue",source:n.data?.source??"self",variableId:n.data?.variableId??"",operation:n.data?.operation??"set",ref:inp.ref??"",value:inp.value??n.data?.value??0})
+    toAction:(n,inp)=>({type:"setDatabaseValue",source:n.data?.source??"self",itemId:n.data?.itemId??"",variableId:n.data?.variableId??"",operation:n.data?.operation??"set",ref:inp.ref??"",value:inp.value??n.data?.value??0})
   },
   get_widget: {
     title:"Get Widget Value", color:"#1a4060", cat:"Get Data",
@@ -14921,9 +14961,11 @@ export class FormulaGraph {
     else if(field.type==="select"){
       inp=document.createElement("select");
       inp.style.cssText=IS+";cursor:pointer";
+      if(field.hint)inp.title=_NL(field.hint);
 
       const cur = node.data[field.key]??field.default;
       const fieldOptions = typeof field.options === "function" ? (field.options(node, this) ?? []) : (field.options ?? []);
+      const optionGroups=new Map();
       for(const o of fieldOptions){
         const oel=document.createElement("option");
         const val = (o && typeof o === "object") ? String(o.value ?? "") : String(o);
@@ -14931,7 +14973,12 @@ export class FormulaGraph {
         oel.value       = val;
         oel.textContent = _NL(lbl);
         if(val === String(cur ?? "")) oel.selected = true;
-        inp.appendChild(oel);
+        const group=(o&&typeof o==="object")?String(o.group??""):"";
+        if(group){
+          let optgroup=optionGroups.get(group);
+          if(!optgroup){optgroup=document.createElement("optgroup");optgroup.label=_NL(group);optionGroups.set(group,optgroup);inp.appendChild(optgroup);}
+          optgroup.appendChild(oel);
+        }else inp.appendChild(oel);
       }
     } else if (field.type === "textarea") {
       inp = document.createElement("textarea");
