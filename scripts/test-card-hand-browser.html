@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Card Hand QA</title>
+<style>
+  body { margin:0; background:#0d1320; color:#edf3ff; font:14px system-ui,sans-serif; }
+  main { max-width:1040px; margin:28px auto; }
+  h1 { font-size:24px; margin:0 0 6px; } p { color:#a4b3c9; }
+  .qa-panel { background:#192235; border:1px solid #344360; border-radius:12px; padding:18px; margin:22px 0; }
+  .qa-panel h2 { margin:0 0 10px; font-size:15px; color:#a6c9fc; }
+  #sd-action-hud.qa-hud { position:static; width:auto; max-width:none; display:block; transform:none; }
+  #sd-action-hud.qa-hud .sd-action-hud-widget { position:relative; width:100%; max-width:none; flex:initial; }
+  #tabs { display:flex; gap:6px; } #tabs i::before { content:'⚙'; }
+  .sd-hand-flip i::before { content:'↻'; } .sd-hand-actions i { display:none; }
+  #scratch { position:fixed; left:-10000px; top:0; width:800px; }
+  #result { color:#8de0b5; white-space:pre-wrap; }
+</style>
+<main class="sd">
+  <h1>Card Hand</h1><p>Крупные карты на листе · Покерный веер в Action HUD</p>
+  <div id="tabs"><a class="sd-tab-btn"><span>Инвентарь</span><button type="button" class="sd-tab-control" data-rename="hand" aria-label="Настройки вкладки"><i></i></button><button type="button" class="sd-tab-control" data-deltab="hand">×</button></a></div>
+  <section class="qa-panel"><h2>Лист персонажа — лента</h2><div id="strip"></div></section>
+  <section class="qa-panel"><h2>Action HUD — Покерный веер</h2><div id="sd-action-hud" class="sd qa-hud"><div id="fan" class="sd-action-hud-widget"></div></div></section>
+  <div id="result">Проверка…</div>
+</main>
+<div id="scratch" class="sd"></div>
+<script type="module">
+  const manifest = await (await fetch('../system.json')).json();
+  await Promise.all(manifest.styles.map(href => new Promise(resolve => {
+    const link = document.createElement('link'); link.rel='stylesheet'; link.href='../'+href; link.onload=resolve; link.onerror=resolve; document.head.append(link);
+  })));
+  document.head.append(document.querySelector('style'));
+  await import('./test-card-hand-browser.mjs');
+</script>

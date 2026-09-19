@@ -1,4 +1,5 @@
 import { valueStoragePath } from "./value-database.mjs";
+import { installLifecycleEvents, isLifecycleGM } from "./lifecycle-events.mjs";
 const HOOK_MAP = {
   updateDocument:        ["updateActor", "updateItem"],
   createDocument:        ["createActor", "createItem"],
@@ -25,7 +26,9 @@ const HOOK_MAP = {
   sdMacroUse:         ["sdMacroUse"],
 
   sdCustomEvent:      ["sdCustomEvent"],
-  sdSheetWidgetEvent: ["sdSheetWidgetEvent"]
+  sdSheetWidgetEvent: ["sdSheetWidgetEvent"],
+  sdSheetOpen:        ["sdSheetOpen"],
+  sdMapLoaded:        ["sdMapLoaded"]
 };
 
 
@@ -197,6 +200,7 @@ class EventBus {
       if (item.actor) this._registerActor(item.actor);
       else            this._unregisterByDocUuid(item.uuid);
     });
+    installLifecycleEvents(this);
   }
 
   _unregisterByActor(actorId) {
@@ -313,7 +317,8 @@ class EventBus {
 
       const outOfSheet = !!ev?.data?.outOfSheet;
 
-      if (isWorldItem && !isQuestGraph && !outOfSheet && eventHook !== "sdSheetWidgetEvent") continue;
+      const lifecycleEvent = eventHook === "sdSheetOpen" || eventHook === "sdMapLoaded";
+      if (isWorldItem && !isQuestGraph && !outOfSheet && eventHook !== "sdSheetWidgetEvent" && !lifecycleEvent) continue;
 
       const validForWorld = (h) => h === "updateItem" || h === "createItem" || h === "deleteItem"
         || h === "createCard" || h === "combatTurnStart" || h === "combatTurnEnd"
@@ -321,6 +326,7 @@ class EventBus {
         || h === "sdMacroUse"
         || h === "sdCustomEvent"
         || h === "sdSheetWidgetEvent"
+        || h === "sdSheetOpen" || h === "sdMapLoaded"
         || QUEST_HOOKS.has(h);
 
       for (const hookName of foundryHooks) {
@@ -358,7 +364,7 @@ class EventBus {
     const map = this._reg.get(hookName);
     if (!map) return;
 
-    for (const entry of map.values()) {
+    for (const entry of [...map.values()]) {
       if (!this._matches(hookName, args, entry)) continue;
       await this._run(entry, args, hookName);
     }
@@ -371,6 +377,16 @@ class EventBus {
     if (!isWorldItemEntry && !actor) return false;
 
     switch (hookName) {
+      case "sdSheetOpen": {
+        const target = String(entry.data?.documentUuid ?? "self").trim() || "self";
+        if (target.toLowerCase() === "self") return entry.docUuid === firstDoc?.documentUuid || entry.docUuid === firstDoc?.sourceUuid;
+        return target === firstDoc?.documentUuid;
+      }
+      case "sdMapLoaded": {
+        if (entry.data?.runFor === "gm" && !isLifecycleGM()) return false;
+        const target = String(entry.data?.sceneFilter || entry.data?.sceneUuid || "").trim();
+        return !target || target === firstDoc?.sceneUuid || target === firstDoc?.sceneId;
+      }
       case "updateActor":
       case "createActor":
       case "deleteActor": {
@@ -564,6 +580,11 @@ class EventBus {
 
     let candidate = null;
     switch (hookName) {
+      case "sdSheetOpen": {
+        const doc = args?.[0]?.document;
+        candidate = doc?.documentName === "Actor" ? doc : doc?.actor;
+        break;
+      }
       case "updateActor":
       case "createActor":
       case "deleteActor":
@@ -728,6 +749,14 @@ class EventBus {
   _buildRuntime(entry, args) {
     const rt = {};
     switch (entry.eventHook) {
+      case "sdSheetOpen":
+      case "sdMapLoaded": {
+        const payload = args[0] ?? {};
+        for (const key of ["documentUuid", "documentName", "documentType", "sceneUuid", "sceneId", "sceneName", "userId"]) {
+          rt[`__lifecycle_${key}`] = String(payload[key] ?? "");
+        }
+        break;
+      }
       case "updateDocument": {
         const [doc, diff] = args;
         const variableId=String(entry.data?.variableId??"")||_changedDatabaseVariableId(diff);
@@ -791,6 +820,9 @@ class EventBus {
       }
       case "sdSheetWidgetEvent": {
         const payload=args[0]??{};
+        for (const [key, value] of Object.entries(payload.cardRuntime ?? {})) {
+          if (key.startsWith("__cardClicked") && ["string", "number", "boolean"].includes(typeof value)) rt[key] = value;
+        }
         rt.__sheetWidgetValue=payload.value??"";
         rt.__sheetWidgetKey=String(payload.widgetKey??"");
         rt.__sheetWidgetId=String(payload.widgetId??"");

@@ -1,3 +1,4 @@
+import { renderCardHand } from "../helpers/card-hand.mjs";
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { buildWidgetMacroScript, encodeMacroScript } from "../helpers/widget-macro.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
@@ -21,6 +22,9 @@ export class WidgetRenderer {
   }
 
   static render(widgetDef, doc, editMode = false, options = {}) {
+
+    // Draw and Pass now belong to Card Hand. Keep saved data for compatibility.
+    if (widgetDef.type === "cardDrawButton") return "";
 
     widgetDef = localizeTree(widgetDef);
     widgetDef = this._resolveDynamicColours(widgetDef, doc);
@@ -761,9 +765,29 @@ export class WidgetRenderer {
     return 0;
   }
 
-  /** Removed widget. Legacy sheets fall back to a plain button until migration runs. */
+  /** Legacy Dice Button data is accepted as an Easy Button. */
   static _render_dice(w, doc) {
-    return this._render_button({ ...w, type: "button", icon: w.icon ?? "fa-dice-d20" }, doc);
+    return this._render_easyButton({ ...w, type: "easyButton", icon: w.icon ?? "fa-dice-d20" }, doc);
+  }
+
+  static _render_easyButton(w, doc) {
+    const e       = this._esc;
+    const accent  = w.btnBg || w.color || "var(--sd-accent)";
+    const fgColor = w.btnFg || accent;
+    const bdColor = w.boxBorder || accent;
+    const iconCol = w.iconColor || fgColor;
+    const iconCls = this._faClass(w.icon ?? "fa-dice-d20");
+    const bg      = w.btnBg ? e(w.btnBg) : `${e(accent)}22`;
+    const formula = String(w.formula ?? w.customFormula ?? "1d20").trim() || "1d20";
+    return `<div class="widget widget-button widget-easy-button">
+  <button type="button" class="sd-action-btn sd-easy-roll-btn" data-action="widgetButton"
+          data-formula-raw="${e(formula)}" data-formula="${e(formula)}"
+          data-flavor="${e(w.flavor ?? w.label ?? "")}" title="${e(formula)}"
+          style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:${bg};border:1px solid ${e(bdColor)};border-radius:5px;color:${e(fgColor)};cursor:pointer;font-size:12px;font-weight:600;transition:background .15s">
+    <i class="${e(iconCls)}" style="color:${e(iconCol)}"></i>
+    <span>${e(w.label)}</span>
+  </button>
+</div>`;
   }
 
   static _render_button(w, doc) {
@@ -2371,114 +2395,7 @@ export class WidgetRenderer {
   }
 
   static _render_cardHand(w, doc) {
-    const e = this._esc;
-    const stack = this._resolveCardsStackSync(w);
-    const lbl = e(w.label ?? "Hand");
-    if (!stack) {
-      return `<div class="widget widget-cardhand">
-        <div class="widget-label">${lbl}</div>
-        <div style="opacity:.6;font-size:11px;padding:6px 0">Stack not found — set <code>sourceName</code> or <code>sourceUuid</code> in widget config.</div>
-      </div>`;
-    }
-    const cards = Array.from(stack.cards ?? []);
-    const visibleLimit = Number(w.maxVisible ?? 0);
-    const shown = visibleLimit > 0 ? cards.slice(0, visibleLimit) : cards;
-    const cardW = Math.max(40, Number(w.cardWidth ?? 96));
-    const layout = ["fan","strip","grid"].includes(w.layout) ? w.layout : "strip";
-    const click = w.clickAction ?? "inspect";
-    const stackUuid = stack.uuid;
-    const stackName = stack.name ?? "";
-    const runOn     = (click === "runGraph")
-      ? (["click","dblclick","rightclick"].includes(w.runGraphOn) ? w.runGraphOn : "click")
-      : "click";
-    const actionGraphRaw = (click === "runGraph") ? (w.actionGraph ?? "") : "";
-
-    const cardEl = (c, i) => {
-      const img = this._cardFaceImg(c);
-      const isBack = c.face === null;
-      const flippedIco = isBack ? "fa-eye" : "fa-eye-slash";
-      const flippedTitle = isBack ? "Flip to face" : "Flip to back";
-      return `
-      <div class="sd-card" data-card-id="${e(c.id)}" data-card-index="${i}"
-           data-stack-uuid="${e(stackUuid)}" data-stack-name="${e(stackName)}"
-           data-card-name="${e(c.name ?? "")}" data-card-face="${e(c.face === null || c.face === undefined ? -1 : c.face)}"
-           data-card-img="${e(img)}"
-           data-action="cardClick"
-           data-click-mode="${e(click)}" data-run-on="${e(runOn)}"
-           data-action-graph="${e(actionGraphRaw)}"
-           style="position:relative;display:inline-block;flex:0 0 ${cardW}px;width:${cardW}px;height:${Math.round(cardW*1.4)}px;border-radius:6px;overflow:hidden;background:#0c0c14;border:1px solid var(--sd-bg-3);box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:${click==='none'?'default':'pointer'};transition:transform .1s">
-        <img src="${e(img)}" alt="${e(c.name ?? "Card")}" loading="lazy"
-             style="width:100%;height:100%;object-fit:cover;display:block;${isBack?'filter:brightness(.85)':''}">
-        <button type="button" class="sd-card-flip" data-action="cardFlip"
-                data-stack-uuid="${e(stackUuid)}" data-card-id="${e(c.id)}"
-                title="${e(flippedTitle)}"
-                style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:1px solid #555;background:rgba(0,0,0,.55);color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
-          <i class="fas ${flippedIco}"></i>
-        </button>
-        <div class="sd-card-name" title="${e(c.name ?? "")}"
-             style="position:absolute;left:0;right:0;bottom:0;padding:2px 4px;background:linear-gradient(transparent,rgba(0,0,0,.85));color:#fff;font-size:10px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e(c.name ?? "")}</div>
-      </div>`;
-    };
-
-    let body = "";
-    if (layout === "fan") {
-      const N = shown.length;
-      body = `<div class="sd-cardhand-fan" style="position:relative;height:${Math.round(cardW*1.6)}px;display:flex;justify-content:center">
-        ${shown.map((c, i) => {
-          const t = N <= 1 ? 0 : (i - (N - 1) / 2);
-          const rot = t * 8;
-          const tx  = t * (cardW * 0.4);
-          const ty  = Math.abs(t) * 4;
-          return `<div style="position:absolute;left:50%;top:0;transform:translateX(calc(-50% + ${tx}px)) translateY(${ty}px) rotate(${rot}deg);transform-origin:bottom center;z-index:${100 + i}">${cardEl(c, i)}</div>`;
-        }).join("")}
-      </div>`;
-    } else if (layout === "grid") {
-      body = `<div class="sd-cardhand-grid" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0">${shown.map(cardEl).join("")}</div>`;
-    } else {
-
-      body = `<div class="sd-cardhand-strip-wrap" style="position:relative;display:flex;align-items:center;gap:6px">
-        <button type="button" class="sd-card-strip-prev" data-action="cardStripScroll" data-dir="-1"
-                style="flex-shrink:0;width:24px;height:36px;background:rgba(20,20,30,.85);border:1px solid var(--sd-bg-3);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:0">
-          <i class="fas fa-chevron-left"></i>
-        </button>
-        <div class="sd-cardhand-strip" style="flex:1;display:flex;gap:6px;overflow-x:auto;scroll-behavior:smooth;padding:4px 2px;scrollbar-width:thin">
-          ${shown.map(cardEl).join("")}
-        </div>
-        <button type="button" class="sd-card-strip-next" data-action="cardStripScroll" data-dir="1"
-                style="flex-shrink:0;width:24px;height:36px;background:rgba(20,20,30,.85);border:1px solid var(--sd-bg-3);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:0">
-          <i class="fas fa-chevron-right"></i>
-        </button>
-      </div>`;
-    }
-
-    const totalCount = stack.cards?.size ?? cards.length;
-    const showCount = w.showCount !== "no";
-    const showActions = w.showActions !== "no";
-
-    const actionBar = !showActions ? "" : `
-      <div class="sd-cardhand-actions" style="display:flex;gap:4px;margin-top:4px">
-        <button type="button" data-action="cardStackShuffle" data-stack-uuid="${e(stackUuid)}" title="Shuffle"
-                style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:3px 8px">
-          <i class="fas fa-shuffle"></i> Shuffle
-        </button>
-        <button type="button" data-action="cardStackRecall" data-stack-uuid="${e(stackUuid)}" title="Recall"
-                style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:3px 8px">
-          <i class="fas fa-arrow-rotate-left"></i> Recall
-        </button>
-        <button type="button" data-action="cardStackFlipAll" data-stack-uuid="${e(stackUuid)}" title="Flip all"
-                style="background:var(--sd-bg);border:1px solid var(--sd-bg-3);border-radius:3px;color:var(--sd-text-2);cursor:pointer;font-size:11px;padding:3px 8px">
-          <i class="fas fa-arrows-rotate"></i> Flip All
-        </button>
-      </div>`;
-
-    return `<div class="widget widget-cardhand">
-      <div class="widget-label" style="display:flex;align-items:center;gap:6px">
-        <span>${lbl}</span>
-        ${showCount ? `<span style="opacity:.55;font-size:11px">${shown.length}${visibleLimit>0&&totalCount>visibleLimit?`/${totalCount}`:""}</span>` : ""}
-      </div>
-      ${body}
-      ${actionBar}
-    </div>`;
+    return renderCardHand(w, this._resolveCardsStackSync(w));
   }
 
   static _render_cardDrawButton(w, doc) {

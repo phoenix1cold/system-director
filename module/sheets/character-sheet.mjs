@@ -1,4 +1,6 @@
+import { wireSheetTabClick } from "../builder/sheet-tab-controls.mjs";
 import { TabManager } from "../helpers/tabs.mjs";
+import { bindCardHands } from "../helpers/card-hand.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { GridManager }    from "../builder/grid-manager.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
@@ -13,6 +15,7 @@ import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { persistWidgetValue } from "../helpers/widget-fields.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "../builder/widget-paths.mjs";
 import { promptWidgetIdentity } from "../builder/widget-identity.mjs";
+import { openEasyButtonWizard } from "../builder/easy-button-wizard.mjs";
 import { getValueDefinition, getValueDefinitions, readDatabaseValue } from "../helpers/value-database.mjs";
 import {
   applySheetStyle, normalizeSheetStyle, sheetStyleFromPreset,
@@ -68,7 +71,7 @@ function _promptTabSettings(current = {}) {
   return new Promise(resolve => {
     const tab = current && typeof current === "object" ? current : {label:String(current ?? "")};
     const read = button => {
-      const root = button?.closest?.("[data-application]") ?? button?.closest?.("dialog") ?? document;
+      const root = button?.form ?? button?.closest?.("form,.application,dialog") ?? document;
       const value = name => root.querySelector(`[name="${name}"]`)?.value?.trim() ?? "";
       return {
         label:value("tabName") || "Tab",
@@ -94,6 +97,7 @@ function _promptTabSettings(current = {}) {
         {action:"save",label:"Save",icon:"fas fa-floppy-disk",default:true,callback:(ev,button)=>resolve(read(button))},
         {action:"cancel",label:"Cancel",icon:"fas fa-xmark",callback:()=>resolve(null)}
       ],
+      close:()=>resolve(null),
       submit:()=>{}
     }).render(true);
   });
@@ -383,15 +387,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const emojiHtml = tab.emoji ? `<span class="sd-tab-emoji">${_sheetEsc(tab.emoji)}</span>` : "";
       a.innerHTML = `${iconHtml}${emojiHtml}<span class="sd-tab-label">${_sheetEsc(tab.label || "Tab")}</span>
         ${this._editMode
-          ? `<span data-rename="${_sheetEsc(tab.id)}" style="opacity:.5;font-size:9px;cursor:pointer" title="Tab settings"><i class="fas fa-gear"></i></span>
-             <span data-deltab="${_sheetEsc(tab.id)}" style="opacity:.5;font-size:9px;cursor:pointer" title="Delete">✕</span>`
+          ? `<button type="button" class="sd-tab-control" data-rename="${_sheetEsc(tab.id)}" title="Tab settings" aria-label="Tab settings"><i class="fas fa-gear" aria-hidden="true"></i></button>
+             <button type="button" class="sd-tab-control" data-deltab="${_sheetEsc(tab.id)}" title="Delete tab" aria-label="Delete tab">✕</button>`
           : ""}`;
 
-      a.addEventListener("click", ev => {
-        if (ev.target.dataset.rename) { ev.stopPropagation(); this._renameTab(tab.id); return; }
-        if (ev.target.dataset.deltab) { ev.stopPropagation(); this._deleteTab(tab.id); return; }
-        this._switchTab(tab.id);
-      });
+    wireSheetTabClick(a, this, tab.id);
 
       a.addEventListener("dragover", ev => {
         ev.preventDefault();
@@ -828,11 +828,12 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     };
     cell._sdEmitWidgetEvent=emitSheetWidgetEvent;
+    bindCardHands(cell, doc, { disabled: () => this._editMode });
     // Capture phase: inner controls (steppers, select pills, rich text, widget
     // builder elements) call stopPropagation, which used to swallow ordinary
     // widget events before the Sheet Blueprint ever saw them.
     cell.addEventListener("click",event=>{
-      if(event.target?.closest?.("[data-action='wbElement']"))return;
+      if(event.target?.closest?.("[data-action='wbElement'],[data-cardhand]"))return;
       // Rank pips are a control of their own: clicking one sets the rank, so it
       // must not also fire the widget's "click" event, which belongs to the
       // value. Pips report as "pip" instead, carrying the rank they represent.
@@ -2282,6 +2283,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       resource:  { label: "Value Meter", pathValue: "", pathMax: "", color: "var(--sd-accent)" },
       dice:      { label: "Roll",     formula: "1d20" },
       button:    { label: "Action",   icon: "fa-bolt", color: "var(--sd-accent)", formula: "", flavor: "" },
+      easyButton:{ label: "Easy Button", icon: "fa-dice-d20", color: "var(--sd-accent)", easyMode: "constructor", customFormula: "1d20", formula: "1d20", diceTerms: [{count:1,sides:20}], variableTerms: [], widgetTerms: [], flavor: "" },
       toggle:    { label: "Toggle",   path: "system.flags.myToggle", onLabel: "On", offLabel: "Off" },
       section:   { label: "Section",  span: 3 },
       vsection:  { label: "",         widgets: [], span: 1 },
@@ -2296,16 +2298,23 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
     const baseDefaults=defaults[widgetType] ?? { label: widgetType };
-    const identity=await promptWidgetIdentity({widgetType,defaultLabel:baseDefaults.label||widgetType,tabs});
-    if(!identity)return;
-    const widget = {
+    let widget = {
       id:   foundry.utils.randomID(8),
       span: 1,
       ...baseDefaults,
-      type: widgetType,
-      label: identity.label,
-      widgetKey: identity.widgetKey
+      type: widgetType
     };
+    if (widgetType === "easyButton" || widgetType === "dice") {
+      widget.type = "easyButton";
+      const configured = await openEasyButtonWizard(widget, this.document, { tabs });
+      if (!configured) return;
+      widget = configured;
+    } else {
+      const identity=await promptWidgetIdentity({widgetType,defaultLabel:baseDefaults.label||widgetType,tabs});
+      if(!identity)return;
+      widget.label=identity.label;
+      widget.widgetKey=identity.widgetKey;
+    }
     if (widgetType === "number") _applyNumberWidgetDefaults(widget);
 
     assignUniqueWidgetDataPaths(widget, this.document, { tabs });

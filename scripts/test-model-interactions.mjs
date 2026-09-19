@@ -1,0 +1,35 @@
+import './test-3d-nodes.mjs';
+import assert from 'node:assert/strict';
+import {NODE_DEFS,FormulaGraph} from '../module/builder/formula-graph.mjs';
+import {registerNodeActionHandler,runNodeActionHandler} from '../module/helpers/node-runtime-api.mjs';
+import {installModelActions} from '../module/three/model-nodes.mjs';
+import {runModelInteraction} from '../module/three/model-events.mjs';
+
+const graph=Object.create(FormulaGraph.prototype);
+graph.nodes=[{id:'event',type:'on_model3d_interaction',data:{viewerId:'model',event:'click',hotspotId:'door'}},{id:'display',type:'model3d_display',data:{backgroundOpacity:0.25,fullscreen:'yes'}}];
+graph.edges=[{fromNode:'event',fromPin:'exec',toNode:'display',toPin:'exec'}];
+const compiled=JSON.parse(graph.compile());
+assert.equal(Object.values(compiled._events)[0].hook,'sdModelInteraction');
+assert.equal(graph._compileValue(graph.nodes[0],new Set(),'hotspotId'),'{__var:__model3d_hotspotId|}');
+const captured=[];
+registerNodeActionHandler('test_point',ctx=>captured.push({id:ctx.runtime.__vars.__model3d_hotspotId,text:ctx.runtime.__model3d_text,actor:ctx.actor, item:ctx.item}));
+const actor={uuid:'Actor.a',documentName:'Actor',system:{}};
+const doc={documentName:'Item',uuid:'Item.i',actor,isOwner:true,flags:{},system:{sdTriggerGraph:{_events:{click:{hook:'sdModelInteraction',data:{viewerId:'model',event:'click',hotspotId:'door'},actions:[{type:'test_point'}]}}}},async update(changes,options){assert.equal(options.sdSkipEventBus,true);const [key,value]=Object.entries(changes)[0];this.flags.sd??={modelHotspots:{}};this.flags.sd.modelHotspots[key.split('.').at(-1)]=value;}};
+await runModelInteraction(doc,{viewerId:'other',event:'click',hotspotId:'door'});
+await runModelInteraction(doc,{viewerId:'model',event:'hover',hotspotId:'door'});
+await runModelInteraction(doc,{viewerId:'model',event:'click',hotspotId:'other'});
+assert.equal(captured.length,0);
+await runModelInteraction(doc,{viewerId:'model',event:'click',hotspotId:'door',text:'Open'});
+assert.deepEqual(captured,[{id:'door',text:'Open',actor,item:doc}]);
+let args;
+const actions=[];
+installModelActions(async()=>({openModelViewer:async value=>{args=value;},getModelViewer:()=>({model:{},setHotspot:v=>actions.push(v),setFullscreen:v=>actions.push(v),setBackgroundOpacity:v=>actions.push(v)})}));
+async function run(type,data={}){const action=NODE_DEFS[type].toAction({id:'source.node',data});const result=await runNodeActionHandler(type,{action,item:doc,actor,resolveValue:v=>typeof v==='string'?JSON.parse(v):v});assert.equal(result.value.success,true,result.value.error);}
+await run('model3d_primitive');
+await args.onSaveHotspots([{id:'door',text:'Saved by user',x:1,y:2,z:3}]);
+await run('model3d_primitive');
+assert.equal(args.hotspots[0].text,'Saved by user');
+await args.onSaveHotspots([]);await run('model3d_primitive');assert.deepEqual(args.hotspots,[],'Deleting every point must persist');
+await run('model3d_hotspot',{hotspotId:'new',x:3});assert.equal(actions[0].hotspotId,'new');
+await run('model3d_display',{fullscreen:'yes',backgroundOpacity:0.2});assert.deepEqual(actions.slice(1),[true,0.2]);
+console.log('PASS: compiled 3D events, filter/context, point save/reopen/delete, hotspot and display actions');

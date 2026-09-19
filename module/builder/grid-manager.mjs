@@ -1,5 +1,6 @@
 import { createWidget } from "./widget-registry.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
+import { openEasyButtonWizard } from "./easy-button-wizard.mjs";
 
 export class GridManager {
 
@@ -103,7 +104,12 @@ export class GridManager {
     if (!tab) return;
     const row = tab.rows.find(r => r.id === rowId);
     if (!row) return;
-    const widget  = createWidget(widgetType, overrides);
+    let widget  = createWidget(widgetType, overrides);
+    if (widgetType === "easyButton") {
+      const configured = await openEasyButtonWizard(widget, doc, { tabs });
+      if (!configured) return null;
+      widget = configured;
+    }
     assignUniqueWidgetDataPaths(widget, doc, { tabs });
     row.widgets.push(widget);
     await doc.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(doc, tabs) });

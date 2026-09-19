@@ -1,4 +1,4 @@
-.sd-model-viewer { display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; height:100%; background:#182131; color:#e4eaf4; }
+.sd-model-viewer { display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; height:100%; background:transparent; color:#e4eaf4; }
 .sd-model-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px; background:#202b3d; }
 .sd-model-toolbar button, .sd-model-toolbar select { width:auto; height:30px; margin:0; padding:2px 10px; color:#e4eaf4; background:#2d3b51; border:1px solid #52647e; border-radius:4px; font:inherit; }
 .sd-model-toolbar button[aria-pressed="true"] { background:#275e87; border-color:#68b9ed; }
@@ -8,3 +8,17 @@
 .sd-model-viewport canvas { display:block; touch-action:none; }
 .sd-model-status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:24px; text-align:center; pointer-events:none; }
 .sd-model-hint { padding:7px 12px; font-size:12px; color:#afbed3; background:#202b3d; }
+.sd-model-window,.sd-model-window .window-content,.sd-model-window .sd-foundry-window-slot { background:transparent !important; background-image:none !important; }
+.sd-model-fullscreen { position:fixed; inset:0; width:100vw; height:100vh; z-index:2147483600; }
+.sd-model-toolbar label { display:flex; align-items:center; gap:6px; font-size:12px; }
+.sd-model-toolbar input[type=range] { width:100px; }
+.sd-model-toolbar input:not([type=range]) { width:130px; height:30px; padding:3px 6px; background:#172235; color:white; border:1px solid #52647e; border-radius:4px; }
+.sd-model-tooltip { position:absolute; z-index:3; max-width:min(280px,90%); padding:9px 12px; border-radius:6px; background:#111a2bf2; color:white; border:1px solid #769ec7; white-space:pre-wrap; overflow-wrap:anywhere; pointer-events:none; }
+.sd-model-points { position:absolute; inset:0; pointer-events:none; }
+.sd-model-point { position:absolute; transform:translate(-50%,-50%); pointer-events:auto; width:28px; height:28px; margin:0; padding:0; border-radius:50%; border:2px solid white; color:#fff; background:#177e9e; box-shadow:0 2px 8px #0009; cursor:pointer; }
+.sd-model-point:focus-visible { outline:3px solid #ffc56d; }
+.sd-model-viewer [hidden] { display:none !important; }
+.sd-model-export { width:100%; height:110px; flex:none; background:#142036; color:#e5edf9; font:12px monospace; }
+.sd-model-point-editor { width:100%; font-size:12px; }
+.sd-model-point-editor summary { cursor:pointer; padding:5px 0; }
+.sd-model-point-editor > div { display:flex; flex-wrap:wrap; gap:6px; padding:6px 0; }

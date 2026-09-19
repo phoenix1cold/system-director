@@ -1,3 +1,4 @@
+import "./module/helpers/editor-controls.mjs";
 function _sanitizeRollData(data) {
   return Object.fromEntries(
     Object.entries(data ?? {}).map(([k, v]) =>
@@ -42,6 +43,8 @@ import { migrateDocumentDatabaseValues } from "./module/helpers/value-database.m
 import { SharedDatabaseApp, registerSharedDatabaseSettings } from "./module/helpers/shared-database.mjs";
 import "./module/helpers/data-asset-nodes.mjs";
 import "./module/three/model-nodes.mjs";
+import "./module/builder/lifecycle-nodes.mjs";
+import "./module/builder/music-nodes.mjs";
 import { initWidgetNodes } from "./module/builder/widget-nodes.mjs";
 import { initStyleNodes } from "./module/builder/style-nodes.mjs";
 import { sheetStyleFromPreset } from "./module/helpers/sheet-style.mjs";

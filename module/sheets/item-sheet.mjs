@@ -1,3 +1,5 @@
+import { wireSheetTabClick } from "../builder/sheet-tab-controls.mjs";
+import { bindCardHands } from "../helpers/card-hand.mjs";
 import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { decodeMacroScript } from "../helpers/widget-macro.mjs";
@@ -11,6 +13,7 @@ import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 import { persistWidgetValue } from "../helpers/widget-fields.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "../builder/widget-paths.mjs";
 import { promptWidgetIdentity } from "../builder/widget-identity.mjs";
+import { openEasyButtonWizard } from "../builder/easy-button-wizard.mjs";
 import { getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
@@ -64,7 +67,7 @@ function _promptTabName(current = "") {
   return new Promise(resolve => {
     const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
     const readInput = btn => {
-      const r = btn?.closest?.("[data-application]") ?? btn?.closest?.("dialog") ?? document;
+      const r = btn?.form ?? btn?.closest?.("form,.application,dialog") ?? document;
       return r.querySelector("input[name='tabName']")?.value?.trim() || null;
     };
     new foundry.applications.api.DialogV2({
@@ -77,6 +80,7 @@ function _promptTabName(current = "") {
         { action:"cancel", label:"Cancel", icon:"fas fa-xmark",
           callback:()=>resolve(null) }
       ],
+      close: () => resolve(null),
       submit: () => {}
     }).render(true);
   });
@@ -284,13 +288,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     a.innerHTML     = labelHTML;
     a.style.cssText = `padding:4px ${isSys?"9":"10"}px;font-size:${isSys?"10":"11"}px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid ${isActive?"var(--sd-border)":"transparent"};border-bottom:none;color:${isActive?(isSys?"var(--sd-stamina)":"var(--sd-accent)"):(isSys?"#444":"#666")};background:${isActive?"var(--sd-bg)":"transparent"};display:inline-flex;align-items:center;gap:2px;white-space:nowrap;user-select:none;`;
     if (this._editMode && !isSys) {
-      a.innerHTML += ` <span data-rename="${tabId}" style="opacity:.3;font-size:9px;cursor:pointer" title="Rename">✎</span><span data-deltab="${tabId}" style="opacity:.3;font-size:9px;cursor:pointer" title="Delete">✕</span>`;
+      a.innerHTML += ` <button type="button" class="sd-tab-control" data-rename="${tabId}" title="Tab settings" aria-label="Tab settings"><i class="fas fa-gear" aria-hidden="true"></i></button><button type="button" class="sd-tab-control" data-deltab="${tabId}" title="Delete tab" aria-label="Delete tab">✕</button>`;
     }
-    a.addEventListener("click", ev => {
-      if (ev.target.dataset.rename) { ev.stopPropagation(); this._renameTab(tabId); return; }
-      if (ev.target.dataset.deltab) { ev.stopPropagation(); this._deleteTab(tabId); return; }
-      this._switchTab(tabId);
-    });
+    wireSheetTabClick(a, this, tabId);
     if (!isSys) {
       a.addEventListener("dragover", ev => {
         ev.preventDefault();
@@ -431,6 +431,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
   _wireSheetWidgetEvents(cell,w) {
     const doc=this.document;
+    bindCardHands(cell, doc, { disabled: () => this._editMode });
     const emit=(eventName,sourceEvent=null,detail={})=>{
       if(this._editMode)return;
       const target=sourceEvent?.target??null;
@@ -458,7 +459,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     // Capture phase: inner controls (steppers, pills, rich text, widget builder
     // elements) call stopPropagation, which used to swallow widget events.
     cell.addEventListener("click",event=>{
-      if(event.target?.closest?.("[data-action='wbElement']"))return;
+      if(event.target?.closest?.("[data-action='wbElement'],[data-cardhand]"))return;
       // Rank pips set the rank themselves; they report as "pip" so the widget's
       // "click" event stays tied to the value.
       const pip=event.target?.closest?.(".skill-pip[data-rank]");
@@ -3005,12 +3006,21 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   async _addWidget(tabId, rowId, widgetType, parentVsId = null) {
-    const itemValue=getValueDefinitions("item")[0]?.id??""; const defaults={ text:{label:"Text",path:itemValue}, number:{label:"Number",path:itemValue}, resource:{label:"Value Meter",pathValue:itemValue,pathMax:"",color:"var(--sd-accent)"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"var(--sd-accent)",formula:"",flavor:""}, toggle:{label:"Toggle",path:itemValue,onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:itemValue,span:3}, attribute:{label:"Number",path:itemValue}, skill:{label:"Number",path:itemValue}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
+    const itemValue=getValueDefinitions("item")[0]?.id??""; const defaults={ text:{label:"Text",path:itemValue}, number:{label:"Number",path:itemValue}, resource:{label:"Value Meter",pathValue:itemValue,pathMax:"",color:"var(--sd-accent)"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"var(--sd-accent)",formula:"",flavor:""}, easyButton:{label:"Easy Button",icon:"fa-dice-d20",color:"var(--sd-accent)",easyMode:"constructor",customFormula:"1d20",formula:"1d20",diceTerms:[{count:1,sides:20}],variableTerms:[],widgetTerms:[],flavor:""}, toggle:{label:"Toggle",path:itemValue,onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:itemValue,span:3}, attribute:{label:"Number",path:itemValue}, skill:{label:"Number",path:itemValue}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(!tab) return;
     const baseDefaults=defaults[widgetType]??{label:widgetType};
-    const identity=await promptWidgetIdentity({widgetType,defaultLabel:baseDefaults.label||widgetType,tabs});
-    if(!identity)return;
-    const widget={id:foundry.utils.randomID(8),span:1,...baseDefaults,type:widgetType,label:identity.label,widgetKey:identity.widgetKey};
+    let widget={id:foundry.utils.randomID(8),span:1,...baseDefaults,type:widgetType};
+    if (widgetType === "easyButton" || widgetType === "dice") {
+      widget.type = "easyButton";
+      const configured = await openEasyButtonWizard(widget, this.document, { tabs });
+      if (!configured) return;
+      widget = configured;
+    } else {
+      const identity=await promptWidgetIdentity({widgetType,defaultLabel:baseDefaults.label||widgetType,tabs});
+      if(!identity)return;
+      widget.label=identity.label;
+      widget.widgetKey=identity.widgetKey;
+    }
     if (widgetType === "number") _applyNumberWidgetDefaults(widget);
     assignUniqueWidgetDataPaths(widget, this.document, { tabs });
     if (rowId) {

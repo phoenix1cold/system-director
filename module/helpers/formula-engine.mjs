@@ -216,7 +216,7 @@ export class FormulaEngine {
 
     // Action / decoration widgets produce no value output: the
     // system.widgetFields.<key>.value field does not exist for them.
-    if (t === "button" || t === "cardDrawButton" || t === "section" || t === "vsection" || t === "widgetBuilder") return undefined;
+    if (t === "button" || t === "easyButton" || t === "cardDrawButton" || t === "section" || t === "vsection" || t === "widgetBuilder") return undefined;
 
     if (t === "derived" || t === "calc" || t === "computed") {
       // No Blueprint formula: the widget reads its own Value variable, so it

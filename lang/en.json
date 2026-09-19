@@ -2121,5 +2121,6 @@
   "SDUI.Prop.Limit": "Item limit",
   "SDUI.Prop.VisibilityMode": "When hidden",
   "SDUI.Editor.SelectComponent": "Select component…",
-  "SDUI.Editor.InvalidJSON": "Component inputs must be valid JSON."
+  "SDUI.Editor.InvalidJSON": "Component inputs must be valid JSON.",
+  "SD.WidgetVariants.cardHand.poker-fan": "Poker Fan"
 }

@@ -1,4 +1,5 @@
 import { WidgetRenderer }  from "../builder/widget-renderer.mjs";
+import { bindCardHands } from "./card-hand.mjs";
 import { WIDGET_VARIANTS } from "../builder/widget-registry.mjs";
 import { FormulaEngine }   from "./formula-engine.mjs";
 import { ButtonExecutor }  from "./button-executor.mjs";
@@ -157,6 +158,9 @@ export function registerActionHudSettings() {
 }
 
 export function mountActionHudHooks() {
+  for (const hook of ["updateCards", "createCard", "updateCard", "deleteCard"]) {
+    Hooks.on(hook, () => SDActionHUD.refresh());
+  }
   // Follow the display language immediately instead of waiting for a reload.
   Hooks.on("sdLanguageChanged", () => { try { SDActionHUD.refresh(); } catch(_) {} });
   Hooks.on("controlToken", (token, controlled) => {
@@ -222,6 +226,7 @@ function findActorWidgetByKey(actor, key) {
 }
 
 function wireHudWidget(cell, widgetDef, actor) {
+  bindCardHands(cell, actor, { disabled: () => !!SDActionHUD._builderMode });
   const _readPath = (path) => {
     if (!path) return undefined;
     const HF = "system.hiddenFields.";
@@ -278,7 +283,7 @@ function wireHudWidget(cell, widgetDef, actor) {
   // Capture phase: HUD controls call stopPropagation, which would otherwise
   // swallow the interaction before the graph ever sees it.
   cell.addEventListener("click", (event) => {
-    if (event.target?.closest?.("[data-action='wbElement']")) return;
+    if (event.target?.closest?.("[data-action='wbElement'],[data-cardhand]")) return;
     // Builder chrome (configure/duplicate/span/delete) is not a game event.
     if (event.target?.closest?.("[data-action='wcfg'], [data-action='wdup'], [data-action='wspan'], [data-action='wdel']")) return;
     emitHudWidgetEvent("click", event);

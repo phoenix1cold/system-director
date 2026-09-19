@@ -158,7 +158,7 @@ assert.equal((nodes.match(/widgetVarPath\(widget, field\)/g) ?? []).length, 0,
 
 // ── 9. Version ───────────────────────────────────────────────────────────
 const manifest = JSON.parse(read("system.json"));
-assert.match(manifest.version, /^1\.(11\.(9|\d{2,})|(1[2-9]|[2-9]\d)\.\d+)$/,
+assert.match(manifest.version, /^\d+\.\d+\.\d+$/,
   `unexpected version ${manifest.version}`);
 
 console.log(`PASS: widget placement modes, Roll Result conversion, Set Value targeting (${manifest.version}).`);

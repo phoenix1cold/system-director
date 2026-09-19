@@ -659,8 +659,8 @@ export function BuilderMixin(Base) {
             style="padding:7px 12px;font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;
                    border:1px solid var(--sd-accent);background:var(--sd-bg-4);color:var(--sd-accent);display:flex;align-items:center;gap:6px;
                    transition:background .15s"
-            title="Configure all settings visually via the node graph editor">
-            🔷 Configure via Graph
+            title="Open Sheet Blueprint">
+            🔷 Sheet Blueprint
           </button>
           <div style="display:flex;gap:8px">
             <button type="button" class="btn btn-cancel" id="popup-cancel" style="padding:8px 16px;font-size:12px;font-weight:600;border-radius:4px;cursor:pointer;border:1px solid var(--sd-border);background:var(--sd-bg-3);color:var(--sd-text-2)">
@@ -703,19 +703,7 @@ export function BuilderMixin(Base) {
         popup.querySelector("#popup-graph")?.addEventListener("click", async () => {
           closePopup();
           resolve(null);
-          const tabs   = GridManager.getTabs(this.document);
-          const tab    = tabs.find(t => t.id === tabId);
-          const row    = tab?.rows.find(r => r.id === rowId);
-          const widget = row?.widgets.find(w => w.id === widgetId);
-          if (!widget) return;
-          const graph = new FormulaGraph(
-            null,
-            this.document,
-            widget,
-            { tab, row, w: widget, doc: this.document },
-            null,
-            { mode: "config" }
-          );
+          const graph = new FormulaGraph(null, this.document, null, null, null, { mode: "sheetTrigger" });
           const origClose = graph.close.bind(graph);
           graph.close = (...args) => {
             origClose(...args);

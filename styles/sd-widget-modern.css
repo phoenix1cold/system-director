@@ -533,6 +533,16 @@
 .sd-w-button.sd-v-rune { --sd-visual-variant: "button-rune"; }
 .sd-w-button.sd-v-neon { --sd-visual-variant: "button-neon"; }
 .sd-w-button.sd-v-menu { --sd-visual-variant: "button-menu"; }
+.sd-w-easybutton.sd-v-default { --sd-visual-variant: "easy-button-default"; }
+.sd-w-easybutton.sd-v-pill { --sd-visual-variant: "easy-button-pill"; }
+.sd-w-easybutton.sd-v-outline { --sd-visual-variant: "easy-button-outline"; }
+.sd-w-easybutton.sd-v-raised { --sd-visual-variant: "easy-button-raised"; }
+.sd-w-cardhand.sd-v-poker-fan { --sd-visual-variant: "card-hand-poker-fan"; }
+.sd-w-easybutton .sd-action-btn:hover { filter:brightness(1.13);transform:translateY(-1px); }
+.sd-w-easybutton .sd-action-btn:active { transform:translateY(0); }
+.sd-w-easybutton.sd-v-pill .sd-action-btn { border-radius:999px!important; }
+.sd-w-easybutton.sd-v-outline .sd-action-btn { background:transparent!important;border-width:2px!important; }
+.sd-w-easybutton.sd-v-raised .sd-action-btn { box-shadow:0 5px 14px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.12)!important; }
 .sd-w-toggle.sd-v-default { --sd-visual-variant: "toggle-default"; }
 .sd-w-toggle.sd-v-checkbox { --sd-visual-variant: "toggle-checkbox"; }
 .sd-w-toggle.sd-v-pill { --sd-visual-variant: "toggle-pill"; }

@@ -7,7 +7,10 @@
     "Real GLB decoding and native window close cleanup",
     "Malformed files, cancellation during loading and late response cleanup",
     "All four built-in primitives render and close",
-    "Playwright mouse drag orbits camera; mouse wheel zooms"
-  ],
-  "pageErrors": []
+    "User places, edits, saves and removes points using real pointer clicks",
+    "Hover tooltip and point click events",
+    "Full-screen toggle and Escape restore original window",
+    "Orbit drag does not trigger click",
+    "WebGL background alpha"
+  ]
 }

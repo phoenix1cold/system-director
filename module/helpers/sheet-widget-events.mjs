@@ -81,6 +81,7 @@ export function matchesSheetWidgetEvent(data, payload) {
 
 function buildRuntime(doc, payload) {
   return {
+    ...Object.fromEntries(Object.entries(payload?.cardRuntime ?? {}).filter(([key, value]) => key.startsWith("__cardClicked") && ["string", "number", "boolean"].includes(typeof value))),
     __sheetWidgetValue: payload?.value ?? "",
     __sheetWidgetKey: String(payload?.widgetKey ?? ""),
     __sheetWidgetId: String(payload?.widgetId ?? ""),
@@ -122,8 +123,9 @@ export async function runSheetWidgetGraph(doc, payload = {}) {
       __macros: entry.macros
     };
     try {
+      const executionRuntime = { ...runtime };
       for (const action of entry.actions) {
-        await ButtonExecutor._runAction(action, itemCtx, actor, btnDef, { ...runtime });
+        await ButtonExecutor._runAction(action, itemCtx, actor, btnDef, executionRuntime);
       }
       fired += 1;
     } catch (error) {

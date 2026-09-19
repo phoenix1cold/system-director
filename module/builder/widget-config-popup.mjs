@@ -76,11 +76,9 @@ const FIELD_DEFS = {
     ["Cards stack name","sourceName","text"],
     ["…or Cards UUID","sourceUuid","text"],
     ["Layout","layout","select",["fan","strip","grid"]],
-    ["Click on card","clickAction","select",["inspect","play","discard","flip","runGraph","none"]],
-    ["Run graph on (when clickAction=runGraph)","runGraphOn","select",["click","dblclick","rightclick"]],
-    ["Action graph (when clickAction=runGraph)","actionGraph","actionGraph"],
+    ["Click on card","clickAction","select",["inspect","play","discard","flip","blueprint","none"]],
     ["Show count","showCount","select",["yes","no"]],
-    ["Show actions bar (Shuffle/Recall/Flip All)","showActions","select",["yes","no"]],
+    ["Show actions bar (Draw/Pass/Shuffle/Recall/Flip All)","showActions","select",["yes","no"]],
     ["Card width (px)","cardWidth","number"],
     ["Max visible (0 = all)","maxVisible","number"]
   ],
@@ -127,6 +125,7 @@ const STYLE_DEFS = {
   resource:  [["Width (px)","boxW","style-px"],["Bar height (px)","barH","style-px"],["Fill color","color","style-color"],["Track color","barTrack","style-color"],["Background","boxBg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"]],
   dice:      [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Button border","btnBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Icon color","iconColor","style-color"]],
   button:    [["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Icon color","iconColor","style-color"]],
+  easyButton:[["Width (px)","boxW","style-px"],["Height (px)","boxH","style-px"],["Button background","btnBg","style-color"],["Text color","btnFg","style-color"],["Border","boxBorder","style-color"],["Border radius (px)","boxRadius","style-px"],["Icon color","iconColor","style-color"]],
   toggle:    [["Width (px)","boxW","style-px"],["On color","onColor","style-color"],["Off color","offColor","style-color"],["Border radius (px)","boxRadius","style-px"]],
   section:   [["Line color","lineColor","style-color"],["Title color","titleColor","style-color"],["Thickness (px)","lineThickness","style-px"]],
   vsection:  [["Border color","boxBorder","style-color"],["Background","boxBg","style-color"],["Title color","titleColor","style-color"],["Border radius (px)","boxRadius","style-px"]],
@@ -243,7 +242,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   }
 
   const _resourceMode = w.type === "resource" && w.resourceMode === "node" ? "node" : "classic";
-  let _typeFields = FIELD_DEFS[w.type] ?? [["Label","label"]];
+  let _typeFields = (FIELD_DEFS[w.type] ?? [["Label","label"]]).filter(f => !["actionGraph", "graph", "nodeGraph"].includes(f[2]) && !["graphData", "actionGraph", "runGraphOn", "nodeGraph", "ownGraph"].includes(f[1]));
   // Number is single-mode: it always shows Variable + Min / Max / Step.
   if (w.type === "resource" && _resourceMode === "node") {
     _typeFields = _typeFields.filter(f => Array.isArray(f) && f[1] !== "pathMax");
@@ -430,7 +429,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const translated = game.i18n?.localize?.(lbl);
       if (translated && translated !== lbl) lbl = translated;
     } catch {}
-    let cur = w[key] ?? ""; if (Array.isArray(cur) && type !== "select") cur = cur.join(", ");
+    let cur = w[key] ?? ""; if (key === "clickAction" && cur === "runGraph") cur = "blueprint"; if (Array.isArray(cur) && type !== "select") cur = cur.join(", ");
     const isPF = type === "path" || type === "formula";
     const hint = FIELD_HINTS[key] ?? FIELD_HINTS[type] ?? "";
     const noteColor = type === "formula" ? "var(--sd-accent-2)" : type === "path" ? "var(--sd-mp)" : "";
@@ -498,6 +497,26 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         ${hint ? `<div style="font-size:10px;color:var(--sd-text-3);margin-bottom:3px;line-height:1.4">${esc(hint)}</div>` : ""}
         <select multiple data-field="${esc(key)}" data-ftype="dbvarlist" size="${Math.min(6, Math.max(3, defs.length || 3))}" style="${IS};height:auto">${options || `<option value="" disabled>No Database variables yet</option>`}</select>
         <div style="font-size:9px;color:var(--sd-text-3);margin-top:4px;line-height:1.4">Ctrl / Cmd + click to select several. ${defs.length ? "Each selected variable becomes a column." : "Create variables in the Database window first."}</div>
+      </div>`;
+    }
+
+    if (type === "easybutton") {
+      const diceCount = Array.isArray(w.diceTerms) ? w.diceTerms.length : 0;
+      const modifierCount = (Array.isArray(w.variableTerms) ? w.variableTerms.length : 0)
+        + (Array.isArray(w.widgetTerms) ? w.widgetTerms.length : 0);
+      return `
+      <div class="wcfg-f wcfg-easy-button-block" style="margin-bottom:10px;padding:10px;border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg-2)">
+        <label class="wcfg-lbl">${esc(lbl)}</label>
+        <div style="font-size:10px;color:var(--sd-text-3);margin:3px 0 8px;line-height:1.45">Edit the custom formula or rebuild the roll from any number of dice, Database variables and widget values.</div>
+        <div class="wcfg-easy-summary" style="padding:7px 9px;margin-bottom:8px;border-radius:4px;background:var(--sd-bg);font:11px 'Courier New',monospace;color:var(--sd-accent-2);overflow:auto;white-space:nowrap">${esc(w.formula ?? w.customFormula ?? "1d20")}</div>
+        <div class="wcfg-easy-meta" style="font-size:9px;color:var(--sd-text-3);margin-bottom:8px">${w.easyMode === "formula" ? "Custom Formula" : `Constructor · ${diceCount} dice group${diceCount === 1 ? "" : "s"} · ${modifierCount} modifier${modifierCount === 1 ? "" : "s"}`}</div>
+        <button type="button" data-open-easy-button style="width:100%;padding:7px 10px;border:1px solid var(--sd-accent);border-radius:5px;background:color-mix(in srgb,var(--sd-accent) 14%,var(--sd-bg));color:var(--sd-accent);cursor:pointer;font-weight:700"><i class="fas fa-dice-d20"></i> OPEN EASY BUTTON CONSTRUCTOR</button>
+        <input type="hidden" data-easy-field="easyMode" data-field="easyMode" data-ftype="text" value="${esc(w.easyMode ?? "constructor")}">
+        <input type="hidden" data-easy-field="customFormula" data-field="customFormula" data-ftype="text" value="${esc(w.customFormula ?? w.formula ?? "1d20")}">
+        <input type="hidden" data-easy-field="formula" data-field="formula" data-ftype="text" value="${esc(w.formula ?? "1d20")}">
+        <input type="hidden" data-easy-field="diceTerms" data-field="diceTerms" data-ftype="json" value="${esc(JSON.stringify(w.diceTerms ?? [{count:1,sides:20}]))}">
+        <input type="hidden" data-easy-field="variableTerms" data-field="variableTerms" data-ftype="json" value="${esc(JSON.stringify(w.variableTerms ?? []))}">
+        <input type="hidden" data-easy-field="widgetTerms" data-field="widgetTerms" data-ftype="json" value="${esc(JSON.stringify(w.widgetTerms ?? []))}">
       </div>`;
     }
 
@@ -590,28 +609,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         </div>
         <div style="font-size:9px;color:var(--sd-text-3);margin-top:3px;line-height:1.4">
           Drag a ${esc(allow)} from a sidebar / compendium directly onto this field, or paste its UUID.
-        </div>
-      </div>`;
-    }
-
-    if (type === "actionGraph") {
-      const hasGraph = !!(w.graphData && Array.isArray(w.graphData.nodes) && w.graphData.nodes.length);
-      const status = hasGraph
-        ? `<span style="color:var(--sd-success);font-size:10px">graph: ${w.graphData.nodes.length} node${w.graphData.nodes.length===1?"":"s"}</span>`
-        : `<span style="color:var(--sd-text-2);font-size:10px;font-style:italic">no graph yet</span>`;
-      return `
-      <div class="wcfg-f" style="margin-bottom:10px">
-        <label class="wcfg-lbl">
-          ${esc(lbl)}
-          <span style="background:var(--sd-accent-2);color:var(--sd-accent-text,#fff);font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">action</span>
-        </label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button type="button" data-open-action-graph="${esc(key)}"
-            style="background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:5px 10px;line-height:1;transition:background .15s">
-            🔷 Edit Action Graph
-          </button>
-          ${status}
-          <input type="hidden" data-field="${esc(key)}" data-ftype="text" value="${esc(cur ?? "")}">
         </div>
       </div>`;
     }
@@ -764,7 +761,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     popup.style.zIndex = String(++_wcfgZTop);
   }, true);
 
-  const ICON_MAP = { text:"fa-font", number:"fa-hashtag", resource:"fa-heart-pulse", dice:"fa-dice-d20", button:"fa-square-bolt", toggle:"fa-toggle-on", section:"fa-minus", richtext:"fa-align-left", attribute:"fa-chart-bar", skill:"fa-list-check", slot:"fa-layer-group", inventory:"fa-backpack", effects:"fa-sparkles", spellbook:"fa-book-sparkles" };
+  const ICON_MAP = { text:"fa-font", number:"fa-hashtag", resource:"fa-heart-pulse", dice:"fa-dice-d20", easyButton:"fa-dice-d20", button:"fa-square-bolt", toggle:"fa-toggle-on", section:"fa-minus", richtext:"fa-align-left", attribute:"fa-chart-bar", skill:"fa-list-check", slot:"fa-layer-group", inventory:"fa-backpack", effects:"fa-sparkles", spellbook:"fa-book-sparkles" };
 
   popup.innerHTML = `
     <!-- Header -->
@@ -852,7 +849,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     if (!panel) return;
     const wKey = String(w.widgetKey ?? "").trim() || String(w.label ?? "").trim();
     const refs = [];
-    const _noValTypes = ["button", "cardDrawButton", "section", "vsection", "widgetBuilder"];
+    const _noValTypes = ["button", "easyButton", "cardDrawButton", "section", "vsection", "widgetBuilder"];
     const _hasValue = !_noValTypes.includes(String(w.type ?? "")) || (w.valueFormula !== undefined && String(w.valueFormula ?? "").trim() !== "");
     if (wKey && _hasValue) {
       refs.push(["Value token", "{widget:" + wKey + "}"]);
@@ -1211,7 +1208,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     const wbCanvasWrap = popup.querySelector("#wcfg-wb-canvas-wrap");
     const wbCanvasEl = popup.querySelector("#wcfg-wb-canvas");
     const embeddedTypes = Object.values(WIDGET_TYPES)
-      .filter(def => def?.id && !["widgetBuilder", "vsection"].includes(def.id))
+      .filter(def => def?.id && !["widgetBuilder", "vsection", "cardDrawButton"].includes(def.id))
       .sort((a, b) => String(a.label ?? a.id).localeCompare(String(b.label ?? b.id)));
     const readNumField = (key, fallback) => {
       const raw = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`)?.value;
@@ -1399,22 +1396,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       });
     };
 
-    const openElementGraph = (idx, kind) => {
-      const nm = String(wbEls[idx]?.name ?? "").trim();
-      if (!nm) { ui.notifications?.warn?.("Give the element a name first"); return; }
-      if (!w.graphData || !Array.isArray(w.graphData.nodes)) w.graphData = { nodes: [], edges: [], comments: [] };
-      const nodeType = kind === "value" ? "widget_output" : "custom_event";
-      const nodeName = kind === "value" ? nm : "On Click " + nm;
-      const exists = w.graphData.nodes.some(n2 => n2?.type === nodeType && String(n2?.data?.name ?? "").trim() === nodeName);
-      if (!exists) {
-        const maxId = Math.max(0, ...w.graphData.nodes.map(n2 => parseInt(String(n2?.id ?? "").replace(/[^0-9]/g, "")) || 0));
-        w.graphData.nodes.push({ id: String(maxId + 1), type: nodeType, x: kind === "value" ? 460 : 80, y: 80 + (w.graphData.nodes.length % 6) * 140, data: { name: nodeName } });
-      }
-      const formulaInp = popup.querySelector('input[data-field="formula"]');
-      const graph = new FormulaGraph(formulaInp, doc, w, { tab, row, w, doc });
-      graph.open();
-    };
-
     const wbRender = () => {
       wbSync();
       renderLayers();
@@ -1456,7 +1437,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
           </div>
           <div style="display:flex;gap:5px;align-items:center;margin-bottom:5px">
             <input type="text" class="wb-formula" value="${esc(String(el2.formula ?? ""))}" placeholder="Value formula" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:10px;padding:4px 7px;flex:1;min-width:0;font-family:'Courier New',monospace">
-            ${String(el2.kind) === "value" ? `<button type="button" class="wb-vout wb-layer-btn" title="Create value output"><i class="fas fa-circle-nodes"></i></button>` : ""}
           </div>
           <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:5px">
             ${[["wb-x","x","X"],["wb-y","y","Y"],["wb-w","w","W"],["wb-h","h","H"],["wb-size","size","Font"],["wb-z","z","Layer"]].map(([cls,key2,ph]) => `<input type="number" class="${cls}" value="${esc(String(el2[key2] ?? ""))}" placeholder="${ph}" title="${ph}" style="background:var(--sd-bg-4);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:3px 4px;width:100%">`).join("")}
@@ -1465,7 +1445,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
             <label class="wb-mini-check"><input type="checkbox" class="wb-click" ${el2.clickable ? "checked" : ""}> Clickable</label>
             <label class="wb-mini-check"><input type="checkbox" class="wb-locked" ${el2.locked ? "checked" : ""}> Locked</label>
             <label class="wb-mini-check"><input type="checkbox" class="wb-hidden" ${el2.hidden ? "checked" : ""}> Hidden</label>
-            <button type="button" class="wb-event" ${el2.clickable && name.trim() ? "" : "disabled"} style="margin-left:auto;background:var(--sd-bg-4);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:10px;padding:3px 8px;opacity:${el2.clickable && name.trim() ? "1" : ".4"}"><i class="fas fa-bolt"></i> On Click</button>
           </div>`;
 
         const upd = (cls, keyName, isCheck = false) => {
@@ -1492,9 +1471,16 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
           }
           wbRender();
         });
-        row2.querySelector(".wb-widget-type")?.addEventListener("change", ev2 => {
+        row2.querySelector(".wb-widget-type")?.addEventListener("change", async ev2 => {
           const oldLabel = wbEls[idx].widget?.label || wbEls[idx].label || "";
-          wbEls[idx].widget = assignUniqueWidgetDataPaths(createWidget(ev2.target.value, oldLabel ? { label: oldLabel } : {}), doc, { additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
+          let nested = createWidget(ev2.target.value, oldLabel ? { label: oldLabel } : {});
+          if (ev2.target.value === "easyButton") {
+            const { openEasyButtonWizard } = await import("./easy-button-wizard.mjs");
+            const configured = await openEasyButtonWizard(nested, doc, { tabs: doc?.system?.customTabs ?? [], additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
+            if (!configured) { wbRender(); return; }
+            nested = configured;
+          }
+          wbEls[idx].widget = assignUniqueWidgetDataPaths(nested, doc, { additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
           wbRender();
         });
         row2.querySelector(".wb-widget-config")?.addEventListener("click", async () => {
@@ -1510,8 +1496,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
           new FP({ type: "image", current: String(wbEls[idx].img ?? ""), callback: src => { wbEls[idx].img = src || ""; wbRender(); } }).render(true);
         });
         row2.querySelector(".wb-del")?.addEventListener("click", () => { wbEls.splice(idx, 1); wbRender(); });
-        row2.querySelector(".wb-vout")?.addEventListener("click", () => openElementGraph(idx, "value"));
-        row2.querySelector(".wb-event")?.addEventListener("click", () => openElementGraph(idx, "event"));
         wbRowsEl.appendChild(row2);
       });
       wbCanvasRender();
@@ -1535,7 +1519,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       wbCanvasEl.style.borderColor = "var(--sd-accent)";
     });
     wbCanvasEl?.addEventListener("dragleave", () => { wbCanvasEl.style.borderColor = "var(--sd-border)"; });
-    wbCanvasEl?.addEventListener("drop", ev => {
+    wbCanvasEl?.addEventListener("drop", async ev => {
       wbCanvasEl.style.borderColor = "var(--sd-border)";
       let data = null;
       try { data = JSON.parse(ev.dataTransfer?.getData("text/plain") || "null"); } catch (err) { data = null; }
@@ -1546,7 +1530,14 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const surface = wbCanvasEl.firstElementChild ?? wbCanvasEl;
       const rect = surface.getBoundingClientRect();
       const def = WIDGET_TYPES[type];
-      const nested = assignUniqueWidgetDataPaths(createWidget(type), doc, { additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
+      let nested = createWidget(type);
+      if (type === "easyButton") {
+        const { openEasyButtonWizard } = await import("./easy-button-wizard.mjs");
+        const configured = await openEasyButtonWizard(nested, doc, { tabs: doc?.system?.customTabs ?? [], additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
+        if (!configured) return;
+        nested = configured;
+      }
+      nested = assignUniqueWidgetDataPaths(nested, doc, { additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
       const idx = wbEls.length;
       wbEls.push({
         id: foundry.utils.randomID(6),
@@ -1579,21 +1570,33 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     popup.querySelectorAll(".wcfg-tab-btn").forEach(b2 => b2.addEventListener("click", () => setTimeout(wbCanvasRender, 0)));
   }
 
-  popup.querySelectorAll("[data-open-graph]").forEach(btn => {
-    btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-glow)");
-    btn.addEventListener("mouseleave", () => btn.style.background = "var(--sd-bg-4)");
-    btn.addEventListener("click", () => {
-      const key = btn.dataset.openGraph;
-      const inp = popup.querySelector(`input[data-field="${key}"]`);
-      if (!inp) return;
-      const graph = new FormulaGraph(inp, doc, w, { tab, row, w, doc });
-      graph.open();
-    });
-  });
-
   popup.querySelector("[data-open-sheet-blueprint]")?.addEventListener("click", () => {
     const graph = new FormulaGraph(null, doc, null, null, null, { mode: "sheetTrigger" });
     graph.open();
+  });
+
+  popup.querySelector("[data-open-easy-button]")?.addEventListener("click", async () => {
+    const { openEasyButtonWizard } = await import("./easy-button-wizard.mjs");
+    const updated = await openEasyButtonWizard(w, doc, {
+      tabs: doc?.system?.customTabs ?? [],
+      edit: true,
+      startPage: "mode"
+    });
+    if (!updated) return;
+    Object.assign(w, updated);
+    for (const key of ["easyMode", "customFormula", "formula", "diceTerms", "variableTerms", "widgetTerms"]) {
+      const input = popup.querySelector(`[data-easy-field="${key}"]`);
+      if (!input) continue;
+      input.value = ["diceTerms", "variableTerms", "widgetTerms"].includes(key) ? JSON.stringify(updated[key] ?? []) : String(updated[key] ?? "");
+    }
+    const summary = popup.querySelector(".wcfg-easy-summary");
+    if (summary) summary.textContent = updated.formula ?? "1d20";
+    const meta = popup.querySelector(".wcfg-easy-meta");
+    if (meta) {
+      const diceCount = updated.diceTerms?.length ?? 0;
+      const modifierCount = (updated.variableTerms?.length ?? 0) + (updated.widgetTerms?.length ?? 0);
+      meta.textContent = updated.easyMode === "formula" ? "Custom Formula" : `Constructor · ${diceCount} dice group${diceCount === 1 ? "" : "s"} · ${modifierCount} modifier${modifierCount === 1 ? "" : "s"}`;
+    }
   });
 
   popup.querySelector("#wcfg-open-widget-designer")?.addEventListener("click", async () => {
@@ -1605,18 +1608,6 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         const json = popup.querySelector("#wcfg-wb-json");
         if (json) json.value = JSON.stringify(updated.elements ?? []);
       }
-    });
-  });
-
-  popup.querySelectorAll("[data-open-action-graph]").forEach(btn => {
-    btn.addEventListener("mouseenter", () => btn.style.background = "var(--sd-accent-glow)");
-    btn.addEventListener("mouseleave", () => btn.style.background = "var(--sd-bg-4)");
-    btn.addEventListener("click", () => {
-      const key = btn.dataset.openActionGraph;
-      const inp = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`);
-      if (!inp) return;
-      const graph = new FormulaGraph(inp, doc, w, { tab, row, w, doc }, null, { mode: "actionGraph" });
-      graph.open();
     });
   });
 

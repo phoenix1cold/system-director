@@ -1,4 +1,5 @@
 import { registerNodeActionHandler } from "../helpers/node-runtime-api.mjs";
+import { runModelInteraction } from "./model-events.mjs";
 
 const OWNER = "sd:3d-viewer";
 const text = (en, ru) => globalThis.game?.i18n?.lang === "ru" ? ru : en;
@@ -37,7 +38,11 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
     field("title", text("Window title", "Заголовок окна"), text("3D Viewer", "Просмотр 3D")),
     field("width", text("Width", "Ширина"), 720, "number"),
     field("height", text("Height", "Высота"), 580, "number"),
-    field("background", text("Background #RRGGBB", "Фон #RRGGBB"), "#182131")
+    field("background", text("Background #RRGGBB", "Фон #RRGGBB"), "#182131"),
+    field("backgroundOpacity", text("Background opacity 0–1", "Непрозрачность фона 0–1"),1,"number"),
+    field("fullscreen",text("Full screen", "На весь экран"),"no","select",["no","yes"]),
+    field("tooltip",text("Model hover text", "Текст при наведении на модель")),
+    field("hotspots",text("Initial points (optional JSON)", "Начальные точки (необязательный JSON)"),"[]","textarea")
   ];
   add("model3d_open", text("Show 3D Model", "Показать 3D-модель"),
     text("Open a GLB/glTF in a local interactive window. Same Viewer ID replaces its previous window. Then runs after loading; check Success before continuing.",
@@ -64,10 +69,26 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
     [pin("clip", text("Clip", "Клип")), pin("speed", text("Speed", "Скорость"), "number")]);
   add("model3d_reset", text("Reset 3D Camera", "Сброс 3D-камеры"), text("Frame the whole model again.", "Снова вписывает всю модель в окно."), []);
   add("model3d_close", text("Close 3D Viewer", "Закрыть 3D-окно"), text("Close a local viewer and release its graphics resources.", "Закрывает локальное окно и освобождает графические ресурсы."), []);
+  add("model3d_hotspot",text("Set 3D Point", "Задать точку 3D"),text("Add, update or remove a model-local interactive point. You can also place and save points visually in the viewer.","Добавьте, измените или удалите точку в координатах модели. Точки также можно расставить и сохранить мышью в окне просмотра."),[
+    field("hotspotId", "Point ID", "point1"),field("text",text("Hover text", "Текст подсказки")),
+    field("operation",text("Operation", "Действие"),"set","select",["set","remove"]),
+    field("objectName",text("Mesh name (optional)", "Имя объекта модели (необязательно)")),
+    ...["x","y","z"].map(k=>field(k,k.toUpperCase(),0,"number"))
+  ],[pin("hotspotId","Point ID"),pin("text",text("Text","Текст")),...["x","y","z"].map(k=>pin(k,k.toUpperCase(),"number"))]);
+  add("model3d_display",text("3D Display Settings", "Настройки показа 3D"),text("Change full-screen mode and background opacity.","Изменить полноэкранный режим и прозрачность фона."),[
+    field("fullscreen",text("Full screen","На весь экран"),"no","select",["no","yes"]),field("backgroundOpacity",text("Background opacity 0–1","Непрозрачность фона 0–1"),1,"number")
+  ],[pin("backgroundOpacity",text("Opacity","Непрозрачность"),"number")]);
+  registry.registerNode("on_model3d_interaction",{
+    title:text("On 3D Interaction", "При взаимодействии с 3D"),cat:"3D",color:"#368fa8",wideNode:true,isEvent:true,eventHook:"sdModelInteraction",
+    desc:text("Reacts to this document's viewer. Blank Point ID matches the model and all points; hover fires once on entry.","События окна, открытого этим документом. Пустой ID точки — вся модель и все точки; наведение срабатывает при входе."),
+    inputs:[],outputs:[{id:"exec",type:"exec",label:""},...['viewerId','hotspotId','event','text','objectName'].map(k=>pin(k,k)),...["x","y","z"].map(k=>pin(k,k.toUpperCase(),"number"))],
+    fields:[{...viewer(),noPin:true},{...field("hotspotId","Point ID (optional)"),noPin:true},{...field("event",text("Event","Событие"),"click","select",["click","hover","leave","place","any"]),noPin:true}],
+    compilePin:(_n,_i,p)=>`{__var:__model3d_${p}|}`
+  },{owner:OWNER});
 }
 
 export function installModelActions(serviceLoader = () => import("./model-viewer.mjs")) {
-  for (const type of ["model3d_open", "model3d_primitive", "model3d_transform", "model3d_animation", "model3d_reset", "model3d_close"]) {
+  for (const type of ["model3d_open", "model3d_primitive", "model3d_transform", "model3d_animation", "model3d_reset", "model3d_close", "model3d_hotspot", "model3d_display"]) {
     registerNodeActionHandler(type, async ctx => {
       const args = {};
       try {
@@ -76,13 +97,25 @@ export function installModelActions(serviceLoader = () => import("./model-viewer
         }
         args.viewerId = String(args.viewerId || "model");
         const service = await serviceLoader();
-        if (type === "model3d_open" || type === "model3d_primitive") await service.openModelViewer(args);
+        if (type === "model3d_open" || type === "model3d_primitive") {
+          const doc=ctx.item??ctx.actor;
+          const key=encodeURIComponent(String(ctx.action.__resultNodeId||args.viewerId)).replaceAll('.','%2E');
+          const saved=doc?.flags?.sd?.modelHotspots?.[key];
+          if(Array.isArray(saved))args.hotspots=saved;
+          args.onInteraction=payload=>runModelInteraction(doc,payload);
+          if(doc?.update&&(doc.isOwner||globalThis.game?.user?.isGM))args.onSaveHotspots=async points=>{
+            await doc.update({[`flags.sd.modelHotspots.${key}`]:points},{sdSkipEventBus:true});
+          };
+          await service.openModelViewer(args);
+        }
         else if (type === "model3d_close") await service.closeModelViewer(args.viewerId);
         else {
           const viewer = service.getModelViewer(args.viewerId);
           if (!viewer || viewer.disposed || !viewer.model) throw new Error(text("3D viewer is not open or still loading.", "3D-окно не открыто или ещё загружается."));
           if (type === "model3d_transform") viewer.transform(args);
           else if (type === "model3d_animation") viewer.animate(args.operation, args.clip, args.speed);
+          else if (type === "model3d_hotspot") viewer.setHotspot(args);
+          else if (type === "model3d_display") {viewer.setFullscreen(args.fullscreen===true||args.fullscreen==="yes");viewer.setBackgroundOpacity(args.backgroundOpacity);}
           else viewer.resetCamera();
         }
         return { viewerId: args.viewerId, success: true, error: "" };

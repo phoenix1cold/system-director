@@ -128,7 +128,8 @@ try {
     await closeModelViewer("shape");
   }
   checks.push("All four built-in primitives render and close");
-  globalThis.sd3dTestViewer = await openModelViewer({ viewerId: "preview", primitive: "torus", title: "3D Viewer · System Director" });
+  globalThis.sd3dEvents=[];
+  globalThis.sd3dTestViewer = await openModelViewer({ viewerId: "preview", primitive: "cube", title: "3D Viewer · System Director",tooltip:"Interactive model",backgroundOpacity:0.35,onInteraction:p=>sd3dEvents.push(p),onSaveHotspots:p=>{globalThis.savedPoints=structuredClone(p);} });
   document.getElementById("result").textContent = JSON.stringify({ status: "PASS", checks }, null, 2);
   document.title = "PASS";
 } catch (error) {

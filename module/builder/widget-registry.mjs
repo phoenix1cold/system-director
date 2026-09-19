@@ -265,6 +265,34 @@ export const WIDGET_TYPES = {
     ]
   },
 
+  easyButton: {
+    id:    "easyButton",
+    label: "Easy Button",
+    icon:  "fa-dice-d20",
+    desc:  "Roll button with a formula or visual dice constructor",
+    defaultSpan: 1,
+    defaults: {
+      label:          "Easy Button",
+      widgetKey:      "",
+      icon:           "fa-dice-d20",
+      color:          "#7b68ee",
+      flavor:         "",
+      easyMode:       "constructor",
+      customFormula:  "1d20",
+      formula:        "1d20",
+      diceTerms:      [{ count: 1, sides: 20 }],
+      variableTerms:  [],
+      widgetTerms:    []
+    },
+    configFields: [
+      { key: "label",      type: "text",       label: "Label" },
+      { key: "widgetKey",  type: "text",       label: "Widget Key" },
+      { key: "easyConfig", type: "easybutton", label: "Roll Constructor" },
+      { key: "icon",       type: "text",       label: "FA Icon (e.g. fa-dice-d20)" },
+      { key: "flavor",     type: "text",       label: "Chat Flavor" }
+    ]
+  },
+
   richtext: {
     id:    "richtext",
     label: "Rich Text",
@@ -546,12 +574,10 @@ export const WIDGET_TYPES = {
       sourceUuid:   "",
       layout:       "strip",
       clickAction:  "inspect",
-      runGraphOn:   "click",
-      actionGraph:  "",
       showCount:    "yes",
       showActions:  "yes",
-      cardWidth:    96,
-      maxVisible:   12
+      cardWidth:    132,
+      maxVisible:   0
     },
     configFields: [
       { key: "label",       type: "text",   label: "Label" },
@@ -560,10 +586,7 @@ export const WIDGET_TYPES = {
       { key: "layout",      type: "select", label: "Layout",
         options: ["fan","strip","grid"] },
       { key: "clickAction", type: "select", label: "Click on card",
-        options: ["inspect","play","discard","flip","runGraph","none"] },
-      { key: "runGraphOn",  type: "select", label: "Run graph on (when clickAction=runGraph)",
-        options: ["click","dblclick","rightclick"] },
-      { key: "actionGraph", type: "actionGraph", label: "Action graph (when clickAction=runGraph)" },
+        options: ["inspect","play","discard","flip","blueprint","none"] },
       { key: "showCount",   type: "select", label: "Show count",      options: ["yes","no"] },
       { key: "showActions", type: "select", label: "Show actions bar (Shuffle/Recall/Flip All)", options: ["yes","no"] },
       { key: "cardWidth",   type: "number", label: "Card width (px)" },
@@ -669,6 +692,7 @@ export const WIDGET_VARIANTS = {
   clock: ["default", "ring", "bar", "fraction", "hex", "timeline"],
   counter: ["default", "chunky", "minimal", "wheel", "ammo", "odometer"],
   button: ["default", "pill", "outline", "ghost", "raised", "danger", "soft", "tactical", "rune", "neon", "menu"],
+  easyButton: ["default", "pill", "outline", "raised"],
   toggle: ["default", "checkbox", "pill", "led", "power", "rune"],
   select: ["default", "pills", "segmented", "radio", "menu", "holographic"],
   attribute: ["default", "stat-card", "inline", "badge", "roll-button", "rpg", "hex", "tactical"],
@@ -678,7 +702,7 @@ export const WIDGET_VARIANTS = {
   section: ["default", "underline", "divider", "tab", "pill", "quest", "gothic", "terminal"],
   inventory: ["default", "grid", "iconbar", "cards", "card-slider", "card-grid", "loot", "tactical", "survival"],
   slot: ["default", "framed", "round", "ghost", "tile", "equipment", "diamond", "hotbar"],
-  cardHand: ["default", "fan", "stack", "grid", "tabletop", "tactical"],
+  cardHand: ["default", "fan", "poker-fan", "stack", "grid", "tabletop", "tactical"],
   cardDrawButton: ["default", "deck", "pile", "arcane", "casino"],
   questMarker: ["default", "objective", "journal", "hud"],
   effects: ["default", "chips", "icons", "card-slider", "card-grid", "buffbar", "combat", "timeline"],
@@ -718,6 +742,7 @@ for (const [type, def] of Object.entries(WIDGET_TYPES)) {
 
 export const CLICKABLE_WIDGET_TYPES = new Set([
   "button",
+  "easyButton",
   "attribute",
   "attributeGroup",
   "skill",
@@ -747,11 +772,11 @@ for (const type of CLICKABLE_WIDGET_TYPES) {
 }
 
 export const WIDGET_PALETTE_ORDER = [
-  "text", "richtext", "image", "button", "number", "toggle", "select", "tags",
+  "text", "richtext", "image", "button", "easyButton", "number", "toggle", "select", "tags",
   "attribute", "skill", "attributeGroup",
   "resource", "progress", "counter", "tokenPool", "clock", "derived", "diceTray",
   "section", "vsection", "widgetBuilder",
-  "slot", "inventory", "effects", "spellbook", "cardHand", "cardDrawButton", "questMarker"
+  "slot", "inventory", "effects", "spellbook", "cardHand", "questMarker"
 ];
 
 /**
@@ -775,10 +800,10 @@ export function getWidgetPaletteOrder({ includeLegacy = false } = {}) {
 }
 
 /** Removed widget types. Existing sheets are migrated to the replacement type. */
-export const REMOVED_WIDGET_TYPES = Object.freeze({ dice: "button" });
+export const REMOVED_WIDGET_TYPES = Object.freeze({ dice: "easyButton" });
 
 /** Imported sheets may still contain these widgets; they render normally but new layouts use Meter/UI Components. */
-export const LEGACY_WIDGET_TYPES = new Set(["tracker"]);
+export const LEGACY_WIDGET_TYPES = new Set(["tracker", "cardDrawButton"]);
 
 export function createWidget(type, overrides = {}) {
   const def = WIDGET_TYPES[type];

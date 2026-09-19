@@ -1520,7 +1520,7 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
     select.appendChild(new Option(game.i18n.localize("SDUI.Editor.PickType"), ""));
     const registry = globalThis.SD_WIDGET_TYPES ?? {};
     for (const [type, def] of Object.entries(registry)) {
-      if (type === "widgetBuilder") continue;
+      if (["widgetBuilder", "cardDrawButton"].includes(type)) continue;
       const option = new Option(`${def.label ?? type}`, type);
       if (type === current) option.selected = true;
       select.appendChild(option);
@@ -1532,7 +1532,16 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
         return;
       }
       const { createWidget } = await import("/systems/sd/module/builder/widget-registry.mjs");
-      const widget = createWidget(type);
+      let widget = createWidget(type);
+      if (type === "easyButton") {
+        const { openEasyButtonWizard } = await import("/systems/sd/module/builder/easy-button-wizard.mjs");
+        const configured = await openEasyButtonWizard(widget, this.document, {
+          tabs: [],
+          additionalWidgets: this._elements.map(entry => entry?.props?.widget).filter(Boolean)
+        });
+        if (!configured) { select.value = current; return; }
+        widget = configured;
+      }
       await this._patchElement(el.id, { props: { widgetType: type, widget } }, { details: true });
     });
     wrap.appendChild(select);

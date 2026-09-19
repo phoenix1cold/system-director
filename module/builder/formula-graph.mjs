@@ -1,3 +1,4 @@
+import { nodeFileType, addFilePicker } from "../helpers/editor-controls.mjs";
 import { migrateGraph, NODE_TYPE_MIGRATIONS } from "./node-migration.mjs";
 import { GraphRenderView } from "./graph-render-view.mjs";
 import { pinSubtype, pinTypeMeta, subtypeColor, arePinsCompatible, automaticPinConverter, canConnectPins } from "./pin-types.mjs";
@@ -416,6 +417,14 @@ export const NODE_DEFS = {
         {value:"change",label:"On Change"},
         {value:"input",label:"On Input"},
         {value:"toggle",label:"On Toggle"},
+        {value:"dblclick",label:"On Double Click"},
+        {value:"rightclick",label:"On Right Click"},
+        {value:"flip",label:"On Card Flip"},
+        {value:"shuffle",label:"On Cards Shuffle"},
+        {value:"recall",label:"On Cards Recall"},
+        {value:"flipAll",label:"On Cards Flip All"},
+        {value:"draw",label:"On Cards Draw"},
+        {value:"pass",label:"On Cards Pass"},
         {value:"any",label:"Any interaction"}
       ]}
     ],
@@ -14951,7 +14960,7 @@ export class FormulaGraph {
     inp.addEventListener("focus",()=>inp.style.borderColor="var(--sd-accent)");
     inp.addEventListener("blur", ()=>inp.style.borderColor="#1a1a28");
     inp.addEventListener("mousedown",ev=>ev.stopPropagation());
-    const _IS_TEXTUAL = (field.type === "text" || field.type === "textarea" || field.type === "path" || field.type === "formula" || field.type === "number");
+    const _IS_TEXTUAL = (field.type === "text" || field.type === "textarea" || field.type === "file" || field.type === "path" || field.type === "formula" || field.type === "number");
     const _fullRerenderIfDynamic = () => {
       const _defV = NODE_DEFS[node.type];
       const _hasVis = _defV?.fields?.some(f => typeof f.visibleIf === "function");
@@ -14993,6 +15002,9 @@ export class FormulaGraph {
       }
     });
     wrap.appendChild(inp);
+
+    const fileType = nodeFileType(field, node.type);
+    if (fileType) addFilePicker(inp, fileType);
 
     if (field.valueElementDatalist) {
       const dlId2 = "sd-wb-el-dl-" + node.id + "-" + field.key;

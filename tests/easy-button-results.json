@@ -1,0 +1,76 @@
+{
+  "checks": [
+    "Creation wizard opens in a Foundry window",
+    "Constructor mode is the default",
+    "Dice page starts with one group",
+    "Additional dice groups can be added",
+    "Database variable selector has search",
+    "Widget value selector has search",
+    "Preview includes the Database variable",
+    "Preview includes the widget value",
+    "Constructor saves the compiled Foundry formula",
+    "Rendered Easy Button exposes its formula to sheet and HUD roll handlers",
+    "Custom Formula mode has a normal formula field",
+    "Custom Formula mode saves the entered formula"
+  ],
+  "result": {
+    "id": "48095854",
+    "type": "easyButton",
+    "span": 1,
+    "label": "Attack",
+    "widgetKey": "attack",
+    "icon": "fa-dice-d20",
+    "color": "#7b68ee",
+    "flavor": "",
+    "easyMode": "constructor",
+    "customFormula": "1d20",
+    "formula": "1d20 + 2d8 + {system.values.strength} + {widget:strength_widget}",
+    "diceTerms": [
+      {
+        "count": 1,
+        "sides": 20
+      },
+      {
+        "count": 2,
+        "sides": 8
+      }
+    ],
+    "variableTerms": [
+      {
+        "operator": "+",
+        "variableId": "strength"
+      }
+    ],
+    "widgetTerms": [
+      {
+        "operator": "+",
+        "widgetKey": "strength_widget"
+      }
+    ],
+    "variant": "default",
+    "animationTag": ""
+  },
+  "custom": {
+    "id": "cf912a42",
+    "type": "easyButton",
+    "span": 1,
+    "label": "Easy Button",
+    "widgetKey": "easy_button",
+    "icon": "fa-dice-d20",
+    "color": "#7b68ee",
+    "flavor": "",
+    "easyMode": "formula",
+    "customFormula": "3d10kh2 + 4",
+    "formula": "3d10kh2 + 4",
+    "diceTerms": [
+      {
+        "count": 1,
+        "sides": 20
+      }
+    ],
+    "variableTerms": [],
+    "widgetTerms": [],
+    "variant": "default",
+    "animationTag": ""
+  }
+}

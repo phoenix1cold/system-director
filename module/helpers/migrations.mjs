@@ -306,7 +306,7 @@ export const MIGRATIONS = [
 ,
   {
     version:     "1.11.0",
-    description: "Dice Button widgets become ordinary Buttons, widget roll formulas are dropped, and every widget keeps its own values.",
+    description: "Legacy Dice Button widgets become Easy Buttons, while ordinary Buttons stay event-only and every widget keeps its own values.",
     run: async () => {
       const { widgetVariables, widgetVarPath, isWidgetVarPath, coerceWidgetValue } =
         await import("./widget-variables.mjs");
@@ -319,14 +319,20 @@ export const MIGRATIONS = [
       const convertWidget = (widget, doc, patch) => {
         if (!widget || typeof widget !== "object") return;
 
-        // 1. The Dice Button widget no longer exists.
+        // 1. Keep legacy Dice Button formulas in the restored Easy Button.
         if (widget.type === "dice") {
-          widget.type = "button";
+          widget.type = "easyButton";
           if (!widget.icon) widget.icon = "fa-dice-d20";
-          if (["d20", "flat", "stamp"].includes(String(widget.variant ?? ""))) widget.variant = "default";
+          widget.easyMode = "formula";
+          widget.customFormula = String(widget.formula ?? "1d20").trim() || "1d20";
+          widget.formula = widget.customFormula;
+          widget.diceTerms ??= [{ count: 1, sides: 20 }];
+          widget.variableTerms ??= [];
+          widget.widgetTerms ??= [];
+          if (!["default", "pill", "outline", "raised"].includes(String(widget.variant ?? ""))) widget.variant = "default";
         }
 
-        // 2. Dice are rolled from nodes now, so widget roll formulas are gone.
+        // 2. Ordinary action Buttons remain event-only.
         if (widget.type === "button") delete widget.formula;
         if (widget.type === "skill") delete widget.rollFormula;
 
