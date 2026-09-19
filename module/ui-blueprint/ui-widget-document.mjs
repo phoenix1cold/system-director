@@ -1,9 +1,9 @@
-/** Typed v3 UI Blueprint asset. Runtime values live in UIWidgetState, not in the design document. */
+/** Typed v4 UI Blueprint asset. Runtime values live in UIWidgetState, not in the design document. */
 export class UIWidgetItemData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     const F = foundry.data.fields;
     return {
-      schemaVersion: new F.NumberField({ required: true, nullable: false, initial: 3, integer: true, min: 1 }),
+      schemaVersion: new F.NumberField({ required: true, nullable: false, initial: 4, integer: true, min: 1 }),
       blueprintId: new F.StringField({ required: true, blank: false, initial: "ui-blueprint" }),
       title:    new F.StringField({ required: true, blank: false, initial: "New UI Widget" }),
       widgetKey:new F.StringField({ required: true, blank: false, initial: "my-widget",

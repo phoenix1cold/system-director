@@ -334,7 +334,7 @@ const css = read("styles/system.css");
 assert.ok(css.includes(".guiel-row{") && css.includes(".guiel-icon{") && css.includes(".guiel-type{"),
   "element rows need their styles");
 
-assert.match(manifest.version, /^1\.(11\.([5-9]|\d{2,})|(1[2-9]|[2-9]\d)\.\d+)$/,
+assert.match(manifest.version, /^(?:1\.(?:11\.([5-9]|\d{2,})|(1[2-9]|[2-9]\d)\.\d+)|2\.\d+\.\d+)$/,
   `unexpected version ${manifest.version}`);
 assert.ok(elementDef("list"), "the list element definition is still registered");
 

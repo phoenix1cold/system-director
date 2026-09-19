@@ -1,12 +1,14 @@
 /**
  * System Director UI Blueprint schema.
  *
- * Version 3 is deliberately reference based: designers work with typed variables,
+ * Version 4 is deliberately reference based: designers work with typed variables,
  * Widget IDs, functions and assets. Legacy data paths are accepted only by the
  * one-time migration and never emitted by the new editor.
  */
 
-export const BLUEPRINT_SCHEMA_VERSION = 3;
+import { normalizeBinding } from "./ui-widget-bindings.mjs";
+
+export const BLUEPRINT_SCHEMA_VERSION = 4;
 
 export const VARIABLE_TYPES = [
   "boolean", "number", "string", "color", "actor", "item", "effect",
@@ -180,6 +182,9 @@ export function normalizeBlueprintAssets(system = {}) {
     templates: normalizeAssetList(system.templates, "Template", template => ({
       ...template,
       category: String(template.category ?? "General"),
+      description: String(template.description ?? ""),
+      inputs: normalizeVariables(template.inputs ?? []),
+      rootIds: Array.isArray(template.rootIds) ? template.rootIds.map(String) : [],
       elements: Array.isArray(template.elements) ? template.elements : []
     }))
   };
@@ -250,6 +255,11 @@ export function migrateBlueprintData(source = {}) {
       const variable = variableFor(exact[1]);
       element.bind[property] = { kind: "variable", variableId: variable.id };
     }
+    for (const [property, binding] of Object.entries(element.bind)) {
+      const normalized = normalizeBinding(binding);
+      if (normalized) element.bind[property] = normalized;
+      else delete element.bind[property];
+    }
   }
 
   const assets = normalizeBlueprintAssets(system);
@@ -290,6 +300,23 @@ export function validateBlueprint(system = {}) {
   for (const variable of normalizeVariables(system.variables)) {
     if (variableIds.has(variable.id.toLowerCase())) errors.push({ code: "variable_id_duplicate", message: `Duplicate variable ID: ${variable.id}` });
     variableIds.add(variable.id.toLowerCase());
+  }
+  const templateIds = new Set((system.templates ?? []).map(template => String(template?.id ?? "")));
+  for (const widget of system.elements ?? []) {
+    if (["component", "repeater"].includes(widget?.type)) {
+      const templateId = String(widget?.props?.templateId ?? "");
+      if (!templateId) errors.push({ code: "template_missing", message: `${widget?.name ?? widget?.id}: choose a Component template` });
+      else if (!templateIds.has(templateId)) errors.push({ code: "template_not_found", message: `${widget?.name ?? widget?.id}: component '${templateId}' was not found` });
+    }
+    for (const [property, raw] of Object.entries(widget?.bind ?? {})) {
+      const binding = normalizeBinding(raw);
+      if (binding?.kind === "variable" && !variableIds.has(String(binding.variableId ?? "").toLowerCase())) {
+        errors.push({ code: "binding_variable_missing", message: `${widget?.name ?? widget?.id}.${property}: variable '${binding.variableId}' was not found` });
+      }
+      if (binding?.kind === "widget" && !widgetIds.has(String(binding.widgetId ?? "").toLowerCase())) {
+        errors.push({ code: "binding_widget_missing", message: `${widget?.name ?? widget?.id}.${property}: widget '${binding.widgetId}' was not found` });
+      }
+    }
   }
   return { valid: errors.length === 0, errors };
 }

@@ -819,8 +819,8 @@
     "color": "#6a2f70",
     "cat": "Database",
     "wideNode": true,
-    "keywords": "database variable typed actor item owned item target uuid write add subtract multiply toggle",
-    "desc": "Writes a typed Database variable on the graph owner, its Actor, its current/owned Item, a token target, UUID, or a wired Actor / Item. A wired Ref always wins; otherwise Auto uses the graph document.",
+    "keywords": "database variable typed actor item write add subtract multiply toggle",
+    "desc": "Writes or modifies a typed Database variable on an Actor or Item. No storage path is exposed.",
     "inputs": [
       {
         "id": "exec",
@@ -854,6 +854,7 @@
         "label": "Target",
         "type": "select",
         "default": "self",
+        "hint": "A connected Actor / Item Ref overrides this choice.",
         "options": [
           {
             "value": "self",
@@ -873,18 +874,17 @@
           },
           {
             "value": "first target",
-            "label": "Actor — first target"
+            "label": "First Target"
           },
           {
             "value": "token by id",
-            "label": "Actor — token by ID"
+            "label": "Token by ID"
           },
           {
             "value": "by uuid",
-            "label": "Actor / Item — by UUID"
+            "label": "By UUID"
           }
-        ],
-        "hint": "A connected Actor / Item Ref overrides this target."
+        ]
       },
       {
         "key": "itemId",
@@ -893,9 +893,6 @@
         "default": "",
         "options": [],
         "noPin": true,
-        "visibleIf": {
-          "__fn": true
-        },
         "dynamicOptions": true
       },
       {
@@ -905,7 +902,6 @@
         "default": "",
         "options": [],
         "noPin": true,
-        "hint": "Only variables compatible with the resolved static target are shown. A wired Ref allows both scopes.",
         "dynamicOptions": true
       },
       {

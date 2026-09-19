@@ -89,31 +89,15 @@ export function getValueDefinitions(settings=null) {
 }
 
 export function getValueDefinition(id, settings=null){return getValueDefinitions(settings).find(v=>v.id===String(id??""))??null;}
-export function valueSelectOptionsForScope(scope="", {selected="", placeholder="Select value…", grouped=false}={}){
-  const wanted=SCOPES.has(String(scope??""))?String(scope):"";
-  const current=String(selected??"");
-  const definitions=getValueDefinitions();
-  const visible=definitions.filter(def=>!wanted||def.scope==="both"||def.scope===wanted);
-  const options=[{value:"",label:placeholder}];
-  for(const def of visible){
-    const group=def.scope==="both"?"Actor & Item":def.scope==="item"?"Item":"Actor";
-    options.push({value:def.id,label:`${def.name} · ${def.type} [${def.id}]`,...(grouped?{group}:{})});
-  }
-  // Never hide an already-saved selection. This makes an incompatible legacy
-  // graph obvious and lets the user repair it without silently losing data.
-  if(current&&!options.some(option=>option.value===current)){
-    const def=definitions.find(entry=>entry.id===current);
-    options.push({
-      value:current,
-      label:def?`${def.name} · ${def.type} [${def.id}] — incompatible target`:`${current} — missing variable`,
-      ...(grouped?{group:"Saved selection"}:{})
-    });
-  }
-  return options;
+export function valueSelectOptionsForScope(scope=""){
+  const wanted=SCOPES.has(String(scope))?String(scope):"";
+  return [{value:"",label:"Select value…"},...getValueDefinitions()
+    .filter(def=>!wanted||wanted==="both"||def.scope==="both"||def.scope===wanted)
+    .map(def=>({value:def.id,label:`${def.name} · ${def.type} [${def.id}]`}))];
 }
 export function valueSelectOptions(_node=null, graph=null){
   const scope=graph?.doc?.documentName==="Item"?"item":graph?.doc?.documentName==="Actor"?"actor":"";
-  return valueSelectOptionsForScope(scope,{selected:_node?.data?.variableId});
+  return valueSelectOptionsForScope(scope);
 }
 export function valueStoragePath(id){return `system.values.${normalizeValueId(id)}`;}
 

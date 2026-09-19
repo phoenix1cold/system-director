@@ -30,7 +30,7 @@ const schema = await import("../module/ui-blueprint/ui-widget-blueprint.mjs");
 const { UIWidgetState } = await import("../module/ui-blueprint/ui-widget-state.mjs");
 const { resolveAudienceUsers } = await import("../module/ui-blueprint/ui-widget-net.mjs");
 
-assert.equal(schema.BLUEPRINT_SCHEMA_VERSION, 3);
+assert.equal(schema.BLUEPRINT_SCHEMA_VERSION, 4);
 assert.equal(schema.coerceBlueprintValue("17", "number"), 17);
 assert.equal(schema.coerceBlueprintValue("yes", "boolean"), true);
 assert.deepEqual(schema.coerceBlueprintValue("x", "array"), ["x"]);
@@ -52,7 +52,7 @@ const migrated = schema.migrateBlueprintData({
   structs: [{ name: "Row", fields: [{ name: "Title", type: "string" }] }],
   dataTables: [{ name: "Rows", rows: [{ name: "First", values: { title: "Hello" } }] }]
 });
-assert.equal(migrated.schemaVersion, 3);
+assert.equal(migrated.schemaVersion, 4);
 assert.equal(migrated.hiddenFields, undefined);
 assert.equal(migrated.vars, undefined);
 assert.equal(migrated.elements[0].valueVariableId, "score");
@@ -124,4 +124,4 @@ assert.match(editorSource, /pointerWindow = wrapper\.ownerDocument/, "free drag 
 assert.match(editorSource, /_applyLivePosition/, "free drag updates widget position live");
 assert.match(editorSource, /_saveSelectionAsTemplate/, "reusable UI templates are available");
 
-console.log("PASS: UI Blueprint v3 schema, migration, scopes, Widget IDs, graph nodes, drag and audiences");
+console.log("PASS: UI Blueprint v4 schema, migration, scopes, Widget IDs, graph nodes, drag and audiences");

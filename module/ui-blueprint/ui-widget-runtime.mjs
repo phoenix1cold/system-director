@@ -12,6 +12,7 @@ import { MODULE_ID } from "./ui-widget-const.mjs";
 import { UI_ELEMENT_TYPES, elementDef, createElement, h } from "./ui-widget-elements.mjs";
 import { safeId } from "./ui-widget-blueprint.mjs";
 import { fireElementEvent, parseActionPayload, runActions, runRollFormula } from "./ui-widget-events.mjs";
+import { resolveBindingValue, parseCollection } from "./ui-widget-bindings.mjs";
 
 /** System widget types that hard-require a real Actor document. */
 export const ACTOR_ONLY_WIDGETS = new Set([
@@ -119,12 +120,14 @@ export class UIWidgetTree {
     this.editMode = !!editMode;
     this.instance = instance;
     this.elements = normalizeElements(item?.system?.elements);
+    this.templates = Array.isArray(item?.system?.templates) ? item.system.templates : [];
     this.ctx = state?.buildContext?.() ?? {};
     this._teardown = [];
     this._nodes = new Map();       // element id → wrapper node
     this._childHosts = new Map();  // parent id ("" = root) → node children live in
     this._host = null;
     this._Renderer = globalThis.SD_WIDGET_RENDERER ?? null;
+    this._templateStack = [];
     this._api = this._buildApi();
   }
 
@@ -318,7 +321,11 @@ export class UIWidgetTree {
     this._nodes.set(el.id, wrapper);
 
     if (!visible) {
-      if (!this.editMode) { wrapper.style.display = "none"; return wrapper; }
+      if (!this.editMode) {
+        if (String(el.props?.visibilityMode ?? "collapsed") === "hidden") wrapper.style.visibility = "hidden";
+        else wrapper.style.display = "none";
+        return wrapper;
+      }
       wrapper.classList.add("uiw-hidden-preview");
     }
     if (this.editMode && el.hidden) wrapper.classList.add("uiw-hidden-preview");
@@ -344,13 +351,55 @@ export class UIWidgetTree {
       : { kind: "widget", widgetId: el?.id ?? "", property: "value" };
   }
 
-  _evalFormula(raw) {
+  _evalFormula(raw, local = {}) {
     const str = String(raw ?? "");
     if (!str.includes("{")) return str;
     const Engine = globalThis.SD_FORMULA_ENGINE;
-    if (!Engine) return str;
-    try { return Engine.evaluate(str, this.ctx); }
+    if (!Engine) return str.replace(/\{(?:row|item)\.([^}]+)\}/g, (_match, path) => {
+      const value = String(path).split(".").reduce((entry, key) => entry?.[key], local.row ?? local.item);
+      return value ?? "";
+    }).replace(/\{input\.([^}]+)\}/g, (_match, path) => {
+      const value = String(path).split(".").reduce((entry, key) => entry?.[key], local.input);
+      return value ?? "";
+    }).replace(/\{(index|count)\}/g, (_match, key) => local[key] ?? "");
+    try { return Engine.evaluate(str, { ...this.ctx, ...local, row: local.row ?? local.item }); }
     catch { return str; }
+  }
+
+  /** Render one saved Component template without copying it into the Blueprint. */
+  _renderTemplateInstance(host, templateId, { namespace = "component", context = {}, inputs = {}, layout = {} } = {}) {
+    const template = this.templates.find(entry => String(entry?.id ?? "") === String(templateId ?? ""));
+    if (!template) {
+      host.appendChild(h("div", { cls: "uiw-placeholder", text: templateId ? `Missing component: ${templateId}` : "Choose a Component" }));
+      return false;
+    }
+    if (this._templateStack.length >= 8 || this._templateStack.includes(String(template.id))) {
+      host.appendChild(h("div", { cls: "uiw-error", text: `Recursive component: ${template.name ?? template.id}` }));
+      return false;
+    }
+    const source = normalizeElements(template.elements ?? []);
+    const sourceIds = new Set(source.map(element => element.id));
+    const map = new Map(source.map(element => [element.id, safeId(`${namespace}-${element.id}`, "component-child")]));
+    const runtimeRoot = safeId(`${namespace}-root`, "component-root");
+    const clones = source.map(element => ({
+      ...foundry.utils.deepClone(element),
+      id: map.get(element.id),
+      widgetId: map.get(element.id),
+      parent: sourceIds.has(element.parent) ? map.get(element.parent) : runtimeRoot,
+      __runtimeClone: namespace,
+      __ctx: { ...context, input: inputs },
+      __templateId: template.id,
+      __sourceElementId: element.id
+    }));
+    this.elements.push(...clones);
+    this._templateStack.push(String(template.id));
+    try {
+      this._renderInto(host, runtimeRoot, { free: false, grid: layout.grid === true });
+    } finally {
+      this._templateStack.pop();
+      this.elements = this.elements.filter(element => element.__runtimeClone !== namespace);
+    }
+    return true;
   }
 
   _buildApi() {
@@ -364,15 +413,18 @@ export class UIWidgetTree {
       if (elId && tree.state?.hasWidgetProperty?.(elId, key)) return tree.state.getWidgetProperty(elId, key);
       const binding = el?.bind?.[key];
       if (binding !== undefined && binding !== null && String(binding).trim() !== "") {
-        if (typeof binding === "object" && binding.kind === "variable") return tree.state?.getVariable?.(binding.variableId);
-        if (typeof binding === "object" && binding.kind === "widget") return tree.state?.getWidgetProperty?.(binding.widgetId, binding.property ?? key);
-        return tree._evalFormula(binding);
+        return resolveBindingValue(binding, {
+          state: tree.state,
+          context: tree.ctx,
+          local: el?.__ctx ?? {},
+          evaluate: (formula, local) => tree._evalFormula(formula, local)
+        });
       }
       const schema = (elementDef(el?.type)?.props ?? []).find(p => p.key === key);
       const source = schema?.style ? (el?.style ?? {}) : (el?.props ?? {});
       const value = source[key];
       if (typeof value === "string" && (schema?.type === "formula" || value.includes("{"))) {
-        return tree._evalFormula(value);
+        return tree._evalFormula(value, el?.__ctx ?? {});
       }
       return value;
     };
@@ -395,10 +447,8 @@ export class UIWidgetTree {
       visible: (el) => {
         const binding = el?.bind?.visible;
         if (binding) {
-          const v = tree._evalFormula(binding);
-          const n = Number(v);
-          if (Number.isFinite(n)) return n !== 0;
-          return !["", "false", "no", "off", "null", "undefined"].includes(String(v).trim().toLowerCase());
+          const normalized = typeof binding === "object" ? { ...binding, transform: "boolean" } : { kind: "formula", formula: binding, transform: "boolean" };
+          return !!resolveBindingValue(normalized, { state:tree.state, context:tree.ctx, local:el?.__ctx??{}, evaluate:(formula,local)=>tree._evalFormula(formula,local) });
         }
         if (el?.hidden) return false;
         return el?.props?.visible !== false;
@@ -407,10 +457,8 @@ export class UIWidgetTree {
       enabled: (el) => {
         const binding = el?.bind?.enabled;
         if (binding) {
-          const v = tree._evalFormula(binding);
-          const n = Number(v);
-          if (Number.isFinite(n)) return n !== 0;
-          return !["", "false", "no", "off"].includes(String(v).trim().toLowerCase());
+          const normalized = typeof binding === "object" ? { ...binding, transform: "boolean" } : { kind: "formula", formula: binding, transform: "boolean" };
+          return !!resolveBindingValue(normalized, { state:tree.state, context:tree.ctx, local:el?.__ctx??{}, evaluate:(formula,local)=>tree._evalFormula(formula,local) });
         }
         return el?.props?.enabled !== false;
       },
@@ -482,6 +530,7 @@ export class UIWidgetTree {
           event,
           value,
           index: extra.index ?? 0,
+          details: { ...(el?.__ctx ?? {}), ...extra },
           instance: {
             id: tree.instance?.id ?? "",
             widgetKey: tree.state?.widgetKey ?? "",
@@ -496,6 +545,10 @@ export class UIWidgetTree {
       onTeardown: (fn) => tree.onTeardown(fn),
 
       renderChildren: (el, host, options = {}) => tree._renderInto(host, el.id, options),
+
+      parseCollection,
+
+      renderTemplate: (templateId, host, options = {}) => tree._renderTemplateInstance(host, templateId, options),
 
       renderSystemWidget: (el) => tree._renderSystemWidget(el)
     };

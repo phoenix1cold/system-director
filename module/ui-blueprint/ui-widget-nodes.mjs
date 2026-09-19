@@ -621,12 +621,16 @@ export function registerUINodes() {
       { id: "instanceId", label: "Instance Id", type: "value.string" },
       { id: "widgetKey", label: "Widget Key", type: "value.string" },
       { id: "index", label: "Row index", type: "value.number" },
+      { id: "count", label: "Row count", type: "value.number" },
+      { id: "row", label: "Row data", type: "value.any" },
+      { id: "elementId", label: "Element ID", type: "value.string" },
+      { id: "payload", label: "Payload", type: "value.any" },
       { id: "actor", label: "Owner Actor", type: "value.actor" }
     ],
     fields: [],
     compile: () => "{sdUiWidget:ctx:value}",
     compilePin: (_n, _i, pin) => {
-      const allowed = ["value", "number", "bool", "element", "event", "instance", "widgetKey", "index", "actor"];
+      const allowed = ["value", "number", "bool", "element", "elementId", "event", "instance", "widgetKey", "index", "count", "row", "payload", "actor"];
       const p = pin === "instanceId" ? "instance" : pin;
       return allowed.includes(p) ? `{sdUiWidget:ctx:${p}}` : "{sdUiWidget:ctx:value}";
     }

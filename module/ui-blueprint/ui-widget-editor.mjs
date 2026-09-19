@@ -28,6 +28,7 @@ import { UIWidgetTree, normalizeElements, needsMigration, childrenOf } from "./u
 import { UIWidgetState, VAR_SCOPES, VAR_TYPES } from "./ui-widget-state.mjs";
 import { SDUIWidgetApp } from "./ui-widget-app.mjs";
 import { BLUEPRINT_SCHEMA_VERSION, migrateBlueprintData, normalizeVariables, safeId, uniqueId } from "./ui-widget-blueprint.mjs";
+import { normalizeBinding, BINDING_TRANSFORMS } from "./ui-widget-bindings.mjs";
 import { openBlueprintAssetManager } from "./ui-widget-assets.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
@@ -1355,6 +1356,22 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
       case "sdWidgetConfig":
         input = this._button("SDUI.Editor.FullConfig", "fa-sliders", () => this._openSystemWidgetConfig(el));
         break;
+      case "componentTemplate":
+        input = this._selectInput(
+          ["", ...(this.document.system.templates ?? []).map(template => template.id)],
+          String(current ?? prop.default ?? ""), commit,
+          value => value ? ((this.document.system.templates ?? []).find(template => template.id === value)?.name ?? value) : game.i18n.localize("SDUI.Editor.SelectComponent")
+        );
+        break;
+      case "componentInputs": {
+        const textarea = this._textareaInput(JSON.stringify(current ?? {}, null, 2), async value => {
+          try { await commit(value.trim() ? JSON.parse(value) : {}); }
+          catch { ui.notifications?.warn?.(game.i18n.localize("SDUI.Editor.InvalidJSON")); }
+        });
+        textarea.rows = 5;
+        input = textarea;
+        break;
+      }
       case "formula":
       case "text":
       default:
@@ -1367,20 +1384,43 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
     return row;
   }
 
-  /** UMG-style property binding: a formula that overrides the static value. */
+  /** UI Blueprint v4 typed binding: variable, widget, formula, context or repeater row. */
   _bindingControl(el, prop) {
     const wrap = document.createElement("div");
     wrap.className = "sduw-binding";
-    const current = el.bind?.[prop.key];
-    const select = document.createElement("select"); select.className="sduw-bind-input";
-    select.appendChild(new Option("Not bound", ""));
-    for (const variable of normalizeVariables(this.document.system.variables)) {
-      const option=new Option(`${variable.name} · ${variable.type}`,variable.id);
-      if(current?.kind==="variable"&&current.variableId===variable.id)option.selected=true;
-      select.appendChild(option);
+    const current = normalizeBinding(el.bind?.[prop.key]);
+    const save = async (next, rebuild = false) => this._setElement(el.id, target => {
+      target.bind ??= {};
+      if (next) target.bind[prop.key] = next;
+      else delete target.bind[prop.key];
+    }, { hierarchy: false, details: rebuild });
+    const kind = document.createElement("select");
+    kind.className = "sduw-bind-input";
+    for (const [value, label] of [["", "Not bound"], ["variable", "Variable"], ["widget", "Widget property"], ["formula", "Formula"], ["context", "UI context"], ["row", "Repeater row"]]) {
+      const option = new Option(label, value); option.selected = (current?.kind ?? "") === value; kind.appendChild(option);
     }
-    select.addEventListener("change",async()=>this._setElement(el.id,target=>{target.bind??={};if(select.value)target.bind[prop.key]={kind:"variable",variableId:select.value};else delete target.bind[prop.key];},{hierarchy:false}));
-    const icon=document.createElement("i");icon.className="fa-solid fa-link";wrap.append(icon,select);
+    kind.addEventListener("change", async () => {
+      const defaults = { variable:{kind:"variable",variableId:""}, widget:{kind:"widget",widgetId:"",property:"value"}, formula:{kind:"formula",formula:""}, context:{kind:"context",path:"actor.name"}, row:{kind:"row",path:"name"} };
+      await save(defaults[kind.value] ?? null, true);
+    });
+    const icon=document.createElement("i"); icon.className="fa-solid fa-link"; wrap.append(icon,kind);
+    if (!current) return wrap;
+    if (current.kind === "variable") {
+      const target = this._selectInput(["", ...normalizeVariables(this.document.system.variables).map(variable => variable.id)], current.variableId ?? "",
+        value => save({ ...current, variableId:value }), value => normalizeVariables(this.document.system.variables).find(variable => variable.id === value)?.name ?? value ?? "Select variable…");
+      target.classList.add("sduw-bind-target"); wrap.appendChild(target);
+    } else if (current.kind === "widget") {
+      const target = this._selectInput(["", ...this._elements.filter(entry => entry.id !== el.id).map(entry => entry.id)], current.widgetId ?? "",
+        value => save({ ...current, widgetId:value }), value => this._elements.find(entry => entry.id === value)?.name ?? value ?? "Select widget…");
+      const property = this._textInput(current.property ?? "value", value => save({ ...current, property:value || "value" }));
+      target.classList.add("sduw-bind-target"); property.classList.add("sduw-bind-property"); wrap.append(target, property);
+    } else {
+      const key = current.kind === "formula" ? "formula" : "path";
+      const target = this._textInput(current[key] ?? "", value => save({ ...current, [key]:value }));
+      target.classList.add("sduw-bind-target"); wrap.appendChild(target);
+    }
+    const transform = this._selectInput(BINDING_TRANSFORMS, current.transform ?? "none", value => save({ ...current, transform:value }));
+    transform.title = "Transform"; transform.classList.add("sduw-bind-transform"); wrap.appendChild(transform);
     return wrap;
   }
 
@@ -1811,6 +1851,10 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
     const ids = new Set();
     for (const root of roots) for (const id of this._subtreeIds(root.id)) ids.add(id);
     const elements = foundry.utils.deepClone(this._elements.filter(element => ids.has(element.id)));
+    const referencedVariableIds = new Set(elements.flatMap(element => Object.values(element.bind ?? {}))
+      .filter(binding => binding?.kind === "variable" && binding.variableId)
+      .map(binding => binding.variableId));
+    const inputs = normalizeVariables(this.document.system.variables).filter(variable => referencedVariableIds.has(variable.id));
     const name = await foundry.applications.api.DialogV2.prompt({
       window: { title: "Save UI Template" },
       content: `<form class="sduw-identity-dialog"><label>Template Name<input name="name" value="UI Component" autofocus></label><label>Category<input name="category" value="General"></label></form>`,
@@ -1822,6 +1866,8 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
       id: uniqueId(templates, name.name, { fallback: "template" }),
       name: name.name,
       category: name.category || "General",
+      description: "",
+      inputs,
       elements,
       rootIds: roots.map(root => root.id)
     });

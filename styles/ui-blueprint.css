@@ -836,3 +836,12 @@
 .sduw-table-row > div input { flex:1; }
 .sduw-table-row > label { display:grid; grid-template-columns:120px minmax(0,1fr); align-items:center; gap:7px; margin-top:5px; color:#8e99a8; font-size:11px; }
 @media (max-width:760px) { .sduw-assets-window .sduw-assets { grid-template-columns:170px minmax(0,1fr); } .sduw-asset-columns { grid-template-columns:1fr; } }
+
+/* UI Blueprint 4: typed binding inspector and reusable components */
+.sduw-binding{display:grid;grid-template-columns:18px minmax(92px,1fr);gap:4px;align-items:center;margin-top:4px}
+.sduw-binding>i{grid-row:1 / span 3;color:#5e9fe8;text-align:center}
+.sduw-bind-target,.sduw-bind-property,.sduw-bind-transform{grid-column:2;min-width:0}
+.uiw-component{box-sizing:border-box;overflow:auto}
+.uiw-repeater-item{box-sizing:border-box}
+.uiw-repeater-empty,.uiw-placeholder,.uiw-error{padding:10px;border:1px dashed rgba(127,127,127,.5);border-radius:6px;color:var(--color-text-dark-secondary);text-align:center}
+.uiw-hidden-preview{opacity:.38}

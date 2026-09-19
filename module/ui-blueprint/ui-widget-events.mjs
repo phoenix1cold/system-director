@@ -46,6 +46,10 @@ export function resolveEventPin(pin) {
       return ["1", "true", "yes", "on"].includes(String(v ?? "").toLowerCase()) ? 1 : 0;
     }
     case "index": return ctx.index ?? 0;
+    case "count": return ctx.count ?? 0;
+    case "row": return ctx.row ?? ctx.itemData ?? "";
+    case "elementId": return ctx.elementId ?? "";
+    case "payload": return ctx.payload ?? ctx.value ?? "";
     case "actor": return ctx.actor?.uuid ?? "";
     case "item": return ctx.item?.uuid ?? "";
     case "user": return ctx.userId ?? game.user?.id ?? "";
@@ -145,7 +149,7 @@ export async function runRollFormula(formula, { actor = null, doc = null, flavor
  * @param {*}      options.value       current element value
  * @param {object} options.instance    { id, widgetKey, item, state, actor }
  */
-export async function fireElementEvent({ element, event, value, index = 0, instance }) {
+export async function fireElementEvent({ element, event, value, index = 0, details = {}, instance }) {
   const eventKey = `on${event.charAt(0).toUpperCase()}${event.slice(1)}`;
   const ctx = {
     instanceId: instance?.id ?? "",
@@ -155,7 +159,12 @@ export async function fireElementEvent({ element, event, value, index = 0, insta
     event,
     value,
     payload: value,
-    index,
+    index: details.index ?? index,
+    count: details.count ?? 0,
+    row: details.row ?? details.item ?? null,
+    itemData: details.item ?? details.row ?? null,
+    label: details.label ?? "",
+    pointer: details.pointer ?? null,
     actor: instance?.actor ?? null,
     item: instance?.contextItem ?? null,
     userId: game.user?.id ?? ""
@@ -170,7 +179,7 @@ export async function fireElementEvent({ element, event, value, index = 0, insta
       scope: "actor",
       actorId: instance?.actor?.id ?? "",
       sourceUuid: instance?.contextItem?.uuid ?? instance?.item?.uuid ?? "",
-      payload: value ?? "",
+      payload: { value, row: ctx.row, index: ctx.index, count: ctx.count, label: ctx.label },
       blueprintId: instance?.widgetKey ?? "",
       instanceId: instance?.id ?? "",
       widgetId: element?.id ?? "",
@@ -195,7 +204,9 @@ export async function fireElementEvent({ element, event, value, index = 0, insta
         __uiElement: ctx.element,
         __uiValue: value ?? "",
         __uiEvent: event,
-        __uiIndex: index
+        __uiIndex: ctx.index,
+        __uiCount: ctx.count,
+        __uiRow: ctx.row
       }
     };
     if (actions.length) {

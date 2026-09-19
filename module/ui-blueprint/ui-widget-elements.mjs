@@ -1,3 +1,5 @@
+import { filterAndSortCollection } from "./ui-widget-bindings.mjs";
+
 /**
  * UMG-style element registry.
  *
@@ -121,6 +123,8 @@ export const UNIVERSAL_PROPS = [
   { key: "tooltip",  label: "SDUI.Prop.Tooltip",  type: "text",     group: "behaviour", bindable: true },
   { key: "visible",  label: "SDUI.Prop.Visible",  type: "checkbox", group: "behaviour", default: true, bindable: true },
   { key: "enabled",  label: "SDUI.Prop.Enabled",  type: "checkbox", group: "behaviour", default: true, bindable: true },
+  { key: "visibilityMode", label: "SDUI.Prop.VisibilityMode", type: "select", group: "behaviour", default: "collapsed",
+    options: ["collapsed", "hidden"] },
   { key: "cssClass", label: "SDUI.Prop.CssClass", type: "text",     group: "behaviour" }
 ];
 
@@ -889,6 +893,78 @@ define("list", {
   }
 });
 
+define("component", {
+  label: "SDUI.El.Component", icon: "fa-puzzle-piece", cat: "data",
+  desc: "SDUI.El.ComponentDesc",
+  defaults: { w: 280, h: 180, props: { templateId: "", inputs: {} }, style: { bg: "rgba(39,131,222,.05)", borderColor: "rgba(94,159,232,.35)", borderWidth: 1, radius: 8, padding: 8 } },
+  props: [
+    { key: "templateId", label: "SDUI.Prop.Component", type: "componentTemplate", group: "data", default: "" },
+    { key: "inputs", label: "SDUI.Prop.ComponentInputs", type: "componentInputs", group: "data", default: {} },
+    ...COMMON_STYLE_PROPS
+  ],
+  events: ["onReady"],
+  render(el, api) {
+    const host = h("div", { cls: "uiw-component", style: `position:relative;width:100%;height:100%;${boxStyle(el.style)}` });
+    const inputs = el.props?.inputs && typeof el.props.inputs === "object" ? el.props.inputs : {};
+    api.renderTemplate(el.props?.templateId, host, {
+      namespace: el.id,
+      context: { componentId: el.id },
+      inputs
+    });
+    return host;
+  }
+});
+
+define("repeater", {
+  label: "SDUI.El.Repeater", icon: "fa-table-list", cat: "data",
+  desc: "SDUI.El.RepeaterDesc",
+  defaults: { w: 360, h: 240, props: { source: "", templateId: "", layout: "column", columns: 2, gap: 8, filter: "", sortKey: "", descending: false, limit: 0, emptyText: "No entries" } },
+  props: [
+    { key: "source", label: "SDUI.Prop.Source", type: "formula", group: "data", default: "", bindable: true },
+    { key: "templateId", label: "SDUI.Prop.RowComponent", type: "componentTemplate", group: "data", default: "" },
+    { key: "filter", label: "SDUI.Prop.Filter", type: "text", group: "data", default: "", bindable: true },
+    { key: "sortKey", label: "SDUI.Prop.SortKey", type: "text", group: "data", default: "" },
+    { key: "descending", label: "SDUI.Prop.Descending", type: "checkbox", group: "data", default: false },
+    { key: "limit", label: "SDUI.Prop.Limit", type: "number", group: "data", default: 0 },
+    { key: "layout", label: "SDUI.Prop.Direction", type: "select", group: "content", default: "column", options: ["column", "row", "grid"] },
+    { key: "columns", label: "SDUI.Prop.Columns", type: "number", group: "content", default: 2 },
+    { key: "gap", label: "SDUI.Prop.Gap", type: "number", group: "content", default: 8 },
+    { key: "emptyText", label: "SDUI.Prop.EmptyText", type: "text", group: "content", default: "No entries" },
+    ...COMMON_STYLE_PROPS
+  ],
+  events: ["onReady", "onEmpty"],
+  render(el, api) {
+    const p = el.props ?? {};
+    const rows = filterAndSortCollection(api.value(el, "source"), {
+      filter: api.value(el, "filter") ?? "",
+      sortKey: p.sortKey,
+      descending: boolish(p.descending),
+      limit: p.limit
+    });
+    const layout = p.layout === "row" ? "row" : p.layout === "grid" ? "grid" : "column";
+    const layoutStyle = layout === "grid"
+      ? `display:grid;grid-template-columns:repeat(${Math.max(1, px(p.columns, 2))},minmax(0,1fr));gap:${px(p.gap, 8)}px`
+      : `display:flex;flex-direction:${layout};gap:${px(p.gap, 8)}px`;
+    const host = h("div", { cls: `uiw-repeater is-${layout}`, style: `${layoutStyle};width:100%;height:100%;overflow:auto;${boxStyle(el.style)}` });
+    if (!rows.length) {
+      host.appendChild(h("div", { cls: "uiw-repeater-empty", text: p.emptyText ?? "No entries" }));
+      if (!api.editMode) queueMicrotask(() => api.emit(el, "empty", [], { count: 0 }));
+      return host;
+    }
+    rows.forEach((row, index) => {
+      const slot = h("div", { cls: "uiw-repeater-item", attrs: { "data-uiw-index": index }, style: "position:relative;min-width:0;min-height:0" });
+      host.appendChild(slot);
+      api.renderTemplate(p.templateId, slot, {
+        namespace: `${el.id}-${index}`,
+        context: { row, item: row, index, count: rows.length, repeaterId: el.id },
+        inputs: { item: row, row, index, count: rows.length },
+        layout: { grid: false }
+      });
+    });
+    return host;
+  }
+});
+
 define("timer", {
   label: "SDUI.El.Timer", icon: "fa-stopwatch", cat: "data",
   desc: "SDUI.El.TimerDesc",
@@ -961,7 +1037,7 @@ export const PALETTE_ORDER = [
   "canvas", "vbox", "hbox", "grid", "border", "scrollbox", "overlay",
   "label", "richtext", "image", "icon", "button", "progress", "separator", "spacer",
   "textbox", "textarea", "number", "slider", "checkbox", "switch", "dropdown", "radiogroup", "colorpick",
-  "list", "timer",
+  "list", "component", "repeater", "timer",
   "sdwidget"
 ];
 

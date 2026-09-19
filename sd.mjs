@@ -41,6 +41,7 @@ import { SystemConfig, applySettings, buildActorBaseDefaults } from "./module/he
 import { migrateDocumentDatabaseValues } from "./module/helpers/value-database.mjs";
 import { SharedDatabaseApp, registerSharedDatabaseSettings } from "./module/helpers/shared-database.mjs";
 import "./module/helpers/data-asset-nodes.mjs";
+import "./module/three/model-nodes.mjs";
 import { initWidgetNodes } from "./module/builder/widget-nodes.mjs";
 import { initStyleNodes } from "./module/builder/style-nodes.mjs";
 import { sheetStyleFromPreset } from "./module/helpers/sheet-style.mjs";
