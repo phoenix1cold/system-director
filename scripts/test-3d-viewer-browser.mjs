@@ -68,11 +68,13 @@ globalThis.fetch = async (request, options) => {
   return originalFetch(request, options);
 };
 
+globalThis.sd3dFixtureFetch = globalThis.fetch;
 try {
   const { openModelViewer, closeModelViewer, getModelViewer } = await import("../module/three/model-viewer.mjs");
   let viewer = await openModelViewer({ viewerId: "qa", primitive: "cube" });
   await pause();
   assert(viewer.renderer.info.render.triangles > 0, "Primitive was not rendered");
+  assert(!viewer.root.querySelector('.sd-model-point-editor'), "Playback must not contain an editor");
   assert(viewer.camera.aspect > 1, "Initial camera aspect");
   checks.push("WebGL2 cube renders with camera framing");
   viewer.transform({ x: 3, y: 2, z: 1, ry: 90, scale: 2 });
@@ -129,7 +131,9 @@ try {
   }
   checks.push("All four built-in primitives render and close");
   globalThis.sd3dEvents=[];
-  globalThis.sd3dTestViewer = await openModelViewer({ viewerId: "preview", primitive: "cube", title: "3D Viewer · System Director",tooltip:"Interactive model",backgroundOpacity:0.35,onInteraction:p=>sd3dEvents.push(p),onSaveHotspots:p=>{globalThis.savedPoints=structuredClone(p);} });
+  const {editModelNodePoints}=await import('../module/three/model-point-data.mjs');
+  globalThis.sd3dGraph={nodes:[{id:'model-node',type:'model3d_primitive',data:{primitive:'cube',backgroundOpacity:0.35,tooltip:'Interactive model',hotspots:'[]'}}],edges:[]};
+  globalThis.sd3dTestViewer = await editModelNodePoints(sd3dGraph,sd3dGraph.nodes[0]);
   document.getElementById("result").textContent = JSON.stringify({ status: "PASS", checks }, null, 2);
   document.title = "PASS";
 } catch (error) {

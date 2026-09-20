@@ -139,6 +139,10 @@ export async function runSheetWidgetGraph(doc, payload = {}) {
 /** Broadcast a widget event and run the owning document's Sheet Blueprint. */
 export async function emitSheetWidgetEvent(doc, payload = {}) {
   const full = { ...payload, [SHEET_WIDGET_GRAPH_OWNER_KEY]: String(doc?.uuid ?? "") };
+  if(payload.event === "hover") {
+    const {runHoverGraph}=await import("./hover-events.mjs");
+    await runHoverGraph(doc,{...payload,objectUuid:doc?.uuid});
+  }
   try {
     Hooks.callAll(HOOK, full);
   } catch (error) {

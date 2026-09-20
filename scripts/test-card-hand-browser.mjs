@@ -108,6 +108,25 @@ try {
   const picks=[];
   foundry.applications.apps={FilePicker:class {constructor(options){this.options=options;}async render(){picks.push(this.options.type);this.options.callback('worlds/test/chosen.asset');}}};
   const editor=Object.create(FormulaGraph.prototype);editor._updatePreview=()=>{};editor._renderNode=()=>{};
+  const modelWidget=createWidget('model3d',{src:'/fixture.glb',previewMode:true,hotspots:[{id:'door',x:0,y:0,z:0}]});
+  const modelPopup=await openWidgetConfigPopup(modelWidget,{id:'t',rows:[]},{id:'r',widgets:[modelWidget]},doc,{embedded:true,onSave:()=>{}});
+  check(modelPopup.querySelector('[data-field="previewMode"]').checked,'3D widget has a preview-mode checkbox');
+  check(!!modelPopup.querySelector('[data-edit-model-points]'),'3D widget has point editor');
+  check(JSON.parse(modelPopup.querySelector('[data-field="hotspots"]').value)[0].id==='door','3D point draft restores saved data');
+  modelPopup.querySelector('[data-fp-target="src"]').click();await tick();
+  check(picks.at(-1)==='any'&&modelPopup.querySelector('[data-field="src"]').value==='worlds/test/chosen.asset','3D model picker accepts model files and updates path');
+  modelPopup.querySelector('[data-fp-target="previewImage"]').click();await tick();
+  check(picks.at(-1)==='image','3D preview has image picker');
+  modelPopup.querySelector('#wcfg-cancel').click();await tick();
+  check(modelWidget.src==='/fixture.glb','Cancelling 3D settings leaves widget unchanged');
+  check(WidgetRenderer.render(modelWidget,doc).includes('sd-model-widget'),'Registered 3D widget renders inside sheet');
+  const pointField=NODE_DEFS.model3d_primitive.fields.find(f=>f.key==='hotspots');
+  const pointControl=editor._fldEl({id:'point-editor',type:'model3d_primitive',data:{hotspots:'[]'}},pointField);
+  check(pointControl.querySelector('button')&&!pointControl.querySelector('textarea,input'),'Show 3D has a point-editor button instead of raw JSON');
+  const {registerHoverNodes}=await import('../module/builder/hover-nodes.mjs');registerHoverNodes(SD_NODE_REGISTRY);
+  editor._smartIndex={widgets:[{key:'hp',label:'Health',type:'number'}]};
+  const hoverControl=editor._fldEl({id:'hover',type:'on_hover',data:{key:'hp'}},NODE_DEFS.on_hover.fields[0]);
+  check(hoverControl.querySelector('select')?.value==='hp','On Hover exposes the existing searchable widget selector');
   let fileCount=0;
   for(const [type,def] of Object.entries(NODE_DEFS))for(const field of def.fields??[]){
     const fileType=nodeFileType(field,type);if(!fileType)continue;

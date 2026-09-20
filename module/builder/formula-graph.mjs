@@ -1,4 +1,5 @@
 import { nodeFileType, addFilePicker } from "../helpers/editor-controls.mjs";
+import { syncModelPointNodes, editModelNodePoints, modelPoints } from "../three/model-point-data.mjs";
 import { migrateGraph, NODE_TYPE_MIGRATIONS } from "./node-migration.mjs";
 import { GraphRenderView } from "./graph-render-view.mjs";
 import { pinSubtype, pinTypeMeta, subtypeColor, arePinsCompatible, automaticPinConverter, canConnectPins } from "./pin-types.mjs";
@@ -10897,6 +10898,7 @@ export class FormulaGraph {
   }
 
   async _saveGraph() {
+    syncModelPointNodes(this);
     if (this.customSave) {
       const graphData = {
         nodes:    this.nodes.map(n=>({id:n.id,type:n.type,x:n.x,y:n.y,data:{...n.data}})),
@@ -11353,6 +11355,7 @@ export class FormulaGraph {
   }
 
   compile() {
+    syncModelPointNodes(this);
     const valOut = this.nodes.find(n=>n.type==="attr_output" || n.type==="skill_output");
     if (valOut) {
       const mvEdge = this._incomingEdge(valOut.id, "modValue");
@@ -11424,7 +11427,13 @@ export class FormulaGraph {
         const actions = _chainFor(ev);
         if (!actions?.length) continue;
         const key = `${ev.type}::${ev.id}`;
-        triggers[key] = { hook: _dynHook(ev), data: ev.data ?? {}, actions };
+        const inputs = {};
+        for (const pin of NODE_DEFS[ev.type]?.inputs ?? []) {
+          const edge = this._incomingEdge(ev.id, pin.id);
+          const source = this.nodes.find(n=>n.id===edge?.fromNode);
+          if (source) inputs[pin.id] = this._compileValue(source,new Set(),edge.fromPin);
+        }
+        triggers[key] = { hook: _dynHook(ev), data: NODE_DEFS[ev.type]?.compileEventData?.(ev,inputs,this) ?? ev.data ?? {}, actions };
       }
       const macroInputs = this.nodes.filter(n => NODE_DEFS[n.type]?.isMacroInput);
       const macros = {};
@@ -11584,6 +11593,7 @@ export class FormulaGraph {
   }
 
   _compileExecChain(startNodeId, startPin) {
+    syncModelPointNodes(this);
     const actions = [];
     const _walk = (nodeId, vis=new Set()) => {
       if (!nodeId||vis.has(nodeId)) return;
@@ -13971,6 +13981,7 @@ export class FormulaGraph {
   }
 
   _renderNode(node) {
+    syncModelPointNodes(this);
     const graphView = this._getGraphView();
     graphView?.removeNode(node.id);
     const def=NODE_DEFS[node.type]; if(!def) return;
@@ -14574,6 +14585,20 @@ export class FormulaGraph {
     const IS="background:var(--sd-graph-field-bg,var(--sd-bg-3));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:6px;color:var(--sd-text);font-size:12px;padding:5px 8px;font-family:monospace;outline:none;min-width:0;max-width:100%;width:100%;box-sizing:border-box;height:28px";
     const SI=IS+";cursor:pointer";
     const idx=this._smartIndex??{slots:[],ownedItems:[],effects:[],widgets:[],invItemSlots:[]};
+
+    if (field.type === "model-points-editor") {
+      const button=document.createElement("button");button.type="button";button.style.cssText=SI;
+      const ru=game.i18n?.lang==="ru";
+      button.textContent=`${ru?"Задать точки":"Edit points"} (${modelPoints(node.data?.hotspots).length})`;
+      button.addEventListener("mousedown",event=>event.stopPropagation());
+      button.addEventListener("click",async event=>{
+        event.stopPropagation();button.disabled=true;
+        try { await editModelNodePoints(this,node); }
+        catch(error){ui.notifications?.error?.(String(error.message??error));}
+        finally {button.disabled=false;}
+      });
+      wrap.append(button);return wrap;
+    }
 
     if (field.type === "message-controls-editor") {
       const controls = _messageComposerControls(node?.data).filter(control => control.enabled);

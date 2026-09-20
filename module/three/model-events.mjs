@@ -1,6 +1,10 @@
 /** Resolve the latest owning graph on every local interaction, including unsynchronised graph saves. */
-export async function runModelInteraction(doc, payload) {
+export async function runModelInteraction(doc, payload, runtime = {}) {
   if (!doc) return;
+  if(payload.event === "hover") {
+    const {runHoverGraph}=await import("../helpers/hover-events.mjs");
+    await runHoverGraph(doc,payload,runtime);
+  }
   let graph=doc.system?.sdTriggerGraph;
   if(typeof graph==="string"){try{graph=JSON.parse(graph);}catch{return;}}
   const entries=Object.values(graph?._events??{}).filter(entry=>entry?.hook==="sdModelInteraction"

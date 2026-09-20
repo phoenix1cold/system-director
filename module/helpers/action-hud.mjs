@@ -1,5 +1,6 @@
 import { WidgetRenderer }  from "../builder/widget-renderer.mjs";
 import { bindCardHands } from "./card-hand.mjs";
+import { bindModelWidgets } from "../three/model-widget.mjs";
 import { WIDGET_VARIANTS } from "../builder/widget-registry.mjs";
 import { FormulaEngine }   from "./formula-engine.mjs";
 import { ButtonExecutor }  from "./button-executor.mjs";
@@ -227,6 +228,7 @@ function findActorWidgetByKey(actor, key) {
 
 function wireHudWidget(cell, widgetDef, actor) {
   bindCardHands(cell, actor, { disabled: () => !!SDActionHUD._builderMode });
+  bindModelWidgets(cell, actor, { disabled: () => !!SDActionHUD._builderMode });
   const _readPath = (path) => {
     if (!path) return undefined;
     const HF = "system.hiddenFields.";
@@ -280,6 +282,8 @@ function wireHudWidget(cell, widgetDef, actor) {
     });
   };
   cell._sdEmitWidgetEvent = emitHudWidgetEvent;
+  cell.addEventListener("pointerenter",event=>emitHudWidgetEvent("hover",event));
+  cell.addEventListener("pointerleave",event=>emitHudWidgetEvent("leave",event));
   // Capture phase: HUD controls call stopPropagation, which would otherwise
   // swallow the interaction before the graph ever sees it.
   cell.addEventListener("click", (event) => {

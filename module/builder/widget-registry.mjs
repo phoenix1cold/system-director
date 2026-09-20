@@ -527,6 +527,22 @@ export const WIDGET_TYPES = {
     ]
   },
 
+  model3d: {
+    id: "model3d", label: "3D Object", icon: "fa-cube",
+    desc: "Interactive 3D model with points and hover preview", defaultSpan: 2,
+    defaults: { label: "3D Object", src: "", previewImage: "", previewMode: false, viewportHeight: 280, background: "#182131", backgroundOpacity: 1, hotspots: [] },
+    configFields: [
+      { key: "label", type: "text", label: "Label" },
+      { key: "src", type: "model-pick", label: "SD.ModelWidget.Source" },
+      { key: "previewImage", type: "image-pick", label: "SD.ModelWidget.PreviewImage" },
+      { key: "previewMode", type: "boolean", label: "SD.ModelWidget.PreviewMode" },
+      { key: "viewportHeight", type: "number", label: "SD.ModelWidget.Height" },
+      { key: "background", type: "color", label: "SD.ModelWidget.Background" },
+      { key: "backgroundOpacity", type: "number", label: "SD.ModelWidget.Opacity" },
+      { key: "hotspots", type: "model-widget-points", label: "SD.ModelWidget.Points" }
+    ]
+  },
+
   vsection: {
     id:    "vsection",
     label: "Vertical Section",
@@ -699,6 +715,7 @@ export const WIDGET_VARIANTS = {
   attributeGroup: ["default", "row", "grid", "dice", "character", "tactical", "radar"],
   tags: ["default", "outline", "solid", "soft", "rarity", "terminal"],
   image: ["default", "framed", "circle", "polaroid", "token", "portrait", "hologram"],
+  model3d: ["default", "framed"],
   section: ["default", "underline", "divider", "tab", "pill", "quest", "gothic", "terminal"],
   inventory: ["default", "grid", "iconbar", "cards", "card-slider", "card-grid", "loot", "tactical", "survival"],
   slot: ["default", "framed", "round", "ghost", "tile", "equipment", "diamond", "hotbar"],
@@ -772,7 +789,7 @@ for (const type of CLICKABLE_WIDGET_TYPES) {
 }
 
 export const WIDGET_PALETTE_ORDER = [
-  "text", "richtext", "image", "button", "easyButton", "number", "toggle", "select", "tags",
+  "text", "richtext", "image", "model3d", "button", "easyButton", "number", "toggle", "select", "tags",
   "attribute", "skill", "attributeGroup",
   "resource", "progress", "counter", "tokenPool", "clock", "derived", "diceTray",
   "section", "vsection", "widgetBuilder",

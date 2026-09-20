@@ -576,6 +576,8 @@
 .sd-w-tags.sd-v-rarity { --sd-visual-variant: "tags-rarity"; }
 .sd-w-tags.sd-v-terminal { --sd-visual-variant: "tags-terminal"; }
 .sd-w-image.sd-v-default { --sd-visual-variant: "image-default"; }
+.sd-w-model3d.sd-v-default { --sd-visual-variant: "model3d-default"; }
+.sd-w-model3d.sd-v-framed .sd-model-widget { border:2px solid var(--sd-accent,#68b9ed); box-shadow:0 0 12px #0005; }
 .sd-w-image.sd-v-framed { --sd-visual-variant: "image-framed"; }
 .sd-w-image.sd-v-circle { --sd-visual-variant: "image-circle"; }
 .sd-w-image.sd-v-polaroid { --sd-visual-variant: "image-polaroid"; }

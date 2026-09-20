@@ -529,19 +529,24 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       </div>`;
     }
 
-    if (type === "image-pick") return `
+    if (type === "model-widget-points") return `
+      <div class="wcfg-f"><label class="wcfg-lbl">${esc(lbl)}</label>
+      <input type="hidden" data-field="hotspots" data-ftype="json" value="${esc(JSON.stringify(typeof w.hotspots === "string" ? JSON.parse(w.hotspots || "[]") : w.hotspots ?? []))}">
+      <button type="button" data-edit-model-points>${game.i18n?.lang === "ru" ? "Задать точки" : "Set points"}</button></div>`;
+
+    if (type === "image-pick" || type === "model-pick") return `
       <div class="wcfg-f" style="margin-bottom:10px">
         <label class="wcfg-lbl">${esc(lbl)}</label>
         <div style="display:flex;gap:5px;align-items:center">
           <input type="text" data-field="${esc(key)}" data-ftype="text"
-            value="${esc(cur ?? "")}" placeholder="path/to/image.png or icon/svg/..."
+            value="${esc(cur ?? "")}" placeholder="${type === "model-pick" ? "path/to/model.glb" : "path/to/image.png"}"
             style="${IS}flex:1">
-          <button type="button" class="wcfg-fp-btn" data-fp-target="${esc(key)}"
+          <button type="button" class="wcfg-fp-btn" data-fp-target="${esc(key)}" data-fp-type="${type === "model-pick" ? "any" : "image"}"
             title="Pick file"
             style="height:28px;padding:0 9px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:11px;flex-shrink:0">
             <i class="fas fa-folder-open"></i>
           </button>
-          ${cur ? `<img src="${esc(cur)}" alt="preview" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid var(--sd-border);flex-shrink:0">` : ""}
+          ${cur && type === "image-pick" ? `<img src="${esc(cur)}" alt="preview" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid var(--sd-border);flex-shrink:0">` : ""}
         </div>
       </div>`;
 
@@ -1024,6 +1029,28 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     apply();
   })();
 
+  popup.querySelector("[data-edit-model-points]")?.addEventListener("click", async () => {
+    const field = key => popup.querySelector(`[data-field="${key}"]`);
+    try {
+      const {openModelViewer, label3D} = await import("../three/model-viewer.mjs");
+      const {captureModelPreview} = await import("../three/model-widget.mjs");
+      const viewer = await openModelViewer({
+        viewerId:`widget-editor-${w.id}-${crypto.randomUUID()}`, src:field("src")?.value || "",
+        title:label3D("3D Object — edit points", "3D Object — редактор точек"), editPoints:true,
+        background:field("background")?.value, backgroundOpacity:field("backgroundOpacity")?.value,
+        hotspots:JSON.parse(field("hotspots")?.value || "[]"),
+        onSaveHotspots: points => {
+          if (!popup.isConnected) throw new Error(label3D("Widget settings are closed.", "Настройки виджета уже закрыты."));
+          field("hotspots").value = JSON.stringify(points);
+          const preview = field("previewImage");
+          if (preview && !preview.value) preview.value = captureModelPreview(viewer);
+          popup.querySelector("[data-edit-model-points]").textContent = `${label3D("Set points", "Задать точки")} (${points.length})`;
+        }
+      });
+      viewer.root.querySelector(".sd-model-hint").textContent = label3D("Set point → left click → Save points → Save widget settings.", "Задать точку → ЛКМ → Сохранить точки → Сохранить настройки виджета.");
+    } catch (error) { ui.notifications?.error?.(String(error.message ?? error)); }
+  });
+
   popup.querySelectorAll("button.wcfg-fp-btn[data-fp-target]").forEach(btn => {
     btn.addEventListener("click", ev => {
       ev.preventDefault();
@@ -1033,7 +1060,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
       if (!FP) { ui.notifications?.error?.("FilePicker is not available"); return; }
       new FP({
-        type: "image",
+        type: btn.dataset.fpType || "image",
         current: inp.value || "",
         callback: src => {
           inp.value = src;

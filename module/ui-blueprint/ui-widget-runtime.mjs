@@ -609,6 +609,9 @@ export class UIWidgetTree {
    * without a backing document — which is exactly what used to break.
    */
   _wireSystemWidget(host, widgetDef, el) {
+    import("../three/model-widget.mjs").then(({bindModelWidgets}) => {
+      if (host.isConnected) bindModelWidgets(host, this.state?.actor, {disabled:() => this.editMode});
+    });
     const state = this.state;
     const actor = state?.actor ?? null;
     const readNum = (path) => {

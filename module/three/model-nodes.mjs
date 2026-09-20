@@ -1,5 +1,6 @@
 import { registerNodeActionHandler } from "../helpers/node-runtime-api.mjs";
 import { runModelInteraction } from "./model-events.mjs";
+import { modelPoints, pointPinId } from "./model-point-data.mjs";
 
 const OWNER = "sd:3d-viewer";
 const text = (en, ru) => globalThis.game?.i18n?.lang === "ru" ? ru : en;
@@ -18,6 +19,7 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
       outputs: [
         { id: "exec", label: text("Then", "Далее"), type: "exec" },
         pin("viewerId", text("Viewer ID", "ID окна")),
+        ...(["model3d_open", "model3d_primitive"].includes(id) ? [pin("points", text("Points", "Массив точек"), "array"), pin("object", text("3D Object", "3D-объект"), "any")] : []),
         pin("success", text("Success", "Успех"), "bool"),
         pin("error", text("Error", "Ошибка"))
       ],
@@ -27,7 +29,7 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
       dynamicBranchToken: resultToken,
       compilePin: (node, _inputs, output) => resultToken(node, output),
       toAction: (node, connected = {}) => ({
-        type: id, __resultNodeId: node.id,
+        type: id, __resultNodeId: node.id, pointsAuthored:node.data?.pointsAuthored===true,
         args: Object.fromEntries([viewer(), ...fields].map(def => [def.key,
           connected[def.key] ?? (def.type === "number" ? (node.data?.[def.key] ?? def.default) : JSON.stringify(node.data?.[def.key] ?? def.default))
         ]))
@@ -42,7 +44,7 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
     field("backgroundOpacity", text("Background opacity 0–1", "Непрозрачность фона 0–1"),1,"number"),
     field("fullscreen",text("Full screen", "На весь экран"),"no","select",["no","yes"]),
     field("tooltip",text("Model hover text", "Текст при наведении на модель")),
-    field("hotspots",text("Initial points (optional JSON)", "Начальные точки (необязательный JSON)"),"[]","textarea")
+    {...field("hotspots",text("Interactive points", "Интерактивные точки"),"[]","model-points-editor"), noPin:true}
   ];
   add("model3d_open", text("Show 3D Model", "Показать 3D-модель"),
     text("Open a GLB/glTF in a local interactive window. Same Viewer ID replaces its previous window. Then runs after loading; check Success before continuing.",
@@ -69,7 +71,7 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
     [pin("clip", text("Clip", "Клип")), pin("speed", text("Speed", "Скорость"), "number")]);
   add("model3d_reset", text("Reset 3D Camera", "Сброс 3D-камеры"), text("Frame the whole model again.", "Снова вписывает всю модель в окно."), []);
   add("model3d_close", text("Close 3D Viewer", "Закрыть 3D-окно"), text("Close a local viewer and release its graphics resources.", "Закрывает локальное окно и освобождает графические ресурсы."), []);
-  add("model3d_hotspot",text("Set 3D Point", "Задать точку 3D"),text("Add, update or remove a model-local interactive point. You can also place and save points visually in the viewer.","Добавьте, измените или удалите точку в координатах модели. Точки также можно расставить и сохранить мышью в окне просмотра."),[
+  add("model3d_hotspot",text("Set 3D Point", "Задать точку 3D"),text("Add, update or remove a model-local point programmatically. For visual authoring, use Edit points on the Show node.","Добавьте, измените или удалите точку программно. Для настройки мышью нажмите Задать точки в ноде показа."),[
     field("hotspotId", "Point ID", "point1"),field("text",text("Hover text", "Текст подсказки")),
     field("operation",text("Operation", "Действие"),"set","select",["set","remove"]),
     field("objectName",text("Mesh name (optional)", "Имя объекта модели (необязательно)")),
@@ -82,12 +84,42 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
     title:text("On 3D Interaction", "При взаимодействии с 3D"),cat:"3D",color:"#368fa8",wideNode:true,isEvent:true,eventHook:"sdModelInteraction",
     desc:text("Reacts to this document's viewer. Blank Point ID matches the model and all points; hover fires once on entry.","События окна, открытого этим документом. Пустой ID точки — вся модель и все точки; наведение срабатывает при входе."),
     inputs:[],outputs:[{id:"exec",type:"exec",label:""},...['viewerId','hotspotId','event','text','objectName'].map(k=>pin(k,k)),...["x","y","z"].map(k=>pin(k,k.toUpperCase(),"number"))],
-    fields:[{...viewer(),noPin:true},{...field("hotspotId","Point ID (optional)"),noPin:true},{...field("event",text("Event","Событие"),"click","select",["click","hover","leave","place","any"]),noPin:true}],
+    fields:[{...viewer(),noPin:true},{...field("hotspotId","Point ID (optional)"),noPin:true},{...field("event",text("Event","Событие"),"click","select",["click","hover","leave","any"]),noPin:true}],
     compilePin:(_n,_i,p)=>`{__var:__model3d_${p}|}`
+  },{owner:OWNER});
+  registry.registerNode("model3d_point_events", {
+    title:text("3D Point Events", "События точек 3D"),cat:"3D",color:"#368fa8",wideNode:true,isAction:true,isGenericBranch:true,
+    desc:text("Connect Show 3D Model's Points and Then outputs. Each saved point gets an Exec output, fired when that point is clicked/hovered. Connect after every Show to bind the new window.","Подключите Массив точек и Далее от ноды показа. Каждая сохранённая точка получает Exec-выход по клику или наведению. Подключайте после каждого показа окна."),
+    inputs:[{id:"exec",label:"",type:"exec"},pin("points",text("Points","Массив точек"),"array")],
+    outputs:[{id:"ready",label:text("Ready","Готово"),type:"exec"}],
+    computeDynamicOutputs:n=>[{id:"ready",label:text("Ready","Готово"),type:"exec"},...modelPoints(n.data?.pointDefinitions).map(p=>({id:pointPinId(p.id),label:p.text?`${p.id} · ${p.text}`:p.id,type:"exec"})),pin("pointId","Point ID"),pin("point",text("Point","Точка"),"any")],
+    fields:[field("event",text("Event","Событие"),"click","select",["click","hover","leave"])],
+    dynamicBranchToken:resultToken,
+    toAction:(n,i={})=>({type:"model3d_point_events",__resultNodeId:n.id,points:i.points??"[]",event:n.data?.event??"click",pointDefinitions:modelPoints(n.data?.pointDefinitions)})
   },{owner:OWNER});
 }
 
 export function installModelActions(serviceLoader = () => import("./model-viewer.mjs")) {
+  registerNodeActionHandler("model3d_point_events", async ctx => {
+    const points=modelPoints(await ctx.resolveValue(ctx.action.points));
+    const service=await serviceLoader();
+    const {ButtonExecutor}=await import("../helpers/button-executor.mjs");
+    const run=async(actions,runtime)=>{for(const action of actions??[])await ButtonExecutor._runAction(action,ctx.item,ctx.actor,ctx.buttonDef,runtime);};
+    const ids=new Set(points.map(p=>p.viewerId).filter(Boolean));
+    for(const id of ids){
+      const viewer=service.getModelViewer(id);
+      if(!viewer||viewer.disposed)continue;
+      const pointIds=new Set(points.filter(p=>p.viewerId===id).map(p=>p.id));
+      viewer.interactionListeners.set(ctx.action.__resultNodeId,async payload=>{
+        if(payload.event!==ctx.action.event||!pointIds.has(payload.hotspotId))return;
+        const runtime={...ctx.runtime,__nodeResults:{...ctx.runtime?.__nodeResults}};
+        runtime.__nodeResults[ctx.action.__resultNodeId]={pointId:payload.hotspotId,point:points.find(p=>p.viewerId===id&&p.id===payload.hotspotId)};
+        await run(ctx.action[`${pointPinId(payload.hotspotId)}Actions`],runtime);
+      });
+    }
+    await run(ctx.action.readyActions,ctx.runtime);
+    return {success:ids.size>0};
+  },{owner:OWNER});
   for (const type of ["model3d_open", "model3d_primitive", "model3d_transform", "model3d_animation", "model3d_reset", "model3d_close", "model3d_hotspot", "model3d_display"]) {
     registerNodeActionHandler(type, async ctx => {
       const args = {};
@@ -99,14 +131,14 @@ export function installModelActions(serviceLoader = () => import("./model-viewer
         const service = await serviceLoader();
         if (type === "model3d_open" || type === "model3d_primitive") {
           const doc=ctx.item??ctx.actor;
-          const key=encodeURIComponent(String(ctx.action.__resultNodeId||args.viewerId)).replaceAll('.','%2E');
-          const saved=doc?.flags?.sd?.modelHotspots?.[key];
-          if(Array.isArray(saved))args.hotspots=saved;
-          args.onInteraction=payload=>runModelInteraction(doc,payload);
-          if(doc?.update&&(doc.isOwner||globalThis.game?.user?.isGM))args.onSaveHotspots=async points=>{
-            await doc.update({[`flags.sd.modelHotspots.${key}`]:points},{sdSkipEventBus:true});
-          };
-          await service.openModelViewer(args);
+          const legacyKey=encodeURIComponent(String(ctx.action.__resultNodeId||args.viewerId)).replaceAll('.','%2E');
+          const legacy=doc?.flags?.sd?.modelHotspots?.[legacyKey];
+          if(!ctx.action.pointsAuthored&&Array.isArray(legacy))args.hotspots=legacy;
+          args.editPoints=false;
+          args.onInteraction=payload=>runModelInteraction(doc,payload,ctx.runtime);
+          const opened=await service.openModelViewer(args);
+          const points=opened?.getPoints?.()??modelPoints(args.hotspots).map(p=>({...p,viewerId:args.viewerId}));
+          return {viewerId:args.viewerId,points,object:{viewerId:args.viewerId,kind:"model3d"},success:true,error:""};
         }
         else if (type === "model3d_close") await service.closeModelViewer(args.viewerId);
         else {

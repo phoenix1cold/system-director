@@ -59,6 +59,7 @@ export class ModelViewer {
     this.roots = [];
     this.clips = [];
     this.hotspots = new Map();
+    this.interactionListeners = new Map();
   }
 
   async open() {
@@ -100,9 +101,12 @@ export class ModelViewer {
     this.opacityInput.setAttribute("aria-label",label3D("Background opacity", "Непрозрачность фона"));
     this.opacityInput.addEventListener("input",()=>this.setBackgroundOpacity(this.opacityInput.value));
     opacityLabel.append(this.opacityInput);toolbar.append(opacityLabel);
+    if (this.options.editPoints === true) {
     const pointStart=toolbar.childElementCount;
-    this.pointButton=button(label3D("Place point", "Разместить точку"),()=>{
+    this.pointButton=button(label3D("Set point", "Задать точку"),()=>{
       this.placing=!this.placing;this.pointButton.setAttribute("aria-pressed",String(this.placing));
+      if(this.controls)this.controls.enabled=!this.placing;
+      if(this.renderer)this.renderer.domElement.style.cursor=this.placing?"crosshair":"grab";
     });
     this.pointButton.setAttribute("aria-pressed","false");
     this.pointId=document.createElement("input");this.pointId.placeholder="Point ID";this.pointId.value="point1";this.pointId.setAttribute("aria-label","Point ID");
@@ -127,7 +131,9 @@ export class ModelViewer {
     const summary=document.createElement("summary");summary.textContent=label3D("Edit interactive points", "Редактор интерактивных точек");
     const pointTools=document.createElement("div");
     for(const child of [...toolbar.children].slice(pointStart))pointTools.append(child);
+    editor.open=true;
     editor.append(summary,pointTools);toolbar.append(editor);
+    }
     this.clipSelect = document.createElement("select");
     this.clipSelect.setAttribute("aria-label", label3D("Animation", "Анимация"));
     this.clipSelect.hidden = true;
@@ -148,8 +154,16 @@ export class ModelViewer {
     const hint = document.createElement("div");
     hint.className = "sd-model-hint";
     hint.textContent = label3D("Drag: orbit · Wheel: zoom · Right drag: pan", "ЛКМ: вращение · Колесо: масштаб · ПКМ: перемещение");
+    if(this.options.editPoints === true)hint.textContent=label3D("Set point → left click on model → Save points → Save graph. Drag to orbit when placement is off.","Задать точку → ЛКМ по модели → Сохранить точки → Сохранить граф. Вне размещения: ЛКМ — вращение.");
     this.root.append(this.viewport, hint);
     this.resetButton.disabled = this.rotateButton.disabled = this.wireButton.disabled = true;
+    if (this.options.container) {
+      this.root.classList.add("sd-model-embedded");
+      this.options.container.append(this.root);
+      this.wireButton.hidden = true;
+      opacityLabel.hidden = true;
+      hint.hidden = true;
+    } else {
     this.app = new ModelViewerWindow({
       id: `sd-model-${crypto.randomUUID()}`, title: String(this.options.title || label3D("3D Viewer", "Просмотр 3D")),
       icon: "fa-solid fa-cube", width: clamp(number(this.options.width, 720), 360, 1920),
@@ -159,6 +173,7 @@ export class ModelViewer {
     });
     // A WebGL canvas belongs to this document; do not offer native window detachment.
     await this.app.render(true);
+    }
     const [THREE, { OrbitControls }, { GLTFLoader }] = await loadDependencies();
     if (this.disposed) throw new Error(label3D("Viewer closed while loading.", "Окно закрыто во время загрузки."));
     this.THREE = THREE;
@@ -231,7 +246,7 @@ export class ModelViewer {
       if (this.disposed) return;
       const delta = last === undefined ? 0 : Math.min((time - last) / 1000, 0.1);
       last = time;
-      if (this.root.ownerDocument.hidden || this.app.minimized) return;
+      if (this.root.ownerDocument.hidden || this.app?.minimized) return;
       this.controls.update(delta);
       this.mixer.update(delta);
       this.updateHotspots();
@@ -259,8 +274,10 @@ export class ModelViewer {
 
   emitInteraction(event, point = {}, local = null) {
     const payload={viewerId:this.id,event,hotspotId:String(point.id??""),text:String(point.text??this.options.tooltip??""),objectName:String(point.objectName??""),x:local?.x??point.x??0,y:local?.y??point.y??0,z:local?.z??point.z??0};
+    if(this.options.editPoints === true)return;
     globalThis.Hooks?.callAll?.("sdModelInteraction",payload);
     Promise.resolve(this.options.onInteraction?.(payload)).catch(error=>console.error("SD | 3D interaction",error));
+    for(const listener of this.interactionListeners.values())Promise.resolve(listener(payload)).catch(error=>console.error("SD | 3D point event",error));
   }
 
   installInteractions() {
@@ -285,13 +302,15 @@ export class ModelViewer {
     },{signal});
     canvas.addEventListener("pointerleave",()=>{this.tooltip.hidden=true;if(hovered)this.emitInteraction("leave");hovered=false;},{signal});
     canvas.addEventListener("pointerup",event=>{
+      if(event.button!==0)return;
       const start=down;down=null;if(!start||Math.hypot(event.clientX-start.x,event.clientY-start.y)>6)return;
       const hit=this.hitAt(event);if(!hit)return;
       const local=this.model.worldToLocal(hit.point.clone());
-      if(this.placing){
+      if(this.options.editPoints === true && this.placing){
         const id=this.pointId.value.trim()||`point${this.hotspots.size+1}`;
         this.setHotspot({id,text:this.pointText.value||id,x:local.x,y:local.y,z:local.z});
         this.placing=false;this.pointButton.setAttribute("aria-pressed","false");this.pointId.value=id;
+        this.controls.enabled=true;canvas.style.cursor="grab";
         this.emitInteraction("place",{id,text:this.pointText.value},local);
       }else this.emitInteraction("click",{objectName:hit.object.name},local);
     },{signal});
@@ -323,7 +342,10 @@ export class ModelViewer {
     this.markerLayer.append(button);this.hotspots.set(id,{data,button});this.refreshPointChoices(id);this.updateHotspots();
   }
 
-  refreshPointChoices(selected=this.pointSelect.value) {
+  getPoints() { return [...this.hotspots.values()].map(p=>({...p.data,viewerId:this.id})); }
+
+  refreshPointChoices(selected=this.pointSelect?.value) {
+    if(!this.pointSelect)return;
     this.pointSelect.replaceChildren();
     for(const {data} of this.hotspots.values()){const option=document.createElement("option");option.value=data.id;option.textContent=`${data.id} · ${data.text}`;this.pointSelect.append(option);}
     this.pointSelect.value=selected;
@@ -419,6 +441,7 @@ export class ModelViewer {
     if (this.disposed) return;
     this.disposed = true;
     this.interactionAbort?.abort();this.fullscreenPlaceholder?.remove();this.hotspots.clear();
+    this.interactionListeners.clear();
     this.cancelLoad?.();
     if (viewers.get(this.id) === this) viewers.delete(this.id);
     this.resizeObserver?.disconnect();

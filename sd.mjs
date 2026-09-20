@@ -1,4 +1,5 @@
 import "./module/helpers/editor-controls.mjs";
+import "./module/builder/hover-nodes.mjs";
 function _sanitizeRollData(data) {
   return Object.fromEntries(
     Object.entries(data ?? {}).map(([k, v]) =>

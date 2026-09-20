@@ -19,7 +19,7 @@ const { ButtonExecutor } = await import("../module/helpers/button-executor.mjs")
 registerModelNodes(SD_NODE_REGISTRY);
 
 const defs = Object.entries(NODE_DEFS).filter(([key]) => key.startsWith("model3d_"));
-assert.equal(defs.length, 8);
+assert.equal(defs.length, 9);
 for (const [type, def] of defs) {
   const action = def.toAction({ id: type, data: {} });
   assert.equal(action.type, type);
@@ -112,4 +112,4 @@ await new Promise(resolve => setTimeout(resolve, 0));
 assert.equal(count.geometry, 2);
 pending.dispose();
 assert.equal(count.geometry, 2, "Disposal must be idempotent");
-console.log("PASS: eight 3D action nodes, real graph compilation and formula resolution, typed results, failures, URL validation and cancellation/disposal");
+console.log("PASS: nine 3D action nodes, real graph compilation and formula resolution, typed results, failures, URL validation and cancellation/disposal");

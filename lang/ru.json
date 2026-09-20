@@ -1,5 +1,14 @@
 {
   "SD": {
+    "ModelWidget": {
+      "Source": "3D-модель (.glb / .gltf)",
+      "PreviewImage": "Изображение превью",
+      "PreviewMode": "Режим превью — загружать 3D при наведении",
+      "Height": "Высота окна (пиксели)",
+      "Background": "Фон",
+      "Opacity": "Непрозрачность фона (0–1)",
+      "Points": "Интерактивные точки"
+    },
     "CustomEvents": {
       "DupName": "Это имя уже используется другой нодой Custom Event"
     },

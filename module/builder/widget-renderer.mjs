@@ -1,4 +1,5 @@
 import { renderCardHand } from "../helpers/card-hand.mjs";
+import { renderModelWidget } from "../three/model-widget.mjs";
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { buildWidgetMacroScript, encodeMacroScript } from "../helpers/widget-macro.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
@@ -2313,6 +2314,8 @@ export class WidgetRenderer {
     }).join("");
     return `<div class="widget widget-builder sd-wb-root" data-sd-wb="${scopeId}">${cssBlock}${label}${visible.length ? `<div class="sd-wb-grid" style="grid-template-columns:repeat(${cols},minmax(0,1fr));gap:${gap}px">${cells}</div>` : emptyHint}</div>`;
   }
+
+  static _render_model3d(w) { return renderModelWidget(w); }
 
   static _render_image(w, doc) {
     const esc = this._esc.bind(this);

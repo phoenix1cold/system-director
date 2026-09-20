@@ -26,10 +26,11 @@ const actions=[];
 installModelActions(async()=>({openModelViewer:async value=>{args=value;},getModelViewer:()=>({model:{},setHotspot:v=>actions.push(v),setFullscreen:v=>actions.push(v),setBackgroundOpacity:v=>actions.push(v)})}));
 async function run(type,data={}){const action=NODE_DEFS[type].toAction({id:'source.node',data});const result=await runNodeActionHandler(type,{action,item:doc,actor,resolveValue:v=>typeof v==='string'?JSON.parse(v):v});assert.equal(result.value.success,true,result.value.error);}
 await run('model3d_primitive');
-await args.onSaveHotspots([{id:'door',text:'Saved by user',x:1,y:2,z:3}]);
-await run('model3d_primitive');
+assert.equal(args.editPoints,false);
+assert.equal(args.onSaveHotspots,undefined,'Presentation must never offer editing or saving');
+await run('model3d_primitive',{hotspots:[{id:'door',text:'Saved by user',x:1,y:2,z:3}]});
 assert.equal(args.hotspots[0].text,'Saved by user');
-await args.onSaveHotspots([]);await run('model3d_primitive');assert.deepEqual(args.hotspots,[],'Deleting every point must persist');
+await run('model3d_primitive',{hotspots:[]});assert.deepEqual(args.hotspots,[],'Empty graph points stay empty');
 await run('model3d_hotspot',{hotspotId:'new',x:3});assert.equal(actions[0].hotspotId,'new');
 await run('model3d_display',{fullscreen:'yes',backgroundOpacity:0.2});assert.deepEqual(actions.slice(1),[true,0.2]);
 console.log('PASS: compiled 3D events, filter/context, point save/reopen/delete, hotspot and display actions');

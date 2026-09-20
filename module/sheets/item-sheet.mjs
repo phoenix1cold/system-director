@@ -1,5 +1,7 @@
 import { wireSheetTabClick } from "../builder/sheet-tab-controls.mjs";
 import { bindCardHands } from "../helpers/card-hand.mjs";
+import { bindModelWidgets } from "../three/model-widget.mjs";
+import { WIDGET_TYPES } from "../builder/widget-registry.mjs";
 import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { decodeMacroScript } from "../helpers/widget-macro.mjs";
@@ -432,6 +434,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   _wireSheetWidgetEvents(cell,w) {
     const doc=this.document;
     bindCardHands(cell, doc, { disabled: () => this._editMode });
+    bindModelWidgets(cell, doc, { disabled: () => this._editMode });
     const emit=(eventName,sourceEvent=null,detail={})=>{
       if(this._editMode)return;
       const target=sourceEvent?.target??null;
@@ -456,6 +459,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       });
     };
     cell._sdEmitWidgetEvent=emit;
+    cell.addEventListener("pointerenter",event=>emit("hover",event));
+    cell.addEventListener("pointerleave",event=>emit("leave",event));
     // Capture phase: inner controls (steppers, pills, rich text, widget builder
     // elements) call stopPropagation, which used to swallow widget events.
     cell.addEventListener("click",event=>{
@@ -3008,7 +3013,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   async _addWidget(tabId, rowId, widgetType, parentVsId = null) {
     const itemValue=getValueDefinitions("item")[0]?.id??""; const defaults={ text:{label:"Text",path:itemValue}, number:{label:"Number",path:itemValue}, resource:{label:"Value Meter",pathValue:itemValue,pathMax:"",color:"var(--sd-accent)"}, dice:{label:"Roll",formula:"1d6"}, button:{label:"Action",icon:"fa-bolt",color:"var(--sd-accent)",formula:"",flavor:""}, easyButton:{label:"Easy Button",icon:"fa-dice-d20",color:"var(--sd-accent)",easyMode:"constructor",customFormula:"1d20",formula:"1d20",diceTerms:[{count:1,sides:20}],variableTerms:[],widgetTerms:[],flavor:""}, toggle:{label:"Toggle",path:itemValue,onLabel:"On",offLabel:"Off"}, section:{label:"Section",span:3}, vsection:{label:"",widgets:[],span:1}, richtext:{label:"Notes",path:itemValue,span:3}, attribute:{label:"Number",path:itemValue}, skill:{label:"Number",path:itemValue}, slot:{label:"Slot",slotId:"",maxCount:1,span:2}, inventory:{label:"Inventory",categories:[],columns:[],span:3}, effects:{label:"Effects",showDisabled:true,showPassive:true,span:3}, spellbook:{label:"Spellbook",abilityType:"",span:3} };
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(!tab) return;
-    const baseDefaults=defaults[widgetType]??{label:widgetType};
+    const baseDefaults=defaults[widgetType]??foundry.utils.deepClone(WIDGET_TYPES[widgetType]?.defaults??{label:widgetType});
     let widget={id:foundry.utils.randomID(8),span:1,...baseDefaults,type:widgetType};
     if (widgetType === "easyButton" || widgetType === "dice") {
       widget.type = "easyButton";

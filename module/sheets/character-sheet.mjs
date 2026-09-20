@@ -1,6 +1,8 @@
 import { wireSheetTabClick } from "../builder/sheet-tab-controls.mjs";
 import { TabManager } from "../helpers/tabs.mjs";
 import { bindCardHands } from "../helpers/card-hand.mjs";
+import { bindModelWidgets } from "../three/model-widget.mjs";
+import { WIDGET_TYPES } from "../builder/widget-registry.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { GridManager }    from "../builder/grid-manager.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
@@ -828,7 +830,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     };
     cell._sdEmitWidgetEvent=emitSheetWidgetEvent;
+    cell.addEventListener("pointerenter",event=>emitSheetWidgetEvent("hover",event));
+    cell.addEventListener("pointerleave",event=>emitSheetWidgetEvent("leave",event));
     bindCardHands(cell, doc, { disabled: () => this._editMode });
+    bindModelWidgets(cell, doc, { disabled: () => this._editMode });
     // Capture phase: inner controls (steppers, select pills, rich text, widget
     // builder elements) call stopPropagation, which used to swallow ordinary
     // widget events before the Sheet Blueprint ever saw them.
@@ -2297,7 +2302,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     };
 
     const tabs = foundry.utils.deepClone(this.document.system.customTabs ?? []);
-    const baseDefaults=defaults[widgetType] ?? { label: widgetType };
+    const baseDefaults=defaults[widgetType] ?? foundry.utils.deepClone(WIDGET_TYPES[widgetType]?.defaults ?? { label: widgetType });
     let widget = {
       id:   foundry.utils.randomID(8),
       span: 1,

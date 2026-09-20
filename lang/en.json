@@ -1,5 +1,14 @@
 {
   "SD": {
+    "ModelWidget": {
+      "Source": "3D model (.glb / .gltf)",
+      "PreviewImage": "Preview image",
+      "PreviewMode": "Preview mode — load 3D on hover",
+      "Height": "Viewport height (px)",
+      "Background": "Background",
+      "Opacity": "Background opacity (0–1)",
+      "Points": "Interactive points"
+    },
     "CustomEvents": {
       "DupName": "This name is already used by another Custom Event node"
     },
