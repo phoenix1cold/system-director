@@ -1,3 +1,4 @@
+import { uniqueId } from "./unique-id.mjs";
 const ru = () => globalThis.game?.i18n?.lang === "ru";
 let closeSelect;
 
@@ -9,7 +10,7 @@ export function openSearchableSelect(select) {
   popup.setAttribute("role","dialog");popup.setAttribute("aria-label",select.getAttribute("aria-label")|| (ru()?"Выбор значения":"Choose value"));
   const search=document.createElement("input"); search.type="search"; search.placeholder=ru()?"Поиск…":"Search…";
   search.setAttribute("aria-label",search.placeholder); search.setAttribute("role","combobox");search.setAttribute("aria-expanded","true");
-  const list=document.createElement("div");list.className="sd-search-options";list.id=`sd-options-${crypto.randomUUID()}`;list.setAttribute("role","listbox");
+  const list=document.createElement("div");list.className="sd-search-options";list.id=`sd-options-${uniqueId()}`;list.setAttribute("role","listbox");
   search.setAttribute("aria-controls",list.id);popup.append(search,list);
   // Native dialogs are in the browser top layer; keep their popup in that layer too.
   (select.closest("dialog[open]") ?? document.fullscreenElement ?? document.body).append(popup);

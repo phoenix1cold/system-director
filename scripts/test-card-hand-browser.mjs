@@ -120,6 +120,12 @@ try {
   modelPopup.querySelector('#wcfg-cancel').click();await tick();
   check(modelWidget.src==='/fixture.glb','Cancelling 3D settings leaves widget unchanged');
   check(WidgetRenderer.render(modelWidget,doc).includes('sd-model-widget'),'Registered 3D widget renders inside sheet');
+  const pointEvent={id:'point-action',type:'on_model3d_point_action',data:{widgetKey:modelWidget.id,pointId:'door',event:'hover'}};
+  editor.nodes=[pointEvent];editor.edges=[];editor.doc={system:{customTabs:[{rows:[{widgets:[modelWidget]}]}]}};
+  const pointPicker=editor._fldEl(pointEvent,NODE_DEFS.on_model3d_point_action.fields.find(f=>f.key==='pointId'));
+  check(pointPicker.querySelector('select').value==='door'&&pointPicker.querySelector('option[value="door"]'),'Point Action lists points belonging to the selected 3D widget');
+  const actionPicker=editor._fldEl(pointEvent,NODE_DEFS.on_model3d_point_action.fields.find(f=>f.key==='event'));
+  check([...actionPicker.querySelector('select').options].map(o=>o.value).join(',')==='hover,click','Point Action offers Hover and Click');
   const pointField=NODE_DEFS.model3d_primitive.fields.find(f=>f.key==='hotspots');
   const pointControl=editor._fldEl({id:'point-editor',type:'model3d_primitive',data:{hotspots:'[]'}},pointField);
   check(pointControl.querySelector('button')&&!pointControl.querySelector('textarea,input'),'Show 3D has a point-editor button instead of raw JSON');

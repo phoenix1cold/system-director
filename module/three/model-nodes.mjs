@@ -30,6 +30,8 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
       compilePin: (node, _inputs, output) => resultToken(node, output),
       toAction: (node, connected = {}) => ({
         type: id, __resultNodeId: node.id, pointsAuthored:node.data?.pointsAuthored===true,
+        ...(["model3d_open","model3d_primitive"].includes(id)?{hotspots:modelPoints(node.data?.hotspots)}:{}),
+        ...(id==="model3d_hotspot" && connected.showIf===undefined?{showIfExpression:String(node.data?.showIf??"")}:{}),
         args: Object.fromEntries([viewer(), ...fields].map(def => [def.key,
           connected[def.key] ?? (def.type === "number" ? (node.data?.[def.key] ?? def.default) : JSON.stringify(node.data?.[def.key] ?? def.default))
         ]))
@@ -73,6 +75,7 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
   add("model3d_close", text("Close 3D Viewer", "Закрыть 3D-окно"), text("Close a local viewer and release its graphics resources.", "Закрывает локальное окно и освобождает графические ресурсы."), []);
   add("model3d_hotspot",text("Set 3D Point", "Задать точку 3D"),text("Add, update or remove a model-local point programmatically. For visual authoring, use Edit points on the Show node.","Добавьте, измените или удалите точку программно. Для настройки мышью нажмите Задать точки в ноде показа."),[
     field("hotspotId", "Point ID", "point1"),field("text",text("Hover text", "Текст подсказки")),
+    field("showIf", "Show If"),
     field("operation",text("Operation", "Действие"),"set","select",["set","remove"]),
     field("objectName",text("Mesh name (optional)", "Имя объекта модели (необязательно)")),
     ...["x","y","z"].map(k=>field(k,k.toUpperCase(),0,"number"))
@@ -86,6 +89,19 @@ export function registerModelNodes(registry = globalThis.SD?.nodeRegistry ?? glo
     inputs:[],outputs:[{id:"exec",type:"exec",label:""},...['viewerId','hotspotId','event','text','objectName'].map(k=>pin(k,k)),...["x","y","z"].map(k=>pin(k,k.toUpperCase(),"number"))],
     fields:[{...viewer(),noPin:true},{...field("hotspotId","Point ID (optional)"),noPin:true},{...field("event",text("Event","Событие"),"click","select",["click","hover","leave","any"]),noPin:true}],
     compilePin:(_n,_i,p)=>`{__var:__model3d_${p}|}`
+  },{owner:OWNER});
+  registry.registerNode("on_model3d_point_action", {
+    title:text("On 3D Point Action", "Действие точки 3D"),cat:"3D",color:"#c64646",wideNode:true,isEvent:true,eventHook:"sdModelPointAction",
+    desc:text("Pick a 3D widget and point, or connect a point output from Get 3D Object. Runs on Hover or Click; hidden points do not fire.","Выберите 3D-виджет и точку или подключите выход точки из Get 3D Object. Срабатывает по Hover / Click; скрытые точки не вызывают события."),
+    inputs:[pin("point",text("Point","Точка"),"any")],
+    outputs:[{id:"exec",label:text("On action","При действии"),type:"exec"},pin("point",text("Point","Точка"),"any"),pin("pointId","Point ID"),pin("text",text("Text","Текст")),...["x","y","z"].map(k=>pin(k,k.toUpperCase(),"number")),pin("widgetKey","Widget Key"),pin("event",text("Action","Действие"))],
+    fields:[
+      {key:"widgetKey",label:text("3D Widget","3D-виджет"),type:"widget-picker",widgetType:"model3d",default:"",noPin:true,refreshNode:true},
+      {key:"pointId",label:text("Point","Точка"),type:"model-point-picker",default:"",noPin:true},
+      {...field("event",text("Action","Действие"),"click","select",[{value:"hover",label:"Hover"},{value:"click",label:"Click"}]),noPin:true}
+    ],
+    compileEventData:(n,i)=>({...n.data,...(i.point!==undefined?{point:i.point,connected:true}:{})}),
+    compilePin:(_n,_i,p)=>`{__var:__model3d_${p==="pointId"?"hotspotId":p}|}`
   },{owner:OWNER});
   registry.registerNode("model3d_point_events", {
     title:text("3D Point Events", "События точек 3D"),cat:"3D",color:"#368fa8",wideNode:true,isAction:true,isGenericBranch:true,
@@ -125,7 +141,9 @@ export function installModelActions(serviceLoader = () => import("./model-viewer
       const args = {};
       try {
         for (const [key, value] of Object.entries(ctx.action?.args ?? {})) {
-          args[key] = ctx.resolveValue ? await ctx.resolveValue(value) : value;
+          args[key] = key==="hotspots" && Array.isArray(ctx.action.hotspots) ? ctx.action.hotspots
+            : key==="showIf" && ctx.action.showIfExpression!==undefined ? ctx.action.showIfExpression
+            : ctx.resolveValue ? await ctx.resolveValue(value) : value;
         }
         args.viewerId = String(args.viewerId || "model");
         const service = await serviceLoader();
@@ -135,6 +153,7 @@ export function installModelActions(serviceLoader = () => import("./model-viewer
           const legacy=doc?.flags?.sd?.modelHotspots?.[legacyKey];
           if(!ctx.action.pointsAuthored&&Array.isArray(legacy))args.hotspots=legacy;
           args.editPoints=false;
+          args.document=doc;
           args.onInteraction=payload=>runModelInteraction(doc,payload,ctx.runtime);
           const opened=await service.openModelViewer(args);
           const points=opened?.getPoints?.()??modelPoints(args.hotspots).map(p=>({...p,viewerId:args.viewerId}));

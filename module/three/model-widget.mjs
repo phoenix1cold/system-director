@@ -1,3 +1,4 @@
+import { uniqueId } from "../helpers/unique-id.mjs";
 const label = (en, ru) => globalThis.game?.i18n?.lang === "ru" ? ru : en;
 const escape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
@@ -30,7 +31,7 @@ export function bindModelWidgets(root, doc, {disabled = () => false} = {}) {
     const poster = element.querySelector(".sd-model-poster");
     const status = poster.querySelector('[role="status"]');
     const abort = new AbortController();
-    let viewer, generation = 0, disposed = false, active = false, hovered = false;
+    let viewer, generation = 0, disposed = false, active = false;
     const restore = () => { host.hidden = true; poster.hidden = false; };
     const unload = () => {
       generation++;
@@ -54,9 +55,10 @@ export function bindModelWidgets(root, doc, {disabled = () => false} = {}) {
       try {
         const {openModelViewer, getModelViewer} = await import("./model-viewer.mjs");
         if (disposed || token !== generation || disabled()) { if (token === generation) active = false; return; }
-        const viewerId = `widget-${config.widgetKey}-${crypto.randomUUID()}`;
+        const viewerId = `widget-${config.widgetKey}-${uniqueId()}`;
         const opening = openModelViewer({
-          ...config, viewerId, container:host, editPoints:false,
+          ...config, viewerId, container:host, editPoints:false, document:doc,
+          onFullscreenChange: enabled => { if(!enabled)queueMicrotask(maybeUnload); },
           onInteraction: async payload => {
             if (disabled()) return;
             const {runModelInteraction} = await import("./model-events.mjs");
@@ -74,12 +76,12 @@ export function bindModelWidgets(root, doc, {disabled = () => false} = {}) {
       }
     };
     const maybeUnload = () => {
-      if (!config.previewMode || hovered || viewer?.fullscreen || element.contains(document.activeElement)) return;
+      if (!config.previewMode || element.matches(":hover") || viewer?.fullscreen || element.contains(document.activeElement)) return;
       unload(); status.textContent = label("Hover or focus to view 3D", "Наведите курсор для просмотра 3D");
     };
     element._sdModelBinding = {dispose, get viewer() { return viewer; }};
-    element.addEventListener("pointerenter", () => { hovered = true; void load(); }, {signal:abort.signal});
-    element.addEventListener("pointerleave", () => { hovered = false; maybeUnload(); }, {signal:abort.signal});
+    element.addEventListener("pointerenter", () => void load(), {signal:abort.signal});
+    element.addEventListener("pointerleave", () => queueMicrotask(maybeUnload), {signal:abort.signal});
     element.addEventListener("focusin", () => void load(), {signal:abort.signal});
     element.addEventListener("focusout", () => queueMicrotask(maybeUnload), {signal:abort.signal});
     // Orbiting and toolbar buttons should not activate surrounding sheet controls.

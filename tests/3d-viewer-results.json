@@ -17,6 +17,7 @@
     "3D widget: no model request or canvas until hover",
     "Embedded viewer, saved points and full-screen restore",
     "Hover exit releases WebGL and keeps snapshot; re-entry reloads",
-    "Sheet removal disposes active and loading widgets"
+    "Sheet removal disposes active and loading widgets",
+    "Point Show If survives save/reopen, updates live visibility, blocks hidden point clicks"
   ]
 }

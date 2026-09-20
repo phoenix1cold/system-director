@@ -14,6 +14,7 @@
  */
 
 import { WIDGET_TYPES } from "./widget-registry.mjs";
+import { modelWidgetPoints, modelPointValuePins, readModelPointPin } from "../three/model-point-data.mjs";
 import { WIDGET_VARIABLES, widgetVarKey, widgetVarPath, widgetBindingPath, coerceWidgetValue } from "../helpers/widget-variables.mjs";
 import { getValueDefinition, readDatabaseValue, variableIdForLegacyPath } from "../helpers/value-database.mjs";
 
@@ -219,6 +220,9 @@ export const WIDGET_NODE_CONTRACTS = Object.freeze({
               ["max", "Max", "value.number", (w, d) => num(readWidgetValue(d, w, "maxPath"))]],
   derived:   [["value", "Result", "value.any", (w, d) => readWidgetValue(d, w, "path") ?? ""]],
   image:     [["src", "Image", "value.string", w => String(w.img ?? w.src ?? "")]],
+  model3d:   [["points", "Points", "value.array", (w,d) => modelWidgetPoints(w,d)],
+              ["count", "Point count", "value.number", (w,d) => modelWidgetPoints(w,d).length],
+              ["src", "Model", "value.string", w => String(w.src??"")]],
   button:    [["label", "Label", "value.string", w => String(w.label ?? "")]],
   section:   [["label", "Title", "value.string", w => String(w.label ?? "")]],
   vsection:  [["children", "Child widgets", "value.number", w => (w.widgets ?? []).length]],
@@ -265,6 +269,7 @@ export function installWidgetTokens() {
     const elementKey = unarg(elementPart);
     const widget = findWidget(doc, widgetKey);
     if (!widget) return "";
+    if(widget.type==="model3d" && pin.startsWith("point_"))return readModelPointPin(widget,doc,pin);
     const entry = pinsOf(widget.type ?? type).find(item => item[0] === pin) ?? pinsOf(widget.type ?? type)[0];
     try { return entry?.[3]?.(widget, doc, elementKey) ?? ""; }
     catch (error) { console.warn("[sd] widget node read failed", error); return ""; }
@@ -341,14 +346,16 @@ export function registerWidgetNodes() {
       desc: `Read the ${label} widget: ${pins.map(pin => pin[1]).join(", ")}.`,
       inputs: [{ id: "widgetKey", label: "Widget (by name)", type: "value.string" }, ...(EXTRA_GET_INPUTS[type] ?? [])],
       outputs: pins.map(([id, pinLabel, pinType]) => ({ id, label: pinLabel, type: pinType })),
+      ...(type==="model3d"?{computeDynamicOutputs:n=>[...pins.map(([id,label,type])=>({id,label,type})),...modelPointValuePins(n.data?.pointDefinitions)]}:{}),
       fields: [{
         key: "widgetKey", label: "Widget", type: "widget-picker", default: "",
         widgetType: type, allowManual: true,
+        refreshNode: type==="model3d",
         hint: "Pick a widget, type a name, or drive it from the Widget pin."
       }, ...(EXTRA_GET_FIELDS[type] ?? [])],
       compile: (n, i) => `{sdWidget:${type}:${pins[0][0]}:${arg(i.widgetKey ?? n.data.widgetKey ?? "")}${elementSuffix(type, n, i)}}`,
       compilePin: (n, i, pin) => {
-        const valid = pins.some(entry => entry[0] === pin) ? pin : pins[0][0];
+        const valid = pins.some(entry => entry[0] === pin) || (type==="model3d" && pin.startsWith("point_")) ? pin : pins[0][0];
         return `{sdWidget:${type}:${valid}:${arg(i.widgetKey ?? n.data.widgetKey ?? "")}${elementSuffix(type, n, i)}}`;
       }
     }, { owner: OWNER });

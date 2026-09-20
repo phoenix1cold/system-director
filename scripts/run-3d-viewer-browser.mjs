@@ -18,6 +18,7 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const browser=await chromium.launch({headless:true,args:["--enable-unsafe-swiftshader"]});
 try {
   const page=await browser.newPage({viewport:{width:1200,height:1200}});
+  await page.addInitScript(()=>Object.defineProperty(crypto,'randomUUID',{configurable:true,value:undefined}));
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   page.on('console',message=>{if(message.type()==='error'&&!message.text().includes('404'))console.error(message.text());});
   await page.goto(`http://127.0.0.1:${server.address().port}/scripts/test-3d-viewer-browser.html`);
@@ -34,9 +35,11 @@ try {
   await page.locator('[data-point-id="door"]').click();
   assert.equal(await page.evaluate(()=>sd3dEvents.length),0,'Authoring never runs game events');
   await page.getByLabel('Point tooltip',{exact:true}).fill('Door to the tower');
+  await page.getByLabel('Point Show If',{exact:true}).fill('{system.level} > 2');
   await page.getByRole('button',{name:'Update point',exact:true}).click();
   await page.getByRole('button',{name:'Save points',exact:true}).click();
   assert.equal(await page.evaluate(()=>JSON.parse(sd3dGraph.nodes[0].data.hotspots)[0].text),'Door to the tower');
+  assert.equal(await page.evaluate(()=>JSON.parse(sd3dGraph.nodes[0].data.hotspots)[0].showIf),'{system.level} > 2','Show If persists with the point');
   await page.evaluate(()=>{globalThis.savedPoints=JSON.parse(sd3dGraph.nodes[0].data.hotspots);});
   await page.getByRole('button',{name:'Full screen',exact:true}).click();
   assert.ok(await page.evaluate(()=>sd3dTestViewer.fullscreen&&sd3dTestViewer.viewport.clientWidth===innerWidth));
@@ -56,19 +59,28 @@ try {
   await page.evaluate(async()=>{
     await sd3dTestViewer.close();
     const {openModelViewer}=await import('../module/three/model-viewer.mjs');
-    globalThis.sd3dTestViewer=await openModelViewer({viewerId:'playback',primitive:'cube',hotspots:JSON.parse(sd3dGraph.nodes[0].data.hotspots),onInteraction:p=>sd3dEvents.push(p)});
+    globalThis.sd3dTestViewer=await openModelViewer({viewerId:'playback',primitive:'cube',document:{system:{level:3}},hotspots:JSON.parse(sd3dGraph.nodes[0].data.hotspots),onInteraction:p=>sd3dEvents.push(p)});
   });
   assert.equal(await page.locator('.sd-model-point-editor').count(),0,'Playback contains no editing tools');
+  assert.equal(await page.evaluate(async()=>{const {FormulaEngine}=await import('../module/helpers/formula-engine.mjs');return FormulaEngine.evaluate('{system.level} > 2',sd3dTestViewer.options.document);}),true,'Playback resolves Show If against its owner');
   await page.locator('[data-point-id="door"]').hover();
   await page.locator('[data-point-id="door"]').click();
   assert.ok(await page.evaluate(()=>sd3dEvents.some(e=>e.event==='click'&&e.hotspotId==='door')));
   assert.ok(await page.evaluate(()=>sd3dEvents.some(e=>e.event==='hover'&&e.hotspotId==='door')));
+  const beforeHidden=await page.evaluate(()=>sd3dEvents.filter(e=>e.event==='click').length);
+  await page.evaluate(()=>{sd3dTestViewer.options.document.system.level=1;});
+  await page.waitForFunction(()=>document.querySelector('[data-point-id="door"]').hidden);
+  await page.evaluate(()=>document.querySelector('[data-point-id="door"]').click());
+  assert.equal(await page.evaluate(()=>sd3dEvents.filter(e=>e.event==='click').length),beforeHidden,'Hidden points cannot execute clicks');
+  await page.evaluate(()=>{sd3dTestViewer.options.document.system.level=3;});
+  await page.waitForFunction(()=>!document.querySelector('[data-point-id="door"]').hidden);
   await page.evaluate(async()=>{
     await sd3dTestViewer.close();
     const {editModelNodePoints}=await import('../module/three/model-point-data.mjs');
     globalThis.sd3dTestViewer=await editModelNodePoints(sd3dGraph,sd3dGraph.nodes[0]);
   });
   assert.equal(await page.evaluate(()=>sd3dTestViewer.getPoints()[0].text),'Door to the tower','Reopen restores graph points');
+  assert.equal(await page.getByLabel('Point Show If',{exact:true}).inputValue(),'{system.level} > 2','Reopen restores Show If in editor');
   await page.getByRole('button',{name:'Delete point',exact:true}).click();
   await page.getByRole('button',{name:'Save points',exact:true}).click();
   assert.deepEqual(await page.evaluate(()=>JSON.parse(sd3dGraph.nodes[0].data.hotspots)),[],'Empty point list saves to node');
@@ -125,6 +137,7 @@ try {
   const result=JSON.parse(await page.locator('#result').textContent());
   result.checks.push('Graph editor: Set point then LMB, save/reopen/delete node data','Playback has no editing UI and still emits point click/hover','Authoring never executes graph events','Popup text safety and dismiss','Full-screen toggle and Escape restore original window','Orbit drag does not trigger click','WebGL background alpha');
   result.checks.push('3D widget: no model request or canvas until hover','Embedded viewer, saved points and full-screen restore','Hover exit releases WebGL and keeps snapshot; re-entry reloads','Sheet removal disposes active and loading widgets');
+  result.checks.push('Point Show If survives save/reopen, updates live visibility, blocks hidden point clicks');
   fs.writeFileSync(path.join(root,'tests/3d-viewer-results.json'),JSON.stringify(result,null,2)+'\n');
   console.log(`PASS: ${result.checks.length} WebGL/browser scenarios`);
 } finally {await browser.close();server.close();}

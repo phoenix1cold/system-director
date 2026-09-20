@@ -1,4 +1,5 @@
 import { FormulaEngine }   from "../helpers/formula-engine.mjs";
+import { uniqueId } from "../helpers/unique-id.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
 import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES, createWidget } from "./widget-registry.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
@@ -1035,7 +1036,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const {openModelViewer, label3D} = await import("../three/model-viewer.mjs");
       const {captureModelPreview} = await import("../three/model-widget.mjs");
       const viewer = await openModelViewer({
-        viewerId:`widget-editor-${w.id}-${crypto.randomUUID()}`, src:field("src")?.value || "",
+        viewerId:`widget-editor-${w.id}-${uniqueId()}`, src:field("src")?.value || "",
         title:label3D("3D Object — edit points", "3D Object — редактор точек"), editPoints:true,
         background:field("background")?.value, backgroundOpacity:field("backgroundOpacity")?.value,
         hotspots:JSON.parse(field("hotspots")?.value || "[]"),

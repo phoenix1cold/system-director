@@ -11176,6 +11176,18 @@ export class FormulaGraph {
     this._smartIndex = this._buildSmartIndex();
     this._buildWin();
     this._renderAll();
+    if(!this._pointWidgetWatch) {
+      this._pointWidgetWatch=true;
+      const refresh=(doc,change)=>{
+        if(!this.win || (doc!==this.doc && (!doc?.uuid || doc.uuid!==this.doc?.uuid)))return;
+        if(!change?.system?.customTabs && !Object.keys(change??{}).some(k=>k.startsWith("system.customTabs")))return;
+        this._smartIndex=this._buildSmartIndex();syncModelPointNodes(this);
+        for(const node of this.nodes)if(["widget_get_model3d","on_model3d_point_action","model3d_point_events"].includes(node.type))this._renderNode(node);
+        this._redrawEdges();
+      };
+      for(const hook of ["updateActor","updateItem"]){const id=Hooks.on(hook,refresh);this._cleanup.push(()=>Hooks.off(hook,id));}
+      this._cleanup.push(()=>{this._pointWidgetWatch=false;});
+    }
     clearTimeout(this._fitTimer);
     this._fitTimer = setTimeout(() => { this._fitTimer = null; this._fitView(); }, 120);
   }
@@ -12279,6 +12291,7 @@ export class FormulaGraph {
         const menu=[
           ...(hasOwnGet?[{type:getType,label:`Get ${label} — widget node`,icon:"fa-cube",data:{widgetKey:key,widgetId}}]:[]),
           ...(hasOwnSet?[{type:setType,label:`Set ${label} — widget node`,icon:"fa-pen-to-square",data:{widgetKey:key,widgetId}}]:[]),
+          ...(widgetType==="model3d"?[{type:"on_model3d_point_action",label:`On ${label} Point Action`,icon:"fa-bullseye",data:{widgetKey:key,widgetId,event:"click"}}]:[]),
           {type:"sheet_widget_event",label:`On ${label} Event`,icon:"fa-bolt",data:{key,widgetId,event:"click"}},
           {type:"get_widget",label:`Get ${label} (generic)`,icon:"fa-arrow-right-from-bracket",data:{key,widgetId}},
           {type:"get_widget_path",label:`Get ${label} Path`,icon:"fa-route",data:{key,widgetId}},
@@ -12305,6 +12318,7 @@ export class FormulaGraph {
         const gy=wrap?(wrap.clientHeight*.42-this._pan.y)/this._zoom:280;
         const widgetType=String(row.dataset.widgetType||"");
         if(NODE_DEFS?.[`widget_set_${widgetType}`])this._addNode(`widget_set_${widgetType}`,gx,gy,{widgetKey:key,widgetId:row.dataset.widgetId});
+        else if(widgetType==="model3d")this._addNode("on_model3d_point_action",gx,gy,{widgetKey:key,widgetId:row.dataset.widgetId,event:"click"});
         else this._addNode("sheet_widget_event",gx,gy,{key,widgetId:row.dataset.widgetId,event:"click"});
       });
     });
@@ -14710,6 +14724,19 @@ export class FormulaGraph {
       container.appendChild(sel); container.appendChild(rawInp); wrap.appendChild(container); return wrap;
     }
 
+    if(field.type==="model-point-picker"){
+      syncModelPointNodes(this);
+      const sel=document.createElement("select");sel.style.cssText=SI;
+      const points=modelPoints(node.data?.pointDefinitions), cur=String(node.data?.[field.key]??"");
+      const add=(value,label)=>{const o=document.createElement("option");o.value=value;o.textContent=label;sel.append(o);};
+      add("",game.i18n?.lang==="ru"?"Все точки":"All points");
+      for(const p of points)add(p.id,p.text?`${p.id} · ${p.text}`:p.id);
+      if(cur&&!points.some(p=>p.id===cur))add(cur,`${cur} (missing)`);
+      sel.value=cur;sel.addEventListener("mousedown",e=>e.stopPropagation());
+      sel.addEventListener("change",()=>{node.data[field.key]=sel.value;this._updatePreview();});
+      wrap.append(sel);return wrap;
+    }
+
     if(field.type==="widget-element-picker"){
       const cur=node.data[field.key]??field.default??"";
       const keyField=field.widgetField??"widgetKey";
@@ -14738,6 +14765,7 @@ export class FormulaGraph {
     }
 
     if(field.type==="widget-picker"){
+      if(field.refreshNode)wrap.addEventListener("change",()=>queueMicrotask(()=>{this._renderNode(node);this._redrawEdges();}));
       const cur=node.data[field.key]??field.default??"";
       const all=idx.widgets??[];
       // `field.widgetType` narrows the list to the node's own widget type. When

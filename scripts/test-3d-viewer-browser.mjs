@@ -1,5 +1,7 @@
 // Real WebGL/Three.js; only the Foundry window lifecycle is stubbed.
-globalThis.game = { i18n: { lang: "en" } };
+globalThis.game = { i18n: { lang: "en" }, settings:{get(){}}, actors:[], items:[] };
+globalThis.Actor=class {};globalThis.Item=class {};
+globalThis.CONFIG = { SD:{} };
 globalThis.foundry = { applications: { api: { ApplicationV2: class {
   constructor(options) { this.options = options; }
   async render() {
@@ -21,6 +23,7 @@ globalThis.foundry = { applications: { api: { ApplicationV2: class {
   async close() { this.element?.remove(); }
 } } } };
 
+foundry.utils={getProperty:(o,p)=>String(p).split('.').reduce((v,k)=>v?.[k],o)};
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const pause = () => new Promise(resolve => setTimeout(resolve, 80));
 const checks = [];

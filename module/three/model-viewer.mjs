@@ -1,4 +1,6 @@
 import { SDFoundryWindowHost } from "../helpers/foundry-window-host.mjs";
+import { modelPointVisible } from "./model-point-visibility.mjs";
+import { uniqueId } from "../helpers/unique-id.mjs";
 
 const viewers = new Map();
 let dependencies;
@@ -112,9 +114,11 @@ export class ModelViewer {
     this.pointId=document.createElement("input");this.pointId.placeholder="Point ID";this.pointId.value="point1";this.pointId.setAttribute("aria-label","Point ID");
     this.pointText=document.createElement("input");this.pointText.placeholder=label3D("Point tooltip", "Текст подсказки");this.pointText.setAttribute("aria-label",this.pointText.placeholder);
     toolbar.append(this.pointId,this.pointText);
+    this.pointShowIf=document.createElement("input");this.pointShowIf.placeholder=label3D("Show If — blank: always", "Show If — пусто: всегда");this.pointShowIf.setAttribute("aria-label","Point Show If");
+    this.pointShowIf.title=label3D("Sheet formula, e.g. {system.level} > 2. Evaluated on the owning document.","Формула листа, например {system.level} > 2. Вычисляется для документа-владельца.");toolbar.append(this.pointShowIf);
     this.pointSelect=document.createElement("select");this.pointSelect.setAttribute("aria-label",label3D("Edit point", "Редактировать точку"));
-    this.pointSelect.addEventListener("change",()=>{const p=this.hotspots.get(this.pointSelect.value)?.data;if(p){this.pointId.value=p.id;this.pointText.value=p.text;}});toolbar.append(this.pointSelect);
-    button(label3D("Update point", "Изменить точку"),()=>{const p=this.hotspots.get(this.pointSelect.value)?.data;if(p){const id=this.pointId.value.trim()||p.id;if(id!==p.id)this.setHotspot({id:p.id,operation:"remove"});this.setHotspot({...p,id,text:this.pointText.value});}});
+    this.pointSelect.addEventListener("change",()=>{const p=this.hotspots.get(this.pointSelect.value)?.data;if(p){this.pointId.value=p.id;this.pointText.value=p.text;this.pointShowIf.value=p.showIf;}});toolbar.append(this.pointSelect);
+    button(label3D("Update point", "Изменить точку"),()=>{const p=this.hotspots.get(this.pointSelect.value)?.data;if(p){const id=this.pointId.value.trim()||p.id;if(id!==p.id)this.setHotspot({id:p.id,operation:"remove"});this.setHotspot({...p,id,text:this.pointText.value,showIf:this.pointShowIf.value});}});
     button(label3D("Delete point", "Удалить точку"),()=>this.setHotspot({id:this.pointSelect.value,operation:"remove"}));
     this.savePointsButton=button(label3D("Save points", "Сохранить точки"),async()=>{
       this.savePointsButton.disabled=true;
@@ -165,7 +169,7 @@ export class ModelViewer {
       hint.hidden = true;
     } else {
     this.app = new ModelViewerWindow({
-      id: `sd-model-${crypto.randomUUID()}`, title: String(this.options.title || label3D("3D Viewer", "Просмотр 3D")),
+      id: `sd-model-${uniqueId()}`, title: String(this.options.title || label3D("3D Viewer", "Просмотр 3D")),
       icon: "fa-solid fa-cube", width: clamp(number(this.options.width, 720), 360, 1920),
       height: clamp(number(this.options.height, 580), 300, 1440), content: this.root,
       classes: ["sd-model-window"],
@@ -270,11 +274,14 @@ export class ModelViewer {
     }else if(!this.fullscreen&&this.fullscreenPlaceholder){this.fullscreenPlaceholder.replaceWith(this.root);this.fullscreenPlaceholder=null;}
     this.root.classList.toggle("sd-model-fullscreen",this.fullscreen);
     this.fullscreenButton?.setAttribute("aria-pressed",String(this.fullscreen));this.resize();
+    this.options.onFullscreenChange?.(this.fullscreen);
   }
 
   emitInteraction(event, point = {}, local = null) {
+    if(point.id && !this.isPointVisible(point))return;
     const payload={viewerId:this.id,event,hotspotId:String(point.id??""),text:String(point.text??this.options.tooltip??""),objectName:String(point.objectName??""),x:local?.x??point.x??0,y:local?.y??point.y??0,z:local?.z??point.z??0};
     if(this.options.editPoints === true)return;
+    if(point.id)payload.point={...point,viewerId:this.id,visible:true};
     globalThis.Hooks?.callAll?.("sdModelInteraction",payload);
     Promise.resolve(this.options.onInteraction?.(payload)).catch(error=>console.error("SD | 3D interaction",error));
     for(const listener of this.interactionListeners.values())Promise.resolve(listener(payload)).catch(error=>console.error("SD | 3D point event",error));
@@ -308,7 +315,7 @@ export class ModelViewer {
       const local=this.model.worldToLocal(hit.point.clone());
       if(this.options.editPoints === true && this.placing){
         const id=this.pointId.value.trim()||`point${this.hotspots.size+1}`;
-        this.setHotspot({id,text:this.pointText.value||id,x:local.x,y:local.y,z:local.z});
+        this.setHotspot({id,text:this.pointText.value||id,showIf:this.pointShowIf.value,x:local.x,y:local.y,z:local.z});
         this.placing=false;this.pointButton.setAttribute("aria-pressed","false");this.pointId.value=id;
         this.controls.enabled=true;canvas.style.cursor="grab";
         this.emitInteraction("place",{id,text:this.pointText.value},local);
@@ -328,34 +335,43 @@ export class ModelViewer {
   setHotspot(options) {
     const id=String(options.id||options.hotspotId||"point");
     if(options.operation==="remove"){this.hotspots.get(id)?.button.remove();this.hotspots.delete(id);this.refreshPointChoices();return;}
-    const data={id,text:String(options.text||id),objectName:String(options.objectName||""),x:number(options.x,0),y:number(options.y,0),z:number(options.z,0)};
+    const data={id,text:String(options.text||id),showIf:String(options.showIf??""),objectName:String(options.objectName||""),x:number(options.x,0),y:number(options.y,0),z:number(options.z,0)};
     if(this.hotspots.size>=128&&!this.hotspots.has(id))throw new Error("Maximum 128 points per viewer");
     if(data.objectName&&!this.model.getObjectByName(data.objectName))throw new Error(`3D object not found: ${data.objectName}`);
     this.hotspots.get(id)?.button.remove();
     const button=document.createElement("button");button.type="button";button.className="sd-model-point";button.textContent="●";button.setAttribute("aria-label",data.text);button.dataset.pointId=id;
     button.addEventListener("pointerdown",e=>e.stopPropagation());
-    button.addEventListener("pointerenter",e=>{this.showTooltip(data.text,e.clientX,e.clientY);this.emitInteraction("hover",data);});
+    button.addEventListener("pointerenter",e=>{if(!this.isPointVisible(data))return;this.showTooltip(data.text,e.clientX,e.clientY);this.emitInteraction("hover",data);});
     button.addEventListener("pointerleave",()=>{this.tooltip.hidden=true;this.emitInteraction("leave",data);});
-    button.addEventListener("focus",()=>{const r=button.getBoundingClientRect();this.showTooltip(data.text,r.left,r.bottom);});
+    button.addEventListener("focus",()=>{if(!this.isPointVisible(data))return;const r=button.getBoundingClientRect();this.showTooltip(data.text,r.left,r.bottom);});
     button.addEventListener("blur",()=>{this.tooltip.hidden=true;});
     button.addEventListener("click",e=>{e.stopPropagation();this.emitInteraction("click",data);});
     this.markerLayer.append(button);this.hotspots.set(id,{data,button});this.refreshPointChoices(id);this.updateHotspots();
   }
 
-  getPoints() { return [...this.hotspots.values()].map(p=>({...p.data,viewerId:this.id})); }
+  isPointVisible(point) { return this.options.editPoints === true || modelPointVisible(point,this.options.document); }
+
+  getPoints() { return [...this.hotspots.values()].map(p=>({...p.data,viewerId:this.id,visible:this.isPointVisible(p.data)})); }
 
   refreshPointChoices(selected=this.pointSelect?.value) {
     if(!this.pointSelect)return;
     this.pointSelect.replaceChildren();
     for(const {data} of this.hotspots.values()){const option=document.createElement("option");option.value=data.id;option.textContent=`${data.id} · ${data.text}`;this.pointSelect.append(option);}
     this.pointSelect.value=selected;
+    const selectedPoint=this.hotspots.get(selected)?.data;
+    if(selectedPoint){this.pointId.value=selectedPoint.id;this.pointText.value=selectedPoint.text;this.pointShowIf.value=selectedPoint.showIf;}
     this.savePointsButton.textContent=label3D("Save points", "Сохранить точки");
   }
 
   updateHotspots() {
     if(!this.model)return;
     this.model.updateWorldMatrix(true,true);this.camera.updateMatrixWorld();
-    for(const {data,button} of this.hotspots.values()) {
+    const refreshVisibility=performance.now()>=(this.nextVisibilityCheck??0);
+    if(refreshVisibility)this.nextVisibilityCheck=performance.now()+150;
+    for(const entry of this.hotspots.values()) {
+      const {data,button}=entry;
+      if(refreshVisibility || entry.visible===undefined)entry.visible=this.isPointVisible(data);
+      if(!entry.visible){if(!button.hidden)this.tooltip.hidden=true;button.hidden=true;continue;}
       const object=data.objectName?this.model.getObjectByName(data.objectName):this.model;
       const point=object.localToWorld(new this.THREE.Vector3(data.x,data.y,data.z)).project(this.camera);
       button.hidden=point.z < -1||point.z>1||Math.abs(point.x)>1||Math.abs(point.y)>1;

@@ -23,6 +23,10 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/scripts/test-card-hand-browser.html`);
   await page.waitForFunction(()=>['READY','FAIL'].includes(document.title));
   assert.equal(await page.title(),'READY',await page.locator('#result').textContent());
+  await page.evaluate(()=>{
+    Object.defineProperty(crypto,'randomUUID',{configurable:true,value:undefined});
+    foundry.utils.randomID=()=>Array.from(crypto.getRandomValues(new Uint8Array(12)),n=>n.toString(16).padStart(2,'0')).join('');
+  });
   await page.getByLabel('Search test',{exact:true}).click();
   await page.locator('.sd-search-select input').fill('лё');
   assert.equal(await page.locator('.sd-search-options [role=option]').count(),1);
@@ -37,6 +41,7 @@ try {
   assert.deepEqual(await page.locator('select[aria-label="Multiple test"]').evaluate(el=>[...el.selectedOptions].map(o=>o.value)),['two']);
   await page.keyboard.press('Escape');
   await page.evaluate(()=>qa.checks.push('Searchable selectors: Cyrillic search, mouse/keyboard, Escape, disabled groups and multi-select'));
+  await page.evaluate(()=>qa.checks.push('Searchable selectors work without crypto.randomUUID (HTTP compatibility)'));
   await page.locator('#tabs [data-rename] i').click();
   await page.locator('#tabs [data-rename]').focus();await page.keyboard.press('Enter');
   await page.locator('#tabs [data-deltab]').click();

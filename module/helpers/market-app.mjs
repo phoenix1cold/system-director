@@ -1,3 +1,4 @@
+import { uniqueId } from "./unique-id.mjs";
 /**
  * SD Community Market
  * Browse, install and submit user-created SD systems through the custom server.
@@ -314,7 +315,7 @@ export class SDMarketApp extends ApplicationV2 {
   }
 
   _savedVote(id) { try { return localStorage.getItem(`sd.market.vote.${id}`) ?? ""; } catch { return ""; } }
-  _voterId() { const key="sd.market.voterId"; try { let id=localStorage.getItem(key); if(!id){id=crypto.randomUUID();localStorage.setItem(key,id)} return id; } catch { return crypto.randomUUID(); } }
+  _voterId() { const key="sd.market.voterId"; try { let id=localStorage.getItem(key); if(!id){id=uniqueId();localStorage.setItem(key,id)} return id; } catch { return uniqueId(); } }
   async _vote(id, requested) {
     if(!id||!["like","dislike"].includes(requested))return;
     const vote=this._savedVote(id)===requested?"clear":requested;
