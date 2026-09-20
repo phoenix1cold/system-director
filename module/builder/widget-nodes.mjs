@@ -16,7 +16,8 @@
 import { WIDGET_TYPES } from "./widget-registry.mjs";
 import { modelWidgetPoints, modelPointValuePins, readModelPointPin } from "../three/model-point-data.mjs";
 import { WIDGET_VARIABLES, widgetVarKey, widgetVarPath, widgetBindingPath, coerceWidgetValue } from "../helpers/widget-variables.mjs";
-import { getValueDefinition, readDatabaseValue, variableIdForLegacyPath } from "../helpers/value-database.mjs";
+import { getValueDefinition, readDatabaseValue, variableIdForLegacyPath, valueStoragePath } from "../helpers/value-database.mjs";
+import { attributeGroupModifier, attributeGroupModifierPath } from "../helpers/attribute-group-value.mjs";
 
 const OWNER = "sd-widget-nodes";
 const CATEGORY = "Sheet Widgets";
@@ -122,7 +123,6 @@ export function attributeGroupKeys(widget) {
  */
 export function attributeGroupEntries(widget, doc) {
   const cfg = globalThis.CONFIG?.SD ?? {};
-  const compute = cfg.computeModifier ?? (score => Math.floor((num(score) - 10) / 2));
   const labels = cfg.attributes ?? {};
   let keys = attributeGroupKeys(widget);
   if (!keys.length) {
@@ -132,18 +132,21 @@ export function attributeGroupEntries(widget, doc) {
   }
   return keys.map(raw => {
     const def = getValueDefinition(raw) ?? getValueDefinition(variableIdForLegacyPath(raw));
-    let score, name;
+    let score, name, scorePath;
     if (def) {
       score = readDatabaseValue(doc, def.id);
       name = def.name;
+      scorePath = valueStoragePath(def.id);
     } else {
       const path = String(raw).includes(".") ? String(raw) : `system.attributes.${raw}.value`;
+      scorePath = path;
       score = doc ? foundry.utils.getProperty(doc, path) : undefined;
       name = labels[raw] ?? (String(raw).charAt(0).toUpperCase() + String(raw).slice(1));
     }
-    if (score && typeof score === "object") score = score.value ?? score.score ?? 0;
+    if (score && typeof score === "object") {const field="value" in score?"value":"score";scorePath+=`.${field}`;score=score[field]??0;}
     const value = num(score);
-    return { key: def?.id ?? String(raw), name: String(name ?? raw), score: value, mod: num(compute(value)) };
+    const key=def?.id ?? String(raw);
+    return { key, name: String(name ?? raw), score: value, scorePath, mod: num(attributeGroupModifier(widget,doc,key,value)) };
   });
 }
 
@@ -282,7 +285,9 @@ export function installWidgetActions() {
   RUNTIME.registerAction("sdSetWidgetValue", async (ctx) => {
     const action = ctx.action ?? {};
     const doc = ctx.doc ?? ctx.actor ?? ctx.item ?? null;
-    const widget = findWidget(doc, unarg(action.widgetKey), { widgetType: action.widgetType });
+    const widgetKey=unarg(action.widgetKey);
+    const resolvedWidgetKey=action.widgetType==="attributeGroup"&&ctx.resolveValue ? await ctx.resolveValue(widgetKey) : widgetKey;
+    const widget = findWidget(doc, resolvedWidgetKey, { widgetType: action.widgetType });
     if (!widget || !doc?.update) {
       if (!widget) console.warn(`[sd] Set Widget: no widget matched "${unarg(action.widgetKey)}"`);
       return;
@@ -290,6 +295,19 @@ export function installWidgetActions() {
     const field = String(action.field || (WIDGET_VARIABLES[widget.type]?.[0]?.field ?? "path"));
     const descriptor = (WIDGET_VARIABLES[widget.type] ?? []).find(entry => entry.field === field);
     const raw = ctx.resolveValue ? await ctx.resolveValue(action.value) : action.value;
+    if(action.widgetType === "attributeGroup") {
+      if(widget.type!=="attributeGroup")return;
+      const key=unarg(action.elementKey);
+      const resolvedKey=ctx.resolveValue ? await ctx.resolveValue(key) : key;
+      const entry=attributeGroupEntry(widget,doc,resolvedKey);
+      if(!entry||!["score","mod"].includes(field))return;
+      const path=field==="mod"?attributeGroupModifierPath(widget,entry.key):entry.scorePath;
+      const current=entry[field];
+      const mode=String(action.mode||"set");
+      const next=mode==="add"?current+num(raw):mode==="sub"?current-num(raw):mode==="clear"?0:num(raw);
+      await doc.update({[path]:next});
+      return;
+    }
     const current = readWidgetValue(doc, widget, field);
     let next;
     switch (String(action.mode || "set")) {
@@ -360,17 +378,18 @@ export function registerWidgetNodes() {
       }
     }, { owner: OWNER });
 
-    const variables = WIDGET_VARIABLES[type] ?? [];
+    const variables = type==="attributeGroup" ? [{field:"score",label:"Score"},{field:"mod",label:"Modifier"}] : WIDGET_VARIABLES[type] ?? [];
     if (!variables.length) continue;
     registerNode(widgetSetNodeType(type), {
       title: `Set ${label}`,
       color: COLOR_SET, cat: CATEGORY, wideNode: true,
       isAction: true,
-      desc: `Write the ${label} widget's own value (${variables.map(entry => entry.label).join(", ")}).`,
+      desc: type==="attributeGroup" ? "Change one attribute's score or this group's modifier override. Pick the attribute or connect Element Key." : `Write the ${label} widget's own value (${variables.map(entry => entry.label).join(", ")}).`,
       inputs: [
         { id: "exec", label: "", type: "exec" },
         { id: "widgetKey", label: "Widget (by name)", type: "value.string" },
-        { id: "value", label: "Value", type: "value.any" }
+        { id: "value", label: "Value", type: "value.any" },
+        ...(type==="attributeGroup" ? EXTRA_GET_INPUTS.attributeGroup : [])
       ],
       outputs: [{ id: "exec", label: "Then →", type: "exec" }],
       fields: [
@@ -379,17 +398,19 @@ export function registerWidgetNodes() {
           widgetType: type, allowManual: true,
           hint: "Pick a widget, type a name, or drive it from the Widget pin."
         },
+        ...(type==="attributeGroup" ? EXTRA_GET_FIELDS.attributeGroup : []),
         { key: "field", label: "Variable", type: "select", default: variables[0].field, options: variables.map(entry => ({ value: entry.field, label: entry.label })) },
         { key: "mode", label: "Mode", type: "select", default: "set", options: [
           { value: "set", label: "Set" }, { value: "add", label: "Add" }, { value: "sub", label: "Subtract" },
           { value: "toggle", label: "Toggle" }, { value: "push", label: "Append to list" }, { value: "clear", label: "Clear" }
-        ] },
+        ].filter(option=>type!=="attributeGroup"||!["toggle","push"].includes(option.value)) },
         { key: "value", label: "Value", type: "text", default: "" }
       ],
       toAction: (n, inp = {}) => ({
         type: "sdSetWidgetValue",
         widgetType: type,
         widgetKey: arg(inp.widgetKey ?? n.data.widgetKey ?? ""),
+        ...(type==="attributeGroup" ? {elementKey:arg(inp.elementKey ?? n.data.elementKey ?? "")} : {}),
         field: n.data.field ?? variables[0].field,
         mode: n.data.mode ?? "set",
         value: inp.value ?? n.data.value ?? ""

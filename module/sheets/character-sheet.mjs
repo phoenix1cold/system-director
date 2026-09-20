@@ -11,6 +11,7 @@ import { decodeMacroScript } from "../helpers/widget-macro.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "../helpers/sheet-widget-events.mjs";
+import { sheetWidgetClickControl } from "../helpers/sheet-widget-click.mjs";
 import { deletionUpdate } from "../helpers/foundry-compat.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
@@ -847,7 +848,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         emitSheetWidgetEvent("pip",event,{value:Number(pip.dataset.rank)||0});
         return;
       }
-      emitSheetWidgetEvent("click",event);
+      const control=sheetWidgetClickControl(cell,event);
+      if(!control)return;
+      emitSheetWidgetEvent("click",event,{elementKey:control.closest("[data-element-key]")?.dataset?.elementKey??""});
       if(String(w.type)==="toggle")emitSheetWidgetEvent("toggle",event);
     },true);
     cell.addEventListener("input",event=>emitSheetWidgetEvent("input",event),true);

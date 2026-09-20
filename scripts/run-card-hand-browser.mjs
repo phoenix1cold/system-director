@@ -80,6 +80,44 @@ try {
   await page.evaluate(()=>document.querySelector('main').style.width='390px');
   assert.ok(await page.locator('#fan .sd-hand-scroll').evaluate(el=>el.scrollWidth>el.clientWidth),'Narrow fan should scroll');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No horizontal page overflow');
+  await page.evaluate(async()=>{
+    const {SheetTabReorder}=await import('../module/builder/sheet-tab-reorder.mjs');
+    const {GridManager}=await import('../module/builder/grid-manager.mjs');
+    const originalMove=GridManager.moveTab,originalShift=GridManager.shiftTab;
+    const calls=[];GridManager.moveTab=async(...args)=>calls.push(args.slice(1));GridManager.shiftTab=async(...args)=>calls.push(args.slice(1));
+    const sheet=document.createElement('section');sheet.className='sd sheet';sheet.style.cssText='position:relative;width:390px;height:600px';
+    sheet.dataset.sdTabLabels='1';sheet.innerHTML='<div class="window-content"><nav class="sd-tab-nav"></nav><div class="sd-panels-container"></div></div>';document.body.append(sheet);
+    const nav=sheet.querySelector('nav');
+    for(const id of ['first','second']){
+      const tab=document.createElement('a');tab.className='sd-tab-btn';tab.dataset.tabId=id;
+      tab.innerHTML='<i class="sd-tab-icon">◆</i><span class="sd-tab-emoji">★</span><span class="sd-tab-label">Длинное название вкладки</span><button class="sd-tab-control" aria-label="Settings">⚙</button><button class="sd-tab-control" aria-label="Delete">×</button>';
+      nav.append(tab);SheetTabReorder.attach({_editMode:true,isEditable:true,document:{uuid:'Actor.test'}},tab,id);
+    }
+    const assert=(ok,message)=>{if(!ok)throw new Error(message);};
+    try {
+      for(const layout of ['tabs-left','tabs-right','dashboard'])for(const labels of ['0','1']){
+        sheet.dataset.sdSheetLayout=layout;sheet.dataset.sdTabLabels=labels;
+        const nb=nav.getBoundingClientRect();
+        assert(nb.width>=104,'Edit rail reserves space');
+        for(const tab of nav.children){const tb=tab.getBoundingClientRect();
+          const rects=[...tab.children].filter(el=>getComputedStyle(el).display!=='none').map(el=>el.getBoundingClientRect());
+          for(const b of rects)assert(b.width>0&&b.left>=tb.left-1&&b.right<=tb.right+1&&b.top>=tb.top-1&&b.bottom<=tb.bottom+1,'Tab control clipped: '+layout);
+          for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++){const a=rects[i],b=rects[j];assert(Math.min(a.right,b.right)-Math.max(a.left,b.left)<1||Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)<1,'Tab controls overlap');}
+        }
+      }
+      sheet.dataset.sdSheetLayout='tabs-right';
+      const first=nav.children[0],second=nav.children[1];const transfer=new DataTransfer();
+      first.querySelector('.sd-tab-drag-handle').dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:transfer}));
+      const b=second.getBoundingClientRect();
+      second.dispatchEvent(new DragEvent('drop',{bubbles:true,dataTransfer:transfer,clientX:b.left+1,clientY:b.bottom-1}));
+      second.querySelector('.sd-tab-drag-handle').dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'ArrowUp'}));
+      assert(JSON.stringify(calls)===JSON.stringify([['first','second','after'],['second',-1]]),'Vertical drop and keyboard follow Y axis');
+      qa.checks.push('Left/right/dashboard rails: all icons, handles and buttons fit at 390px with labels on/off','Vertical tab drop and keyboard ordering');
+      sheet.id='rail-layout-test';
+    } finally {GridManager.moveTab=originalMove;GridManager.shiftTab=originalShift;}
+  });
+  await page.locator('#rail-layout-test').screenshot({path:path.join(root,'tests/tab-rail-preview.png')});
+  await page.locator('#rail-layout-test').evaluate(el=>el.remove());
   assert.deepEqual(errors,[]);
   const result=await page.evaluate(()=>({checks:qa.checks,errors:qa.errors}));
   result.checks.push('Narrow viewport uses internal scrolling');

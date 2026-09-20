@@ -7,6 +7,10 @@ export function openSearchableSelect(select) {
   if (select.disabled) return;
   closeSelect?.();
   const popup=document.createElement("div"); popup.className="sd sd-search-select";
+  const theme=getComputedStyle(select);
+  for(const key of ["--sd-bg","--sd-bg-2","--sd-bg-3","--sd-border","--sd-border-2","--sd-text","--sd-accent","--sd-accent-glow","--sd-font","--sd-base-font-size","--sd-r","--sd-r-lg"]) {
+    const value=theme.getPropertyValue(key);if(value)popup.style.setProperty(key,value);
+  }
   popup.setAttribute("role","dialog");popup.setAttribute("aria-label",select.getAttribute("aria-label")|| (ru()?"Выбор значения":"Choose value"));
   const search=document.createElement("input"); search.type="search"; search.placeholder=ru()?"Поиск…":"Search…";
   search.setAttribute("aria-label",search.placeholder); search.setAttribute("role","combobox");search.setAttribute("aria-expanded","true");

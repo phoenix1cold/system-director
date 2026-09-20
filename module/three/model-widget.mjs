@@ -31,6 +31,7 @@ export function bindModelWidgets(root, doc, {disabled = () => false} = {}) {
     const poster = element.querySelector(".sd-model-poster");
     const status = poster.querySelector('[role="status"]');
     const abort = new AbortController();
+    const later = callback => (globalThis.requestAnimationFrame ?? (fn => setTimeout(fn,0)))(callback);
     let viewer, generation = 0, disposed = false, active = false;
     const restore = () => { host.hidden = true; poster.hidden = false; };
     const unload = () => {
@@ -58,7 +59,7 @@ export function bindModelWidgets(root, doc, {disabled = () => false} = {}) {
         const viewerId = `widget-${config.widgetKey}-${uniqueId()}`;
         const opening = openModelViewer({
           ...config, viewerId, container:host, editPoints:false, document:doc,
-          onFullscreenChange: enabled => { if(!enabled)queueMicrotask(maybeUnload); },
+          onFullscreenChange: enabled => { if(!enabled)later(maybeUnload); },
           onInteraction: async payload => {
             if (disabled()) return;
             const {runModelInteraction} = await import("./model-events.mjs");
@@ -81,9 +82,9 @@ export function bindModelWidgets(root, doc, {disabled = () => false} = {}) {
     };
     element._sdModelBinding = {dispose, get viewer() { return viewer; }};
     element.addEventListener("pointerenter", () => void load(), {signal:abort.signal});
-    element.addEventListener("pointerleave", () => queueMicrotask(maybeUnload), {signal:abort.signal});
+    element.addEventListener("pointerleave", () => later(maybeUnload), {signal:abort.signal});
     element.addEventListener("focusin", () => void load(), {signal:abort.signal});
-    element.addEventListener("focusout", () => queueMicrotask(maybeUnload), {signal:abort.signal});
+    element.addEventListener("focusout", () => later(maybeUnload), {signal:abort.signal});
     // Orbiting and toolbar buttons should not activate surrounding sheet controls.
     for (const event of ["click", "dblclick", "pointerdown"]) element.addEventListener(event, e => e.stopPropagation(), {signal:abort.signal});
     restore();

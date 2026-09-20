@@ -7,10 +7,10 @@
 .sd .sd-hand-strip { display:flex; gap:14px; overflow-x:auto; padding:22px 12px 14px; scrollbar-width:thin; }
 .sd .sd-hand-grid { display:flex; flex-wrap:wrap; gap:16px; padding:22px 12px 14px; }
 .sd .sd-hand-card { position:relative; flex:0 0 var(--card-width); width:var(--card-width); height:calc(var(--card-height) + 30px); border:0; overflow:visible; isolation:isolate; transition:transform .16s ease; }
-.sd .sd-hand-open { display:flex; flex-direction:column; align-items:stretch; width:100%; height:100%; min-height:0; margin:0; padding:0; border:1px solid #687b96; border-radius:9px; overflow:hidden; background:#162032; color:#fff; cursor:pointer; box-shadow:0 5px 14px #0006; font:inherit; }
+.sd .sd-hand-open { display:flex; flex-direction:column; align-items:stretch; width:100%; height:100%; min-height:0; margin:0; padding:0; border:1px solid var(--sd-border-2); border-radius:9px; overflow:hidden; background:var(--sd-bg-2); color:var(--sd-text); cursor:pointer; box-shadow:0 5px 14px #0006; font:inherit; }
 .sd .sd-hand-open img { display:block; flex:none; width:100%; height:var(--card-height); max-width:none; max-height:none; object-fit:contain; border:0; border-radius:0; background:#f5f1e8; pointer-events:none; }
 .sd .sd-hand-name { display:block; height:30px; padding:5px 7px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; line-height:18px; }
-.sd .sd-hand-flip { position:absolute; top:5px; right:5px; width:30px; height:30px; min-height:0; padding:0; margin:0; display:grid; place-items:center; border:1px solid #b0bdd0; border-radius:50%; background:#142035ed; color:white; cursor:pointer; z-index:2; }
+.sd .sd-hand-flip { position:absolute; top:5px; right:5px; width:30px; height:30px; min-height:0; padding:0; margin:0; display:grid; place-items:center; border:1px solid var(--sd-border-2); border-radius:50%; background:var(--sd-bg); color:var(--sd-text); cursor:pointer; z-index:2; }
 .sd .sd-hand-open:focus-visible,.sd .sd-hand-flip:focus-visible { outline:3px solid var(--sd-accent,#70baff); outline-offset:2px; }
 .sd .sd-hand-card:focus-within { z-index:100 !important; transform:translateY(-12px) scale(1.06); }
 .sd .sd-hand-scroll { overflow-x:auto; scrollbar-width:thin; }

@@ -1,9 +1,9 @@
-.sd-search-select { position:fixed; z-index:2147483647; display:flex; flex-direction:column; gap:6px; max-height:290px; padding:8px; border:1px solid #6689bb; border-radius:8px; background:#152034; color:#ecf2ff; box-shadow:0 8px 30px #0009; font:13px system-ui,sans-serif; box-sizing:border-box; }
-.sd-search-select input { flex:none; width:100%; min-height:34px; padding:6px 9px; color:inherit; background:#24334d; border:1px solid #6b89af; border-radius:5px; }
+.sd-search-select { position:fixed; z-index:2147483647; display:flex; flex-direction:column; gap:6px; max-height:290px; padding:8px; border:1px solid var(--sd-border-2,#4e4e70); border-radius:var(--sd-r-lg,9px); background:var(--sd-bg,#1a1a24); color:var(--sd-text,#e0e0ee); box-shadow:0 8px 30px #0009; font:var(--sd-base-font-size,13px) var(--sd-font,serif); box-sizing:border-box; }
+.sd-search-select input { flex:none; width:100%; min-height:34px; padding:6px 9px; color:inherit; background:var(--sd-bg-3,#2a2a38); border:1px solid var(--sd-border,#3a3a52); border-radius:5px; }
 .sd-search-options { overflow:auto; min-height:0; }
 .sd-search-options button { display:block; width:100%; height:auto; margin:0; padding:8px; text-align:left; white-space:normal; border:0; border-radius:4px; background:transparent; color:inherit; font:inherit; cursor:pointer; }
-.sd-search-options button.is-active,.sd-search-options button:hover { background:#355987; }
+.sd-search-options button.is-active,.sd-search-options button:hover { background:var(--sd-accent-glow,rgba(123,104,238,.18)); }
 .sd-search-options p { padding:8px; }
 .sd-file-input { display:flex; gap:4px; min-width:0; width:100%; }
 .sd-file-input > input { flex:1; min-width:0; }
-.sd-file-input > .sd-file-picker { flex:none; width:30px; min-height:26px; padding:2px; margin:0; border:1px solid #52647e; border-radius:4px; background:#24334d; cursor:pointer; }
+.sd-file-input > .sd-file-picker { flex:none; width:30px; min-height:26px; padding:2px; margin:0; border:1px solid var(--sd-border,#3a3a52); border-radius:4px; background:var(--sd-bg-3,#2a2a38); cursor:pointer; }

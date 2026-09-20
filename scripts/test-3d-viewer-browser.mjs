@@ -1,4 +1,6 @@
 // Real WebGL/Three.js; only the Foundry window lifecycle is stubbed.
+const manifest=await (await fetch('../system.json')).json();
+await Promise.all(manifest.styles.filter(href=>!document.querySelector(`link[href="../${href}"]`)).map(href=>new Promise(resolve=>{const link=document.createElement('link');link.rel='stylesheet';link.href='../'+href;link.onload=resolve;document.head.append(link);}))); 
 globalThis.game = { i18n: { lang: "en" }, settings:{get(){}}, actors:[], items:[] };
 globalThis.Actor=class {};globalThis.Item=class {};
 globalThis.CONFIG = { SD:{} };
@@ -7,7 +9,7 @@ globalThis.foundry = { applications: { api: { ApplicationV2: class {
   async render() {
     if (typeof this._canDetach !== "function" || this._canDetach()) throw new Error("3D canvas should remain in its document");
     this.element = document.createElement("section");
-    this.element.className = "application";
+    this.element.className = "application "+(this.options.classes??[]).join(' ');
     this.element.style.width = `${this.options.position.width}px`;
     this.element.style.height = `${this.options.position.height}px`;
     const title = document.createElement("div");
@@ -135,7 +137,8 @@ try {
   checks.push("All four built-in primitives render and close");
   globalThis.sd3dEvents=[];
   const {editModelNodePoints}=await import('../module/three/model-point-data.mjs');
-  globalThis.sd3dGraph={nodes:[{id:'model-node',type:'model3d_primitive',data:{primitive:'cube',backgroundOpacity:0.35,tooltip:'Interactive model',hotspots:'[]'}}],edges:[]};
+  game.settings.get=()=>({database:{values:[{id:'level',name:'Level',type:'number',legacyPath:'system.level'}]}});
+  globalThis.sd3dGraph={doc:{system:{level:3}},nodes:[{id:'model-node',type:'model3d_primitive',data:{primitive:'cube',backgroundOpacity:0.35,tooltip:'Interactive model',hotspots:'[]'}}],edges:[]};
   globalThis.sd3dTestViewer = await editModelNodePoints(sd3dGraph,sd3dGraph.nodes[0]);
   document.getElementById("result").textContent = JSON.stringify({ status: "PASS", checks }, null, 2);
   document.title = "PASS";

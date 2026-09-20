@@ -1,6 +1,11 @@
 import { GridManager } from "./grid-manager.mjs";
 
 let activeDrag = null;
+const vertical = tab => ["tabs-left","tabs-right","dashboard"].includes(tab.closest("[data-sd-sheet-layout]")?.dataset.sdSheetLayout);
+const dropPlacement = (tab, event) => {
+  const bounds=tab.getBoundingClientRect();
+  return (vertical(tab) ? event.clientY < bounds.top+bounds.height/2 : event.clientX < bounds.left+bounds.width/2) ? "before" : "after";
+};
 
 function clearDropState(nav) {
   nav?.querySelectorAll?.(".sd-tab-drop-before, .sd-tab-drop-after")?.forEach?.(tab => {
@@ -43,10 +48,11 @@ export class SheetTabReorder {
       clearDropState(tabElement.closest(".sd-tab-nav"));
     });
     handle.addEventListener("keydown", async event => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const keys=vertical(tabElement)?["ArrowUp","ArrowDown"]:["ArrowLeft","ArrowRight"];
+      if (!keys.includes(event.key)) return;
       event.preventDefault();
       event.stopPropagation();
-      await GridManager.shiftTab(sheet.document, tabId, event.key === "ArrowLeft" ? -1 : 1);
+      await GridManager.shiftTab(sheet.document, tabId, event.key === keys[0] ? -1 : 1);
     });
 
     tabElement.addEventListener("dragover", event => {
@@ -54,8 +60,7 @@ export class SheetTabReorder {
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
       clearDropState(tabElement.closest(".sd-tab-nav"));
-      const bounds = tabElement.getBoundingClientRect();
-      const placement = event.clientX < bounds.left + bounds.width / 2 ? "before" : "after";
+      const placement = dropPlacement(tabElement,event);
       tabElement.classList.add(placement === "before" ? "sd-tab-drop-before" : "sd-tab-drop-after");
     });
     tabElement.addEventListener("dragleave", event => {
@@ -66,8 +71,7 @@ export class SheetTabReorder {
       if (!activeDrag || activeDrag.documentUuid !== sheet.document.uuid || activeDrag.tabId === tabId) return;
       event.preventDefault();
       event.stopPropagation();
-      const bounds = tabElement.getBoundingClientRect();
-      const placement = event.clientX < bounds.left + bounds.width / 2 ? "before" : "after";
+      const placement = dropPlacement(tabElement,event);
       const draggedId = activeDrag.tabId;
       activeDrag = null;
       clearDropState(tabElement.closest(".sd-tab-nav"));

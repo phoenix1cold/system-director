@@ -1,5 +1,13 @@
 {
   "checks": [
+    "Widget background, label, image and value input are not On Click targets",
+    "Only explicit button controls are On Click targets",
+    "Disabled, utility, Card Hand and 3D controls keep their dedicated events",
+    "Toggle control is an accessible button",
+    "Actor sheet background does not fire On Click",
+    "Actor sheet button fires one On Click with its element key",
+    "Item sheet background does not fire On Click",
+    "Item sheet button fires one On Click",
     "strip: six full card buttons",
     "fan: six full card buttons",
     "HUD variant registered",
@@ -139,6 +147,8 @@
     "Nested tab icon, keyboard settings and tab switching",
     "Every fan card has a real mouse target",
     "Keyboard card activation and idempotent binding",
+    "Left/right/dashboard rails: all icons, handles and buttons fit at 390px with labels on/off",
+    "Vertical tab drop and keyboard ordering",
     "Narrow viewport uses internal scrolling"
   ],
   "errors": []

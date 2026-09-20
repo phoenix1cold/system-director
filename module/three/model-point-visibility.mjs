@@ -1,7 +1,9 @@
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
+import { showIfSelectionVisible } from "../helpers/show-if.mjs";
 
 /** Same formula language as sheet Show If; blank means visible. */
 export function modelPointVisible(point, doc) {
+  if (point?.showIfKey) return showIfSelectionVisible(point, doc);
   const expression = String(point?.showIf ?? "").trim();
   if (!expression) return true;
   try {

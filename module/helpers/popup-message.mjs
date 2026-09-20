@@ -4,7 +4,7 @@ export function trackPopupPointer(){document.addEventListener("pointermove",even
 /** Plain text popup; user content never becomes HTML. */
 export function showPopupMessage({title="",message="",duration=4,position="pointer"}={}) {
   const root=document.createElement("div");root.className="sd sd-floating-message";root.setAttribute("role","status");
-  root.style.cssText="position:fixed;z-index:2147483640;max-width:min(380px,calc(100vw - 24px));padding:14px 38px 14px 16px;border:1px solid var(--sd-accent,#818cf8);border-radius:10px;background:var(--sd-bg,#182131);color:var(--sd-text,#eee);box-shadow:0 8px 28px #0008;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.4 sans-serif;";
+  root.style.cssText="position:fixed;z-index:2147483640;max-width:min(380px,calc(100vw - 24px));padding:14px 38px 14px 16px;border:1px solid var(--sd-border-2,#4e4e70);border-radius:var(--sd-r-lg,9px);background:var(--sd-bg,#1a1a24);color:var(--sd-text,#e0e0ee);box-shadow:var(--sd-shadow,0 8px 28px #0008);white-space:pre-wrap;overflow-wrap:anywhere;font:var(--sd-base-font-size,13px)/1.4 var(--sd-font,serif);";
   if(title){const heading=document.createElement("strong");heading.textContent=String(title);heading.style.cssText="display:block;margin-bottom:5px";root.append(heading);}
   const body=document.createElement("div");body.textContent=String(message);root.append(body);
   const close=document.createElement("button");close.type="button";close.textContent="×";close.setAttribute("aria-label",game.i18n?.lang==="ru"?"Закрыть":"Close");close.style.cssText="position:absolute;right:7px;top:5px;width:24px;background:none;border:0;color:inherit;cursor:pointer";root.append(close);

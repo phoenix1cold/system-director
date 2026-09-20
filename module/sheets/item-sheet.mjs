@@ -10,6 +10,7 @@ import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpe
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "../helpers/sheet-widget-events.mjs";
+import { sheetWidgetClickControl } from "../helpers/sheet-widget-click.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 import { persistWidgetValue } from "../helpers/widget-fields.mjs";
@@ -287,7 +288,11 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const a = document.createElement("a");
     a.className     = "sd-tab-btn" + (isSys?" sd-tab-sys":"");
     a.dataset.tabId = tabId;
-    a.innerHTML     = labelHTML;
+    if(isSys) a.innerHTML=labelHTML;
+    else {
+      const label=document.createElement("span");label.className="sd-tab-label";label.textContent=labelHTML;
+      a.append(label);
+    }
     a.style.cssText = `padding:4px ${isSys?"9":"10"}px;font-size:${isSys?"10":"11"}px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid ${isActive?"var(--sd-border)":"transparent"};border-bottom:none;color:${isActive?(isSys?"var(--sd-stamina)":"var(--sd-accent)"):(isSys?"#444":"#666")};background:${isActive?"var(--sd-bg)":"transparent"};display:inline-flex;align-items:center;gap:2px;white-space:nowrap;user-select:none;`;
     if (this._editMode && !isSys) {
       a.innerHTML += ` <button type="button" class="sd-tab-control" data-rename="${tabId}" title="Tab settings" aria-label="Tab settings"><i class="fas fa-gear" aria-hidden="true"></i></button><button type="button" class="sd-tab-control" data-deltab="${tabId}" title="Delete tab" aria-label="Delete tab">✕</button>`;
@@ -472,7 +477,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         emit("pip",event,{value:Number(pip.dataset.rank)||0});
         return;
       }
-      emit("click",event);
+      const control=sheetWidgetClickControl(cell,event);
+      if(!control)return;
+      emit("click",event,{elementKey:control.closest("[data-element-key]")?.dataset?.elementKey??""});
       if(String(w.type)==="toggle")emit("toggle",event);
     },true);
     cell.addEventListener("input",event=>emit("input",event),true);

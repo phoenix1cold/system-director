@@ -9,6 +9,7 @@ import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { persistWidgetValue } from "./widget-fields.mjs";
 import { localizeTree } from "./localization.mjs";
 import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "./sheet-widget-events.mjs";
+import { sheetWidgetClickControl } from "./sheet-widget-click.mjs";
 
 function _sanitizeHudVariant(raw, widgetType) {
   const v = String(raw ?? "").trim().toLowerCase();
@@ -290,7 +291,9 @@ function wireHudWidget(cell, widgetDef, actor) {
     if (event.target?.closest?.("[data-action='wbElement'],[data-cardhand]")) return;
     // Builder chrome (configure/duplicate/span/delete) is not a game event.
     if (event.target?.closest?.("[data-action='wcfg'], [data-action='wdup'], [data-action='wspan'], [data-action='wdel']")) return;
-    emitHudWidgetEvent("click", event);
+    const control = sheetWidgetClickControl(cell, event);
+    if (!control) return;
+    emitHudWidgetEvent("click", event, { elementKey: control.closest("[data-element-key]")?.dataset?.elementKey ?? "" });
     if (String(widgetDef?.type) === "toggle") emitHudWidgetEvent("toggle", event);
   }, true);
   cell.addEventListener("input", (event) => emitHudWidgetEvent("input", event), true);

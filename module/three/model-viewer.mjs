@@ -1,6 +1,7 @@
 import { SDFoundryWindowHost } from "../helpers/foundry-window-host.mjs";
 import { modelPointVisible } from "./model-point-visibility.mjs";
 import { uniqueId } from "../helpers/unique-id.mjs";
+import { showIfSources } from "../helpers/show-if.mjs";
 
 const viewers = new Map();
 let dependencies;
@@ -66,7 +67,7 @@ export class ModelViewer {
 
   async open() {
     this.root = document.createElement("div");
-    this.root.className = "sd-model-viewer";
+    this.root.className = "sd sd-model-viewer";
     const toolbar = document.createElement("div");
     toolbar.className = "sd-model-toolbar";
     this.root.append(toolbar);
@@ -104,7 +105,6 @@ export class ModelViewer {
     this.opacityInput.addEventListener("input",()=>this.setBackgroundOpacity(this.opacityInput.value));
     opacityLabel.append(this.opacityInput);toolbar.append(opacityLabel);
     if (this.options.editPoints === true) {
-    const pointStart=toolbar.childElementCount;
     this.pointButton=button(label3D("Set point", "Задать точку"),()=>{
       this.placing=!this.placing;this.pointButton.setAttribute("aria-pressed",String(this.placing));
       if(this.controls)this.controls.enabled=!this.placing;
@@ -114,12 +114,16 @@ export class ModelViewer {
     this.pointId=document.createElement("input");this.pointId.placeholder="Point ID";this.pointId.value="point1";this.pointId.setAttribute("aria-label","Point ID");
     this.pointText=document.createElement("input");this.pointText.placeholder=label3D("Point tooltip", "Текст подсказки");this.pointText.setAttribute("aria-label",this.pointText.placeholder);
     toolbar.append(this.pointId,this.pointText);
-    this.pointShowIf=document.createElement("input");this.pointShowIf.placeholder=label3D("Show If — blank: always", "Show If — пусто: всегда");this.pointShowIf.setAttribute("aria-label","Point Show If");
-    this.pointShowIf.title=label3D("Sheet formula, e.g. {system.level} > 2. Evaluated on the owning document.","Формула листа, например {system.level} > 2. Вычисляется для документа-владельца.");toolbar.append(this.pointShowIf);
+    this.pointShowIf=document.createElement("select");this.pointShowIf.setAttribute("aria-label","Point Show If");
+    for(const source of [{value:"",label:label3D("Always show", "Всегда показывать")},...showIfSources(this.options.document)])this.pointShowIf.add(new Option(source.label,source.value));
+    this.pointShowIfValue=document.createElement("input");this.pointShowIfValue.setAttribute("aria-label",label3D("Expected value", "Ожидаемое значение"));this.pointShowIfValue.placeholder=label3D("Blank: truthy value", "Пусто: истинное значение");
+    this.pointLegacyFormula=document.createElement("input");this.pointLegacyFormula.setAttribute("aria-label",label3D("Saved formula", "Сохранённая формула"));this.pointLegacyFormula.hidden=true;
+    this.pointShowIf.addEventListener("change",()=>{this.pointLegacyFormula.hidden=this.pointShowIf.value!=="__legacy_formula";this.pointShowIfValue.disabled=!this.pointShowIf.value||!this.pointLegacyFormula.hidden;});
+    toolbar.append(this.pointShowIf,this.pointShowIfValue,this.pointLegacyFormula);
     this.pointSelect=document.createElement("select");this.pointSelect.setAttribute("aria-label",label3D("Edit point", "Редактировать точку"));
-    this.pointSelect.addEventListener("change",()=>{const p=this.hotspots.get(this.pointSelect.value)?.data;if(p){this.pointId.value=p.id;this.pointText.value=p.text;this.pointShowIf.value=p.showIf;}});toolbar.append(this.pointSelect);
-    button(label3D("Update point", "Изменить точку"),()=>{const p=this.hotspots.get(this.pointSelect.value)?.data;if(p){const id=this.pointId.value.trim()||p.id;if(id!==p.id)this.setHotspot({id:p.id,operation:"remove"});this.setHotspot({...p,id,text:this.pointText.value,showIf:this.pointShowIf.value});}});
-    button(label3D("Delete point", "Удалить точку"),()=>this.setHotspot({id:this.pointSelect.value,operation:"remove"}));
+    this.pointSelect.addEventListener("change",()=>this.loadPointFields(this.hotspots.get(this.pointSelect.value)?.data));toolbar.append(this.pointSelect);
+    const updatePoint=button(label3D("Update point", "Изменить точку"),()=>{const p=this.hotspots.get(this.pointSelect.value)?.data;if(p){const id=this.pointId.value.trim()||p.id;if(id!==p.id)this.setHotspot({id:p.id,operation:"remove"});this.setHotspot({...p,id,text:this.pointText.value,...this.pointCondition()});}});
+    const deletePoint=button(label3D("Delete point", "Удалить точку"),()=>this.setHotspot({id:this.pointSelect.value,operation:"remove"}));deletePoint.className="sd-model-danger";
     this.savePointsButton=button(label3D("Save points", "Сохранить точки"),async()=>{
       this.savePointsButton.disabled=true;
       try {await this.options.onSaveHotspots?.([...this.hotspots.values()].map(p=>p.data));this.savePointsButton.textContent=label3D("Saved", "Сохранено");}
@@ -127,16 +131,24 @@ export class ModelViewer {
       finally{this.savePointsButton.disabled=false;}
     });
     this.savePointsButton.hidden=typeof this.options.onSaveHotspots!=="function";
-    button(label3D("Export points", "Экспорт точек"),()=>{
+    const exportPoints=button(label3D("Export points", "Экспорт точек"),()=>{
       if(!this.exportArea){this.exportArea=document.createElement("textarea");this.exportArea.className="sd-model-export";this.exportArea.readOnly=true;this.root.append(this.exportArea);}
       this.exportArea.value=JSON.stringify([...this.hotspots.values()].map(p=>p.data),null,2);this.exportArea.hidden=false;this.exportArea.focus();this.exportArea.select();
     });
-    const editor=document.createElement("details");editor.className="sd-model-point-editor";
-    const summary=document.createElement("summary");summary.textContent=label3D("Edit interactive points", "Редактор интерактивных точек");
-    const pointTools=document.createElement("div");
-    for(const child of [...toolbar.children].slice(pointStart))pointTools.append(child);
-    editor.open=true;
-    editor.append(summary,pointTools);toolbar.append(editor);
+    const editor=document.createElement("aside");editor.className="sd-model-point-editor";
+    const heading=document.createElement("h3");heading.textContent=label3D("Interactive points", "Интерактивные точки");editor.append(heading);
+    const instructions=document.createElement("p");instructions.textContent=label3D("Choose Set point, then click the model. Conditions apply during playback.","Нажмите «Задать точку», затем ЛКМ по модели. Условия видимости действуют при просмотре.");editor.append(instructions,this.pointButton);
+    const field=(title,control)=>{const label=document.createElement("label");label.className="sd-model-field";const caption=document.createElement("span");caption.textContent=title;label.append(caption,control);editor.append(label);};
+    field(label3D("Selected point", "Выбранная точка"),this.pointSelect);
+    field(label3D("Point ID", "ID точки"),this.pointId);
+    field(label3D("Tooltip", "Подсказка"),this.pointText);
+    field("Show If",this.pointShowIf);
+    field(label3D("Equals · blank means truthy", "Равно · пусто — истинное значение"),this.pointShowIfValue);
+    editor.append(this.pointLegacyFormula);
+    const actions=document.createElement("div");actions.className="sd-model-point-actions";actions.append(updatePoint,deletePoint);editor.append(actions,this.savePointsButton,exportPoints);
+    this.savePointsButton.className="sd-model-primary";
+    this.pointEditor=editor;this.root.classList.add("sd-model-authoring");
+    this.pointShowIf.dispatchEvent(new Event("change"));
     }
     this.clipSelect = document.createElement("select");
     this.clipSelect.setAttribute("aria-label", label3D("Animation", "Анимация"));
@@ -159,7 +171,8 @@ export class ModelViewer {
     hint.className = "sd-model-hint";
     hint.textContent = label3D("Drag: orbit · Wheel: zoom · Right drag: pan", "ЛКМ: вращение · Колесо: масштаб · ПКМ: перемещение");
     if(this.options.editPoints === true)hint.textContent=label3D("Set point → left click on model → Save points → Save graph. Drag to orbit when placement is off.","Задать точку → ЛКМ по модели → Сохранить точки → Сохранить граф. Вне размещения: ЛКМ — вращение.");
-    this.root.append(this.viewport, hint);
+    const workspace=document.createElement("div");workspace.className="sd-model-workspace";workspace.append(this.viewport);if(this.pointEditor)workspace.append(this.pointEditor);
+    this.root.append(workspace, hint);
     this.resetButton.disabled = this.rotateButton.disabled = this.wireButton.disabled = true;
     if (this.options.container) {
       this.root.classList.add("sd-model-embedded");
@@ -170,8 +183,8 @@ export class ModelViewer {
     } else {
     this.app = new ModelViewerWindow({
       id: `sd-model-${uniqueId()}`, title: String(this.options.title || label3D("3D Viewer", "Просмотр 3D")),
-      icon: "fa-solid fa-cube", width: clamp(number(this.options.width, 720), 360, 1920),
-      height: clamp(number(this.options.height, 580), 300, 1440), content: this.root,
+      icon: "fa-solid fa-cube", width: clamp(number(this.options.width, this.pointEditor ? 960 : 720), 360, 1920),
+      height: clamp(number(this.options.height, this.pointEditor ? 680 : 580), 300, 1440), content: this.root,
       classes: ["sd-model-window"],
       onClose: () => this.dispose()
     });
@@ -315,7 +328,7 @@ export class ModelViewer {
       const local=this.model.worldToLocal(hit.point.clone());
       if(this.options.editPoints === true && this.placing){
         const id=this.pointId.value.trim()||`point${this.hotspots.size+1}`;
-        this.setHotspot({id,text:this.pointText.value||id,showIf:this.pointShowIf.value,x:local.x,y:local.y,z:local.z});
+        this.setHotspot({id,text:this.pointText.value||id,...this.pointCondition(),x:local.x,y:local.y,z:local.z});
         this.placing=false;this.pointButton.setAttribute("aria-pressed","false");this.pointId.value=id;
         this.controls.enabled=true;canvas.style.cursor="grab";
         this.emitInteraction("place",{id,text:this.pointText.value},local);
@@ -335,7 +348,7 @@ export class ModelViewer {
   setHotspot(options) {
     const id=String(options.id||options.hotspotId||"point");
     if(options.operation==="remove"){this.hotspots.get(id)?.button.remove();this.hotspots.delete(id);this.refreshPointChoices();return;}
-    const data={id,text:String(options.text||id),showIf:String(options.showIf??""),objectName:String(options.objectName||""),x:number(options.x,0),y:number(options.y,0),z:number(options.z,0)};
+    const data={id,text:String(options.text||id),showIf:String(options.showIf??""),showIfKey:String(options.showIfKey??""),showIfValue:String(options.showIfValue??""),objectName:String(options.objectName||""),x:number(options.x,0),y:number(options.y,0),z:number(options.z,0)};
     if(this.hotspots.size>=128&&!this.hotspots.has(id))throw new Error("Maximum 128 points per viewer");
     if(data.objectName&&!this.model.getObjectByName(data.objectName))throw new Error(`3D object not found: ${data.objectName}`);
     this.hotspots.get(id)?.button.remove();
@@ -353,13 +366,27 @@ export class ModelViewer {
 
   getPoints() { return [...this.hotspots.values()].map(p=>({...p.data,viewerId:this.id,visible:this.isPointVisible(p.data)})); }
 
+  pointCondition() {
+    const legacy=this.pointShowIf.value==="__legacy_formula";
+    return {showIfKey:legacy?"":this.pointShowIf.value,showIfValue:legacy?"":this.pointShowIfValue.value,showIf:legacy?this.pointLegacyFormula.value:""};
+  }
+
+  loadPointFields(point) {
+    if(!point)return;
+    this.pointId.value=point.id;this.pointText.value=point.text;
+    const key=point.showIfKey||(point.showIf?"__legacy_formula":"");
+    if(key&&![...this.pointShowIf.options].some(o=>o.value===key))this.pointShowIf.add(new Option(key==="__legacy_formula"?label3D("Saved formula", "Сохранённая формула"):key,key));
+    this.pointShowIf.value=key;this.pointShowIfValue.value=point.showIfValue??"";this.pointLegacyFormula.value=point.showIf??"";
+    this.pointShowIf.dispatchEvent(new Event("change"));
+  }
+
   refreshPointChoices(selected=this.pointSelect?.value) {
     if(!this.pointSelect)return;
     this.pointSelect.replaceChildren();
     for(const {data} of this.hotspots.values()){const option=document.createElement("option");option.value=data.id;option.textContent=`${data.id} · ${data.text}`;this.pointSelect.append(option);}
     this.pointSelect.value=selected;
     const selectedPoint=this.hotspots.get(selected)?.data;
-    if(selectedPoint){this.pointId.value=selectedPoint.id;this.pointText.value=selectedPoint.text;this.pointShowIf.value=selectedPoint.showIf;}
+    if(selectedPoint)this.loadPointFields(selectedPoint);
     this.savePointsButton.textContent=label3D("Save points", "Сохранить точки");
   }
 

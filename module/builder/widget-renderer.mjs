@@ -1,6 +1,8 @@
 import { renderCardHand } from "../helpers/card-hand.mjs";
 import { renderModelWidget } from "../three/model-widget.mjs";
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
+import { showIfSelectionVisible } from "../helpers/show-if.mjs";
+import { attributeGroupModifier } from "../helpers/attribute-group-value.mjs";
 import { buildWidgetMacroScript, encodeMacroScript } from "../helpers/widget-macro.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
@@ -40,25 +42,7 @@ export class WidgetRenderer {
       if (editMode) {
 
       } else if (widgetDef.showIfKey && String(widgetDef.showIfKey).trim()) {
-        let actualVal;
-        const src = widgetDef.showIfKey.trim();
-        try {
-          if (src.startsWith("widget:")) {
-            actualVal = String(FormulaEngine.evaluate(`{${src}}`, doc) ?? "");
-          } else if (src.startsWith("hidden:")) {
-            const fieldName = src.slice("hidden:".length);
-            const direct = doc?.system?.hiddenFields?.[fieldName];
-            actualVal = String(direct !== undefined ? direct : "");
-          } else {
-            actualVal = String(foundry.utils.getProperty(doc, src) ?? "");
-          }
-        } catch { actualVal = ""; }
-        const expected = String(widgetDef.showIfValue ?? "").trim();
-        const visible = expected === ""
-          ? (!!actualVal && actualVal !== "0" && actualVal !== "false")
-          : actualVal === expected || String(Number(actualVal)) === expected;
-
-        if (!visible) return "";
+        if (!showIfSelectionVisible(widgetDef, doc)) return "";
       } else if (widgetDef.showIf && String(widgetDef.showIf).trim()) {
         let visible = true;
         try {
@@ -815,13 +799,14 @@ export class WidgetRenderer {
     const e = this._esc;
     return `<div class="widget widget-toggle">
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${ w.path ? this._copyBtn(w.path, 'toggle state') : ''}</div>
-  <div class="tog-row" data-action="widgetToggle"
-       data-path="${e(this._bindingPath(w.path))}" data-value="${val}" style="cursor:pointer">
+  <button type="button" class="tog-row" data-action="widgetToggle"
+       data-path="${e(this._bindingPath(w.path))}" data-value="${val}"
+       style="cursor:pointer;border:0;background:none;color:inherit;padding:0;width:100%;font:inherit;text-align:initial">
     <div class="tog-track ${val ? "on" : ""}">
       <div class="tog-knob"></div>
     </div>
     <span class="tog-val">${e(dispLbl)}</span>
-  </div>
+  </button>
 </div>`;
   }
 
@@ -2790,8 +2775,6 @@ export class WidgetRenderer {
       tokens = sourceKeys.map(k => ({ key: k, scorePath: `system.attributes.${k}.value` }));
     }
 
-    const compute = CONFIG?.SD?.computeModifier ?? (s => Math.floor((Number(s) - 10) / 2));
-
     const attrGraphs = (w.attrGraphs && typeof w.attrGraphs === "object") ? w.attrGraphs : {};
 
     const items = tokens.map(({ key, scorePath, name: dbName }) => {
@@ -2804,13 +2787,7 @@ export class WidgetRenderer {
       score = Number(score);
       if (!Number.isFinite(score)) score = 10;
       const ag = attrGraphs[key] ?? null;
-      let mod;
-      if (ag?.modValueFormula) {
-        const resolved = Number(FormulaEngine.evaluate(ag.modValueFormula, doc));
-        mod = Number.isFinite(resolved) ? resolved : compute(score);
-      } else {
-        mod = compute(score);
-      }
+      const mod = attributeGroupModifier(w,doc,key,score);
 
       const name   = dbName
         || cfgLabels[key]

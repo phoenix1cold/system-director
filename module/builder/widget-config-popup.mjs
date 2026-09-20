@@ -1,5 +1,6 @@
 import { FormulaEngine }   from "../helpers/formula-engine.mjs";
 import { uniqueId } from "../helpers/unique-id.mjs";
+import { showIfSources } from "../helpers/show-if.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
 import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES, createWidget } from "./widget-registry.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
@@ -269,14 +270,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   const IS = "width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
   const MONO = ";font-family:'Courier New',monospace;font-size:11px";
 
-  const _showIfSources = (() => {
-    const list=[];
-    for(const t of (doc.system?.customTabs??[])) for(const r of (t.rows??[])) for(const ww of (r.widgets??[])) {
-      if(ww.widgetKey&&ww.widgetKey!==w.widgetKey) list.push({value:`widget:${ww.widgetKey}`,label:`Widget: ${ww.widgetKey}`});
-    }
-    for(const variable of getValueDefinitions()) list.push({value:variable.id,label:`Database: ${variable.name} · ${variable.type} [${variable.id}]`});
-    return list;
-  })();
+  const _showIfSources = showIfSources(doc, w.widgetKey);
 
   const _showIfKey   = w.showIfKey   ?? "";
   const _showIfValue = w.showIfValue ?? "";
@@ -1037,7 +1031,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const {captureModelPreview} = await import("../three/model-widget.mjs");
       const viewer = await openModelViewer({
         viewerId:`widget-editor-${w.id}-${uniqueId()}`, src:field("src")?.value || "",
-        title:label3D("3D Object — edit points", "3D Object — редактор точек"), editPoints:true,
+        title:label3D("3D Object — edit points", "3D Object — редактор точек"), editPoints:true, document:doc,
         background:field("background")?.value, backgroundOpacity:field("backgroundOpacity")?.value,
         hotspots:JSON.parse(field("hotspots")?.value || "[]"),
         onSaveHotspots: points => {

@@ -35,14 +35,21 @@ try {
   await page.locator('[data-point-id="door"]').click();
   assert.equal(await page.evaluate(()=>sd3dEvents.length),0,'Authoring never runs game events');
   await page.getByLabel('Point tooltip',{exact:true}).fill('Door to the tower');
-  await page.getByLabel('Point Show If',{exact:true}).fill('{system.level} > 2');
+  await page.getByLabel('Point Show If',{exact:true}).selectOption('level');
+  await page.getByLabel('Expected value',{exact:true}).fill('3');
+  await page.evaluate(async()=>{const {installSearchableSelects}=await import('../module/helpers/editor-controls.mjs');installSearchableSelects();});
+  await page.getByLabel('Point Show If',{exact:true}).click();
+  await page.locator('.sd-search-select input').fill('Level');
+  await page.locator('.sd-search-select input').press('Enter');
+  assert.equal(await page.getByLabel('Point Show If',{exact:true}).inputValue(),'level','Point condition uses searchable selector');
   await page.getByRole('button',{name:'Update point',exact:true}).click();
   await page.getByRole('button',{name:'Save points',exact:true}).click();
   assert.equal(await page.evaluate(()=>JSON.parse(sd3dGraph.nodes[0].data.hotspots)[0].text),'Door to the tower');
-  assert.equal(await page.evaluate(()=>JSON.parse(sd3dGraph.nodes[0].data.hotspots)[0].showIf),'{system.level} > 2','Show If persists with the point');
+  assert.equal(await page.evaluate(()=>JSON.parse(sd3dGraph.nodes[0].data.hotspots)[0].showIfKey),'level','Show If source persists with the point');
+  assert.equal(await page.evaluate(()=>JSON.parse(sd3dGraph.nodes[0].data.hotspots)[0].showIfValue),'3','Show If expected value persists with the point');
   await page.evaluate(()=>{globalThis.savedPoints=JSON.parse(sd3dGraph.nodes[0].data.hotspots);});
   await page.getByRole('button',{name:'Full screen',exact:true}).click();
-  assert.ok(await page.evaluate(()=>sd3dTestViewer.fullscreen&&sd3dTestViewer.viewport.clientWidth===innerWidth));
+  assert.ok(await page.evaluate(()=>sd3dTestViewer.fullscreen&&sd3dTestViewer.root.clientWidth===innerWidth));
   await page.keyboard.press('Escape');
   assert.ok(await page.evaluate(()=>!sd3dTestViewer.fullscreen&&sd3dTestViewer.app.element.contains(sd3dTestViewer.root)));
   const before=await page.evaluate(()=>sd3dEvents.filter(e=>e.event==='click').length);
@@ -56,6 +63,13 @@ try {
   await page.evaluate(()=>{for(const p of savedPoints)sd3dTestViewer.setHotspot(p);});
   await page.locator('[data-point-id="door"]').hover();
   await page.screenshot({path:path.join(root,'tests/3d-interaction-preview.png'),fullPage:true});
+  await page.evaluate(()=>{sd3dTestViewer.app.element.style.width='390px';});
+  await page.waitForFunction(()=>sd3dTestViewer.viewport.clientWidth<400);
+  assert.ok(await page.evaluate(()=>{
+    const root=sd3dTestViewer.root,editor=sd3dTestViewer.pointEditor;
+    return root.scrollWidth<=root.clientWidth&&editor.scrollWidth<=editor.clientWidth&&editor.getBoundingClientRect().top>=sd3dTestViewer.viewport.getBoundingClientRect().bottom-1;
+  }),'Narrow editor stacks below the model without horizontal overflow');
+  await page.evaluate(()=>{sd3dTestViewer.app.element.style.width='960px';});
   await page.evaluate(async()=>{
     await sd3dTestViewer.close();
     const {openModelViewer}=await import('../module/three/model-viewer.mjs');
@@ -80,7 +94,15 @@ try {
     globalThis.sd3dTestViewer=await editModelNodePoints(sd3dGraph,sd3dGraph.nodes[0]);
   });
   assert.equal(await page.evaluate(()=>sd3dTestViewer.getPoints()[0].text),'Door to the tower','Reopen restores graph points');
-  assert.equal(await page.getByLabel('Point Show If',{exact:true}).inputValue(),'{system.level} > 2','Reopen restores Show If in editor');
+  assert.equal(await page.getByLabel('Point Show If',{exact:true}).inputValue(),'level','Reopen restores Show If source');
+  assert.equal(await page.getByLabel('Expected value',{exact:true}).inputValue(),'3','Reopen restores expected value');
+  await page.evaluate(()=>sd3dTestViewer.setHotspot({id:'legacy',text:'Old point',showIf:'{system.level} > 2',x:0,y:0,z:0}));
+  assert.equal(await page.getByLabel('Saved formula',{exact:true}).inputValue(),'{system.level} > 2','Legacy formulas survive editing');
+  await page.getByLabel('Point Show If',{exact:true}).selectOption('');
+  await page.getByRole('button',{name:'Update point',exact:true}).click();
+  assert.equal(await page.evaluate(()=>sd3dTestViewer.hotspots.get('legacy').data.showIf),'','Always show clears legacy condition explicitly');
+  await page.getByRole('button',{name:'Delete point',exact:true}).click();
+  await page.getByLabel('Edit point',{exact:true}).selectOption('door');
   await page.getByRole('button',{name:'Delete point',exact:true}).click();
   await page.getByRole('button',{name:'Save points',exact:true}).click();
   assert.deepEqual(await page.evaluate(()=>JSON.parse(sd3dGraph.nodes[0].data.hotspots)),[],'Empty point list saves to node');

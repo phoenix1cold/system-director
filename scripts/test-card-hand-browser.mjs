@@ -11,7 +11,7 @@ class Application {
   }
   async close() { this.element?.remove(); this.rendered=false; }
 }
-globalThis.foundry={ applications:{api:{ApplicationV2:Application,DocumentSheetV2:Application,HandlebarsApplicationMixin:Base=>Base}},data:{fields:{}},utils:{deepClone:value=>structuredClone(value),randomID:()=>crypto.randomUUID().slice(0,8),getProperty:(o,p)=>String(p).split('.').reduce((v,k)=>v?.[k],o)} };
+globalThis.foundry={ applications:{api:{ApplicationV2:Application,DocumentSheetV2:Application,HandlebarsApplicationMixin:Base=>Base},sheets:{ActorSheetV2:Application,ItemSheetV2:Application}},data:{fields:{}},utils:{deepClone:value=>structuredClone(value),randomID:()=>crypto.randomUUID().slice(0,8),getProperty:(o,p)=>String(p).split('.').reduce((v,k)=>v?.[k],o)} };
 globalThis.Actor=class {}; globalThis.Item=class {};
 const hooks=[],errors=[],inspected=[],played=[],captures=[],transfers=[];
 globalThis.Hooks={on(){},once(){},callAll(name,payload){hooks.push({name,payload});}};
@@ -38,9 +38,34 @@ try {
   const {emitSheetWidgetEvent}=await import('../module/helpers/sheet-widget-events.mjs');
   const {openWidgetConfigPopup}=await import('../module/builder/widget-config-popup.mjs');
   const {WIDGET_TYPES,createWidget,WIDGET_VARIANTS}=await import('../module/builder/widget-registry.mjs');
+  const {sheetWidgetClickControl}=await import('../module/helpers/sheet-widget-click.mjs');
+  const clickProbe=document.createElement('div');
+  clickProbe.innerHTML='<div class="background"><span>Label</span><img><input type="text"><button type="button" data-element-key="go"><i>Go</i></button><span role="button" data-element-key="virtual">Virtual</span><button disabled>Disabled</button><button class="sd-img-pick">Utility</button><div data-cardhand><button>Card</button></div><div class="sd-model-widget"><button>Point</button></div></div>';
+  const probe=selector=>sheetWidgetClickControl(clickProbe,{target:clickProbe.querySelector(selector)});
+  check(!probe('.background')&&!probe('.background > span')&&!probe('img')&&!probe('input[type="text"]'),'Widget background, label, image and value input are not On Click targets');
+  check(probe('button i')?.dataset.elementKey==='go'&&probe('[role="button"]')?.dataset.elementKey==='virtual','Only explicit button controls are On Click targets');
+  check(!probe('button:disabled')&&!probe('.sd-img-pick')&&!probe('[data-cardhand] button')&&!probe('.sd-model-widget button'),'Disabled, utility, Card Hand and 3D controls keep their dedicated events');
   const calls=[];
   wireSheetTabClick(document.querySelector('#tabs a'),{_renameTab:id=>calls.push(['settings',id]),_deleteTab:id=>calls.push(['delete',id]),_switchTab:id=>calls.push(['switch',id])},'hand');
   const widget={id:'hand-widget',widgetKey:'my_hand',type:'cardHand',label:'Моя рука',sourceUuid:stack.uuid,layout:'strip',cardWidth:132,clickAction:'inspect'};
+  check(/<button[^>]+class="tog-row"/.test(WidgetRenderer.render({type:'toggle',label:'Toggle',path:'system.toggle'},doc)),'Toggle control is an accessible button');
+  const {CharacterSheet}=await import('../module/sheets/character-sheet.mjs');
+  const sheet=Object.create(CharacterSheet.prototype);sheet.document=doc;sheet._editMode=false;
+  const clickCell=document.createElement('div');clickCell.innerHTML='<div class="widget"><span class="label">Background label</span><button type="button" data-element-key="go"><i>Run</i></button></div>';document.getElementById('scratch').append(clickCell);
+  sheet._wireWidget(clickCell,{id:'button-test',widgetKey:'button_test',type:'button',label:'Button'});
+  const sheetClicks=()=>hooks.filter(entry=>entry.name==='sdSheetWidgetEvent'&&entry.payload.widgetKey==='button_test'&&entry.payload.event==='click');
+  clickCell.querySelector('.label').click();check(sheetClicks().length===0,'Actor sheet background does not fire On Click');
+  clickCell.querySelector('button i').click();check(sheetClicks().length===1&&sheetClicks()[0].payload.elementKey==='go','Actor sheet button fires one On Click with its element key');
+  clickCell.remove();
+  const {SDItemSheet}=await import('../module/sheets/item-sheet.mjs');
+  const itemOwner={...doc,documentName:'Item',uuid:'Item.click-test',actor:doc,system:{...doc.system}};
+  const itemSheet=Object.create(SDItemSheet.prototype);itemSheet.document=itemOwner;itemSheet._editMode=false;
+  const itemCell=document.createElement('div');itemCell.innerHTML='<div class="widget"><span class="label">Item label</span><button type="button"><i>Run</i></button></div>';document.getElementById('scratch').append(itemCell);
+  itemSheet._wireSheetWidgetEvents(itemCell,{id:'item-button',widgetKey:'item_button',type:'button',label:'Item Button'});
+  const itemClicks=()=>hooks.filter(entry=>entry.name==='sdSheetWidgetEvent'&&entry.payload.widgetKey==='item_button'&&entry.payload.event==='click');
+  itemCell.querySelector('.label').click();check(itemClicks().length===0,'Item sheet background does not fire On Click');
+  itemCell.querySelector('button i').click();check(itemClicks().length===1,'Item sheet button fires one On Click');
+  itemCell.remove();
   for (const [id,variant] of [['strip','default'],['fan','poker-fan']]) {
     const root=document.getElementById(id);
     root.innerHTML=WidgetRenderer.render({...widget,variant,label:id==='fan'?'Вы':'Моя рука'},doc);

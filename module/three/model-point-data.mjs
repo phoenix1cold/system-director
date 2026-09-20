@@ -73,7 +73,7 @@ export async function editModelNodePoints(graph, node, serviceLoader = () => imp
   const key=encodeURIComponent(String(node.id||data.viewerId||"model")).replaceAll('.','%2E');
   const legacy=graph.doc?.flags?.sd?.modelHotspots?.[key];
   return service.openModelViewer({
-    ...data, src,
+    ...data, src, document:graph.doc,
     primitive: node.type === "model3d_primitive" ? (data.primitive || "cube") : undefined,
     viewerId: `editor-${node.id}-${uniqueId()}`,
     title: globalThis.game?.i18n?.lang === "ru" ? "Редактор точек 3D" : "3D Point Editor",
