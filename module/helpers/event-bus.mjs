@@ -1,4 +1,5 @@
-import { valueStoragePath } from "./value-database.mjs";
+import { readDatabaseValue } from "./value-database.mjs";
+import { changedDatabaseVariables, captureUpdateValues } from "./document-update-values.mjs";
 import { installLifecycleEvents, isLifecycleGM } from "./lifecycle-events.mjs";
 const HOOK_MAP = {
   updateDocument:        ["updateActor", "updateItem"],
@@ -178,6 +179,8 @@ class EventBus {
   }
 
   init() {
+    Hooks.on("preUpdateActor",captureUpdateValues);
+    Hooks.on("preUpdateItem",captureUpdateValues);
     _installCombatHookBridge();
     _installVisionDetectBridge(this);
     _installMacroHookBridge();
@@ -208,12 +211,7 @@ class EventBus {
       for (const key of [...map.keys()]) {
         if (map.get(key)?.actorId === actorId) map.delete(key);
       }
-      if (!map.size) {
-        const id = this._hookIds.get(hook);
-        if (id !== undefined) Hooks.off(hook, id);
-        this._hookIds.delete(hook);
-        this._reg.delete(hook);
-      }
+      // Keep the hook stable while a document is rescanned during that hook.
     }
   }
 
@@ -223,12 +221,7 @@ class EventBus {
       for (const key of [...map.keys()]) {
         if (map.get(key)?.docUuid === docUuid) map.delete(key);
       }
-      if (!map.size) {
-        const id = this._hookIds.get(hook);
-        if (id !== undefined) Hooks.off(hook, id);
-        this._hookIds.delete(hook);
-        this._reg.delete(hook);
-      }
+      // An empty registry is harmless; removing/rebinding during dispatch loses events.
     }
   }
 
@@ -266,12 +259,18 @@ class EventBus {
   }
 
   _scanDoc(actor, doc) {
+    const visit=widget=>{
+      if(!widget||typeof widget!=="object")return;
+      const raw=widget.formula||widget.onClickFormula||null;
+      this._registerPayload(actor,doc,widget.id,raw);
+      for(const child of widget.widgets??[])visit(child);
+      for(const element of widget.elements??[])visit(element?.widget);
+    };
     const tabs = doc.system?.customTabs ?? [];
     for (const tab of tabs) {
       for (const row of (tab.rows ?? [])) {
         for (const w of (row.widgets ?? [])) {
-          const raw = w.formula ?? w.onClickFormula ?? null;
-          this._registerPayload(actor, doc, w.id, raw);
+          visit(w);
         }
       }
     }
@@ -318,7 +317,8 @@ class EventBus {
       const outOfSheet = !!ev?.data?.outOfSheet;
 
       const lifecycleEvent = eventHook === "sdSheetOpen" || eventHook === "sdMapLoaded";
-      if (isWorldItem && !isQuestGraph && !outOfSheet && eventHook !== "sdSheetWidgetEvent" && !lifecycleEvent) continue;
+      const documentEvent=["updateDocument","createDocument","deleteDocument"].includes(eventHook);
+      if (isWorldItem && !isQuestGraph && !outOfSheet && eventHook !== "sdSheetWidgetEvent" && !lifecycleEvent && !documentEvent) continue;
 
       const validForWorld = (h) => h === "updateItem" || h === "createItem" || h === "deleteItem"
         || h === "createCard" || h === "combatTurnStart" || h === "combatTurnEnd"
@@ -361,12 +361,17 @@ class EventBus {
   }
 
   async _dispatch(hookName, args) {
+    if(["updateActor","updateItem"].includes(hookName)&&args[3]&&game.user?.id&&args[3]!==game.user.id)return;
     const map = this._reg.get(hookName);
     if (!map) return;
 
     for (const entry of [...map.values()]) {
       if (!this._matches(hookName, args, entry)) continue;
-      await this._run(entry, args, hookName);
+      const key=`${entry.docUuid}|${entry.widgetId}|${entry.eventKey}|${hookName}`;
+      this._running??=new Set();
+      if(this._running.has(key))continue;
+      this._running.add(key);
+      try {await this._run(entry, args, hookName);} finally {this._running.delete(key);}
     }
   }
 
@@ -551,12 +556,11 @@ class EventBus {
         entry.eventHook === "createDocument" ||
         entry.eventHook === "deleteDocument") {
       if (entry.eventHook !== "updateDocument") return true;
+      if(entry.docUuid && args[0]?.uuid!==entry.docUuid)return false;
       const diff = args[1] ?? {};
       const variableId=String(entry.data?.variableId??"");
       if(!variableId) return true;
-      const changed=_changedDatabaseVariableId(diff);
-      if(changed) return changed===variableId;
-      return foundry.utils.getProperty(diff,valueStoragePath(variableId))!==undefined;
+      return changedDatabaseVariables(diff).includes(variableId);
     }
     if (entry.eventHook === "hpDecrease") {
       const [doc, diff] = args;
@@ -759,12 +763,11 @@ class EventBus {
       }
       case "updateDocument": {
         const [doc, diff] = args;
-        const variableId=String(entry.data?.variableId??"")||_changedDatabaseVariableId(diff);
+        const variableId=String(entry.data?.variableId??"")||changedDatabaseVariables(diff)[0]||_changedDatabaseVariableId(diff);
         if(variableId){
-          const path=valueStoragePath(variableId);
           rt.__eventVariableId=variableId;
-          rt.__eventNewValue=foundry.utils.getProperty(doc,path);
-          rt.__eventOldValue=_oldValueFromDiff(diff,path,doc);
+          rt.__eventNewValue=readDatabaseValue(doc,variableId);
+          rt.__eventOldValue=args[2]?.sdPreviousDatabaseValues?.[variableId] ?? null;
         }
         break;
       }
@@ -897,14 +900,6 @@ class EventBus {
     }
     return rt;
   }
-}
-
-function _oldValueFromDiff(diff, path, doc) {
-  try {
-    const prev = foundry.utils.getProperty(doc._source ?? {}, path);
-    if (prev !== undefined) return prev;
-  } catch {  }
-  return null;
 }
 
 export const EVENT_BUS = new EventBus();

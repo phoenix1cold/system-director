@@ -76,6 +76,7 @@ export function matchesSheetWidgetEvent(data, payload) {
   // "any" subscribes to every interaction of the widget.
   if (wantedEvent === "any" || wantedEvent === "*") return true;
   const actualEvent = normId(payload?.event ?? "click") || "click";
+  if(wantedEvent==="update"&&actualEvent==="change")return true;
   return wantedEvent === actualEvent;
 }
 

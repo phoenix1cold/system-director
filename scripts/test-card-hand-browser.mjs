@@ -65,6 +65,17 @@ try {
   const itemClicks=()=>hooks.filter(entry=>entry.name==='sdSheetWidgetEvent'&&entry.payload.widgetKey==='item_button'&&entry.payload.event==='click');
   itemCell.querySelector('.label').click();check(itemClicks().length===0,'Item sheet background does not fire On Click');
   itemCell.querySelector('button i').click();check(itemClicks().length===1,'Item sheet button fires one On Click');
+  for(const [dom,name] of [['dblclick','dblclick'],['contextmenu','rightclick'],['focusin','focus'],['focusout','blur']]) {
+    const before=hooks.filter(e=>e.name==='sdSheetWidgetEvent'&&e.payload.widgetKey==='item_button'&&e.payload.event===name).length;
+    itemCell.querySelector('button').dispatchEvent(new Event(dom,{bubbles:true}));
+    const after=hooks.filter(e=>e.name==='sdSheetWidgetEvent'&&e.payload.widgetKey==='item_button'&&e.payload.event===name).length;
+    check(after===before+1,`Item widget emits ${name}`);
+  }
+  const nested=document.createElement('div');nested.innerHTML='<button>Nested</button>';itemCell.append(nested);
+  itemSheet._wireSheetWidgetEvents(nested,{id:'nested',widgetKey:'nested',type:'button'});
+  const parentBefore=itemClicks().length;nested.querySelector('button').click();
+  check(itemClicks().length===parentBefore,'Nested widget does not emit parent click');
+  check(hooks.filter(e=>e.name==='sdSheetWidgetEvent'&&e.payload.widgetKey==='nested'&&e.payload.event==='click').length===1,'Nested widget emits its own click once');
   itemCell.remove();
   for (const [id,variant] of [['strip','default'],['fan','poker-fan']]) {
     const root=document.getElementById(id);

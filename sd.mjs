@@ -553,6 +553,8 @@ Hooks.once("ready", async () => {
 
   const { EVENT_BUS } = await import("./module/helpers/event-bus.mjs");
   EVENT_BUS.init();
+  const {installWidgetCommitEvents}=await import("./module/helpers/sheet-widget-commits.mjs");
+  installWidgetCommitEvents();
   globalThis._SD_EVENT_BUS = EVENT_BUS;
   SDOnboarding.showWelcomeIfNeeded();
 

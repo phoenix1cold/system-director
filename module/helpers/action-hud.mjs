@@ -9,6 +9,8 @@ import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { persistWidgetValue } from "./widget-fields.mjs";
 import { localizeTree } from "./localization.mjs";
 import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "./sheet-widget-events.mjs";
+import { bindExtraWidgetEvents, ownsWidgetEvent } from "./sheet-widget-dom-events.mjs";
+import { widgetCommitEventsInstalled, registerWidgetEventSource } from "./sheet-widget-commits.mjs";
 import { sheetWidgetClickControl } from "./sheet-widget-click.mjs";
 
 function _sanitizeHudVariant(raw, widgetType) {
@@ -256,6 +258,8 @@ function wireHudWidget(cell, widgetDef, actor) {
   // inventory, cards, quest marker, plain text...) with no preset roll.
   const emitHudWidgetEvent = (eventName, sourceEvent = null, detail = {}) => {
     try { if (SDActionHUD?._builderMode) return; } catch {}
+    if(sourceEvent&&!ownsWidgetEvent(cell,sourceEvent))return;
+    if(sourceEvent&&eventName==="change"&&widgetCommitEventsInstalled())return;
     const target = sourceEvent?.target ?? null;
     let value;
     if (Object.prototype.hasOwnProperty.call(detail, "value")) value = detail.value;
@@ -276,13 +280,15 @@ function wireHudWidget(cell, widgetDef, actor) {
       widgetId: String(widgetDef?.id || ""),
       widgetLabel: String(widgetDef?.label || ""),
       widgetType: String(widgetDef?.type || ""),
-      elementKey: String(detail.elementKey ?? ""),
+      elementKey: String(detail.elementKey ?? target?.closest?.("[data-element-key]")?.dataset?.elementKey ?? ""),
       actorId: String(actor?.id || ""),
       documentUuid: String(actor?.uuid || ""),
       sourceUuid: String(actor?.uuid || "")
     });
   };
   cell._sdEmitWidgetEvent = emitHudWidgetEvent;
+    bindExtraWidgetEvents(cell);
+    registerWidgetEventSource(cell,actor,widgetDef);
   cell.addEventListener("pointerenter",event=>emitHudWidgetEvent("hover",event));
   cell.addEventListener("pointerleave",event=>emitHudWidgetEvent("leave",event));
   // Capture phase: HUD controls call stopPropagation, which would otherwise
@@ -291,13 +297,15 @@ function wireHudWidget(cell, widgetDef, actor) {
     if (event.target?.closest?.("[data-action='wbElement'],[data-cardhand]")) return;
     // Builder chrome (configure/duplicate/span/delete) is not a game event.
     if (event.target?.closest?.("[data-action='wcfg'], [data-action='wdup'], [data-action='wspan'], [data-action='wdel']")) return;
+    const pip=event.target?.closest?.(".skill-pip[data-rank]");
+    if(pip){emitHudWidgetEvent("pip",event,{value:Number(pip.dataset.rank)||0});return;}
     const control = sheetWidgetClickControl(cell, event);
     if (!control) return;
     emitHudWidgetEvent("click", event, { elementKey: control.closest("[data-element-key]")?.dataset?.elementKey ?? "" });
-    if (String(widgetDef?.type) === "toggle") emitHudWidgetEvent("toggle", event);
+    if (String(widgetDef?.type) === "toggle"&&!widgetCommitEventsInstalled()) emitHudWidgetEvent("toggle", event);
   }, true);
   cell.addEventListener("input", (event) => emitHudWidgetEvent("input", event), true);
-  cell.addEventListener("change", (event) => emitHudWidgetEvent("change", event), true);
+  cell.addEventListener("change",event=>{if(!widgetCommitEventsInstalled())emitHudWidgetEvent("change",event);},true);
 
   if (cell.dataset.sdAaDelegated !== "1") {
     cell.dataset.sdAaDelegated = "1";

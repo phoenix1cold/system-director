@@ -416,7 +416,13 @@ export const NODE_DEFS = {
       {key:"event",label:"Event",type:"select",default:"click",options:[
         {value:"click",label:"On Click"},
         {value:"change",label:"On Change"},
+        {value:"update",label:"On Update (value changed)"},
         {value:"input",label:"On Input"},
+        {value:"hover",label:"On Hover"},
+        {value:"leave",label:"On Mouse Leave"},
+        {value:"focus",label:"On Focus"},
+        {value:"blur",label:"On Blur"},
+        {value:"pip",label:"On Rank Pip"},
         {value:"toggle",label:"On Toggle"},
         {value:"dblclick",label:"On Double Click"},
         {value:"rightclick",label:"On Right Click"},

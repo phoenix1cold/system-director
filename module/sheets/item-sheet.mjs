@@ -10,6 +10,8 @@ import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpe
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "../helpers/sheet-widget-events.mjs";
+import { bindExtraWidgetEvents, ownsWidgetEvent } from "../helpers/sheet-widget-dom-events.mjs";
+import { widgetCommitEventsInstalled, registerWidgetEventSource } from "../helpers/sheet-widget-commits.mjs";
 import { sheetWidgetClickControl } from "../helpers/sheet-widget-click.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
@@ -442,6 +444,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     bindModelWidgets(cell, doc, { disabled: () => this._editMode });
     const emit=(eventName,sourceEvent=null,detail={})=>{
       if(this._editMode)return;
+      if(sourceEvent&&!ownsWidgetEvent(cell,sourceEvent))return;
+      if(sourceEvent&&eventName==="change"&&widgetCommitEventsInstalled())return;
       const target=sourceEvent?.target??null;
       let value;
       if(Object.prototype.hasOwnProperty.call(detail,"value"))value=detail.value;
@@ -459,11 +463,13 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         event:String(eventName||"click").toLowerCase(),value,
         widgetKey:String(w.widgetKey||w.id||""),widgetId:String(w.id||""),
         widgetLabel:String(w.label||""),widgetType:String(w.type||""),
-        elementKey:String(detail.elementKey??""),actorId:String(doc.actor?.id??""),
+        elementKey:String(detail.elementKey??target?.closest?.("[data-element-key]")?.dataset?.elementKey??""),actorId:String(doc.actor?.id??""),
         documentUuid:String(doc.uuid??""),sourceUuid:String(doc.uuid??"")
       });
     };
     cell._sdEmitWidgetEvent=emit;
+    bindExtraWidgetEvents(cell);
+    registerWidgetEventSource(cell,doc,w);
     cell.addEventListener("pointerenter",event=>emit("hover",event));
     cell.addEventListener("pointerleave",event=>emit("leave",event));
     // Capture phase: inner controls (steppers, pills, rich text, widget builder
@@ -480,10 +486,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const control=sheetWidgetClickControl(cell,event);
       if(!control)return;
       emit("click",event,{elementKey:control.closest("[data-element-key]")?.dataset?.elementKey??""});
-      if(String(w.type)==="toggle")emit("toggle",event);
+      if(String(w.type)==="toggle"&&!widgetCommitEventsInstalled())emit("toggle",event);
     },true);
     cell.addEventListener("input",event=>emit("input",event),true);
-    cell.addEventListener("change",event=>emit("change",event),true);
+    cell.addEventListener("change",event=>{if(!widgetCommitEventsInstalled())emit("change",event);},true);
   }
 
   _buildVSection(tab, row, vs) {

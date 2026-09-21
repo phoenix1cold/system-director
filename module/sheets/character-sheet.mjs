@@ -11,6 +11,8 @@ import { decodeMacroScript } from "../helpers/widget-macro.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "../helpers/sheet-widget-events.mjs";
+import { bindExtraWidgetEvents, ownsWidgetEvent } from "../helpers/sheet-widget-dom-events.mjs";
+import { widgetCommitEventsInstalled, registerWidgetEventSource } from "../helpers/sheet-widget-commits.mjs";
 import { sheetWidgetClickControl } from "../helpers/sheet-widget-click.mjs";
 import { deletionUpdate } from "../helpers/foundry-compat.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
@@ -804,6 +806,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     // They are intentionally separate from UI Blueprint events.
     const emitSheetWidgetEvent=(eventName,sourceEvent=null,detail={})=>{
       if(this._editMode)return;
+      if(sourceEvent&&!ownsWidgetEvent(cell,sourceEvent))return;
+      if(sourceEvent&&eventName==="change"&&widgetCommitEventsInstalled())return;
       const target=sourceEvent?.target??null;
       let value;
       if(Object.prototype.hasOwnProperty.call(detail,"value"))value=detail.value;
@@ -831,6 +835,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       });
     };
     cell._sdEmitWidgetEvent=emitSheetWidgetEvent;
+    bindExtraWidgetEvents(cell);
+    registerWidgetEventSource(cell,doc,w);
     cell.addEventListener("pointerenter",event=>emitSheetWidgetEvent("hover",event));
     cell.addEventListener("pointerleave",event=>emitSheetWidgetEvent("leave",event));
     bindCardHands(cell, doc, { disabled: () => this._editMode });
@@ -851,10 +857,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const control=sheetWidgetClickControl(cell,event);
       if(!control)return;
       emitSheetWidgetEvent("click",event,{elementKey:control.closest("[data-element-key]")?.dataset?.elementKey??""});
-      if(String(w.type)==="toggle")emitSheetWidgetEvent("toggle",event);
+      if(String(w.type)==="toggle"&&!widgetCommitEventsInstalled())emitSheetWidgetEvent("toggle",event);
     },true);
     cell.addEventListener("input",event=>emitSheetWidgetEvent("input",event),true);
-    cell.addEventListener("change",event=>emitSheetWidgetEvent("change",event),true);
+    cell.addEventListener("change",event=>{if(!widgetCommitEventsInstalled())emitSheetWidgetEvent("change",event);},true);
 
     cell.querySelectorAll("input[data-path], input[name], select[data-path], select[name], textarea[data-path], textarea[name]").forEach(inp => {
       inp.addEventListener("change", async () => {
