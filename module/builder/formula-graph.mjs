@@ -11373,6 +11373,15 @@ export class FormulaGraph {
   }
 
   compile() {
+    // Index only for this synchronous compilation. Nested function graphs have
+    // their own edge arrays; no cache survives edits, undo or the next save.
+    const previous = this._compileEdgeIndexes;
+    this._compileEdgeIndexes = new WeakMap();
+    try { return this._compileGraph(); }
+    finally { this._compileEdgeIndexes = previous; }
+  }
+
+  _compileGraph() {
     syncModelPointNodes(this);
     const valOut = this.nodes.find(n=>n.type==="attr_output" || n.type==="skill_output");
     if (valOut) {
@@ -12026,7 +12035,8 @@ export class FormulaGraph {
     this._previewTimer = null;
     if (!this.win) return;
     const f = this.compile();
-    this.win.querySelector("#gpreview").textContent = f || "-";
+    const preview = this.win.querySelector("#gpreview");
+    if (preview.textContent !== (f || "-")) preview.textContent = f || "-";
 
     this._buildVarPanel();
 
@@ -12058,7 +12068,7 @@ export class FormulaGraph {
             liveText = `${f}\n-> ${resolved}`;
           } catch {  }
         }
-        liveEl.textContent = liveText;
+        if (liveEl.textContent !== liveText) liveEl.textContent = liveText;
       }
     }
 
@@ -13809,14 +13819,33 @@ export class FormulaGraph {
   }
 
   _incomingEdge(nodeId, pinId) {
-    const edges = this._incomingEdges(nodeId, pinId);
-    return edges.length ? edges[edges.length - 1] : null;
+    if (this._compileEdgeIndexes) {
+      let nodes = this._compileEdgeIndexes.get(this.edges);
+      if (!nodes) {
+        nodes = new Map();
+        for (const edge of this.edges) {
+          let pins = nodes.get(edge.toNode);
+          if (!pins) nodes.set(edge.toNode, pins = new Map());
+          pins.set(edge.toPin, edge); // Last incoming edge wins, as before.
+        }
+        this._compileEdgeIndexes.set(this.edges, nodes);
+      }
+      return nodes.get(nodeId)?.get(pinId) ?? null;
+    }
+    for (let i = this.edges.length - 1; i >= 0; i--) {
+      const edge = this.edges[i];
+      if (edge.toNode === nodeId && edge.toPin === pinId) return edge;
+    }
+    return null;
   }
 
   _renderAll() {
     this._getGraphView()?.resetNodes();
     this.nodesEl.innerHTML="";
-    this.nodes.forEach(n=>this._renderNode(n));
+    syncModelPointNodes(this);
+    this._renderingAllNodes = true;
+    try { this.nodes.forEach(n=>this._renderNode(n)); }
+    finally { this._renderingAllNodes = false; }
     this._renderComments();
     this._applyTransform();
     // Live cards can change node height: build them before measuring sockets.
@@ -14001,7 +14030,7 @@ export class FormulaGraph {
   }
 
   _renderNode(node) {
-    syncModelPointNodes(this);
+    if (!this._renderingAllNodes) syncModelPointNodes(this);
     const graphView = this._getGraphView();
     graphView?.removeNode(node.id);
     const def=NODE_DEFS[node.type]; if(!def) return;
@@ -14726,7 +14755,7 @@ export class FormulaGraph {
       sel.addEventListener("mousedown",ev=>ev.stopPropagation());
       rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
       sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; rawInp.value=sel.value; this._updatePreview(); });
-      rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._updatePreview(); });
+      rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._schedulePreview(); });
       container.appendChild(sel); container.appendChild(rawInp); wrap.appendChild(container); return wrap;
     }
 
@@ -14798,7 +14827,7 @@ export class FormulaGraph {
         rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
         rawInp.title=field.hint??"Type a widget name or key. A connected Widget pin overrides this field.";
         rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
-        rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._updatePreview(); });
+        rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._schedulePreview(); });
         sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; rawInp.value=""; this._updatePreview(); });
         container.appendChild(rawInp);
       }
@@ -14832,7 +14861,7 @@ export class FormulaGraph {
         rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
         rawInp.title=field.hint??"Type an element name or id. A connected Element pin overrides this field.";
         rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
-        rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._updatePreview(); });
+        rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._schedulePreview(); });
         sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; rawInp.value=""; this._updatePreview(); });
         container.appendChild(rawInp);
       }
@@ -15046,7 +15075,7 @@ export class FormulaGraph {
     }
     inp.addEventListener("input",ev=>{
       node.data[field.key]=inp.type==="number"?Number(ev.target.value):ev.target.value;
-      this._updatePreview();
+      this._schedulePreview();
       if(field.type==="path" && liveBadge) _refreshLiveBadge();
 
       if (!_IS_TEXTUAL) {

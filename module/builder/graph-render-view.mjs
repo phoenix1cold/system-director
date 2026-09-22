@@ -30,6 +30,10 @@ export class GraphRenderView {
     this.pendingPositions = new Map(); this.paths = new Map(); this.nodes = new Map();
     this.connected = new Map(); this.edgeIds = new Set(); this.disposed = false;
     this.geometryStyles = new WeakMap();
+    // Translate the wire layer as a whole. Keep zoom in the path coordinates:
+    // stroke widths, hit targets and the minimum Bezier bend stay in pixels.
+    this.wireLayer = this.svg.ownerDocument.createElementNS(NS, "g");
+    this.svg.appendChild(this.wireLayer);
     this._onEdgeDoubleClick = event => {
       const id = event.target?.dataset?.eid;
       if (id) this.graph._removeEdge(id);
@@ -177,12 +181,12 @@ export class GraphRenderView {
     const pin = this.pinOffset(nodeId,pinId,side), node = this.nodeById(nodeId);
     return pin && node ? {x:Number(node.x)+pin.x,y:Number(node.y)+pin.y} : null;
   }
-  screenPoint(nodeId, pinId, side) {
+  screenPoint(nodeId, pinId, side, translated = true) {
     const pin = this.geometry.get(String(nodeId))?.pins.get(keyOf(pinId,side));
     const node = this.nodes.get(String(nodeId));
     if (!pin || !node) return null;
     const g = this.graph, zoom = Number(g._zoom) || 1;
-    return {x:g._pan.x+(Number(node.x)+pin.x)*zoom,y:g._pan.y+(Number(node.y)+pin.y)*zoom,pin};
+    return {x:(translated ? g._pan.x : 0)+(Number(node.x)+pin.x)*zoom,y:(translated ? g._pan.y : 0)+(Number(node.y)+pin.y)*zoom,pin};
   }
   pinScreen(nodeId, pinId, side) { this.measure(); return this.screenPoint(nodeId,pinId,side); }
   createPaths(id, fragment) {
@@ -198,10 +202,15 @@ export class GraphRenderView {
   }
   draw() {
     if (this.disposed) return;
-    this.flushPositions(); this.measure(); this.syncEdges();
+    this.measure(); this.syncEdges();
     const width = this.wrap?.clientWidth || 0, height = this.wrap?.clientHeight || 0;
     const focused = this.doc.activeElement?.closest?.("[data-nid]")?.dataset?.nid;
     const zoom = Number(this.graph._zoom) || 1, pan = this.graph._pan;
+    this.flushPositions();
+    if (this.panX !== pan.x || this.panY !== pan.y) {
+      this.wireLayer.setAttribute("transform", `translate(${pan.x} ${pan.y})`);
+      this.panX = pan.x; this.panY = pan.y;
+    }
     // WRITE phase: visibility preserves controls and measurable off-screen pins.
     for (const [id,box] of this.geometry) {
       const node=this.nodes.get(id), element=this.elements.get(id);
@@ -212,15 +221,18 @@ export class GraphRenderView {
     }
     let fragment=null;
     for (const edge of this.graph.edges) {
-      const id=String(edge.id), a=this.screenPoint(edge.fromNode,edge.fromPin,"output"), b=this.screenPoint(edge.toNode,edge.toPin,"input");
+      const id=String(edge.id), a=this.screenPoint(edge.fromNode,edge.fromPin,"output",false), b=this.screenPoint(edge.toNode,edge.toPin,"input",false);
       let slot=this.paths.get(id);
-      if (!a || !b || !graphEdgeVisible(a,b,width,height)) {
+      if (!a || !b || !graphEdgeVisible({x:a.x+pan.x,y:a.y+pan.y},{x:b.x+pan.x,y:b.y+pan.y},width,height)) {
         if (slot&&!slot.hidden) { slot.hit.style.display=slot.path.style.display="none";slot.hidden=true; }
         continue;
       }
       slot ??= this.createPaths(id,fragment ??= this.doc.createDocumentFragment());
-      const d=this.graph._bez(a,b);
-      if (slot.d!==d) { slot.hit.setAttribute("d",d);slot.path.setAttribute("d",d);slot.d=d; }
+      if (slot.ax!==a.x || slot.ay!==a.y || slot.bx!==b.x || slot.by!==b.y) {
+        const d=this.graph._bez(a,b);
+        slot.hit.setAttribute("d",d);slot.path.setAttribute("d",d);slot.d=d;
+        slot.ax=a.x;slot.ay=a.y;slot.bx=b.x;slot.by=b.y;
+      }
       const meta=a.pin.meta, stroke=a.pin.type==="exec"?"#ffca6b":meta.color;
       const sw=meta.container?"4.2":meta.structured?"3.8":"3.5",dash=meta.container?"10,4":"";
       if (slot.stroke!==stroke) {slot.path.setAttribute("stroke",stroke);slot.stroke=stroke;}
@@ -231,7 +243,7 @@ export class GraphRenderView {
       }
       if (slot.hidden) {slot.hit.style.display=slot.path.style.display="";slot.hidden=false;}
     }
-    if (fragment?.childNodes.length) this.svg.appendChild(fragment);
+    if (fragment?.childNodes.length) this.wireLayer.appendChild(fragment);
     for (const [id,slot] of this.paths) {
       if (this.edgeIds.has(id)) continue;
       slot.hit.remove();slot.path.remove();this.paths.delete(id);
@@ -245,6 +257,7 @@ export class GraphRenderView {
     this.root.removeEventListener("change",this._onFieldChange,true);
     for (const el of this.elements.values()) el.style.visibility="";
     for (const slot of this.paths.values()) {slot.hit.remove();slot.path.remove();}
+    this.wireLayer.remove();
     this.paths.clear();this.resetNodes();
   }
 }

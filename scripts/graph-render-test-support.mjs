@@ -37,20 +37,38 @@ export function checkPins(g){
   assert(Math.abs(p.y-r.top-r.height/2+origin.top)<.7,'pin y mismatch');
  }
 }
+export function checkWires(g){
+ const view=g._getGraphView(),expected=document.createElementNS('http://www.w3.org/2000/svg','path');
+ for(const edge of g.edges){
+  const slot=view.paths.get(String(edge.id));if(!slot||slot.hidden)continue;
+  const a=g._pinScreen(edge.fromNode,edge.fromPin,'output'),b=g._pinScreen(edge.toNode,edge.toPin,'input');
+  expected.setAttribute('d',g._bez(a,b));
+  const length=expected.getTotalLength(),actualLength=slot.path.getTotalLength();
+  assert(Math.abs(length-actualLength)<.1,'Wire length changed');
+  for(const fraction of [0,.25,.5,.75,1]){
+   const p=expected.getPointAtLength(length*fraction),q=slot.path.getPointAtLength(actualLength*fraction);
+   const transform=slot.path.parentNode.transform.baseVal.consolidate()?.matrix;
+   const screen=transform?new DOMPoint(q.x,q.y).matrixTransform(transform):q;
+   assert(Math.hypot(p.x-screen.x,p.y-screen.y)<.2,'Wire curve changed on pan/zoom/drag');
+  }
+  assert(slot.hit.getAttribute('stroke-width')==='14','Wire hit target changed');
+ }
+}
 export function benchmark(Type,count,label,frames=12){
- const g=fixture(Type,count);g._zoom=.4;
+ const g=fixture(Type,count);g._zoom=.15;
  const start=performance.now();g._renderAll();g.edgeSVG.getBoundingClientRect();const initial=performance.now()-start;
  for(let i=0;i<2;i++){g._pan.x+=3;g._applyTransform();g._redrawEdges();}
- let reads=0,creates=0;const rect=Element.prototype.getBoundingClientRect,create=document.createElementNS;
+ let reads=0,creates=0,pathWrites=0;const rect=Element.prototype.getBoundingClientRect,create=document.createElementNS,setAttribute=Element.prototype.setAttribute;
+ Element.prototype.setAttribute=function(name,value){if(this.tagName==='path'&&name==='d')pathWrites++;return setAttribute.call(this,name,value);};
  Element.prototype.getBoundingClientRect=function(){reads++;return rect.call(this);};
  document.createElementNS=function(...a){creates++;return create.apply(this,a);};
  const samples=[];
  try{for(let i=0;i<frames;i++){
   g._pan.x=20.25+i%6*7;g._pan.y=25.5+i%4*3;
   const t=performance.now();g._applyTransform();g._redrawEdges();g.edgeSVG.getBoundingClientRect();samples.push(performance.now()-t);
- }}finally{Element.prototype.getBoundingClientRect=rect;document.createElementNS=create;}
+ }}finally{Element.prototype.getBoundingClientRect=rect;document.createElementNS=create;Element.prototype.setAttribute=setAttribute;}
  samples.sort((a,b)=>a-b);
  const metrics={label,nodes:count,edges:g.edges.length,frames,initialRenderMs:+initial.toFixed(2),medianFrameMs:+samples[Math.floor(samples.length/2)].toFixed(2),
- p95FrameMs:+samples[Math.floor(samples.length*.95)].toFixed(2),rectReads:reads,svgElementsCreated:creates};
+ p95FrameMs:+samples[Math.floor(samples.length*.95)].toFixed(2),rectReads:reads,svgElementsCreated:creates,pathWrites};
  g.close();return metrics;
 }

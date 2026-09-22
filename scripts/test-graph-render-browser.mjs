@@ -1,5 +1,5 @@
 // Serve the system folder over localhost and open test-graph-render-browser.html.
-import {fixture,assert,checkPins,pause,finish} from './graph-render-test-support.mjs';
+import {fixture,assert,checkPins,checkWires,pause,finish} from './graph-render-test-support.mjs';
 import {FormulaGraph} from '../module/builder/formula-graph.mjs';
 import {graphEdgeVisible} from '../module/builder/graph-render-view.mjs';
 const checks=[];
@@ -7,16 +7,19 @@ try{
  const g=fixture(FormulaGraph);g._renderAll();checkPins(g);const v=g._getGraphView();
  checks.push('Real node DOM, fractional coordinates and borders');
  const hit=g.edgeSVG.querySelector('[data-eid="e0"]');assert(hit,'Missing hit target');
- for(const z of [.15,.75,1,2.6]){g._zoom=z;g._pan={x:-37.25,y:33.125};g._applyTransform();g._redrawEdges();checkPins(g);}
+ for(const z of [.15,.75,1,2.6]){g._zoom=z;g._pan={x:-37.25,y:33.125};g._applyTransform();g._redrawEdges();checkPins(g);checkWires(g);}
  g._zoom=.65;g._pan={x:20.25,y:25.5};g._applyTransform();g._redrawEdges();
  assert(g.edgeSVG.querySelector('[data-eid="e0"]')===hit,'SVG paths rebuilt');checks.push('Pan/zoom alignment and stable SVG identities');
- let reads=0;const rect=Element.prototype.getBoundingClientRect;
+ let reads=0,curves=0;const rect=Element.prototype.getBoundingClientRect,bez=g._bez;
+ g._bez=function(...args){curves++;return bez.apply(this,args);};
  Element.prototype.getBoundingClientRect=function(){reads++;return rect.call(this);};
  try{for(let i=0;i<12;i++){g._pan.x+=.5;g._applyTransform();g._redrawEdges();}}finally{Element.prototype.getBoundingClientRect=rect;}
  assert(reads===0,`Warm pan made ${reads} rect reads`);checks.push('Warm pan: zero node/pin rectangle reads');
+ assert(curves===0,'Pan recalculated Bezier curves');g._bez=bez;
+ checks.push('Warm pan: zero wire geometry calculations; curve shape and hit width preserved');
  const a=g.nodes[0],b=g.nodes[1],x=a.x;
  g._drag={nodeId:a.id,mx:100,my:100,ox:a.x,oy:a.y,group:[{id:a.id,ox:a.x,oy:a.y},{id:b.id,ox:b.x,oy:b.y}]};
- g._doDrag({clientX:139,clientY:119.5});assert(a.x===x+60,'Drag model not updated');g._redrawEdges();checkPins(g);g._drag=null;checks.push('Group dragging and final model coordinates');
+ g._doDrag({clientX:139,clientY:119.5});assert(a.x===x+60,'Drag model not updated');g._redrawEdges();checkPins(g);checkWires(g);g._drag=null;checks.push('Group dragging and final model coordinates');
  const seq={id:'seq',type:'sequence',x:50,y:200,data:{count:2}};g.nodes.push(seq);g._renderNode(seq);g._redrawEdges();
  assert(v.elements.get('seq').querySelectorAll('.gpin[data-side="output"]').length===2,'Sequence needs two pins');
  seq.data.count=5;g._renderNode(seq);g._redrawEdges();assert(v.elements.get('seq').querySelectorAll('.gpin[data-side="output"]').length===5,'Dynamic pins not updated');checkPins(g);checks.push('Dynamic sockets and node replacement');
@@ -43,5 +46,35 @@ try{
  for(let i=0;i<60;i++)f._scheduleEdges(false);await pause(100);assert(draws===1&&previews===0,'Viewport events not batched or compiled unnecessarily');
  f._scheduleEdges(true);await pause(220);assert(previews===1,'Data change did not compile');const d=draws;f._scheduleEdges(true);f.close();await pause(180);
  assert(draws===d&&previews===1,'Queued work survived closing');checks.push('Frame batching, semantic-only preview and timer cancellation');
+ const big=fixture(FormulaGraph,300);big._zoom=.15;big._renderAll();await pause();big._redrawEdges();
+ const bv=big._getGraphView();let changed=0;const originalBez=big._bez;
+ big._bez=function(...args){changed++;return originalBez.apply(this,args);};
+ big.nodes[5].x+=10;bv.moveNode(big.nodes[5]);big._redrawEdges();
+ assert(changed===2,`Moving one node recalculated ${changed} wires instead of its two neighbors`);checkWires(big);
+ checks.push('300 nodes: drag recalculates only incident wires');
+ let compiled=0;const originalPreview=big._updatePreview;
+ big._updatePreview=function(){compiled++;return originalPreview.call(this);};
+ const input=bv.elements.get('n0').querySelector('input[type=number]');
+ for(let i=0;i<25;i++){input.value=String(i);input.dispatchEvent(new Event('input',{bubbles:true}));}
+ assert(compiled===0&&big.nodes[0].data.value===24,'Typing compiled synchronously or lost data');
+ await pause(250);assert(compiled===1,'Typing did not coalesce preview');
+ big.nodes.push({id:'out',type:'output',data:{}});big.edges.push({fromNode:'n299',fromPin:'v',toNode:'out',toPin:'value'});
+ assert(big.compile()==='24','300-node chain compiled incorrectly');
+ big.nodes[0].data.value=31;assert(big.compile()==='31','Save compiled stale input');
+ big.edges.push({fromNode:'n3',fromPin:'v',toNode:'n0',toPin:'in'});
+ assert(big.compile()==='0','Cycle termination changed');
+ big.edges.pop();big.edges.push({fromNode:'n0',fromPin:'v',toNode:'n299',toPin:'in'});
+ assert(big.compile()==='31','Last incoming edge precedence changed');
+ big.close();checks.push('Typing coalesces preview; immediate compile, 300-node chain, cycles and edge precedence');
+ const nested=fixture(FormulaGraph,0);
+ nested.nodes=[{id:'n',type:'literal',data:{value:7}},{id:'call',type:'function_call',data:{functionId:'identity'}},{id:'out',type:'output',data:{}}];
+ nested.edges=[{fromNode:'n',fromPin:'v',toNode:'call',toPin:'arg'},{fromNode:'call',fromPin:'result',toNode:'out',toPin:'value'}];
+ nested._getFunctionLib=()=>({functions:{identity:{inputs:[{id:'arg'}],nodes:[{id:'n',type:'func_inputs',data:{}},{id:'out',type:'func_outputs',data:{}}],edges:[{fromNode:'n',fromPin:'arg',toNode:'out',toPin:'result'}]}}});
+ assert(nested.compile()==='7','Nested function used outer edge index');
+ nested.nodes[0].data.value=9;assert(nested.compile()==='9','Nested function retained old arguments');
+ const outerEdges=nested.edges;nested._compileGraph=()=>{throw Error('expected');};
+ try{nested.compile();}catch(error){assert(error.message==='expected','Unexpected compile failure');}
+ assert(!nested._compileEdgeIndexes&&nested.edges===outerEdges,'Compile failure leaked transaction state');
+ nested.close();checks.push('Nested function indexes, fresh arguments and exception cleanup');
  finish({status:'PASS',checks});
 }catch(error){finish({status:'FAIL',checks,error:error.stack||String(error)});}
