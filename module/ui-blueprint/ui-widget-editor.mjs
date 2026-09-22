@@ -30,6 +30,7 @@ import { SDUIWidgetApp } from "./ui-widget-app.mjs";
 import { BLUEPRINT_SCHEMA_VERSION, migrateBlueprintData, normalizeVariables, safeId, uniqueId } from "./ui-widget-blueprint.mjs";
 import { normalizeBinding, BINDING_TRANSFORMS } from "./ui-widget-bindings.mjs";
 import { openBlueprintAssetManager } from "./ui-widget-assets.mjs";
+import { mountDesignerWorkspace } from "../helpers/designer-workspace.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -199,6 +200,7 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
     this._wireKeyboard(root);
     this._observeCanvasResize();
     this._applyZoom();
+    mountDesignerWorkspace(root);
   }
 
   // ------------------------------------------------------------------
@@ -217,13 +219,22 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
   async _commit(elements, { canvas = true, hierarchy = true, details = false, undo = true } = {}) {
     if (undo) this._pushUndo();
     this._elements = elements;
+    const revision=this._commitRevision=(this._commitRevision??0)+1;
+    const snapshot=foundry.utils.deepClone(elements);
+    const status=this.element?.querySelector('[data-designer-save-status]');
+    if(status)status.textContent=game.i18n?.lang==='ru'?'Сохранение…':'Saving…';
     try {
-      await this.document.update({ "system.elements": elements }, NO_RENDER);
+      const write=(this._saveQueue??Promise.resolve()).catch(()=>{}).then(()=>this.document.update({ "system.elements": snapshot }, NO_RENDER));
+      this._saveQueue=write;
+      await write;
     } catch (err) {
       console.error(`${MODULE_ID} | element save failed:`, err);
       ui.notifications?.error?.(err?.message ?? "Save failed");
+      if(status)status.textContent=game.i18n?.lang==='ru'?'Не удалось сохранить':'Save failed';
       return;
     }
+    if(revision!==this._commitRevision)return;
+    if(status)status.textContent=game.i18n?.lang==='ru'?'Сохранено':'Saved';
     if (canvas) this._rebuildCanvas();
     else if (this._tree) this._tree.elements = foundry.utils.deepClone(elements);
     if (hierarchy) this._rebuildHierarchy();
@@ -314,6 +325,7 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   async close(options = {}) {
+    this._canvasRevision=(this._canvasRevision??0)+1;
     this._resizeObserver?.disconnect();
     this._resizeObserver = null;
     return super.close(options);
@@ -466,14 +478,16 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
       name: this.document.name,
       system: { ...this.document.system.toObject?.() ?? this.document.system, elements: this._elements }
     };
-    this._tree = new UIWidgetTree({ item: previewItem, state: this._state, editMode: true });
-    this._tree.prepare().then(() => {
-      if (!canvas.isConnected) return;
-      this._tree.render(canvas);
+    const revision=this._canvasRevision=(this._canvasRevision??0)+1;
+    const tree = new UIWidgetTree({ item: previewItem, state: this._state, editMode: true });
+    tree.prepare().then(() => {
+      if (!canvas.isConnected||revision!==this._canvasRevision) return;
+      this._tree=tree;
+      tree.render(canvas);
       this._decorateCanvas();
       this._syncSelectionClasses();
       this._updateStatus();
-    });
+    }).catch(error=>console.error('SD | UI Blueprint preview failed',error));
   }
 
   /** Add selection/drag/resize manipulators on top of each rendered element. */

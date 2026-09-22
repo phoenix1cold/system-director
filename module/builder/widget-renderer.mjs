@@ -75,7 +75,7 @@ export class WidgetRenderer {
       const styleStr = this._buildStyle(widgetDef);
       if (styleStr) {
         if (/^<[^>]+style="/.test(html)) {
-          html = html.replace(/^(<[^>]+style=")/, `$1${styleStr};`);
+          html = html.replace(/^(<[^>]+style=")([^"]*)"/, (_match,start,defaults)=>`${start}${defaults};${styleStr}"`);
         } else {
           html = html.replace(/^(<[^>]+)(>)/, `$1 style="${styleStr}"$2`);
         }
@@ -206,10 +206,10 @@ export class WidgetRenderer {
 
   static _buildStyle(w) {
     const parts = [];
-    const px = value => {
+    const px = (value, allowZero = false) => {
       if (this._isBlankStyle(value)) return null;
       const number = Number(value);
-      return Number.isFinite(number) && number > 0 ? `${number}px` : null;
+      return Number.isFinite(number) && (number > 0 || (allowZero && number === 0)) ? `${number}px` : null;
     };
     const colour = value => {
       if (typeof value !== "string") return null;
@@ -244,21 +244,28 @@ export class WidgetRenderer {
     if (label) cssVar("--sd-w-label", label);
 
     const borderColour = colour(w.boxBorder);
-    const borderWidth = px(w.boxBorderWidth) ?? "1px";
+    const borderWidth = px(w.boxBorderWidth,true) ?? "1px";
     const borderStyle = choose(w.boxBorderStyle, ["solid","dashed","dotted","double","none"]) || "solid";
     if (borderColour && w.type !== "image") {
       parts.push(`border:${borderWidth} ${borderStyle} ${borderColour}`);
       cssVar("--sd-w-bd", borderColour);
-    } else if (w.boxBorderStyle === "none") parts.push("border:none");
-    const radius = px(w.boxRadius); if (radius) parts.push(`border-radius:${radius}`);
-    const padding = px(w.boxPad); if (padding) parts.push(`padding:${padding}`);
-    const margin = px(w.boxMargin); if (margin) parts.push(`margin:${margin}`);
-    const gap = px(w.boxGap); if (gap) parts.push(`gap:${gap}`);
+    } else {
+      if (!this._isBlankStyle(w.boxBorderWidth)) parts.push(`border-width:${borderWidth}`);
+      if (w.boxBorderStyle) parts.push(`border-style:${borderStyle}`);
+    }
+    if (w.boxBorderStyle === "none") parts.push("border:none");
+    const radius = px(w.boxRadius,true); if (radius) parts.push(`border-radius:${radius}`);
+    const padding = px(w.boxPad,true); if (padding) parts.push(`padding:${padding}`);
+    const margin = px(w.boxMargin,true); if (margin) parts.push(`margin:${margin}`);
+    const gap = px(w.boxGap,true); if (gap) parts.push(`gap:${gap}`);
 
     const fontSize = px(w.fontSize); if (fontSize) parts.push(`font-size:${fontSize}`);
+    cssVar("--sd-w-font-size",fontSize);
     const labelFontSize = px(w.labelFontSize); if (labelFontSize) cssVar("--sd-widget-label-size", labelFontSize);
     const fontWeight = number(w.fontWeight); if (fontWeight !== null) parts.push(`font-weight:${Math.max(100, Math.min(900, fontWeight))}`);
     const textAlign = choose(w.textAlign, ["left","center","right"]); if (textAlign) parts.push(`text-align:${textAlign}`);
+    cssVar("--sd-w-text-align",textAlign);
+    cssVar("--sd-w-font-weight",fontWeight===null?null:Math.max(100,Math.min(900,fontWeight)));
     const contentAlign = choose(w.contentAlign, ["start","center","end","stretch"]);
     if (contentAlign) parts.push(`align-items:${contentAlign === "start" ? "flex-start" : contentAlign === "end" ? "flex-end" : contentAlign}`);
     const opacity = number(w.opacity); if (opacity !== null) parts.push(`opacity:${Math.max(0, Math.min(1, opacity))}`);
@@ -287,7 +294,8 @@ export class WidgetRenderer {
     cssVar("--sd-w-tag-fg",    colour(w.tagFg));
     cssVar("--sd-w-bw",        px(w.borderWidth));
     cssVar("--sd-tile-size",   px(w.tileSize));
-    return parts.join(";");
+    // Explicit author settings win over preset !important rules; unset fields emit nothing.
+    return parts.map(part=>part.startsWith("--")||part.endsWith("!important")?part:`${part}!important`).join(";");
   }
 
   static _decorateWidgetLabel(html, widget) {
@@ -801,7 +809,7 @@ export class WidgetRenderer {
   <div class="widget-label" style="display:flex;align-items:center">${e(w.label)}${ w.path ? this._copyBtn(w.path, 'toggle state') : ''}</div>
   <button type="button" class="tog-row" data-action="widgetToggle"
        data-path="${e(this._bindingPath(w.path))}" data-value="${val}"
-       style="cursor:pointer;border:0;background:none;color:inherit;padding:0;width:100%;font:inherit;text-align:initial">
+       style="cursor:pointer;border:0;background:none;color:inherit;padding:0;width:100%;font:inherit;text-align:inherit">
     <div class="tog-track ${val ? "on" : ""}">
       <div class="tog-knob"></div>
     </div>

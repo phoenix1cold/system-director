@@ -63,6 +63,9 @@ assert.match(build({ opacity: 0 }), /opacity:0/, "an explicit 0 opacity is still
 assert.match(build({ fontWeight: "700" }), /font-weight:700/, "explicit font weight must apply");
 assert.match(build({ boxW: 120 }), /width:120px/, "explicit width must apply");
 assert.match(build({ boxW: "120" }), /width:120px/, "string width must apply");
+for(const [field,property] of [['boxPad','padding'],['boxMargin','margin'],['boxGap','gap'],['boxRadius','border-radius'],['boxBorderWidth','border-width']]) {
+  assert.ok(build({[field]:0}).includes(`${property}:0px!important`),`${field} accepts explicit zero with author priority`);
+}
 
 // Clamping must survive the blank-aware guards.
 assert.match(build({ opacity: 5 }), /opacity:1/, "opacity clamps to 1");

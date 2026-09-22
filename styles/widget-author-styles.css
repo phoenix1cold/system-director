@@ -1,0 +1,19 @@
+/* Author controls are applied after visual presets. Only explicitly set tokens override them. */
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-fg"] :is(input,select,textarea,.tog-val,.attr-score,.attr-mod,.derived-value,.num-value,.cnt-value) { color:var(--sd-w-fg) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-font-size"] :is(input,select,textarea,button,.tog-val,.attr-score,.attr-mod,.derived-value,.num-value,.cnt-value) { font-size:var(--sd-w-font-size) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-font-weight"] :is(input,select,textarea,button,.tog-val,.attr-score,.attr-mod,.derived-value,.num-value,.cnt-value) { font-weight:var(--sd-w-font-weight) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-text-align"] :is(input,select,textarea,.tog-row) { text-align:var(--sd-w-text-align) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="text-align:center"] .tog-row { justify-content:center; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="text-align:right"] .tog-row { justify-content:flex-end; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="text-align:left"] .tog-row { justify-content:flex-start; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-widget-label-size"] :is(.widget-label,.skill-name,.sec-title,.vsection-title,.sd-wb-title) { font-size:var(--sd-widget-label-size) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-label"] :is(.widget-label,.skill-name,.sec-title,.vsection-title,.sd-wb-title) { color:var(--sd-w-label) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-on"] .tog-track.on { background:var(--sd-w-on) !important; border-color:var(--sd-w-on) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-off"] .tog-track:not(.on) { background:var(--sd-w-off) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-btn-bg"] :is(.sd-action-btn,.dice-btn) { background:var(--sd-w-btn-bg) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-btn-fg"] :is(.sd-action-btn,.dice-btn) { color:var(--sd-w-btn-fg) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-btn-bd"] :is(.sd-action-btn,.dice-btn) { border-color:var(--sd-w-btn-bd) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-num-btn"] :is(.num-btn,.cnt-btn) { color:var(--sd-w-num-btn) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-icon"] :is(.sd-action-btn,.dice-btn) > i { color:var(--sd-w-icon) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-bar-h"] :is(.res-bar,.prog-bar) { height:var(--sd-w-bar-h) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-bar-track"] :is(.res-bar,.prog-bar) { background:var(--sd-w-bar-track) !important; }

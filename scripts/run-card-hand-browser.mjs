@@ -23,6 +23,12 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/scripts/test-card-hand-browser.html`);
   await page.waitForFunction(()=>['READY','FAIL'].includes(document.title));
   assert.equal(await page.title(),'READY',await page.locator('#result').textContent());
+  const styleChecks=await page.evaluate(async()=>{const {checkWidgetStyles}=await import('./widget-style-browser-checks.mjs');return checkWidgetStyles();});
+  console.log(`PASS: ${styleChecks} computed widget-style checks`);
+  const designerChecks=await page.evaluate(async()=>{const {checkDesignerWorkspace}=await import('./designer-workspace-browser-checks.mjs');return checkDesignerWorkspace();});
+  await page.locator('.sd-sheet-widget-designer').screenshot({path:path.join(root,'tests/designer-workspace-preview.png')});
+  await page.evaluate(()=>designerPreview.remove());
+  console.log(`PASS: ${designerChecks} designer interaction and race checks`);
   await page.evaluate(()=>{
     Object.defineProperty(crypto,'randomUUID',{configurable:true,value:undefined});
     foundry.utils.randomID=()=>Array.from(crypto.getRandomValues(new Uint8Array(12)),n=>n.toString(16).padStart(2,'0')).join('');
