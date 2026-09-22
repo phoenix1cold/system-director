@@ -43,14 +43,14 @@ export function checkWires(g){
   const slot=view.paths.get(String(edge.id));if(!slot||slot.hidden)continue;
   const a=g._pinScreen(edge.fromNode,edge.fromPin,'output'),b=g._pinScreen(edge.toNode,edge.toPin,'input');
   expected.setAttribute('d',g._bez(a,b));
-  const length=expected.getTotalLength(),actualLength=slot.path.getTotalLength();
-  assert(Math.abs(length-actualLength)<.1,'Wire length changed');
-  for(const fraction of [0,.25,.5,.75,1]){
-   const p=expected.getPointAtLength(length*fraction),q=slot.path.getPointAtLength(actualLength*fraction);
-   const transform=slot.path.parentNode.transform.baseVal.consolidate()?.matrix;
-   const screen=transform?new DOMPoint(q.x,q.y).matrixTransform(transform):q;
-   assert(Math.hypot(p.x-screen.x,p.y-screen.y)<.2,'Wire curve changed on pan/zoom/drag');
-  }
+  // Compare all cubic control points, not getPointAtLength's approximate
+  // tessellation: Chromium's arc-length sampling drifts on very long loops.
+  const numbers=path=>path.getAttribute('d').match(/[-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?/gi).map(Number);
+  const want=numbers(expected),actual=numbers(slot.path),transform=slot.path.parentNode.transform.baseVal.consolidate()?.matrix;
+  assert(want.length===8&&actual.length===8,'Invalid cubic path');
+  for(let i=0;i<8;i+=2){const p=new DOMPoint(actual[i],actual[i+1]),q=transform?p.matrixTransform(transform):p;
+   assert(Math.hypot(want[i]-q.x,want[i+1]-q.y)<.01,`Wire control point changed: ${edge.id}`);}
+  assert(slot.hit.getAttribute('d')===slot.path.getAttribute('d'),'Hit path differs from visible curve');
   assert(slot.hit.getAttribute('stroke-width')==='14','Wire hit target changed');
  }
 }

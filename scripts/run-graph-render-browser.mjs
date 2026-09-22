@@ -20,11 +20,19 @@ try{
   await page.waitForFunction(()=>['PASS','FAIL'].includes(document.title));
   const regression=JSON.parse(await page.locator('#result').textContent());
   assert.equal(regression.status,'PASS',JSON.stringify(regression));assert.deepEqual(errors,[]);
-  const metrics=await page.evaluate(async()=>{
+  const metrics=process.argv.includes('--stress') ? await page.evaluate(async()=>{
+    const {stressBenchmark}=await import('./graph-stress-browser-checks.mjs');
+    const results=[];for(const count of [300,10000])results.push(await stressBenchmark(count));return results;
+  }) : await page.evaluate(async()=>{
     const {benchmark}=await import('./graph-render-test-support.mjs');
     const {FormulaGraph}=await import('../module/builder/formula-graph.mjs');
     return [200,300,600].map(count=>benchmark(FormulaGraph,count,'dense',60));
   });
-  const result={regression,metrics};console.log(JSON.stringify(result,null,2));
+  const large=process.argv.includes('--stress') ? await page.evaluate(async()=>{
+    const {largeRegressions}=await import('./graph-large-regressions.mjs');return largeRegressions();
+  }) : undefined;
+  assert.deepEqual(errors,[]);
+  if(large){await page.evaluate(()=>document.querySelector('#result').style.display='none');await page.locator('.sd-formula-graph-host').screenshot({path:path.join(root,'tests/graph-10000-preview.png')});await page.evaluate(()=>graphPerformancePreview.remove());}
+  const result={regression,metrics,large};console.log(JSON.stringify(result,null,2));
   if(process.argv[2])fs.writeFileSync(path.resolve(process.argv[2]),JSON.stringify(result,null,2)+'\n');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

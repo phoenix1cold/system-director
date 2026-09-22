@@ -224,9 +224,7 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
     const status=this.element?.querySelector('[data-designer-save-status]');
     if(status)status.textContent=game.i18n?.lang==='ru'?'Сохранение…':'Saving…';
     try {
-      const write=(this._saveQueue??Promise.resolve()).catch(()=>{}).then(()=>this.document.update({ "system.elements": snapshot }, NO_RENDER));
-      this._saveQueue=write;
-      await write;
+      await this._queueDocumentUpdate({ "system.elements": snapshot });
     } catch (err) {
       console.error(`${MODULE_ID} | element save failed:`, err);
       ui.notifications?.error?.(err?.message ?? "Save failed");
@@ -263,6 +261,13 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
   // Toolbar
   // ------------------------------------------------------------------
 
+  _queueDocumentUpdate(update) {
+    const snapshot = foundry.utils.deepClone(update);
+    const write = (this._saveQueue ?? Promise.resolve()).catch(()=>{}).then(()=>this.document.update(snapshot, NO_RENDER));
+    this._saveQueue = write;
+    return write;
+  }
+
   _wireToolbar(root) {
     for (const input of root.querySelectorAll(".sduw-toolbar [name]")) {
       input.addEventListener("change", async () => {
@@ -277,7 +282,7 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
           }
           const update = { [path]: value };
           if (path === "system.blueprintId") update["system.widgetKey"] = value;
-          await this.document.update(update, NO_RENDER);
+          await this._queueDocumentUpdate(update);
         } catch (err) {
           ui.notifications?.warn?.(err?.message ?? "Save failed");
           return;

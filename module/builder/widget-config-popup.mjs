@@ -1225,6 +1225,13 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     }));
 
     const wbSync = () => { wbJsonEl.value = JSON.stringify(wbEls); };
+    // The full designer can replace this draft while the properties window
+    // stays open. Keep the inline editor's closure in sync as well as its JSON.
+    wbJsonEl.addEventListener("change", () => {
+      try { const next = JSON.parse(wbJsonEl.value || "[]"); if (Array.isArray(next)) wbEls = next; }
+      catch { return; }
+      wbRender();
+    });
     const wbNameDup = (name, idx) =>
       !!name && wbEls.some((e2, i2) => i2 !== idx && String(e2?.name ?? "").trim() === name);
     const wbCanvasWrap = popup.querySelector("#wcfg-wb-canvas-wrap");
@@ -1623,12 +1630,29 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
 
   popup.querySelector("#wcfg-open-widget-designer")?.addEventListener("click", async () => {
     const { openSheetWidgetDesigner } = await import("./widget-builder-designer.mjs");
+    const keys = ["label", "wbLayout", "columns", "gap", "canvasW", "canvasH", "gridSize", "snap", "clipOverflow"];
+    const draft = foundry.utils.deepClone(w);
+    for (const key of keys) {
+      const field = popup.querySelector(`[data-field="${key}"]`);
+      if (field) draft[key] = field.type === "checkbox" ? field.checked : field.type === "number" ? Number(field.value) : field.value;
+    }
+    const elements = popup.querySelector("#wcfg-wb-json");
+    if (elements) { try { draft.elements = JSON.parse(elements.value || "[]"); } catch {} }
     openSheetWidgetDesigner({
-      widget: w, doc, tab, row,
+      widget: draft, doc, tab, row,
       onSave: updated => {
         Object.assign(w, updated);
+        for (const key of keys) {
+          const field = popup.querySelector(`[data-field="${key}"]`);
+          if (!field || updated[key] === undefined) continue;
+          if (field.type === "checkbox") field.checked = !!updated[key];
+          else field.value = String(updated[key] ?? "");
+        }
         const json = popup.querySelector("#wcfg-wb-json");
-        if (json) json.value = JSON.stringify(updated.elements ?? []);
+        if (json) {
+          json.value = JSON.stringify(updated.elements ?? []);
+          json.dispatchEvent(new Event("change", {bubbles:true}));
+        }
       }
     });
   });

@@ -1,6 +1,7 @@
 import {SheetWidgetDesigner} from '../module/builder/widget-builder-designer.mjs';
 import {SDUIWidgetEditor} from '../module/ui-blueprint/ui-widget-editor.mjs';
 import {UIWidgetTree} from '../module/ui-blueprint/ui-widget-runtime.mjs';
+import {openWidgetConfigPopup} from '../module/builder/widget-config-popup.mjs';
 
 export async function checkDesignerWorkspace(){
   const assert=(value,message)=>{if(!value)throw new Error(message);};
@@ -29,6 +30,30 @@ export async function checkDesignerWorkspace(){
   await app._onClose({});
   globalThis.designerPreview=root;
 
+  const saved={id:'grid-builder',type:'widgetBuilder',label:'Grid test',wbLayout:'free',elements:[]};
+  const tab={id:'tab',rows:[{id:'row',widgets:[saved]}]},row=tab.rows[0];
+  const doc={documentName:'Actor',system:{customTabs:[tab]},async update(data){if(data['system.customTabs'])this.system.customTabs=structuredClone(data['system.customTabs']);}};
+  const popup=await openWidgetConfigPopup(saved,tab,row,doc);
+  const open=SheetWidgetDesigner.open;let designer;
+  try {
+    SheetWidgetDesigner.open=options=>(designer=new SheetWidgetDesigner(options));
+    popup.querySelector('[data-field="columns"]').value='5';
+    popup.querySelector('#wcfg-open-widget-designer').click();await new Promise(resolve=>setTimeout(resolve,30));
+    assert(designer.widget.columns===5,'Designer receives unsaved property fields');
+    designer.widget.wbLayout='grid';designer.widget.gap=0;designer.widget.snap=0;
+    designer.elements=[{id:'new',name:'New',kind:'label',label:'New',x:0,y:0,w:100,h:40}];
+    await designer._save();
+    assert(popup.querySelector('[data-field="wbLayout"]').value==='grid','Properties reflect the saved grid layout');
+    popup.querySelector('#wcfg-save').click();await new Promise(resolve=>setTimeout(resolve,30));
+    const persisted=doc.system.customTabs[0].rows[0].widgets[0];
+    assert(persisted.wbLayout==='grid'&&persisted.columns===5&&persisted.gap===0&&persisted.snap===0,'Properties save must not revert designer settings');
+    assert(persisted.elements[0]?.id==='new','Inline element draft retains designer changes');
+    const reopened=new SheetWidgetDesigner({widget:persisted,doc});
+    assert(reopened.widget.wbLayout==='grid','Reopened designer retains Grid');
+    const reopenedDOM=document.createElement('div');reopenedDOM.innerHTML=await reopened._renderHTML();
+    assert(reopenedDOM.querySelector('[data-setting=snap]').value==='0'&&reopenedDOM.querySelector('[data-setting=gap]').value==='0','Reopened controls preserve zero snap/gap');
+  } finally {SheetWidgetDesigner.open=open;popup.querySelector('#wcfg-cancel')?.click();}
+
   const ui=new SDUIWidgetEditor();ui._regions={};ui.element=document.createElement('div');
   const writes=[];let release;
   ui.document={system:{},update:async data=>{writes.push(data['system.elements'][0].name);if(writes.length===1)await new Promise(resolve=>release=resolve);}};
@@ -36,6 +61,14 @@ export async function checkDesignerWorkspace(){
   const first=ui._commit([{id:'one',name:'First'}]),second=ui._commit([{id:'one',name:'Second'}]);
   await new Promise(resolve=>setTimeout(resolve,0));assert(writes.length===1,'Saves are serialized');release();await Promise.all([first,second]);
   assert(writes.join(',')==='First,Second'&&ui._elements[0].name==='Second','Newest edit is persisted last');
+  const toolbar=document.createElement('div');toolbar.innerHTML='<div class="sduw-toolbar"><select name="system.wbLayout"><option>free</option><option>grid</option></select></div>';
+  const layoutWrites=[];let releaseLayout;
+  ui.document={system:{wbLayout:'free'},async update(data){layoutWrites.push(data['system.wbLayout']);if(layoutWrites.length===1)await new Promise(resolve=>releaseLayout=resolve);this.system.wbLayout=data['system.wbLayout'];}};
+  ui._wireToolbar(toolbar);const mode=toolbar.querySelector('select');
+  mode.value='free';mode.dispatchEvent(new Event('change'));mode.value='grid';mode.dispatchEvent(new Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));assert(layoutWrites.length===1,'UI Blueprint toolbar saves are serialized');
+  releaseLayout();await ui._saveQueue;
+  assert(ui.document.system.wbLayout==='grid','UI Blueprint keeps the latest layout after overlapping saves');
   const prepare=UIWidgetTree.prototype.prepare,render=UIWidgetTree.prototype.render;
   const pending=[],paint=[];const canvas=document.createElement('div');document.body.append(canvas);
   try {
@@ -47,5 +80,5 @@ export async function checkDesignerWorkspace(){
     pending[1].resolve();await Promise.resolve();pending[0].resolve();await Promise.resolve();
     assert(paint.length===1&&paint[0]===pending[1].tree,'Stale asynchronous previews never paint over the newest canvas');
   } finally {UIWidgetTree.prototype.prepare=prepare;UIWidgetTree.prototype.render=render;canvas.remove();}
-  return 12;
+  return 21;
 }

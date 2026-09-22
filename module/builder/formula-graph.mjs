@@ -11376,9 +11376,11 @@ export class FormulaGraph {
     // Index only for this synchronous compilation. Nested function graphs have
     // their own edge arrays; no cache survives edits, undo or the next save.
     const previous = this._compileEdgeIndexes;
+    const previousValues = this._compileValueIndexes;
     this._compileEdgeIndexes = new WeakMap();
+    this._compileValueIndexes = new WeakMap();
     try { return this._compileGraph(); }
-    finally { this._compileEdgeIndexes = previous; }
+    finally { this._compileEdgeIndexes = previous; this._compileValueIndexes = previousValues; }
   }
 
   _compileGraph() {
@@ -11539,6 +11541,41 @@ export class FormulaGraph {
   }
 
   _compileValue(node, vis, fromPin = null) {
+    let index=this._compileValueIndexes?.get(this.nodes);
+    if(!index||index.edges!==this.edges){
+      const nodes=new Map(this.nodes.map(n=>[n.id,n])),incoming=new Map();
+      for(const edge of this.edges){let pins=incoming.get(edge.toNode);if(!pins)incoming.set(edge.toNode,pins=new Map());pins.set(edge.toPin,edge);}
+      index={nodes,incoming,edges:this.edges};this._compileValueIndexes?.set(this.nodes,index);
+    }
+    const {nodes,incoming}=index;
+    const active=new Set(vis),memo=new Map(),stack=[{node,pin:fromPin}];
+    let result;
+    const finish=(frame,value)=>{
+      stack.pop();if(frame.entered)active.delete(frame.node.id);
+      if(!frame.cyclic){let pins=memo.get(frame.node.id);if(!pins)memo.set(frame.node.id,pins=new Map());pins.set(frame.pin,value);}
+      if(stack.length)stack.at(-1).inputs[frame.target]=value;else result=value;
+    };
+    while(stack.length){
+      const frame=stack.at(-1),n=frame.node,def=NODE_DEFS[n.type];
+      if(!frame.entered){
+        if(active.has(n.id)){for(const entry of stack)entry.cyclic=true;finish(frame,"0");continue;}
+        const cached=memo.get(n.id);if(cached?.has(frame.pin)){finish(frame,cached.get(frame.pin));continue;}
+        const terminal=!def||def.isFunctionInputs||def.isFunctionCall||def.isEvent||def.isMacroInput||def.isAction
+          ||typeof def.dynamicBranchToken==='function'||def.isAttackBranch||def.isBranch||def.isSaveBranch||def.isTieredBranch
+          ||def.isGenericBranch||def.isProgressionBranch||def.isAoeSave||def.isAiBranch||BRANCH_PIN_TOKENS[n.type]?.[frame.pin];
+        if(terminal){finish(frame,this._compileValueRecursive(n,active,frame.pin));continue;}
+        frame.entered=true;active.add(n.id);frame.inputs={};frame.dependencies=[];frame.index=0;
+        const add=pin=>{const edge=incoming.get(n.id)?.get(pin),source=nodes.get(edge?.fromNode);if(source)frame.dependencies.push({node:source,pin:edge.fromPin,target:pin});};
+        for(const pin of def.inputs??[])if(pin.type!=='exec')add(pin.id);
+        for(const group of Array.isArray(def.dynamicPins)?def.dynamicPins:def.dynamicPins?[def.dynamicPins]:[])for(let i=0;i<group.max;i++)add(`${group.base}${i}`);
+      }
+      if(frame.index<frame.dependencies.length){stack.push(frame.dependencies[frame.index++]);continue;}
+      finish(frame,def.compilePin?def.compilePin(n,frame.inputs,frame.pin):(def.compile?.(n,frame.inputs)??"0"));
+    }
+    return result;
+  }
+
+  _compileValueRecursive(node, vis, fromPin = null) {
     if (vis.has(node.id)) return "0";
     const v2 = new Set(vis); v2.add(node.id);
     const def = NODE_DEFS[node.type];
@@ -11622,10 +11659,14 @@ export class FormulaGraph {
   _compileExecChain(startNodeId, startPin) {
     syncModelPointNodes(this);
     const actions = [];
+    const nodeIndex=new Map(this.nodes.map(node=>[node.id,node]));
+    const nextIndex=new Map();
+    for(const edge of this.edges){let pins=nextIndex.get(edge.fromNode);if(!pins)nextIndex.set(edge.fromNode,pins=new Map());if(!pins.has(edge.fromPin))pins.set(edge.fromPin,edge);}
     const _walk = (nodeId, vis=new Set()) => {
+      while(nodeId){
       if (!nodeId||vis.has(nodeId)) return;
       vis.add(nodeId);
-      const node = this.nodes.find(n=>n.id===nodeId);
+      const node = nodeIndex.get(nodeId);
       if (!node) return;
       const def  = NODE_DEFS[node.type];
       if (!def) return;
@@ -11635,9 +11676,8 @@ export class FormulaGraph {
       if (def.isFunctionCall) {
         const innerActions = this._inlineFunctionExec(node);
         if (Array.isArray(innerActions) && innerActions.length) actions.push(...innerActions);
-        const outEdge = this.edges.find(e => e.fromNode === node.id && e.fromPin === "_exec");
-        if (outEdge) _walk(outEdge.toNode, vis);
-        return;
+        nodeId = nextIndex.get(node.id)?.get("_exec")?.toNode;
+        continue;
       }
 
       if (def.isIfCompare) {
@@ -12022,8 +12062,10 @@ export class FormulaGraph {
         const act = def.toAction?.(node,ins);
         if (act) actions.push(act);
 
-        const outEdge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin==="exec");
-        if (outEdge) _walk(outEdge.toNode, vis);
+        nodeId = nextIndex.get(node.id)?.get("exec")?.toNode;
+        continue;
+      }
+      return;
       }
     };
     _walk(startNodeId);
@@ -12035,6 +12077,7 @@ export class FormulaGraph {
     this._previewTimer = null;
     if (!this.win) return;
     const f = this.compile();
+    this._lastPreviewFormula = f;
     const preview = this.win.querySelector("#gpreview");
     if (preview.textContent !== (f || "-")) preview.textContent = f || "-";
 
@@ -12045,31 +12088,10 @@ export class FormulaGraph {
     });
 
     const liveTargetNode = this.nodes.find(n => n.type === "output" || n.type === "attr_output" || n.type === "skill_output");
+    this._livePreviewNodeId = liveTargetNode?.id;
     if (liveTargetNode) {
       const outEl = this.nodesEl?.querySelector(`[data-nid="${liveTargetNode.id}"]`);
-      if (outEl) {
-        let liveEl = outEl.querySelector(".gn-live-val");
-        if (!liveEl) {
-          liveEl = document.createElement("div");
-          liveEl.className = "gn-live-val";
-          liveEl.style.cssText = "padding:3px 8px 4px;border-top:1px solid var(--sd-graph-live-border,#1a1a30);font-size:10px;font-family:monospace;color:var(--sd-graph-live-text,var(--sd-success));word-break:break-all;white-space:pre-wrap;background:var(--sd-graph-live-bg,#060610);border-radius:0 0 5px 5px";
-          outEl.appendChild(liveEl);
-        }
-        let liveText = f || "-";
-        if (this.doc && f && f !== "0") {
-          try {
-            const resolved = f.replace(/\{([^}]+)\}/g, (_, p) => {
-              let v = foundry.utils.getProperty(this.doc, p);
-              if (v && typeof v === "object" && "value" in v && typeof v.value !== "object") v = v.value;
-              if (v === undefined || v === null) return "0";
-              if (typeof v === "object") return "0";
-              return String(v);
-            });
-            liveText = `${f}\n-> ${resolved}`;
-          } catch {  }
-        }
-        if (liveEl.textContent !== liveText) liveEl.textContent = liveText;
-      }
+      this._refreshOutputPreview(outEl, f);
     }
 
     const badge = this.win.querySelector("#gmode-badge");
@@ -12101,6 +12123,32 @@ export class FormulaGraph {
     } else {
       badge.style.display = "none";
     }
+  }
+
+  _refreshOutputPreview(outEl, f = this._lastPreviewFormula) {
+      if (outEl && f !== undefined) {
+        let liveEl = outEl.querySelector(".gn-live-val");
+        if (!liveEl) {
+          liveEl = document.createElement("div");
+          liveEl.className = "gn-live-val";
+          liveEl.style.cssText = "padding:3px 8px 4px;border-top:1px solid var(--sd-graph-live-border,#1a1a30);font-size:10px;font-family:monospace;color:var(--sd-graph-live-text,var(--sd-success));word-break:break-all;white-space:pre-wrap;background:var(--sd-graph-live-bg,#060610);border-radius:0 0 5px 5px";
+          outEl.appendChild(liveEl);
+        }
+        let liveText = f || "-";
+        if (this.doc && f && f !== "0") {
+          try {
+            const resolved = f.replace(/\{([^}]+)\}/g, (_, p) => {
+              let v = foundry.utils.getProperty(this.doc, p);
+              if (v && typeof v === "object" && "value" in v && typeof v.value !== "object") v = v.value;
+              if (v === undefined || v === null) return "0";
+              if (typeof v === "object") return "0";
+              return String(v);
+            });
+            liveText = `${f}\n-> ${resolved}`;
+          } catch {  }
+        }
+        if (liveEl.textContent !== liveText) liveEl.textContent = liveText;
+      }
   }
 
   _buildVarPanel() {
@@ -12220,7 +12268,7 @@ export class FormulaGraph {
       <span class="guiel-type">${esc(el.type)}</span>
     </div>`).join("");
 
-    panel.innerHTML = `
+    const panelHTML = `
       ${sectionHeader("DATABASE VARIABLES", databaseVars.length, "create-db")}
       ${databaseRows || `<div class="gdbvar-empty">No Database variables. Press + to create one here.</div>`}
       ${sectionHeader("SHEET WIDGETS", sheetWidgets.length)}
@@ -12233,6 +12281,10 @@ export class FormulaGraph {
       ${macroRows || `<div style="padding:10px;font-size:10px;color:var(--sd-text-3);font-style:italic">No macros. Use <b>macro_input</b> (define) / <b>macro_call</b> (invoke).</div>`}
     `;
 
+    const signature=JSON.stringify([panelHTML,dbScope,uiElements.map(el=>[!!NODE_DEFS[`ui_el_get_${el.type}`],!!NODE_DEFS[`ui_el_set_${el.type}`]])]);
+    if(panel._sdGraphPanelSignature===signature)return;
+    panel._sdGraphPanelSignature=signature;
+    panel.innerHTML=panelHTML;
     panel.querySelectorAll(".gvar-row").forEach(row => {
       const variableData = {name:row.dataset.varName,scope:row.dataset.varScope,valueType:row.dataset.varType,default:"0"};
       row.addEventListener("dragstart", event => {
@@ -12252,8 +12304,10 @@ export class FormulaGraph {
       row.addEventListener("click", () => {
         const nid  = row.dataset.nid;
         const node = this.nodes.find(n => n.id === nid);
-        const el   = this.nodesEl?.querySelector(`[data-nid="${nid}"]`);
-        if (!el || !node) return;
+        let el = this.nodesEl?.querySelector(`[data-nid="${nid}"]`);
+        if (!node) return;
+        if (!el) { this._debugFocus(nid); el=this.nodesEl?.querySelector(`[data-nid="${nid}"]`); }
+        if (!el) return;
         const wrap = this.win?.querySelector("#gwrap");
         if (wrap) {
           const w = (el.offsetWidth  || 180) * this._zoom;
@@ -12583,6 +12637,11 @@ export class FormulaGraph {
   // are also dry-run, walking value wires upstream from every value output.
 
   _clearDebug() {
+    this._paintDebugNode = null;
+    for(const el of this._graphView?.detachedElements?.values()??[]){
+      el.querySelectorAll('.gdbg-badge').forEach(badge=>badge.remove());
+      if(el.dataset.gdbg){el.style.outline='';el.style.outlineOffset='';delete el.dataset.gdbg;}
+    }
     this.win?.querySelector?.("#gdebugpanel")?.remove();
     this.nodesEl?.querySelectorAll?.(".gdbg-badge")?.forEach(el => el.remove());
     this.nodesEl?.querySelectorAll?.("[data-nid]")?.forEach(el => {
@@ -12821,9 +12880,9 @@ export class FormulaGraph {
       b.style.cssText = `position:absolute;top:-9px;right:-9px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#111;background:${color};z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.4);pointer-events:auto`;
       el.appendChild(b);
     };
-    for (const n of this.nodes) {
-      const el = this.nodesEl?.querySelector(`[data-nid="${n.id}"]`);
-      if (!el) continue;
+    this._paintDebugNode = (n,el) => {
+      if (!el) return;
+      el.querySelectorAll('.gdbg-badge').forEach(b=>b.remove());
       const def = NODE_DEFS[n.type];
       const st = nodeState.get(n.id);
       if (st) {
@@ -12840,7 +12899,8 @@ export class FormulaGraph {
         el.dataset.gdbg = "unreachable";
         badge(el, "#9aa0ad", "?", this._dbgT("BadgeUnreachable"));
       }
-    }
+    };
+    for(const [id,el] of this._getGraphView()?.elements??[])this._paintDebugNode(this._nodeById(id),el);
 
     this._renderDebugPanel(entries, paths, valueSinks, valuePaths);
   }
@@ -13844,11 +13904,12 @@ export class FormulaGraph {
     this.nodesEl.innerHTML="";
     syncModelPointNodes(this);
     this._renderingAllNodes = true;
-    try { this.nodes.forEach(n=>this._renderNode(n)); }
+    try { if (!this._getGraphView()?.virtualized) this.nodes.forEach(n=>this._renderNode(n)); }
     finally { this._renderingAllNodes = false; }
     this._renderComments();
     this._applyTransform();
     // Live cards can change node height: build them before measuring sockets.
+    if(this._getGraphView()?.virtualized)this._redrawEdges();
     this._updatePreview();
     this._redrawEdges();
   }
@@ -14027,6 +14088,16 @@ export class FormulaGraph {
     c.h = Math.max(80,  Math.round(r.oh + dy));
     const el = this.commentsEl.querySelector(`[data-cid="${c.id}"]`);
     if (el) { el.style.width = c.w + "px"; el.style.height = c.h + "px"; }
+  }
+
+  _estimateNodeSize(node) {
+    const def=NODE_DEFS[node.type]??{};
+    const groups=Array.isArray(def.dynamicPins)?def.dynamicPins:def.dynamicPins?[def.dynamicPins]:[];
+    const dynamic=groups.reduce((sum,group)=>sum+(Number(group.max)||0),0);
+    const fields=(def.fields??[]).reduce((sum,field)=>sum+(field.type==='textarea'?Math.max(64,(Number(field.rows)||6)*20):48),0);
+    // Conservative broad-phase bounds only. Actual wires always use measured
+    // DOM sockets. Allow room for dynamic cards and extension controls.
+    return {width:Math.max(680,Number(def.nodeWidth)||0),height:600+fields+48*((def.inputs?.length??0)+(def.outputs?.length??0)+dynamic+(node.data?.pointDefinitions?.length??0)*6)};
   }
 
   _renderNode(node) {
@@ -15509,10 +15580,21 @@ export class FormulaGraph {
     if ((x2s - x1s) < 4 && (y2s - y1s) < 4) return;
 
     if (!m.additive) this._selected.clear();
+    const view=this._getGraphView();view?.measure();
+    // Only fringe nodes need exact dimensions: origins inside the marquee are
+    // unambiguously selected. Do not use broad-phase estimates for selection.
+    const previous=this._renderingAllNodes;this._renderingAllNodes=true;
+    try {
+      for(const n of this.nodes){
+        if(view?.geometry.has(String(n.id))||(n.x>=gx1&&n.x<=gx2&&n.y>=gy1&&n.y<=gy2))continue;
+        const box=view?.nodeBounds(n)??this._estimateNodeSize(n);
+        if(n.x<=gx2&&n.y<=gy2&&n.x+box.width>=gx1&&n.y+box.height>=gy1)this._renderNode(n);
+      }
+    }finally{this._renderingAllNodes=previous;}
+    view?.measure();
     for (const n of this.nodes) {
-      const el = this.nodesEl.querySelector(`[data-nid="${n.id}"]`);
-      const w  = el ? el.offsetWidth  : 220;
-      const h  = el ? el.offsetHeight : 80;
+      const box=view?.nodeBounds(n)??this._estimateNodeSize(n);
+      const w=box.width,h=box.height;
       const nx1 = n.x, ny1 = n.y, nx2 = n.x + w, ny2 = n.y + h;
       const intersects = !(nx2 < gx1 || nx1 > gx2 || ny2 < gy1 || ny1 > gy2);
       if (intersects) this._selected.add(n.id);

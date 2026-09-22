@@ -30,6 +30,8 @@ export class GraphRenderView {
     this.pendingPositions = new Map(); this.paths = new Map(); this.nodes = new Map();
     this.connected = new Map(); this.edgeIds = new Set(); this.disposed = false;
     this.geometryStyles = new WeakMap();
+    this.estimates = new WeakMap();
+    this.detachedElements = new Map();
     // Translate the wire layer as a whole. Keep zoom in the path coordinates:
     // stroke widths, hit targets and the minimum Bezier bend stay in pixels.
     this.wireLayer = this.svg.ownerDocument.createElementNS(NS, "g");
@@ -58,8 +60,18 @@ export class GraphRenderView {
     const view = doc.defaultView;
     this.resizeObserver = view?.ResizeObserver ? new view.ResizeObserver(entries => {
       if (this.disposed) return;
-      for (const entry of entries) this.invalidateTarget(entry.target);
-      this.graph._scheduleEdges?.(false);
+      let changed=false;
+      for (const entry of entries) {
+        if(entry.target===this.wrap){
+          const size=entry.contentRect,key=`${size.width}:${size.height}`;
+          if(this.wrapSize!==undefined&&this.wrapSize!==key)this.invalidateAll();
+          this.wrapSize=key;changed=true;continue;
+        }
+        const old=this.geometry.get(entry.target.dataset.nid),size=entry.borderBoxSize?.[0];
+        if(old&&size&&Math.abs(old.width-size.inlineSize)<.1&&Math.abs(old.height-size.blockSize)<.1)continue;
+        changed=this.invalidateTarget(entry.target)||changed;
+      }
+      if(changed)this.graph._scheduleEdges?.(false);
     }) : null;
     this.mutationObserver = view?.MutationObserver ? new view.MutationObserver(records => {
       if (!this.disposed && this.consumeMutations(records)) this.graph._scheduleEdges?.(false);
@@ -94,12 +106,19 @@ export class GraphRenderView {
     if (!id || !this.elements.has(id)) return false;
     this.dirty.add(id); return true;
   }
-  invalidateAll() { for (const id of this.elements.keys()) this.dirty.add(id); }
+  invalidateAll() {
+    for (const id of this.elements.keys()) this.dirty.add(id);
+    for (const id of this.geometry.keys())if(!this.elements.has(id))this.geometry.delete(id);
+    this.detachedElements.clear();
+  }
   syncNodes() {
     const source = this.graph.nodes;
     if (this.nodeSource !== source || this.nodeCount !== source.length) {
       this.nodeSource = source; this.nodeCount = source.length;
       this.nodes = new Map(source.map(node => [String(node.id), node]));
+      this.nodeOrder = new Map(source.map((node,index)=>[String(node.id),index]));
+      for(const id of this.elements.keys())if(!this.nodes.has(id))this.removeNode(id);
+      for(const id of this.geometry.keys())if(!this.nodes.has(id)){this.geometry.delete(id);this.detachedElements.delete(id);}
     }
   }
   nodeById(id) { this.syncNodes(); return this.nodes.get(String(id)) ?? null; }
@@ -125,6 +144,9 @@ export class GraphRenderView {
     const id = String(node?.id ?? element.dataset.nid), old = this.elements.get(id);
     if (old && old !== element) this.resizeObserver?.unobserve(old);
     this.elements.set(id, element);
+    this.detachedElements.delete(id);
+    // Mount order changes with viewport virtualization; stacking order must not.
+    element.style.zIndex = String(this.nodeOrder?.get(id) ?? this.graph.nodes.indexOf(node));
     this.geometryStyles.set(element, geometryStyle(element));
     if (node) this.nodes.set(id, node);
     this.geometry.delete(id); this.dirty.add(id); this.resizeObserver?.observe(element);
@@ -134,12 +156,106 @@ export class GraphRenderView {
     const element = this.elements.get(id);
     if (element) { this.resizeObserver?.unobserve(element); if (removeElement) element.remove(); }
     this.elements.delete(id); this.geometry.delete(id); this.dirty.delete(id);
+    this.detachedElements.delete(id);
     this.pendingPositions.delete(id); this.nodes.delete(id);
   }
   resetNodes() {
     for (const element of this.elements.values()) this.resizeObserver?.unobserve(element);
     this.elements.clear(); this.geometry.clear(); this.dirty.clear(); this.pendingPositions.clear();
     this.nodeSource = null; this.edgeSource = null; this.nodes.clear();
+    this.estimates = new WeakMap();
+    this.detachedElements.clear();
+  }
+  get virtualized() { return this.graph.nodes.length >= 128; }
+  nodeBounds(node) {
+    const measured = this.geometry.get(String(node.id));
+    if (measured) return measured;
+    let estimate = this.estimates.get(node);
+    if (!estimate) { estimate = this.graph._estimateNodeSize(node); this.estimates.set(node, estimate); }
+    return estimate;
+  }
+  unmountNode(id) {
+    const element = this.elements.get(id);
+    if (!element) return;
+    this.resizeObserver?.unobserve(element); element.remove();
+    this.elements.delete(id); this.dirty.delete(id);
+    // Bounded detached LRU avoids rebuilding controls when zooming back and
+    // forth. It never grows with the graph, and detached nodes cost no layout.
+    this.detachedElements.set(id,element);
+    while(this.detachedElements.size>256)this.detachedElements.delete(this.detachedElements.keys().next().value);
+  }
+  prepareViewport() {
+    this.syncNodes(); this.syncEdges();
+    if (!this.virtualized) {
+      this.viewportEdges = null;
+      const previous=this.graph._renderingAllNodes;this.graph._renderingAllNodes=true;
+      try {for(const [id,node] of this.nodes)if(!this.elements.has(id))this.graph._renderNode(node);}
+      finally {this.graph._renderingAllNodes=previous;}
+      return;
+    }
+    const g=this.graph, zoom=Number(g._zoom)||1, pan=g._pan;
+    const width=this.wrap?.clientWidth||1100,height=this.wrap?.clientHeight||680;
+    const margin=320/zoom, left=-pan.x/zoom-margin, top=-pan.y/zoom-margin;
+    const right=(width-pan.x)/zoom+margin,bottom=(height-pan.y)/zoom+margin;
+    const keep=new Set(),measure=new Set();
+    for(const [id,node] of this.nodes){
+      const box=this.nodeBounds(node),x=Number(node.x),y=Number(node.y);
+      if(x+box.width>=left&&x<=right&&y+box.height>=top&&y<=bottom)keep.add(id);
+    }
+    // Hysteresis: avoid detaching/remounting the same controls at every wheel
+    // step around a viewport boundary. The retained halo is still bounded by
+    // screen area, not total graph size.
+    const halo=2048/zoom;
+    let retained=0;
+    for(const id of this.elements.keys()){
+      if(keep.has(id))continue;
+      if(retained>=256)break;
+      const node=this.nodes.get(id);if(!node)continue;
+      const box=this.nodeBounds(node),x=Number(node.x),y=Number(node.y);
+      if(x+box.width>=left-halo&&x<=right+halo&&y+box.height>=top-halo&&y<=bottom+halo){keep.add(id);retained++;}
+    }
+    const focused=this.doc.activeElement?.closest?.('[data-nid]')?.dataset?.nid;
+    if(focused)keep.add(focused);
+    if(g._conn?.fromNode)keep.add(String(g._conn.fromNode));
+    for(const entry of g._drag?.group??[])if(this.elements.has(String(entry.id)))keep.add(String(entry.id));
+    this.viewportEdges=[];
+    // Conservative hull of endpoint rectangles. Render actual endpoint controls
+    // to measure sockets for crossing wires, even when both nodes are offscreen.
+    for(const edge of g.edges){
+      const a=this.nodes.get(String(edge.fromNode)),b=this.nodes.get(String(edge.toNode));
+      if(!a||!b)continue;
+      const ab=this.nodeBounds(a),bb=this.nodeBounds(b);
+      const ax=Number(a.x),ay=Number(a.y),bx=Number(b.x),by=Number(b.y);
+      if(Math.max(ay+ab.height,by+bb.height)<top||Math.min(ay,by)>bottom)continue;
+      const bend=Math.max(Math.abs(bx+bb.width-ax),Math.abs(ax+ab.width-bx))*.55+60/zoom;
+      if(Math.max(ax+ab.width,bx+bb.width)+bend<left||Math.min(ax,bx)-bend>right)continue;
+      this.viewportEdges.push(edge);
+      for(const node of [a,b])if(!this.geometry.has(String(node.id)))measure.add(String(node.id));
+    }
+    const previous=g._renderingAllNodes;g._renderingAllNodes=true;
+    let mounted=false;
+    try {
+      for(const id of new Set([...keep,...measure])){
+        if(this.elements.has(id))continue;
+        const node=this.nodes.get(id);
+        if(node){
+          const cached=this.detachedElements.get(id);
+          if(cached){
+            this.detachedElements.delete(id);this.elements.set(id,cached);
+            cached.style.left=`${node.x}px`;cached.style.top=`${node.y}px`;cached.style.visibility='';
+            const box=this.geometry.get(id);if(box)box.hidden=false;
+            this.root.appendChild(cached);this.resizeObserver?.observe(cached);
+            cached._refreshAttrCard?.();
+          }else g._renderNode(node);
+          if(node.id===g._livePreviewNodeId)g._refreshOutputPreview?.(this.elements.get(id));
+          g._paintDebugNode?.(node,this.elements.get(id));
+          mounted=true;
+        }
+      }
+    } finally {g._renderingAllNodes=previous;}
+    this.measure();
+    for(const id of this.elements.keys())if(!keep.has(id))this.unmountNode(id);
+    if(mounted)g._refreshSelectionHighlights();
   }
   moveNode(node) { this.pendingPositions.set(String(node.id), node); }
   flushPositions() {
@@ -202,6 +318,7 @@ export class GraphRenderView {
   }
   draw() {
     if (this.disposed) return;
+    this.prepareViewport();
     this.measure(); this.syncEdges();
     const width = this.wrap?.clientWidth || 0, height = this.wrap?.clientHeight || 0;
     const focused = this.doc.activeElement?.closest?.("[data-nid]")?.dataset?.nid;
@@ -212,15 +329,16 @@ export class GraphRenderView {
       this.panX = pan.x; this.panY = pan.y;
     }
     // WRITE phase: visibility preserves controls and measurable off-screen pins.
-    for (const [id,box] of this.geometry) {
-      const node=this.nodes.get(id), element=this.elements.get(id);
-      if (!node || !element) continue;
+    for (const [id,element] of this.elements) {
+      const node=this.nodes.get(id), box=this.geometry.get(id);
+      if (!node || !box) continue;
       const x=pan.x+Number(node.x)*zoom,y=pan.y+Number(node.y)*zoom;
       const hidden=!!(width&&height&&id!==focused&&(x+box.width*zoom < -160 || y+box.height*zoom < -160 || x>width+160 || y>height+160));
       if (box.hidden!==hidden) { element.style.visibility=hidden?"hidden":"";box.hidden=hidden; }
     }
     let fragment=null;
-    for (const edge of this.graph.edges) {
+    const drawn = this.virtualized ? new Set() : null;
+    for (const edge of this.viewportEdges ?? this.graph.edges) {
       const id=String(edge.id), a=this.screenPoint(edge.fromNode,edge.fromPin,"output",false), b=this.screenPoint(edge.toNode,edge.toPin,"input",false);
       let slot=this.paths.get(id);
       if (!a || !b || !graphEdgeVisible({x:a.x+pan.x,y:a.y+pan.y},{x:b.x+pan.x,y:b.y+pan.y},width,height)) {
@@ -228,6 +346,7 @@ export class GraphRenderView {
         continue;
       }
       slot ??= this.createPaths(id,fragment ??= this.doc.createDocumentFragment());
+      drawn?.add(id);
       if (slot.ax!==a.x || slot.ay!==a.y || slot.bx!==b.x || slot.by!==b.y) {
         const d=this.graph._bez(a,b);
         slot.hit.setAttribute("d",d);slot.path.setAttribute("d",d);slot.d=d;
@@ -245,7 +364,7 @@ export class GraphRenderView {
     }
     if (fragment?.childNodes.length) this.wireLayer.appendChild(fragment);
     for (const [id,slot] of this.paths) {
-      if (this.edgeIds.has(id)) continue;
+      if (this.edgeIds.has(id) && (!drawn || drawn.has(id))) continue;
       slot.hit.remove();slot.path.remove();this.paths.delete(id);
     }
   }
