@@ -1,8 +1,8 @@
 {
   "id": "sd",
-  "title": "System Director Nexus",
+  "title": "System Director",
   "description": "System Director Nexus - create your own system.",
-  "version": "2.3.0 Nexus",
+  "version": "2.3.1",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
