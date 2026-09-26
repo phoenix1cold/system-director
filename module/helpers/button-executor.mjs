@@ -740,6 +740,30 @@ function _savePassedVal(v) {
 
 export class ButtonExecutor {
 
+  /**
+   * State for Do Once / Flip Flop / Do N / Multi Gate. "session" lives in memory
+   * until reload; "actor" persists in `flags.sd.flow` on the owning actor and
+   * falls back to the session store when no actor is available or the update fails.
+   */
+  static async _flowState(action, item, actor) {
+    const owner = actor ?? item?.actor ?? null;
+    const docKey = item?.uuid ?? owner?.uuid ?? "global";
+    const key = String(action.key ?? "").trim() || String(action.nodeId ?? "node");
+    const sessionKey = `${docKey}|${key}`;
+    const store = (globalThis.__sdFlowState ??= new Map());
+    if (action.scope === "actor" && owner?.update) {
+      const flagKey = key.replace(/[^A-Za-z0-9_-]/g, "_");
+      return {
+        get: () => foundry.utils.getProperty(owner, `flags.sd.flow.${flagKey}`) ?? store.get(sessionKey),
+        set: async (value) => {
+          try { await owner.update({ [`flags.sd.flow.${flagKey}`]: value }); }
+          catch (err) { console.warn("SD | flow state: actor flag update failed, keeping it in memory", err); store.set(sessionKey, value); }
+        }
+      };
+    }
+    return { get: () => store.get(sessionKey), set: async (value) => { store.set(sessionKey, value); } };
+  }
+
   static _buildRerollFlag(action, srcActor, formula, label) {
     if (!action || action.rerollEnabled !== "yes" && action.rerollEnabled !== true) return null;
     if (!formula) return null;
@@ -1044,6 +1068,12 @@ export class ButtonExecutor {
       }
       if (runtime.__castActorId !== undefined) {
         formula = formula.replace(/\{__castActorId\}/g, String(runtime.__castActorId));
+      }
+      if (runtime.__nodeResults && formula.includes("{__nodeResult:")) {
+        formula = formula.replace(/\{__nodeResult:([^|}]+)\|([^}]*)\}/g, (_m, nodeId, pin) => {
+          const v = readNodeResult(runtime, nodeId, pin || "value");
+          return (v === undefined || v === null || typeof v === "object") ? "0" : String(v);
+        });
       }
       if (runtime.__castItemId !== undefined) {
         formula = formula.replace(/\{__castItemId\}/g, String(runtime.__castItemId));
@@ -2490,10 +2520,12 @@ export class ButtonExecutor {
         let _i = 0;
         const _prevCT = runtime.currentTarget;
         const _prevLI = runtime.__loopIndex;
+        const _prevLT = runtime.__loopItem;
         for (const token of targets) {
           const tActor = token.actor;
           if (!tActor) continue;
           runtime.currentTarget = token.id;
+          runtime.__loopItem    = token.id;
           runtime.__loopIndex   = _i++;
           for (const sub of (action.loopActions ?? [])) {
             await this._runAction(sub, item, tActor, buttonDef, runtime);
@@ -2501,6 +2533,7 @@ export class ButtonExecutor {
         }
         if (_prevCT !== undefined) runtime.currentTarget = _prevCT; else delete runtime.currentTarget;
         if (_prevLI !== undefined) runtime.__loopIndex   = _prevLI; else delete runtime.__loopIndex;
+        if (_prevLT !== undefined) runtime.__loopItem    = _prevLT; else delete runtime.__loopItem;
         for (const sub of (action.doneActions ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
         }
@@ -2524,11 +2557,13 @@ export class ButtonExecutor {
         const ids = String(raw).split(",").map(s => s.trim()).filter(Boolean);
         const _prevCT = runtime.currentTarget;
         const _prevLI = runtime.__loopIndex;
+        const _prevLT = runtime.__loopItem;
         for (let i = 0; i < ids.length; i++) {
           const tid     = ids[i];
           const tk      = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
           const tActor  = tk?.actor ?? null;
           runtime.currentTarget = tid;
+          runtime.__loopItem    = tid;
           runtime.__loopIndex   = i;
           for (const sub of (action.loopActions ?? [])) {
             await this._runAction(sub, item, tActor ?? actor, buttonDef, runtime);
@@ -2536,6 +2571,7 @@ export class ButtonExecutor {
         }
         if (_prevCT !== undefined) runtime.currentTarget = _prevCT; else delete runtime.currentTarget;
         if (_prevLI !== undefined) runtime.__loopIndex   = _prevLI; else delete runtime.__loopIndex;
+        if (_prevLT !== undefined) runtime.__loopItem    = _prevLT; else delete runtime.__loopItem;
         for (const sub of (action.doneActions ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
         }
@@ -4257,6 +4293,105 @@ export class ButtonExecutor {
         if (level === "warn")  ui.notifications.warn(String(text));
         else if (level === "error") ui.notifications.error(String(text));
         else ui.notifications.info(String(text));
+        break;
+      }
+
+      case "runMacroByUuid": {
+        const uuid = _injectRuntime(String(action.uuid ?? "")).trim();
+        if (!uuid) { ui.notifications?.warn?.("SD | Run Macro: no macro selected."); break; }
+        let macro = null;
+        try { macro = await fromUuid(uuid); } catch { macro = null; }
+        if (!macro) macro = game.macros?.get?.(uuid.split(".").pop()) ?? null;
+        if (!macro?.execute) { ui.notifications?.warn?.(`SD | Run Macro: macro not found — ${uuid}`); break; }
+        try {
+          const token = canvas?.tokens?.placeables?.find?.(t => t.actor?.id === actor?.id) ?? null;
+          await macro.execute({ actor, token, item, runtime });
+        } catch (error) { console.error("SD | runMacroByUuid failed", error); ui.notifications?.error?.(`Macro: ${error.message}`); }
+        break;
+      }
+
+      case "logMessage": {
+        if (action.gmOnly && !game.user?.isGM) break;
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        const raw = _injectRuntime(String(action.text ?? ""));
+        let value = raw;
+        try { value = FormulaEngine.evaluate(raw, item ?? actor ?? {}); } catch {  }
+        const text = (value !== null && typeof value === "object")
+          ? FormulaEngine.valueToText(value)
+          : String(value ?? "");
+        const prefix = String(action.prefix ?? "").trim();
+        const line = prefix ? `${prefix}: ${text}` : text;
+        const level = ["log","info","warn","error"].includes(action.level) ? action.level : "log";
+        if (action.toConsole !== false) {
+          const source = item?.name ?? actor?.name ?? "graph";
+          (console[level] ?? console.log)(`SD Blueprint | ${source}${action.nodeId ? ` · ${action.nodeId}` : ""} |`, line, value);
+        }
+        if (action.toScreen !== false) {
+          const notify = level === "error" ? "error" : level === "warn" ? "warn" : "info";
+          ui.notifications?.[notify]?.(line);
+        }
+        break;
+      }
+
+      case "flowDoOnce":
+      case "flowFlipFlop":
+      case "flowDoN":
+      case "flowMultiGate": {
+        const { FormulaEngine } = await import("./formula-engine.mjs");
+        const _truthy = (v) => {
+          if (v === undefined || v === null || v === "") return false;
+          let out = v;
+          try { out = FormulaEngine.evaluate(_injectRuntime(String(v)), item ?? actor ?? {}); } catch {  }
+          if (typeof out === "boolean") return out;
+          const s = String(out ?? "").trim().toLowerCase();
+          if (!s || ["0","false","no","off","null","undefined"].includes(s)) return false;
+          const n = Number(s);
+          return Number.isFinite(n) ? n !== 0 : true;
+        };
+        const _number = (v, fallback) => {
+          if (v === undefined || v === null || v === "") return fallback;
+          let out = v;
+          try { out = FormulaEngine.evaluate(_injectRuntime(String(v)), item ?? actor ?? {}); } catch {  }
+          const n = Number(out);
+          return Number.isFinite(n) ? n : fallback;
+        };
+        const state = await this._flowState(action, item, actor);
+        let current = state.get();
+        if (_truthy(action.reset)) current = undefined;
+        const branches = [];
+        const results = {};
+
+        if (action.type === "flowDoOnce") {
+          if (current) branches.push(...(action.blockedActions ?? []));
+          else { branches.push(...(action.execActions ?? [])); await state.set(true); }
+        } else if (action.type === "flowFlipFlop") {
+          const isA = !current;
+          results.isA = isA ? 1 : 0;
+          branches.push(...(isA ? (action.aActions ?? []) : (action.bActions ?? [])));
+          await state.set(isA);
+        } else if (action.type === "flowDoN") {
+          const limit = Math.max(0, Math.floor(_number(action.n, 1)));
+          const done = Math.max(0, Number(current) || 0);
+          if (done >= limit) { results.counter = done; branches.push(...(action.blockedActions ?? [])); }
+          else { results.counter = done + 1; branches.push(...(action.execActions ?? [])); await state.set(done + 1); }
+        } else {
+          const count = Math.max(2, Math.min(8, Number(action.count) || 2));
+          const used = Array.isArray(current) ? current.filter(n => Number.isInteger(n) && n >= 0 && n < count) : [];
+          let remaining = [];
+          for (let k = 0; k < count; k++) if (!used.includes(k)) remaining.push(k);
+          if (!remaining.length && action.loop !== false) { used.length = 0; for (let k = 0; k < count; k++) remaining.push(k); }
+          if (remaining.length) {
+            const next = action.random ? remaining[Math.floor(Math.random() * remaining.length)] : remaining[0];
+            results.index = next;
+            branches.push(...(action[`out${next}Actions`] ?? []));
+            await state.set([...used, next]);
+          } else {
+            results.index = -1;
+          }
+        }
+
+        if (action.nodeId) storeNodeResult(runtime, action.nodeId, results);
+        for (const sub of branches) await this._runAction(sub, item, actor, buttonDef, runtime);
         break;
       }
 

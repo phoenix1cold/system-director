@@ -43,8 +43,12 @@
             {{#if @root.isGM}}<button type="button" data-action="removeRecord" data-database-index="{{record.databaseIndex}}" data-record-index="{{record.index}}" class="danger"><i class="fas fa-trash"></i></button>{{/if}}
           </div>
           <div class="sd-db-record-values">
-            <label>Default<textarea name="rec_{{record.databaseIndex}}_{{record.index}}_default" rows="2" {{#unless @root.isGM}}disabled{{/unless}}>{{record.defaultText}}</textarea></label>
-            <label>Value for {{@root.contextName}}<textarea name="rec_{{record.databaseIndex}}_{{record.index}}_value" rows="2" {{#if db.isWorld}}{{#unless @root.isGM}}disabled{{/unless}}{{else}}{{#unless @root.hasContext}}disabled{{/unless}}{{/if}}>{{record.value}}</textarea></label>
+            <label>Default
+              {{#if record.editorKind}}<button type="button" class="sd-db-set-btn" data-action="editValue" data-target="rec_{{record.databaseIndex}}_{{record.index}}_default" data-editor="{{record.editorKind}}" data-record-type="{{record.type}}" {{#unless @root.isGM}}disabled{{/unless}}><i class="fas {{record.editorIcon}}"></i> Set…</button>{{/if}}
+              <textarea name="rec_{{record.databaseIndex}}_{{record.index}}_default" rows="2" {{#unless @root.isGM}}disabled{{/unless}}>{{record.defaultText}}</textarea></label>
+            <label>Value for {{@root.contextName}}
+              {{#if record.editorKind}}<button type="button" class="sd-db-set-btn" data-action="editValue" data-target="rec_{{record.databaseIndex}}_{{record.index}}_value" data-editor="{{record.editorKind}}" data-record-type="{{record.type}}" {{#if db.isWorld}}{{#unless @root.isGM}}disabled{{/unless}}{{else}}{{#unless @root.hasContext}}disabled{{/unless}}{{/if}}><i class="fas {{record.editorIcon}}"></i> Set…</button>{{/if}}
+              <textarea name="rec_{{record.databaseIndex}}_{{record.index}}_value" rows="2" {{#if db.isWorld}}{{#unless @root.isGM}}disabled{{/unless}}{{else}}{{#unless @root.hasContext}}disabled{{/unless}}{{/if}}>{{record.value}}</textarea></label>
           </div>
           <input class="sd-db-description" type="text" name="rec_{{record.databaseIndex}}_{{record.index}}_description" value="{{record.description}}" placeholder="Record description" {{#unless @root.isGM}}disabled{{/unless}}>
         </article>

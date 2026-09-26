@@ -58,3 +58,7 @@
 .sd-ea-scope { display:flex; align-items:center; gap:6px; font-size:11px; }
 .sd-ea-scope span { opacity:.7; }
 .sd-ea-scope select { min-width:150px; }
+.sd-db-set-btn{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;margin:0 0 3px;padding:3px 8px!important;font-size:10px;border-color:var(--sd-accent)!important;color:var(--sd-accent)!important;background:color-mix(in srgb,var(--sd-accent) 12%,var(--sd-bg))!important}
+.sd-db-set-btn:disabled{opacity:.4;cursor:default}
+.sd-db-json-control{display:flex;flex-direction:column;gap:3px;width:100%}
+.sd-db-json-control textarea{width:100%;box-sizing:border-box}

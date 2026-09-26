@@ -64,7 +64,10 @@ export class ValueDatabaseApp extends ApplicationV2 {
     if (def.type === "color") return `<input type="color" data-value-id="${esc(def.id)}" title="${hint}" value="${esc(value || "#7aa2ff")}">`;
     if (["array", "object"].includes(def.type)) {
       const text = typeof value === "string" ? value : JSON.stringify(value ?? (def.type === "array" ? [] : {}));
-      return `<textarea data-value-id="${esc(def.id)}" rows="2" placeholder="${ph}" title="${hint}">${esc(text)}</textarea>`;
+      const editButton = def.type === "array"
+        ? `<button type="button" class="sd-db-set-btn" data-action="editArray" data-value-target="${esc(def.id)}" title="Edit the list visually: drop items, pick variables"><i class="fas fa-list-ol"></i> Set…</button>`
+        : "";
+      return `<div class="sd-db-json-control">${editButton}<textarea data-value-id="${esc(def.id)}" rows="2" placeholder="${ph}" title="${hint}">${esc(text)}</textarea></div>`;
     }
     const numeric = ["number", "integer"].includes(def.type);
     return `<input type="${numeric ? "number" : "text"}" ${numeric ? 'step="any"' : ""} data-value-id="${esc(def.id)}" value="${esc(value)}" placeholder="${ph}" title="${hint}"
@@ -176,6 +179,16 @@ export class ValueDatabaseApp extends ApplicationV2 {
       if (!confirmed) return;
       await removeDatabaseVariable(id);
       this.render();
+    }));
+    root.querySelectorAll('[data-action="editArray"]').forEach(button => button.addEventListener("click", async () => {
+      const id = button.dataset.valueTarget;
+      const field = root.querySelector(`textarea[data-value-id="${CSS.escape(id)}"]`);
+      if (!field) return;
+      const { openArrayValueEditor } = await import("./array-value-editor.mjs");
+      const def = this.definitions.find(entry => entry.id === id);
+      const result = await openArrayValueEditor(field.value, { doc: this.doc, title: def?.name ?? id });
+      if (result === null || result === undefined) return;
+      field.value = JSON.stringify(result);
     }));
     root.querySelector('[data-action="save"]')?.addEventListener("click", () => this._save());
     root.querySelector('[data-draft="name"]')?.focus?.();

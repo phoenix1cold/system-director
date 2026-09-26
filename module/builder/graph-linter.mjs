@@ -37,7 +37,7 @@ export function lintGraph(graph, NODE_DEFS, options = {}) {
 
     // W005 - the node still works, but it is retired and no longer improved.
     // Widget-config and function anchors are internal by design, not retired.
-    if (def.hidden && !def.isWidgetConfig && !def.isFunctionAnchor) {
+    if (def.hidden && !def.isWidgetConfig && !def.isFunctionAnchor && !def.isContextNode) {
       const replacements = Array.isArray(def.replacementNodes) ? def.replacementNodes : null;
       let advice = " It still runs, but it will not be improved further.";
       if (replacements?.length) {

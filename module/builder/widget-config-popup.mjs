@@ -504,7 +504,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         <label class="wcfg-lbl">${esc(lbl)}</label>
         <div style="font-size:10px;color:var(--sd-text-3);margin:3px 0 8px;line-height:1.45">Edit the custom formula or rebuild the roll from any number of dice, Database variables and widget values.</div>
         <div class="wcfg-easy-summary" style="padding:7px 9px;margin-bottom:8px;border-radius:4px;background:var(--sd-bg);font:11px 'Courier New',monospace;color:var(--sd-accent-2);overflow:auto;white-space:nowrap">${esc(w.formula ?? w.customFormula ?? "1d20")}</div>
-        <div class="wcfg-easy-meta" style="font-size:9px;color:var(--sd-text-3);margin-bottom:8px">${w.easyMode === "formula" ? "Custom Formula" : `Constructor · ${diceCount} dice group${diceCount === 1 ? "" : "s"} · ${modifierCount} modifier${modifierCount === 1 ? "" : "s"}`}</div>
+        <div class="wcfg-easy-meta" style="font-size:9px;color:var(--sd-text-3);margin-bottom:8px">${w.easyMode === "actions" ? `Actions · ${(w.actionSteps ?? []).length} step${(w.actionSteps ?? []).length === 1 ? "" : "s"}` : w.easyMode === "formula" ? "Custom Formula" : `Constructor · ${diceCount} dice group${diceCount === 1 ? "" : "s"} · ${modifierCount} modifier${modifierCount === 1 ? "" : "s"}`}</div>
         <button type="button" data-open-easy-button style="width:100%;padding:7px 10px;border:1px solid var(--sd-accent);border-radius:5px;background:color-mix(in srgb,var(--sd-accent) 14%,var(--sd-bg));color:var(--sd-accent);cursor:pointer;font-weight:700"><i class="fas fa-dice-d20"></i> OPEN EASY BUTTON CONSTRUCTOR</button>
         <input type="hidden" data-easy-field="easyMode" data-field="easyMode" data-ftype="text" value="${esc(w.easyMode ?? "constructor")}">
         <input type="hidden" data-easy-field="customFormula" data-field="customFormula" data-ftype="text" value="${esc(w.customFormula ?? w.formula ?? "1d20")}">
@@ -512,6 +512,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         <input type="hidden" data-easy-field="diceTerms" data-field="diceTerms" data-ftype="json" value="${esc(JSON.stringify(w.diceTerms ?? [{count:1,sides:20}]))}">
         <input type="hidden" data-easy-field="variableTerms" data-field="variableTerms" data-ftype="json" value="${esc(JSON.stringify(w.variableTerms ?? []))}">
         <input type="hidden" data-easy-field="widgetTerms" data-field="widgetTerms" data-ftype="json" value="${esc(JSON.stringify(w.widgetTerms ?? []))}">
+        <input type="hidden" data-easy-field="actionSteps" data-field="actionSteps" data-ftype="json" value="${esc(JSON.stringify(w.actionSteps ?? []))}">
       </div>`;
     }
 
@@ -712,7 +713,15 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   };
   const _rowsFor = (tabId) => fields.filter(f => _tabForField(f) === tabId).map(_renderFieldRow).join("");
   const sharedGraphRow = `<div class="wcfg-shared-blueprint"><div><b><i class="fas fa-diagram-project"></i> Sheet Blueprint</b><small>One graph for every widget and event on this sheet.</small></div><button type="button" data-open-sheet-blueprint title="Open Sheet Blueprint" aria-label="Open Sheet Blueprint"><i class="fas fa-arrow-up-right-from-square"></i></button></div>`;
-  const _mainRows = sharedGraphRow + _rowsFor("main");
+  const _quickTypes = new Set(["section", "vsection", "widgetBuilder"]);
+  const _quickCfg = (w.quickActions && typeof w.quickActions === "object") ? w.quickActions : { event: "click", steps: [] };
+  const _quickCount = Array.isArray(_quickCfg.steps) ? _quickCfg.steps.length : 0;
+  const quickActionsRow = _quickTypes.has(String(w.type)) ? "" : `<div class="wcfg-shared-blueprint wcfg-quick-actions">
+    <div><b><i class="fas fa-wand-magic-sparkles"></i> Quick Actions</b><small class="wcfg-quick-summary">${_quickCount ? `${esc(_quickCfg.event || "click")} · ${_quickCount} step${_quickCount === 1 ? "" : "s"}` : "Roll, open a window, message, damage… without a graph."}</small></div>
+    <button type="button" data-open-quick-actions title="Configure quick actions" aria-label="Configure quick actions"><i class="fas ${_quickCount ? "fa-pen" : "fa-plus"}"></i></button>
+    <input type="hidden" data-field="quickActions" data-ftype="jsonobj" value="${esc(JSON.stringify(_quickCfg))}">
+  </div>`;
+  const _mainRows = sharedGraphRow + quickActionsRow + _rowsFor("main");
   const _paneList = [
     ["main",     w.type === "widgetBuilder" ? "General" : "Main", _mainRows],
     ["elements", "Elements", _rowsFor("elements")],
@@ -1604,6 +1613,21 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     graph.open();
   });
 
+  popup.querySelector("[data-open-quick-actions]")?.addEventListener("click", async () => {
+    const { openQuickActionsEditor } = await import("./quick-actions.mjs");
+    const hidden = popup.querySelector('[data-field="quickActions"]');
+    let current = {};
+    try { current = JSON.parse(hidden?.value || "{}"); } catch { current = {}; }
+    const labelField = popup.querySelector('[data-field="label"]');
+    const edited = await openQuickActionsEditor(current, doc, { title: `${labelField?.value || w.label || "Widget"} — quick actions`, label: labelField?.value || w.label || "", id: w.id });
+    if (!edited) return;
+    if (hidden) hidden.value = JSON.stringify(edited);
+    const summary = popup.querySelector(".wcfg-quick-summary");
+    if (summary) summary.textContent = edited.steps.length ? `${edited.event} · ${edited.steps.length} step${edited.steps.length === 1 ? "" : "s"}` : "Roll, open a window, message, damage… without a graph.";
+    const icon = popup.querySelector("[data-open-quick-actions] i");
+    if (icon) icon.className = `fas ${edited.steps.length ? "fa-pen" : "fa-plus"}`;
+  });
+
   popup.querySelector("[data-open-easy-button]")?.addEventListener("click", async () => {
     const { openEasyButtonWizard } = await import("./easy-button-wizard.mjs");
     const updated = await openEasyButtonWizard(w, doc, {
@@ -1613,10 +1637,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     });
     if (!updated) return;
     Object.assign(w, updated);
-    for (const key of ["easyMode", "customFormula", "formula", "diceTerms", "variableTerms", "widgetTerms"]) {
+    for (const key of ["easyMode", "customFormula", "formula", "diceTerms", "variableTerms", "widgetTerms", "actionSteps"]) {
       const input = popup.querySelector(`[data-easy-field="${key}"]`);
       if (!input) continue;
-      input.value = ["diceTerms", "variableTerms", "widgetTerms"].includes(key) ? JSON.stringify(updated[key] ?? []) : String(updated[key] ?? "");
+      input.value = ["diceTerms", "variableTerms", "widgetTerms", "actionSteps"].includes(key) ? JSON.stringify(updated[key] ?? []) : String(updated[key] ?? "");
     }
     const summary = popup.querySelector(".wcfg-easy-summary");
     if (summary) summary.textContent = updated.formula ?? "1d20";
@@ -1624,7 +1648,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     if (meta) {
       const diceCount = updated.diceTerms?.length ?? 0;
       const modifierCount = (updated.variableTerms?.length ?? 0) + (updated.widgetTerms?.length ?? 0);
-      meta.textContent = updated.easyMode === "formula" ? "Custom Formula" : `Constructor · ${diceCount} dice group${diceCount === 1 ? "" : "s"} · ${modifierCount} modifier${modifierCount === 1 ? "" : "s"}`;
+      meta.textContent = updated.easyMode === "actions" ? `Actions · ${(updated.actionSteps ?? []).length} step${(updated.actionSteps ?? []).length === 1 ? "" : "s"}` : updated.easyMode === "formula" ? "Custom Formula" : `Constructor · ${diceCount} dice group${diceCount === 1 ? "" : "s"} · ${modifierCount} modifier${modifierCount === 1 ? "" : "s"}`;
     }
   });
 
@@ -1688,6 +1712,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       if (type === "boolean") val = el.type === "checkbox" ? el.checked : val === "true";
       if (type === "widgetvar" && el.type === "checkbox") val = el.checked;
       if (type === "json")    { try { val = JSON.parse(el.value || "[]"); } catch { val = []; } }
+      if (type === "jsonobj") { try { val = JSON.parse(el.value || "{}"); } catch { val = {}; } }
       changes[key] = val;
     });
     popup.querySelectorAll("select[data-field]").forEach(el => {

@@ -1,4 +1,11 @@
-import { readDatabaseValue } from "./value-database.mjs";
+import { readDatabaseValue, getValueDefinition, valueStoragePath } from "./value-database.mjs";
+
+// Path fields on event nodes are Database-variable selects; accept a variable id or a raw path.
+function _eventPath(raw, fallback) {
+  const value = String(raw ?? "").trim();
+  if (!value) return fallback;
+  return getValueDefinition(value) ? valueStoragePath(value) : value;
+}
 import { changedDatabaseVariables, captureUpdateValues } from "./document-update-values.mjs";
 import { installLifecycleEvents, isLifecycleGM } from "./lifecycle-events.mjs";
 const HOOK_MAP = {
@@ -564,7 +571,7 @@ class EventBus {
     }
     if (entry.eventHook === "hpDecrease") {
       const [doc, diff] = args;
-      const hpPath = entry.data?.hpPath ?? "system.resources.hp.value";
+      const hpPath = _eventPath(entry.data?.hpPath, "system.resources.hp.value");
       const newVal = foundry.utils.getProperty(diff, hpPath);
       if (newVal === undefined) return false;
       const oldVal = Number(foundry.utils.getProperty(doc, hpPath) ?? 0);
@@ -572,7 +579,7 @@ class EventBus {
     }
     if (entry.eventHook === "restFlag") {
       const [, diff] = args;
-      const flagPath = entry.data?.flagPath ?? "system.flags.rest";
+      const flagPath = _eventPath(entry.data?.flagPath, "system.flags.rest");
       return foundry.utils.getProperty(diff, flagPath) !== undefined;
     }
     return true;
@@ -674,7 +681,7 @@ class EventBus {
       const data = entry.data ?? {};
 
       let distFt = 0;
-      const distPath = String(data.distPath ?? "").trim();
+      const distPath = _eventPath(data.distPath, "");
       if (distPath) {
         const v = foundry.utils.getProperty(actor, distPath);
         if (v !== undefined && v !== null && v !== "") distFt = Number(v) || 0;
@@ -682,7 +689,7 @@ class EventBus {
       if (!distFt) distFt = Number(data.distance ?? 30) || 30;
 
       let angDeg = 0;
-      const anglePath = String(data.anglePath ?? "").trim();
+      const anglePath = _eventPath(data.anglePath, "");
       if (anglePath) {
         const v = foundry.utils.getProperty(actor, anglePath);
         if (v !== undefined && v !== null && v !== "") angDeg = Number(v) || 0;
@@ -791,7 +798,7 @@ class EventBus {
       }
       case "hpDecrease": {
         const [doc, diff] = args;
-        const hpPath = entry.data?.hpPath ?? "system.resources.hp.value";
+        const hpPath = _eventPath(entry.data?.hpPath, "system.resources.hp.value");
         const newVal = Number(foundry.utils.getProperty(diff, hpPath) ?? 0);
         const oldVal = Number(foundry.utils.getProperty(doc, hpPath) ?? 0);
         rt.__eventAmount = Math.max(0, oldVal - newVal);
@@ -800,7 +807,7 @@ class EventBus {
       }
       case "restFlag": {
         const [, diff] = args;
-        const flagPath = entry.data?.flagPath ?? "system.flags.rest";
+        const flagPath = _eventPath(entry.data?.flagPath, "system.flags.rest");
         rt.__eventRestType = String(foundry.utils.getProperty(diff, flagPath) ?? "");
         break;
       }

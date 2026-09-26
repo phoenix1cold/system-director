@@ -1,6 +1,7 @@
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { getValueDefinitions, valueStoragePath } from "../helpers/value-database.mjs";
 import { collectWidgetKeys, normalizeWidgetKey, uniqueWidgetKey } from "./widget-identity.mjs";
+import { compileQuickActions, normalizeQuickActions, openQuickActionsEditor, QUICK_ACTION_STEPS } from "./quick-actions.mjs";
 
 const esc = value => String(value ?? "")
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -18,7 +19,8 @@ const positiveInt = (value, fallback, max = 100000) => {
 const operator = value => String(value ?? "+") === "-" ? "-" : "+";
 
 export function normalizeEasyButtonConfig(source = {}) {
-  const mode = source.easyMode === "formula" ? "formula" : "constructor";
+  const mode = source.easyMode === "formula" ? "formula" : source.easyMode === "actions" ? "actions" : "constructor";
+  const actionSteps = normalizeQuickActions({ steps: source.actionSteps }).steps;
   const diceTerms = (Array.isArray(source.diceTerms) ? source.diceTerms : [])
     .map(term => ({ count: positiveInt(term?.count, 1, 999), sides: Math.max(2, positiveInt(term?.sides, 20)) }));
   const variableTerms = (Array.isArray(source.variableTerms) ? source.variableTerms : [])
@@ -34,13 +36,16 @@ export function normalizeEasyButtonConfig(source = {}) {
     customFormula: String(source.customFormula ?? source.formula ?? "1d20").trim() || "1d20",
     diceTerms: diceTerms.length ? diceTerms : [{ count: 1, sides: 20 }],
     variableTerms,
-    widgetTerms
+    widgetTerms,
+    actionSteps
   };
 }
 
 /** Compile the visual constructor into a normal Foundry roll formula. */
 export function buildEasyButtonFormula(source = {}) {
   const state = normalizeEasyButtonConfig(source);
+  // Actions mode: the button runs a compiled executor action list instead of a roll.
+  if (state.easyMode === "actions") return JSON.stringify(compileQuickActions(state.actionSteps, { label: String(state.label ?? "") }));
   if (state.easyMode === "formula") return state.customFormula || "1d20";
   const parts = state.diceTerms.map((term, index) => `${index ? "+ " : ""}${term.count}d${term.sides}`);
   for (const term of state.variableTerms) {
@@ -73,6 +78,12 @@ function selectOptions(list, selected, emptyLabel) {
   ).join("");
 }
 
+function stepSummary(step) {
+  const def = QUICK_ACTION_STEPS[step?.kind];
+  if (!def) return "";
+  return def.fields.filter(f => f.type !== "checkbox").map(f => step[f.key]).filter(v => v !== undefined && v !== null && String(v) !== "").slice(0, 3).join(" · ");
+}
+
 /**
  * Open the creation/edit wizard. Resolves with a complete Easy Button widget,
  * or null when the window is closed/cancelled.
@@ -96,7 +107,7 @@ export function openEasyButtonWizard(widget = {}, doc = null, options = {}) {
     .filter(entry => entry.id !== state.id && String(entry.widgetKey ?? "").trim() && !noValueTypes.has(String(entry.type ?? "")))
     .map(entry => ({ value: String(entry.widgetKey), label: `${entry.label ?? entry.widgetKey} [${entry.widgetKey}]` }));
 
-  const pages = () => state.easyMode === "formula" ? ["mode", "formula"] : ["mode", "dice", "modifiers"];
+  const pages = () => state.easyMode === "formula" ? ["mode", "formula"] : state.easyMode === "actions" ? ["mode", "actions"] : ["mode", "dice", "modifiers"];
   let page = String(options.startPage ?? "mode");
   if (!pages().includes(page)) page = "mode";
   const root = document.createElement("div");
@@ -149,6 +160,18 @@ export function openEasyButtonWizard(widget = {}, doc = null, options = {}) {
         <button type="button" class="sdew-mode ${state.easyMode === "constructor" ? "is-active" : ""}" data-mode="constructor">
           <i class="fas fa-cubes"></i><b>Constructor</b><small>Build the roll from dice, Database variables and widget values.</small>
         </button>
+        <button type="button" class="sdew-mode ${state.easyMode === "actions" ? "is-active" : ""}" data-mode="actions">
+          <i class="fas fa-wand-magic-sparkles"></i><b>Actions</b><small>Open a window, post a message, set a variable, apply damage… any sequence of steps, no graph needed.</small>
+        </button>
+      </div>`;
+
+    const actionsPage = () => `
+      <div class="sdew-section">
+        <div class="sdew-section-title"><i class="fas fa-wand-magic-sparkles"></i><div><b>Steps</b><small>Run top to bottom when the button is clicked.</small></div></div>
+        <div class="sdew-list">${state.actionSteps.length ? state.actionSteps.map((step, index) => `
+          <div class="sdew-row sdew-step-row"><span class="sdew-step-num">${index + 1}</span><i class="fas ${esc(QUICK_ACTION_STEPS[step.kind]?.icon ?? "fa-bolt")}"></i><b>${esc(QUICK_ACTION_STEPS[step.kind]?.label ?? step.kind)}</b><small>${esc(stepSummary(step))}</small></div>`).join("")
+          : '<div class="sdew-empty">No steps yet.</div>'}</div>
+        <button type="button" class="sdew-add" data-edit-actions><i class="fas fa-pen"></i> ${state.actionSteps.length ? "Edit steps" : "Add steps"}</button>
       </div>`;
 
     const formulaPage = () => `
@@ -196,7 +219,7 @@ export function openEasyButtonWizard(widget = {}, doc = null, options = {}) {
     const render = () => {
       const sequence = pages();
       const index = Math.max(0, sequence.indexOf(page));
-      const body = page === "mode" ? modePage() : page === "formula" ? formulaPage() : page === "dice" ? dicePage() : modifiersPage();
+      const body = page === "mode" ? modePage() : page === "formula" ? formulaPage() : page === "actions" ? actionsPage() : page === "dice" ? dicePage() : modifiersPage();
       root.innerHTML = `<style>
         .sd-easy-button-wizard{height:100%;min-height:0;display:flex;flex-direction:column;background:var(--sd-popover-bg,var(--sd-bg,#171b2b));color:var(--sd-text,#eee);font:13px Signika,sans-serif}
         .sdew-head{padding:15px 18px 12px;border-bottom:1px solid var(--sd-border,#3a4260);background:linear-gradient(120deg,color-mix(in srgb,var(--sd-accent,#7775ff) 18%,transparent),transparent)}
@@ -205,7 +228,7 @@ export function openEasyButtonWizard(widget = {}, doc = null, options = {}) {
         .sdew-body{padding:16px 18px;overflow:auto;flex:1;min-height:0}.sdew-identity{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
         .sdew-identity label,.sdew-row label{display:flex;flex-direction:column;gap:4px}.sdew-identity span,.sdew-row label span{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--sd-text-3,#8f96aa)}
         .sd-easy-button-wizard input,.sd-easy-button-wizard select,.sd-easy-button-wizard textarea{box-sizing:border-box;background:var(--sd-bg,#171b2b);border:1px solid var(--sd-border,#3a4260);border-radius:5px;color:var(--sd-text,#eee);padding:7px 9px;min-width:0}
-        .sdew-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sdew-mode{min-height:155px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:18px;border:1px solid var(--sd-border,#3a4260);border-radius:10px;background:var(--sd-bg-2,#22283a);color:var(--sd-text,#eee);cursor:pointer;text-align:center}.sdew-mode i{font-size:27px;color:var(--sd-accent,#9290ff)}.sdew-mode b{font-size:15px}.sdew-mode small{color:var(--sd-text-3,#8f96aa);line-height:1.35}.sdew-mode.is-active{border-color:var(--sd-accent,#9290ff);box-shadow:0 0 0 2px color-mix(in srgb,var(--sd-accent,#9290ff) 20%,transparent)}
+        .sdew-mode-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}.sdew-step-row{grid-template-columns:22px 18px auto 1fr!important;align-items:center}.sdew-step-num{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--sd-accent,#7775ff);color:#fff}.sdew-step-row small{color:var(--sd-text-3,#8f96aa);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sdew-mode{min-height:155px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:18px;border:1px solid var(--sd-border,#3a4260);border-radius:10px;background:var(--sd-bg-2,#22283a);color:var(--sd-text,#eee);cursor:pointer;text-align:center}.sdew-mode i{font-size:27px;color:var(--sd-accent,#9290ff)}.sdew-mode b{font-size:15px}.sdew-mode small{color:var(--sd-text-3,#8f96aa);line-height:1.35}.sdew-mode.is-active{border-color:var(--sd-accent,#9290ff);box-shadow:0 0 0 2px color-mix(in srgb,var(--sd-accent,#9290ff) 20%,transparent)}
         .sdew-section{padding:12px;border:1px solid var(--sd-border,#3a4260);border-radius:8px;background:var(--sd-bg-2,#22283a);margin-bottom:12px}.sdew-section-title{display:flex;gap:9px;align-items:center;margin-bottom:10px}.sdew-section-title>i{width:27px;height:27px;display:grid;place-items:center;border-radius:6px;background:color-mix(in srgb,var(--sd-accent,#9290ff) 18%,transparent);color:var(--sd-accent,#9290ff)}
         .sdew-list{display:flex;flex-direction:column;gap:7px}.sdew-row{display:grid;grid-template-columns:minmax(90px,1fr) 22px minmax(90px,1fr) 34px;gap:7px;align-items:end}.sdew-row.sdew-modifier{grid-template-columns:58px minmax(0,1fr) 34px;align-items:center}.sdew-d{align-self:end;text-align:center;padding-bottom:8px;color:var(--sd-text-3,#8f96aa);font-weight:700}
         .sdew-add,.sdew-remove{border:1px solid var(--sd-border,#3a4260);border-radius:5px;background:var(--sd-bg-3,#30364b);color:var(--sd-text,#eee);cursor:pointer}.sdew-add{margin-top:9px;padding:7px 11px;color:var(--sd-accent,#9290ff)}.sdew-remove{height:33px;color:#e4737a}.sdew-add:disabled,.sdew-remove:disabled{opacity:.35;cursor:default}.sdew-empty{font-size:11px;color:var(--sd-text-3,#8f96aa);font-style:italic;padding:5px 1px}
@@ -219,6 +242,12 @@ export function openEasyButtonWizard(widget = {}, doc = null, options = {}) {
       <footer class="sdew-footer"><button type="button" data-cancel>Cancel</button>${index > 0 ? '<button type="button" data-back>Back</button>' : ""}<button type="button" class="is-primary" data-next>${index === sequence.length - 1 ? '<i class="fas fa-check"></i> Save Easy Button' : 'Next <i class="fas fa-arrow-right"></i>'}</button></footer>`;
 
       root.querySelectorAll("[data-mode]").forEach(button => button.addEventListener("click", () => { state.easyMode = button.dataset.mode; render(); }));
+      root.querySelector("[data-edit-actions]")?.addEventListener("click", async () => {
+        syncInputs();
+        const edited = await openQuickActionsEditor({ event: "click", steps: state.actionSteps }, doc, { showEvent: false, title: `${state.label || "Easy Button"} — steps`, label: state.label, id: state.id });
+        if (edited) state.actionSteps = edited.steps;
+        render();
+      });
       root.querySelector("[data-add-die]")?.addEventListener("click", () => { syncInputs(); state.diceTerms.push({ count: 1, sides: 6 }); render(); });
       root.querySelectorAll("[data-remove-die]").forEach(button => button.addEventListener("click", () => { syncInputs(); if (state.diceTerms.length > 1) state.diceTerms.splice(Number(button.dataset.removeDie), 1); render(); }));
       root.querySelector("[data-add-variable]")?.addEventListener("click", () => { syncInputs(); state.variableTerms.push({ operator: "+", variableId: variables[0]?.value ?? "" }); render(); });

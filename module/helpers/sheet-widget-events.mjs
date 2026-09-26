@@ -149,5 +149,74 @@ export async function emitSheetWidgetEvent(doc, payload = {}) {
   } catch (error) {
     console.warn(`SD | ${HOOK} listeners failed`, error);
   }
-  return runSheetWidgetGraph(doc, full);
+  const fired = await runSheetWidgetGraph(doc, full);
+  const quick = await runWidgetQuickActions(doc, full);
+  return fired + quick;
+}
+
+/** Find every Sheet Builder widget of a document (tabs, nested vsections, Widget Builder elements). */
+export function collectSheetWidgets(doc) {
+  const result = [];
+  const seen = new Set();
+  const walk = widgets => {
+    for (const widget of widgets ?? []) {
+      if (!widget || typeof widget !== "object" || seen.has(widget)) continue;
+      seen.add(widget);
+      result.push(widget);
+      walk(widget.widgets);
+      walk((widget.elements ?? []).map(element => element?.widget).filter(Boolean));
+    }
+  };
+  for (const tab of doc?.system?.customTabs ?? []) for (const row of tab.rows ?? []) walk(row.widgets);
+  return result;
+}
+
+function quickActionsMatch(config, payload) {
+  const wanted = normId(config?.event ?? "click") || "click";
+  const actual = normId(payload?.event ?? "click") || "click";
+  if (wanted === "any") return actual !== "hover" && actual !== "leave" && actual !== "input";
+  if (wanted === "change" && actual === "update") return true;
+  return wanted === actual;
+}
+
+/**
+ * Run the widget's own Quick Actions (configured in the widget popup, no graph).
+ * Easy Button / Button widgets whose click is already handled by their own
+ * button handler are skipped for the "click" event so nothing runs twice.
+ * @returns {Promise<number>} 1 when a step list ran, otherwise 0.
+ */
+export async function runWidgetQuickActions(doc, payload = {}) {
+  if (!doc) return 0;
+  const key = normId(payload?.widgetKey), id = normId(payload?.widgetId);
+  const widget = collectSheetWidgets(doc).find(w => {
+    const steps = w?.quickActions?.steps;
+    if (!Array.isArray(steps) || !steps.length) return false;
+    return (key && normId(w.widgetKey) === key) || (id && normId(w.id) === id);
+  });
+  if (!widget || !quickActionsMatch(widget.quickActions, payload)) return 0;
+  const eventName = normId(payload?.event ?? "click") || "click";
+  if (eventName === "click" && ["button", "easyButton", "dice"].includes(String(widget.type)) && String(widget.formula ?? "").trim()) return 0;
+
+  let ButtonExecutor = null, compileQuickActions = null;
+  try {
+    ({ ButtonExecutor } = await import("./button-executor.mjs"));
+    ({ compileQuickActions } = await import("../builder/quick-actions.mjs"));
+  } catch (error) {
+    console.error("SD | unable to load quick actions runtime", error);
+    return 0;
+  }
+  const actions = compileQuickActions(widget.quickActions.steps, { label: String(widget.label ?? "") });
+  if (!actions.length) return 0;
+  const isItem = String(doc.documentName ?? "") === "Item";
+  const itemCtx = isItem ? doc : null;
+  const actor = isItem ? doc.actor ?? null : doc;
+  const runtime = buildRuntime(doc, payload);
+  const btnDef = { label: String(widget.label ?? widget.widgetKey ?? "Widget"), __eventRuntime: runtime };
+  try {
+    for (const action of actions) await ButtonExecutor._runAction(action, itemCtx, actor, btnDef, runtime);
+  } catch (error) {
+    console.error(`SD | Quick actions of widget "${widget.widgetKey ?? widget.id}" failed`, error);
+    ui.notifications?.error?.(`Quick actions: ${error?.message ?? error}`);
+  }
+  return 1;
 }

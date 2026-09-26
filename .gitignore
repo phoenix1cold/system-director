@@ -20,3 +20,4 @@ yarn-error.log*
 ## Foundry-side scratch (just in case the repo is ever symlinked into a userdata folder)
 *.bak
 *.log
+.hoplite/

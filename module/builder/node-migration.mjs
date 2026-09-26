@@ -175,7 +175,82 @@ export const NODE_TYPE_MIGRATIONS = {
       op:    "set"
     }),
     pinMapIn: { value: "amount" }
-  }
+  },
+
+  // --- 2.3.x catalog clean-up -------------------------------------------
+
+  // Targeting shortcuts → Get Actor with the matching mode (same compiled literal).
+  get_target:         { newType: "get_actor", dataMap: () => ({ uuid: "", mode: "token_target" }) },
+  get_selected_token: { newType: "get_actor", dataMap: () => ({ uuid: "", mode: "selected_token" }) },
+  get_user_character: { newType: "get_actor", dataMap: () => ({ uuid: "", mode: "user_character" }) },
+  get_all_targets:    { newType: "get_actor", dataMap: () => ({ uuid: "", mode: "all_targets" }) },
+
+  // Array First / Last → Get Array Element (negative index counts from the end).
+  arr_first: { newType: "arr_get", dataMap: () => ({ i: 0,  def: "" }) },
+  arr_last:  { newType: "arr_get", dataMap: () => ({ i: -1, def: "" }) },
+
+  // Unequip → Equip / Unequip Item in unequip mode (same executor action).
+  act_unequip: {
+    newType: "act_equip",
+    dataMap: (d) => ({ ...(d ?? {}), mode: "unequip", force: false })
+  },
+  // Use Slot Item → Use Item in slot mode (same pins, same executor action).
+  act_use_slot_item: {
+    newType: "act_use_item",
+    dataMap: (d) => ({ findBy: "slot", slotId: String(d?.slotId ?? "slot1") })
+  },
+
+  // Compendium Count / Names → the single Compendium node.
+  get_compendium_count: { newType: "get_compendium_uuids", pinMapOut: { v: "len" } },
+  get_compendium_names: { newType: "get_compendium_uuids", pinMapOut: { v: "names", len: "len" } },
+
+  // Show Journal Page → Show Journal with a page id.
+  act_journal_show_page: {
+    newType: "act_show_journal",
+    dataMap: (d) => ({ uuid: String(d?.entryUuid ?? ""), pageId: String(d?.pageId ?? ""), force: d?.force ?? "no" }),
+    pinMapIn: { entryUuid: "uuid" }
+  },
+
+  // Loops → For Each (source mode) / For Loop (count mode).
+  arr_for_each:       { newType: "for_each", dataMap: () => ({ source: "array" }) },
+  act_for_each_token: { newType: "for_each", dataMap: () => ({ source: "tokens" }), pinMapIn: { tokens: "a" } },
+  for_each_target:    { newType: "for_each", dataMap: () => ({ source: "targets" }) },
+  act_loop: {
+    newType: "for_loop_range",
+    dataMap: (d) => ({ mode: "count", count: String(d?.count ?? "3"), first: "0", last: "3", delay: String(d?.delay ?? "0") }),
+    pinMapOut: { body: "loop" }
+  },
+
+  // Formula Range → Formula Stats (same pins).
+  formula_range: { newType: "roll_stat", dataMap: (d) => ({ formula: String(d?.formula ?? "1d6") }) },
+
+  // Select by Number / Text / Array → Select by Value (same pins, explicit compare mode).
+  match_num: { newType: "match_value", dataMap: () => ({ mode: "num" }) },
+  match_str: { newType: "match_value", dataMap: () => ({ mode: "str" }) },
+  match_arr: { newType: "match_value", dataMap: () => ({ mode: "arr" }) },
+
+  // One-property Scene setters → Set Tile / Light / Wall Property. Pin ids are
+  // unchanged; only the property selector is added.
+  ...Object.fromEntries(Object.entries({
+    act_set_tile_image:       ["act_set_tile_property", "image"],
+    act_set_tile_size:        ["act_set_tile_property", "size"],
+    act_set_tile_position:    ["act_set_tile_property", "position"],
+    act_set_tile_rotation:    ["act_set_tile_property", "rotation"],
+    act_set_tile_tint:        ["act_set_tile_property", "tint"],
+    act_set_tile_alpha:       ["act_set_tile_property", "alpha"],
+    act_set_tile_hidden:      ["act_set_tile_property", "hidden"],
+    act_set_light_enabled:    ["act_set_light_property", "enabled"],
+    act_set_light_radius:     ["act_set_light_property", "radius"],
+    act_set_light_color:      ["act_set_light_property", "color"],
+    act_set_light_alpha:      ["act_set_light_property", "alpha"],
+    act_set_light_animation:  ["act_set_light_property", "animation"],
+    act_set_wall_door_state:  ["act_set_wall_property", "doorState"],
+    act_set_wall_door_type:   ["act_set_wall_property", "doorType"],
+    act_set_wall_restriction: ["act_set_wall_property", "restriction"]
+  }).map(([legacy, [newType, property]]) => [legacy, {
+    newType,
+    dataMap: (d) => ({ ...(d ?? {}), property })
+  }]))
 };
 
 export const NODE_FIELD_MIGRATIONS = {
@@ -282,7 +357,53 @@ export const NODE_FIELD_MIGRATIONS = {
   }
 };
 
+// Custom migrations receive (node, edges, graph). `graph.addNode(type, data, dx, dy)`
+// inserts a helper node next to the migrated one so a single legacy node can be
+// expanded into a small sub-graph while keeping every external wire.
+const IF_COMPARE_NODES = { "<":"lt", "<=":"lte", ">":"gt", ">=":"gte", "==":"eq", "!=":"neq", "=":"eq", "===":"eq", "!==":"neq" };
+
 const NODE_CUSTOM_MIGRATIONS = {
+
+  // If Compare (single True exec) → Branch + comparison node. Nodes with a free-form
+  // "Condition override" stay as they are: the override is a formula, not two operands.
+  if_node(node, edges, graph) {
+    if (!graph?.addNode) return 0;
+    if (String(node.data?.condition ?? "").trim()) return 0;
+    const compareType = IF_COMPARE_NODES[String(node.data?.operator ?? "<").trim()] ?? "lt";
+    const compare = graph.addNode(compareType, {}, -230, 60);
+    const aEdge = edges.find(e => e.toNode === node.id && e.toPin === "a");
+    const bEdge = edges.find(e => e.toNode === node.id && e.toPin === "b");
+    if (aEdge) { aEdge.toNode = compare.id; aEdge.toPin = "a"; }
+    if (bEdge) { bEdge.toNode = compare.id; bEdge.toPin = "b"; }
+    else {
+      const fallback = String(node.data?.value ?? "0");
+      const literal = /^-?\d+(\.\d+)?$/.test(fallback.trim())
+        ? graph.addNode("literal", { value: fallback.trim() }, -460, 120)
+        : graph.addNode("literal_str", { value: fallback }, -460, 120);
+      edges.push({ fromNode: literal.id, fromPin: "v", toNode: compare.id, toPin: "b" });
+    }
+    edges.push({ fromNode: compare.id, fromPin: "v", toNode: node.id, toPin: "cond" });
+    for (const e of edges) if (e.fromNode === node.id && e.fromPin === "exec") e.fromPin = "true";
+    node.type = "branch";
+    node.data = {};
+    return 1;
+  },
+
+  // Random Pick (A…E) → Make Array + Random from Array.
+  random_pick(node, edges, graph) {
+    if (!graph?.addNode) return 0;
+    const make = graph.addNode("arr_make", {}, -240, 0);
+    let index = 0;
+    for (const pin of ["a", "b", "c", "d", "e"]) {
+      const edge = edges.find(e => e.toNode === node.id && e.toPin === pin);
+      if (!edge) continue;
+      edge.toNode = make.id; edge.toPin = `v${index++}`;
+    }
+    edges.push({ fromNode: make.id, fromPin: "v", toNode: node.id, toPin: "a" });
+    node.type = "arr_random_from";
+    node.data = {};
+    return 1;
+  },
 
   act_dialog_builder(node, edges) {
     const data = node.data || (node.data = {});
@@ -352,23 +473,25 @@ export function migrateGraph(graph) {
   let changed = 0;
 
   for (const node of graph.nodes) {
-    const rule = NODE_TYPE_MIGRATIONS[node?.type];
-    if (!rule) continue;
+    // Rules may chain (for_loop → act_loop → for_loop_range); follow them to the end.
+    for (let hop = 0; hop < 8; hop++) {
+      const rule = NODE_TYPE_MIGRATIONS[node?.type];
+      if (!rule || rule.newType === node.type) break;
 
-    const oldType = node.type;
-    const oldData = node.data ?? {};
+      const oldData = node.data ?? {};
 
-    node.type = rule.newType;
-    node.data = rule.dataMap ? rule.dataMap(oldData) : { ...oldData };
-    changed++;
+      node.type = rule.newType;
+      node.data = rule.dataMap ? rule.dataMap(oldData) : { ...oldData };
+      changed++;
 
-    if (rule.pinMapIn || rule.pinMapOut) {
-      for (const edge of edges) {
-        if (edge.toNode === node.id && rule.pinMapIn && rule.pinMapIn[edge.toPin]) {
-          edge.toPin = rule.pinMapIn[edge.toPin];
-        }
-        if (edge.fromNode === node.id && rule.pinMapOut && rule.pinMapOut[edge.fromPin]) {
-          edge.fromPin = rule.pinMapOut[edge.fromPin];
+      if (rule.pinMapIn || rule.pinMapOut) {
+        for (const edge of edges) {
+          if (edge.toNode === node.id && rule.pinMapIn && rule.pinMapIn[edge.toPin]) {
+            edge.toPin = rule.pinMapIn[edge.toPin];
+          }
+          if (edge.fromNode === node.id && rule.pinMapOut && rule.pinMapOut[edge.fromPin]) {
+            edge.fromPin = rule.pinMapOut[edge.fromPin];
+          }
         }
       }
     }
@@ -411,11 +534,25 @@ export function migrateGraph(graph) {
     }
   }
 
-  for (const node of graph.nodes) {
+  const nodeIds = () => new Set(graph.nodes.map(n => String(n?.id ?? "")));
+  const nextNodeId = () => {
+    const ids = nodeIds();
+    let counter = graph.nodes.length + 1;
+    while (ids.has(`n${counter}`)) counter++;
+    return `n${counter}`;
+  };
+  const helpers = (anchor) => ({
+    addNode: (type, data = {}, dx = 0, dy = 0) => {
+      const added = { id: nextNodeId(), type, x: Math.round(Number(anchor?.x) || 0) + dx, y: Math.round(Number(anchor?.y) || 0) + dy, data: { ...data } };
+      graph.nodes.push(added);
+      return added;
+    }
+  });
+  for (const node of [...graph.nodes]) {
     const fn = NODE_CUSTOM_MIGRATIONS[node?.type];
     if (typeof fn === "function") {
       try {
-        const n = fn(node, edges);
+        const n = fn(node, edges, helpers(node));
         if (Number.isFinite(n)) changed += n;
       } catch (e) {
         console.warn("SD | custom migration failed for", node?.type, e);

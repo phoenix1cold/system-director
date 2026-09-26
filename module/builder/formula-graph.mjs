@@ -1,6 +1,7 @@
 import { nodeFileType, addFilePicker } from "../helpers/editor-controls.mjs";
 import { syncModelPointNodes, editModelNodePoints, modelPoints } from "../three/model-point-data.mjs";
 import { migrateGraph, NODE_TYPE_MIGRATIONS } from "./node-migration.mjs";
+import { CORE_EXTRA_NODES, SCENE_PROPERTY_MIGRATIONS } from "./core-nodes.mjs";
 import { GraphRenderView } from "./graph-render-view.mjs";
 import { pinSubtype, pinTypeMeta, subtypeColor, arePinsCompatible, automaticPinConverter, canConnectPins } from "./pin-types.mjs";
 import { resolveNodePins, resolveNodePin } from "./node-pin-resolver.mjs";
@@ -361,6 +362,7 @@ export const NODE_DEFS = {
 
   if_node: {
     title:"If Compare", color:"#8a2a8a", cat:"Flow Control",
+    hidden:true, replacement:"branch",
     desc:"Exec passes through when A compares true against B/value. Handy for assistant-built simple checks like HP < 5 -> Message.",
     inputs:[
       {id:"exec", label:"", type:"exec"},
@@ -686,7 +688,7 @@ export const NODE_DEFS = {
   },
   target_field: {
     title:"Target Field", color:"#1a4060", cat:"Get Data",
-    hidden:true, replacement:"get_path",
+    hidden:true, replacement:"get_value",
     desc:"Read a field from the first targeted/selected token's actor",
     inputs:[], outputs:[{id:"v",label:"Value",type:"value.any"}],
     fields:[{key:"path",label:"Field",type:"path",default:"system.resources.hp.value"}],
@@ -779,8 +781,8 @@ export const NODE_DEFS = {
     fields:[
       {key:"count", label:"#",   type:"number", default:1},
       {key:"die",   label:"Die", type:"text",   default:"d6", placeholder:"d6 / d20 / d87 / 5"},
-      {key:"minVal",label:"Min", type:"text",   default:"",   placeholder:"e.g. 1 (blank = no floor)"},
-      {key:"maxVal",label:"Max", type:"text",   default:"",   placeholder:"e.g. 20 (blank = no ceil)"}
+      {key:"minVal",label:"Min", type:"text",   default:"",   placeholder:"e.g. 1 (blank = no floor)", advanced:true},
+      {key:"maxVal",label:"Max", type:"text",   default:"",   placeholder:"e.g. 20 (blank = no ceil)", advanced:true}
     ],
     dynamicPins:[
       { base:"add", label:"Add", max:10, type:"value.number" },
@@ -825,6 +827,7 @@ export const NODE_DEFS = {
 
   formula_range: {
     title:"Formula Range", color:"#7a4500", cat:"Dice & Rolls",
+    hidden:true, replacement:"roll_stat",
     desc:"Statically inspect a dice formula and emit its theoretical Min, Max and Average. `2d6+3` → min=5, max=15, avg=10. Works with any formula string — useful for HUD ranges, IF branches, or feeding clamps.",
     inputs:[{id:"formula", label:"Formula", type:"value.string"}],
     outputs:[
@@ -932,7 +935,8 @@ export const NODE_DEFS = {
   },
 
   roll_stat: {
-    title:"Roll Stat", color:"#7a4500", cat:"Dice & Rolls",
+    title:"Formula Stats", color:"#7a4500", cat:"Dice & Rolls",
+    keywords:"formula range min max average percent stat",
     desc:"Produce a percentile (0..1) showing where the roll landed inside its theoretical range, plus echo Min/Max/Avg of the formula. Useful for heatmap UI or `If pct >= 0.9 → great hit`.",
     inputs:[
       {id:"formula", label:"Formula", type:"value.string"},
@@ -1033,6 +1037,7 @@ export const NODE_DEFS = {
   not:{title:"NOT",color:"#6a1a1a",cat:"Logic",desc:"Inverts a boolean value.",inputs:[{id:"a",label:"A",type:"value.bool"}],outputs:[{id:"v",label:"Bool",type:"value.bool"}],fields:[],compile:(_,i)=>`(!${i.a??"0"})`},
 
   match_num: {
+    hidden:true, replacement:"match_value",
     title:"Select by Number", color:"#6a1a1a", cat:"Logic",
     desc:"Compare Value against each Case (top→bottom) by numeric equality and emit the matching Result. Cases and Results are independent input pins — wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
     wideNode:true,
@@ -1067,6 +1072,7 @@ export const NODE_DEFS = {
   },
 
   match_str: {
+    hidden:true, replacement:"match_value",
     title:"Select by Text", color:"#6a1a1a", cat:"Logic",
     desc:"Compare Value against each Case (top→bottom) by exact string equality and emit the matching Result. Cases and Results are independent input pins — wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
     wideNode:true,
@@ -1101,6 +1107,7 @@ export const NODE_DEFS = {
   },
 
   match_arr: {
+    hidden:true, replacement:"match_value",
     title:"Select by Array", color:"#6a1a1a", cat:"Logic",
     desc:"Compare Value against each Case (top→bottom) by exact CSV-string equality (\"a,b,c\") and emit the matching Result. Cases and Results are independent input pins — wire any value (field, formula, literal) to each one. If no Case matches, the Default value is emitted (empty if not connected). Result pins accept any type (number / text / array / formula).",
     wideNode:true,
@@ -1383,6 +1390,7 @@ export const NODE_DEFS = {
 
   for_each_target: {
     title:"For Each Target", color:"#1a5a7a", cat:"Flow Control",
+    hidden:true, replacement:"for_each",
     desc:"Execute loop body once per targeted token. Use Set Target (multi-target with T) before activating.",
     inputs:[{id:"exec",label:"",type:"exec"}],
     outputs:[
@@ -1395,6 +1403,7 @@ export const NODE_DEFS = {
 
   act_for_each_token: {
     title:"For Each Token", color:"#1a5a7a", cat:"Flow Control",
+    hidden:true, replacement:"for_each",
     desc:"Execute loop body once per token id in a comma-joined list (e.g. Saved[]/Failed[]/All[] from Save Branch). On each iteration {__currentTarget} = current token id and {__loopIndex} = i; the current token's actor becomes the action context.",
     inputs:[
       {id:"exec",   label:"",        type:"exec"},
@@ -1416,7 +1425,7 @@ export const NODE_DEFS = {
 
   tok_field: {
     title:"Token Field", color:"#1a4060", cat:"Get Data",
-    hidden:true, replacement:"get_path",
+    hidden:true, replacement:"get_value",
     desc:"Read a field from the actor of a token by token id. Token Id defaults to {__currentTarget} (set by For Each Token / per-target iterators). Use to read e.g. system.resources.hp.value of a specific saved/failed token.",
     inputs:[{id:"tokenId", label:"Token Id", type:"value.any"}],
     outputs:[{id:"v", label:"Value", type:"value.any"}],
@@ -2003,6 +2012,7 @@ export const NODE_DEFS = {
 
   arr_for_each: {
     title:"For Each Element", color:"#1a5a7a", cat:"Flow Control",
+    hidden:true, replacement:"for_each",
     desc:"Generic version of `For Each Token` — execute a body once per element of an arbitrary array (strings, numbers, anything). On each iteration `{__loopItem}` = current element, `{__loopIndex}` = i. After all iterations, exec goes to Done.",
     inputs:[
       {id:"exec", label:"",      type:"exec"},
@@ -2636,7 +2646,7 @@ export const NODE_DEFS = {
 
   act_modify_slot_item_field: {
     title:"Modify Slot Item Field", color:"#4a2a6a", cat:"Set Data",
-    hidden:true, replacement:"act_modify_item_field",
+    hidden:true, replacement:"set_value",
     desc:"Add / subtract / set a field on the first item found in a slot. Searches the source (this item / actor / wired Actor pin) and every nested item slot at any depth until an item carrying the field path is found. Path / Op / Slot ID can be fed via pins (UE-style).",
     inputs:[
       {id:"exec",   label:"",        type:"exec"},
@@ -2735,7 +2745,7 @@ export const NODE_DEFS = {
 
   act_modify_inv_item_field: {
     title:"Modify Inventory Item Field", color:"#4a2a6a", cat:"Set Data",
-    hidden:true, replacement:"act_modify_item_field",
+    hidden:true, replacement:"set_value",
     desc:"Add / subtract / set a field on an actor-owned item. Item is auto-indexed from actor inventory. Wire the Actor pin to look up the item on a different actor (UUID / Get Actor / Get All Targets — array loops over each actor). Path / Op can be fed via pins (UE-style).",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
@@ -4621,7 +4631,7 @@ export const NODE_DEFS = {
   },
 
   ternary: {
-    title:"Select (Boolean)", color:"#6a1a6a", cat:"Values",
+    title:"Select (Boolean)", color:"#6a1a6a", cat:"Logic",
     desc:"Outputs True value when Condition is truthy, False value otherwise. Equivalent to (cond ? a : b). Eliminates common Branch→Output patterns.",
     inputs:[
       {id:"cond",  label:"Condition", type:"value.bool"},
@@ -4903,19 +4913,19 @@ export const NODE_DEFS = {
     outputs:[{id:"exec",label:"Done →",type:"exec"}],
     fields:[
       {key:"label",label:"Title",type:"text",default:"Damage", noPin:true},
-      {key:"customText",label:"Custom text",type:"textarea",default:"",placeholder:"Optional text shown in the chat card", noPin:true},
-      {key:"buttonLabel",label:"Apply button text",type:"text",default:"Apply Damage", noPin:true},
+      {key:"customText",label:"Custom text",type:"textarea",default:"",placeholder:"Optional text shown in the chat card", noPin:true, advanced:true},
+      {key:"buttonLabel",label:"Apply button text",type:"text",default:"Apply Damage", noPin:true, advanced:true},
       {key:"hpPath",label:"HP path",type:"path",default:"system.resources.hp.value", noPin:true},
       {key:"postToChat",label:"Post to chat",type:"select",default:"yes",options:["yes","no"]},
-      {key:"autoApply",label:"Apply automatically",type:"select",default:"no",options:["no","yes"]},
-      {key:"showApply",label:"Show Apply button",type:"select",default:"yes",options:["yes","no"]}
+      {key:"autoApply",label:"Apply automatically",type:"select",default:"no",options:["no","yes"], advanced:true},
+      {key:"showApply",label:"Show Apply button",type:"select",default:"yes",options:["yes","no"], advanced:true}
     ],
     isAction:true,
     toAction:(n,inp)=>({
       type:"chatDamage", amount:String(inp.amount ?? 0), targets:inp.targets ?? null,
       target:"none", requireTargets:true, label:n.data.label ?? "Damage",
       customText:n.data.customText ?? "", buttonLabel:n.data.buttonLabel ?? "Apply Damage",
-      hpPath:n.data.hpPath ?? "system.resources.hp.value",
+      hpPath:n.data.hpPath || "system.resources.hp.value",
       silent:n.data.postToChat === "no", autoApply:n.data.autoApply === "yes",
       showApply:n.data.showApply !== "no", simpleDelivery:true
     })
@@ -4932,19 +4942,19 @@ export const NODE_DEFS = {
     outputs:[{id:"exec",label:"Done →",type:"exec"}],
     fields:[
       {key:"label",label:"Title",type:"text",default:"Healing", noPin:true},
-      {key:"customText",label:"Custom text",type:"textarea",default:"",placeholder:"Optional text shown in the chat card", noPin:true},
-      {key:"buttonLabel",label:"Apply button text",type:"text",default:"Apply Healing", noPin:true},
+      {key:"customText",label:"Custom text",type:"textarea",default:"",placeholder:"Optional text shown in the chat card", noPin:true, advanced:true},
+      {key:"buttonLabel",label:"Apply button text",type:"text",default:"Apply Healing", noPin:true, advanced:true},
       {key:"hpPath",label:"HP path",type:"path",default:"system.resources.hp.value", noPin:true},
       {key:"postToChat",label:"Post to chat",type:"select",default:"yes",options:["yes","no"]},
-      {key:"autoApply",label:"Apply automatically",type:"select",default:"no",options:["no","yes"]},
-      {key:"showApply",label:"Show Apply button",type:"select",default:"yes",options:["yes","no"]}
+      {key:"autoApply",label:"Apply automatically",type:"select",default:"no",options:["no","yes"], advanced:true},
+      {key:"showApply",label:"Show Apply button",type:"select",default:"yes",options:["yes","no"], advanced:true}
     ],
     isAction:true,
     toAction:(n,inp)=>({
       type:"chatHeal", amount:String(inp.amount ?? 0), targets:inp.targets ?? null,
       target:"none", requireTargets:true, label:n.data.label ?? "Healing",
       customText:n.data.customText ?? "", buttonLabel:n.data.buttonLabel ?? "Apply Healing",
-      hpPath:n.data.hpPath ?? "system.resources.hp.value",
+      hpPath:n.data.hpPath || "system.resources.hp.value",
       silent:n.data.postToChat === "no", autoApply:n.data.autoApply === "yes",
       showApply:n.data.showApply !== "no", simpleDelivery:true
     })
@@ -4973,11 +4983,11 @@ export const NODE_DEFS = {
       {key:"dc",label:"Default DC",type:"number",default:15},
       {key:"rollFormula",label:"Default roll formula",type:"text",default:"1d20",placeholder:"1d20 + @mod"},
       {key:"flavor",label:"Title",type:"text",default:"Saving Throw", noPin:true},
-      {key:"customText",label:"Custom text",type:"textarea",default:"",placeholder:"Describe the requested save", noPin:true},
-      {key:"buttonLabel",label:"Roll button text",type:"text",default:"Roll", noPin:true},
-      {key:"rollMode",label:"Roll mode",type:"select",default:"publicroll",options:["publicroll","gmroll","blindroll","selfroll"]},
-      {key:"rollDialogue",label:"Roll dialog",type:"select",default:"no",options:["no","yes"]},
-      {key:"postToChat",label:"Post request to chat",type:"select",default:"yes",options:["yes","no"]}
+      {key:"customText",label:"Custom text",type:"textarea",default:"",placeholder:"Describe the requested save", noPin:true, advanced:true},
+      {key:"buttonLabel",label:"Roll button text",type:"text",default:"Roll", noPin:true, advanced:true},
+      {key:"rollMode",label:"Roll mode",type:"select",default:"publicroll",options:["publicroll","gmroll","blindroll","selfroll"], advanced:true},
+      {key:"rollDialogue",label:"Roll dialog",type:"select",default:"no",options:["no","yes"], advanced:true},
+      {key:"postToChat",label:"Post request to chat",type:"select",default:"yes",options:["yes","no"], advanced:true}
     ],
     isSaveBranch:true,
     toAction:(n,inp)=>({
@@ -5149,22 +5159,28 @@ export const NODE_DEFS = {
       {id:"total",label:"Total",type:"value.number"},
       {id:"dice",label:"Dice",type:"value.array"},
       {id:"successes",label:"Successes",type:"value.number"},
-      {id:"botches",label:"Botches",type:"value.number"}
+      {id:"botches",label:"Botches",type:"value.number"},
+      {id:"natural",label:"Natural",type:"value.number"},
+      {id:"isCrit",label:"Critical",type:"value.bool"},
+      {id:"isFumble",label:"Fumble",type:"value.bool"},
+      {id:"min",label:"Minimum",type:"value.number"},
+      {id:"max",label:"Maximum",type:"value.number"},
+      {id:"avg",label:"Average",type:"value.number"}
     ],
     fields:[
       {key:"mode",label:"Mode",type:"select",default:"formula",options:["formula","pool"],noPin:true},
       {key:"formula",label:"Formula",type:"text",default:"1d20"},
       {key:"flavor",label:"Label",type:"text",default:"Roll",noPin:true},
-      {key:"rollDialogue",label:"Roll dialog",type:"select",default:"no",options:["no","yes"],noPin:true},
-      {key:"advFormula",label:"Advantage formula",type:"text",default:""},
-      {key:"disFormula",label:"Disadvantage formula",type:"text",default:""},
+      {key:"rollDialogue",label:"Roll dialog",type:"select",default:"no",options:["no","yes"],noPin:true, advanced:true},
+      {key:"advFormula",label:"Advantage formula",type:"text",default:"", advanced:true},
+      {key:"disFormula",label:"Disadvantage formula",type:"text",default:"", advanced:true},
       {key:"count",label:"Pool count",type:"text",default:"5"},
       {key:"die",label:"Pool die faces",type:"number",default:10,noPin:true},
       {key:"successTarget",label:"Success target",type:"text",default:"8"},
-      {key:"successCompare",label:"Success comparison",type:"select",default:">=",options:[">=",">","<=","<","==","!="],noPin:true},
-      {key:"botchFace",label:"Botch face",type:"number",default:1,noPin:true},
-      {key:"critOn",label:"Critical natural ≥",type:"number",default:20,noPin:true},
-      {key:"fumbleOn",label:"Fumble natural ≤",type:"number",default:1,noPin:true}
+      {key:"successCompare",label:"Success comparison",type:"select",default:">=",options:[">=",">","<=","<","==","!="],noPin:true, advanced:true},
+      {key:"botchFace",label:"Botch face",type:"number",default:1,noPin:true, advanced:true},
+      {key:"critOn",label:"Critical natural ≥",type:"number",default:20,noPin:true, advanced:true},
+      {key:"fumbleOn",label:"Fumble natural ≤",type:"number",default:1,noPin:true, advanced:true}
     ],
     isGenericBranch:true,
     toAction:(n,inp)=>({
@@ -5186,7 +5202,8 @@ export const NODE_DEFS = {
   },
 
   act_analyze_roll: {
-    title:"Analyze Roll", color:"#315b89", cat:"Dice & Rolls", wideNode:true,
+    title:"Break Roll Result", color:"#315b89", cat:"Dice & Rolls", wideNode:true,
+    keywords:"analyze roll break result struct natural min max",
     desc:"Breaks a typed Roll Result into reusable values without rolling again.",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"result",label:"Roll Result",type:"value.roll_result"}],
     outputs:[
@@ -5248,9 +5265,9 @@ export const NODE_DEFS = {
       {key:"destination",label:"Destination",type:"select",default:"chat",options:["chat","canvas","sheet"],noPin:true},
       {key:"label",label:"Label override",type:"text",default:""},
       {key:"text",label:"Roll text",type:"textarea",default:"",rows:3},
-      {key:"rollMode",label:"Chat visibility",type:"select",default:"default",options:["default","publicroll","gmroll","blindroll","selfroll"],noPin:true},
-      {key:"area",label:"Canvas area (px)",type:"number",default:300,noPin:true},
-      {key:"duration",label:"Overlay duration (s)",type:"number",default:6,noPin:true}
+      {key:"rollMode",label:"Chat visibility",type:"select",default:"default",options:["default","publicroll","gmroll","blindroll","selfroll"],noPin:true, advanced:true},
+      {key:"area",label:"Canvas area (px)",type:"number",default:300,noPin:true, advanced:true},
+      {key:"duration",label:"Overlay duration (s)",type:"number",default:6,noPin:true, advanced:true}
     ],
     isGenericBranch:true,
     toAction:(n,inp)=>({type:"presentRollResult",result:inp.result??"{__rollResult}",destination:n.data.destination??"chat",label:inp.label??n.data.label??"",text:inp.text??n.data.text??"",rollMode:n.data.rollMode??"default",area:Number(n.data.area??300),duration:Number(n.data.duration??6)})
@@ -5827,17 +5844,31 @@ export const NODE_DEFS = {
   },
 
   for_loop_range: {
-    title:"For Loop (Range)", color:"#2a5a8a", cat:"Flow Control",
-    desc:"Unreal-style inclusive loop from First Index through Last Index. If First is greater than Last, Body is skipped. A 1,000-iteration safety cap prevents accidental freezes.",
-    inputs:[{id:"exec",label:"",type:"exec"},{id:"first",label:"First Index",type:"value.number"},{id:"last",label:"Last Index",type:"value.number"},{id:"delay",label:"Delay ms",type:"value.number"}],
+    title:"For Loop", color:"#1a5a7a", cat:"Flow Control",
+    desc:"Runs the Loop Body once per index. Count mode repeats N times (Index 0…N-1); Range mode iterates from First to Last inclusive (either direction is allowed, at most 1000 steps). Delay pauses between iterations.",
+    keywords:"for loop repeat n times range index counter",
+    inputs:[{id:"exec",label:"",type:"exec"}],
+    computeDynamicInputs:(n)=> String(n?.data?.mode ?? "range") === "count"
+      ? [{id:"exec",label:"",type:"exec"},{id:"count",label:"Count",type:"value.number"},{id:"delay",label:"Delay ms",type:"value.number"}]
+      : [{id:"exec",label:"",type:"exec"},{id:"first",label:"First Index",type:"value.number"},{id:"last",label:"Last Index",type:"value.number"},{id:"delay",label:"Delay ms",type:"value.number"}],
     outputs:[{id:"loop",label:"Loop Body",type:"exec"},{id:"done",label:"Completed",type:"exec"},{id:"index",label:"Index",type:"value.number"}],
-    fields:[{key:"first",label:"First Index",type:"text",default:"0"},{key:"last",label:"Last Index",type:"text",default:"3"},{key:"delay",label:"Delay ms",type:"text",default:"0"}],
+    fields:[
+      {key:"mode",label:"Mode",type:"select",default:"range",options:[{value:"count",label:"Count (N times)"},{value:"range",label:"Range (First…Last)"}]},
+      {key:"count",label:"Count",type:"text",default:"3",noPin:true,visibleIf:d=>String(d?.mode??"range")==="count"},
+      {key:"first",label:"First Index",type:"text",default:"0",noPin:true,visibleIf:d=>String(d?.mode??"range")!=="count"},
+      {key:"last",label:"Last Index",type:"text",default:"3",noPin:true,visibleIf:d=>String(d?.mode??"range")!=="count"},
+      {key:"delay",label:"Delay ms",type:"text",default:"0",noPin:true,advanced:true}
+    ],
     isLoop:true,
-    toAction:(n,inp)=>({type:"forLoopRange",first:inp.first??n.data.first??"0",last:inp.last??n.data.last??"3",delay:inp.delay??n.data.delay??"0"})
+    toAction:(n,inp)=> String(n.data?.mode ?? "range") === "count"
+      ? {type:"forLoop",count:inp.count??n.data.count??"3",delay:inp.delay??n.data.delay??"0"}
+      : {type:"forLoopRange",first:inp.first??n.data.first??"0",last:inp.last??n.data.last??"3",delay:inp.delay??n.data.delay??"0"}
   },
+
 
   act_loop: {
     title:"Repeat N Times", color:"#2a5a8a", cat:"Flow Control",
+    hidden:true, replacement:"for_loop_range",
     desc:"Runs Body exactly Count times, from index 0 to Count - 1. This node keeps its original ID and behavior for saved graphs; use For Loop (Range) when First/Last Index semantics are needed.",
     inputs:[
       {id:"exec",  label:"",       type:"exec"},
@@ -5886,6 +5917,7 @@ export const NODE_DEFS = {
 
   random_pick: {
     title:"Random Pick", color:"#2a4a6a", cat:"Values",
+    hidden:true, replacement:"arr_random_from",
     desc:"Randomly returns one of the connected value inputs (up to 5). Empty inputs are skipped. Gives a uniform distribution.",
     inputs:[
       {id:"a", label:"A", type:"value.any"},
@@ -5967,12 +5999,14 @@ export const NODE_DEFS = {
   },
 
   get_compendium_uuids: {
-    title:"Compendium Item UUIDs", color:"#2a4a6a", cat:"Get Data",
-    desc:"Returns all item UUIDs in a compendium pack as an array. Drag a compendium from the sidebar into the Pack field or type its id (e.g. 'world.my-items' or 'system-director.weapons'). Feeds into Add Item Array, item array ops, etc.",
+    title:"Compendium", color:"#2a4a6a", cat:"Get Data",
+    desc:"Reads a compendium pack: item UUIDs, item names and the item count. Drag a compendium from the sidebar into the Pack field or type its id (e.g. 'world.my-items' or 'system-director.weapons'). Feeds into Add Item(s), array ops, etc.",
+    keywords:"compendium pack uuids names count query",
     inputs:[{id:"pack", label:"Pack Id", type:"value.string"}],
     outputs:[
-      {id:"v",   label:"UUIDs",  type:"value.array"},
-      {id:"len", label:"Count",  type:"value.number"}
+      {id:"v",     label:"UUIDs",  type:"value.array"},
+      {id:"names", label:"Names",  type:"value.array"},
+      {id:"len",   label:"Count",  type:"value.number"}
     ],
     fields:[
       {key:"pack", label:"Pack Id", type:"text", default:"", placeholder:"e.g. world.my-items"}
@@ -5984,12 +6018,14 @@ export const NODE_DEFS = {
     compilePin:(n,i,pin)=>{
       const pack = (i.pack != null && i.pack !== "") ? String(i.pack) : (n.data.pack ?? "");
       if (pin === "len") return `{compendium:${pack}|count}`;
+      if (pin === "names") return `{compendium:${pack}|names}`;
       return `{compendium:${pack}|uuids}`;
     }
   },
 
   get_compendium_count: {
     title:"Compendium Item Count", color:"#2a4a6a", cat:"Get Data",
+    hidden:true, replacement:"get_compendium_uuids",
     desc:"Returns the number of items in a compendium pack.",
     inputs:[{id:"pack", label:"Pack Id", type:"value.string"}],
     outputs:[{id:"v", label:"Count", type:"value.number"}],
@@ -6004,6 +6040,7 @@ export const NODE_DEFS = {
 
   get_compendium_names: {
     title:"Compendium Item Names", color:"#2a4a6a", cat:"Get Data",
+    hidden:true, replacement:"get_compendium_uuids",
     desc:"Returns the names of all items in a compendium pack as an array (comma-joined).",
     inputs:[{id:"pack", label:"Pack Id", type:"value.string"}],
     outputs:[
@@ -6184,10 +6221,12 @@ export const NODE_DEFS = {
 
   act_show_journal: {
     title:"Show Journal", color:"#3a5a8a", cat:"Chat",
-    desc:"Render a JournalEntry to the player. If 'Force show to all' is enabled, GM pushes the entry to every connected player.",
+    desc:"Render a JournalEntry to the player, optionally opened at a specific page (image pages open as a handout popup). If 'Force show to all' is enabled, GM pushes the entry to every connected player.",
+    keywords:"journal page handout show open",
     inputs:[
-      {id:"exec", label:"", type:"exec"},
-      {id:"uuid", label:"Journal UUID", type:"value.uuid"}
+      {id:"exec",   label:"", type:"exec"},
+      {id:"uuid",   label:"Journal UUID", type:"value.uuid"},
+      {id:"pageId", label:"Page id", type:"value.string"}
     ],
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
@@ -6196,16 +6235,19 @@ export const NODE_DEFS = {
       {key:"force",  label:"Force show to all", type:"select", default:"no", options:["yes","no"]}
     ],
     isAction:true, wideNode:true,
-    toAction:(n,inp)=>({
-      type:    "journalShow",
-      uuid:    inp.uuid ?? n.data.uuid ?? "",
-      pageId:  n.data.pageId ?? "",
-      force:   n.data.force === "yes"
-    })
+    toAction:(n,inp)=>{
+      const uuid   = inp.uuid ?? n.data.uuid ?? "";
+      const pageId = (inp.pageId != null && inp.pageId !== "") ? inp.pageId : (n.data.pageId ?? "");
+      const force  = n.data.force === "yes";
+      // A page request goes through the page-aware executor path (handout popups for images).
+      if (pageId) return { type:"journalShowPage", entryUuid:uuid, pageId, force };
+      return { type:"journalShow", uuid, pageId:"", force };
+    }
   },
 
   act_journal_show_page: {
     title:"Show Journal Page", color:"#3a5a8a", cat:"Chat",
+    hidden:true, replacement:"act_show_journal",
     desc:"Open a specific JournalEntryPage. If the page is an image type — Foundry shows it as a popup handout; text/markdown opens the journal sheet at that page.",
     inputs:[
       {id:"exec",      label:"", type:"exec"},
@@ -8119,15 +8161,37 @@ export const NODE_DEFS = {
   };
 })();
 
+Object.assign(NODE_DEFS, CORE_EXTRA_NODES);
+for (const [legacyType, [newType]] of Object.entries(SCENE_PROPERTY_MIGRATIONS)) {
+  const def = NODE_DEFS[legacyType];
+  if (def) { def.hidden = true; def.replacement = newType; }
+}
+
 (() => {
+  // Nodes that legitimately carry a data path and have no Get/Set Value equivalent:
+  // the Effects v2 building block, final Damage/Heal delivery, path-driven events,
+  // the actor-array source and the on-demand vision scan. Their path fields are still
+  // turned into Database-variable selects by the "variable only" pass below.
+  const PATH_RULE_EXEMPT = new Set([
+    "act_effect_add_change", "act_damage_simple", "act_heal_simple",
+    "on_damage_taken", "on_rest", "on_vision_detect", "act_vision_scan",
+    "get_actors_array"
+  ]);
+  // Auto-inserted by attribute / skill graphs; never offered in the palette and
+  // never "retired", so they must not trigger the linter's retired-node notice.
+  const CONTEXT_NODES = new Set(["attr_score_val", "skill_rank_val"]);
+  // Writers that the generic rule would otherwise point at Get Value.
+  const WRITER_REPLACEMENTS = { act_cast_to: "set_value", act_spend_token: "set_value" };
   for (const [type, def] of Object.entries(NODE_DEFS)) {
     if (["get_value","set_value"].includes(type)) continue;
+    if (PATH_RULE_EXEMPT.has(type)) continue;
+    if (CONTEXT_NODES.has(type)) { def.hidden = true; def.isContextNode = true; continue; }
     const fields=Array.isArray(def?.fields)?def.fields:[];
     const pins=[...(Array.isArray(def?.inputs)?def.inputs:[]),...(Array.isArray(def?.outputs)?def.outputs:[])];
     const exposesPath=fields.some(f=>f?.type==="path"||/(^|_)(path|pathfilter|hppath|flagpath|saveattr|modifierpath|rerollpath|historypath|acpath)$/i.test(String(f?.key??"")))
       || pins.some(pin=>pin?.type==="value.path")
-      || /path/i.test(String(def?.title??""));
-    if(exposesPath){def.hidden=true;def.internal=true;def.replacement=def.replacement??(def?.isAction?"set_value":"get_value");}
+      || /\bpath\b/i.test(String(def?.title??""));
+    if(exposesPath){def.hidden=true;def.internal=true;def.replacement=def.replacement??WRITER_REPLACEMENTS[type]??(def?.isAction?"set_value":"get_value");}
   }
 })();
 
@@ -8289,7 +8353,8 @@ const _ROLL_META = {
   isFumble:      "{__lastIsFumble}"
 };
 const BRANCH_PIN_TOKENS = {
-  act_roll_v2: { result:"{__rollResult}", total:"{__rollTotal}", dice:"{__rollDice}", successes:"{__rollSuccesses}", botches:"{__rollBotches}" },
+  act_roll_v2: { result:"{__rollResult}", total:"{__rollTotal}", dice:"{__rollDice}", successes:"{__rollSuccesses}", botches:"{__rollBotches}", natural:"{__rollNatural}", isCrit:"{__rollIsCrit}", isFumble:"{__rollIsFumble}", min:"{__rollMin}", max:"{__rollMax}", avg:"{__rollAvg}" },
+  for_each: { item:"{__loopItem}", token:"{__currentTarget}", index:"{__loopIndex}" },
   act_analyze_roll: { result:"{__rollResult}", total:"{__rollTotal}", formula:"{__rollFormula}", dice:"{__rollDice}", natural:"{__rollNatural}", min:"{__rollMin}", max:"{__rollMax}", avg:"{__rollAvg}", successes:"{__rollSuccesses}", botches:"{__rollBotches}", isCrit:"{__rollIsCrit}", isFumble:"{__rollIsFumble}" },
   act_compare_roll: { result:"{__rollResult}", compared:"{__rollCompared}", target:"{__rollTarget}", margin:"{__rollMargin}", passed:"{__rollPassed}" },
   act_present_roll: { result:"{__rollResult}" },
@@ -8361,7 +8426,6 @@ const CATS = [
   {id:"Flow Control", color:"#8a3a8a"},
   {id:"Dialogue",     color:"#a04020"},
   {id:"Functions",    color:"#7a4abc"},
-  {id:"Macros",       color:"#1a8a4a"},
   {id:"Variables",    color:"#2a6a9a"},
   {id:"Database",     color:"#287a70"},
   {id:"Values",       color:"#3a7a9a"},
@@ -8371,6 +8435,7 @@ const CATS = [
   {id:"Targeting",    color:"#8a3a6a"},
   {id:"Array",        color:"#2a7a3a"},
   {id:"Logic",        color:"#8a2a2a"},
+  {id:"Text",         color:"#7a3a6a"},
   {id:"Math",         color:"#2a7a3a"},
   {id:"Dice & Rolls", color:"#9a6a1a"},
   {id:"Combat",       color:"#8a1a1a"},
@@ -8381,6 +8446,7 @@ const CATS = [
   {id:"Scene",        color:"#3a6a8a"},
   {id:"Cards",        color:"#5a2a7a"},
   {id:"Quest",        color:"#a04060"},
+  {id:"Debug",        color:"#4a4a4a"},
   {id:"Attribute",    color:"#7a4a1a"},
   {id:"System",       color:"#4a2a7a"}
 ];
@@ -11746,7 +11812,7 @@ export class FormulaGraph {
 
       if (def.isLoop) {
         const ins = {};
-        for (const pin of (def.inputs ?? [])) {
+        for (const pin of resolveNodePins(def, node, "input", { includeDynamicGroups:false })) {
           if (pin.type === "exec") continue;
           const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
@@ -11768,7 +11834,7 @@ export class FormulaGraph {
 
       if (def.isGenericBranch) {
         const ins = {};
-        for (const pin of (def.inputs ?? [])) {
+        for (const pin of resolveNodePins(def, node, "input", { includeDynamicGroups:false })) {
           if (pin.type === "exec") continue;
           const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if (s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
@@ -12043,7 +12109,10 @@ export class FormulaGraph {
 
       if (def.isAction) {
         const ins = {};
-        for (const pin of (def.inputs??[])) {
+        const actionPins = typeof def.computeDynamicInputs === "function"
+          ? resolveNodePins(def, node, "input", { includeDynamicGroups:false })
+          : (def.inputs ?? []);
+        for (const pin of actionPins) {
           if (pin.type==="exec") continue;
           const e = this._incomingEdge(node.id, pin.id);
           if (e) { const s=this.nodes.find(n=>n.id===e.fromNode); if(s) ins[pin.id]=this._compileValue(s,new Set(),e.fromPin); }
@@ -12982,9 +13051,9 @@ export class FormulaGraph {
   }
 
   _nodeFilterContext() {
-    const ALLOWED_CONFIG_CATS = new Set(["Values", "Conversion", "Get Data", "Math"]);
-    const ALLOWED_NUMBER_CATS = new Set(["Values", "Conversion", "Get Data", "Math", "Logic"]);
-    const ALLOWED_QUEST_CATS  = new Set(["Flow Control", "Dialogue", "Quest", "Values", "Conversion", "Get Data", "Math", "Logic"]);
+    const ALLOWED_CONFIG_CATS = new Set(["Values", "Conversion", "Get Data", "Math", "Text"]);
+    const ALLOWED_NUMBER_CATS = new Set(["Values", "Conversion", "Get Data", "Math", "Logic", "Text"]);
+    const ALLOWED_QUEST_CATS  = new Set(["Flow Control", "Dialogue", "Quest", "Values", "Conversion", "Get Data", "Math", "Logic", "Text", "Debug"]);
     const ALLOWED_QUEST_SOURCES = new Set([
       "literal", "literal_str", "get_value", "actor_ref", "item_uuid", "fa_icon"
     ]);
@@ -14235,7 +14304,7 @@ export class FormulaGraph {
 
     const valInsRaw = inputPins.filter(p=>p.type!=="exec");
 
-    const valIns = valInsRaw.filter(p => {
+    let valIns = valInsRaw.filter(p => {
       if (!p.__autoFromField) return true;
       const f = fields.find(x => x?.key === p.id);
       if (!f?.visibleIf) return true;
@@ -14245,9 +14314,17 @@ export class FormulaGraph {
 
     const _pinConnected = pinId => graphView.isConnected(node.id, pinId, "input");
 
+    const connectedKeysAll = new Set(valInsRaw.filter(p => _pinConnected(p.id)).map(p => p.id));
+    // "Advanced" fields (and their auto-pins) stay folded until the user expands the
+    // node; a wired pin is always shown so no connection can disappear from view.
+    const advancedOpen = this._advancedOpen?.has(node.id) === true;
+    const _advHidden = f => f?.advanced === true && !advancedOpen && !connectedKeysAll.has(f.key);
+    const advancedCount = fields.filter(f => f?.advanced === true && !connectedKeysAll.has(f.key) && (!f.visibleIf || f.visibleIf(node.data ?? {}))).length;
+    valIns = valIns.filter(p => !(p.__autoFromField && _advHidden(fields.find(x => x?.key === p.id))));
+
     const pinKeys      = new Set(valIns.map(p => p.id));
     const connectedKeys = new Set(valIns.filter(p => _pinConnected(p.id)).map(p => p.id));
-    const visibleFields = fields.filter(f => !connectedKeys.has(f.key) && (!f.visibleIf || f.visibleIf(node.data)));
+    const visibleFields = fields.filter(f => !connectedKeys.has(f.key) && !_advHidden(f) && (!f.visibleIf || f.visibleIf(node.data)));
 
     const rows = [];
     for (const p of valIns) {
@@ -14308,6 +14385,23 @@ export class FormulaGraph {
       layout.appendChild(gridRow);
     }
     body.appendChild(layout);
+
+    if (advancedCount > 0) {
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "gn-ctl gn-adv-toggle";
+      toggle.dataset.nid = node.id;
+      toggle.textContent = advancedOpen ? `▾ ${_NL("Advanced")}` : `▸ ${_NL("Advanced")} (${advancedCount})`;
+      toggle.title = advancedOpen ? _NL("Hide advanced settings") : _NL("Show advanced settings");
+      toggle.addEventListener("click", ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        this._advancedOpen ??= new Set();
+        if (this._advancedOpen.has(node.id)) this._advancedOpen.delete(node.id); else this._advancedOpen.add(node.id);
+        this._renderNode(node);
+        this._scheduleEdges?.();
+      });
+      body.appendChild(toggle);
+    }
 
     this._installNodeDelegation();
 
@@ -16385,6 +16479,8 @@ if(!document.getElementById("sd-graph-css")){
     .gn-row-output{justify-content:flex-end}
     .gn-row-control{align-items:stretch;border-left:1px solid var(--sd-border);border-right:1px solid var(--sd-border);background:rgba(255,255,255,.018);padding:0 2px}
     .gn-field-label{display:flex;align-items:center;gap:7px;width:100%;min-width:0;min-height:30px;padding:3px 8px;color:var(--sd-text-2);font-size:11px;line-height:1;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gn-adv-toggle{display:block;width:calc(100% - 16px);margin:2px 8px 6px;padding:3px 8px;border:1px dashed var(--sd-graph-field-border,var(--sd-border));border-radius:6px;background:transparent;color:var(--sd-text-3);font-size:10px;font-weight:600;letter-spacing:.02em;text-align:left;cursor:pointer;line-height:1.2}
+    .gn-adv-toggle:hover{color:var(--sd-text);border-color:var(--sd-text-3)}
     .gn-field-label::before{width:13px;height:13px;flex:0 0 13px;content:""}
     .gn-control>input,.gn-control>select,.gn-control>textarea{min-width:0;max-width:100%;width:100%}
     .gn-control textarea{height:auto!important;min-height:64px}

@@ -991,6 +991,88 @@ export class FormulaEngine {
     return sa === sb;
   }
 
+  /**
+   * Text nodes (`{__sdText:op|b64:arg|…}`). Every argument is a compiled pin
+   * expression except the Format template, which is inserted verbatim so its
+   * `{0}` placeholders are not mistaken for tokens.
+   */
+  static _sdTextOp(rest, doc) {
+    const parts = String(rest ?? "").split("|");
+    const op = String(parts[0] ?? "").trim();
+    const raw = (index) => {
+      const source = String(parts[index] ?? "");
+      return source.startsWith("b64:") ? this._b64decodeUtf8(source.slice(4)) : source;
+    };
+    const text = (index) => {
+      const source = String(parts[index] ?? "");
+      if (!source.startsWith("b64:")) return source;
+      const expr = this._b64decodeUtf8(source.slice(4));
+      if (expr.trim() === "") return "";
+      const value = this._evalSideForCompare(expr, doc);
+      if (value === undefined || value === null) return "";
+      return typeof value === "object" ? this.valueToText(value) : String(value);
+    };
+    const num = (index, fallback) => {
+      const s = text(index).trim();
+      if (s === "") return fallback;
+      const n = Number(s);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    switch (op) {
+      case "format": {
+        // Placeholders are masked while the template itself is evaluated (it may be a
+        // quoted literal or a wired token) and substituted afterwards, so argument text
+        // is inserted verbatim.
+        const masked = raw(1).replace(/\{(\d)\}/g, "__SD_FMT_$1__");
+        const evaluated = this._evalSideForCompare(masked, doc);
+        const template = (evaluated !== null && typeof evaluated === "object") ? this.valueToText(evaluated) : String(evaluated ?? "");
+        return template.replace(/__SD_FMT_(\d)__/g, (_m, idx) => text(2 + Number(idx)));
+      }
+      case "concat": {
+        const sep = text(1);
+        const items = [];
+        for (let index = 2; index < parts.length; index++) items.push(text(index));
+        return items.join(sep);
+      }
+      case "length": return Array.from(text(1)).length;
+      case "contains": {
+        let haystack = text(1), needle = text(2);
+        const mode = raw(3) || "contains";
+        if (raw(4) !== "1") { haystack = haystack.toLowerCase(); needle = needle.toLowerCase(); }
+        if (mode === "starts") return haystack.startsWith(needle) ? 1 : 0;
+        if (mode === "ends")   return haystack.endsWith(needle) ? 1 : 0;
+        if (mode === "equals") return haystack === needle ? 1 : 0;
+        return haystack.includes(needle) ? 1 : 0;
+      }
+      case "indexOf": return text(1).indexOf(text(2));
+      case "replace": {
+        const source = text(1), find = text(2), replacement = text(3);
+        if (find === "") return source;
+        return raw(4) === "1" ? source.replace(find, replacement) : source.split(find).join(replacement);
+      }
+      case "case": {
+        const source = text(1);
+        switch (raw(2)) {
+          case "lower":      return source.toLowerCase();
+          case "trim":       return source.trim();
+          case "capitalize": return source.charAt(0).toUpperCase() + source.slice(1);
+          case "title":      return source.replace(/(^|\s)(\p{L})/gu, (m, ws, ch) => ws + ch.toUpperCase());
+          default:           return source.toUpperCase();
+        }
+      }
+      case "substring": {
+        const chars = Array.from(text(1));
+        let start = Math.trunc(num(2, 0));
+        if (start < 0) start = Math.max(0, chars.length + start);
+        const length = num(3, NaN);
+        const end = Number.isFinite(length) ? start + Math.max(0, Math.trunc(length)) : chars.length;
+        return chars.slice(start, end).join("");
+      }
+      default: return "";
+    }
+  }
+
   static _sdStripQuotes(s) {
     if (s === undefined || s === null) return "";
     let out = String(s).trim();
@@ -1188,6 +1270,8 @@ export class FormulaEngine {
       return (isNeq ? !eq : eq) ? 1 : 0;
     }
 
+    if (token.startsWith("__sdText:")) return this._sdTextOp(token.slice("__sdText:".length), doc);
+
     if (token.startsWith("__sdMatch:")) {
       const rest = token.slice("__sdMatch:".length);
       const parts = rest.split("|");
@@ -1221,6 +1305,8 @@ export class FormulaEngine {
         let hit = false;
         if (mode === "num") {
           if (valKey !== null && caseKey !== null && valKey === caseKey) hit = true;
+        } else if (mode === "auto") {
+          if (this._looseEq(valResolved, caseResolved)) hit = true;
         } else {
           if (valKey === caseKey) hit = true;
         }

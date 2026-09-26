@@ -259,6 +259,7 @@ export class SharedDatabaseApp extends HandlebarsApplicationMixin(ApplicationV2)
     actions:{
       addDatabase:SharedDatabaseApp._onAddDatabase,removeDatabase:SharedDatabaseApp._onRemoveDatabase,
       addRecord:SharedDatabaseApp._onAddRecord,removeRecord:SharedDatabaseApp._onRemoveRecord,
+      editValue:SharedDatabaseApp._onEditValue,
       save:SharedDatabaseApp._onSave
     }
   };
@@ -271,7 +272,8 @@ export class SharedDatabaseApp extends HandlebarsApplicationMixin(ApplicationV2)
       const records=[];
       for(const [ri,record] of db.records.entries()){
         let value="";try{value=formatDatabaseValue(await readDatabaseValue({databaseId:db.id,recordId:record.id,ownerMode:db.storage==="world"?"world":"auto",owner:this.contextDocument,item:this.contextDocument?.documentName==="Item"?this.contextDocument:null,actor:this.contextDocument?.documentName==="Actor"?this.contextDocument:this.contextDocument?.actor}),record.type);}catch{}
-        records.push({...record,index:ri,databaseIndex:di,value,defaultText:formatDatabaseValue(record.default,record.type),typeOptions:DATABASE_TYPES.map(t=>({...t,selected:t.id===record.type}))});
+        const editorKind=["aoe_template","aoe_templates"].includes(record.type)?"aoe":["array","token_pool"].includes(record.type)?"array":"";
+        records.push({...record,index:ri,databaseIndex:di,value,defaultText:formatDatabaseValue(record.default,record.type),typeOptions:DATABASE_TYPES.map(t=>({...t,selected:t.id===record.type})),editorKind,editorIcon:editorKind==="aoe"?"fa-bullseye":"fa-list-ol"});
       }
       rows.push({...db,index:di,isWorld:db.storage==="world",isVariables:db.kind==="variables",isEnum:db.kind==="enum",isDataTable:db.kind==="dataTable",records});
     }
@@ -307,6 +309,24 @@ export class SharedDatabaseApp extends HandlebarsApplicationMixin(ApplicationV2)
   static async _onRemoveDatabase(event,target){const cfg=this._collect();const i=Number(target.dataset.index);if(!Number.isInteger(i)||!cfg.databases[i])return;cfg.databases.splice(i,1);await this._persist(cfg,{values:true});this.render();}
   static async _onAddRecord(event,target){const cfg=this._collect();const i=Number(target.dataset.index);const db=cfg.databases[i];if(!db)return;let id=databaseSafeId(`record_${db.records.length+1}`);while(db.records.some(r=>r.id===id))id=databaseSafeId(`${id}_2`);db.records.push({id,name:`Record ${db.records.length+1}`,type:"any",default:null,description:""});await this._persist(cfg,{values:true});this.render();}
   static async _onRemoveRecord(event,target){const cfg=this._collect();const di=Number(target.dataset.databaseIndex),ri=Number(target.dataset.recordIndex);if(!cfg.databases[di]?.records?.[ri])return;cfg.databases[di].records.splice(ri,1);await this._persist(cfg,{values:true});this.render();}
+  /** "Set…" next to an AOE / array field: opens the visual editor and writes JSON back into the textarea. */
+  static async _onEditValue(event,target){
+    const field=this.element?.querySelector(`textarea[name="${target.dataset.target}"]`);if(!field)return;
+    const type=String(target.dataset.recordType??"");
+    let current=null;try{current=field.value.trim()?JSON.parse(field.value):null;}catch{current=null;}
+    let result=null;
+    if(target.dataset.editor==="aoe"){
+      const {openAoePresetEditor}=await import("./aoe-preset-editor.mjs");
+      result=await openAoePresetEditor(current,{multiple:type==="aoe_templates",title:type==="aoe_templates"?"AOE Region presets":"AOE Region preset"});
+    }else{
+      const {openArrayValueEditor}=await import("./array-value-editor.mjs");
+      result=await openArrayValueEditor(current??field.value,{doc:this.contextDocument,title:type==="token_pool"?"Token Pool":"Array",numeric:type!=="token_pool"});
+    }
+    if(result===null||result===undefined)return;
+    field.value=JSON.stringify(result,null,2);
+    field.dispatchEvent(new Event("change",{bubbles:true}));
+  }
+
   static async _onSave(){try{await this._persist(this._collect(),{values:true});ui.notifications?.info?.("Database saved.");this.render();}catch(error){console.error("SD | Database save failed",error);ui.notifications?.error?.(`Database: ${error.message}`);}}
 }
 

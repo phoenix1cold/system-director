@@ -1,0 +1,33 @@
+// Regression: Quick Actions compile/normalise, Easy Button "actions" mode, AOE preset
+// normalisation and array value parsing. Run: node scripts/test-quick-actions-editors.mjs
+globalThis.document={getElementById:()=>({}),createElement:()=>({textContent:"",style:{},appendChild(){}}),head:{appendChild(){}},body:{appendChild(){}}};
+globalThis.window=globalThis;
+globalThis.foundry={utils:{deepClone:v=>structuredClone(v),randomID:()=>"id"+Math.random().toString(36).slice(2,6),getProperty(o,p){return String(p).split(".").reduce((v,k)=>v?.[k],o);}},applications:{api:{ApplicationV2:class{},HandlebarsApplicationMixin:b=>b}}};
+globalThis.game={settings:{get:()=>({database:[{id:"str",name:"Strength",type:"number",scope:"both",initial:10},{id:"tags",name:"Tags",type:"array",scope:"both",initial:["a","b"]}]})},items:[],i18n:{localize:k=>k},user:{isGM:true}};
+const qa=await import("../module/builder/quick-actions.mjs");
+const acts=qa.compileQuickActions([{kind:"roll",formula:"1d20+2",label:"Attack"},{kind:"openWindow",blueprintId:"bp1",audience:"self"},{kind:"setVariable",variableId:"str",operation:"add",value:"1"},{kind:"damage",amount:"1d6",target:"all_targets",autoApply:true},{kind:"delay",ms:250},{kind:"bogus"}],{label:"Btn"});
+console.log(JSON.stringify(acts.map(a=>a.type)));
+if(acts[0].type!=="rollResultV2"||acts[0].execActions[0].type!=="presentRollResult")throw new Error("roll compile");
+if(acts[1].widgetKey!=="bp1")throw new Error("open window");
+if(acts[2].type!=="setDatabaseValue"||acts[2].operation!=="add")throw new Error("set var");
+if(acts[3].autoApply!==true)throw new Error("damage");
+if(acts[5].type!=="rollResultV2")throw new Error("unknown kind falls back to roll");
+const n=qa.normalizeQuickActions({event:"toggle",steps:[{kind:"notify",text:"hi",level:"warn"}]});
+if(n.event!=="toggle"||n.steps[0].level!=="warn"||!n.steps[0].id)throw new Error("normalize");
+console.log(qa.describeQuickActions(n.steps));
+const eb=await import("../module/builder/easy-button-wizard.mjs");
+const f=eb.buildEasyButtonFormula({easyMode:"actions",label:"X",actionSteps:[{kind:"message",text:"hello"}]});
+const parsed=JSON.parse(f); if(parsed[0].type!=="message"||parsed[0].messageParts[0]!=="hello")throw new Error("easy actions formula");
+if(eb.buildEasyButtonFormula({easyMode:"formula",customFormula:"2d6"})!=="2d6")throw new Error("legacy formula mode");
+const ae=await import("../module/helpers/aoe-preset-editor.mjs");
+const legacy=ae.normalizeAoePreset({kind:"measured-template-v13",t:"circle",distance:20,fillColor:"#00ff00"});
+if(legacy.kind!=="region-v14"||legacy.shapes[0].type!=="circle"||legacy.shapes[0].radius!==400||legacy.appearance.color!=="#00ff00")throw new Error("legacy aoe "+JSON.stringify(legacy));
+const cone=ae.normalizeAoePreset({kind:"measured-template-v13",t:"cone",distance:15,angle:90});
+if(cone.shapes[0].type!=="polygon"||cone.shapes[0].points.length!==8)throw new Error("cone");
+const region=ae.normalizeAoePreset({kind:"region-v14",name:"R",shapes:[{type:"rectangle",x:-50,y:-50,width:100,height:100}],appearance:{color:"#123456"}});
+if(region.t!=="rectangle"||region.shapeCount!==1)throw new Error("region");
+const ar=await import("../module/helpers/array-value-editor.mjs");
+if(JSON.stringify(ar.parseArrayValue('["a",1]'))!=='["a",1]')throw new Error("parse json");
+if(JSON.stringify(ar.parseArrayValue("ammo, magazine"))!=='["ammo","magazine"]')throw new Error("parse csv");
+if(ar.parseArrayValue(null).length!==0)throw new Error("parse null");
+console.log("quick actions / aoe / array: OK");

@@ -269,7 +269,7 @@ export const WIDGET_TYPES = {
     id:    "easyButton",
     label: "Easy Button",
     icon:  "fa-dice-d20",
-    desc:  "Roll button with a formula or visual dice constructor",
+    desc:  "Button with a roll (formula / dice constructor) or a list of quick actions",
     defaultSpan: 1,
     defaults: {
       label:          "Easy Button",
@@ -282,12 +282,13 @@ export const WIDGET_TYPES = {
       formula:        "1d20",
       diceTerms:      [{ count: 1, sides: 20 }],
       variableTerms:  [],
-      widgetTerms:    []
+      widgetTerms:    [],
+      actionSteps:    []
     },
     configFields: [
       { key: "label",      type: "text",       label: "Label" },
       { key: "widgetKey",  type: "text",       label: "Widget Key" },
-      { key: "easyConfig", type: "easybutton", label: "Roll Constructor" },
+      { key: "easyConfig", type: "easybutton", label: "Roll / Actions" },
       { key: "icon",       type: "text",       label: "FA Icon (e.g. fa-dice-d20)" },
       { key: "flavor",     type: "text",       label: "Chat Flavor" }
     ]

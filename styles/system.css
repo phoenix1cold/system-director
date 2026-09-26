@@ -6825,25 +6825,24 @@ button:not(:where(.window-header button, .window-controls button, .header-contro
 #pause { display: none !important; }
 
 .sd-pause-host {
-  /* Compact trapezoidal curtain anchored to the top center of the viewport. */
+  /* Graffiti tag sprayed at the top centre of the viewport: no curtain, the
+     letters are written stroke-first and the paint drips a little afterwards. */
   position: fixed !important;
   top: 0 !important;
   left: 50% !important;
   right: auto !important;
   bottom: auto !important;
   margin: 0 !important;
-  width: clamp(360px, 38vw, 560px) !important;
-  max-width: 92vw !important;
+  width: clamp(460px, 50vw, 780px) !important;
+  max-width: 94vw !important;
   height: auto !important;
   min-height: 0 !important;
-  padding: 14px clamp(28px, 4vw, 56px) 22px !important;
+  padding: 8px clamp(16px, 2vw, 32px) 26px !important;
   box-sizing: border-box !important;
   display: none !important;
   text-align: center !important;
   pointer-events: none;
   text-shadow: none;
-  /* Background and trapezoidal shape are drawn by ::before so the edges
-     can be softly blurred into full transparency. */
   background: transparent !important;
   -webkit-clip-path: none !important;
   clip-path: none !important;
@@ -6852,47 +6851,45 @@ button:not(:where(.window-header button, .window-controls button, .header-contro
   border-radius: 0 !important;
   z-index: 70 !important;
   transform: translateX(-50%) !important;
-  transform-origin: 50% 0% !important;
   overflow: visible !important;
   isolation: isolate;
+  --sd-pause-ink: #2fb1ff;
+  --sd-pause-ink-hi: #9fe6ff;
 }
+/* Spray mist behind the tag: an irregular blob, not a panel. */
 .sd-pause-host::before {
   content: "";
   position: absolute;
-  /* Outer inset so the soft mask has room to fade fully into transparency. */
-  top: -20px;
-  left: -28px;
-  right: -28px;
-  bottom: -32px;
+  top: -40px;
+  left: -30px;
+  right: -30px;
+  bottom: -30px;
   background:
-    radial-gradient(110% 150% at 50% -10%, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.42) 45%, rgba(0, 0, 0, 0.20) 80%, rgba(0, 0, 0, 0.10) 100%);
-  /* Trapezoid mask with a blurred edge from an inline SVG - this gives a
-     true soft falloff into full transparency on every side, including the
-     slanted shoulders, which clip-path alone cannot do. */
-  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 140' preserveAspectRatio='none'><defs><filter id='b' x='-25%' y='-25%' width='150%' height='150%'><feGaussianBlur stdDeviation='9'/></filter></defs><polygon points='30,22 570,22 510,118 90,118' fill='white' filter='url(%23b)'/></svg>");
-  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 140' preserveAspectRatio='none'><defs><filter id='b' x='-25%' y='-25%' width='150%' height='150%'><feGaussianBlur stdDeviation='9'/></filter></defs><polygon points='30,22 570,22 510,118 90,118' fill='white' filter='url(%23b)'/></svg>");
+    radial-gradient(38% 70% at 22% 40%, rgba(20, 110, 220, 0.28), transparent 70%),
+    radial-gradient(30% 60% at 78% 45%, rgba(20, 110, 220, 0.24), transparent 70%),
+    radial-gradient(60% 90% at 50% 20%, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.2) 60%, transparent 100%);
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 160' preserveAspectRatio='none'><defs><filter id='b' x='-25%' y='-25%' width='150%' height='150%'><feTurbulence type='fractalNoise' baseFrequency='0.02' numOctaves='2' seed='4' result='n'/><feDisplacementMap in='SourceGraphic' in2='n' scale='34'/><feGaussianBlur stdDeviation='11'/></filter></defs><ellipse cx='300' cy='70' rx='270' ry='62' fill='white' filter='url(%23b)'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 160' preserveAspectRatio='none'><defs><filter id='b' x='-25%' y='-25%' width='150%' height='150%'><feTurbulence type='fractalNoise' baseFrequency='0.02' numOctaves='2' seed='4' result='n'/><feDisplacementMap in='SourceGraphic' in2='n' scale='34'/><feGaussianBlur stdDeviation='11'/></filter></defs><ellipse cx='300' cy='70' rx='270' ry='62' fill='white' filter='url(%23b)'/></svg>");
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   z-index: -1;
   pointer-events: none;
+  opacity: 0;
 }
-.sd-pause-host.sd-pause-show {
-  display: block !important;
-  animation: sd-pause-curtain-in 0.55s cubic-bezier(0.16, 0.84, 0.44, 1) both !important;
-}
+.sd-pause-host.sd-pause-show { display: block !important; }
+.sd-pause-host.sd-pause-show::before { animation: sd-pause-mist-in 0.6s ease-out both; }
 .sd-pause-host.sd-pause-hide {
   display: block !important;
-  animation: sd-pause-curtain-out 0.42s cubic-bezier(0.4, 0, 0.6, 1) both !important;
+  animation: sd-pause-wash-out 0.5s ease-in both !important;
 }
+.sd-pause-host.sd-pause-hide::before { opacity: 1; }
 .sd-pause-host .sd-pause-inner {
-  /* 3-column grid keeps the cube exactly in the middle even when the two
-     side captions have different intrinsic widths (e.g. GAME vs PAUSED). */
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: clamp(6px, 1vmin, 14px);
+  gap: clamp(2px, 0.6vmin, 10px);
   pointer-events: none;
   width: 100%;
   margin: 0 auto;
@@ -6900,102 +6897,149 @@ button:not(:where(.window-header button, .window-controls button, .header-contro
 .sd-pause-host > img,
 .sd-pause-host > figure > img,
 .sd-pause-host > figure > .logo,
-.sd-pause-host .pause-icon {
-  display: none !important;
-}
-.sd-pause-host .sd-pause-cube-wrap {
-  width: clamp(72px, 9vmin, 120px);
-  aspect-ratio: 1 / 1;
-  display: block;
-  margin: 0 auto;
-  justify-self: center;
-  filter: drop-shadow(0 0 8px rgba(62, 195, 255, 0.55));
-}
-.sd-pause-host .sd-pause-cube {
-  width: 100%;
-  height: 100%;
-  display: block;
-  animation: sd-pause-spin 14s linear infinite;
-  transform-origin: 50% 50%;
-}
-.sd-pause-host .sd-pause-cube .sd-pause-spin {
-  transform-origin: 0 0;
-  animation: sd-pause-pulse 2.4s ease-in-out infinite;
-}
-.sd-pause-host .sd-pause-cube .sd-pause-bg {
-  animation: sd-pause-bg-pulse 3.2s ease-in-out infinite;
-  transform-origin: 0 0;
-}
-.sd-pause-host .sd-pause-cube .sd-pause-tri {
-  animation: sd-pause-tri-pulse 2.4s ease-in-out infinite;
-  transform-origin: 0 12px;
-}
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle {
-  animation: sd-pause-node-pulse 2.4s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(2) { animation-delay: .12s; }
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(3) { animation-delay: .24s; }
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(4) { animation-delay: .36s; }
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(5) { animation-delay: .48s; }
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(6) { animation-delay: .60s; }
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(7) { animation-delay: .72s; }
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(8) { animation-delay: .84s; }
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(9) { animation-delay: .96s; }
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(10) { animation-delay: 1.08s; }
-.sd-pause-host .sd-pause-cube .sd-pause-nodes circle:nth-child(11) { animation-delay: 1.20s; }
-.sd-pause-host .sd-pause-cube .sd-pause-text {
-  font-family: 'Orbitron','Eurostile','Bank Gothic','Arial Black',sans-serif;
-  letter-spacing: 2px;
-}
+.sd-pause-host .pause-icon,
 .sd-pause-host figcaption,
 .sd-pause-host h3,
 .sd-pause-host .pause-caption {
   display: none !important;
 }
-.sd-pause-host .sd-pause-side {
-  font-family: 'Orbitron','Eurostile',sans-serif;
-  font-weight: 800;
-  letter-spacing: clamp(2px, 0.45vmin, 5px);
-  text-transform: uppercase;
-  font-size: clamp(18px, 2.6vmin, 38px);
-  line-height: 1;
-  color: #7fe2ff;
-  text-shadow: 0 0 8px rgba(62, 195, 255, 0.85), 0 0 18px rgba(30, 168, 255, 0.55);
-  white-space: nowrap;
-  user-select: none;
-}
-.sd-pause-host .sd-pause-side--left  { text-align: right; justify-self: end;   }
-.sd-pause-host .sd-pause-side--right { text-align: left;  justify-self: start; }
 
-@keyframes sd-pause-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+/* ---- die ---- */
+.sd-pause-host .sd-pause-cube-wrap {
+  width: clamp(130px, 17vmin, 230px);
+  aspect-ratio: 280 / 320;
+  margin-top: -6px;
+  display: block;
+  margin: 0 auto;
+  justify-self: center;
+  filter: drop-shadow(0 0 10px rgba(47, 177, 255, 0.55));
 }
-@keyframes sd-pause-pulse {
-  0%, 100% { filter: url(#sdp-glow) brightness(1); }
-  50%      { filter: url(#sdp-glow) brightness(1.35); }
+.sd-pause-host .sd-pause-cube {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
 }
-@keyframes sd-pause-bg-pulse {
-  0%, 100% { opacity: 0.85; }
-  50%      { opacity: 1; }
+.sd-pause-host .sd-pause-cube .sd-pause-mist {
+  opacity: 0;
+  transform-origin: 0 0;
+  animation: sd-pause-mist-pop 0.7s ease-out 0.05s both, sd-pause-breathe 4s ease-in-out 0.8s infinite;
 }
-@keyframes sd-pause-tri-pulse {
-  0%, 100% { opacity: 0.85; transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.05); }
+.sd-pause-host .sd-pause-cube .sd-pause-splats circle {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sd-pause-splat 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
-@keyframes sd-pause-node-pulse {
-  0%, 100% { opacity: 0.75; transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.55); }
+.sd-pause-host .sd-pause-cube .sd-pause-splats circle:nth-child(2n)  { animation-delay: 0.25s; }
+.sd-pause-host .sd-pause-cube .sd-pause-splats circle:nth-child(3n)  { animation-delay: 0.45s; }
+.sd-pause-host .sd-pause-cube .sd-pause-splats circle:nth-child(5n)  { animation-delay: 0.7s; }
+.sd-pause-host .sd-pause-cube .sd-pause-splats circle:nth-child(7n)  { animation-delay: 0.9s; }
+/* The wireframe is "sprayed" in: outline first, inner wires next, face and nodes last. */
+.sd-pause-host .sd-pause-cube .sd-pause-outline {
+  stroke-dasharray: 620;
+  stroke-dashoffset: 620;
+  animation: sd-pause-draw 0.9s cubic-bezier(0.3, 0.6, 0.4, 1) 0.1s forwards;
 }
-@keyframes sd-pause-curtain-in {
-  0%   { transform: translate(-50%, -100%); opacity: 0; }
-  60%  { opacity: 1; }
-  100% { transform: translate(-50%, 0);     opacity: 1; }
+.sd-pause-host .sd-pause-cube .sd-pause-wires line {
+  stroke-dasharray: 160;
+  stroke-dashoffset: 160;
+  animation: sd-pause-draw 0.55s ease-out both;
 }
-@keyframes sd-pause-curtain-out {
-  0%   { transform: translate(-50%, 0);     opacity: 1; }
+.sd-pause-host .sd-pause-cube .sd-pause-wires line:nth-child(n)    { animation-delay: 0.55s; }
+.sd-pause-host .sd-pause-cube .sd-pause-wires line:nth-child(2n)   { animation-delay: 0.65s; }
+.sd-pause-host .sd-pause-cube .sd-pause-wires line:nth-child(3n)   { animation-delay: 0.75s; }
+.sd-pause-host .sd-pause-cube .sd-pause-wires line:nth-child(4n)   { animation-delay: 0.85s; }
+.sd-pause-host .sd-pause-cube .sd-pause-wires line:nth-child(n+13) { animation-delay: 0.95s; }
+.sd-pause-host .sd-pause-cube .sd-pause-tri {
+  /* Paint opacity, not `opacity`: inside the spray filter a fully transparent
+     element is rendered as a black block by Chromium's displacement map. */
+  fill-opacity: 0;
+  stroke-opacity: 0;
+  transform-origin: 0 12px;
+  animation: sd-pause-face-paint 0.45s ease-out 1.05s both, sd-pause-face-breathe 2.6s ease-in-out 1.6s infinite;
+}
+.sd-pause-host .sd-pause-cube .sd-pause-nodes circle {
+  fill-opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sd-pause-node-paint 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 1.2s both;
+}
+.sd-pause-host .sd-pause-cube .sd-pause-text {
+  font-family: 'Permanent Marker','Rock Salt','Bangers','Impact','Arial Black',sans-serif;
+  font-weight: 900;
+  letter-spacing: 1px;
+  opacity: 0;
+  animation: sd-pause-face-in 0.35s ease-out 1.3s both;
+}
+
+/* ---- drips (die and letters): slide down a short distance, thin out, vanish ---- */
+.sd-pause-host .sd-pause-drip {
+  fill: var(--sd-pause-ink);
+  opacity: 0;
+  transform-box: view-box;
+  transform-origin: 0 0;
+  transform: translate(var(--dx), var(--dy));
+  animation: sd-pause-drip var(--dur, 3.6s) cubic-bezier(0.4, 0.1, 0.7, 1) calc(1.4s + var(--delay, 0s)) infinite;
+}
+
+/* ---- words: written stroke-first, then filled ---- */
+.sd-pause-host .sd-pause-word {
+  display: block;
+  width: 100%;
+  max-width: calc(var(--word-w, 300) * 0.27vmin);
+  min-width: 120px;
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 0 7px rgba(47, 177, 255, 0.7)) drop-shadow(0 0 16px rgba(30, 140, 255, 0.35));
+}
+.sd-pause-host .sd-pause-word--left  { justify-self: end;   }
+.sd-pause-host .sd-pause-word--right { justify-self: start; }
+.sd-pause-host .sd-pause-word-text {
+  font-family: 'Permanent Marker','Rock Salt','Bangers','Impact','Arial Black',sans-serif;
+  font-weight: 900;
+  font-size: 84px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  fill: var(--sd-pause-ink);
+  fill-opacity: 0;
+  stroke: var(--sd-pause-ink-hi);
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  paint-order: stroke fill;
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+  animation:
+    sd-pause-write 1.15s cubic-bezier(0.35, 0.2, 0.3, 1) both,
+    sd-pause-fill  0.5s  ease-out both;
+}
+.sd-pause-host .sd-pause-word--left  .sd-pause-word-text { animation-delay: 0.15s, 0.95s; }
+.sd-pause-host .sd-pause-word--right .sd-pause-word-text { animation-delay: 0.75s, 1.55s; }
+.sd-pause-host .sd-pause-word--right .sd-pause-drip { animation-delay: calc(2.2s + var(--delay, 0s)); }
+
+@keyframes sd-pause-mist-in   { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+@keyframes sd-pause-mist-pop  { from { opacity: 0; transform: scale(0.4); } to { opacity: 0.9; transform: scale(1); } }
+@keyframes sd-pause-breathe   { 0%, 100% { opacity: 0.86; } 50% { opacity: 1; } }
+@keyframes sd-pause-splat     { from { opacity: 0; transform: scale(0.2); } 70% { opacity: 1; transform: scale(1.35); } to { opacity: 1; transform: scale(1); } }
+@keyframes sd-pause-draw      { to { stroke-dashoffset: 0; } }
+@keyframes sd-pause-face-in   { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+@keyframes sd-pause-face-paint { from { fill-opacity: 0; stroke-opacity: 0; transform: scale(0.7); } to { fill-opacity: 0.82; stroke-opacity: 1; transform: scale(1); } }
+@keyframes sd-pause-face-breathe { 0%, 100% { fill-opacity: 0.7; stroke-opacity: 0.9; } 50% { fill-opacity: 0.88; stroke-opacity: 1; } }
+@keyframes sd-pause-node-paint { from { fill-opacity: 0; transform: scale(0.2); } 70% { fill-opacity: 1; transform: scale(1.35); } to { fill-opacity: 1; transform: scale(1); } }
+@keyframes sd-pause-write     { to { stroke-dashoffset: 0; } }
+@keyframes sd-pause-fill      { to { fill-opacity: 1; } }
+@keyframes sd-pause-drip {
+  0%   { opacity: 0;    transform: translate(var(--dx), var(--dy)) scale(1, 0.2); }
+  12%  { opacity: 0.95; transform: translate(var(--dx), var(--dy)) scale(1, 0.55); }
+  60%  { opacity: 0.85; transform: translate(var(--dx), calc(var(--dy) + var(--len, 20px) * 0.7)) scale(0.85, 1); }
+  85%  { opacity: 0;    transform: translate(var(--dx), calc(var(--dy) + var(--len, 20px))) scale(0.55, 1.05); }
+  100% { opacity: 0;    transform: translate(var(--dx), calc(var(--dy) + var(--len, 20px))) scale(0.55, 1.05); }
+}
+@keyframes sd-pause-wash-out {
+  0%   { opacity: 1; transform: translate(-50%, 0); filter: blur(0); }
+  100% { opacity: 0; transform: translate(-50%, 14px); filter: blur(3px); }
+}
   100% { transform: translate(-50%, -100%); opacity: 0; }
 }
 
