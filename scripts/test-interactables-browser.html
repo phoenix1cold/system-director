@@ -1,0 +1,39 @@
+<!doctype html><html><meta charset="utf-8"><title>Interactables editor browser</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><link rel="stylesheet" href="../styles/system.css"><link rel="stylesheet" href="../styles/editor-shell.css">
+<style>body{background:#111;margin:16px}.application{width:880px;height:600px;display:flex;flex-direction:column;border:1px solid #444}.window-content{flex:1;min-height:0;display:flex;flex-direction:column}</style>
+<pre id="result">RUNNING</pre>
+<script type="module">
+const noop=()=>{};const deep=o=>JSON.parse(JSON.stringify(o));
+globalThis.Hooks={once:noop,on:noop,call:noop,callAll:noop};globalThis.CONFIG={SD:{}};globalThis.ui={notifications:{info:noop,warn:noop,error:m=>console.error(m)}};
+class ApplicationV2{constructor(o={}){this.options=o;}async render(){this.rendered=true;if(!this.element){this.element=document.createElement('section');this.element.className='application sd sd-interactables-window';const c=document.createElement('div');c.className='window-content';c.style.cssText='display:flex;flex-direction:column;min-height:0;flex:1;padding:0';this.element.append(c);document.body.append(this.element);}const c=this.element.querySelector('.window-content');this._replaceHTML(await this._renderHTML(),c);this._onRender?.({},{});return this;}async close(){this._sdClosed=true;this._sdOnClose?.();this.element?.remove();this.rendered=false;}}
+globalThis.foundry={applications:{api:{ApplicationV2,DialogV2:{confirm:async()=>true}},apps:{}},utils:{randomID:(n=8)=>Math.random().toString(36).slice(2,2+n),deepClone:deep,getProperty:(o,p)=>String(p).split('.').reduce((v,k)=>v?.[k],o),setProperty:()=>true,mergeObject:(a,b)=>Object.assign(a,b)}};
+globalThis.game={i18n:{lang:'en',localize:k=>k.split('.').pop(),format:k=>k,has:()=>false},user:{isGM:true,targets:new Set()},settings:{get:()=>undefined,set:async()=>{},register:noop},actors:[],items:[],system:{id:'sd'},scenes:{current:null}};
+globalThis.Actor=class{};globalThis.Item=class{};globalThis.canvas={tokens:{controlled:[],placeables:[]},scene:{grid:{units:'ft'}},ready:false};
+const flags={sd:{interactables:{enabled:true,buttons:[{id:'b1',label:'Talk',icon:'icons/svg/hand.svg',color:'#d4b15a',distance:5,visibility:'all',enabled:true,description:'Start a conversation'},{id:'b2',label:'Open chest',icon:'icons/svg/chest.svg',color:'#5ec8ff',distance:2,visibility:'players',enabled:false,description:''}]}}};
+const doc={documentName:'Actor',name:'Innkeeper',id:'abcdef1234',uuid:'Actor.abcdef1234',getFlag:(s,k)=>flags[s]?.[k],setFlag:async(s,k,v)=>{(flags[s]??={})[k]=deep(v);globalThis.__saves=(globalThis.__saves||0)+1;}};
+const out=[];const ok=(c,m)=>{if(!c)throw new Error(m);out.push('✔ '+m);};
+try{
+  const I=await import('../module/helpers/interactables.mjs');
+  const app=I.openInteractablesEditor(doc);await new Promise(r=>setTimeout(r,80));
+  const el=app.element;globalThis.app=app;
+  ok(el.querySelectorAll('.sd-toolbar').length===1&&el.querySelector('.sd-toolbar-title').textContent.includes('Innkeeper'),'single toolbar with document title');
+  ok(el.querySelectorAll('.sd-iep-listitem').length===2&&el.querySelectorAll('.sd-dot.on').length===1,'list shows buttons with enabled indicators');
+  ok(el.querySelector('.sd-iep-preview .sd-ibtn')&&el.querySelector('.sd-iep-preview .sd-ibtn-desc').textContent==='Start a conversation','live preview renders the token button');
+  ok(!el.querySelector('.sd-iep-save')&&!el.querySelector('.sd-iep-close'),'no Save & Close and no duplicate close button');
+  const lbl=el.querySelector('.sd-iep-f-label');lbl.value='Talk to innkeeper';lbl.dispatchEvent(new Event('input'));
+  ok(el.querySelector('.sd-iep-listitem.active .sd-list-name').textContent==='Talk to innkeeper'&&el.querySelector('.sd-iep-preview .sd-ibtn-label').textContent==='Talk to innkeeper','label edits update list and preview live');
+  await new Promise(r=>setTimeout(r,600));
+  ok(flags.sd.interactables.buttons[0].label==='Talk to innkeeper','autosave persisted the flag');
+  const details=el.querySelector('.sd-iep-presets-wrap');ok(details&&!details.open,'icon library collapsed by default');
+  details.open=true;el.querySelectorAll('.sd-iep-preset')[3].click();
+  ok(el.querySelector('.sd-iep-f-icon').value==='icons/svg/key.svg'&&el.querySelector('.sd-iep-preset.active').dataset.icon==='icons/svg/key.svg'&&el.querySelector('.sd-iep-icon-preview').getAttribute('src')==='icons/svg/key.svg','icon preset selects and mirrors into header + input');
+  details.open=false;
+  el.querySelectorAll('.sd-iep-listitem')[1].click();await new Promise(r=>setTimeout(r,50));
+  ok(el.querySelector('.sd-iep-f-label').value==='Open chest'&&!el.querySelector('.sd-iep-f-enabled').checked,'selecting a row loads its detail');
+  el.querySelector('.sd-iep-add').click();await new Promise(r=>setTimeout(r,650));
+  ok(flags.sd.interactables.buttons.length===3&&el.querySelectorAll('.sd-iep-listitem').length===3,'Add button creates and persists a new button');
+  el.querySelectorAll('.sd-iep-listitem')[0].click();await new Promise(r=>setTimeout(r,50));
+  globalThis.__ready=true;document.title='PASS';
+}catch(e){console.error(e);out.push('✘ '+e.message);document.title='FAIL';}
+document.getElementById('result').textContent=out.join('\n');
+</script></html>

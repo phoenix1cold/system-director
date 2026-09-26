@@ -572,14 +572,7 @@ class _Overlay {
   }
 }
 
-const SD_ICON_PRESETS_HTML = (current) => ICON_PRESET_PATHS.map(p => {
-  const sel = current === p;
-  return `<button type="button" class="sd-iep-preset" data-icon="${_esc(p)}"
-    title="${_esc(p.split("/").pop())}"
-    style="aspect-ratio:1/1;background:${sel?'color-mix(in srgb,var(--sd-accent) 22%,var(--sd-bg-2))':'var(--sd-bg-2)'};border:1px solid ${sel?'var(--sd-accent)':'var(--sd-border)'};border-radius:4px;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;transition:border-color .12s,background .12s">
-    <img src="${_esc(p)}" alt="" style="max-width:100%;max-height:100%;opacity:.85;pointer-events:none" draggable="false">
-  </button>`;
-}).join("");
+const SD_ICON_PRESETS_HTML = (current) => ICON_PRESET_PATHS.map(p => `<button type="button" class="sd-iep-preset ${current === p ? "active" : ""}" data-icon="${_esc(p)}" title="${_esc(p.split("/").pop().replace(/\.svg$/, ""))}"><img src="${_esc(p)}" alt="" draggable="false"></button>`).join("");
 
 function _docLabel(doc) {
   const type = doc?.documentName ?? "Document";
@@ -589,96 +582,75 @@ function _docLabel(doc) {
 
 function _renderEditorHTML(state) {
   const footInfo = state.actorSource
-    ? "Buttons appear next to this actor's tokens on the current scene when a player-owned token is within range."
-    : "Buttons appear next to the placeable on the scene when a player-owned token is within range.";
-  const head = `
-    <div class="sd-iep-head">
-      <i class="fas fa-bolt"></i>
-      <div class="sd-iep-title">SD Interactables — ${_esc(state.docLabel)}</div>
-      <label class="sd-iep-tog">
-        <input type="checkbox" class="sd-iep-enabled" ${state.enabled ? "checked" : ""}> Enabled
-      </label>
-      <button type="button" class="sd-iep-close" title="Close">✕</button>
-    </div>`;
-
-  const left = state.buttons.length
-    ? state.buttons.map((b, i) => `
-      <li class="sd-iep-listitem ${i === state.selIdx ? "sd-iep-listitem--sel" : ""}" data-idx="${i}">
-        <span class="sd-iep-li-color" style="background:${HEX_RE.test(b.color) ? b.color : '#d4b15a'}"></span>
-        <img class="sd-iep-li-icon" src="${_esc(b.icon)}" alt="" draggable="false">
-        <span class="sd-iep-li-lbl ${b.enabled ? "" : "sd-iep-li-lbl--off"}">${_esc(b.label || "(unnamed)")}</span>
-        <button type="button" class="sd-iep-li-del" data-idx="${i}" title="Delete">✕</button>
-      </li>`).join("")
-    : `<li class="sd-iep-empty">No buttons. Click "Add" to create one.</li>`;
-
+    ? "Buttons appear next to this actor's tokens when a player-owned token is within range · changes save automatically"
+    : "Buttons appear next to the placeable when a player-owned token is within range · changes save automatically";
+  const units = _esc(canvas?.scene?.grid?.units || "ft");
   const sel = state.buttons[state.selIdx];
-  const right = sel ? `
-    <div class="sd-iep-form">
-      <div class="sd-iep-row">
-        <label class="sd-iep-lbl"><input type="checkbox" class="sd-iep-f-enabled" ${sel.enabled ? "checked" : ""}> Enabled</label>
-        <label class="sd-iep-lbl sd-iep-lbl-visibility">Visibility
-          <select class="sd-iep-f-visibility">
-            <option value="all"     ${sel.visibility==="all"     ? "selected":""}>All</option>
-            <option value="gm"      ${sel.visibility==="gm"      ? "selected":""}>GM only</option>
-            <option value="players" ${sel.visibility==="players" ? "selected":""}>Players only</option>
-          </select>
-        </label>
-      </div>
-      <div class="sd-iep-row">
-        <label class="sd-iep-lbl">Label
-          <input type="text" class="sd-iep-f-label" value="${_esc(sel.label)}">
-        </label>
-        <label class="sd-iep-lbl">Distance (${_esc(canvas?.scene?.grid?.units || "ft")})
-          <input type="number" min="0" step="1" class="sd-iep-f-distance" value="${_esc(sel.distance)}">
-        </label>
-      </div>
-      <div class="sd-iep-row">
-        <label class="sd-iep-lbl sd-iep-lbl-full">Description (shown under button)
-          <textarea class="sd-iep-f-description" rows="2">${_esc(sel.description)}</textarea>
-        </label>
-      </div>
-      <div class="sd-iep-row">
-        <label class="sd-iep-lbl sd-iep-lbl-full">Icon
-          <div class="sd-iep-icon-line">
-            <div class="sd-iep-icon-preview">
-              ${sel.icon ? `<img src="${_esc(sel.icon)}" alt="" draggable="false">` : `<i class="fas fa-image"></i>`}
-            </div>
-            <input type="text" class="sd-iep-f-icon" value="${_esc(sel.icon)}">
-            <button type="button" class="sd-iep-fp" title="Browse"><i class="fas fa-folder-open"></i></button>
-          </div>
-        </label>
-      </div>
-      <div class="sd-iep-presets">${SD_ICON_PRESETS_HTML(sel.icon)}</div>
-      <div class="sd-iep-row">
-        <label class="sd-iep-lbl">Accent color
-          <div class="sd-iep-color-line">
-            <input type="color" class="sd-iep-f-color" value="${HEX_RE.test(sel.color) ? sel.color : "#d4b15a"}">
-            <input type="text"  class="sd-iep-f-color-hex" value="${_esc(HEX_RE.test(sel.color) ? sel.color : "#d4b15a")}" pattern="#[0-9a-fA-F]{6}">
-            <button type="button" class="sd-iep-color-reset" title="Reset">✕</button>
-          </div>
-        </label>
-      </div>
-      <div class="sd-iep-row sd-iep-row-graph">
-        <button type="button" class="sd-iep-graph-btn">
-          <i class="fas fa-diagram-project"></i> Interaction Blueprint
-        </button>
-        <span class="sd-iep-graph-status">${(sel.graphData?.nodes?.length ?? 0) > 0 ? `${sel.graphData.nodes.length} nodes · Database variables` : "Database-variable graph"}</span>
-      </div>
-    </div>` : `<div class="sd-iep-empty-right">Select a button on the left, or add one.</div>`;
 
-  return `
-    ${head}
-    <div class="sd-iep-body">
-      <div class="sd-iep-left">
-        <ul class="sd-iep-list">${left}</ul>
-        <button type="button" class="sd-iep-add"><i class="fas fa-plus"></i> Add Button</button>
+  const list = state.buttons.length
+    ? state.buttons.map((b, i) => `
+      <div class="sd-list-row sd-iep-listitem ${i === state.selIdx ? "active" : ""}" data-idx="${i}" role="button" tabindex="0">
+        <span class="sd-dot ${b.enabled ? "on" : ""}" title="${b.enabled ? "Enabled" : "Disabled"}"></span>
+        <img class="sd-iep-li-icon" src="${_esc(b.icon)}" alt="" draggable="false" style="border-color:${HEX_RE.test(b.color) ? b.color : "#d4b15a"}">
+        <span class="sd-list-name sd-iep-li-lbl ${b.enabled ? "" : "sd-muted"}">${_esc(b.label || "(unnamed)")}</span>
+        <span class="sd-row-actions"><button type="button" class="danger sd-iep-li-del" data-idx="${i}" title="Delete"><i class="fas fa-trash"></i></button></span>
+      </div>`).join("")
+    : `<div class="sd-empty" style="border:none"><i class="fas fa-hand-pointer"></i><span>No buttons yet</span></div>`;
+
+  const nodes = sel?.graphData?.nodes?.length ?? 0;
+  const detail = sel ? `
+    <div class="sd-detail-hdr">
+      <div class="sd-detail-icon sd-iep-fp" title="Browse icon"><img class="sd-iep-icon-preview" src="${_esc(sel.icon)}" alt="" draggable="false"></div>
+      <div class="sd-detail-name">
+        <input type="text" class="sd-iep-f-label" value="${_esc(sel.label)}" placeholder="Button label">
+        <div class="sd-detail-sub">${nodes ? `${nodes} nodes · Database-variable graph` : "No Blueprint yet · Database-variable graph"}<span class="sd-iep-saved" data-saved hidden> · saved</span></div>
       </div>
-      <div class="sd-iep-right">${right}</div>
+      <div class="sd-detail-actions">
+        <label class="sd-switch" title="Enable this button"><input type="checkbox" class="sd-iep-f-enabled" ${sel.enabled ? "checked" : ""}><span class="sd-switch-track"></span><span>Enabled</span></label>
+        <button type="button" class="sd-btn sd-btn-primary sd-iep-graph-btn" title="Interaction Blueprint"><i class="fas fa-diagram-project"></i> Blueprint</button>
+      </div>
     </div>
-    <div class="sd-iep-foot">
-      <span class="sd-iep-foot-info">${_esc(footInfo)}</span>
-      <button type="button" class="sd-iep-save">Save & Close</button>
-    </div>`;
+    <div class="sd-form-grid sd-iep-form">
+      <label class="sd-span-2"><span>Description (shown under the button)</span><textarea class="sd-textarea sd-iep-f-description" rows="2">${_esc(sel.description)}</textarea></label>
+      <label><span>Distance (${units})</span><input class="sd-input" type="number" min="0" step="1" class="" data-field="distance" value="${_esc(sel.distance)}"></label>
+      <label><span>Visibility</span>
+        <select class="sd-select sd-iep-f-visibility">
+          <option value="all"     ${sel.visibility === "all"     ? "selected" : ""}>Everyone</option>
+          <option value="gm"      ${sel.visibility === "gm"      ? "selected" : ""}>GM only</option>
+          <option value="players" ${sel.visibility === "players" ? "selected" : ""}>Players only</option>
+        </select></label>
+      <label><span>Icon path</span><div class="sd-form-row" style="flex-wrap:nowrap"><input class="sd-input sd-iep-f-icon" type="text" value="${_esc(sel.icon)}" style="width:auto;flex:1"><button type="button" class="sd-btn sd-btn-icon sd-iep-fp" title="Browse"><i class="fas fa-folder-open"></i></button></div></label>
+      <label><span>Accent color</span><div class="sd-form-row sd-iep-color-line" style="flex-wrap:nowrap">
+        <input type="color" class="sd-iep-f-color" value="${HEX_RE.test(sel.color) ? sel.color : "#d4b15a"}">
+        <input class="sd-input sd-iep-f-color-hex" type="text" value="${_esc(HEX_RE.test(sel.color) ? sel.color : "#d4b15a")}" pattern="#[0-9a-fA-F]{6}" style="width:96px">
+        <button type="button" class="sd-btn sd-btn-ghost sd-btn-icon sd-iep-color-reset" title="Reset"><i class="fas fa-rotate-left"></i></button>
+      </div></label>
+    </div>
+    <details class="sd-iep-presets-wrap">
+      <summary class="sd-field-label">Icon library (${ICON_PRESET_PATHS.length})</summary>
+      <div class="sd-iep-presets">${SD_ICON_PRESETS_HTML(sel.icon)}</div>
+    </details>
+    <section class="sd-section">
+      <div class="sd-section-hdr"><h4>Preview</h4></div>
+      <div class="sd-iep-preview">${_Overlay._buttonHtml(null, sel)}</div>
+    </section>`
+    : `<div class="sd-empty" style="margin:auto;border:none"><i class="fas fa-hand-pointer"></i><span>Select a button or add one.</span><button type="button" class="sd-btn sd-btn-primary sd-iep-add"><i class="fas fa-plus"></i> Add button</button></div>`;
+
+  return `<div class="sd-shell sd-iep-root">
+    <div class="sd-toolbar">
+      <div class="sd-toolbar-title"><i class="fas fa-hand-pointer"></i><span>${_esc(state.docLabel)}</span></div>
+      <div class="sd-toolbar-spacer"></div>
+      <label class="sd-switch" title="Enable interactions for this document"><input type="checkbox" class="sd-iep-enabled" ${state.enabled ? "checked" : ""}><span class="sd-switch-track"></span><span>Interactions enabled</span></label>
+    </div>
+    <div class="sd-master-detail">
+      <aside class="sd-master">
+        <div class="sd-list sd-iep-list">${list}</div>
+        <div class="sd-master-foot"><button type="button" class="sd-btn sd-iep-add" style="width:100%"><i class="fas fa-plus"></i> Add button</button></div>
+      </aside>
+      <main class="sd-detail">${detail}</main>
+    </div>
+    <div class="sd-footer"><i class="fas fa-circle-info"></i> <span class="sd-iep-foot-info">${_esc(footInfo)}</span></div>
+  </div>`;
 }
 
 export function openInteractablesEditor(doc) {
@@ -717,6 +689,7 @@ export function openInteractablesEditor(doc) {
   popup.style.cssText = "position:relative!important;inset:auto!important;transform:none!important;margin:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;overflow:hidden!important";
   popup.innerHTML = _renderEditorHTML(state);
   let windowApp = null;
+  let _saveTimer = null;
   const _closePopup = () => windowApp?.close?.() ?? popup.remove();
   windowApp = openFoundryWindow({
     id:`sd-interactables-${foundry.utils.randomID(8)}`,
@@ -728,13 +701,34 @@ export function openInteractablesEditor(doc) {
     minHeight:420,
     classes:["sd-interactables-window"],
     content:popup,
-    onClose:()=>{ INTERACTABLE_WINDOWS.delete(windowKey); popup.remove(); }
+    onClose:()=>{
+      INTERACTABLE_WINDOWS.delete(windowKey);
+      if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; setInteractables(doc, { enabled: state.enabled, buttons: state.buttons }).then(() => _Overlay.scheduleRefresh()).catch(() => {}); }
+      popup.remove();
+    }
   });
   INTERACTABLE_WINDOWS.set(windowKey, windowApp);
 
   const _rerender = () => {
     popup.innerHTML = _renderEditorHTML(state);
     _wireAll();
+  };
+
+  // Autosave: every edit persists the flag (debounced) and refreshes the canvas overlay.
+  const _persist = () => {
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(async () => {
+      _saveTimer = null;
+      await setInteractables(doc, { enabled: state.enabled, buttons: state.buttons });
+      _Overlay.scheduleRefresh();
+      const badge = popup.querySelector("[data-saved]");
+      if (badge) { badge.hidden = false; setTimeout(() => { badge.hidden = true; }, 1500); }
+    }, 400);
+  };
+  const _refreshPreview = () => {
+    const b = state.buttons[state.selIdx];
+    const box = popup.querySelector(".sd-iep-preview");
+    if (b && box) box.innerHTML = _Overlay._buttonHtml(null, b);
   };
 
   const _commitField = (field, value) => {
@@ -750,43 +744,32 @@ export function openInteractablesEditor(doc) {
       if (field === "icon") {
         const img = li.querySelector(".sd-iep-li-icon");
         if (img) img.src = value;
-        const prev = popup.querySelector(".sd-iep-icon-preview");
-        if (prev) prev.innerHTML = value ? `<img src="${_esc(value)}" alt="" draggable="false">` : `<i class="fas fa-image"></i>`;
-        popup.querySelectorAll(".sd-iep-preset").forEach(btn => {
-          const sel = btn.dataset.icon === value;
-          btn.style.background = sel ? "color-mix(in srgb,var(--sd-accent) 22%,var(--sd-bg-2))" : "var(--sd-bg-2)";
-          btn.style.borderColor = sel ? "var(--sd-accent)" : "var(--sd-border)";
-        });
+        popup.querySelector(".sd-iep-icon-preview")?.setAttribute("src", value);
+        popup.querySelectorAll(".sd-iep-preset").forEach(btn => btn.classList.toggle("active", btn.dataset.icon === value));
       }
       if (field === "color") {
-        const dot = li.querySelector(".sd-iep-li-color");
-        if (dot) dot.style.background = HEX_RE.test(value) ? value : "#d4b15a";
+        const img = li.querySelector(".sd-iep-li-icon");
+        if (img) img.style.borderColor = HEX_RE.test(value) ? value : "#d4b15a";
       }
       if (field === "enabled") {
-        const lbl = li.querySelector(".sd-iep-li-lbl");
-        if (lbl) lbl.classList.toggle("sd-iep-li-lbl--off", !value);
+        li.querySelector(".sd-dot")?.classList.toggle("on", !!value);
+        li.querySelector(".sd-iep-li-lbl")?.classList.toggle("sd-muted", !value);
       }
     }
+    _refreshPreview();
+    _persist();
   };
 
   const _wireAll = () => {
-    popup.querySelector(".sd-iep-close")?.addEventListener("click", _closePopup);
-    popup.querySelector(".sd-iep-save")?.addEventListener("click", async () => {
-      await setInteractables(doc, { enabled: state.enabled, buttons: state.buttons });
-      _Overlay.scheduleRefresh();
-      _closePopup();
-    });
-
     popup.querySelector(".sd-iep-enabled")?.addEventListener("change", (e) => {
       state.enabled = e.target.checked;
+      _persist();
     });
 
     popup.querySelectorAll(".sd-iep-listitem").forEach(li => {
-      li.addEventListener("click", (e) => {
-        if (e.target.classList.contains("sd-iep-li-del")) return;
-        state.selIdx = Number(li.dataset.idx);
-        _rerender();
-      });
+      const pick = () => { state.selIdx = Number(li.dataset.idx); _rerender(); };
+      li.addEventListener("click", (e) => { if (e.target.closest(".sd-iep-li-del")) return; pick(); });
+      li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
     });
     popup.querySelectorAll(".sd-iep-li-del").forEach(btn => {
       btn.addEventListener("click", async (e) => {
@@ -800,20 +783,24 @@ export function openInteractablesEditor(doc) {
         state.buttons.splice(idx, 1);
         if (state.selIdx >= state.buttons.length) state.selIdx = state.buttons.length - 1;
         _rerender();
+        _persist();
       });
     });
 
-    popup.querySelector(".sd-iep-add")?.addEventListener("click", () => {
+    popup.querySelectorAll(".sd-iep-add").forEach(btn => btn.addEventListener("click", () => {
       const b = _normalizeButton({ label: `Button ${state.buttons.length + 1}` });
       state.buttons.push(b);
       state.selIdx = state.buttons.length - 1;
       _rerender();
-    });
+      _persist();
+      const inp = popup.querySelector(".sd-iep-f-label");
+      inp?.focus(); inp?.select();
+    }));
 
     popup.querySelector(".sd-iep-f-enabled")?.addEventListener("change", (e) => _commitField("enabled", !!e.target.checked));
     popup.querySelector(".sd-iep-f-visibility")?.addEventListener("change", (e) => _commitField("visibility", e.target.value));
     popup.querySelector(".sd-iep-f-label")?.addEventListener("input", (e) => _commitField("label", e.target.value));
-    popup.querySelector(".sd-iep-f-distance")?.addEventListener("input", (e) => {
+    popup.querySelector("[data-field='distance']")?.addEventListener("input", (e) => {
       const n = Number(e.target.value);
       _commitField("distance", Number.isFinite(n) ? Math.max(0, n) : 5);
     });
@@ -829,7 +816,7 @@ export function openInteractablesEditor(doc) {
       });
     });
 
-    popup.querySelector(".sd-iep-fp")?.addEventListener("click", () => {
+    popup.querySelectorAll(".sd-iep-fp").forEach(el => el.addEventListener("click", () => {
       try {
         const cur = popup.querySelector(".sd-iep-f-icon")?.value ?? "";
         const FP = foundry.applications.apps.FilePicker?.implementation ?? FilePicker;
@@ -844,7 +831,7 @@ export function openInteractablesEditor(doc) {
         });
         fp.render(true);
       } catch (e) { console.warn("SD | Interactables FilePicker failed:", e); }
-    });
+    }));
 
     const colorInp = popup.querySelector(".sd-iep-f-color");
     const colorHex = popup.querySelector(".sd-iep-f-color-hex");
@@ -877,10 +864,10 @@ export function openInteractablesEditor(doc) {
           customSave: async (data, compiled) => {
             sel.graphData       = data;
             sel.compiledFormula = compiled;
-            const statusEl = popup.querySelector(".sd-iep-graph-status");
+            const statusEl = popup.querySelector(".sd-detail-sub");
             if (statusEl) {
               const n = sel.graphData?.nodes?.length ?? 0;
-              statusEl.textContent = n > 0 ? `graph: ${n} nodes` : "no graph yet";
+              statusEl.firstChild.textContent = n > 0 ? `${n} nodes · Database-variable graph` : "No Blueprint yet · Database-variable graph";
             }
             try {
               await setInteractables(doc, { enabled: state.enabled, buttons: state.buttons });
@@ -908,8 +895,6 @@ export function openInteractablesEditor(doc) {
   };
   window.addEventListener("keydown", _onKey);
 
-  const legacyHead = popup.querySelector(".sd-iep-head");
-  if (legacyHead) legacyHead.style.cursor = "default";
   return windowApp;
 }
 

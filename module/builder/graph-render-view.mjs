@@ -21,6 +21,14 @@ export function graphEdgeVisible(a, b, width, height, margin = 160) {
  * pin offsets; DOM changes, undo, resize, fonts and detachment invalidate them.
  */
 export class GraphRenderView {
+  // Fresh node builds per frame while zooming out / opening; the rest continue next frame.
+  static MOUNT_BATCH = 16;
+  static MOUNT_MIN = 4;
+  static MOUNT_TIME_BUDGET_MS = 6;
+  // Below this zoom node bodies are not rendered (semantic LOD): the header,
+  // the box and the wires stay; controls are unreadable at that scale anyway.
+  static LOD_ZOOM = 0.42;
+  static LOD_ZOOM_EXIT = 0.5; // hysteresis: avoid re-layout storms while wheeling around the threshold
   constructor(graph) {
     this.graph = graph;
     this.svg = graph.edgeSVG;
@@ -234,28 +242,66 @@ export class GraphRenderView {
     }
     const previous=g._renderingAllNodes;g._renderingAllNodes=true;
     let mounted=false;
+    // Building a node's controls is the expensive part of a zoom-out or a
+    // first open. Reattach cached elements freely, but build fresh ones in
+    // bounded batches (nearest to the viewport centre first) and finish on
+    // the next animation frame so a wheel step never blocks for hundreds of ms.
+    const fresh=[];
+    const cx=(left+right)/2, cy=(top+bottom)/2;
+    const budgetEnd=performance.now()+GraphRenderView.MOUNT_TIME_BUDGET_MS;
+    let built=0, deferred=false;
     try {
       for(const id of new Set([...keep,...measure])){
         if(this.elements.has(id))continue;
         const node=this.nodes.get(id);
-        if(node){
-          const cached=this.detachedElements.get(id);
-          if(cached){
-            this.detachedElements.delete(id);this.elements.set(id,cached);
-            cached.style.left=`${node.x}px`;cached.style.top=`${node.y}px`;cached.style.visibility='';
-            const box=this.geometry.get(id);if(box)box.hidden=false;
-            this.root.appendChild(cached);this.resizeObserver?.observe(cached);
-            cached._refreshAttrCard?.();
-          }else g._renderNode(node);
-          if(node.id===g._livePreviewNodeId)g._refreshOutputPreview?.(this.elements.get(id));
-          g._paintDebugNode?.(node,this.elements.get(id));
-          mounted=true;
-        }
+        if(!node)continue;
+        const cached=this.detachedElements.get(id);
+        if(!cached){fresh.push(node);continue;}
+        this.detachedElements.delete(id);this.elements.set(id,cached);
+        cached.style.left=`${node.x}px`;cached.style.top=`${node.y}px`;cached.style.visibility='';
+        const box=this.geometry.get(id);if(box)box.hidden=false;
+        this.root.appendChild(cached);this.resizeObserver?.observe(cached);
+        cached._refreshAttrCard?.();
+        if(node.id===g._livePreviewNodeId)g._refreshOutputPreview?.(cached);
+        g._paintDebugNode?.(node,cached);
+        mounted=true;
+      }
+      if(fresh.length>GraphRenderView.MOUNT_BATCH){
+        const d=node=>{const b=this.nodeBounds(node);return Math.hypot(Number(node.x)+b.width/2-cx,Number(node.y)+b.height/2-cy);};
+        fresh.sort((a,b)=>d(a)-d(b));
+      }
+      for(const node of fresh){
+        const overBudget=built>=GraphRenderView.MOUNT_BATCH||(built>=GraphRenderView.MOUNT_MIN&&performance.now()>budgetEnd);
+        if(overBudget&&!g._renderingAllNodesSync){deferred=true;break;}
+        g._renderNode(node);built++;
+        const element=this.elements.get(String(node.id));
+        if(node.id===g._livePreviewNodeId)g._refreshOutputPreview?.(element);
+        g._paintDebugNode?.(node,element);
+        mounted=true;
       }
     } finally {g._renderingAllNodes=previous;}
+    this.mountBacklog=deferred;
+    if(deferred)g._scheduleEdges?.(false);
     this.measure();
     for(const id of this.elements.keys())if(!keep.has(id))this.unmountNode(id);
     if(mounted)g._refreshSelectionHighlights();
+  }
+  /** Flush deferred node construction synchronously (tests, exports, focus jumps). */
+  mountAll() {
+    let guard=0;
+    while(this.mountBacklog&&guard++<64){this.graph._renderingAllNodesSync=true;try{this.prepareViewport();}finally{this.graph._renderingAllNodesSync=false;}}
+  }
+  /** Semantic LOD: hide node bodies at low zoom; a node being edited stays full. */
+  applyLod() {
+    const zoom = Number(this.graph._zoom) || 1;
+    const was = this.root.classList.contains("sd-graph-lod");
+    const threshold = was ? GraphRenderView.LOD_ZOOM_EXIT : GraphRenderView.LOD_ZOOM;
+    const lod = this.virtualized && zoom < threshold && !this.graph._disableLod;
+    this.root.classList.toggle("sd-graph-lod", lod);
+    const focused = this.doc.activeElement?.closest?.("[data-nid]");
+    if (this.lodKeep && this.lodKeep !== focused) this.lodKeep.classList.remove("sd-graph-lod-keep");
+    if (lod && focused) focused.classList.add("sd-graph-lod-keep");
+    this.lodKeep = lod ? focused : null;
   }
   moveNode(node) { this.pendingPositions.set(String(node.id), node); }
   flushPositions() {
@@ -270,11 +316,22 @@ export class GraphRenderView {
     this.consumeMutations(this.mutationObserver?.takeRecords() ?? []);
     const zoom = Number(this.graph._renderedZoom ?? this.graph._zoom) || 1;
     // READ phase: retain sub-pixel accuracy, borders and nested pin layout.
+    const lod = this.root.classList.contains("sd-graph-lod");
+    // Batch: reveal every dirty body first (writes), then read all rects in a
+    // single layout pass, then hide them again. Interleaving would force one
+    // layout per node.
+    const pending = [];
     for (const id of this.dirty) {
       const element = this.elements.get(id);
       if (!element?.isConnected) continue;
+      const body = element.querySelector(":scope > .gnbody");
+      if (lod && body) body.style.contentVisibility = "visible";
+      pending.push({ id, element, body });
+    }
+    for (const { id, element, body } of pending) {
       const rect = element.getBoundingClientRect();
       if (!rect.width || !rect.height) continue;
+      if (body) element.style.setProperty("--gnbody-h", `${Math.max(8, body.getBoundingClientRect().height / zoom)}px`);
       const pins = new Map();
       for (const pin of element.querySelectorAll(".gpin[data-pid][data-side]")) {
         const r = pin.getBoundingClientRect();
@@ -289,6 +346,7 @@ export class GraphRenderView {
       this.geometry.set(id, {width:rect.width/zoom,height:rect.height/zoom,pins,hidden:old?.hidden ?? false});
       this.dirty.delete(id);
     }
+    if (lod) for (const { body } of pending) if (body) body.style.contentVisibility = "";
   }
   pinOffset(nodeId, pinId, side) {
     this.measure(); return this.geometry.get(String(nodeId))?.pins.get(keyOf(pinId,side)) ?? null;
@@ -318,6 +376,7 @@ export class GraphRenderView {
   }
   draw() {
     if (this.disposed) return;
+    this.applyLod();
     this.prepareViewport();
     this.measure(); this.syncEdges();
     const width = this.wrap?.clientWidth || 0, height = this.wrap?.clientHeight || 0;

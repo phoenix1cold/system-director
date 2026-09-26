@@ -1,0 +1,35 @@
+<!doctype html><html><meta charset="utf-8"><title>Effect sheet browser</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><link rel="stylesheet" href="../styles/system.css"><link rel="stylesheet" href="../styles/editor-shell.css">
+<style>body{background:#111;margin:16px}.application{width:640px;height:600px;display:flex;flex-direction:column;border:1px solid #444}.window-content{flex:1;min-height:0;display:flex;flex-direction:column}</style>
+<pre id="result">RUNNING</pre>
+<script type="module">
+const noop=()=>{};const deep=o=>JSON.parse(JSON.stringify(o));
+const db={agility:{id:'agility',name:'agility',type:'number',scope:'actor',initial:10},hp:{id:'hp',name:'Hit points',type:'number',scope:'actor',initial:20}};
+globalThis.Hooks={once:noop,on:noop,call:noop,callAll:noop};globalThis.CONFIG={SD:{}};globalThis.ui={notifications:{info:noop,warn:noop,error:m=>console.error(m)}};
+class DocumentSheetV2{constructor(o={}){this.options=o;this.document=o.document;}async render(){this.rendered=true;if(!this.element){this.element=document.createElement('section');this.element.className='application sd sd-effect-sheet';const c=document.createElement('div');c.className='window-content';this.element.append(c);document.body.append(this.element);}const c=this.element.querySelector('.window-content');this._replaceHTML(await this._renderHTML(),c);this._onRender({},{});return this;}async close(){this.element?.remove();}}
+globalThis.foundry={applications:{api:{DocumentSheetV2,ApplicationV2:class{}},apps:{}},utils:{randomID:()=>'x',deepClone:deep,getProperty:(o,p)=>String(p).split('.').reduce((v,k)=>v?.[k],o),setProperty:()=>true,mergeObject:(a,b)=>Object.assign(a,b),expandObject:o=>o,flattenObject:o=>o,isEmpty:o=>!o||!Object.keys(o).length}};
+globalThis.game={i18n:{lang:'en',localize:k=>k,format:k=>k,has:()=>false},user:{isGM:true},settings:{get:(ns,k)=>k==='systemSettings'?{database:{values:Object.values(db)}}:undefined,set:async()=>{},register:noop},actors:[],items:[],system:{id:'sd'}};
+globalThis.Actor=class{};globalThis.Item=class{};
+const out=[];const ok=(c,m)=>{if(!c)throw new Error(m);out.push('✔ '+m);};
+try{
+  const V=await import('../module/helpers/value-database.mjs');
+  const defs=V.getValueDefinitions();
+  const key=defs.length?V.valueStoragePath(defs[0].id):'system.values.agility';
+  const effect={name:'Active Effect',img:'icons/svg/aura.svg',description:'',disabled:false,transfer:true,duration:{rounds:0,seconds:0},changes:[{key,mode:2,value:'',priority:20}],flags:{},isOwner:true,parent:{documentName:'Item',type:'inventory',system:{equippable:false,equipped:false}},update:async u=>{globalThis.__saved=u;}};
+  const {SDEffectSheet}=await import('../module/helpers/effect-sheet.mjs');
+  const app=globalThis.app=new SDEffectSheet({document:effect});await app.render();
+  const el=app.element;
+  ok(el.querySelector('.sd-shell.sd-es-root')&&el.querySelector('.sd-detail-hdr input[name="name"]').value==='Active Effect','shell layout with inline name in header');
+  ok(el.querySelectorAll('.sd-es-chip').length===4&&el.querySelector('.sd-es-chip.is-on'),'status chips render (active, duration, changes, transfer mode)');
+  ok(el.querySelector('.sd-switch input[name="disabled"]')&&el.querySelector('select[name="transferMode"]'),'switch for disabled and transfer mode select for items');
+  ok(el.querySelectorAll('.sd-es-change:not(.sd-es-change-head)').length===1,'changes table shows the existing change');
+  ok(el.querySelector('.sd-footer .sd-btn-primary[data-action="save"]')&&el.querySelectorAll('.sd-footer .sd-btn').length===2,'footer: Cancel + primary Save');
+  const before=app._draft().changes.length; el.querySelector('[data-action="addChange"]').click();await new Promise(r=>setTimeout(r,50));
+  ok(app._draft().changes.length===before+1,'one click adds exactly one change');
+  ok(app.element.querySelectorAll('.sd-es-change:not(.sd-es-change-head)').length===2&&app.element.querySelector('.sd-section-hdr .sd-badge').textContent.trim()==='2','Add change appends a row and updates the count');
+  const dis=app.element.querySelector('input[name="disabled"]');dis.click();dis.dispatchEvent(new Event('change'));await new Promise(r=>setTimeout(r,80));
+  ok(app.element.querySelector('.sd-es-chip.is-off'),'toggling Disabled updates the header chip');
+  globalThis.__ready=true;document.title='PASS';
+}catch(e){console.error(e);out.push('✘ '+e.message);document.title='FAIL';}
+document.getElementById('result').textContent=out.join('\n');
+</script></html>

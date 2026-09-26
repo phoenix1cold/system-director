@@ -845,3 +845,9 @@
 .uiw-repeater-item{box-sizing:border-box}
 .uiw-repeater-empty,.uiw-placeholder,.uiw-error{padding:10px;border:1px dashed rgba(127,127,127,.5);border-radius:6px;color:var(--color-text-dark-secondary);text-align:center}
 .uiw-hidden-preview{opacity:.38}
+
+/* Semantic LOD (zoomed out): bodies are skipped by layout/paint; the box keeps
+   its measured height so wires and the node outline stay put. */
+.sd-graph-lod > [data-nid]:not(.sd-graph-lod-keep) > .gnbody { content-visibility:hidden; contain-intrinsic-size:auto var(--gnbody-h, 160px); }
+.sd-graph-lod > [data-nid]:not(.sd-graph-lod-keep) { box-shadow:none !important; }
+.sd-graph-lod > [data-nid]:not(.sd-graph-lod-keep) > .gnhdr { font-size:20px; }

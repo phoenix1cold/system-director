@@ -1,0 +1,37 @@
+<!doctype html><html><meta charset="utf-8"><title>Effect Applier browser</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><link rel="stylesheet" href="../styles/system.css"><link rel="stylesheet" href="../styles/editor-shell.css">
+<style>body{background:#111;margin:16px}.application{width:900px;height:620px;display:flex;flex-direction:column;border:1px solid #444}.window-content{flex:1;min-height:0;display:flex;flex-direction:column}</style>
+<pre id="result">RUNNING</pre>
+<script type="module">
+const noop=()=>{};const deep=o=>JSON.parse(JSON.stringify(o));
+const store=new Map([["sd.effectPresets",{p1:{id:"p1",name:"Poison",icon:"icons/svg/poison.svg",changes:[{key:"system.hp.value",mode:2,value:"-2"},{key:"system.speed",mode:1,value:"0.5"}]},p2:{id:"p2",name:"Haste",icon:"icons/svg/wing.svg",changes:[]}}],["sd.allowPlayerEffectApplier",true],["sd.localizationLanguages",[{id:"base",name:"Base",enabled:true,primary:true}]],["sd.localizationLanguage","base"],["sd.translationEditLanguage","base"],["sd.valueDatabase",{}]]);
+globalThis.Hooks={once:noop,on:noop,call:noop,callAll:noop};globalThis.CONFIG={SD:{}};globalThis.ui={notifications:{info:noop,warn:noop,error:m=>console.error(m)}};
+class ApplicationV2{constructor(o={}){this.options=o;}async render(){this.rendered=true;if(!this.element){this.element=document.createElement('section');this.element.className='application sd sd-effect-applier';const c=document.createElement('div');c.className='window-content';this.element.append(c);document.body.append(this.element);}const c=this.element.querySelector('.window-content');this._replaceHTML(await this._renderHTML(),c);this._onRender();return this;}async close(){this.element?.remove();}}
+globalThis.foundry={applications:{api:{ApplicationV2,DialogV2:{confirm:async()=>true}}},utils:{randomID:(n=10)=>Math.random().toString(36).slice(2,2+n),deepClone:deep,getProperty:(o,p)=>String(p).split('.').reduce((v,k)=>v?.[k],o),setProperty:()=>true,mergeObject:(a,b)=>Object.assign(a,b),expandObject:o=>o,flattenObject:o=>o,isEmpty:o=>!o||!Object.keys(o).length}};
+globalThis.game={i18n:{lang:'en',localize:k=>k.split('.').pop(),format:k=>k,has:()=>false},user:{isGM:true},settings:{get:(ns,k)=>store.get(ns+'.'+k),set:async(ns,k,v)=>{store.set(ns+'.'+k,deep(v));},register:noop},actors:[],items:[],system:{id:'sd'}};
+globalThis.Actor=class{};globalThis.Item=class{};globalThis.canvas={tokens:{controlled:[]}};
+const out=[];const ok=(c,m)=>{if(!c)throw new Error(m);out.push('✔ '+m);};
+try{
+  const E=await import('../module/helpers/effect-applier.mjs');
+  const app=globalThis.app=E.EffectApplierApp.open();await new Promise(r=>setTimeout(r,50));
+  const el=app.element;
+  ok(el.querySelectorAll('.sd-list-row').length===2&&el.querySelector('.sd-list-row.active .sd-list-name').textContent==='Poison','master list renders presets, first selected');
+  ok(el.querySelectorAll('.sd-ea-change').length===2&&el.querySelector('.sd-section-hdr .sd-badge').textContent==='2','detail shows the changes table');
+  ok(!el.querySelector('[data-action="save"]')&&el.querySelector('.sd-footer .sd-btn-primary[data-action="apply"]'),'no Save button, Apply is the single primary action');
+  const name=el.querySelector('[name="name"]');name.value='Deadly Poison';name.dispatchEvent(new Event('input',{bubbles:true}));
+  ok(el.querySelector('.sd-list-row.active .sd-list-name').textContent==='Deadly Poison','name edits mirror into the list live');
+  await new Promise(r=>setTimeout(r,600));
+  ok(store.get('sd.effectPresets').p1.name==='Deadly Poison','autosave persisted the rename');
+  el.querySelector('[name="disabled"]').click();await new Promise(r=>setTimeout(r,600));
+  ok(store.get('sd.effectPresets').p1.disabled===true,'switch toggles persist');
+  el.querySelectorAll('.sd-list-row')[1].click();await new Promise(r=>setTimeout(r,50));
+  ok(app._selected==='p2'&&el.querySelector('.sd-detail .sd-empty'),'selecting an empty preset shows the empty state with Add change');
+  el.querySelector('.sd-detail [data-action="addChange"]').click();await new Promise(r=>setTimeout(r,50));
+  ok(el.querySelectorAll('.sd-ea-change').length===1,'Add change appends a row');
+  const filter=el.querySelector('[data-action="filter"]');filter.value='poi';filter.dispatchEvent(new Event('input'));
+  ok([...el.querySelectorAll('[data-preset]')].filter(r=>!r.hidden).length===1,'search filters the list');
+  globalThis.__ready=true;
+  document.title='PASS';
+}catch(e){console.error(e);out.push('✘ '+e.message);document.title='FAIL';}
+document.getElementById('result').textContent=out.join('\n');
+</script></html>

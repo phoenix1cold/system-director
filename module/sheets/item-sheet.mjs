@@ -7,6 +7,7 @@ import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { decodeMacroScript } from "../helpers/widget-macro.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpers/effect-editor.mjs";
+import { SkillTree3D } from "../helpers/skilltree-3d.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
 import { RichTextEditor } from "../helpers/richtext-editor.mjs";
 import { emitSheetWidgetEvent as dispatchSheetWidgetEvent } from "../helpers/sheet-widget-events.mjs";
@@ -139,6 +140,11 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
   get title() { return this.document.name; }
 
+  async _onClose(options) {
+    this._disposeSkilltree3D();
+    return super._onClose?.(options);
+  }
+
   async _prepareContext(options) {
     const base=await super._prepareContext(options);
     const type=String(this.document.type??"");
@@ -151,6 +157,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   _onRender(context, options) {
+    if (this.document.type !== "skilltree") this._disposeSkilltree3D();
     this._captureScrollMemory();
     this._buildTabNav();
     this._buildTabPanels();
@@ -221,7 +228,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     if (!nav) {
       nav = document.createElement("nav");
       nav.className = "sd-tab-nav";
-      nav.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;padding:5px 12px 0;background:var(--sd-bg-2);border-bottom:1px solid var(--sd-border);flex-shrink:0;align-items:flex-end;";
+      nav.classList.add("sd-sheet-tabs");
       root.querySelector(".window-content")?.appendChild(nav);
     }
     nav.innerHTML = "";
@@ -245,21 +252,21 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     if (this._editMode) {
       const plus = document.createElement("a");
-      plus.style.cssText = "padding:4px 10px;font-size:11px;cursor:pointer;border-radius:4px 4px 0 0;border:1px dashed var(--sd-accent);border-bottom:none;color:var(--sd-accent);opacity:.6;display:inline-flex;align-items:center;transition:opacity .15s;";
+      plus.className = "sd-sheet-tab-add";
       plus.innerHTML = '<i class="fas fa-plus"></i>';
       plus.title = "Add tab";
       plus.addEventListener("click",     () => this._addTab());
-      plus.addEventListener("dragover",  ev => { ev.preventDefault(); plus.style.opacity="1"; plus.style.background="var(--sd-accent-glow)"; });
-      plus.addEventListener("dragleave", () => { plus.style.opacity=".6"; plus.style.background=""; });
-      plus.addEventListener("drop",      ev => { ev.preventDefault(); plus.style.opacity=".6"; plus.style.background=""; try { const d=JSON.parse(ev.dataTransfer.getData("text/plain")); if(d.sdType==="newTab") this._addTab(); } catch { this._addTab(); }});
+      plus.addEventListener("dragover",  ev => { ev.preventDefault(); plus.classList.add("drag-over"); });
+      plus.addEventListener("dragleave", () => plus.classList.remove("drag-over"));
+      plus.addEventListener("drop",      ev => { ev.preventDefault(); plus.classList.remove("drag-over"); try { const d=JSON.parse(ev.dataTransfer.getData("text/plain")); if(d.sdType==="newTab") this._addTab(); } catch { this._addTab(); }});
       nav.appendChild(plus);
     }
 
-    const spacer = document.createElement("div"); spacer.style.flex="1"; nav.appendChild(spacer);
+    const spacer = document.createElement("div"); spacer.className = "sd-sheet-tabs-spacer"; nav.appendChild(spacer);
 
     const tplBtn = document.createElement("a");
-    tplBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-border);border-bottom:none;color:var(--sd-text-2);background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:4px;";
-    tplBtn.innerHTML = `<i class="fas fa-floppy-disk"></i> Template`;
+    tplBtn.className = "sd-sheet-tab-tool";
+    tplBtn.innerHTML = `<i class="fas fa-floppy-disk"></i>`;
     tplBtn.title = "Save sheet layout as template (use Sheet Builder → Templates → Create)";
     tplBtn.addEventListener("click", () => this._saveAsTemplate());
     nav.appendChild(tplBtn);
@@ -268,8 +275,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     if (!hidesExtras) {
       const macroBtn = document.createElement("a");
-      macroBtn.style.cssText = "padding:4px 9px;font-size:10px;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid var(--sd-border);border-bottom:none;color:var(--sd-text-2);background:transparent;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:4px;";
-      macroBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i> Macro`;
+      macroBtn.className = "sd-sheet-tab-tool";
+      macroBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i>`;
       macroBtn.title = "Create a hotbar macro to quickly use this item";
       macroBtn.addEventListener("click", () => this._createMacro());
       nav.appendChild(macroBtn);
@@ -283,6 +290,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     if (this.document.type === "ability" || this.document.type === "inventory") {
       sysNavItems.push({id:"_sys_effects", label:"<i class='fas fa-sparkles' style='margin-right:4px'></i>Effects"});
     }
+    const sep = document.createElement("span"); sep.className = "sd-sheet-tabs-sep"; nav.appendChild(sep);
     sysNavItems.forEach(t => nav.appendChild(this._mkTabBtn(t.id, t.label, active===t.id, true)));
   }
 
@@ -295,7 +303,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const label=document.createElement("span");label.className="sd-tab-label";label.textContent=labelHTML;
       a.append(label);
     }
-    a.style.cssText = `padding:4px ${isSys?"9":"10"}px;font-size:${isSys?"10":"11"}px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;border-radius:4px 4px 0 0;border:1px solid ${isActive?"var(--sd-border)":"transparent"};border-bottom:none;color:${isActive?(isSys?"var(--sd-stamina)":"var(--sd-accent)"):(isSys?"#444":"#666")};background:${isActive?"var(--sd-bg)":"transparent"};display:inline-flex;align-items:center;gap:2px;white-space:nowrap;user-select:none;`;
+    if (isActive) a.classList.add("active");
     if (this._editMode && !isSys) {
       a.innerHTML += ` <button type="button" class="sd-tab-control" data-rename="${tabId}" title="Tab settings" aria-label="Tab settings"><i class="fas fa-gear" aria-hidden="true"></i></button><button type="button" class="sd-tab-control" data-deltab="${tabId}" title="Delete tab" aria-label="Delete tab">✕</button>`;
     }
@@ -1161,26 +1169,68 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const CELL  = 78, GAP = 6;
     const W = cols * (CELL + GAP);
     const H = rows * (CELL + GAP);
+    const loc = k => game.i18n.localize(k);
+    const is3d = this._skilltreeView3d();
 
     const toolbar = document.createElement("div");
-    toolbar.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;";
+    toolbar.className = "sd-toolbar sd-sti-toolbar";
+    p.classList.add("sd-shell", "sd-prog-app");
     toolbar.innerHTML = `
-      <span style="font-size:12px;font-weight:700;color:var(--sd-text-2);flex:1">
-        <i class="fas fa-project-diagram" style="color:var(--sd-accent);margin-right:5px"></i>Skill Tree</span>
+      <div class="sd-toolbar-title"><i class="fas fa-project-diagram"></i><span>Skill Tree</span><span class="sd-badge sd-muted" title="Nodes · connections">${nodes.length} · ${conns.length}</span></div>
+      <div class="sd-toolbar-spacer"></div>
+      <div class="sd-segment sd-prog-st-view" role="group" aria-label="${loc("SD.Progression.ViewMode")}">
+        <button type="button" class="${is3d ? "" : "active"}" data-st-view="grid" aria-pressed="${!is3d}" title="${loc("SD.Progression.ViewGrid")}"><i class="fas fa-border-all"></i></button>
+        <button type="button" class="${is3d ? "active" : ""}" data-st-view="3d" aria-pressed="${is3d}" title="${loc("SD.Progression.View3D")}"><i class="fas fa-cube"></i></button>
+      </div>
       ${ed ? `
-        <label style="font-size:11px;color:var(--sd-text-3);display:flex;align-items:center;gap:4px">Cols
-          <input id="st-cols" type="number" value="${cols}" min="2" max="20"
-            style="width:44px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;padding:2px 4px;text-align:center"></label>
-        <label style="font-size:11px;color:var(--sd-text-3);display:flex;align-items:center;gap:4px">Rows
-          <input id="st-rows" type="number" value="${rows}" min="2" max="20"
-            style="width:44px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:11px;padding:2px 4px;text-align:center"></label>
-        <button type="button" id="st-connect-btn"
-          style="padding:4px 10px;background:var(--sd-accent-glow);border:1px solid var(--sd-accent);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:11px;font-weight:600">
-          <i class="fas fa-link"></i> Connect</button>` : ""}`;
+        <button type="button" id="st-connect-btn" class="sd-btn sd-btn-ghost" title="${loc("SD.Progression.Connect")}"><i class="fas fa-link"></i> ${loc("SD.Progression.Connect")}</button>
+        <button type="button" id="st-settings-btn" class="sd-btn sd-btn-ghost sd-btn-icon ${this._stSettingsOpen ? "active" : ""}" title="${loc("SD.Progression.Settings")}"><i class="fas fa-gear"></i></button>` : ""}`;
+    if (ed && this._stSettingsOpen) {
+      const pop = document.createElement("div");
+      pop.className = "sd-popover";
+      pop.innerHTML = `<div class="sd-popover-title"><i class="fas fa-gear"></i> ${loc("SD.Progression.Settings")}</div>
+        <div class="sd-form-grid">
+          <label><span>${loc("SD.Progression.Cols")}</span><input id="st-cols" class="sd-input" type="number" value="${cols}" min="2" max="20"></label>
+          <label><span>${loc("SD.Progression.Rows")}</span><input id="st-rows" class="sd-input" type="number" value="${rows}" min="2" max="20"></label>
+        </div>`;
+      toolbar.appendChild(pop);
+    }
+    p.style.position = "relative";
     p.appendChild(toolbar);
+    toolbar.querySelector("#st-settings-btn")?.addEventListener("click", () => { this._stSettingsOpen = !this._stSettingsOpen; this.render(); });
+    toolbar.querySelectorAll("[data-st-view]").forEach(btn => btn.addEventListener("click", async () => {
+      const view3d = btn.dataset.stView === "3d";
+      if (view3d === this._skilltreeView3d()) return;
+      try { await game.settings.set("sd", "skilltreeView3d", view3d); } catch {}
+      this.render();
+    }));
+
+    if (is3d) {
+      p.style.overflow = "hidden";
+      const connectBtn = toolbar.querySelector("#st-connect-btn");
+      const paintConnect = () => {
+        if (!connectBtn) return;
+        const armed = this._st3dArm || this._st3dConnectFrom;
+        connectBtn.innerHTML = armed ? '<i class="fas fa-unlink"></i> Cancel' : '<i class="fas fa-link"></i> Connect';
+        connectBtn.classList.toggle("sd-btn-danger-ghost", !!armed);
+        connectBtn.classList.toggle("sd-btn-ghost", !armed);
+      };
+      connectBtn?.addEventListener("click", () => {
+        const armed = this._st3dArm || this._st3dConnectFrom;
+        this._st3dArm = !armed; this._st3dConnectFrom = null;
+        paintConnect();
+        this._tree3d?.update(this._skilltree3DData());
+        if (this._st3dArm) ui.notifications.info("Click the first node, then the destination node.");
+      });
+      paintConnect();
+      this._mountSkilltree3D(p, ed, paintConnect);
+      return p;
+    }
+    this._disposeSkilltree3D();
 
     const scroll = document.createElement("div");
-    scroll.style.cssText = "overflow:auto;border:1px solid var(--sd-bg-3);border-radius:5px;background:var(--sd-bg);padding:8px;";
+    scroll.className = "sd-prog-st-scroll";
+    scroll.style.cssText = "overflow:auto;flex:1 1 auto;min-height:0;";
 
     const canvas = document.createElement("div");
     canvas.style.cssText = `position:relative;width:${W}px;height:${H}px;`;
@@ -1223,9 +1273,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
         if (node) {
           const el = document.createElement("div");
-          el.style.cssText = st + `background:${node.color||"var(--sd-bg)"};border:2px solid var(--sd-accent);border-radius:8px;
-            display:flex;flex-direction:column;align-items:center;justify-content:center;
-            gap:3px;overflow:hidden;z-index:2;box-sizing:border-box;padding:4px;`;
+          el.className = `sd-prog-st-node available${ed ? " editable" : ""}`;
+          el.style.cssText = st + (node.color ? `--node-color:${node.color};` : "");
           el.dataset.nodeId = node.id;
           if (node.item) el.title = "Right-click to open item";
           el.addEventListener("contextmenu", async ev => {
@@ -1263,10 +1312,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
             el.addEventListener("mouseenter", () => tools.style.display = "flex");
             el.addEventListener("mouseleave", () => tools.style.display = "none");
 
-            el.addEventListener("dragover",  ev => { ev.preventDefault(); el.style.borderColor="#c0b0ff"; });
-            el.addEventListener("dragleave", ()  => el.style.borderColor="var(--sd-accent)");
+            el.addEventListener("dragover",  ev => { ev.preventDefault(); el.classList.add("drag-over"); });
+            el.addEventListener("dragleave", ()  => el.classList.remove("drag-over"));
             el.addEventListener("drop",      async ev => {
-              ev.preventDefault(); el.style.borderColor="var(--sd-accent)";
+              ev.preventDefault(); el.classList.remove("drag-over");
               const data = TextEditor.getDragEventData(ev);
               if (data?.type !== "Item") return;
               let item; try { item = await fromUuid(data.uuid); } catch { return; }
@@ -1282,14 +1331,14 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
         } else if (ed) {
           const cell = document.createElement("div");
-          cell.style.cssText = st + "border:1px dashed var(--sd-accent-dim);border-radius:6px;z-index:2;box-sizing:border-box;display:flex;align-items:center;justify-content:center;cursor:default;transition:border-color .15s,background .15s;";
+          cell.style.cssText = st;
           cell.dataset.col = col; cell.dataset.row = row;
-          cell.classList.add("sti-empty-cell");
+          cell.className = "sd-prog-st-cell sti-empty-cell";
           cell.innerHTML = `<i class="fas fa-plus" style="color:var(--sd-accent-dim);font-size:13px;transition:color .15s"></i>`;
-          cell.addEventListener("dragover",  ev => { ev.preventDefault(); cell.style.borderColor="var(--sd-accent)"; cell.style.background="var(--sd-accent-glow)"; });
-          cell.addEventListener("dragleave", ()  => { cell.style.borderColor=""; cell.style.background=""; });
+          cell.addEventListener("dragover",  ev => { ev.preventDefault(); cell.classList.add("drag-over"); });
+          cell.addEventListener("dragleave", ()  => cell.classList.remove("drag-over"));
           cell.addEventListener("drop",      async ev => {
-            ev.preventDefault(); cell.style.borderColor=""; cell.style.background="";
+            ev.preventDefault(); cell.classList.remove("drag-over");
             const data = TextEditor.getDragEventData(ev);
             if (data?.type !== "Item") return;
             let item; try { item = await fromUuid(data.uuid); } catch { return; }
@@ -1313,13 +1362,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       const updateConnectBtn = () => {
         const btn = p.querySelector("#st-connect-btn");
         if (!btn) return;
-        if (connectFrom) {
-          btn.textContent = "✕ Cancel";
-          btn.style.borderColor = "var(--sd-danger)"; btn.style.color = "var(--sd-danger)"; btn.style.background = "rgba(239,68,68,.1)";
-        } else {
-          btn.innerHTML = '<i class="fas fa-link"></i> Connect';
-          btn.style.borderColor = "var(--sd-accent)"; btn.style.color = "var(--sd-accent)"; btn.style.background = "var(--sd-accent-glow)";
-        }
+        btn.innerHTML = connectFrom ? '<i class="fas fa-unlink"></i> Cancel' : '<i class="fas fa-link"></i> Connect';
+        btn.classList.toggle("sd-btn-danger-ghost", !!connectFrom);
+        btn.classList.toggle("sd-btn-ghost", !connectFrom);
       };
 
       p.querySelector("#st-connect-btn")?.addEventListener("click", () => {
@@ -1347,8 +1392,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
             connectFrom = null; updateConnectBtn();
           } else {
             connectFrom = nodeId;
-            el.style.borderColor = "#ffb347";
-            el.style.boxShadow   = "0 0 10px rgba(255,179,71,.4)";
+            el.classList.add("connecting");
             updateConnectBtn();
             ui.notifications.info("Now click the destination node to connect.");
           }
@@ -1380,182 +1424,267 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       });
 
       canvas.querySelectorAll(".sti-cfg-node").forEach(btn => {
-        btn.addEventListener("click", async ev => {
-          ev.stopPropagation();
-          const nodeId = ev.currentTarget.dataset.nodeId;
-          const ns     = foundry.utils.deepClone(this.document.system.nodes ?? []);
-          const node   = ns.find(n => n.id === nodeId);
-          if (!node) return;
-
-          const escAttr = (s) => this._e(s);
-          const workingEffects = foundry.utils.deepClone(node.effects ?? []);
-          const _renderEffectRow = (ef, j) => `
-            <div class="stn-eff-row" data-idx="${j}" style="display:flex;align-items:center;gap:6px;padding:3px 6px;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg);">
-              <img src="${escAttr(ef.icon ?? ef.img ?? "icons/svg/aura.svg")}" style="width:18px;height:18px;border-radius:2px;">
-              <span style="flex:1;font-size:11px;${ef.disabled ? "opacity:.5;text-decoration:line-through;" : ""}">${escAttr(ef.name ?? "Effect")}</span>
-              <span style="font-size:10px;color:var(--sd-text-3);">${(ef.changes ?? []).length} ch.</span>
-              <button type="button" class="stn-edit-eff" data-idx="${j}" title="Edit effect" style="background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:0 4px;"><i class="fas fa-pen"></i></button>
-              <button type="button" class="stn-del-eff" data-idx="${j}" title="Delete" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px;">✕</button>
-            </div>`;
-          const _renderEffectsHTML = () => (workingEffects.length
-            ? workingEffects.map((ef, j) => _renderEffectRow(ef, j)).join("")
-            : `<span style="font-size:10px;color:var(--sd-text-3);font-style:italic">No effects yet.</span>`);
-
-          const fcRows = (node.fieldChanges ?? []).map((fc, j) => `
-            <div class="stn-fc-row sd-field-change-row" style="display:grid;grid-template-columns:minmax(260px,1fr) 48px 64px 28px;align-items:center;gap:4px;margin-bottom:5px;min-width:430px">
-              <select class="stn-fc-variable" style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;padding:2px 4px">${_sdDbOptions(fc.variableId||variableIdForLegacyPath(fc.path),"actor")}</select>
-              <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
-                <option value="add" ${fc.mode==="add"?"selected":""}>+</option>
-                <option value="set" ${fc.mode==="set"?"selected":""}>=</option>
-                <option value="multiply" ${fc.mode==="multiply"?"selected":""}>×</option>
-              </select>
-              <input type="text" class="stn-fc-val" value="${escAttr(fc.value)}" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
-              <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>
-            </div>`).join("");
-          const content = `<div class="sd-skilltree-node-config" style="display:flex;flex-direction:column;gap:10px;padding:8px;min-width:640px;overflow-x:auto">
-            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Label
-              <input id="stn-label" type="text" value="${escAttr(node.label??'')}" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
-            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Max Acquires
-              <input id="stn-max" type="text" inputmode="numeric" value="${node.maxAcquire??1}" style="width:80px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
-            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Cost
-              <input id="stn-cost" type="text" inputmode="numeric" value="${node.cost??1}" style="width:80px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
-            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Cell Color
-              <input id="stn-color" type="color" value="${/^#[0-9a-f]{6}$/i.test(String(node.color ?? "")) ? node.color : '#1a1a2e'}" style="width:56px;height:28px"></label>
-            <div>
-              <div style="font-size:11px;font-weight:600;color:var(--sd-text-3);margin-bottom:5px"><i class="fas fa-sliders-h"></i> Field Changes
-                <button type="button" id="stn-add-fc" style="margin-left:8px;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+ Add</button></div>
-              <div id="stn-fcs">${fcRows}</div>
-            </div>
-            <div>
-              <div style="font-size:11px;font-weight:600;color:var(--sd-text-3);margin-bottom:5px;display:flex;align-items:center;gap:6px;">
-                <span><i class="fas fa-magic"></i> Active Effects</span>
-                <button type="button" id="stn-add-eff" style="margin-left:auto;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+ Add Effect</button>
-              </div>
-              <div id="stn-effs" style="display:flex;flex-direction:column;gap:3px;">${_renderEffectsHTML()}</div>
-            </div>
-          </div>`;
-          const ok = await foundry.applications.api.DialogV2.prompt({
-            window:  { title: `Configure: ${node.label || node.item?.name || nodeId}` },
-            content,
-            ok: {
-              label: "Save", icon: "fas fa-save",
-              callback: (_ev, _btn, dlg) => {
-
-                const root = dlg?.element ?? dlg;
-                node.label      = root.querySelector("#stn-label")?.value ?? node.label;
-                const maxRaw    = parseInt(root.querySelector("#stn-max")?.value);
-                node.maxAcquire = Number.isFinite(maxRaw) && maxRaw >= 1 ? maxRaw : (node.maxAcquire ?? 1);
-                const costRaw   = parseInt(root.querySelector("#stn-cost")?.value);
-                node.cost       = Number.isFinite(costRaw) && costRaw >= 0 ? costRaw : (Number.isFinite(node.cost) ? node.cost : 1);
-                node.color      = root.querySelector("#stn-color")?.value ?? "";
-                const fcs = [];
-                root.querySelectorAll("#stn-fcs .stn-fc-row").forEach(row => {
-                  const path  = row.querySelector(".stn-fc-variable")?.value?.trim();
-                  const mode  = row.querySelector(".stn-fc-mode")?.value ?? "add";
-                  const value = row.querySelector(".stn-fc-val")?.value ?? "0";
-                  if (path) fcs.push({ variableId:path, mode, value });
-                });
-                node.fieldChanges = fcs;
-                node.effects      = workingEffects.map(ef => { const c = { ...ef }; delete c._id; return c; });
-                return true;
-              }
-            },
-            render: (_ev, dlg) => {
-
-              const root = dlg?.element ?? dlg;
-              root.addEventListener("click", ev => { if (ev.target.closest(".stn-del-fc")) ev.target.closest(".stn-fc-row")?.remove(); });
-              root.querySelector("#stn-add-fc")?.addEventListener("click", () => {
-                const div = document.createElement("div");
-                div.className = "stn-fc-row";
-                div.style.cssText = "display:grid;grid-template-columns:minmax(260px,1fr) 48px 64px 28px;align-items:center;gap:4px;margin-bottom:5px;min-width:430px";
-                div.innerHTML = `
-                  <select class="stn-fc-variable" style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;padding:2px 4px">${_sdDbOptions(getValueDefinitions("actor")[0]?.id??"","actor")}</select>
-                  <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
-                    <option value="add">+</option><option value="set">=</option><option value="multiply">×</option>
-                  </select>
-                  <input type="text" class="stn-fc-val" value="1" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
-                  <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>`;
-                root.querySelector("#stn-fcs")?.appendChild(div);
-              });
-
-              const refreshEffects = () => {
-                const cont = root.querySelector("#stn-effs");
-                if (cont) cont.innerHTML = _renderEffectsHTML();
-              };
-
-              root.querySelector("#stn-add-eff")?.addEventListener("click", async (evt) => {
-                evt.preventDefault();
-                evt.stopPropagation();
-                const seed = {
-                  name: "New Effect",
-                  icon: "icons/svg/aura.svg",
-                  img:  "icons/svg/aura.svg",
-                  changes: [],
-                  disabled: false,
-                  duration: {},
-                  flags: {}
-                };
-                const updated = await editEffectViaStandardConfig(seed, {
-                  parent: this.document,
-                  title:  `Add Effect`
-                });
-                if (!updated) return;
-                const eff = { ...updated };
-                delete eff._id;
-                workingEffects.push(eff);
-                refreshEffects();
-              });
-
-              root.addEventListener("click", async (evt) => {
-                const editBtn = evt.target.closest(".stn-edit-eff");
-                if (editBtn) {
-                  evt.preventDefault();
-                  evt.stopPropagation();
-                  const idx = parseInt(editBtn.dataset.idx);
-                  const cur = workingEffects[idx];
-                  if (!cur) return;
-                  const updated = await editEffectViaStandardConfig(cur, {
-                    parent: this.document,
-                    title:  `Edit Effect: ${cur.name ?? ""}`
-                  });
-                  if (!updated) return;
-                  const merged = { ...cur, ...updated };
-                  delete merged._id;
-                  workingEffects[idx] = merged;
-                  refreshEffects();
-                  return;
-                }
-                const delBtn = evt.target.closest(".stn-del-eff");
-                if (delBtn) {
-                  evt.preventDefault();
-                  evt.stopPropagation();
-                  const idx = parseInt(delBtn.dataset.idx);
-                  if (Number.isFinite(idx)) {
-                    workingEffects.splice(idx, 1);
-                    refreshEffects();
-                  }
-                }
-              });
-            },
-            rejectClose: false
-          }).catch(() => false);
-          if (ok) {
-            const ni = ns.findIndex(n => n.id === nodeId);
-            if (ni >= 0) {
-              ns[ni] = node;
-              try {
-                await this.document.update({ "system.nodes": ns });
-              } catch (err) {
-                console.error("SD | Failed to save skill tree node config:", err);
-                ui.notifications?.error?.(`Failed to save node: ${err?.message ?? err}`);
-              }
-            }
-          }
-        });
+        btn.addEventListener("click", ev => { ev.stopPropagation(); this._openSkilltreeNodeConfig(ev.currentTarget.dataset.nodeId); });
       });
     }
 
     return p;
+  }
+
+  _skilltreeView3d() {
+    try { return !!game.settings.get("sd", "skilltreeView3d"); } catch { return false; }
+  }
+
+  /** Authoring 3D view: same renderer as the Progression window, every node shown as "available". */
+  _skilltree3DData() {
+    const sys = this.document.system;
+    const nodes = (sys.nodes ?? []).map(n => ({
+      id: n.id, col: n.col, row: n.row,
+      label: n.label || n.item?.name || "", img: n.item?.img || "", color: n.color || "",
+      cost: n.cost ?? 1, count: 0, maxAcquire: n.maxAcquire ?? 1,
+      status: "available", canAfford: true, canAcquire: false
+    }));
+    const connections = (sys.connections ?? []).map(c => ({ from: c.from, to: c.to, active: false, reachable: true }));
+    return { nodes, connections, connecting: this._st3dConnectFrom ?? null };
+  }
+
+  _mountSkilltree3D(panel, editable, onConnectStateChange = () => {}) {
+    const host = document.createElement("div");
+    host.className = "sd-prog-st-3d";
+    host.style.minHeight = "420px";
+    host.innerHTML = `
+      <div class="sd-prog-st-3d-tools"><button type="button" data-st3d-reset title="${this._e(game.i18n.localize("SD.Progression.View3DReset"))}"><i class="fas fa-crosshairs"></i></button></div>
+      <div class="sd-prog-st-3d-hint">${this._e(game.i18n.localize(editable ? "SD.Progression.View3DEditHint" : "SD.Progression.View3DHint"))}</div>`;
+    panel.appendChild(host);
+    host.querySelector("[data-st3d-reset]").addEventListener("click", () => this._tree3d?.resetView());
+
+    if (this._tree3d && !this._tree3d.disposed) {
+      this._tree3d.attach(host);
+      this._tree3d.update(this._skilltree3DData());
+      return;
+    }
+    const viewer = new SkillTree3D(host, {
+      onSelect: async id => {
+        if (!editable) return;
+        const from = this._st3dConnectFrom;
+        if (from) {
+          this._st3dConnectFrom = null;
+          onConnectStateChange();
+          if (from !== id) {
+            const cs = foundry.utils.deepClone(this.document.system.connections ?? []);
+            if (!cs.some(c => c.from === from && c.to === id)) { cs.push({ from, to: id }); await this.document.update({ "system.connections": cs }); return; }
+          }
+          viewer.update(this._skilltree3DData());
+          return;
+        }
+        if (this._st3dArm) {
+          this._st3dArm = false; this._st3dConnectFrom = id;
+          onConnectStateChange();
+          viewer.update(this._skilltree3DData());
+          return;
+        }
+        await this._openSkilltreeNodeConfig(id);
+      },
+      onContext: async id => {
+        const node = (this.document.system.nodes ?? []).find(n => n.id === id);
+        if (node?.item) { await openItemSheetFromSnapshot(node.item, this.document.parent ?? null); return; }
+        if (!editable) return;
+        // Right-click on an item-less node starts/cancels a connection.
+        this._st3dConnectFrom = this._st3dConnectFrom === id ? null : id;
+        this._st3dArm = false;
+        onConnectStateChange();
+        if (this._st3dConnectFrom) ui.notifications.info("Now click the destination node to connect.");
+        viewer.update(this._skilltree3DData());
+      }
+    });
+    this._tree3d = viewer;
+    viewer.update(this._skilltree3DData());
+    viewer.mount().catch(async error => {
+      console.error("SD | 3D skill tree failed to start:", error);
+      ui.notifications?.warn(game.i18n.localize("SD.Progression.View3DUnavailable"));
+      viewer.dispose();
+      if (this._tree3d === viewer) this._tree3d = null;
+      try { await game.settings.set("sd", "skilltreeView3d", false); } catch {}
+      this.render();
+    });
+  }
+
+  _disposeSkilltree3D() {
+    this._tree3d?.dispose();
+    this._tree3d = null;
+    this._st3dConnectFrom = null;
+    this._st3dArm = false;
+  }
+
+  async _openSkilltreeNodeConfig(nodeId) {
+    const ns   = foundry.utils.deepClone(this.document.system.nodes ?? []);
+    const node = ns.find(n => n.id === nodeId);
+    if (!node) return;
+
+    const escAttr = (s) => this._e(s);
+    const workingEffects = foundry.utils.deepClone(node.effects ?? []);
+    const _renderEffectRow = (ef, j) => `
+      <div class="stn-eff-row" data-idx="${j}" style="display:flex;align-items:center;gap:6px;padding:3px 6px;border:1px solid var(--sd-border);border-radius:4px;background:var(--sd-bg);">
+        <img src="${escAttr(ef.icon ?? ef.img ?? "icons/svg/aura.svg")}" style="width:18px;height:18px;border-radius:2px;">
+        <span style="flex:1;font-size:11px;${ef.disabled ? "opacity:.5;text-decoration:line-through;" : ""}">${escAttr(ef.name ?? "Effect")}</span>
+        <span style="font-size:10px;color:var(--sd-text-3);">${(ef.changes ?? []).length} ch.</span>
+        <button type="button" class="stn-edit-eff" data-idx="${j}" title="Edit effect" style="background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px;padding:0 4px;"><i class="fas fa-pen"></i></button>
+        <button type="button" class="stn-del-eff" data-idx="${j}" title="Delete" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px;">✕</button>
+      </div>`;
+    const _renderEffectsHTML = () => (workingEffects.length
+      ? workingEffects.map((ef, j) => _renderEffectRow(ef, j)).join("")
+      : `<span style="font-size:10px;color:var(--sd-text-3);font-style:italic">No effects yet.</span>`);
+
+    const fcRows = (node.fieldChanges ?? []).map((fc, j) => `
+      <div class="stn-fc-row sd-field-change-row" style="display:grid;grid-template-columns:minmax(260px,1fr) 48px 64px 28px;align-items:center;gap:4px;margin-bottom:5px;min-width:430px">
+        <select class="stn-fc-variable" style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;padding:2px 4px">${_sdDbOptions(fc.variableId||variableIdForLegacyPath(fc.path),"actor")}</select>
+        <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
+          <option value="add" ${fc.mode==="add"?"selected":""}>+</option>
+          <option value="set" ${fc.mode==="set"?"selected":""}>=</option>
+          <option value="multiply" ${fc.mode==="multiply"?"selected":""}>×</option>
+        </select>
+        <input type="text" class="stn-fc-val" value="${escAttr(fc.value)}" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
+        <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>
+      </div>`).join("");
+    const content = `<div class="sd-skilltree-node-config sd-shell" style="display:flex;flex-direction:column;gap:10px;padding:4px 0;min-width:420px;background:transparent">
+      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Label
+        <input id="stn-label" type="text" value="${escAttr(node.label??'')}" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
+      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Max Acquires
+        <input id="stn-max" type="text" inputmode="numeric" value="${node.maxAcquire??1}" style="width:80px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
+      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Cost
+        <input id="stn-cost" type="text" inputmode="numeric" value="${node.cost??1}" style="width:80px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:12px;padding:4px 6px"></label>
+      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)">Cell Color
+        <input id="stn-color" type="color" value="${/^#[0-9a-f]{6}$/i.test(String(node.color ?? "")) ? node.color : '#1a1a2e'}" style="width:56px;height:28px"></label>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--sd-text-3);margin-bottom:5px"><i class="fas fa-sliders-h"></i> Field Changes
+          <button type="button" id="stn-add-fc" style="margin-left:8px;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+ Add</button></div>
+        <div id="stn-fcs">${fcRows}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--sd-text-3);margin-bottom:5px;display:flex;align-items:center;gap:6px;">
+          <span><i class="fas fa-magic"></i> Active Effects</span>
+          <button type="button" id="stn-add-eff" style="margin-left:auto;background:none;border:none;color:var(--sd-accent);cursor:pointer;font-size:11px">+ Add Effect</button>
+        </div>
+        <div id="stn-effs" style="display:flex;flex-direction:column;gap:3px;">${_renderEffectsHTML()}</div>
+      </div>
+    </div>`;
+    const ok = await foundry.applications.api.DialogV2.prompt({
+      window:  { title: `Configure: ${node.label || node.item?.name || nodeId}` },
+      content,
+      ok: {
+        label: "Save", icon: "fas fa-save",
+        callback: (_ev, _btn, dlg) => {
+
+          const root = dlg?.element ?? dlg;
+          node.label      = root.querySelector("#stn-label")?.value ?? node.label;
+          const maxRaw    = parseInt(root.querySelector("#stn-max")?.value);
+          node.maxAcquire = Number.isFinite(maxRaw) && maxRaw >= 1 ? maxRaw : (node.maxAcquire ?? 1);
+          const costRaw   = parseInt(root.querySelector("#stn-cost")?.value);
+          node.cost       = Number.isFinite(costRaw) && costRaw >= 0 ? costRaw : (Number.isFinite(node.cost) ? node.cost : 1);
+          node.color      = root.querySelector("#stn-color")?.value ?? "";
+          const fcs = [];
+          root.querySelectorAll("#stn-fcs .stn-fc-row").forEach(row => {
+            const path  = row.querySelector(".stn-fc-variable")?.value?.trim();
+            const mode  = row.querySelector(".stn-fc-mode")?.value ?? "add";
+            const value = row.querySelector(".stn-fc-val")?.value ?? "0";
+            if (path) fcs.push({ variableId:path, mode, value });
+          });
+          node.fieldChanges = fcs;
+          node.effects      = workingEffects.map(ef => { const c = { ...ef }; delete c._id; return c; });
+          return true;
+        }
+      },
+      render: (_ev, dlg) => {
+
+        const root = dlg?.element ?? dlg;
+        root.addEventListener("click", ev => { if (ev.target.closest(".stn-del-fc")) ev.target.closest(".stn-fc-row")?.remove(); });
+        root.querySelector("#stn-add-fc")?.addEventListener("click", () => {
+          const div = document.createElement("div");
+          div.className = "stn-fc-row";
+          div.style.cssText = "display:grid;grid-template-columns:minmax(260px,1fr) 48px 64px 28px;align-items:center;gap:4px;margin-bottom:5px;min-width:430px";
+          div.innerHTML = `
+            <select class="stn-fc-variable" style="width:100%;min-width:260px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:10px;padding:2px 4px">${_sdDbOptions(getValueDefinitions("actor")[0]?.id??"","actor")}</select>
+            <select class="stn-fc-mode" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-accent);font-size:11px;font-weight:700;padding:2px">
+              <option value="add">+</option><option value="set">=</option><option value="multiply">×</option>
+            </select>
+            <input type="text" class="stn-fc-val" value="1" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
+            <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>`;
+          root.querySelector("#stn-fcs")?.appendChild(div);
+        });
+
+        const refreshEffects = () => {
+          const cont = root.querySelector("#stn-effs");
+          if (cont) cont.innerHTML = _renderEffectsHTML();
+        };
+
+        root.querySelector("#stn-add-eff")?.addEventListener("click", async (evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          const seed = {
+            name: "New Effect",
+            icon: "icons/svg/aura.svg",
+            img:  "icons/svg/aura.svg",
+            changes: [],
+            disabled: false,
+            duration: {},
+            flags: {}
+          };
+          const updated = await editEffectViaStandardConfig(seed, {
+            parent: this.document,
+            title:  `Add Effect`
+          });
+          if (!updated) return;
+          const eff = { ...updated };
+          delete eff._id;
+          workingEffects.push(eff);
+          refreshEffects();
+        });
+
+        root.addEventListener("click", async (evt) => {
+          const editBtn = evt.target.closest(".stn-edit-eff");
+          if (editBtn) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            const idx = parseInt(editBtn.dataset.idx);
+            const cur = workingEffects[idx];
+            if (!cur) return;
+            const updated = await editEffectViaStandardConfig(cur, {
+              parent: this.document,
+              title:  `Edit Effect: ${cur.name ?? ""}`
+            });
+            if (!updated) return;
+            const merged = { ...cur, ...updated };
+            delete merged._id;
+            workingEffects[idx] = merged;
+            refreshEffects();
+            return;
+          }
+          const delBtn = evt.target.closest(".stn-del-eff");
+          if (delBtn) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            const idx = parseInt(delBtn.dataset.idx);
+            if (Number.isFinite(idx)) {
+              workingEffects.splice(idx, 1);
+              refreshEffects();
+            }
+          }
+        });
+      },
+      rejectClose: false
+    }).catch(() => false);
+    if (ok) {
+      const ni = ns.findIndex(n => n.id === nodeId);
+      if (ni >= 0) {
+        ns[ni] = node;
+        try {
+          await this.document.update({ "system.nodes": ns });
+        } catch (err) {
+          console.error("SD | Failed to save skill tree node config:", err);
+          ui.notifications?.error?.(`Failed to save node: ${err?.message ?? err}`);
+        }
+      }
+    }
   }
 
   _buildSysGraphPanel(isActive) {

@@ -14309,48 +14309,7 @@ export class FormulaGraph {
     }
     body.appendChild(layout);
 
-    el.querySelector(".ndel")?.addEventListener("click",ev=>{ev.stopPropagation();this._delNode(node.id);});
-    el.querySelector(".nfedit")?.addEventListener("click",ev=>{
-      ev.stopPropagation();
-      const fid = node.data?.functionId;
-      if (fid) this._enterFunction?.(fid);
-    });
-    if (def.isFunctionCall) {
-      el.querySelector(".gnhdr").addEventListener("dblclick", ev => {
-        ev.stopPropagation();
-        const fid = node.data?.functionId;
-        if (fid) this._enterFunction?.(fid);
-      });
-    }
-    el.querySelector(".gnhdr").addEventListener("mousedown",ev=>{
-      if(ev.button!==0) return;
-      if(ev.target.classList.contains("ndel")) return;
-      if(ev.target.closest(".nfedit")) return;
-      ev.stopPropagation();
-
-      if (ev.shiftKey) {
-        this._toggleSelectNode(node.id);
-        return;
-      }
-
-      if (!this._selected.has(node.id)) {
-        this._selected.clear();
-        this._selected.add(node.id);
-      }
-      this._refreshSelectionHighlights();
-
-      const group = Array.from(this._selected).map(id => {
-        const n = this.nodes.find(x => x.id === id);
-        return n ? { id: n.id, ox: n.x, oy: n.y } : null;
-      }).filter(Boolean);
-
-      this._drag = {
-        nodeId: node.id,
-        mx: ev.clientX, my: ev.clientY,
-        ox: node.x,     oy: node.y,
-        group
-      };
-    });
+    this._installNodeDelegation();
 
     this.nodesEl.appendChild(el);
 
@@ -14454,12 +14413,10 @@ export class FormulaGraph {
     const meta=pinTypeMeta(pin.type);
     wrap.dataset.pinType=pinSubtype(pin.type);
     wrap.title=`${pin.label || pin.id} · ${meta.label}`;
-    wrap.style.cssText=`display:flex;align-items:center;gap:7px;padding:3px 8px;min-height:30px;width:100%;min-width:0;${side==="output"?"justify-content:flex-end":"justify-content:flex-start"}`;
     const dot=this._dotEl(node,pin,side);
     const lbl=document.createElement("span");
+    lbl.className="gn-pin-label";
     lbl.textContent=_NL(pin.label||"");
-
-    lbl.style.cssText="font-size:11px;color:var(--sd-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1;letter-spacing:0";
     const kind=document.createElement("span");
     kind.className="gn-pin-kind";
     kind.textContent=meta.short;
@@ -14470,50 +14427,90 @@ export class FormulaGraph {
   }
 
   _dotEl(node,pin,side) {
-    const isExec=pin.type==="exec";
     const meta=pinTypeMeta(pin.type);
     const dot=document.createElement("div");
     dot.className=`gpin gpin-shape-${meta.shape}${meta.container?" gpin-container":""}${meta.structured?" gpin-structured":""}`;
     dot.dataset.nid=node.id; dot.dataset.pid=pin.id; dot.dataset.side=side;
     dot.dataset.pinType=pinSubtype(pin.type);
+    dot.dataset.exec=pin.type==="exec"?"1":"0";
     dot.style.setProperty("--pin-color",meta.color);
     const glyph=document.createElement("span");
     glyph.className="gpin-glyph";
     glyph.textContent=meta.glyph;
     dot.appendChild(glyph);
-    const _typeColor = meta.color;
-    const _connected = this._getGraphView().isConnected(node.id, pin.id, side);
-    dot.dataset.connected = _connected ? "1" : "0";
-    const _fill = _connected ? _typeColor : "transparent";
-    const _restingShadow = _connected ? "0 0 0 1px rgba(0,0,0,.35) inset" : "none";
-    dot.style.cssText+=`width:18px;height:18px;
-      background:${_fill};border:2px solid ${_typeColor};
-      box-shadow:${_restingShadow};
-      cursor:crosshair;flex-shrink:0;
-      transition:transform .12s ease,box-shadow .12s ease,background .12s ease;`;
-    dot.addEventListener("mousedown",ev=>{
-      ev.stopPropagation();
-      if(side==="output") this._startConn(node.id,pin.id,isExec,ev,pin.type);
-    });
-    dot.addEventListener("contextmenu",ev=>{
-      ev.preventDefault();
-      ev.stopPropagation();
-      const hasEdge = this._getGraphView().isConnected(node.id, pin.id, side);
-      if (isExec) { if (hasEdge) this._disconnectPin(node, pin, side); return; }
-      this._pinContextMenu(ev, node, pin, side, hasEdge);
-    });
-    dot.addEventListener("mouseenter",()=>{
-      dot.classList.add("is-hovered");
-      dot.style.boxShadow="0 0 0 6px rgba(255,255,255,.1)";
-      const hasEdge = this._getGraphView().isConnected(node.id, pin.id, side);
-      const actionHint=isExec ? (hasEdge ? " · RMB: disconnect" : "") : " · RMB: Promote to Var / Disconnect";
-      dot.title = `${meta.label} pin${actionHint}`;
-    });
-    dot.addEventListener("mouseleave",()=>{
-      dot.classList.remove("is-hovered");
-      dot.style.boxShadow = (dot.dataset.connected === "1") ? "0 0 0 1px rgba(0,0,0,.35) inset" : "none";
-    });
+    dot.dataset.connected = this._getGraphView().isConnected(node.id, pin.id, side) ? "1" : "0";
+    // Interaction (drag-connect, context menu, hover) is delegated on #gnodes.
     return dot;
+  }
+
+  /** Resolve the model pin behind a `.gpin` element (delegated handlers). */
+  _pinFromEl(dot) {
+    const node=this._nodeById(dot.dataset.nid);
+    if(!node) return null;
+    const def=NODE_DEFS[node.type]; if(!def) return null;
+    const side=dot.dataset.side;
+    const pin=resolveNodePins(def, node, side, { includeDynamicGroups:false }).find(p=>p.id===dot.dataset.pid)
+      ?? { id:dot.dataset.pid, type:dot.dataset.exec==="1"?"exec":dot.dataset.pinType, label:dot.dataset.pid };
+    return { node, pin, side, isExec: pin.type==="exec" };
+  }
+
+  /** One set of listeners for every node: header drag/select, delete, pins. */
+  _installNodeDelegation() {
+    const root=this.nodesEl;
+    if(!root || root._sdDelegated===this) return;
+    root._sdDelegated=this;
+    root.addEventListener("mousedown",ev=>{
+      // Form controls inside nodes must not start a node drag / pan.
+      if(ev.target.closest?.("input,select,textarea,button,[contenteditable]") && !ev.target.closest(".ndel,.nfedit")) { ev.stopPropagation(); return; }
+      const dot=ev.target.closest?.(".gpin");
+      if(dot){
+        ev.stopPropagation();
+        const hit=this._pinFromEl(dot);
+        if(hit && hit.side==="output") this._startConn(hit.node.id,hit.pin.id,hit.isExec,ev,hit.pin.type);
+        return;
+      }
+      const hdr=ev.target.closest?.(".gnhdr");
+      if(!hdr || ev.button!==0) return;
+      if(ev.target.closest(".ndel,.nfedit")) return;
+      const node=this._nodeById(hdr.dataset.nid); if(!node) return;
+      ev.stopPropagation();
+      if (ev.shiftKey) { this._toggleSelectNode(node.id); return; }
+      if (!this._selected.has(node.id)) { this._selected.clear(); this._selected.add(node.id); }
+      this._refreshSelectionHighlights();
+      const group = Array.from(this._selected).map(id => { const n=this._nodeById(id); return n ? { id:n.id, ox:n.x, oy:n.y } : null; }).filter(Boolean);
+      this._drag = { nodeId: node.id, mx: ev.clientX, my: ev.clientY, ox: node.x, oy: node.y, group };
+    });
+    root.addEventListener("click",ev=>{
+      const del=ev.target.closest?.(".ndel");
+      if(del){ ev.stopPropagation(); this._delNode(del.dataset.nid); return; }
+      const fe=ev.target.closest?.(".nfedit");
+      if(fe){ ev.stopPropagation(); const fid=this._nodeById(fe.dataset.nid)?.data?.functionId; if(fid) this._enterFunction?.(fid); }
+    });
+    root.addEventListener("dblclick",ev=>{
+      const hdr=ev.target.closest?.(".gnhdr"); if(!hdr) return;
+      const node=this._nodeById(hdr.dataset.nid);
+      if(node && NODE_DEFS[node.type]?.isFunctionCall){ ev.stopPropagation(); const fid=node.data?.functionId; if(fid) this._enterFunction?.(fid); }
+    });
+    root.addEventListener("contextmenu",ev=>{
+      const dot=ev.target.closest?.(".gpin"); if(!dot) return;
+      ev.preventDefault(); ev.stopPropagation();
+      const hit=this._pinFromEl(dot); if(!hit) return;
+      const hasEdge=this._getGraphView().isConnected(hit.node.id,hit.pin.id,hit.side);
+      if(hit.isExec){ if(hasEdge) this._disconnectPin(hit.node,hit.pin,hit.side); return; }
+      this._pinContextMenu(ev,hit.node,hit.pin,hit.side,hasEdge);
+    });
+    // Hover title is computed lazily: pointerover fires once per pin entry.
+    root.addEventListener("pointerover",ev=>{
+      const dot=ev.target.closest?.(".gpin"); if(!dot || dot.contains(ev.relatedTarget)) return;
+      dot.classList.add("is-hovered");
+      const meta=pinTypeMeta(dot.dataset.exec==="1"?"exec":dot.dataset.pinType);
+      const hasEdge=dot.dataset.connected==="1";
+      dot.title=`${meta.label} pin${dot.dataset.exec==="1" ? (hasEdge ? " · RMB: disconnect" : "") : " · RMB: Promote to Var / Disconnect"}`;
+    });
+    root.addEventListener("pointerout",ev=>{
+      const dot=ev.target.closest?.(".gpin"); if(!dot || dot.contains(ev.relatedTarget)) return;
+      dot.classList.remove("is-hovered");
+    });
   }
 
   _disconnectPin(node, pin, side) {
@@ -14702,12 +14699,12 @@ export class FormulaGraph {
       wrap.appendChild(l);
     }
 
-    const IS="background:var(--sd-graph-field-bg,var(--sd-bg-3));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:6px;color:var(--sd-text);font-size:12px;padding:5px 8px;font-family:monospace;outline:none;min-width:0;max-width:100%;width:100%;box-sizing:border-box;height:28px";
-    const SI=IS+";cursor:pointer";
+    // Shared control look lives in the injected .gn-ctl rule (no per-control inline styles).
+    const IS="", SI="";
     const idx=this._smartIndex??{slots:[],ownedItems:[],effects:[],widgets:[],invItemSlots:[]};
 
     if (field.type === "model-points-editor") {
-      const button=document.createElement("button");button.type="button";button.style.cssText=SI;
+      const button=document.createElement("button");button.type="button";button.classList.add("gn-ctl");
       const ru=game.i18n?.lang==="ru";
       button.textContent=`${ru?"Задать точки":"Edit points"} (${modelPoints(node.data?.hotspots).length})`;
       button.addEventListener("mousedown",event=>event.stopPropagation());
@@ -14752,7 +14749,7 @@ export class FormulaGraph {
 
     if(field.type==="slot-picker"){
       const cur=node.data[field.key]??field.default??"slot1";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Slot ID - auto-indexed";
+      const sel=document.createElement("select"); sel.classList.add("gn-ctl"); sel.title="Slot ID - auto-indexed";
       const groups={self:[],actor:[],items:{}};
       for(const s of idx.slots){
         if(s.source==="self") groups.self.push(s);
@@ -14776,7 +14773,6 @@ export class FormulaGraph {
       if(idx.slots.length===0){ const o=document.createElement("option"); o.value=cur||"slot1"; o.textContent=(cur||"slot1")+" (no slots found)"; sel.appendChild(o); }
       else { addGrp("Self",groups.self); addGrp("Actor",groups.actor); for(const [,list] of Object.entries(groups.items)) { const srcName=list[0]?.label?.match(/\[(.+)\]/)?.[1]??"Item"; addGrp(srcName,list); } }
       if(cur && !idx.slots.find(s=>s.id===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom)"; o.selected=true; sel.appendChild(o); }
-      sel.addEventListener("mousedown",ev=>ev.stopPropagation());
       sel.addEventListener("change",()=>{
         node.data[field.key]=sel.value;
         const selOpt=sel.options[sel.selectedIndex];
@@ -14788,7 +14784,7 @@ export class FormulaGraph {
 
     if(field.type==="item-picker"){
       const cur=node.data[field.key]??field.default??"";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Owned item - auto-indexed";
+      const sel=document.createElement("select"); sel.classList.add("gn-ctl"); sel.title="Owned item - auto-indexed";
       { const o=document.createElement("option"); o.value=""; o.textContent="- pick item -"; if(!cur)o.selected=true; sel.appendChild(o); }
       const byType={};
       for(const it of idx.ownedItems)(byType[it.type]||(byType[it.type]=[])).push(it);
@@ -14798,18 +14794,16 @@ export class FormulaGraph {
         sel.appendChild(g);
       }
       if(cur && !idx.ownedItems.find(i=>i.name===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom)"; o.selected=true; sel.appendChild(o); }
-      sel.addEventListener("mousedown",ev=>ev.stopPropagation());
       sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; this._updatePreview(); this._renderNode(node); });
       wrap.appendChild(sel); return wrap;
     }
 
     if(field.type==="effect-picker"){
       const cur=node.data[field.key]??field.default??"";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Active Effect - auto-indexed";
+      const sel=document.createElement("select"); sel.classList.add("gn-ctl"); sel.title="Active Effect - auto-indexed";
       { const o=document.createElement("option"); o.value=""; o.textContent="- pick effect -"; if(!cur)o.selected=true; sel.appendChild(o); }
       for(const fx of idx.effects){ const o=document.createElement("option"); o.value=fx.name; o.textContent=fx.name; if(fx.name===cur)o.selected=true; sel.appendChild(o); }
       if(cur && !idx.effects.find(e=>e.name===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom)"; o.selected=true; sel.appendChild(o); }
-      sel.addEventListener("mousedown",ev=>ev.stopPropagation());
       sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; this._updatePreview(); });
       wrap.appendChild(sel); return wrap;
     }
@@ -14817,13 +14811,12 @@ export class FormulaGraph {
     if(field.type==="effect-uuid-picker"){
       const cur=node.data[field.key]??field.default??"";
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0";
-      const sel=document.createElement("select"); sel.style.cssText=SI; sel.title="Effect - picks UUID automatically";
+      const sel=document.createElement("select"); sel.classList.add("gn-ctl"); sel.title="Effect - picks UUID automatically";
       { const o=document.createElement("option"); o.value=""; o.textContent="- pick effect -"; if(!cur)o.selected=true; sel.appendChild(o); }
       for(const fx of idx.effects){ const o=document.createElement("option"); o.value=fx.uuid; o.textContent=fx.name; if(fx.uuid===cur)o.selected=true; sel.appendChild(o); }
       if(cur && !idx.effects.find(e=>e.uuid===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom uuid)"; o.selected=true; sel.appendChild(o); }
       const rawInp=document.createElement("input"); rawInp.type="text"; rawInp.placeholder="or paste UUID..."; rawInp.value=cur;
-      rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
-      sel.addEventListener("mousedown",ev=>ev.stopPropagation());
+      rawInp.classList.add("gn-ctl");rawInp.style.cssText="font-size:11px;color:var(--sd-text-2)";
       rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
       sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; rawInp.value=sel.value; this._updatePreview(); });
       rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._schedulePreview(); });
@@ -14832,7 +14825,7 @@ export class FormulaGraph {
 
     if(field.type==="model-point-picker"){
       syncModelPointNodes(this);
-      const sel=document.createElement("select");sel.style.cssText=SI;
+      const sel=document.createElement("select");sel.classList.add("gn-ctl");
       const points=modelPoints(node.data?.pointDefinitions), cur=String(node.data?.[field.key]??"");
       const add=(value,label)=>{const o=document.createElement("option");o.value=value;o.textContent=label;sel.append(o);};
       add("",game.i18n?.lang==="ru"?"Все точки":"All points");
@@ -14850,19 +14843,18 @@ export class FormulaGraph {
       const norm=v=>String(v??"").trim().toLowerCase().replace(/[\s\-.]+/g,"_");
       const hit=widgetKey?(idx.widgets.find(entry=>norm(entry.key)===norm(widgetKey)||norm(entry.id)===norm(widgetKey))??null):null;
       const list=hit?.elements??[];
-      const sel=document.createElement("select"); sel.style.cssText=SI;
+      const sel=document.createElement("select"); sel.classList.add("gn-ctl");
       sel.title=widgetKey?`Elements of "${widgetKey}"`:"Pick the widget first";
       { const o=document.createElement("option"); o.value="";
         o.textContent=list.length?"- any / first -":(widgetKey?"- no elements on this widget -":"- pick the widget first -");
         if(!cur)o.selected=true; sel.appendChild(o); }
       for(const el of list){ const o=document.createElement("option"); o.value=el.key; o.textContent=el.label; if(el.key===cur)o.selected=true; sel.appendChild(o); }
       if(cur && !list.some(el=>el.key===cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (custom)"; o.selected=true; sel.appendChild(o); }
-      sel.addEventListener("mousedown",ev=>ev.stopPropagation());
       sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; this._updatePreview(); this._renderNode(node); });
       wrap.appendChild(sel);
       if(field.allowManual!==false){
         const manual=document.createElement("input"); manual.type="text"; manual.placeholder="or type an element key..."; manual.value=cur;
-        manual.style.cssText=SI+";margin-top:3px";
+        manual.classList.add("gn-ctl");manual.style.cssText="margin-top:3px";
         manual.addEventListener("mousedown",ev=>ev.stopPropagation());
         manual.addEventListener("change",()=>{ node.data[field.key]=manual.value.trim(); this._updatePreview(); this._renderNode(node); });
         wrap.appendChild(manual);
@@ -14882,12 +14874,11 @@ export class FormulaGraph {
       const list=(wantType&&!typed.length)?all:typed;
       const known=k=>!!list.find(w=>w.key===k);
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0";
-      const sel=document.createElement("select"); sel.style.cssText=SI;
+      const sel=document.createElement("select"); sel.classList.add("gn-ctl");
       sel.title=wantType?`Pick a "${wantType}" widget - auto-indexed from the sheet tabs`:"Widget key - auto-indexed from tabs";
       { const o=document.createElement("option"); o.value=""; o.textContent=list.length?"- pick widget -":"- no widget on sheet -"; if(!cur)o.selected=true; sel.appendChild(o); }
       for(const w of list){ const o=document.createElement("option"); o.value=w.key; o.textContent=`${w.label} [${w.type}]`; if(w.key===cur)o.selected=true; sel.appendChild(o); }
       if(cur && !known(cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (by name)"; o.selected=true; sel.appendChild(o); }
-      sel.addEventListener("mousedown",ev=>ev.stopPropagation());
       container.appendChild(sel);
       if(field.allowManual===false){
         sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; this._updatePreview(); });
@@ -14895,7 +14886,7 @@ export class FormulaGraph {
         // Optional by-name entry. The node's "Widget" pin still wins at runtime.
         const rawInp=document.createElement("input"); rawInp.type="text"; rawInp.placeholder="or type widget name...";
         rawInp.value=(cur && !known(cur))?cur:"";
-        rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
+        rawInp.classList.add("gn-ctl");rawInp.style.cssText="font-size:11px;color:var(--sd-text-2)";
         rawInp.title=field.hint??"Type a widget name or key. A connected Widget pin overrides this field.";
         rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
         rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._schedulePreview(); });
@@ -14916,12 +14907,11 @@ export class FormulaGraph {
       const list=(wantType&&!typed.length)?all:typed;
       const known=k=>!!list.find(e=>e.id===k);
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0";
-      const sel=document.createElement("select"); sel.style.cssText=SI;
+      const sel=document.createElement("select"); sel.classList.add("gn-ctl");
       sel.title=wantType?`Pick a "${wantType}" element placed in this UI Widget`:"UI Widget element - auto-indexed from the blueprint";
       { const o=document.createElement("option"); o.value=""; o.textContent=list.length?"- pick element -":"- no element placed -"; if(!cur)o.selected=true; sel.appendChild(o); }
       for(const e of list){ const o=document.createElement("option"); o.value=e.id; o.textContent=`${e.label??e.name} [${e.type}]`; if(e.id===cur)o.selected=true; sel.appendChild(o); }
       if(cur && !known(cur)){ const o=document.createElement("option"); o.value=cur; o.textContent=cur+" (by name)"; o.selected=true; sel.appendChild(o); }
-      sel.addEventListener("mousedown",ev=>ev.stopPropagation());
       container.appendChild(sel);
       if(field.allowManual===false){
         sel.addEventListener("change",()=>{ node.data[field.key]=sel.value; this._updatePreview(); });
@@ -14929,7 +14919,7 @@ export class FormulaGraph {
         // Optional by-name entry. The node's "Element" pin still wins at runtime.
         const rawInp=document.createElement("input"); rawInp.type="text"; rawInp.placeholder="or type element name...";
         rawInp.value=(cur && !known(cur))?cur:"";
-        rawInp.style.cssText=IS+";font-size:11px;color:var(--sd-text-2)";
+        rawInp.classList.add("gn-ctl");rawInp.style.cssText="font-size:11px;color:var(--sd-text-2)";
         rawInp.title=field.hint??"Type an element name or id. A connected Element pin overrides this field.";
         rawInp.addEventListener("mousedown",ev=>ev.stopPropagation());
         rawInp.addEventListener("input",()=>{ node.data[field.key]=rawInp.value; this._schedulePreview(); });
@@ -14946,7 +14936,7 @@ export class FormulaGraph {
       const curSlot=node.data[slotKey]??"slot1";
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0";
 
-      const selItem=document.createElement("select"); selItem.style.cssText=SI; selItem.title="Container item";
+      const selItem=document.createElement("select"); selItem.classList.add("gn-ctl"); selItem.title="Container item";
       { const o=document.createElement("option"); o.value=""; o.textContent="- container item -"; if(!curItem)o.selected=true; selItem.appendChild(o); }
       const byType={};
       for(const it of idx.ownedItems)(byType[it.type]||(byType[it.type]=[])).push(it);
@@ -14956,7 +14946,7 @@ export class FormulaGraph {
         selItem.appendChild(g);
       }
 
-      const selSlot=document.createElement("select"); selSlot.style.cssText=SI; selSlot.title="Slot on that item";
+      const selSlot=document.createElement("select"); selSlot.classList.add("gn-ctl"); selSlot.title="Slot on that item";
       const buildSlotOpts=()=>{
         while(selSlot.firstChild)selSlot.removeChild(selSlot.firstChild);
         const chosen=idx.ownedItems.find(i=>i.name===selItem.value);
@@ -14978,7 +14968,7 @@ export class FormulaGraph {
       const curName=node.data["itemName"]??"";
       const container=document.createElement("div"); container.style.cssText="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0";
 
-      const selItem=document.createElement("select"); selItem.style.cssText=SI; selItem.title="Pick owned item by name";
+      const selItem=document.createElement("select"); selItem.classList.add("gn-ctl"); selItem.title="Pick owned item by name";
       { const o=document.createElement("option"); o.value=""; o.textContent="- pick owned item -"; if(!curName)o.selected=true; selItem.appendChild(o); }
       const byType2={};
       for(const it of idx.ownedItems)(byType2[it.type]||(byType2[it.type]=[])).push(it);
@@ -15079,7 +15069,6 @@ export class FormulaGraph {
       inp.checked = (curB === undefined || curB === null) ? asBool(field.default) : asBool(curB);
       inp.style.cssText = "width:16px;height:16px;cursor:pointer;accent-color:var(--sd-accent);margin:0;flex-shrink:0";
       inp.dataset.fieldType=field.type;
-      inp.addEventListener("mousedown",ev=>ev.stopPropagation());
       inp.addEventListener("change",ev=>{
         node.data[field.key]=ev.target.checked;
         this._updatePreview();
@@ -15089,7 +15078,7 @@ export class FormulaGraph {
     }
     else if(field.type==="select"){
       inp=document.createElement("select");
-      inp.style.cssText=IS+";cursor:pointer";
+      inp.classList.add("gn-ctl");inp.style.cssText="cursor:pointer";
 
       const cur = node.data[field.key]??field.default;
       const fieldOptions = typeof field.options === "function" ? (field.options(node, this) ?? []) : (field.options ?? []);
@@ -15107,18 +15096,15 @@ export class FormulaGraph {
       inp.value = node.data[field.key] ?? field.default ?? "";
       inp.placeholder = _NL(field.placeholder ?? (String(field.default ?? "") || ""));
       inp.rows = Number(field.rows ?? 6);
-      inp.style.cssText = IS + ";font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.35;resize:vertical;min-height:64px;";
+      inp.classList.add("gn-ctl");inp.style.cssText = ";font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.35;resize:vertical;min-height:64px;";
     } else {
       inp=document.createElement("input");
       inp.type=field.type==="number"?"number":"text";
       inp.value=node.data[field.key]??field.default??"";
       inp.placeholder=_NL(field.placeholder??(String(field.default??"")||""));
-      inp.style.cssText=IS;
+      inp.classList.add("gn-ctl");
     }
     inp.dataset.fieldType=field.type;
-    inp.addEventListener("focus",()=>inp.style.borderColor="var(--sd-accent)");
-    inp.addEventListener("blur", ()=>inp.style.borderColor="#1a1a28");
-    inp.addEventListener("mousedown",ev=>ev.stopPropagation());
     const _IS_TEXTUAL = (field.type === "text" || field.type === "textarea" || field.type === "file" || field.type === "path" || field.type === "formula" || field.type === "number");
     const _fullRerenderIfDynamic = () => {
       const _defV = NODE_DEFS[node.type];
@@ -16363,6 +16349,15 @@ if(!document.getElementById("sd-graph-css")){
     .sd-ai-graph-chat .sd-ai-chat-send,.sd-ai-graph-chat .sd-ai-chat-apply{flex:0 0 auto!important}
     .gn-node-row .gn-control{width:100%;min-width:0;max-width:100%}
     .gn-node-row :is(input,select,textarea){box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important}
+    .gn-ctl{background:var(--sd-graph-field-bg,var(--sd-bg-3));border:1px solid var(--sd-graph-field-border,var(--sd-border));border-radius:6px;color:var(--sd-text);font-size:12px;padding:5px 8px;font-family:monospace;outline:none;min-width:0;max-width:100%;width:100%;box-sizing:border-box;height:28px}
+    select.gn-ctl{cursor:pointer}
+    .gn-ctl:focus{border-color:var(--sd-accent)}
+    .gn-pin{display:flex;align-items:center;gap:7px;padding:3px 8px;min-height:30px;width:100%;min-width:0;justify-content:flex-start}
+    .gn-pin-output{justify-content:flex-end}
+    .gn-pin-label{font-size:11px;color:var(--sd-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1;letter-spacing:0}
+    .gpin{width:18px;height:18px;background:transparent;border:2px solid var(--pin-color);box-shadow:none;cursor:crosshair;flex-shrink:0}
+    .gpin[data-connected="1"]{background:var(--pin-color);box-shadow:0 0 0 1px rgba(0,0,0,.35) inset}
+    .gpin.is-hovered{box-shadow:0 0 0 6px rgba(255,255,255,.1)}
     .gpin{position:relative;display:inline-grid;place-items:center;isolation:isolate;color:var(--pin-color);border-radius:50%;transition:transform .12s ease,box-shadow .12s ease,background .12s ease}
     .gpin-glyph{position:relative;z-index:2;display:inline-grid;place-items:center;min-width:0;color:var(--pin-color);font-family:Inter,'Segoe UI Symbol',Arial,sans-serif;font-size:8px;font-weight:900;line-height:1;letter-spacing:-1px;pointer-events:none;user-select:none;text-shadow:0 1px 1px rgba(0,0,0,.7)}
     .gpin[data-connected="1"] .gpin-glyph{color:#10131b;text-shadow:0 1px 0 rgba(255,255,255,.28)}

@@ -1,0 +1,91 @@
+/* 3D skill tree view (ProgressionApp) */
+.sd-prog-st-view {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--prog-border, var(--sd-border));
+  border-radius: 6px; overflow: hidden;
+  background: var(--prog-card2, var(--sd-bg-2));
+}
+.sd-prog-st-view button {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; font-size: 11px; font-weight: 600;
+  background: transparent; border: none; border-radius: 0;
+  color: var(--prog-text2, var(--sd-text-3));
+  cursor: pointer; transition: background .15s, color .15s;
+  line-height: 1.2; height: auto;
+}
+.sd-prog-st-view button + button { border-left: 1px solid var(--prog-border, var(--sd-border)); }
+.sd-prog-st-view button:hover { color: var(--sd-text); }
+.sd-prog-st-view button.active {
+  background: var(--sd-accent-bg, rgba(123,104,238,.18));
+  color: var(--sd-accent);
+}
+
+/* Let the 3D viewport fill the pane instead of scrolling like the grid. */
+.sd-prog-left:has(.sd-prog-st-3d) { display: flex; flex-direction: column; overflow: hidden; }
+.sd-prog-left:has(.sd-prog-st-3d) > .sd-prog-skilltree { flex: 1 1 auto; min-height: 0; }
+
+.sd-prog-st-3d {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 380px;
+  border: 1px solid var(--prog-border, var(--sd-border));
+  border-radius: var(--prog-rad, 8px);
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--sd-accent) 16%, transparent) 0%, transparent 62%),
+    radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--sd-accent-2, var(--sd-accent)) 10%, transparent) 0%, transparent 55%),
+    linear-gradient(180deg, var(--sd-bg, #1a1a24) 0%, color-mix(in srgb, var(--sd-bg, #1a1a24) 70%, #000) 100%);
+  user-select: none;
+  touch-action: none;
+}
+.sd-prog-st-3d .sd-st3d-canvas {
+  position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block;
+  outline: none;
+}
+.sd-prog-st-3d-tools {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  display: flex; gap: 4px;
+}
+.sd-prog-st-3d-tools button {
+  width: 26px; height: 26px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--prog-border, var(--sd-border));
+  background: color-mix(in srgb, var(--sd-bg-2, #22222e) 80%, transparent);
+  color: var(--sd-text-2);
+  cursor: pointer; font-size: 11px;
+  transition: border-color .15s, color .15s;
+}
+.sd-prog-st-3d-tools button:hover { border-color: var(--sd-accent); color: var(--sd-accent); }
+.sd-prog-st-3d-hint {
+  position: absolute; left: 10px; bottom: 8px; z-index: 2;
+  font-size: 10px; color: var(--sd-text-3);
+  pointer-events: none; opacity: .85;
+  text-shadow: 0 1px 2px rgba(0,0,0,.8);
+}
+
+/* ── Progression shell overrides ─────────────────────────────────────────── */
+.sd-progression-app .window-content { padding:0; }
+.sd-prog-app.sd-shell { position:relative; }
+.sd-prog-app .sd-prog-toolbar .sd-prog-tab { height:auto; }
+.sd-prog-app .sd-prog-main { position:relative; }
+.sd-prog-app .sd-prog-main > .sd-prog-left { padding:10px 12px; }
+.sd-prog-app .sd-prog-skilltree { flex:1 1 auto; min-height:0; }
+.sd-prog-app .sd-prog-st-scroll { padding:16px; background:
+  radial-gradient(circle at 1px 1px, rgba(255,255,255,.045) 1px, transparent 1.5px) 0 0 / 24px 24px,
+  linear-gradient(180deg, var(--prog-card2) 0%, color-mix(in srgb, var(--prog-card2) 80%, #000) 100%); }
+.sd-prog-app .sd-prog-st-node { border-radius:12px; border:1.5px solid var(--prog-border); background:var(--prog-card); box-shadow:0 4px 14px rgba(0,0,0,.35); gap:2px; padding:5px 4px 8px; }
+.sd-prog-app .sd-prog-st-node::after { content:""; position:absolute; left:10px; right:10px; bottom:0; height:3px; border-radius:3px 3px 0 0; background:var(--node-color, transparent); }
+.sd-prog-app .sd-prog-st-node.available { border-color:var(--prog-accent); box-shadow:0 4px 14px rgba(0,0,0,.35), 0 0 0 3px var(--sd-accent-glow); }
+.sd-prog-app .sd-prog-st-node.available:hover { box-shadow:0 6px 18px rgba(0,0,0,.4), 0 0 16px var(--sd-accent-glow); transform:translateY(-1px) scale(1.03); }
+.sd-prog-app .sd-prog-st-node.acquired { border-color:var(--prog-green); background:linear-gradient(180deg, var(--prog-card), color-mix(in srgb, var(--prog-green) 12%, var(--prog-card))); }
+.sd-prog-app .sd-prog-st-node:not(.available):not(.acquired):not(.editable) { opacity:.72; filter:saturate(.6); }
+.sd-prog-app .sd-prog-node-img { width:32px; height:32px; border-radius:8px; }
+.sd-prog-app .sd-prog-node-label { font-size:9.5px; color:var(--prog-text); font-weight:600; }
+.sd-prog-app .sd-prog-node-cost { position:absolute; top:3px; right:4px; padding:1px 5px; border-radius:8px; background:rgba(0,0,0,.45); }
+.sd-prog-app .sd-prog-st-cell { border-radius:12px; border-color:rgba(123,104,238,.16); }
+.sd-prog-app[data-edit="1"] .sd-prog-st-scroll { outline:1px dashed var(--sd-accent-glow); outline-offset:-6px; }
+.sd-prog-app .sd-prog-source-drop { display:flex; align-items:center; gap:8px; min-height:34px; padding:0 10px; border:1px dashed var(--sd-border-2); border-radius:var(--sd-r-lg); background:var(--sd-bg-3); font-size:11.5px; color:var(--sd-text-2); }
+.sd-prog-app .sd-prog-source-drop img { width:20px; height:20px; border-radius:4px; }
+.sd-prog-app .sd-prog-source-drop.drag-over { border-color:var(--sd-accent); background:var(--sd-accent-glow); }
+.sd-prog-app .sd-prog-preview.sd-drawer .sd-prog-preview-hdr { padding-right:28px; }

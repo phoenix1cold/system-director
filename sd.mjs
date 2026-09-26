@@ -443,6 +443,11 @@ Hooks.once("init", () => {
 
   registerActionHudSettings();
 
+  // Per-user choice between the grid and 3D skill tree views (ProgressionApp stays lazily imported).
+  game.settings.register("sd", "skilltreeView3d", {
+    scope: "client", config: false, type: Boolean, default: false
+  });
+
   registerSettings();
   installOnboarding();
 

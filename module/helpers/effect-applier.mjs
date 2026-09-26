@@ -129,7 +129,7 @@ export class EffectApplierApp extends ApplicationV2 {
   static DEFAULT_OPTIONS={
     id:"sd-effect-applier",classes:["sd","sd-effect-applier"],
     window:{title:"Effect Applier",icon:"fa-solid fa-wand-magic-sparkles",resizable:true,minimizable:true},
-    position:{width:960,height:700}
+    position:{width:900,height:620}
   };
   static _instance=null;
   static open(){
@@ -143,27 +143,113 @@ export class EffectApplierApp extends ApplicationV2 {
   _selectedPreset(){return this._selected?this._presets[this._selected]??null:null;}
   async _renderHTML(){
     const editLang=translationEditLanguage(),langs=getLanguages(),canEdit=!!game.user?.isGM,raw=this._selectedPreset(),p=raw?localizeTree(raw,editLang):null,lock=canEdit?"":"disabled",variables=getValueDefinitions();
-    const rows=Object.values(this._presets).map(x=>{const l=localizeTree(x);return `<button type="button" class="sd-ea-preset ${x.id===this._selected?"is-active":""}" data-preset="${esc(x.id)}"><img src="${esc(x.icon)}" alt=""><span><strong>${esc(l.name)}</strong><small>${x.changes.length} change${x.changes.length===1?"":"s"}</small></span><i class="fas fa-chevron-right"></i></button>`}).join("");
-    const changes=p?.changes?.map((c,i)=>`<div class="sd-ea-change" data-index="${i}"><label><span>Database variable</span><select data-change="variableId" ${lock}><option value="">Select value…</option>${variables.map(v=>`<option value="${esc(v.id)}" ${c.variableId===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join("")}</select></label><label><span>Mode</span><select data-change="mode" ${lock}>${MODES.map(m=>`<option value="${m.value}" ${Number(c.mode)===m.value?"selected":""}>${m.label}</option>`).join("")}</select></label><label><span>Value</span><input data-change="value" value="${esc(c.value)}" placeholder="Value or formula" ${lock}></label><label class="sd-ea-priority"><span>Priority</span><input type="number" data-change="priority" value="${Number(c.priority??20)}" ${lock}></label><button type="button" class="sd-ea-icon-btn danger" data-action="removeChange" title="Remove change" ${lock}><i class="fas fa-trash"></i></button></div>`).join("")||`<div class="sd-ea-empty-small"><i class="fas fa-code-branch"></i><span>No changes yet.</span></div>`;
-    const editor=p?`<div class="sd-ea-editor-head"><div><span class="sd-ea-eyebrow">Effect preset</span><h2>${esc(p.name||"New Effect")}</h2></div><label class="sd-ea-language"><span>Editing language</span><select data-action="editLanguage">${langs.map(l=>`<option value="${l.id}" ${l.id===editLang?"selected":""}>${esc(l.name)}</option>`).join("")}</select><small>Base stores source text</small></label></div><div class="sd-ea-scroll"><section class="sd-ea-card"><div class="sd-ea-fields two"><label><span>Name</span><input name="name" value="${esc(p.name)}" ${canEdit?"":"readonly"}></label><label><span>Icon path</span><input name="icon" value="${esc(raw.icon)}" ${canEdit?"":"readonly"}></label></div><label class="sd-ea-description"><span>Description</span><textarea name="description" rows="4" ${canEdit?"":"readonly"}>${esc(p.description)}</textarea></label><div class="sd-ea-fields duration"><label><span>Rounds</span><input type="number" min="0" name="rounds" value="${raw.duration.rounds}" ${lock}></label><label><span>Seconds</span><input type="number" min="0" name="seconds" value="${raw.duration.seconds}" ${lock}></label><label class="sd-ea-toggle"><input type="checkbox" name="disabled" ${raw.disabled?"checked":""} ${lock}><span>Start disabled</span></label><label class="sd-ea-toggle"><input type="checkbox" name="transfer" ${raw.transfer?"checked":""} ${lock}><span>Transfer to actor</span></label></div></section><section class="sd-ea-card sd-ea-changes-card"><header><div><span class="sd-ea-eyebrow">Active Effect data</span><h3>Changes</h3></div><button type="button" class="sd-ea-add-change" data-action="addChange" ${lock}><i class="fas fa-plus"></i> Add change</button></header><div class="sd-ea-changes">${changes}</div></section></div><footer class="sd-ea-footer"><div class="sd-ea-footer-left"><button type="button" data-action="duplicate" ${lock}><i class="fas fa-copy"></i> Duplicate</button><button type="button" class="danger" data-action="delete" ${lock}><i class="fas fa-trash"></i> Delete</button></div><div class="sd-ea-footer-right"><label class="sd-ea-scope"><span>Targets</span><select data-action="targetScope">${EFFECT_TARGET_SCOPES.map(s=>`<option value="${s.value}" ${s.value===this._scope?"selected":""}>${esc(s.label)}</option>`).join("")}</select></label><button type="button" data-action="save" ${lock}><i class="fas fa-floppy-disk"></i> Save preset</button><button type="button" data-action="toggle"><i class="fas fa-toggle-on"></i> Toggle</button><button type="button" class="danger" data-action="remove"><i class="fas fa-eraser"></i> Remove</button><button type="button" class="primary" data-action="apply"><i class="fas fa-wand-magic-sparkles"></i> Apply</button></div></footer>`:`<div class="sd-ea-empty"><i class="fas fa-wand-magic-sparkles"></i><h2>No effect selected</h2><p>Select a preset on the left or create a new one.</p></div>`;
-    return `<div class="sd-ea-root"><aside class="sd-ea-sidebar"><header><div><i class="fas fa-sparkles"></i><span><strong>Effect presets</strong><small>Create and reuse effects</small></span></div><button type="button" class="sd-ea-new" data-action="new" title="New effect" ${lock}><i class="fas fa-plus"></i><span>New effect</span></button></header><nav class="sd-ea-list">${rows||'<div class="sd-ea-list-empty"><i class="fas fa-layer-group"></i><span>No presets</span></div>'}</nav></aside><main class="sd-ea-main">${editor}</main></div>`;
+    const q=String(this._filter??"").trim().toLowerCase();
+    const list=Object.values(this._presets).map(x=>({x,l:localizeTree(x)})).filter(({l})=>!q||String(l.name??"").toLowerCase().includes(q));
+    const rows=list.map(({x,l})=>`<div class="sd-list-row ${x.id===this._selected?"active":""}" data-preset="${esc(x.id)}" role="button" tabindex="0">
+        <img src="${esc(x.icon)}" alt=""><span class="sd-list-name">${esc(l.name)}</span><span class="sd-badge" title="Changes">${x.changes.length}</span>
+        ${canEdit?`<span class="sd-row-actions"><button type="button" data-row-action="duplicate" title="Duplicate"><i class="fas fa-copy"></i></button><button type="button" class="danger" data-row-action="delete" title="Delete"><i class="fas fa-trash"></i></button></span>`:""}
+      </div>`).join("");
+    const changeRows=p?.changes?.map((c,i)=>`<div class="sd-table-row sd-ea-change" data-index="${i}">
+        <select class="sd-select" data-change="variableId" ${lock}><option value="">Select variable…</option>${variables.map(v=>`<option value="${esc(v.id)}" ${c.variableId===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)}</option>`).join("")}</select>
+        <select class="sd-select" data-change="mode" ${lock}>${MODES.map(m=>`<option value="${m.value}" ${Number(c.mode)===m.value?"selected":""}>${m.label}</option>`).join("")}</select>
+        <input class="sd-input" data-change="value" value="${esc(c.value)}" placeholder="Value or formula" ${lock}>
+        <input class="sd-input" type="number" data-change="priority" value="${Number(c.priority??20)}" title="Priority" ${lock}>
+        <span class="sd-row-actions"><button type="button" class="danger" data-action="removeChange" title="Remove change" ${lock}><i class="fas fa-trash"></i></button></span>
+      </div>`).join("");
+    const changes=changeRows?`<div class="sd-table sd-ea-changes">${changeRows}</div>`
+      :`<div class="sd-empty"><i class="fas fa-code-branch"></i><span>No changes yet.</span>${canEdit?`<button type="button" class="sd-btn" data-action="addChange"><i class="fas fa-plus"></i> Add change</button>`:""}</div>`;
+    const sw=(name,label,checked)=>`<label class="sd-switch"><input type="checkbox" name="${name}" ${checked?"checked":""} ${lock}><span class="sd-switch-track"></span><span>${label}</span></label>`;
+    const editor=p?`
+      <div class="sd-detail-hdr">
+        <div class="sd-detail-icon" data-action="pickIcon" title="Change icon"><img src="${esc(raw.icon)}" alt=""></div>
+        <div class="sd-detail-name">
+          <input name="name" value="${esc(p.name)}" placeholder="Effect name" ${canEdit?"":"readonly"}>
+          <div class="sd-detail-sub">${raw.changes.length} change${raw.changes.length===1?"":"s"} · ${raw.duration.rounds||raw.duration.seconds?`${raw.duration.rounds?raw.duration.rounds+" rd":""} ${raw.duration.seconds?raw.duration.seconds+" s":""}`.trim():"no duration"}<span class="sd-ea-saved" data-saved hidden> · saved</span></div>
+        </div>
+        <div class="sd-detail-actions">
+          <select class="sd-select" data-action="editLanguage" title="Editing language (Base stores source text)">${langs.map(l=>`<option value="${l.id}" ${l.id===editLang?"selected":""}>${esc(l.name)}</option>`).join("")}</select>
+        </div>
+      </div>
+      <div class="sd-form-grid">
+        <label class="sd-span-2"><span>Description</span><textarea class="sd-textarea" name="description" rows="3" ${canEdit?"":"readonly"}>${esc(p.description)}</textarea></label>
+        <label><span>Icon path</span><input class="sd-input" name="icon" value="${esc(raw.icon)}" ${canEdit?"":"readonly"}></label>
+        <div class="sd-form-row" style="align-self:end"><label>Rounds <input class="sd-input" type="number" min="0" name="rounds" value="${raw.duration.rounds}" ${lock}></label><label>Seconds <input class="sd-input" type="number" min="0" name="seconds" value="${raw.duration.seconds}" ${lock}></label></div>
+        <div class="sd-form-row sd-span-2">${sw("disabled","Start disabled",raw.disabled)}${sw("transfer","Transfer to actor",raw.transfer)}</div>
+      </div>
+      <section class="sd-section">
+        <div class="sd-section-hdr"><h4>Changes <span class="sd-badge">${raw.changes.length}</span></h4>${canEdit&&changeRows?`<button type="button" class="sd-btn sd-btn-ghost" data-action="addChange"><i class="fas fa-plus"></i> Add change</button>`:""}</div>
+        ${changes}
+      </section>`
+      :`<div class="sd-empty" style="margin:auto;border:none"><i class="fas fa-wand-magic-sparkles"></i><span>Select a preset or create a new one.</span>${canEdit?`<button type="button" class="sd-btn sd-btn-primary" data-action="new"><i class="fas fa-plus"></i> New effect</button>`:""}</div>`;
+    return `<div class="sd-shell sd-ea-root">
+      <div class="sd-master-detail">
+        <aside class="sd-master">
+          <div class="sd-master-search"><i class="fas fa-search"></i><input class="sd-input" data-action="filter" value="${esc(this._filter??"")}" placeholder="Search presets"></div>
+          <nav class="sd-list">${rows||`<div class="sd-empty" style="border:none"><i class="fas fa-layer-group"></i><span>${q?"Nothing found":"No presets"}</span></div>`}</nav>
+          ${canEdit?`<div class="sd-master-foot"><button type="button" class="sd-btn" style="width:100%" data-action="new"><i class="fas fa-plus"></i> New effect</button></div>`:""}
+        </aside>
+        <main class="sd-detail">${editor}</main>
+      </div>
+      <footer class="sd-footer">
+        <label class="sd-form-row"><span class="sd-field-label">Targets</span><select class="sd-select" style="width:auto" data-action="targetScope">${EFFECT_TARGET_SCOPES.map(s=>`<option value="${s.value}" ${s.value===this._scope?"selected":""}>${esc(s.label)}</option>`).join("")}</select></label>
+        <div class="sd-toolbar-spacer"></div>
+        ${p?`<button type="button" class="sd-btn sd-btn-ghost" data-action="toggle"><i class="fas fa-toggle-on"></i> Toggle</button>
+        <button type="button" class="sd-btn sd-btn-danger-ghost" data-action="remove"><i class="fas fa-eraser"></i> Remove</button>
+        <button type="button" class="sd-btn sd-btn-primary" data-action="apply"><i class="fas fa-wand-magic-sparkles"></i> Apply</button>`:""}
+      </footer>
+    </div>`;
   }
   _replaceHTML(html,content){content.innerHTML=html;content.style.padding="0";}
+  async close(options){clearTimeout(this._saveTimer);if(this._saveTimer!==undefined){const snap=clone(this._presets);for(const p of Object.values(snap))p.changes=p.changes.filter(c=>c.variableId.trim()||c.legacyKey);await savePresetMap(snap).catch(()=>{});}return super.close(options);}
   _collect(){const p=this._selectedPreset();if(!p||!this.element)return p;const lang=translationEditLanguage();const name=this.element.querySelector('[name="name"]')?.value??p.name;const description=this.element.querySelector('[name="description"]')?.value??p.description;setLocalizedField(p,"name",name,lang);setLocalizedField(p,"description",description,lang);p.icon=this.element.querySelector('[name="icon"]')?.value??p.icon;p.disabled=!!this.element.querySelector('[name="disabled"]')?.checked;p.transfer=!!this.element.querySelector('[name="transfer"]')?.checked;p.duration={rounds:Number(this.element.querySelector('[name="rounds"]')?.value||0),seconds:Number(this.element.querySelector('[name="seconds"]')?.value||0)};p.changes=[...this.element.querySelectorAll('.sd-ea-change')].map(r=>({variableId:r.querySelector('[data-change="variableId"]')?.value||"",mode:Number(r.querySelector('[data-change="mode"]')?.value??2),value:r.querySelector('[data-change="value"]')?.value||"",priority:Number(r.querySelector('[data-change="priority"]')?.value??20)}));return p;}
   _onRender(){
     super._onRender?.();
-    const root=this.element;root?.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{this._collect();this._selected=b.dataset.preset;this.render();}));
-    root?.querySelector('[data-action="editLanguage"]')?.addEventListener('change',async e=>{this._collect();await setTranslationEditLanguage(e.target.value);this.render();});
-    root?.querySelector('[data-action="new"]')?.addEventListener('click',()=>{const p=normalizePreset();this._presets[p.id]=p;this._selected=p.id;this.render();});
-    root?.querySelector('[data-action="addChange"]')?.addEventListener('click',async()=>{const p=this._collect();p.changes.push({variableId:"",mode:2,value:"",priority:20});await this.render();this.element?.querySelector('.sd-ea-change:last-child [data-change="variableId"]')?.focus();});
-    root?.querySelectorAll('[data-action="removeChange"]').forEach(b=>b.addEventListener('click',()=>{const p=this._collect();p.changes.splice(Number(b.closest('.sd-ea-change').dataset.index),1);this.render();}));
-    root?.querySelector('[data-action="duplicate"]')?.addEventListener('click',()=>{const src=this._collect();const p=normalizePreset({...clone(src),id:foundry.utils.randomID(10),name:`${src.name} Copy`});this._presets[p.id]=p;this._selected=p.id;this.render();});
-    root?.querySelector('[data-action="delete"]')?.addEventListener('click',async()=>{if(!this._selected)return;const ok=await DialogV2.confirm({window:{title:"Delete effect preset"},content:"<p>Delete selected preset?</p>"}).catch(()=>false);if(!ok)return;delete this._presets[this._selected];this._selected=Object.keys(this._presets)[0]||null;await savePresetMap(this._presets);this.render();});
-    root?.querySelector('[data-action="save"]')?.addEventListener('click',async()=>{const p=this._collect();p.changes=p.changes.filter(c=>c.variableId.trim()||c.legacyKey);await savePresetMap(this._presets);ui.notifications?.info?.("Effect preset saved.");this.render();});
-    root?.querySelector('[data-action="targetScope"]')?.addEventListener('change',e=>{this._scope=e.target.value;});
-    root?.querySelector('[data-action="apply"]')?.addEventListener('click',()=>this._run("apply"));
-    root?.querySelector('[data-action="remove"]')?.addEventListener('click',()=>this._run("remove"));
-    root?.querySelector('[data-action="toggle"]')?.addEventListener('click',()=>this._run("toggle"));
+    const root=this.element;if(!root)return;
+    const canEdit=!!game.user?.isGM;
+    root.querySelectorAll('[data-preset]').forEach(row=>{
+      const pick=()=>{this._collect();this._selected=row.dataset.preset;this.render();};
+      row.addEventListener('click',ev=>{if(ev.target.closest('[data-row-action]'))return;pick();});
+      row.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();pick();}});
+      row.querySelector('[data-row-action="duplicate"]')?.addEventListener('click',ev=>{ev.stopPropagation();this._collect();const src=this._presets[row.dataset.preset];if(!src)return;const p=normalizePreset({...clone(src),id:foundry.utils.randomID(10),name:`${src.name} Copy`});this._presets[p.id]=p;this._selected=p.id;this._persist();this.render();});
+      row.querySelector('[data-row-action="delete"]')?.addEventListener('click',async ev=>{ev.stopPropagation();const id=row.dataset.preset;const ok=await DialogV2.confirm({window:{title:"Delete effect preset"},content:`<p>Delete “${esc(localizeTree(this._presets[id]??{}).name??"")}”?</p>`}).catch(()=>false);if(!ok)return;delete this._presets[id];if(this._selected===id)this._selected=Object.keys(this._presets)[0]||null;await savePresetMap(this._presets);this.render();});
+    });
+    const filter=root.querySelector('[data-action="filter"]');
+    filter?.addEventListener('input',()=>{this._filter=filter.value;const list=root.querySelector('.sd-list');const q=filter.value.trim().toLowerCase();list?.querySelectorAll('[data-preset]').forEach(r=>{r.hidden=!!q&&!r.querySelector('.sd-list-name').textContent.toLowerCase().includes(q);});});
+    root.querySelector('[data-action="editLanguage"]')?.addEventListener('change',async e=>{this._collect();await setTranslationEditLanguage(e.target.value);this.render();});
+    root.querySelectorAll('[data-action="new"]').forEach(b=>b.addEventListener('click',()=>{const p=normalizePreset();this._presets[p.id]=p;this._selected=p.id;this._persist();this.render().then(()=>this.element?.querySelector('[name="name"]')?.select());}));
+    root.querySelectorAll('[data-action="addChange"]').forEach(b=>b.addEventListener('click',async()=>{const p=this._collect();p.changes.push({variableId:"",mode:2,value:"",priority:20});await this.render();this.element?.querySelector('.sd-ea-change:last-child [data-change="variableId"]')?.focus();}));
+    root.querySelectorAll('[data-action="removeChange"]').forEach(b=>b.addEventListener('click',()=>{const p=this._collect();p.changes.splice(Number(b.closest('.sd-ea-change').dataset.index),1);this._persist();this.render();}));
+    root.querySelector('[data-action="pickIcon"]')?.addEventListener('click',()=>{
+      if(!canEdit)return;
+      const FP=globalThis.foundry?.applications?.apps?.FilePicker?.implementation??globalThis.FilePicker;
+      if(!FP)return root.querySelector('[name="icon"]')?.focus();
+      new FP({type:"image",current:this._selectedPreset()?.icon,callback:path=>{const inp=root.querySelector('[name="icon"]');if(inp){inp.value=path;inp.dispatchEvent(new Event('change',{bubbles:true}));}}}).render(true);
+    });
+    // Autosave: every edit persists the preset map (debounced); the header mirrors icon/name live.
+    if(canEdit){
+      const detail=root.querySelector('.sd-detail');
+      const onEdit=ev=>{
+        const t=ev.target;if(!t.matches('input,select,textarea'))return;
+        this._collect();
+        if(t.name==='icon')root.querySelector('.sd-detail-icon img')?.setAttribute('src',t.value);
+        if(t.name==='name'){const row=root.querySelector(`[data-preset="${this._selected}"] .sd-list-name`);if(row)row.textContent=t.value;}
+        this._persist();
+      };
+      detail?.addEventListener('input',onEdit);detail?.addEventListener('change',onEdit);
+    }
+    root.querySelector('[data-action="targetScope"]')?.addEventListener('change',e=>{this._scope=e.target.value;});
+    root.querySelector('[data-action="apply"]')?.addEventListener('click',()=>this._run("apply"));
+    root.querySelector('[data-action="remove"]')?.addEventListener('click',()=>this._run("remove"));
+    root.querySelector('[data-action="toggle"]')?.addEventListener('click',()=>this._run("toggle"));
+  }
+  _persist(){
+    clearTimeout(this._saveTimer);
+    this._saveTimer=setTimeout(async()=>{
+      const snapshot=clone(this._presets);
+      for(const p of Object.values(snapshot))p.changes=p.changes.filter(c=>c.variableId.trim()||c.legacyKey);
+      try{await savePresetMap(snapshot);}catch(err){console.error("SD | Effect Applier autosave failed:",err);return;}
+      const badge=this.element?.querySelector('[data-saved]');if(badge){badge.hidden=false;clearTimeout(this._savedTimer);this._savedTimer=setTimeout(()=>{badge.hidden=true;},1500);}
+    },400);
   }
   async _run(operation="apply"){
     const raw=this._collect();

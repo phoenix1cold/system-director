@@ -2,6 +2,7 @@ import { editEffectViaStandardConfig as _sharedEditEffect, openItemSheetFromSnap
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { LevelUpWizard } from "./levelup-wizard.mjs";
 import { fieldChangeStoragePath, getValueDefinition, getValueDefinitions, readDatabaseValue, valueStoragePath, variableIdForLegacyPath } from "./value-database.mjs";
+import { SkillTree3D } from "./skilltree-3d.mjs";
 
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -28,6 +29,16 @@ function preferredVariableId(id="level") {
 
 const DEFAULT_SP_VALUE_ID = "";
 const DEFAULT_SP_MAX_ID   = "";
+const ST_VIEW_SETTING     = "skilltreeView3d"; // registered in sd.mjs (client scope)
+
+function loadSkilltreeView() {
+  try { return game.settings.get("sd", ST_VIEW_SETTING) ? "3d" : "grid"; }
+  catch { return "grid"; }
+}
+function saveSkilltreeView(view) {
+  try { return game.settings.set("sd", ST_VIEW_SETTING, view === "3d"); }
+  catch { return Promise.resolve(); }
+}
 
 function normalizeActorPath(actor, path) {
   let raw = String(path ?? "").trim().replace(/^\{(.+)\}$/, "$1");
@@ -120,6 +131,9 @@ export class ProgressionApp extends ApplicationV2 {
     this._pinnedPreview = null;
     this._variantSel    = new Map();
     this._previewTabId  = null;
+    this._stView        = loadSkilltreeView();
+    this._settingsOpen  = false;
+    this._tree3d        = null;
   }
 
   _variantKey(levelIdx, choiceIdx) {
@@ -231,7 +245,14 @@ export class ProgressionApp extends ApplicationV2 {
   }
 
   _replaceHTML(result, content, options) {
+    // Keep the WebGL canvas alive across re-renders so camera and glow animations persist.
+    const canvas = this._tree3d?.renderer?.domElement;
+    canvas?.remove();
     content.innerHTML = result;
+    if (!content.querySelector("[data-st-3d]") && this._tree3d) {
+      this._tree3d.dispose();
+      this._tree3d = null;
+    }
   }
 
   async _prepareContext(options) { return {}; }
@@ -250,95 +271,131 @@ export class ProgressionApp extends ApplicationV2 {
     const hasST     = st !== null || em;
     const bothSubTabs = hasLevels && hasST;
 
-    let html = `<div class="sd-prog-app" data-actor-id="${this._actor.id}">`;
+    let html = `<div class="sd-prog-app sd-shell" data-actor-id="${this._actor.id}" data-edit="${em ? "1" : "0"}">`;
 
+    // ── Single toolbar: context · content actions · modes ─────────────────
+    html += `<div class="sd-toolbar sd-prog-toolbar">`;
+
+    // Tracks
     if (tabs.length > 1 || em) {
-      html += `<div class="sd-prog-tabnav" style="display:flex;align-items:center;gap:4px;padding:4px 6px;border-bottom:1px solid var(--sd-border);background:var(--sd-bg-2);flex-wrap:wrap;">`;
-      for (const t of tabs) {
-        const isActive = (t.id === activeTab?.id);
-        html += `<a class="sd-prog-track ${isActive ? "active" : ""}" data-action="selectTrack" data-track-id="${e(t.id)}"
-                   style="padding:3px 10px;border-radius:6px;cursor:pointer;font-size:12px;background:${isActive ? "var(--sd-accent-bg, var(--sd-bg-3))" : "transparent"};border:1px solid ${isActive ? "var(--sd-accent)" : "var(--sd-border)"};color:${isActive ? "var(--sd-accent)" : "var(--sd-text-2)"};display:inline-flex;align-items:center;gap:4px;">`;
-        if (em && isGM) {
-          html += `<input type="text" class="sd-prog-track-name" data-action="renameTrack" data-track-id="${e(t.id)}"
-                     value="${e(t.name)}" style="background:transparent;border:none;color:inherit;font-size:12px;width:${Math.max(80, (t.name?.length ?? 4) * 7)}px;text-align:center;">`;
-        } else {
-          html += `<span>${e(t.name)}</span>`;
-        }
-        if (em && isGM && tabs.length > 1) {
-          html += `<button type="button" class="sd-prog-track-del" data-action="deleteTrack" data-track-id="${e(t.id)}" title="${loc("SD.Progression.DeleteTrack")}"
-                     style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 2px;"><i class="fas fa-times"></i></button>`;
-        }
-        html += `</a>`;
-      }
+      html += `<div class="sd-toolbar-group sd-prog-tracks">`;
       if (em && isGM) {
-        html += `<button type="button" class="sd-prog-track-add" data-action="addTrack" title="${loc("SD.Progression.AddTrack")}"
-                   style="padding:3px 8px;border-radius:6px;cursor:pointer;font-size:12px;background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text-2);">
-                   <i class="fas fa-plus"></i> ${loc("SD.Progression.AddTrack")}</button>`;
+        for (const t of tabs) {
+          const isActive = (t.id === activeTab?.id);
+          html += `<span class="sd-chip sd-prog-track ${isActive ? "active" : ""}" data-action="selectTrack" data-track-id="${e(t.id)}">
+            <input type="text" class="sd-prog-track-name" data-action="renameTrack" data-track-id="${e(t.id)}" value="${e(t.name)}" style="width:${Math.max(64, (t.name?.length ?? 4) * 7)}px">
+            ${tabs.length > 1 ? `<button type="button" class="sd-chip-x" data-action="deleteTrack" data-track-id="${e(t.id)}" title="${loc("SD.Progression.DeleteTrack")}"><i class="fas fa-times"></i></button>` : ""}
+          </span>`;
+        }
+        html += `<button type="button" class="sd-btn sd-btn-ghost sd-btn-icon" data-action="addTrack" title="${loc("SD.Progression.AddTrack")}"><i class="fas fa-plus"></i></button>`;
+      } else if (tabs.length <= 3) {
+        html += `<div class="sd-segment">`;
+        for (const t of tabs) html += `<button type="button" class="${t.id === activeTab?.id ? "active" : ""}" data-action="selectTrack" data-track-id="${e(t.id)}">${e(t.name)}</button>`;
+        html += `</div>`;
+      } else {
+        html += `<select class="sd-select" data-action="selectTrackSelect">${tabs.map(t => `<option value="${e(t.id)}" ${t.id === activeTab?.id ? "selected" : ""}>${e(t.name)}</option>`).join("")}</select>`;
       }
       html += `</div>`;
     }
 
-    html += `<div class="sd-prog-topbar">`;
-
+    // Level Up / Skill Tree
     if (bothSubTabs) {
-      html += `
-        <a class="sd-prog-tab ${this._tab === "levelup"   ? "active" : ""}" data-tab="levelup">
-          <i class="fas fa-arrow-circle-up"></i> ${loc("SD.Progression.LevelUp")}</a>
-        <a class="sd-prog-tab ${this._tab === "skilltree" ? "active" : ""}" data-tab="skilltree">
-          <i class="fas fa-project-diagram"></i> ${loc("SD.Progression.SkillTree")}</a>`;
+      html += `<div class="sd-segment sd-prog-subtabs">
+        <button type="button" class="sd-prog-tab ${this._tab === "levelup" ? "active" : ""}" data-tab="levelup"><i class="fas fa-arrow-circle-up"></i> ${loc("SD.Progression.LevelUp")}</button>
+        <button type="button" class="sd-prog-tab ${this._tab === "skilltree" ? "active" : ""}" data-tab="skilltree"><i class="fas fa-project-diagram"></i> ${loc("SD.Progression.SkillTree")}</button>
+      </div>`;
     } else if (!hasLevels && !hasST) {
-      if (isGM) {
-        html += `<span class="sd-prog-hint">${loc("SD.Progression.HintSetup")}</span>`;
-      } else {
-        html += `<span class="sd-prog-hint">${loc("SD.Progression.HintNotConfigured")}</span>`;
+      html += `<span class="sd-toolbar-hint">${loc(isGM ? "SD.Progression.HintSetup" : "SD.Progression.HintNotConfigured")}</span>`;
+    }
+
+    html += `<div class="sd-toolbar-spacer"></div>`;
+
+    // Skill points chip (skill tree only)
+    const showST = bothSubTabs ? this._tab === "skilltree" : hasST;
+    if (showST && st) {
+      const spValue = Number(_readActorPath(this._actor, this._spValuePath, 0)) || 0;
+      const spMax   = Number(_readActorPath(this._actor, this._spMaxPath, 0)) || 0;
+      html += `<div class="sd-chip sd-prog-sp-block" title="${loc("SD.Progression.SkillPoints")}">
+        <i class="fas fa-star"></i>
+        ${em && isGM ? `<button type="button" data-action="spStep" data-step="-1">−</button><input type="number" data-action="spSetValue" value="${spValue}" min="0">` : `<b>${spValue}</b>`}
+        <span class="sd-muted">/</span>
+        ${em && isGM ? `<input type="number" data-action="spSetMax" value="${spMax}" min="0"><button type="button" data-action="spStep" data-step="1">+</button>` : `<span>${spMax}</span>`}
+      </div>`;
+      const is3d = this._stView === "3d";
+      html += `<div class="sd-segment sd-prog-st-view" role="group" aria-label="${loc("SD.Progression.ViewMode")}">
+        <button type="button" class="${is3d ? "" : "active"}" data-action="stView" data-view="grid" title="${loc("SD.Progression.ViewGrid")}" aria-pressed="${!is3d}"><i class="fas fa-border-all"></i></button>
+        <button type="button" class="${is3d ? "active" : ""}" data-action="stView" data-view="3d" title="${loc("SD.Progression.View3D")}" aria-pressed="${is3d}"><i class="fas fa-cube"></i></button>
+      </div>`;
+      if (em && isGM) {
+        html += this._connectFrom
+          ? `<button type="button" class="sd-btn sd-btn-danger-ghost" data-action="cancelConnect"><i class="fas fa-unlink"></i> ${loc("SD.Progression.CancelConnect")}</button>`
+          : `<button type="button" class="sd-btn sd-btn-ghost" data-action="startConnect"><i class="fas fa-link"></i> ${loc("SD.Progression.Connect")}</button>`;
       }
     }
 
+    // Modes: view/edit segment + settings popover
     if (isGM) {
-      html += `<a class="sd-prog-edit-toggle ${em ? "active" : ""}" data-action="toggleEdit" title="${loc("SD.Progression.EditMode")}">
-        <i class="fas fa-pen-ruler"></i></a>`;
+      html += `<div class="sd-segment sd-prog-mode">
+        <button type="button" class="${em ? "" : "active"}" data-action="setEdit" data-edit="0" title="${loc("SD.Progression.ModeView")}"><i class="fas fa-eye"></i></button>
+        <button type="button" class="${em ? "active" : ""}" data-action="setEdit" data-edit="1" title="${loc("SD.Progression.EditMode")}"><i class="fas fa-pen-ruler"></i></button>
+      </div>`;
+      if (em) html += `<button type="button" class="sd-btn sd-btn-ghost sd-btn-icon ${this._settingsOpen ? "active" : ""}" data-action="toggleSettings" title="${loc("SD.Progression.Settings")}"><i class="fas fa-gear"></i></button>`;
     }
-
     html += `</div>`;
 
-    if (em && isGM) {
-      const valId = this._spValueId;
-      const maxId = this._spMaxId;
-      html += `<div class="sd-prog-sp-values" style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--sd-border);background:var(--sd-bg-2);font-size:11px;flex-wrap:wrap;">
-        <span style="color:var(--sd-label);font-weight:600;text-transform:uppercase;letter-spacing:.04em;"><i class="fas fa-database"></i> Skill Point Variables</span>
-        <label style="display:inline-flex;align-items:center;gap:4px;color:var(--sd-text-3);">Value
-          <select data-action="spSetValueVariable" style="width:230px;font-size:11px;padding:2px 4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);">${dbVariableOptions(valId,"actor")}</select>
-        </label>
-        <label style="display:inline-flex;align-items:center;gap:4px;color:var(--sd-text-3);">Max
-          <select data-action="spSetMaxVariable" style="width:230px;font-size:11px;padding:2px 4px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);">${dbVariableOptions(maxId,"actor")}</select>
-        </label>
-      </div>`;
-    }
+    if (em && isGM && this._settingsOpen) html += this._buildSettingsPopover(st, activeTab);
 
     html += `<div class="sd-prog-main">`;
     html += `<div class="sd-prog-body sd-prog-left">`;
 
-    if (!bothSubTabs || this._tab === "levelup") {
-      html += this._buildLevelUpHTML(levels, state, cfg, em, isGM);
-    }
-    if (!bothSubTabs || this._tab === "skilltree") {
-      html += this._buildSkillTreeHTML(st, state, cfg, em, isGM);
-    }
+    const showLevels = bothSubTabs ? this._tab === "levelup" : (hasLevels || !hasST);
+    if (showLevels) html += this._buildLevelUpHTML(levels, state, cfg, em, isGM);
+    if (bothSubTabs ? this._tab === "skilltree" : hasST) html += this._buildSkillTreeHTML(st, state, cfg, em, isGM);
 
     html += `</div>`;
     html += this._buildPreviewHTML();
     html += `</div>`;
 
+    html += `<div class="sd-footer sd-prog-footer">${this._footerHint(em, isGM, showST)}</div>`;
     html += `</div>`;
     return html;
+  }
+
+  _footerHint(em, isGM, showST) {
+    if (showST && this._stView === "3d") return loc(em && isGM ? "SD.Progression.View3DEditHint" : "SD.Progression.View3DHint");
+    if (showST) return loc(em && isGM ? "SD.Progression.GridEditHint" : "SD.Progression.GridHint");
+    return loc("SD.Progression.PreviewHint");
+  }
+
+  _buildSettingsPopover(st, tab) {
+    const sti = tab?.skilltreeItemId ? this._actor.items.get(tab.skilltreeItemId) : null;
+    const linked = !!tab?.skilltreeItemId;
+    return `<div class="sd-popover sd-prog-settings">
+      <div class="sd-popover-title"><i class="fas fa-gear"></i> ${loc("SD.Progression.Settings")}</div>
+      <div class="sd-form-grid">
+        <label><span>${loc("SD.Progression.SkillPoints")} · ${loc("SD.Progression.Value")}</span>
+          <select class="sd-select" data-action="spSetValueVariable">${dbVariableOptions(this._spValueId, "actor")}</select></label>
+        <label><span>${loc("SD.Progression.SkillPoints")} · ${loc("SD.Progression.Max")}</span>
+          <select class="sd-select" data-action="spSetMaxVariable">${dbVariableOptions(this._spMaxId, "actor")}</select></label>
+        <label class="sd-span-2"><span>${loc("SD.Progression.TreeSource")}</span>
+          <div class="sd-prog-source-drop" data-action="dropSkilltreeItem">
+            ${sti ? `<img src="${e(sti.img ?? "icons/svg/item-bag.svg")}"> <span>${e(sti.name)}</span>
+                     <button type="button" class="sd-chip-x" data-action="unlinkSkilltree" title="${loc("SD.Progression.Unlink")}"><i class="fas fa-times"></i></button>`
+                  : `<i class="fas fa-project-diagram"></i> <span class="sd-muted">${loc("SD.Progression.DropSkilltreeHere")}</span>`}
+          </div></label>
+        ${linked ? "" : `
+        <label><span>${loc("SD.Progression.Cols")}</span><input class="sd-input" type="number" value="${st?.cols ?? 8}" min="2" max="20" data-action="stSetCols"></label>
+        <label><span>${loc("SD.Progression.Rows")}</span><input class="sd-input" type="number" value="${st?.rows ?? 5}" min="2" max="20" data-action="stSetRows"></label>`}
+      </div>
+    </div>`;
   }
 
   _buildPreviewHTML() {
     const pin   = this._pinnedPreview;
     const inner = this._renderPreviewInner(pin);
-    return `<aside class="sd-prog-right sd-prog-preview" data-pinned="${pin ? "1" : "0"}">
+    return `<aside class="sd-drawer sd-prog-preview" data-pinned="${pin ? "1" : "0"}" ${pin ? "" : "hidden"}>
       ${inner}
-    </aside>`;
+    </aside><div class="sd-tooltip-card sd-prog-hovercard" hidden></div>`;
   }
 
   _renderPreviewInner(payload) {
@@ -1033,60 +1090,18 @@ export class ProgressionApp extends ApplicationV2 {
 
     let html = `<div class="sd-prog-skilltree">`;
 
-  html += `<div class="sd-prog-st-toolbar">`;
-
-  const valPath = this._spValuePath;
-  const maxPath = this._spMaxPath;
-  const spValue = Number(_readActorPath(this._actor, valPath, 0)) || 0;
-  const spMax   = Number(_readActorPath(this._actor, maxPath, 0)) || 0;
-
-  html += `<div class="sd-prog-sp-block" style="display:flex;align-items:center;gap:6px;padding:2px 8px;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;margin-right:auto;">
-    <i class="fas fa-star" style="color:var(--sd-accent);font-size:12px;"></i>
-    <span style="font-size:11px;color:var(--sd-label);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">${loc("SD.Progression.SkillPoints")}</span>
-    <button type="button" data-action="spStep" data-step="-1" style="width:22px;height:22px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:14px;line-height:1;flex-shrink:0;">−</button>
-    <input type="number" data-action="spSetValue" value="${spValue}" min="0" style="width:40px;text-align:center;font-weight:700;font-size:14px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);padding:2px;box-sizing:border-box;">
-    <span style="color:var(--sd-text-3);flex-shrink:0;">/</span>
-    <input type="number" data-action="spSetMax" value="${spMax}" min="0" style="width:40px;text-align:center;font-size:13px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);padding:2px;box-sizing:border-box;">
-    <button type="button" data-action="spStep" data-step="1" style="width:22px;height:22px;background:var(--sd-bg-2);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text-2);cursor:pointer;font-size:14px;line-height:1;flex-shrink:0;">+</button>
-    <button type="button" data-action="spCopyPath" title="${e(valPath)}" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px;padding:0 4px;flex-shrink:0;"><i class="fas fa-copy"></i></button>
-  </div>`;
-
-  if (em && isGM) {
-    const sti = tab?.skilltreeItemId ? this._actor.items.get(tab.skilltreeItemId) : null;
-    html += `<div class="sd-prog-source-drop" data-action="dropSkilltreeItem">`;
-    if (sti) {
-      html += `<img src="${sti.img ?? "icons/svg/item-bag.svg"}" style="width:18px;height:18px;border-radius:3px;margin-right:4px;">
-      ${e(sti.name)}
-      <button type="button" class="sd-prog-unlink" data-action="unlinkSkilltree"><i class="fas fa-times"></i></button>`;
-    } else {
-      html += `<i class="fas fa-project-diagram" style="margin-right:5px;opacity:.5;"></i>
-      <span style="opacity:.6;">${loc("SD.Progression.DropSkilltreeHere")}</span>`;
-    }
-    html += `</div>`;
-
-    if (!tab?.skilltreeItemId) {
-      const cols = st?.cols ?? 8;
-      const rows = st?.rows ?? 5;
-      html += `
-      <label class="sd-prog-dim-lbl">${loc("SD.Progression.Cols")}
-        <input type="number" value="${cols}" min="2" max="20" data-action="stSetCols" style="width:46px"></label>
-      <label class="sd-prog-dim-lbl">${loc("SD.Progression.Rows")}
-        <input type="number" value="${rows}" min="2" max="20" data-action="stSetRows" style="width:46px"></label>`;
-    }
-
-    if (this._connectFrom) {
-      html += `<button type="button" class="sd-prog-conn-cancel" data-action="cancelConnect">
-        <i class="fas fa-unlink"></i> ${loc("SD.Progression.CancelConnect")}</button>`;
-    } else {
-      html += `<button type="button" class="sd-prog-conn-btn" data-action="startConnect">
-        <i class="fas fa-link"></i> ${loc("SD.Progression.Connect")}</button>`;
-    }
-  }
-
-  html += `</div>`;
-
     if (!st && !em) {
       html += `<p class="sd-prog-empty">${loc("SD.Progression.NoSkilltree")}</p></div>`;
+      return html;
+    }
+
+    if (this._stView === "3d") {
+      html += `<div class="sd-prog-st-3d" data-st-3d>
+        <div class="sd-prog-st-3d-tools">
+          <button type="button" data-action="st3dReset" title="${loc("SD.Progression.View3DReset")}"><i class="fas fa-crosshairs"></i></button>
+        </div>
+        <div class="sd-prog-st-3d-hint">${em && isGM ? loc("SD.Progression.View3DEditHint") : loc("SD.Progression.View3DHint")}</div>
+      </div></div>`;
       return html;
     }
 
@@ -1173,7 +1188,7 @@ export class ProgressionApp extends ApplicationV2 {
             (em && isGM) ? "editable" : ""
           ].filter(Boolean).join(" ");
 
-          const bgStyle = node.color ? `background:${node.color};` : "";
+          const bgStyle = node.color ? `--node-color:${node.color};` : "";
 
           const nodeTitle = node.item ? (loc("SD.Progression.RightClickOpen") || "Right-click to open item") : "";
           html += `<div class="${cls}" style="${style}${bgStyle}"
@@ -1238,6 +1253,87 @@ export class ProgressionApp extends ApplicationV2 {
     return prereqs.every(pid => (acquiredNodes[pid] ?? 0) > 0);
   }
 
+  /** Node/connection states for the 3D renderer, mirroring the grid's class logic. */
+  _treeViewData() {
+    const st = this._skilltree;
+    const acquiredNodes = this._state.acquiredNodes ?? {};
+    const nodes = st?.nodes ?? [];
+    const conns = st?.connections ?? [];
+    const sp = Number(_readActorPath(this._actor, this._spValuePath, 0)) || 0;
+    const viewNodes = nodes.map(node => {
+      const count = acquiredNodes[node.id] ?? 0;
+      const maxAcquire = node.maxAcquire ?? 1;
+      const cost = node.cost ?? 1;
+      const acquired = count >= maxAcquire;
+      const unlocked = this._canAcquireNode(node, conns, acquiredNodes, nodes);
+      const status = acquired ? "acquired" : unlocked ? "available" : "locked";
+      return {
+        id: node.id, col: node.col, row: node.row,
+        label: node.label || node.item?.name || "",
+        img: node.item?.img || "",
+        color: node.color || "",
+        cost, count, maxAcquire, status,
+        canAfford: sp >= cost,
+        canAcquire: status === "available" && sp >= cost
+      };
+    });
+    const viewConns = conns.map(c => ({
+      from: c.from, to: c.to,
+      active: (acquiredNodes[c.from] ?? 0) > 0 && (acquiredNodes[c.to] ?? 0) > 0,
+      reachable: (acquiredNodes[c.from] ?? 0) > 0
+    }));
+    return { nodes: viewNodes, connections: viewConns, connecting: this._connectFrom };
+  }
+
+  _mount3D(container) {
+    if (this._tree3d && !this._tree3d.disposed) {
+      this._tree3d.attach(container);
+      this._tree3d.update(this._treeViewData());
+      return;
+    }
+    const viewer = new SkillTree3D(container, {
+      onHover: id => {
+        if (this._pinnedPreview) return;
+        this._hoverPreview = id ? this._resolvePreview(`node:${id}`) : null;
+        this._previewTabId = null;
+        this._refreshPreviewPane();
+      },
+      onSelect: async id => {
+        if (this._editMode && game.user.isGM) {
+          if (this._connectFrom) {
+            if (this._connectFrom !== id) await this._addConnection(this._connectFrom, id);
+            this._connectFrom = null;
+            this.render();
+          } else {
+            await this._openNodeConfig(id);
+          }
+          return;
+        }
+        const view = this._treeViewData().nodes.find(n => n.id === id);
+        if (view?.canAcquire) { await this._acquireNode(id); return; }
+        this._pinnedPreview = this._pinnedPreview?.data?.id === id ? null : this._resolvePreview(`node:${id}`);
+        this._hoverPreview = null;
+        this._previewTabId = null;
+        this._refreshPreviewPane();
+      },
+      onContext: id => {
+        const node = (this._skilltree?.nodes ?? []).find(n => n.id === id);
+        if (node?.item) _openItemSheetFromSnapshot(node.item, this._actor);
+      }
+    });
+    this._tree3d = viewer;
+    viewer.update(this._treeViewData());
+    viewer.mount().catch(error => {
+      console.error("SD | 3D skill tree failed to start:", error);
+      ui.notifications?.warn(loc("SD.Progression.View3DUnavailable"));
+      viewer.dispose();
+      if (this._tree3d === viewer) this._tree3d = null;
+      this._stView = "grid";
+      saveSkilltreeView("grid");
+      this.render();
+    });
+  }
+
   _resolvePreview(ref) {
     if (!ref) return null;
     const parts = String(ref).split(":");
@@ -1283,15 +1379,73 @@ export class ProgressionApp extends ApplicationV2 {
   _refreshPreviewPane() {
     const root = this.element?.querySelector(".sd-prog-preview");
     if (!root) return;
-    const payload = this._pinnedPreview ?? this._hoverPreview;
-    root.dataset.pinned = this._pinnedPreview ? "1" : "0";
-    root.innerHTML = this._renderPreviewInner(payload);
-    this._wirePreviewPaneEvents(root);
+    const pinned = this._pinnedPreview;
+    root.dataset.pinned = pinned ? "1" : "0";
+    root.hidden = !pinned;
+    if (pinned) {
+      root.innerHTML = `<button type="button" class="sd-drawer-close" data-action="closeDrawer" title="${"Close"}"><i class="fas fa-times"></i></button>` + this._renderPreviewInner(pinned);
+      this._wirePreviewPaneEvents(root);
+    } else root.innerHTML = "";
+    this._refreshHoverCard();
+  }
+
+  /** Compact hover card near the pointer; the full preview lives in the pinned drawer. */
+  _refreshHoverCard() {
+    const card = this.element?.querySelector(".sd-prog-hovercard");
+    if (!card) return;
+    const payload = this._pinnedPreview ? null : this._hoverPreview;
+    if (!payload) { card.hidden = true; return; }
+    card.innerHTML = this._renderHoverCard(payload);
+    card.hidden = false;
+    this._positionHoverCard(card);
+  }
+
+  _positionHoverCard(card) {
+    const host = this.element?.querySelector(".sd-prog-main");
+    const anchor = this._hoverAnchor;
+    if (!host || !anchor) return;
+    const hr = host.getBoundingClientRect();
+    const w = card.offsetWidth || 260, h = card.offsetHeight || 120;
+    let x = anchor.x - hr.left + 14, y = anchor.y - hr.top + 14;
+    if (x + w > hr.width - 8) x = anchor.x - hr.left - w - 14;
+    if (y + h > hr.height - 8) y = Math.max(8, hr.height - h - 8);
+    card.style.left = `${Math.max(8, x)}px`;
+    card.style.top = `${Math.max(8, y)}px`;
+  }
+
+  _renderHoverCard(payload) {
+    const strip = html => String(html ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    let title = "", sub = "", img = "", lines = [], desc = "";
+    if (payload.kind === "node") {
+      const n = payload.data, count = this._state.acquiredNodes?.[n.id] ?? 0;
+      title = n.label || n.item?.name || "Node"; img = n.item?.img || ""; sub = n.item?.type || "";
+      if ((n.cost ?? 1) > 0) lines.push(`<i class="fas fa-star"></i> ${n.cost ?? 1} ${loc("SD.Progression.SkillPoints")}`);
+      if ((n.maxAcquire ?? 1) > 1) lines.push(`${count}/${n.maxAcquire}`);
+      if (n.effects?.length) lines.push(`<i class="fas fa-magic"></i> ${n.effects.length}`);
+      if (n.fieldChanges?.length) lines.push(`<i class="fas fa-sliders-h"></i> ${n.fieldChanges.length}`);
+      desc = strip(n.item?.system?.description ?? "");
+    } else if (payload.kind === "item") {
+      title = payload.label || payload.data?.name || "Item"; img = payload.data?.img || ""; sub = payload.subtitle || payload.data?.type || "";
+      desc = strip(payload.data?.system?.description ?? "");
+    } else if (payload.kind === "effect") {
+      title = payload.label || payload.data?.name || "Effect"; img = payload.data?.img || payload.data?.icon || ""; sub = "Effect";
+      lines.push(`${(payload.data?.changes ?? []).length} ${loc("SD.Progression.Changes") || "changes"}`);
+    } else if (payload.kind === "fc") {
+      title = payload.label || "Field change"; sub = `${payload.data?.mode ?? "add"} ${payload.data?.value ?? ""}`;
+    }
+    if (desc.length > 160) desc = `${desc.slice(0, 157)}…`;
+    return `<div class="sd-tooltip-hdr">
+        ${img ? `<img src="${e(img)}" alt="">` : `<i class="fas fa-star"></i>`}
+        <div><div class="sd-tooltip-title">${e(title)}</div>${sub ? `<div class="sd-tooltip-sub">${e(sub)}</div>` : ""}</div>
+      </div>
+      ${lines.length ? `<div class="sd-tooltip-meta">${lines.map(l => `<span>${l}</span>`).join("")}</div>` : ""}
+      ${desc ? `<div class="sd-tooltip-desc">${e(desc)}</div>` : ""}
+      <div class="sd-tooltip-foot">${loc("SD.Progression.HoverFoot")}</div>`;
   }
 
   _wirePreviewPaneEvents(root) {
-    const unpin = root.querySelector("[data-action='unpinPreview']");
-    if (unpin) unpin.addEventListener("click", ev => { ev.stopPropagation(); this._pinnedPreview = null; this._refreshPreviewPane(); });
+    root.querySelectorAll("[data-action='unpinPreview'],[data-action='closeDrawer']").forEach(btn =>
+      btn.addEventListener("click", ev => { ev.stopPropagation(); this._pinnedPreview = null; this._refreshPreviewPane(); }));
 
     root.querySelectorAll("[data-preview-tab-id]").forEach(btn => {
       btn.addEventListener("click", ev => {
@@ -1313,12 +1467,18 @@ export class ProgressionApp extends ApplicationV2 {
     };
 
     el.querySelectorAll("[data-preview-ref]").forEach(node => {
-      node.addEventListener("mouseenter", () => {
+      node.addEventListener("mouseenter", ev => {
         if (this._pinnedPreview) return;
         const payload = this._resolvePreview(node.dataset.previewRef);
         if (!samePayload(this._hoverPreview, payload)) this._previewTabId = null;
         this._hoverPreview = payload;
+        this._hoverAnchor = { x: ev.clientX, y: ev.clientY };
         refresh();
+      });
+      node.addEventListener("mousemove", ev => {
+        this._hoverAnchor = { x: ev.clientX, y: ev.clientY };
+        const card = this.element?.querySelector(".sd-prog-hovercard");
+        if (card && !card.hidden) this._positionHoverCard(card);
       });
       node.addEventListener("mouseleave", () => {
         if (this._pinnedPreview) return;
@@ -1349,6 +1509,23 @@ export class ProgressionApp extends ApplicationV2 {
 
   _onRender(context, options) {
     const el = this.element;
+
+    const slot3d = el.querySelector("[data-st-3d]");
+    if (slot3d) {
+      this._mount3D(slot3d);
+      slot3d.addEventListener("pointermove", ev => {
+        this._hoverAnchor = { x: ev.clientX, y: ev.clientY };
+        const card = el.querySelector(".sd-prog-hovercard");
+        if (card && !card.hidden) this._positionHoverCard(card);
+      });
+    }
+    el.querySelectorAll("[data-action='selectTrackSelect']").forEach(sel => sel.addEventListener("change", async () => {
+      this._activeTabId = sel.value;
+      const cfg = dc(this._config); cfg.activeTabId = sel.value;
+      await this._actor.setFlag("sd", "progression.config", cfg).catch(() => {});
+      this.render();
+    }));
+    el.querySelectorAll(".sd-prog-track-name").forEach(inp => inp.addEventListener("click", ev => ev.stopPropagation()));
 
     el.querySelectorAll(".sd-prog-tab[data-tab]").forEach(btn =>
       btn.addEventListener("click", () => { this._tab = btn.dataset.tab; this.render(); })
@@ -1564,6 +1741,36 @@ export class ProgressionApp extends ApplicationV2 {
         if (!isGM) return;
         this._editMode = !this._editMode;
         this.render();
+        break;
+
+      case "setEdit":
+        if (!isGM) return;
+        this._editMode = target.dataset.edit === "1";
+        if (!this._editMode) { this._settingsOpen = false; this._connectFrom = null; }
+        this.render();
+        break;
+
+      case "toggleSettings":
+        this._settingsOpen = !this._settingsOpen;
+        this.render();
+        break;
+
+      case "closeDrawer":
+        this._pinnedPreview = null;
+        this._refreshPreviewPane();
+        break;
+
+      case "stView": {
+        const view = target.dataset.view === "3d" ? "3d" : "grid";
+        if (view === this._stView) return;
+        this._stView = view;
+        await saveSkilltreeView(view);
+        this.render();
+        break;
+      }
+
+      case "st3dReset":
+        this._tree3d?.resetView();
         break;
 
       case "addLevel":
@@ -2631,6 +2838,8 @@ export class ProgressionApp extends ApplicationV2 {
 
   async close(options) {
     ProgressionApp._instances.delete(this._actor?.id);
+    this._tree3d?.dispose();
+    this._tree3d = null;
     return super.close(options);
   }
 }

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>3D skill tree browser tests</title>
+<link rel="stylesheet" href="../styles/system.css">
+<link rel="stylesheet" href="../styles/skilltree-3d.css">
+<style>
+body { margin:24px; background:#101620; color:#e4eaf4; font:14px system-ui; }
+.sd-prog-left { width:900px; height:600px; border:1px solid #52647e; border-radius:8px; overflow:hidden; }
+pre { white-space:pre-wrap; }
+</style>
+<h1>System Director · 3D skill tree</h1>
+<pre id="result">RUNNING</pre>
+<div class="sd sd-prog-left">
+  <div class="sd-prog-skilltree">
+    <div class="sd-prog-st-3d" id="host">
+      <div class="sd-prog-st-3d-tools"><button type="button" id="reset" title="Reset camera"><i class="fas fa-crosshairs"></i></button></div>
+      <div class="sd-prog-st-3d-hint">Drag to rotate · wheel to zoom · click a glowing node to acquire</div>
+    </div>
+  </div>
+</div>
+<script type="module" src="./test-skilltree-3d-browser.mjs"></script>
+</html>

@@ -1,0 +1,98 @@
+<!doctype html><html><meta charset="utf-8"><title>Progression 3D skill tree browser tests</title>
+<!-- ProgressionApp with Foundry stubbed; real WebGL/Three.js. Exercises the grid/3D toggle, canvas reuse across renders, acquire flow and disposal. -->
+<link rel="stylesheet" href="../styles/system.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><link rel="stylesheet" href="../styles/editor-shell.css"><link rel="stylesheet" href="../styles/skilltree-3d.css">
+<style>body{background:#111;color:#eee;margin:16px}.application{width:1080px;height:620px;display:flex;flex-direction:column;border:1px solid #444}.window-content{flex:1;min-height:0;display:flex;flex-direction:column}</style>
+<pre id="result">RUNNING</pre>
+<script type="module">
+const noop=()=>{};
+const deep=(o)=>JSON.parse(JSON.stringify(o));
+globalThis.Hooks={once:noop,on:noop,call:noop,callAll:noop};
+globalThis.CONFIG={SD:{},Item:{documentClass:class{}},Actor:{documentClass:class{}}};
+globalThis.ui={notifications:{info:noop,warn:m=>console.warn(m),error:m=>console.error(m)}};
+class ApplicationV2{constructor(o={}){this.options=foundry.utils.mergeObject(deep(this.constructor.DEFAULT_OPTIONS??{}),o);this.rendered=false;}
+  async render(){this.rendered=true;if(!this.element){this.element=document.createElement('section');this.element.className='application sd sd-progression-app';const c=document.createElement('div');c.className='window-content';this.element.append(c);document.body.append(this.element);}
+    const content=this.element.querySelector('.window-content');const html=await this._renderHTML({},{});this._replaceHTML(html,content,{});this._onRender({},{});return this;}
+  bringToFront(){} async close(){this.element?.remove();this.rendered=false;}}
+const shots=new URLSearchParams(location.search).has('shots');
+const settings=new Map([["sd.skilltreeView3d",!shots]]);
+globalThis.foundry={applications:{api:{ApplicationV2,DialogV2:{confirm:async()=>true,prompt:async()=>""}}},utils:{
+  randomID:(n=16)=>Math.random().toString(36).slice(2,2+n),deepClone:deep,mergeObject:(a,b)=>Object.assign(a??{},b??{}),
+  getProperty:(o,p)=>String(p).split('.').reduce((v,k)=>v?.[k],o),setProperty:(o,p,v)=>{const ks=p.split('.');let c=o;for(const k of ks.slice(0,-1)){c[k]??={};c=c[k];}c[ks.at(-1)]=v;return true;},
+  getRoute:p=>'/'+p,expandObject:o=>o,flattenObject:o=>o,isEmpty:o=>!o||!Object.keys(o).length}};
+globalThis.game={i18n:{lang:'en',localize:k=>k.split('.').pop(),format:k=>k},user:{isGM:true},settings:{get:(ns,k)=>settings.get(ns+'.'+k),set:async(ns,k,v)=>settings.set(ns+'.'+k,v)},actors:[],items:[],system:{id:'sd'}};
+globalThis.Actor=class{};globalThis.Item=class{};
+const st={cols:6,rows:4,nodes:[
+  {id:'root',col:0,row:1,label:'Core',item:{name:'Core',img:'',type:'ability',system:{}},cost:0,maxAcquire:1,effects:[],fieldChanges:[],color:''},
+  {id:'a',col:2,row:0,label:'Strike',item:null,cost:1,maxAcquire:1,effects:[],fieldChanges:[],color:'#ff7a3d'},
+  {id:'b',col:2,row:2,label:'Guard',item:null,cost:1,maxAcquire:2,effects:[],fieldChanges:[],color:''},
+  {id:'c',col:4,row:0,label:'Fury',item:null,cost:2,maxAcquire:1,effects:[],fieldChanges:[],color:''}],
+  connections:[{from:'root',to:'a'},{from:'root',to:'b'},{from:'a',to:'c'}]};
+const flags={sd:{'progression.config':{tabs:[{id:'t1',name:'Main',classItemId:null,skilltreeItemId:null,inlineLevels:[],inlineSkilltree:st,skillPointsValueId:'',skillPointsMaxId:''}],activeTabId:'t1'},'progression.state':{acquiredNodes:{root:1}}}};
+const actor={id:'A1',name:'Hero',items:{get:()=>null,filter:()=>[],map:()=>[]},system:{},flags,
+  getFlag:(s,k)=>flags[s]?.[k],setFlag:async(s,k,v)=>{(flags[s]??={})[k]=v;},unsetFlag:async(s,k)=>{delete flags[s]?.[k];},update:async(u)=>{for(const[k,v]of Object.entries(u))foundry.utils.setProperty(actor,k,v);},createEmbeddedDocuments:async()=>[]};
+const out=[];const ok=(c,m)=>{if(!c)throw new Error(m);out.push('✔ '+m);};
+try{
+  const {ProgressionApp}=await import('../module/helpers/progression-app.mjs');
+  const app=globalThis.app=ProgressionApp.open(actor);
+  await new Promise(r=>setTimeout(r,50));
+  app._tab='skilltree'; await app.render();
+  if(shots){ // screenshot mode: view → edit → hover card, driven from the runner
+    const wait=k=>new Promise(r=>{globalThis[k]=r;});
+    globalThis.__gridReady=true; await wait('__go');
+    app.element.querySelector('[data-action="setEdit"][data-edit="1"]').click(); await new Promise(r=>setTimeout(r,300));
+    app.element.querySelector('[data-action="toggleSettings"]').click(); await new Promise(r=>setTimeout(r,300));
+    globalThis.__editReady=true; await wait('__go2');
+    app.element.querySelector('[data-action="setEdit"][data-edit="0"]').click(); await new Promise(r=>setTimeout(r,300));
+    app._hoverPreview=app._resolvePreview('node:a'); const el=app.element.querySelector('[data-node-id="a"]').getBoundingClientRect(); app._hoverAnchor={x:el.right-10,y:el.bottom-10}; app._refreshPreviewPane();
+    await new Promise(r=>setTimeout(r,200)); globalThis.__hoverReady=true; await new Promise(()=>{});
+  }
+  ok(app.element.querySelector('[data-st-3d]'),'3D slot rendered when setting is on');
+  ok(app.element.querySelector('.sd-prog-st-view button[data-view="3d"].active'),'3D toggle marked active');
+  await new Promise(r=>setTimeout(r,800));
+  ok(app._tree3d?.renderer&&app.element.querySelector('[data-st-3d] canvas'),'WebGL canvas mounted inside the app');
+  ok(app._tree3d.nodeObjects.size===4&&app._tree3d.beams.length===3,'tree data flows from actor flags into the viewer');
+  ok(app._tree3d.nodeObjects.get('root').userData.status==='acquired'&&app._tree3d.nodeObjects.get('a').userData.status==='available'&&app._tree3d.nodeObjects.get('c').userData.status==='locked','statuses mirror progression state');
+  const viewer=app._tree3d; const canvas=viewer.renderer.domElement;
+  await app.render();
+  ok(app._tree3d===viewer&&!viewer.disposed&&app.element.contains(canvas)&&viewer.container===app.element.querySelector('[data-st-3d]'),'re-render keeps the same viewer and re-attaches the canvas');
+  // Acquire via 3D click callback path (SP=0 so not affordable → pins preview instead)
+  await viewer.callbacks.onSelect('a');
+  ok(app._pinnedPreview?.data?.id==='a','clicking a non-affordable node pins its preview');
+  const drawer=app.element.querySelector('.sd-prog-preview');
+  ok(!drawer.hidden&&drawer.textContent.includes('Strike'),'pinned drawer shows the node');
+  drawer.querySelector('[data-action="closeDrawer"]').click(); await new Promise(r=>setTimeout(r,20));
+  ok(drawer.hidden&&!app._pinnedPreview,'drawer close button unpins');
+  app._hoverPreview=app._resolvePreview('node:b'); app._hoverAnchor={x:300,y:300}; app._refreshPreviewPane();
+  const card=app.element.querySelector('.sd-prog-hovercard');
+  ok(!card.hidden&&card.textContent.includes('Guard')&&card.textContent.includes('0/2'),'hover card shows label and rank');
+  app._hoverPreview=null; app._refreshPreviewPane(); ok(card.hidden,'hover card hides');
+  ok(app.element.querySelectorAll('.sd-toolbar').length===1&&!app.element.querySelector('.sd-prog-st-toolbar'),'single toolbar');
+  app.element.querySelector('[data-action="setEdit"][data-edit="1"]').click(); await new Promise(r=>setTimeout(r,600));
+  ok(app._editMode&&app.element.querySelector('[data-action="toggleSettings"]'),'edit segment switches to editor and shows settings gear');
+  app.element.querySelector('[data-action="toggleSettings"]').click(); await new Promise(r=>setTimeout(r,600));
+  ok(app.element.querySelector('.sd-prog-settings select[data-action="spSetValueVariable"]')&&app.element.querySelector('.sd-prog-settings [data-action="stSetCols"]'),'settings popover holds SP variables and grid size');
+  app.element.querySelector('[data-action="setEdit"][data-edit="0"]').click(); await new Promise(r=>setTimeout(r,600));
+  ok(!app._editMode&&!app.element.querySelector('.sd-prog-settings'),'back to view mode closes settings');
+  // Give SP and acquire
+  foundry.utils.setProperty(actor,'system.sp',5); app._getActiveTab; 
+  const tab=app._getActiveTab(); 
+  // emulate configured SP path via override
+  Object.defineProperty(app,'_spValuePath',{get:()=>'system.sp'});
+  await viewer.callbacks.onSelect('a');
+  await new Promise(r=>setTimeout(r,50));
+  ok(flags.sd['progression.state'].acquiredNodes.a===1&&actor.system.sp===4,'3D click acquires the node and spends points');
+  ok(viewer.nodeObjects.get('a').userData.status==='acquired'&&viewer.nodeObjects.get('c').userData.status==='available'&&viewer.flash.has('a'),'viewer updated in place with acquire flash');
+  globalThis.__shotReady=true; await new Promise(r=>setTimeout(r,1200));
+  // Switch to grid
+  app.element.querySelector('button[data-view="grid"]').click();
+  await new Promise(r=>setTimeout(r,100));
+  ok(!app._tree3d&&viewer.disposed&&!app.element.querySelector('canvas'),'switching to grid disposes the viewer');
+  ok(app.element.querySelectorAll('.sd-prog-st-node').length===4&&settings.get('sd.skilltreeView3d')===false,'grid view renders nodes and the preference is saved');
+  app.element.querySelector('button[data-view="3d"]').click();
+  await new Promise(r=>setTimeout(r,800));
+  ok(app._tree3d?.renderer&&app.element.querySelector('canvas'),'switching back to 3D mounts a fresh viewer');
+  await app.close(); ok(app._tree3d===null,'close disposes the viewer');
+  document.title='PASS';
+}catch(e){console.error(e);out.push('✘ '+e.message);document.title='FAIL';}
+document.getElementById('result').textContent=out.join('\n');
+</script></html>

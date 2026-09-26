@@ -1,0 +1,66 @@
+<!doctype html><html><meta charset="utf-8"><title>Item sheet 3D skill tree browser tests</title>
+<!-- Calls SDItemSheet's skill tree panel builder on a stub sheet; Foundry is stubbed, WebGL/Three.js are real. -->
+<link rel="stylesheet" href="../styles/system.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><link rel="stylesheet" href="../styles/editor-shell.css"><link rel="stylesheet" href="../styles/skilltree-3d.css">
+<style>body{background:#111;color:#eee;margin:16px}#sheet{width:820px;height:560px;display:flex;flex-direction:column;border:1px solid #444}</style>
+<pre id="result">RUNNING</pre>
+<div id="sheet" class="sd"></div>
+<script type="module">
+const noop=()=>{};const deep=o=>JSON.parse(JSON.stringify(o));
+globalThis.Hooks={once:noop,on:noop,call:noop,callAll:noop};
+globalThis.CONFIG={SD:{},Item:{documentClass:class{}},Actor:{documentClass:class{}},ActiveEffect:{documentClass:class{}}};
+globalThis.ui={notifications:{info:noop,warn:m=>console.warn(m),error:m=>console.error(m)}};
+class Base{constructor(o={}){this.options=o;}} 
+globalThis.foundry={applications:{api:{ApplicationV2:Base,HandlebarsApplicationMixin:c=>c,DialogV2:{confirm:async()=>true,prompt:async()=>true}},sheets:{ItemSheetV2:Base,ActorSheetV2:Base},ux:{TextEditor:{}}},
+  utils:{randomID:(n=16)=>Math.random().toString(36).slice(2,2+n),deepClone:deep,mergeObject:(a,b)=>Object.assign(a??{},b??{}),
+  getProperty:(o,p)=>String(p).split('.').reduce((v,k)=>v?.[k],o),setProperty:()=>true,getRoute:p=>'/'+p,expandObject:o=>o,flattenObject:o=>o,isEmpty:o=>!o||!Object.keys(o).length,debounce:f=>f},
+  data:{fields:new Proxy({},{get:()=>class{constructor(){}}})},abstract:{TypeDataModel:class{}}};
+const settings=new Map([["sd.skilltreeView3d",true]]);
+globalThis.game={i18n:{lang:'en',localize:k=>k.split('.').pop(),format:k=>k},user:{isGM:true},settings:{get:(ns,k)=>settings.get(ns+'.'+k),set:async(ns,k,v)=>settings.set(ns+'.'+k,v),register:noop},actors:[],items:[],system:{id:'sd'}};
+globalThis.Actor=class{};globalThis.Item=class{};globalThis.ActiveEffect=class{};globalThis.TextEditor={getDragEventData:()=>null};globalThis.fromUuid=async()=>null;
+const out=[];const ok=(c,m)=>{if(!c)throw new Error(m);out.push('✔ '+m);};
+try{
+  const {SDItemSheet}=await import('../module/sheets/item-sheet.mjs');
+  const doc={type:'skilltree',name:'Tree',parent:null,system:{cols:6,rows:4,nodes:[
+    {id:'root',col:0,row:1,label:'Core',item:{name:'Core',img:'',type:'ability'},cost:0,maxAcquire:1,color:''},
+    {id:'a',col:2,row:0,label:'Strike',item:null,cost:1,maxAcquire:1,color:'#ff7a3d'},
+    {id:'b',col:2,row:2,label:'Guard',item:null,cost:1,maxAcquire:2,color:''}],
+    connections:[{from:'root',to:'a'},{from:'root',to:'b'}]},
+    update:async u=>{for(const[k,v]of Object.entries(u))foundry.utils.setProperty(doc,k,v);if(u['system.connections'])doc.system.connections=u['system.connections'];sheet.render();}};
+  const host=document.getElementById('sheet');
+  const sheet=Object.create(SDItemSheet.prototype);
+  Object.assign(sheet,{document:doc,isEditable:true,_editMode:false,_e:s=>String(s??'').replace(/"/g,'&quot;').replace(/</g,'&lt;'),
+    render(){host.innerHTML='';host.appendChild(this._buildSkilltreePanel(true));}});
+  sheet.render();
+  ok(host.querySelector('.sd-prog-st-view button[data-st-view="3d"].active'),'3D toggle is active from the client setting');
+  ok(host.querySelector('.sd-prog-st-3d'),'3D host rendered instead of the grid');
+  await new Promise(r=>setTimeout(r,900));
+  ok(sheet._tree3d?.renderer&&host.querySelector('canvas'),'viewer mounted inside the item sheet panel');
+  ok(sheet._tree3d.nodeObjects.size===3&&sheet._tree3d.beams.length===2,'item nodes and connections are shown');
+  ok(sheet._tree3d.nodeObjects.get('root').position.length()<1e-6,'root node at the centre');
+  const viewer=sheet._tree3d;
+  // right-click on an item-less node starts connect mode; click on another creates connection
+  await viewer.callbacks.onContext('a');
+  ok(sheet._st3dConnectFrom==='a'&&viewer.nodeObjects.get('a').userData.ring,'right-click arms connect mode with a highlighted ring');
+  await viewer.callbacks.onSelect('b');
+  await new Promise(r=>setTimeout(r,100));
+  ok(doc.system.connections.some(c=>c.from==='a'&&c.to==='b'),'clicking a destination creates the connection');
+  ok(sheet._tree3d===viewer&&!viewer.disposed&&host.contains(viewer.renderer.domElement)&&viewer.beams.length===3,'re-render after update keeps the viewer and shows the new beam');
+  await new Promise(r=>setTimeout(r,1500));
+  // Toolbar Connect: arm → first click picks source → second click connects.
+  host.querySelector('#st-connect-btn').click();
+  ok(sheet._st3dArm===true&&host.querySelector('#st-connect-btn').textContent.includes('Cancel'),'Connect button arms connect mode');
+  await sheet._tree3d.callbacks.onSelect('b'); ok(sheet._st3dConnectFrom==='b'&&!sheet._st3dArm,'first click picks the source node');
+  await sheet._tree3d.callbacks.onSelect('root'); await new Promise(r=>setTimeout(r,100));
+  ok(doc.system.connections.some(c=>c.from==='b'&&c.to==='root')&&!sheet._st3dConnectFrom,'second click creates the connection');
+  host.querySelector('button[data-st-view="grid"]').click();
+  await new Promise(r=>setTimeout(r,100));
+  ok(viewer.disposed&&!host.querySelector('canvas')&&host.querySelectorAll('div[data-node-id]').length===3,'switching to grid disposes the viewer and renders grid nodes');
+  ok(settings.get('sd.skilltreeView3d')===false,'preference saved');
+  ok(host.querySelectorAll('.sd-toolbar').length===1&&host.querySelector('#st-connect-btn.sd-btn'),'grid mode uses the shell toolbar');
+  host.querySelector('#st-settings-btn').click();await new Promise(r=>setTimeout(r,50));
+  ok(host.querySelector('.sd-popover #st-cols'),'grid size lives in the settings popover');
+  globalThis.__gridShot=true;await new Promise(r=>setTimeout(r,400));
+  document.title='PASS';
+}catch(e){console.error(e);out.push('✘ '+e.message);document.title='FAIL';}
+document.getElementById('result').textContent=out.join('\n');
+</script></html>

@@ -28,6 +28,22 @@ try{
  g._redo();assert(g._nodeById('n0').x===saved+150,'Redo stale cache');checkPins(g);checks.push('Undo/Redo with unchanged IDs and node count');
  g._startConn('n0','v',false,{},'value.number');const line=g._conn.line;g._doConn({clientX:600,clientY:350});g._redrawEdges();
  assert(line.isConnected&&line.getAttribute('d'),'Connection preview lost');line.remove();g._conn=null;g._pendingConnectionPoint=null;checks.push('Connection preview survives redraw');
+ { // Delegated handlers: header mousedown starts a drag, pin mousedown starts a connection, .ndel deletes.
+   const hdr=v.elements.get('n1').querySelector('.gnhdr');hdr.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0,clientX:10,clientY:10}));
+   assert(g._drag?.nodeId==='n1'&&g._selected.has('n1'),'Delegated header drag not started');g._drag=null;
+   const outPin=v.elements.get('n1').querySelector('.gpin[data-side="output"]');outPin.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0,clientX:20,clientY:20}));
+   assert(g._conn?.fromNode==='n1','Delegated pin mousedown did not start a connection');g._conn?.line?.remove();g._conn=null;g._pendingConnectionPoint=null;
+   outPin.dispatchEvent(new PointerEvent('pointerover',{bubbles:true}));assert(outPin.classList.contains('is-hovered')&&/pin/.test(outPin.title),'Delegated hover state missing');
+   outPin.dispatchEvent(new PointerEvent('pointerout',{bubbles:true}));assert(!outPin.classList.contains('is-hovered'),'Hover state not cleared');
+   const total=g.nodes.length;g.nodes.push({id:'tmpdel',type:'literal',x:900,y:900,data:{value:1}});g._renderNode(g.nodes.at(-1));
+   v.elements.get('tmpdel').querySelector('.ndel').dispatchEvent(new MouseEvent('click',{bubbles:true}));assert(g.nodes.length===total,'Delegated delete did not remove the node');
+   assert(g.nodesEl._sdDelegated===g,'Delegation installed once on the nodes root');
+   const ctl=v.elements.get('n2').querySelector('input,select');let reached=false;const spy=()=>{reached=true;};g.nodesEl.parentElement.addEventListener('mousedown',spy);
+   ctl.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));g.nodesEl.parentElement.removeEventListener('mousedown',spy);
+   assert(!reached&&!g._drag,'Control mousedown must not bubble into pan/drag');
+   assert(ctl.classList.contains('gn-ctl')&&!ctl.getAttribute('style')?.includes('background'),'Controls styled by class, not inline');
+   checks.push('Delegated node/pin interaction (drag, connect, hover, delete)');
+ }
  const len=g.edges.length;g.edgeSVG.querySelector('[data-eid="e0"]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));g._redrawEdges();
  assert(g.edges.length===len-1&&!v.paths.has('e0'),'Edge deletion or cache cleanup failed');checks.push('Double-click disconnect and pool cleanup');
  assert(graphEdgeVisible({x:2200,y:30},{x:1170,y:60},1000,680),'Backwards loop wrongly culled');
@@ -46,7 +62,7 @@ try{
  for(let i=0;i<60;i++)f._scheduleEdges(false);await pause(100);assert(draws===1&&previews===0,'Viewport events not batched or compiled unnecessarily');
  f._scheduleEdges(true);await pause(220);assert(previews===1,'Data change did not compile');const d=draws;f._scheduleEdges(true);f.close();await pause(180);
  assert(draws===d&&previews===1,'Queued work survived closing');checks.push('Frame batching, semantic-only preview and timer cancellation');
- const big=fixture(FormulaGraph,300);big._zoom=.15;big._renderAll();await pause();big._redrawEdges();
+ const big=fixture(FormulaGraph,300);big._zoom=.15;big._renderAll();await pause();big._getGraphView().mountAll();big._redrawEdges();
  const bv=big._getGraphView();let changed=0;const originalBez=big._bez;
  big._bez=function(...args){changed++;return originalBez.apply(this,args);};
  big.nodes[5].x+=10;bv.moveNode(big.nodes[5]);big._redrawEdges();
