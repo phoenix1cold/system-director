@@ -128,22 +128,24 @@ function describeShape(shape, grid) {
 }
 
 /** Snapshot of the Region currently selected on the canvas (same data as the AOE Template Saver node). */
-export function snapshotSelectedRegion() {
-  const layer = globalThis.canvas?.regions;
-  const placeable = layer?.controlled?.[0] ?? null;
-  const doc = placeable?.document ?? null;
+/** Portable preset of one RegionDocument, re-centred around the origin so it places under the cursor. */
+export function snapshotRegionDocument(doc) {
   if (!doc) return null;
   let raw = null;
   try { raw = doc.toObject?.(true) ?? doc.toObject?.() ?? null; } catch {}
   const shapes = Array.from(raw?.shapes ?? doc.shapes ?? []).map(shape => clone(shape?.toObject?.(true) ?? shape?.toObject?.() ?? shape));
   if (!shapes.length) return null;
-  // Re-centre around the origin so the preset places relative to the cursor.
   let sx = 0, sy = 0, n = 0;
   for (const shape of shapes) { const c = shapeCenter(shape); sx += c.x; sy += c.y; n++; }
   const cx = n ? sx / n : 0, cy = n ? sy / n : 0;
   for (const shape of shapes) moveShape(shape, -cx, -cy);
   return normalizeAoePreset({ kind:"region-v14", name:doc.name || "Region", shapes,
     appearance:{ color:String(doc.color ?? "#ff0000"), displayMeasurements:doc.displayMeasurements !== false } });
+}
+
+export function snapshotSelectedRegion() {
+  const placeable = globalThis.canvas?.regions?.controlled?.[0] ?? null;
+  return snapshotRegionDocument(placeable?.document ?? null);
 }
 
 /**
@@ -196,7 +198,7 @@ export function openAoePresetEditor(value = null, options = {}) {
         .sdae-btn{border:1px solid var(--sd-border,#3a4260);border-radius:7px;background:var(--sd-bg-2,#1d2235);color:var(--sd-text,#eee);padding:6px 10px;cursor:pointer;font:inherit;display:flex;align-items:center;gap:6px;justify-content:center}
         .sdae-btn.primary{background:var(--sd-accent,#7775ff);border-color:var(--sd-accent,#7775ff);color:#fff;font-weight:600}
         .sdae-btn:disabled{opacity:.4;cursor:default}
-        .sdae-foot{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--sd-border,#3a4260)}.sdae-foot .spacer{flex:1}
+        .sdae-foot{display:flex;gap:8px;padding:8px 30px 8px 12px;border-top:1px solid var(--sd-border,#3a4260)}.sdae-foot .spacer{flex:1}
         .sdae-tabs{display:flex;gap:4px;flex-wrap:wrap}.sdae-tab{padding:4px 9px;border-radius:6px;border:1px solid var(--sd-border,#3a4260);background:var(--sd-bg-2,#1d2235);cursor:pointer;color:var(--sd-text)}.sdae-tab.is-active{border-color:var(--sd-accent,#7775ff);color:var(--sd-accent,#9290ff)}
         .sdae-hint{font-size:10px;color:var(--sd-text-3,#8f96aa);line-height:1.4}
       </style>

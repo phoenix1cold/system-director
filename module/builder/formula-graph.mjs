@@ -2190,25 +2190,28 @@ export const NODE_DEFS = {
 
   act_set_initiative: {
     title:"Set Initiative", color:"#4a2a6a", cat:"Set Data",
-    desc:"Set or roll initiative for the target actor in the active combat. Mode `roll` rolls the system formula; `value` sets the exact number. If the actor isn't in combat, a combatant is created (only for the active combat). Mode can be fed via pin (UE-style: when wired the field hides).",
+    desc:"Set or roll initiative for the target actor in the active combat. Mode `roll` rolls the system formula (or a custom formula if provided); `value` sets the exact number. If the actor isn't in combat, a combatant is created (only for the active combat). Mode can be fed via pin (UE-style: when wired the field hides).",
     inputs:[
-      {id:"exec",   label:"",          type:"exec"},
-      {id:"target", label:"Target",    type:"value.actor"},
-      {id:"mode",   label:"Mode",      type:"value.string"},
-      {id:"value",  label:"Value",     type:"value.number"}
+      {id:"exec",    label:"",          type:"exec"},
+      {id:"target",  label:"Target",    type:"value.actor"},
+      {id:"mode",    label:"Mode",      type:"value.string"},
+      {id:"value",   label:"Value",     type:"value.number"},
+      {id:"formula", label:"Formula",   type:"value.string"}
     ],
     outputs:[{id:"exec", label:"", type:"exec"}],
     fields:[
-      {key:"target",label:"Target",type:"select",default:"actor",options:["self","actor","token_target","selected_token","all_targets"]},
-      {key:"mode",  label:"Mode",  type:"select",default:"roll", options:["roll","value"]},
-      {key:"value", label:"Value (mode=value)", type:"number", default:10}
+      {key:"target", label:"Target",type:"select",default:"actor",options:["self","actor","token_target","selected_token","all_targets"]},
+      {key:"mode",   label:"Mode",  type:"select",default:"roll", options:["roll","value"]},
+      {key:"value",  label:"Value (mode=value)", type:"number", default:10},
+      {key:"formula",label:"Formula (mode=roll)", type:"text", default:"", placeholder:"e.g. 1d20 + @dex.mod"}
     ],
     isAction:true,
     toAction:(n,inp)=>({
       type:   "setInitiative",
       target: inp.target ?? n.data.target ?? "actor",
       mode:   (inp.mode != null && inp.mode !== "") ? String(inp.mode) : (n.data.mode ?? "roll"),
-      value:  inp.value  ?? n.data.value  ?? 0
+      value:  inp.value  ?? n.data.value  ?? 0,
+      formula: (inp.formula != null && inp.formula !== "") ? inp.formula : (n.data.formula ?? "")
     })
   },
 
@@ -5275,11 +5278,13 @@ export const NODE_DEFS = {
 
   act_aura_definition: {
     title:"Aura Definition", color:"#39735b", cat:"Effects", wideNode:true,
-    desc:"Builds a portable Aura definition. It does not place anything or apply consequences; connect it to Place Aura.",
+    desc:"Builds a portable Aura definition. It does not place anything or apply consequences; connect it to Place Aura. Wire an AOE Template (from the Database or AOE Template Saver) to use its drawn shape instead of Shape / Size.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"owner",label:"Owner",type:"value.actor"},
-      {id:"size",label:"Size",type:"value.number"}
+      {id:"size",label:"Size",type:"value.number"},
+      {id:"template",label:"AOE Template",type:"value.aoe_template"},
+      {id:"templates",label:"Templates[]",type:"value.aoe_templates"}
     ],
     outputs:[
       {id:"exec",label:"Built →",type:"exec"},
@@ -5287,7 +5292,7 @@ export const NODE_DEFS = {
     ],
     fields:[
       {key:"name",label:"Name",type:"text",default:"Aura",noPin:true},
-      {key:"shape",label:"Shape",type:"select",default:"emanation",options:["emanation","circle","cone","ray","rect","ellipse"]},
+      {key:"shape",label:"Shape",type:"select",default:"emanation",options:["emanation","circle","cone","ray","rect","ellipse","template"]},
       {key:"size",label:"Size (ft)",type:"number",default:10},
       {key:"angle",label:"Cone angle",type:"number",default:53.13,noPin:true},
       {key:"owner",label:"Owner fallback",type:"select",default:"actor",options:["actor","selected_token","token_target"]},
@@ -5302,16 +5307,18 @@ export const NODE_DEFS = {
       size:inp.size??n.data.size??10,angle:n.data.angle??53.13,
       owner:(inp.owner!=null&&inp.owner!==""&&inp.owner!=="0")?inp.owner:(n.data.owner??"actor"),
       tickMode:n.data.tickMode??"onEnter",skipOwner:n.data.skipOwner!=="no",
-      rounds:Number(n.data.rounds??0)||0,auraKey:n.data.auraKey??"composable-aura"
+      rounds:Number(n.data.rounds??0)||0,auraKey:n.data.auraKey??"composable-aura",
+      template:(inp.template!=null&&inp.template!=="")?inp.template:((inp.templates!=null&&inp.templates!=="")?inp.templates:null)
     })
   },
 
   act_place_aura_zone: {
     title:"Place Aura", color:"#2f7d5c", cat:"Effects", wideNode:true,
-    desc:"Places an Aura definition on its owner. Each matching enter/turn event forwards a Token Pool to the downstream graph; it does not roll, damage, heal, or apply effects.",
+    desc:"Places an Aura definition on its owner. Each matching enter/turn event forwards a Token Pool to the downstream graph; it does not roll, damage, heal, or apply effects. An AOE Template wired here overrides the definition's shape.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
-      {id:"aura",label:"Aura",type:"value.object"}
+      {id:"aura",label:"Aura",type:"value.object"},
+      {id:"template",label:"AOE Template",type:"value.aoe_template"}
     ],
     outputs:[
       {id:"exec",label:"Token Event →",type:"exec"},
@@ -5319,7 +5326,7 @@ export const NODE_DEFS = {
       {id:"aura",label:"Placed Aura",type:"value.object"}
     ],
     fields:[],isAoeSave:true,
-    toAction:(n,inp)=>({type:"placeAuraComposite",definition:inp.aura??null})
+    toAction:(n,inp)=>({type:"placeAuraComposite",definition:inp.aura??null,template:(inp.template!=null&&inp.template!=="")?inp.template:null})
   },
 
   act_tokens_from_aura: {
@@ -8213,13 +8220,49 @@ for (const [legacyType, [newType]] of Object.entries(SCENE_PROPERTY_MIGRATIONS))
 
 (() => {
 
+  // Every editable field gets an input pin (UE-style: a wired pin hides the field).
+  // Select fields become Text pins, yes/no style selects and checkboxes become
+  // Boolean pins. Dynamic selects (options given as a function: database /
+  // variable / owned-item pickers) drive the node's own pin layout and stay
+  // field-only, as do fields flagged `noPin`.
   const _FIELD_PIN_TYPES = {
     text:     "value.any",
     textarea: "value.any",
     number:   "value.any",
-    path:     "value.any"
+    path:     "value.any",
+    color:    "value.string",
+    bool:     "value.bool",
+    toggle:   "value.bool",
+    checkbox: "value.bool",
+    "quest-id":              "value.string",
+    "subtask-id":            "value.string",
+    "reward-id":             "value.string",
+    "item-picker":           "value.string",
+    "widget-picker":         "value.string",
+    "widget-element-picker": "value.string",
+    "effect-picker":         "value.string",
+    "effect-uuid-picker":    "value.string"
   };
   const PIN_RESERVED = new Set(["exec"]);
+  const BOOL_TRUE  = new Set(["yes", "true", "on", "1", "enabled", "enable"]);
+  const BOOL_FALSE = new Set(["no", "false", "off", "0", "disabled", "disable"]);
+
+  const _optionValues = (f) => Array.isArray(f?.options)
+    ? f.options.map(o => (o !== null && typeof o === "object") ? String(o.value ?? "") : String(o ?? ""))
+    : null;
+  const _isBoolSelect = (f) => {
+    const vals = _optionValues(f);
+    if (!vals || vals.length !== 2) return false;
+    const lo = vals.map(v => v.toLowerCase());
+    return (BOOL_TRUE.has(lo[0]) && BOOL_FALSE.has(lo[1])) || (BOOL_FALSE.has(lo[0]) && BOOL_TRUE.has(lo[1]));
+  };
+  const _fieldPinType = (f) => {
+    if (f.type === "select") {
+      if (!Array.isArray(f.options)) return null;
+      return _isBoolSelect(f) ? "value.bool" : "value.string";
+    }
+    return _FIELD_PIN_TYPES[f.type] ?? null;
+  };
 
   for (const def of Object.values(NODE_DEFS)) {
     if (!Array.isArray(def?.fields)) continue;
@@ -8231,7 +8274,7 @@ for (const [legacyType, [newType]] of Object.entries(SCENE_PROPERTY_MIGRATIONS))
     for (const f of def.fields) {
       if (!f?.key) continue;
       if (f.noPin === true) continue;
-      const t = _FIELD_PIN_TYPES[f.type];
+      const t = _fieldPinType(f);
       if (!t) continue;
       if (PIN_RESERVED.has(f.key)) continue;
       if (existingInIds.has(f.key) || existingOutIds.has(f.key)) continue;
@@ -8253,6 +8296,32 @@ for (const [legacyType, [newType]] of Object.entries(SCENE_PROPERTY_MIGRATIONS))
     }
     return v;
   };
+  // Runtime tokens ({__rollTotal}, {sdValue:…}, …) are resolved by the executor,
+  // so only literal wired values are coerced here at compile time.
+  const _isRuntimeToken = (v) => typeof v === "string" && /\{[^{}]+\}/.test(v);
+  const _wiredBool = (v) => {
+    if (typeof v === "boolean") return v;
+    const s = String(v ?? "").trim().toLowerCase();
+    if (BOOL_FALSE.has(s)) return false;
+    if (BOOL_TRUE.has(s)) return true;
+    return coerceBool(v);
+  };
+  const _coerceWiredField = (f, v) => {
+    if (_isRuntimeToken(v)) return v;
+    if (f.type === "bool" || f.type === "toggle" || f.type === "checkbox") return _wiredBool(v);
+    if (f.type !== "select" || !Array.isArray(f.options)) return v;
+    const vals = _optionValues(f) ?? [];
+    const s = String(v ?? "").trim().toLowerCase();
+    const exact = vals.find(o => o.toLowerCase() === s);
+    if (exact !== undefined) return exact;
+    const byLabel = f.options.find(o => o !== null && typeof o === "object" && String(o.label ?? "").trim().toLowerCase() === s);
+    if (byLabel) return String(byLabel.value ?? "");
+    if (_isBoolSelect(f)) {
+      const want = _wiredBool(v);
+      return vals.find(o => BOOL_TRUE.has(o.toLowerCase()) === want) ?? v;
+    }
+    return v;
+  };
 
   const _overlayData = (def, n, inp) => {
     if (!Array.isArray(def?.fields)) return n;
@@ -8263,7 +8332,7 @@ for (const [legacyType, [newType]] of Object.entries(SCENE_PROPERTY_MIGRATIONS))
       const k = f?.key; if (!k) continue;
       const v = inp[k];
       if (v === undefined || v === null || v === "") continue;
-      data[k] = _unwrapWired(v);
+      data[k] = _coerceWiredField(f, _unwrapWired(v));
       touched = true;
     }
     return touched ? { ...n, data } : n;

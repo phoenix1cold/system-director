@@ -12,6 +12,26 @@ import { widgetVariables, widgetVarPath, coerceWidgetValue, widgetDataMode, widg
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { getLanguages, translationEditLanguage, setTranslationEditLanguage, localizedField, setLocalizedField, TRANSLATABLE_KEYS } from "../helpers/localization.mjs";
 
+/**
+ * Normalise one select option. Options may be plain strings or registry objects
+ * `{ value, label, fallback }` where `label` can be an i18n key; rendering the
+ * object itself produced "[object Object]".
+ */
+function _optionParts(option) {
+  if (option === null || option === undefined) return { value: "", label: "" };
+  if (typeof option !== "object") { const v = String(option); return { value: v, label: v }; }
+  const value = String(option.value ?? option.id ?? option.key ?? "");
+  let label = option.label ?? option.name ?? option.title ?? value;
+  const i18n = globalThis.game?.i18n;
+  if (typeof label === "string" && /^[A-Za-z0-9_.-]+\.[A-Za-z0-9_.-]+$/.test(label) && i18n?.localize) {
+    try {
+      const localized = i18n.has?.(label) ? i18n.localize(label) : i18n.localize(label);
+      label = (localized && localized !== label) ? localized : (option.fallback ?? value);
+    } catch { label = option.fallback ?? value; }
+  }
+  return { value, label: String(label ?? value) };
+}
+
 const SD_SLOT_TILE_ICON_PRESETS = [
   { name: "helmet",   label: "Helmet" },
   { name: "armor",    label: "Armor" },
@@ -111,6 +131,9 @@ for (const [type, def] of Object.entries(WIDGET_TYPES ?? {})) {
 for (const [type, variants] of Object.entries(WIDGET_VARIANTS)) {
   if (!variants?.length) continue;
   if (!Array.isArray(FIELD_DEFS[type])) FIELD_DEFS[type] = [];
+  // Widgets whose registry configFields already declare a Variant row keep that
+  // single row; adding a second one produced duplicated "Variant" selects.
+  if (FIELD_DEFS[type].some(row => Array.isArray(row) && row[1] === "variant")) continue;
   FIELD_DEFS[type].push(["Variant", "variant", "variant", variants]);
 }
 
@@ -561,16 +584,17 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         <label class="wcfg-lbl">${esc(lbl)}</label>
         <select data-field="${esc(key)}" data-ftype="select"
           style="${IS}">
-          ${opts.map(o => `<option value="${esc(o)}" ${String(cur)===String(o)?"selected":""}>${esc(o)}</option>`).join("")}
+          ${opts.map(o => { const { value, label } = _optionParts(o); return `<option value="${esc(value)}" ${String(cur)===String(value)?"selected":""}>${esc(label)}</option>`; }).join("")}
         </select>
       </div>`;
 
     if (type === "variant") {
       const i18n = globalThis.game?.i18n;
       const selected = String(cur || "default");
-      const renderOpt = id => {
+      const renderOpt = o => {
+        const { value: id, label: given } = _optionParts(o);
         const k = `SD.WidgetVariants.${w.type}.${id}`;
-        let label = id === "default" ? "Default" : id;
+        let label = given !== id ? given : (id === "default" ? "Default" : id);
         try {
           if (i18n?.has?.(k)) label = i18n.localize(k);
           else if (i18n?.localize) {

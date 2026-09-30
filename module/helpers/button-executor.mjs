@@ -1170,6 +1170,27 @@ export class ButtonExecutor {
       return formula;
     };
 
+    // Structured pins (AOE presets, arrays, objects) may arrive as one runtime
+    // token such as {sdValue:…} from Get Value. Resolve that single token to the
+    // raw object instead of letting the formula engine flatten it to text.
+    const _resolveStructuredPin = async (raw) => {
+      if (raw === undefined || raw === null) return raw;
+      const v = typeof raw === "string" ? _injectRuntime(raw) : raw;
+      if (typeof v !== "string") return v;
+      const t = v.trim();
+      const single = t.match(/^\{([^{}]+)\}$/);
+      if (single) {
+        try {
+          const { FormulaEngine } = await import("./formula-engine.mjs");
+          const r = FormulaEngine._resolveToken(single[1].trim().replace(/^raw:/, ""), item ?? actor ?? {});
+          if (r !== undefined && r !== null && typeof r === "object") return r;
+          if (typeof r === "string" && /^[\[{]/.test(r.trim())) { try { return JSON.parse(r); } catch {} }
+        } catch {}
+      }
+      if (/^[\[{]/.test(t)) { try { return JSON.parse(t); } catch {} }
+      return v;
+    };
+
     const _resolveBoolPin = async (v) => {
       if (v === undefined || v === null || v === "") return null;
       if (typeof v === "number")  return v !== 0;
@@ -1366,7 +1387,9 @@ export class ButtonExecutor {
         if(target.isOwner===false){ui.notifications?.warn?.(`You do not have permission to change "${target.name??"this document"}".`);break;}
         // Resolve the value pin first, then unwrap it: a Roll Result carries its
         // total, so stringifying it before injection used to yield [object Object].
-        let incoming=_injectRuntime(String(action.value??""));
+        // A single structured token (AOE preset from Get Value / Templates[], arrays,
+        // objects) is kept as an object so it is stored verbatim.
+        let incoming=await _resolveStructuredPin(action.value??"");
         if(incoming===null||incoming===undefined||typeof incoming!=="object"){
           const asText=String(incoming??"");
           try{
@@ -5397,16 +5420,27 @@ export class ButtonExecutor {
 
       case "buildAuraDefinition": {
         const owner = _sdStripQuotes(_injectRuntime(String(action.owner ?? "actor"))) || "actor";
+        // Optional drawn AOE preset (Database aoe_template(s), AOE Template Saver, Place AOE Template).
+        const _auraPresetOf = (raw) => {
+          const like = v => v && typeof v === "object" && Array.isArray(v.shapes) && v.shapes.length;
+          if (Array.isArray(raw)) return raw.find(like) ?? null;
+          return like(raw) ? raw : null;
+        };
+        const template = action.template != null && action.template !== "" ? _auraPresetOf(await _resolveStructuredPin(action.template)) : null;
+        let shape = String(action.shape ?? "emanation");
+        if (template) shape = "template";
+        else if (shape === "template") { ui.notifications?.warn?.("Aura Definition: Shape is 'template' but no AOE Template is connected — using emanation."); shape = "emanation"; }
         const definition = {
           name:String(_injectRuntime(String(action.name ?? "Aura"))),
-          shape:String(action.shape ?? "emanation"),
+          shape,
           size:Number(_injectRuntime(String(action.size ?? 10))) || 10,
           angle:Number(action.angle ?? 53.13) || 53.13,
           owner,
           tickMode:String(action.tickMode ?? "onEnter"),
           skipOwner:action.skipOwner !== false,
           rounds:Number(action.rounds ?? 0) || 0,
-          auraKey:String(action.auraKey ?? "composable-aura")
+          auraKey:String(action.auraKey ?? "composable-aura"),
+          template: template ? foundry.utils.deepClone(template) : null
         };
         runtime.__auraDefinition=definition;
         if(buttonDef)buttonDef.__auraDefinition=definition;
@@ -5426,10 +5460,18 @@ export class ButtonExecutor {
           break;
         }
         runtime.__auraDefinition=definition;
+        // A template wired directly into Place Aura overrides the definition's shape.
+        let auraTemplate = definition.template ?? null;
+        if (action.template != null && action.template !== "") {
+          const raw = await _resolveStructuredPin(action.template);
+          const like = v => v && typeof v === "object" && Array.isArray(v.shapes) && v.shapes.length;
+          const picked = Array.isArray(raw) ? raw.find(like) : (like(raw) ? raw : null);
+          if (picked) auraTemplate = picked;
+        }
         await this._runAction({
           type:"placeAuraTargets",
           name:definition.name ?? "Aura",
-          shape:definition.shape ?? "emanation",
+          shape:auraTemplate ? "template" : (definition.shape ?? "emanation"),
           size:definition.size ?? 10,
           angle:definition.angle ?? 53.13,
           owner:definition.owner ?? "actor",
@@ -5437,7 +5479,8 @@ export class ButtonExecutor {
           tickMode:definition.tickMode ?? "onEnter",
           skipOwner:definition.skipOwner !== false,
           rounds:Number(definition.rounds ?? 0) || 0,
-          definitionSnapshot:definition,
+          template:auraTemplate,
+          definitionSnapshot:{...definition, template:auraTemplate},
           postActions:action.postActions ?? []
         },item,actor,buttonDef,runtime);
         break;
@@ -5617,10 +5660,35 @@ export class ButtonExecutor {
           }
           if (!combatant) continue;
           if (action.mode === "value") {
-            const v = Number(action.value ?? 0) || 0;
+            const rawVal = _injectRuntime(String(action.value ?? "0"));
+            let v = 0;
+            try {
+              const { FormulaEngine } = await import("./formula-engine.mjs");
+              const resolved = FormulaEngine.resolveForRoll(rawVal, tActor ?? item ?? actor ?? {});
+              if (/\d*d\d+/i.test(resolved)) {
+                const r = new Roll(resolved, _sanitizeRollData(tActor?.getRollData?.() ?? actor?.getRollData?.() ?? {}));
+                await r.evaluate();
+                v = r.total;
+              } else {
+                v = Number(FormulaEngine.evaluate(resolved, tActor ?? item ?? actor)) || 0;
+              }
+            } catch { v = parseFloat(rawVal) || 0; }
             await combat.setInitiative(combatant.id, v);
           } else {
-            await combat.rollInitiative([combatant.id]);
+            const rawFormula = action.formula != null && action.formula !== ""
+              ? _injectRuntime(String(action.formula))
+              : "";
+            if (rawFormula) {
+              try {
+                const { FormulaEngine } = await import("./formula-engine.mjs");
+                const resolved = FormulaEngine.resolveForRoll(rawFormula, tActor ?? item ?? actor ?? {});
+                await combat.rollInitiative([combatant.id], { formula: resolved });
+              } catch {
+                await combat.rollInitiative([combatant.id]);
+              }
+            } else {
+              await combat.rollInitiative([combatant.id]);
+            }
           }
         }
         break;
@@ -5701,9 +5769,16 @@ export class ButtonExecutor {
         };
         const mode = modeMap[action.type] ?? action.mode ?? "effect";
 
-        const shape = shapeKind === "emanation"
-          ? buildEmanationShape(ownerToken.document, size)
-          : buildShape(shapeKind, size, Number(action.angle ?? 53.13));
+        // A drawn AOE preset (Database aoe_template, AOE Template Saver, Place AOE Template)
+        // replaces the generated shape; its shapes are stored relative to the origin, like ours.
+        const auraPreset = action.template && typeof action.template === "object" && Array.isArray(action.template.shapes)
+          ? action.template : null;
+        const presetShapes = auraPreset ? auraPreset.shapes.filter(s => s && typeof s === "object" && s.type) : [];
+        const auraAppearance = presetShapes.length ? (auraPreset.appearance ?? {}) : {};
+        const shape = presetShapes.length ? null
+          : shapeKind === "emanation"
+            ? buildEmanationShape(ownerToken.document, size)
+            : buildShape(shapeKind === "template" ? "circle" : shapeKind, size, Number(action.angle ?? 53.13));
 
         const applyEffect = {
           mode,
@@ -5754,6 +5829,8 @@ export class ButtonExecutor {
           const auraRegion = await placeAuraRegion({
             ownerToken,
             shape,
+            shapes: presetShapes.length ? presetShapes : null,
+            appearance: auraAppearance,
             name: effName || "SD Aura",
             flags: {
               sd: {
@@ -6657,7 +6734,9 @@ export class ButtonExecutor {
       const isAoe=isSpell ? await boolValue(action.isAoe) : true;
       const hasTarget=isSpell ? await boolValue(action.hasTarget) : true;
       const hasEffect=isSpell ? await boolValue(action.hasEffect) : false;
-      const rawTemplates = action.templates == null ? null : _injectRuntime(action.templates);
+      // Templates[] may be wired from AOE Template Saver ({__aoeTemplates}), from a
+      // Database variable of type aoe_template(s) ({sdValue:…}) or given inline.
+      const rawTemplates = action.templates == null ? null : await _resolveStructuredPin(action.templates);
       const templateLike = (value) => value && typeof value === "object" && (
         value.kind || value.t || value.shape || value.name || Number(value.distance) > 0
         || (Array.isArray(value.shapes) && value.shapes.length)

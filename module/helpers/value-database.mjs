@@ -1,5 +1,9 @@
-const TYPES = new Set(["number","integer","text","boolean","color","array","object"]);
+// `aoe_template` / `aoe_templates` share their ids with the Shared Database so
+// `databaseTypePin()` maps them to the AOE pins used by Place AOE Template / Spell.
+const TYPES = new Set(["number","integer","text","boolean","color","array","object","aoe_template","aoe_templates"]);
 const SCOPES = new Set(["actor","item","both"]);
+export const AOE_VALUE_TYPES = Object.freeze(["aoe_template","aoe_templates"]);
+export function isAoeValueType(type){ return AOE_VALUE_TYPES.includes(String(type??"")); }
 
 /** How a value of each variable type has to be typed in. Shown in every Database editor. */
 export const VALUE_TYPE_FORMATS = {
@@ -9,7 +13,9 @@ export const VALUE_TYPE_FORMATS = {
   boolean: { placeholder:"false",                example:"true | false",                   hint:"true or false (1 / 0 and yes / no also work)." },
   color:   { placeholder:"#7aa2ff",              example:"#7aa2ff",                        hint:"HEX color starting with #." },
   array:   { placeholder:'["ammo","magazine"]',  example:'["ammo","magazine"] or ammo, magazine', hint:"JSON list or comma separated values. Use the Array nodes to read it." },
-  object:  { placeholder:'{"key":1}',            example:'{"key":1,"label":"x"}',          hint:"JSON object, keys in double quotes." }
+  object:  { placeholder:'{"key":1}',            example:'{"key":1,"label":"x"}',          hint:"JSON object, keys in double quotes." },
+  aoe_template:  { placeholder:'{"kind":"region-v14","shapes":[…]}', example:"Set… → draw the area",        hint:"One AOE Region preset. Press Set… to draw it; wire the variable into Place AOE Template / Spell." },
+  aoe_templates: { placeholder:'[{"kind":"region-v14",…}]',         example:"Set… → draw one or more areas", hint:"List of AOE Region presets. Press Set… to draw them; wire the variable into Templates[] pins." }
 };
 
 export function valueTypeFormat(type){ return VALUE_TYPE_FORMATS[String(type??"")] ?? VALUE_TYPE_FORMATS.text; }
@@ -29,7 +35,8 @@ export function normalizeValueDefinition(source={}, index=0) {
   const type=TYPES.has(String(source.type))?String(source.type):"number";
   const scope=SCOPES.has(String(source.scope))?String(source.scope):"both";
   const id=normalizeValueId(source.id??source.key,`value_${index+1}`);
-  let initial=source.initial??source.default??(type==="boolean"?false:type==="number"||type==="integer"?0:"");
+  let initial=source.initial??source.default??(type==="boolean"?false:type==="number"||type==="integer"?0:type==="aoe_templates"?[]:type==="aoe_template"?{}:"");
+  if(type==="aoe_template"||type==="aoe_templates") initial=coerceDatabaseValue(initial,{type});
   if(type==="number"||type==="integer") initial=Number(initial)||0;
   if(type==="integer") initial=Math.trunc(initial);
   if(type==="boolean") initial=initial===true||initial===1||initial==="true"||initial==="1";
@@ -101,8 +108,32 @@ export function valueSelectOptions(_node=null, graph=null){
 }
 export function valueStoragePath(id){return `system.values.${normalizeValueId(id)}`;}
 
+/** Parse JSON text leniently; non-string input is returned unchanged. */
+function parseJsonLoose(value){
+  if(typeof value!=="string")return value;
+  const text=value.trim();
+  if(!text)return null;
+  try{return JSON.parse(text);}catch{return null;}
+}
+
+/** One AOE Region preset as stored by the AOE editor / AOE Template Saver. */
+function coerceAoePreset(value){
+  const parsed=parseJsonLoose(value);
+  if(Array.isArray(parsed))return coerceAoePreset(parsed.find(entry=>entry&&typeof entry==="object")??null);
+  return parsed&&typeof parsed==="object"?parsed:{};
+}
+
+/** A list of AOE Region presets; a single preset is wrapped. */
+function coerceAoePresetList(value){
+  const parsed=parseJsonLoose(value);
+  if(Array.isArray(parsed))return parsed.filter(entry=>entry&&typeof entry==="object");
+  return parsed&&typeof parsed==="object"&&Object.keys(parsed).length?[parsed]:[];
+}
+
 export function coerceDatabaseValue(value, definition){
   const type=definition?.type??"text";
+  if(type==="aoe_template")return coerceAoePreset(value);
+  if(type==="aoe_templates")return coerceAoePresetList(value);
   if(type==="number")return Number(value)||0;
   if(type==="integer")return Math.trunc(Number(value)||0);
   if(type==="boolean")return value===true||value===1||["true","1","yes","on"].includes(String(value??"").toLowerCase());
@@ -290,9 +321,10 @@ export async function createDatabaseVariables(drafts=[], {seedValues=true, notif
     while(definitions.some(def=>def.id===id)||created.some(def=>def.id===id))id=`${base}_${suffix++}`;
     const temp=normalizeValueDefinition({id,name,type:draft.type,scope:draft.scope,initial:draft.initial},definitions.length+created.length);
     let parsed=draft.initial;
-    if(temp.type==="array"||temp.type==="object"){
-      try{parsed=JSON.parse(String(draft.initial??(temp.type==="array"?"[]":"{}")));}
-      catch{parsed=temp.type==="array"?[]:{};}
+    if(temp.type==="array"||temp.type==="object"||temp.type==="aoe_templates"||temp.type==="aoe_template"){
+      const listLike=temp.type==="array"||temp.type==="aoe_templates";
+      try{parsed=JSON.parse(String(draft.initial??(listLike?"[]":"{}")));}
+      catch{parsed=listLike?[]:{};}
     }
     created.push({...temp,initial:coerceDatabaseValue(parsed,temp),legacyPath:""});
   }
@@ -363,7 +395,7 @@ export async function createDatabaseVariable({name="",type="number",scope="both"
         <div class="sd-db-create-hero"><i class="fas fa-cube"></i><div><b>New Database Variable</b><small>Available immediately in every matching Actor/Item sheet and Blueprint.</small></div></div>
         <label><span>Name</span><input name="name" value="${escape(draft.name)}" placeholder="Health" autofocus required></label>
         <div class="sd-db-create-grid"><label><span>Type</span><select name="type">${[...TYPES].map(value=>`<option value="${value}" ${draft.type===value?"selected":""}>${value}</option>`).join("")}</select></label><label><span>Scope</span><select name="scope">${[...SCOPES].map(value=>`<option value="${value}" ${draft.scope===value?"selected":""}>${value}</option>`).join("")}</select></label></div>
-        <label><span>Initial value</span><input name="initial" value="${escape(draft.initial??(draft.type==="boolean"?"false":draft.type==="array"?"[]":draft.type==="object"?"{}":draft.type==="color"?"#7aa2ff":draft.type==="text"?"":0))}" placeholder="${escape(valueTypePlaceholder(draft.type))}"></label>
+        <label><span>Initial value</span><input name="initial" value="${escape(draft.initial??(draft.type==="boolean"?"false":draft.type==="array"||draft.type==="aoe_templates"?"[]":draft.type==="object"||draft.type==="aoe_template"?"{}":draft.type==="color"?"#7aa2ff":draft.type==="text"?"":0))}" placeholder="${escape(valueTypePlaceholder(draft.type))}"></label>
         <div class="sd-db-create-formats">${[...TYPES].map(value=>{const format=valueTypeFormat(value);return `<div class="sd-db-fmt" data-type="${value}"><i class="fas fa-keyboard"></i><div><b>${value}</b> <code>${escape(format.example)}</code><small>${escape(format.hint)}</small></div></div>`;}).join("")}</div>
         <style>${[...TYPES].map(value=>`.sd-db-variable-create:has(select[name="type"] option[value="${value}"]:checked) .sd-db-create-formats .sd-db-fmt:not([data-type="${value}"]){display:none}`).join("")}</style>
         <div class="sd-db-create-id"><i class="fas fa-fingerprint"></i> Variable ID is generated from the name.</div>

@@ -23,6 +23,8 @@
           <option value="color" {{#if v.isColor}}selected{{/if}}>Color</option>
           <option value="array" {{#if v.isArray}}selected{{/if}}>Array</option>
           <option value="object" {{#if v.isObject}}selected{{/if}}>Object</option>
+          <option value="aoe_template" {{#if v.isAoeTemplate}}selected{{/if}}>AOE Template</option>
+          <option value="aoe_templates" {{#if v.isAoeTemplates}}selected{{/if}}>AOE Templates[]</option>
         </select>
         <select name="db_{{v.index}}_scope">
           <option value="both" {{#if v.scopeBoth}}selected{{/if}}>Both</option>
@@ -31,6 +33,12 @@
         </select>
         {{#if v.isBoolean}}
           <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" name="db_{{v.index}}_initialBool" {{#if v.initial}}checked{{/if}}> Enabled</label>
+        {{else if v.isAoe}}
+          <span class="config-db-aoe-initial">
+            <button type="button" class="sd-db-set-btn" data-action="drawDatabaseAoe" data-index="{{v.index}}" title="Draw the default AOE template(s) for this variable"><i class="fas fa-bullseye"></i> Set…</button>
+            <small title="{{v.formatHint}}">{{v.aoeSummary}}</small>
+            <input type="hidden" name="db_{{v.index}}_initial" data-db-aoe-initial="{{v.index}}" value="{{v.initialText}}">
+          </span>
         {{else}}
           <input name="db_{{v.index}}_initial" value="{{v.initial}}" placeholder="{{v.formatPlaceholder}}" title="{{v.formatHint}}">
         {{/if}}

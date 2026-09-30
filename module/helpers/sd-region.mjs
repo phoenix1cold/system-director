@@ -121,9 +121,10 @@ export async function placeRegionInteractive({ name, shape = null, shapes = null
   }
 }
 
-export async function placeAuraRegion({ ownerToken, shape, flags = {}, name }) {
+export async function placeAuraRegion({ ownerToken, shape, shapes = null, appearance = {}, flags = {}, name }) {
   if (!canvas?.scene || !ownerToken) return null;
-  const data = _regionData({ name: name ?? "SD Aura", shape, flags });
+  // `shapes` (an AOE preset drawn with the Region tools) takes precedence over the single generated `shape`.
+  const data = _regionData({ name: name ?? "SD Aura", shape, shapes, flags, appearance });
 
   const layer = canvas.regions;
   let doc = null;

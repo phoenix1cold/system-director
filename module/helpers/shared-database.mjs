@@ -316,8 +316,9 @@ export class SharedDatabaseApp extends HandlebarsApplicationMixin(ApplicationV2)
     let current=null;try{current=field.value.trim()?JSON.parse(field.value):null;}catch{current=null;}
     let result=null;
     if(target.dataset.editor==="aoe"){
-      const {openAoePresetEditor}=await import("./aoe-preset-editor.mjs");
-      result=await openAoePresetEditor(current,{multiple:type==="aoe_templates",title:type==="aoe_templates"?"AOE Region presets":"AOE Region preset"});
+      // Foundry v14: draw with the Region tools (Measured Template Mode); grid editor is the fallback without a scene.
+      const {captureAoeFromScene}=await import("./aoe-scene-capture.mjs");
+      result=await captureAoeFromScene(current,{multiple:type==="aoe_templates",title:type==="aoe_templates"?"AOE Region presets":"AOE Region preset"});
     }else{
       const {openArrayValueEditor}=await import("./array-value-editor.mjs");
       result=await openArrayValueEditor(current??field.value,{doc:this.contextDocument,title:type==="token_pool"?"Token Pool":"Array",numeric:type!=="token_pool"});

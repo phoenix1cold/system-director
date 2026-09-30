@@ -10,7 +10,7 @@ import {
 import { SDOnboarding } from "./onboarding.mjs";
 import { getAISettings, openAISettingsDialog } from "./ai-context.mjs";
 import { getLanguages, saveLanguages, currentLanguage, setCurrentLanguage, translationEditLanguage, setTranslationEditLanguage, exportLocalizationBundle } from "./localization.mjs";
-import { normalizeValueDatabase, normalizeValueId, buildInitialDatabaseValues, remapVariableIdsInObject, migrateVariableIds, valueTypeFormat, valueTypePlaceholder, VALUE_DATABASE_TYPES } from "./value-database.mjs";
+import { normalizeValueDatabase, normalizeValueId, buildInitialDatabaseValues, remapVariableIdsInObject, migrateVariableIds, valueTypeFormat, valueTypePlaceholder, VALUE_DATABASE_TYPES, coerceDatabaseValue as coerceValueDatabaseValue } from "./value-database.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -378,6 +378,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     actions: {
       addDatabaseValue: SystemConfig._onAddDatabaseValue,
       removeDatabaseValue: SystemConfig._onRemoveDatabaseValue,
+      drawDatabaseAoe: SystemConfig._onDrawDatabaseAoe,
       addAttribute:     SystemConfig._onAddAttribute,
       removeAttribute:  SystemConfig._onRemoveAttribute,
       addResource:      SystemConfig._onAddResource,
@@ -555,6 +556,10 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
         ...v,index,
         isNumber:v.type==="number",isInteger:v.type==="integer",isText:v.type==="text",
         isBoolean:v.type==="boolean",isColor:v.type==="color",isArray:v.type==="array",isObject:v.type==="object",
+        isAoeTemplate:v.type==="aoe_template",isAoeTemplates:v.type==="aoe_templates",
+        isAoe:v.type==="aoe_template"||v.type==="aoe_templates",
+        initialText:(v.type==="aoe_template"||v.type==="aoe_templates")?JSON.stringify(v.initial??(v.type==="aoe_templates"?[]:{})):"",
+        aoeSummary:(()=>{if(v.type!=="aoe_template"&&v.type!=="aoe_templates")return "";const list=Array.isArray(v.initial)?v.initial:(v.initial&&typeof v.initial==="object"&&Object.keys(v.initial).length?[v.initial]:[]);return list.length?`${list.length}: ${list.map(p=>p?.name||"Region").join(", ")}`:"none";})(),
         scopeActor:v.scope==="actor",scopeItem:v.scope==="item",scopeBoth:v.scope==="both",
         formatPlaceholder:valueTypePlaceholder(v.type),formatExample:valueTypeFormat(v.type).example,formatHint:valueTypeFormat(v.type).hint
       })),
@@ -652,6 +657,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       if (type === "number" || type === "integer") initial = Number(initial) || 0;
       if (type === "integer") initial = Math.trunc(initial);
       if (type === "boolean") initial = !!raw[`${prefix}initialBool`];
+      if (type === "aoe_template" || type === "aoe_templates") initial = coerceValueDatabaseValue(initial, { type });
       const name=String(raw[`${prefix}name`] ?? entry.name).trim() || entry.id;
       let nextId=normalizeValueId(name,entry.id),baseId=nextId,n=2;
       while(usedIds.has(nextId))nextId=`${baseId}_${n++}`;
@@ -869,6 +875,22 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     const index=Number(target.dataset.index); if(!Number.isInteger(index))return;
     const cfg=this._collectFormCfg(); cfg.database=(cfg.database??[]).filter((_v,i)=>i!==index);
     await saveSettings(cfg); this.render();
+  }
+
+  /** "Set…" next to an AOE Database variable: draw the default template(s) and keep them in the hidden initial field. */
+  static async _onDrawDatabaseAoe(_event,target) {
+    const index=Number(target.dataset.index); if(!Number.isInteger(index))return;
+    const field=this.element?.querySelector(`[data-db-aoe-initial="${index}"]`); if(!field)return;
+    const type=String(this.element?.querySelector(`select[name="db_${index}_type"]`)?.value??"aoe_template");
+    const multiple=type==="aoe_templates";
+    let current=null; try{current=field.value.trim()?JSON.parse(field.value):null;}catch{current=null;}
+    const {captureAoeFromScene}=await import("./aoe-scene-capture.mjs");
+    const result=await captureAoeFromScene(current,{multiple,title:multiple?"Default AOE Region presets":"Default AOE Region preset"});
+    if(result===null||result===undefined)return;
+    field.value=JSON.stringify(result);
+    const list=Array.isArray(result)?result:[result];
+    const summary=target.parentElement?.querySelector("small");
+    if(summary)summary.textContent=`${list.length}: ${list.map(p=>p?.name||"Region").join(", ")} (unsaved)`;
   }
 
   static async _onSaveAndClose(event, target) {

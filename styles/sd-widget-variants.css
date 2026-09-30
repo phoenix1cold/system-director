@@ -1075,7 +1075,8 @@
   display: grid !important;
   grid-template-columns: repeat(auto-fill, var(--sd-tile-size, minmax(min(96px, 100%), 1fr))) !important;
   gap: 6px !important;
-  justify-content: start !important;
+  /* Fixed-size tiles stay centred when the sheet is wider than the tiles. */
+  justify-content: center !important;
   min-width: 0 !important;
 }
 .sd-w-slot.sd-v-tile .sd-slot-tile-wrap {
