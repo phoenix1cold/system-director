@@ -1,3 +1,4 @@
+import { syncWidgetQuickGraph } from "./widget-quick-graph.mjs";
 import { WIDGET_TYPES, WIDGET_PALETTE_ORDER, getWidgetPaletteOrder, createWidget } from "./widget-registry.mjs";
 import { WidgetRenderer } from "./widget-renderer.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
@@ -184,7 +185,7 @@ export class SheetWidgetDesigner extends ApplicationV2 {
   _applyZoom(){if(!this.regions?.scaler)return;this.regions.scaler.style.transform=`scale(${this.zoom})`;this.regions.scaler.style.transformOrigin='0 0';if(this.regions.zoom)this.regions.zoom.textContent=`${Math.round(this.zoom*100)}%`;}
   _fit(){const wrap=this.regions.wrap,canvas=this.regions.canvas;if(!wrap||!canvas)return;this._setZoom(Math.min(1,(wrap.clientWidth-40)/Math.max(320,canvas.scrollWidth),(wrap.clientHeight-40)/Math.max(180,canvas.scrollHeight)));}
   async _openGraph(){await this._save();const {FormulaGraph}=await import('./formula-graph.mjs');new FormulaGraph(null,this.doc,null,null,null,{mode:'sheetTrigger'}).open();}
-  async _save(){this.widget.elements=this.elements.map(e=>clone(e));const tabs=clone(this.doc?.system?.customTabs??[]);const target=findWidgetDeep(tabs.flatMap(t=>(t.rows??[]).flatMap(r=>r.widgets??[])),this.widget.id);if(target)Object.assign(target,clone(this.widget));if(target&&this.doc?.update)await this.doc.update({'system.customTabs':tabs,...buildWidgetPathRegistryUpdate(this.doc,tabs)});this.onSave?.(clone(this.widget));ui.notifications?.info?.(`Widget Builder “${this.widget.label||this.widget.id}” saved.`);}
+  async _save(){this.widget.elements=this.elements.map(e=>clone(e));const tabs=clone(this.doc?.system?.customTabs??[]);const target=findWidgetDeep(tabs.flatMap(t=>(t.rows??[]).flatMap(r=>r.widgets??[])),this.widget.id);if(target)Object.assign(target,clone(this.widget));if(target&&this.doc?.update){await this.doc.update({'system.customTabs':tabs,...buildWidgetPathRegistryUpdate(this.doc,tabs)});await syncWidgetQuickGraph(this.doc);}await this.onSave?.(clone(this.widget));ui.notifications?.info?.(`Widget Builder “${this.widget.label||this.widget.id}” saved.`);}
 }
 
 export function openSheetWidgetDesigner(options={}){return SheetWidgetDesigner.open(options);}

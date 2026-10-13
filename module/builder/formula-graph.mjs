@@ -1,3 +1,4 @@
+import { materializeWidgetQuickGraph, registerQuickActionGraphNodes, watchWidgetQuickGraph } from "./widget-quick-graph.mjs";
 import { nodeFileType, addFilePicker } from "../helpers/editor-controls.mjs";
 import { syncModelPointNodes, editModelNodePoints, modelPoints } from "../three/model-point-data.mjs";
 import { migrateGraph, NODE_TYPE_MIGRATIONS } from "./node-migration.mjs";
@@ -542,6 +543,11 @@ export const NODE_DEFS = {
     inputs:[{id:"ref",label:"Ref",type:"value.any"}],outputs:[{id:"v",label:"Value",type:"value.any"}],fields:[],
     compile:()=>"0"
   },
+  quick_negate: {
+    title:"Negate modifier",color:"#1a5c2a",cat:"Math",
+    inputs:[{id:"value",label:"Value",type:"value.any"}],outputs:[{id:"v",label:"Negative",type:"value.any"}],fields:[],
+    compile:(_n,i)=>`(-(${i.value??"0"}))`
+  },
   get_value: {
     title:"Get Value", color:"#1a4060", cat:"Get Data", wideNode:true,
     keywords:"database variable typed actor item value read",
@@ -550,10 +556,11 @@ export const NODE_DEFS = {
     outputs:[{id:"v",label:"Value",type:"value.any"}],
     computeDynamicOutputs:n=>{const def=getValueDefinition(n.data?.variableId);return [{id:"v",label:def?.name??"Value",type:databaseTypePin(def?.type??"any")}];},
     fields:[
-      {key:"source",label:"Source",type:"select",default:"self",options:[{value:"self",label:"Self"},{value:"first target",label:"First Target"},{value:"token by id",label:"Token by ID"},{value:"by uuid",label:"By UUID"}]},
-      {key:"variableId",label:"Variable",type:"select",default:"",options:valueSelectOptions,noPin:true}
+      {key:"source",label:"Source",type:"select",default:"self",options:[{value:"self",label:"Self"},{value:"actor",label:"Actor — self / item owner"},{value:"item",label:"Item — current item / selected owned item"},{value:"owned item",label:"Owned Item — from current actor"},{value:"first target",label:"First Target"},{value:"token by id",label:"Token by ID"},{value:"by uuid",label:"By UUID"}]},
+      {key:"itemId",label:"Owned Item",type:"select",default:"",options:(_node,graph)=>[{value:"",label:"Choose owned Item…"},...((graph?.doc?.documentName==="Actor"?graph.doc:graph?.doc?.actor)?.items??[]).map(entry=>({value:entry.id,label:entry.name??entry.id}))],noPin:true},
+      {key:"variableId",label:"Variable",type:"select",default:"",options:(node,graph)=>{const source=String(node?.data?.source??"self");const scope=["item","owned item"].includes(source)?"item":["actor","first target","token by id"].includes(source)?"actor":source==="by uuid"?"":graph?.doc?.documentName==="Item"?"item":graph?.doc?.documentName==="Actor"?"actor":"";return valueSelectOptionsForScope(scope);},noPin:true}
     ],
-    compile:(n,i)=>n.data?.variableId?`{sdValue:${_arrayArg(n.data?.source??"self")}|${_arrayArg(n.data.variableId)}|${_arrayArg(i.ref??"")}}`:`{sdLegacyValue:${_arrayArg(n.data?.source??"self")}|${_arrayArg(n.data?.legacyPath??"")}|${_arrayArg(i.ref??"")}}`
+    compile:(n,i)=>n.data?.variableId?`{sdValue:${_arrayArg(n.data?.source??"self")}|${_arrayArg(n.data.variableId)}|${_arrayArg(i.ref??"")}|${_arrayArg(n.data?.itemId??"")}}`:`{sdLegacyValue:${_arrayArg(n.data?.source??"self")}|${_arrayArg(n.data?.legacyPath??"")}|${_arrayArg(i.ref??"")}}`
   },
   set_value: {
     title:"Set Value", color:"#6a2f70", cat:"Database", wideNode:true,
@@ -8179,6 +8186,7 @@ for (const [legacyType, [newType]] of Object.entries(SCENE_PROPERTY_MIGRATIONS))
   // the Effects v2 building block, final Damage/Heal delivery, path-driven events,
   // the actor-array source and the on-demand vision scan. Their path fields are still
   // turned into Database-variable selects by the "variable only" pass below.
+  registerQuickActionGraphNodes(NODE_DEFS);
   const PATH_RULE_EXEMPT = new Set([
     "act_effect_add_change", "act_damage_simple", "act_heal_simple",
     "on_damage_taken", "on_rest", "on_vision_detect", "act_vision_scan",
@@ -9119,6 +9127,7 @@ export class FormulaGraph {
     this._palQuery    = "";
     this._migrationCount = 0;
     this._loadGraph();
+    this._quickGraphChanged = materializeWidgetQuickGraph(this);
     this._sanitizeGraph();
     this._pushHistory();
   }
@@ -11311,11 +11320,13 @@ export class FormulaGraph {
   }
 
   open() {
+    if (this._quickGraphChanged) void this._saveGraph().then(()=>{this._quickGraphChanged=false;}).catch(error=>ui.notifications?.error?.(`Quick graph: ${error.message}`));
     // Drop focus from the button that opened the editor (e.g. "Edit graph" in
     // system settings) so Space/Delete/Ctrl+Z immediately work in the editor.
     try { if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur(); } catch {  }
     this._smartIndex = this._buildSmartIndex();
     this._buildWin();
+    if(this.sheetTrigger && !this._quickGraphWatching){this._quickGraphWatching=true;this._cleanup.push(watchWidgetQuickGraph(this),()=>{this._quickGraphWatching=false;});}
     this._renderAll();
     if(!this._pointWidgetWatch) {
       this._pointWidgetWatch=true;

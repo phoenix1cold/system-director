@@ -1,3 +1,5 @@
+import { commitWidgetStep } from "../helpers/widget-step-commit.mjs";
+import { syncWidgetQuickGraph, widgetGraphHandlesClick } from "../builder/widget-quick-graph.mjs";
 import { wireSheetTabClick } from "../builder/sheet-tab-controls.mjs";
 import { TabManager } from "../helpers/tabs.mjs";
 import { bindCardHands } from "../helpers/card-hand.mjs";
@@ -855,7 +857,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         return;
       }
       const control=sheetWidgetClickControl(cell,event);
-      if(!control)return;
+      if(!control || control.matches("[data-step], [data-action='widgetNumStep']"))return;
       emitSheetWidgetEvent("click",event,{elementKey:control.closest("[data-element-key]")?.dataset?.elementKey??""});
       if(String(w.type)==="toggle"&&!widgetCommitEventsInstalled())emitSheetWidgetEvent("toggle",event);
     },true);
@@ -884,7 +886,6 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const step   = parseFloat(btn.dataset.step);
         const path   = btn.dataset.path;
         if (!path || !Number.isFinite(step)) return;
-        const cur    = _numberForPath(path);
         const dsMin  = btn.dataset.min;
         const dsMax  = btn.dataset.max;
         const rawMin = (dsMin  !== undefined && dsMin  !== "") ? parseFloat(dsMin)
@@ -893,10 +894,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
                      : (w.max != null ? Number(w.max) :  Infinity);
         const min    = Number.isFinite(rawMin) ? rawMin : -Infinity;
         const max    = Number.isFinite(rawMax) ? rawMax :  Infinity;
-        const next   = Math.clamp(cur + step, min, max);
-        const field  = _fieldForPath(path);
-        if (field && "value" in field) field.value = String(next);
-        await doc.update({ [path]: next });
+        const field = _fieldForPath(path);
+        await commitWidgetStep(doc, {path, step, min, max,
+          readCurrent:()=>_numberForPath(path), onValue:value=>{if(field)field.value=String(value);},
+          emit:emitSheetWidgetEvent, emitChange:!widgetCommitEventsInstalled()});
       });
     });
 
@@ -964,6 +965,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     cell.querySelectorAll("[data-action='widgetRoll']").forEach(btn => {
       btn.addEventListener("click", async () => {
+        if (widgetGraphHandlesClick(doc, w)) return;
         let formula = btn.dataset.formulaRaw || btn.dataset.formula || "";
         if (!String(formula).trim()) return;
           if (formula.trim().startsWith("[")) {
@@ -1010,6 +1012,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     cell.querySelectorAll("[data-action='widgetButton']").forEach(btn => {
       btn.addEventListener("click", async () => {
+        if (widgetGraphHandlesClick(doc, w)) return;
         const rawFormula = btn.dataset.formulaRaw || btn.dataset.formula;
         // No configured action: the capture-phase emitter already delivered the
         // "click" event to the Sheet Blueprint, so do nothing else here.
@@ -2163,7 +2166,9 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const opts = (items, selected) => items.map(item => `<option value="${_sheetEsc(item.value)}" ${item.value === selected ? "selected" : ""}>${_sheetEsc(item.label)}</option>`).join("");
     const presetOptions = Object.values(SHEET_STYLE_PRESETS).map(preset => `<option value="${preset.id}" ${preset.id === current.preset ? "selected" : ""}>${_sheetEsc(preset.label)}</option>`).join("");
     const result = await foundry.applications.api.DialogV2.wait({
-      modal:true,
+      // FilePicker is a regular Application window. A native modal dialog makes
+      // that window inert; z-index cannot raise it above the browser top layer.
+      modal:false,
       window:{title:"Sheet Appearance"},
       content:`<div class="sd-sheet-style-dialog" style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 10px;align-items:center;padding:8px;max-height:62vh;overflow:auto">
         <label>Preset</label><select name="preset"><option value="custom" ${current.preset === "custom" ? "selected" : ""}>Custom / keep values below</option>${presetOptions}</select>
@@ -2187,7 +2192,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           <button type="button" class="sd-sheet-style-fp" data-fp-target="backgroundImage" title="Browse files"
             style="flex:0 0 auto;width:30px;height:26px;padding:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer"><i class="fas fa-folder-open"></i></button>
         </div>
-        <div style="grid-column:1/-1;color:var(--sd-text-3);font-size:10px">Choosing a preset applies all of its values. Choose Custom to save the fields shown above.</div>
+        <div style="grid-column:1/-1;color:var(--sd-text-3);font-size:10px">Choosing a preset applies all of its values. Editing a field switches to Custom.</div>
       </div>`,
       buttons:[
         {action:"save",label:"Apply",icon:"fas fa-check",default:true,callback:(event,button,dialog) => {
@@ -2208,6 +2213,14 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       render:(event, dialog) => {
         const root = dialog?.element ?? event?.target ?? event?.currentTarget ?? null;
         if (!root) return;
+        // Editing a preset creates a custom style instead of throwing away the
+        // edited fields when Apply reconstructs the selected preset.
+        root.querySelectorAll('.sd-sheet-style-dialog input, .sd-sheet-style-dialog select:not([name="preset"])').forEach(control => {
+          control.addEventListener("change", () => {
+            const preset = root.querySelector('[name="preset"]');
+            if (preset) preset.value = "custom";
+          });
+        });
         root.querySelectorAll("button.sd-sheet-style-fp[data-fp-target]").forEach(btn => {
           btn.addEventListener("click", ev => {
             ev.preventDefault();
@@ -2351,6 +2364,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     await this.document.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(this.document, tabs) });
+    await syncWidgetQuickGraph(this.document);
   }
 
   _findVs(widgets, vsId) {
@@ -2435,6 +2449,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       }
     }
     await this.document.update(_upd);
+    await syncWidgetQuickGraph(this.document);
   }
 
   _refreshWidgetIdsDeep(widget) {

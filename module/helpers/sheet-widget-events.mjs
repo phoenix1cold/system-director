@@ -74,7 +74,11 @@ export function matchesSheetWidgetEvent(data, payload) {
   if (wantedElement && wantedElement !== normId(payload?.elementKey)) return false;
   const wantedEvent = normId(data?.event ?? "click") || "click";
   // "any" subscribes to every interaction of the widget.
-  if (wantedEvent === "any" || wantedEvent === "*") return true;
+  if (wantedEvent === "any" || wantedEvent === "*") {
+    if (data?.__quickSource === "quick") return !["hover","leave","input"].includes(normId(payload?.event));
+    return true;
+  }
+  if (data?.__quickSource === "quick" && wantedEvent === "change" && normId(payload?.event) === "update") return true;
   const actualEvent = normId(payload?.event ?? "click") || "click";
   if(wantedEvent==="update"&&actualEvent==="change")return true;
   return wantedEvent === actualEvent;
@@ -195,6 +199,7 @@ export async function runWidgetQuickActions(doc, payload = {}) {
   });
   if (!widget || !quickActionsMatch(widget.quickActions, payload)) return 0;
   const eventName = normId(payload?.event ?? "click") || "click";
+  if (sheetWidgetGraphEvents(doc).some(entry => entry.data?.__quickSource === "quick" && matchesSheetWidgetEvent(entry.data, payload))) return 0;
   if (eventName === "click" && ["button", "easyButton", "dice"].includes(String(widget.type)) && String(widget.formula ?? "").trim()) return 0;
 
   let ButtonExecutor = null, compileQuickActions = null;

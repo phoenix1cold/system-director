@@ -1,3 +1,4 @@
+import { resolveProgressionValue } from "./progression-values.mjs";
 import { fieldChangeStoragePath, getValueDefinition, variableIdForLegacyPath } from "./value-database.mjs";
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -83,8 +84,7 @@ export class LevelUpWizard extends ApplicationV2 {
   _fcDiff(fc) {
     let cur = Number(foundry.utils.getProperty(this._actor, fieldChangeStoragePath(fc)));
     if (isNaN(cur)) cur = 0;
-    const val  = Number(fc.value);
-    const safe = isNaN(val) ? 0 : val;
+    const safe = resolveProgressionValue(this._actor, fc.value);
     let to;
     switch (fc.mode) {
       case "set":      to = safe; break;
@@ -273,7 +273,7 @@ export class LevelUpWizard extends ApplicationV2 {
       } else {
         title = opt.path ?? "(field)";
         icon  = "icons/svg/upgrade.svg";
-        const d = opt.path ? this._fcDiff(opt) : null;
+        const d = (opt.variableId || opt.path) ? this._fcDiff(opt) : null;
         body = `<div class="sd-luw-card-sub">
           <code>${esc(opt.path ?? "")}</code>
           ${d ? `<strong>${d.from} → ${d.to}</strong>` : `<strong>${esc(String(opt.value ?? ""))}</strong>`}

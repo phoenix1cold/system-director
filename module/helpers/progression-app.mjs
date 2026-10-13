@@ -2,6 +2,7 @@ import { editEffectViaStandardConfig as _sharedEditEffect, openItemSheetFromSnap
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { LevelUpWizard } from "./levelup-wizard.mjs";
 import { fieldChangeStoragePath, getValueDefinition, getValueDefinitions, readDatabaseValue, valueStoragePath, variableIdForLegacyPath } from "./value-database.mjs";
+import { resolveProgressionValue, bindProgressionValuePickers } from "./progression-values.mjs";
 import { SkillTree3D } from "./skilltree-3d.mjs";
 
 const { ApplicationV2 } = foundry.applications.api;
@@ -68,8 +69,7 @@ function buildFieldUpdate(actor, change, pending = {}) {
   let path = fieldChangeStoragePath(change);
   path = normalizeActorPath(actor, path);
   if (!path) return {};
-  const numVal = Number(value);
-  const safe   = isNaN(numVal) ? 0 : numVal;
+  const safe = resolveProgressionValue(actor, value, pending);
   const current = Object.hasOwn(pending, path)
     ? Number(pending[path] ?? 0)
     : Number(getNestedValue(actor, path) ?? 0);
@@ -1508,6 +1508,7 @@ export class ProgressionApp extends ApplicationV2 {
   }
 
   _onRender(context, options) {
+    bindProgressionValuePickers(this.element);
     const el = this.element;
 
     const slot3d = el.querySelector("[data-st-3d]");
@@ -2395,14 +2396,15 @@ export class ProgressionApp extends ApplicationV2 {
     });
     if (!confirmed) return;
 
-    const actor = this._actor;
-
-    if (nodeCost > 0) {
-      await actor.update({ [valPath]: curSP - nodeCost });
-    }
-
     const updates = {};
-    for (const fc of (node.fieldChanges ?? [])) Object.assign(updates, buildFieldUpdate(actor, fc));
+    // Validate all reward expressions before spending skill points.
+    if (nodeCost > 0) updates[valPath] = curSP - nodeCost;
+    try {
+      for (const fc of (node.fieldChanges ?? [])) Object.assign(updates, buildFieldUpdate(this._actor, fc, updates));
+    } catch (error) {
+      ui.notifications?.error?.(error.message); return;
+    }
+    const actor = this._actor;
     if (Object.keys(updates).length) await actor.update(updates);
 
     if (node.item) {
@@ -2512,6 +2514,7 @@ export class ProgressionApp extends ApplicationV2 {
       },
       render: (event, dialog) => {
         const el = dialog.element;
+        bindProgressionValuePickers(el);
         const safeNodeMaxId = defaultMaxId;
 
         el.addEventListener("click", async ev => {
@@ -2561,6 +2564,7 @@ export class ProgressionApp extends ApplicationV2 {
         <input type="text" class="nc-value" value="1" style="width:56px;">
         <button type="button" class="nc-del-fc"><i class="fas fa-times"></i></button>`;
           container.appendChild(div);
+          bindProgressionValuePickers(div);
         });
 
         el.querySelector("#nc-add-eff")?.addEventListener("click", async () => {

@@ -1,9 +1,10 @@
-// Quick Actions: a no-graph way to give any Sheet Builder widget behaviour.
+// Quick Actions: a visual way to give any Sheet Builder widget behaviour.
 // A widget stores `quickActions = { event, steps:[…] }`; steps are compiled into
 // ordinary ButtonExecutor actions, so everything a step does is exactly what the
 // matching Blueprint node would do. Easy Button reuses the same editor for its
 // "Actions" mode and stores the compiled list in `formula` (a JSON action array
 // is already understood by the widget button click handler).
+import { openRollPresetsEditor, normalizeRollPresets, buildRollPresetFormula, rollPresetFromFormula, applyRollPresetsToStep } from "./roll-presets.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { getValueDefinitions } from "../helpers/value-database.mjs";
 
@@ -41,12 +42,15 @@ export const QUICK_ACTION_STEPS = {
     fields:[
       { key:"formula", label:"Formula", type:"text", default:"1d20", placeholder:"1d20 + {system.values.str}" },
       { key:"label",   label:"Label",   type:"text", default:"" },
+      { key:"rollPresets", label:"Dice & Database modifiers", type:"roll-presets", default:null },
+      { key:"advFormula", label:"Advantage formula", type:"text", default:"", placeholder:"2d20kh + {system.values.str}" },
+      { key:"disFormula", label:"Disadvantage formula", type:"text", default:"", placeholder:"2d20kl + {system.values.str}" },
       { key:"rollMode", label:"Visibility", type:"select", default:"default", options:opts(ROLL_MODES) },
       { key:"dialog", label:"Ask for modifiers (roll dialog)", type:"checkbox", default:false }
     ],
     compile:(step, ctx)=>[
       { type:"rollResultV2", mode:"formula", formula:String(step.formula || "1d20"), flavor:String(step.label || ctx.label || "Roll"),
-        rollDialogue:!!step.dialog, advFormula:"", disFormula:"", critOn:20, fumbleOn:1,
+        rollDialogue:!!step.dialog, advFormula:String(step.advFormula || ""), disFormula:String(step.disFormula || ""), critOn:20, fumbleOn:1,
         execActions:[{ type:"presentRollResult", result:"{__rollResult}", destination:"chat", label:String(step.label || ctx.label || ""), text:"", rollMode:String(step.rollMode || "default"), area:300, duration:6 }] }
     ]
   },
@@ -65,6 +69,27 @@ export const QUICK_ACTION_STEPS = {
     hint:"Posts text to chat. Tokens like {system.values.hp} and {widget:Key} are resolved.",
     fields:[{ key:"text", label:"Message", type:"textarea", default:"", placeholder:"{name} attacks!" }],
     compile:(step)=>[{ type:"message", messageParts:[String(step.text ?? "")] }]
+  },
+  composer: {
+    label:"Message Composer", icon:"fa-comments",
+    hint:"Build a chat card. Form fields and buttons are optional; button actions run when clicked. Place after a Roll and enable Embed Roll to post one card instead of two.",
+    fields:[
+      {key:"title",label:"Title",type:"text",default:"Message"},
+      {key:"message",label:"Message",type:"textarea",default:""},
+      {key:"style",label:"Card style",type:"select",default:"message",options:opts([["message","Message"],["damage","Damage"],["healing","Healing"],["check","Check"],["notice","Notice"]])},
+      {key:"value",label:"Value",type:"text",default:""},
+      {key:"valueLabel",label:"Value label",type:"text",default:""},
+      {key:"image",label:"Image",type:"file",fileType:"image",default:""},
+      {key:"includeRoll",label:"Embed Roll",type:"checkbox",default:false},
+      {key:"visibility",label:"Visibility",type:"select",default:"public",options:opts([["public","Public"],["gm","GM"],["self","Self"]])},
+      {key:"access",label:"Button access",type:"select",default:"actorOwner",options:opts([["actorOwner","Actor owners"],["author","Author"],["gm","GM only"],["everyone","Everyone"]])},
+      {key:"buttonUse",label:"Button use",type:"select",default:"once",options:opts([["once","Once"],["reusable","Reusable"]])},
+      {key:"controls",label:"Form fields",type:"controls",default:[]},
+      {key:"buttons",label:"Buttons",type:"buttons",default:[]}
+    ],
+    compile:step=>[{...Object.fromEntries(step.buttons.map((button,index)=>[`btn${index}Actions`,compileQuickActions(button.steps??[])])),type:"messageComposer",style:step.style,title:step.title,message:step.message,value:step.value,valueLabel:step.valueLabel,image:step.image,
+      includeRoll:step.includeRoll,rollResult:"{__rollResult}",visibility:step.visibility,access:step.access,buttonUse:step.buttonUse,
+      controls:step.controls.filter(c=>c.enabled!==false),buttons:step.buttons.map((b,index)=>({...b,id:`btn${index}`})).filter(b=>b.enabled!==false)}]
   },
   notify: {
     label:"Notification", icon:"fa-bell",
@@ -180,11 +205,13 @@ export function normalizeQuickStep(source = {}) {
   const step = { id: String(source?.id ?? "") || randomId(), kind };
   for (const field of def.fields) {
     const raw = source?.[field.key];
-    if (field.type === "checkbox") step[field.key] = raw === true || raw === "true" || raw === "yes";
+    if (field.type === "roll-presets") step[field.key] = raw?.normal && !Array.isArray(raw) ? normalizeRollPresets(raw) : null;
+    else if (["controls", "buttons"].includes(field.type)) step[field.key] = (Array.isArray(raw) ? raw : []).map((entry,index) => ({...clone(entry), id:String(entry.id || `${field.type === "buttons" ? "btn" : "field"}${index}`), enabled:entry.enabled!==false}));
+    else if (field.type === "checkbox") step[field.key] = raw === true || raw === "true" || raw === "yes";
     else if (field.type === "number") step[field.key] = raw === undefined || raw === null || raw === "" ? field.default : Number(raw);
     else step[field.key] = raw === undefined || raw === null ? field.default : String(raw);
   }
-  return step;
+  return kind === "roll" ? applyRollPresetsToStep(step) : step;
 }
 
 export function normalizeQuickActions(source) {
@@ -197,9 +224,14 @@ export function normalizeQuickActions(source) {
 /** Compile quick steps into executor actions. */
 export function compileQuickActions(steps = [], ctx = {}) {
   const out = [];
-  for (const raw of Array.isArray(steps) ? steps : []) {
-    const step = normalizeQuickStep(raw);
-    try { out.push(...QUICK_ACTION_STEPS[step.kind].compile(step, ctx)); }
+  const list = (Array.isArray(steps) ? steps : []).map(normalizeQuickStep);
+  for (let index=0; index<list.length; index++) {
+    const step = list[index];
+    try {
+      const actions = QUICK_ACTION_STEPS[step.kind].compile(step, ctx);
+      if (step.kind === "roll" && list[index+1]?.kind === "composer" && list[index+1]?.includeRoll) actions[0].execActions = [];
+      out.push(...actions);
+    }
     catch (error) { console.warn("SD | quick action step failed to compile", step, error); }
   }
   return out;
@@ -243,10 +275,10 @@ const STYLE = `
 .sdqa-step-head button:hover{background:var(--sd-bg);color:var(--sd-text)}
 .sdqa-step-head button:disabled{opacity:.3;cursor:default}
 .sdqa-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 12px;padding:10px}
-.sdqa-fields label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3,#8f96aa)}
+.sdqa-fields label{display:flex;flex-direction:column;gap:3px;min-width:0;font-size:11px;color:var(--sd-text-3,#8f96aa)}
 .sdqa-fields label.wide{grid-column:1/-1}
-.sdqa-fields label.check{flex-direction:row;align-items:center;gap:8px;color:var(--sd-text)}
-.sdqa-fields input,.sdqa-fields select,.sdqa-fields textarea,.sdqa-head select{background:var(--sd-bg,#171b2b);border:1px solid var(--sd-border,#3a4260);border-radius:6px;color:var(--sd-text,#eee);padding:6px 8px;font:inherit;min-width:0}
+.sdqa-fields label.check{flex-direction:row;align-items:center;gap:8px;color:var(--sd-text);min-width:0;min-height:28px;cursor:pointer}.sdqa-fields label.check>span{min-width:0;flex:1;line-height:1.35}
+.sdqa-fields input:not([type="checkbox"]),.sdqa-fields select,.sdqa-fields textarea,.sdqa-head select{box-sizing:border-box;background:var(--sd-bg,#171b2b);border:1px solid var(--sd-border,#3a4260);border-radius:6px;color:var(--sd-text,#eee);padding:6px 8px;font:inherit;min-width:0;max-width:100%}
 .sdqa-fields textarea{min-height:64px;resize:vertical}
 .sdqa-hint{padding:0 10px 10px;font-size:11px;color:var(--sd-text-3,#8f96aa)}
 .sdqa-drop{border:1px dashed var(--sd-border,#3a4260);border-radius:6px;padding:6px 8px;min-height:32px;display:flex;align-items:center;gap:8px;background:var(--sd-bg,#171b2b);color:var(--sd-text)}
@@ -265,6 +297,17 @@ const STYLE = `
 function fieldControl(step, field, ctx) {
   const value = step[field.key];
   const name = `data-step-field="${esc(field.key)}"`;
+  if (field.type === "roll-presets") return `<div class="wide" style="grid-column:1/-1"><button type="button" class="sdqa-btn" data-edit-roll-presets>Configure dice & Database modifiers — Normal / Advantage / Disadvantage</button><small style="display:block;margin-top:4px">Choose dice count/sides, keep highest or lowest results, and separate Database modifiers.</small></div>`;
+  if (["controls", "buttons"].includes(field.type)) {
+    const buttons = field.type === "buttons";
+    return `<div class="wide" style="grid-column:1/-1" data-composer-list="${field.key}"><b>${esc(field.label)}</b>
+      ${(value ?? []).map((entry,index)=>`<div data-composer-index="${index}" style="display:flex;gap:5px;margin:5px 0;flex-wrap:wrap">
+        <input data-entry-field="label" value="${esc(entry.label ?? "")}" placeholder="Label" aria-label="Label" style="flex:1">
+        ${buttons ? `<button type="button" class="sdqa-btn" data-entry-actions="${index}">Actions (${entry.steps?.length ?? 0})</button>` : `<select data-entry-field="type" aria-label="Field type">${["text","number","textarea","select","checkbox"].map(type=>`<option ${entry.type===type?"selected":""}>${type}</option>`).join("")}</select><input data-entry-field="defaultValue" value="${esc(entry.defaultValue ?? "")}" placeholder="Default" aria-label="Default"><input data-entry-options value="${esc((entry.options ?? []).map(o=>typeof o==="object"?o.value:o).join(","))}" placeholder="Select choices, comma separated" aria-label="Select choices">`}
+        <button type="button" class="sdqa-btn" data-entry-remove="${index}" aria-label="Remove">×</button>
+      </div>`).join("")}
+      <button type="button" class="sdqa-btn" data-entry-add="${field.key}">+ Add ${buttons?"button":"field"}</button></div>`;
+  }
   if (field.type === "checkbox") return `<label class="check"><input type="checkbox" ${name} ${value ? "checked" : ""}><span>${esc(field.label)}</span></label>`;
   if (field.type === "select") {
     const options = typeof field.options === "function" ? field.options(ctx) : field.options;
@@ -320,10 +363,25 @@ export function openQuickActionsEditor(config = {}, doc = null, options = {}) {
       root.querySelectorAll("[data-step-index]").forEach(card => {
         const step = state.steps[Number(card.dataset.stepIndex)];
         if (!step) return;
+        card.querySelectorAll("[data-composer-list]").forEach(list => {
+          const key = list.dataset.composerList;
+          list.querySelectorAll("[data-composer-index]").forEach(row => {
+            const entry = step[key]?.[Number(row.dataset.composerIndex)]; if (!entry) return;
+            row.querySelectorAll("[data-entry-field]").forEach(input => entry[input.dataset.entryField] = input.value);
+            if (entry.type === "checkbox") entry.defaultValue = ["true","yes","1"].includes(String(entry.defaultValue));
+            if (entry.type === "number") entry.defaultValue = Number(entry.defaultValue) || 0;
+            const options = row.querySelector("[data-entry-options]");
+            if (options) entry.options = options.value.split(",").map(value=>value.trim()).filter(Boolean).map(value=>({value,label:value}));
+          });
+        });
+        const previousFormulas = step.kind === "roll" && step.rollPresets ? Object.fromEntries([["normal","formula"],["advantage","advFormula"],["disadvantage","disFormula"]].map(([mode,key])=>[key,buildRollPresetFormula(step.rollPresets[mode])])) : null;
         card.querySelectorAll("[data-step-field]").forEach(input => {
           const key = input.dataset.stepField;
           step[key] = input.type === "checkbox" ? input.checked : input.type === "number" ? Number(input.value) : input.value;
         });
+        if (previousFormulas) for (const [mode,key] of [["normal","formula"],["advantage","advFormula"],["disadvantage","disFormula"]]) {
+          if (step[key] !== previousFormulas[key]) step.rollPresets[mode] = rollPresetFromFormula(step[key]);
+        }
       });
     };
     const stepCard = (step, index) => {
@@ -345,7 +403,7 @@ export function openQuickActionsEditor(config = {}, doc = null, options = {}) {
     const render = () => {
       root.innerHTML = `<style>${STYLE}</style>
         <div class="sdqa-head">
-          <div><b>${esc(options.title ?? "Quick Actions")}</b><small>Steps run top to bottom, without a Blueprint graph. Each step is a ready-made Blueprint action.</small></div>
+          <div><b>${esc(options.title ?? "Quick Actions")}</b><small>Steps run top to bottom. Saving the widget creates connected nodes in the Sheet Blueprint.</small></div>
           ${showEvent ? `<label><span>Run on</span><select data-event>${QUICK_ACTION_EVENTS.map(e => `<option value="${e.value}" ${e.value === state.event ? "selected" : ""}>${esc(e.label)}</option>`).join("")}</select></label>` : ""}
         </div>
         <div class="sdqa-body">
@@ -377,6 +435,26 @@ export function openQuickActionsEditor(config = {}, doc = null, options = {}) {
           sync(); state.steps.splice(index + 1, 0, normalizeQuickStep({ ...clone(state.steps[index]), id: "" })); render();
         });
         card.querySelector("[data-remove]")?.addEventListener("click", () => { sync(); state.steps.splice(index, 1); render(); });
+        card.querySelector("[data-edit-roll-presets]")?.addEventListener("click", async () => {
+          sync(); const step=state.steps[index];
+          const presets=await openRollPresetsEditor(step.rollPresets,doc,{formula:step.formula,advFormula:step.advFormula,disFormula:step.disFormula,id:step.id});
+          if (presets) { step.rollPresets=presets; step.dialog=true; applyRollPresetsToStep(step); }
+          render();
+        });
+        card.querySelectorAll("[data-entry-add]").forEach(button => button.addEventListener("click", () => {
+          sync(); const key=button.dataset.entryAdd; const entries=state.steps[index][key];
+          if (entries.length >= (key === "buttons" ? 6 : 8)) { ui.notifications?.warn?.("Maximum fields/buttons reached."); return; }
+          const used=new Set(entries.map(e=>e.id));let id=0;while(used.has(`${key==="buttons"?"btn":"field"}${id}`))id++;
+          entries.push(key === "buttons" ? {id:`btn${id}`,label:"Button",enabled:true,steps:[]} : {id:`field${id}`,label:"Field",type:"text",defaultValue:"",options:[],enabled:true}); render();
+        }));
+        card.querySelectorAll("[data-entry-remove]").forEach(button => button.addEventListener("click", () => {
+          sync(); const key=button.closest("[data-composer-list]").dataset.composerList; state.steps[index][key].splice(Number(button.dataset.entryRemove),1); render();
+        }));
+        card.querySelectorAll("[data-entry-actions]").forEach(button => button.addEventListener("click", async () => {
+          sync(); const entry=state.steps[index].buttons[Number(button.dataset.entryActions)];
+          const result=await openQuickActionsEditor({steps:entry.steps},doc,{showEvent:false,title:`${entry.label} — actions`});
+          if (result) entry.steps=result.steps; render();
+        }));
         card.querySelectorAll("[data-clear-field]").forEach(button => button.addEventListener("click", () => {
           sync(); state.steps[index][button.dataset.clearField] = ""; render();
         }));

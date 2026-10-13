@@ -1,7 +1,7 @@
 /* Author controls are applied after visual presets. Only explicitly set tokens override them. */
-:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-fg"] :is(input,select,textarea,.tog-val,.attr-score,.attr-mod,.derived-value,.num-value,.cnt-value) { color:var(--sd-w-fg) !important; }
-:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-font-size"] :is(input,select,textarea,button,.tog-val,.attr-score,.attr-mod,.derived-value,.num-value,.cnt-value) { font-size:var(--sd-w-font-size) !important; }
-:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-font-weight"] :is(input,select,textarea,button,.tog-val,.attr-score,.attr-mod,.derived-value,.num-value,.cnt-value) { font-weight:var(--sd-w-font-weight) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-fg"] :is(input,select,textarea,.tog-val,.attr-score,.attr-mod,.derived-value,.widget-derived-value,.num-value,.cnt-value,.cnt-val) { color:var(--sd-w-fg) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-font-size"] :is(input,select,textarea,button,.tog-val,.attr-score,.attr-mod,.derived-value,.widget-derived-value,.num-value,.cnt-value,.cnt-val) { font-size:var(--sd-w-font-size) !important; }
+:is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-font-weight"] :is(input,select,textarea,button,.tog-val,.attr-score,.attr-mod,.derived-value,.widget-derived-value,.num-value,.cnt-value,.cnt-val) { font-weight:var(--sd-w-font-weight) !important; }
 :is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="--sd-w-text-align"] :is(input,select,textarea,.tog-row) { text-align:var(--sd-w-text-align) !important; }
 :is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="text-align:center"] .tog-row { justify-content:center; }
 :is(.sd,.sd-wcfg-popup,#sd-action-hud,#sd-action-hud-floating) .widget[style*="text-align:right"] .tog-row { justify-content:flex-end; }

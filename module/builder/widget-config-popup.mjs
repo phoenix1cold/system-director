@@ -1,6 +1,7 @@
 import { FormulaEngine }   from "../helpers/formula-engine.mjs";
 import { uniqueId } from "../helpers/unique-id.mjs";
 import { showIfSources } from "../helpers/show-if.mjs";
+import { syncWidgetQuickGraph, saveWidgetQuickSettings } from "./widget-quick-graph.mjs";
 import { FormulaGraph }    from "./formula-graph.mjs";
 import { WIDGET_VARIANTS, WIDGET_TYPES, CLICKABLE_WIDGET_TYPES, createWidget } from "./widget-registry.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
@@ -530,11 +531,13 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         <div class="wcfg-easy-meta" style="font-size:9px;color:var(--sd-text-3);margin-bottom:8px">${w.easyMode === "actions" ? `Actions · ${(w.actionSteps ?? []).length} step${(w.actionSteps ?? []).length === 1 ? "" : "s"}` : w.easyMode === "formula" ? "Custom Formula" : `Constructor · ${diceCount} dice group${diceCount === 1 ? "" : "s"} · ${modifierCount} modifier${modifierCount === 1 ? "" : "s"}`}</div>
         <button type="button" data-open-easy-button style="width:100%;padding:7px 10px;border:1px solid var(--sd-accent);border-radius:5px;background:color-mix(in srgb,var(--sd-accent) 14%,var(--sd-bg));color:var(--sd-accent);cursor:pointer;font-weight:700"><i class="fas fa-dice-d20"></i> OPEN EASY BUTTON CONSTRUCTOR</button>
         <input type="hidden" data-easy-field="easyMode" data-field="easyMode" data-ftype="text" value="${esc(w.easyMode ?? "constructor")}">
+        ${["advFormula","disFormula","rollDialogue","rollMode","rollComposer","composerTitle","composerMessage"].map(key=>`<input type="hidden" data-easy-field="${key}" data-field="${key}" data-ftype="${["rollDialogue","rollComposer"].includes(key)?"boolean":"text"}" value="${esc(w[key] ?? (["rollDialogue","rollComposer"].includes(key)?false:""))}">`).join("")}
         <input type="hidden" data-easy-field="customFormula" data-field="customFormula" data-ftype="text" value="${esc(w.customFormula ?? w.formula ?? "1d20")}">
         <input type="hidden" data-easy-field="formula" data-field="formula" data-ftype="text" value="${esc(w.formula ?? "1d20")}">
         <input type="hidden" data-easy-field="diceTerms" data-field="diceTerms" data-ftype="json" value="${esc(JSON.stringify(w.diceTerms ?? [{count:1,sides:20}]))}">
         <input type="hidden" data-easy-field="variableTerms" data-field="variableTerms" data-ftype="json" value="${esc(JSON.stringify(w.variableTerms ?? []))}">
         <input type="hidden" data-easy-field="widgetTerms" data-field="widgetTerms" data-ftype="json" value="${esc(JSON.stringify(w.widgetTerms ?? []))}">
+        <input type="hidden" data-easy-field="rollPresets" data-field="rollPresets" data-ftype="jsonobj" value="${esc(JSON.stringify(w.rollPresets ?? null))}">
         <input type="hidden" data-easy-field="actionSteps" data-field="actionSteps" data-ftype="json" value="${esc(JSON.stringify(w.actionSteps ?? []))}">
       </div>`;
     }
@@ -737,11 +740,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   };
   const _rowsFor = (tabId) => fields.filter(f => _tabForField(f) === tabId).map(_renderFieldRow).join("");
   const sharedGraphRow = `<div class="wcfg-shared-blueprint"><div><b><i class="fas fa-diagram-project"></i> Sheet Blueprint</b><small>One graph for every widget and event on this sheet.</small></div><button type="button" data-open-sheet-blueprint title="Open Sheet Blueprint" aria-label="Open Sheet Blueprint"><i class="fas fa-arrow-up-right-from-square"></i></button></div>`;
-  const _quickTypes = new Set(["section", "vsection", "widgetBuilder"]);
   const _quickCfg = (w.quickActions && typeof w.quickActions === "object") ? w.quickActions : { event: "click", steps: [] };
   const _quickCount = Array.isArray(_quickCfg.steps) ? _quickCfg.steps.length : 0;
-  const quickActionsRow = _quickTypes.has(String(w.type)) ? "" : `<div class="wcfg-shared-blueprint wcfg-quick-actions">
-    <div><b><i class="fas fa-wand-magic-sparkles"></i> Quick Actions</b><small class="wcfg-quick-summary">${_quickCount ? `${esc(_quickCfg.event || "click")} · ${_quickCount} step${_quickCount === 1 ? "" : "s"}` : "Roll, open a window, message, damage… without a graph."}</small></div>
+  const quickActionsRow = `<div class="wcfg-shared-blueprint wcfg-quick-actions">
+    <div><b><i class="fas fa-wand-magic-sparkles"></i> Quick Actions</b><small class="wcfg-quick-summary">${_quickCount ? `${esc(_quickCfg.event || "click")} · ${_quickCount} step${_quickCount === 1 ? "" : "s"}` : "Roll, message, damage… saved as connected Sheet Blueprint nodes."}</small></div>
     <button type="button" data-open-quick-actions title="Configure quick actions" aria-label="Configure quick actions"><i class="fas ${_quickCount ? "fa-pen" : "fa-plus"}"></i></button>
     <input type="hidden" data-field="quickActions" data-ftype="jsonobj" value="${esc(JSON.stringify(_quickCfg))}">
   </div>`;
@@ -1646,8 +1648,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     const edited = await openQuickActionsEditor(current, doc, { title: `${labelField?.value || w.label || "Widget"} — quick actions`, label: labelField?.value || w.label || "", id: w.id });
     if (!edited) return;
     if (hidden) hidden.value = JSON.stringify(edited);
+    await saveWidgetQuickSettings(doc,w,{quickActions:edited});
+    w.quickActions=foundry.utils.deepClone(edited);
     const summary = popup.querySelector(".wcfg-quick-summary");
-    if (summary) summary.textContent = edited.steps.length ? `${edited.event} · ${edited.steps.length} step${edited.steps.length === 1 ? "" : "s"}` : "Roll, open a window, message, damage… without a graph.";
+    if (summary) summary.textContent = edited.steps.length ? `${edited.event} · ${edited.steps.length} step${edited.steps.length === 1 ? "" : "s"}` : "Roll, message, damage… saved as connected Sheet Blueprint nodes.";
     const icon = popup.querySelector("[data-open-quick-actions] i");
     if (icon) icon.className = `fas ${edited.steps.length ? "fa-pen" : "fa-plus"}`;
   });
@@ -1660,11 +1664,12 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       startPage: "mode"
     });
     if (!updated) return;
+    await saveWidgetQuickSettings(doc,w,updated);
     Object.assign(w, updated);
-    for (const key of ["easyMode", "customFormula", "formula", "diceTerms", "variableTerms", "widgetTerms", "actionSteps"]) {
+    for (const key of ["easyMode", "customFormula", "formula", "diceTerms", "variableTerms", "widgetTerms", "actionSteps", "rollPresets", "advFormula", "disFormula", "rollDialogue", "rollMode", "rollComposer", "composerTitle", "composerMessage"]) {
       const input = popup.querySelector(`[data-easy-field="${key}"]`);
       if (!input) continue;
-      input.value = ["diceTerms", "variableTerms", "widgetTerms", "actionSteps"].includes(key) ? JSON.stringify(updated[key] ?? []) : String(updated[key] ?? "");
+      input.value = ["diceTerms", "variableTerms", "widgetTerms", "actionSteps", "rollPresets"].includes(key) ? JSON.stringify(updated[key] ?? (key === "rollPresets" ? null : [])) : String(updated[key] ?? "");
     }
     const summary = popup.querySelector(".wcfg-easy-summary");
     if (summary) summary.textContent = updated.formula ?? "1d20";
@@ -1822,7 +1827,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       Object.assign(w, changes);
       const _embeddedUpdates = { ..._hfUpdates, ..._varWrites };
       if (Object.keys(_embeddedUpdates).length) await doc.update(_embeddedUpdates);
-      options.onSave?.(foundry.utils.deepClone(w));
+      await options.onSave?.(foundry.utils.deepClone(w));
+      await syncWidgetQuickGraph(doc);
       ui.notifications?.info?.(`Embedded widget "${w.label || w.type}" updated.`);
       _closePopup();
       return;
@@ -1891,6 +1897,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         await doc.update({ "system.customTabs": tabs, ..._hfUpdates, ..._varWrites, ...buildWidgetPathRegistryUpdate(doc, tabs) });
       }
 
+      await syncWidgetQuickGraph(doc);
       ui.notifications?.info?.(`Widget "${widget.label || widget.type}" saved.`);
     } else {
       ui.notifications?.warn?.(`Widget "${w.label || w.type}" not found in document data — save aborted.`);

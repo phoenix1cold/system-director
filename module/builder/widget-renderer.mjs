@@ -2011,7 +2011,7 @@ export class WidgetRenderer {
   static _render_counter(w, doc) {
     const e    = this._esc;
     const val  = Number(this._get(doc, w.path, 0)) || 0;
-    const col  = e(w.color ?? "var(--sd-warn)");
+    const col  = e(w.boxFg || w.color || "var(--sd-warn)");
     const step = Number(w.step ?? 1) || 1;
 
     const minN = (w.min === "" || w.min == null) ? null : Number(w.min);
@@ -2368,7 +2368,7 @@ export class WidgetRenderer {
     const fs    = Number.isFinite(fsRaw) && fsRaw > 0 ? `${fsRaw}px` : "18px";
     return `<div class="widget widget-derived">
   <div class="widget-label">${lbl}</div>
-  <div class="widget-derived-value" style="font-size:${fs};font-weight:700;text-align:center;color:var(--sd-text);letter-spacing:.02em;line-height:1.15">${esc(String(disp))}</div>
+  <div class="widget-derived-value" style="font-size:${fs};font-weight:700;text-align:center;color:var(--sd-w-fg,var(--sd-text));letter-spacing:.02em;line-height:1.15">${esc(String(disp))}</div>
 </div>`;
   }
 

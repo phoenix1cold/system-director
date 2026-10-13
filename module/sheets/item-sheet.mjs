@@ -1,3 +1,6 @@
+import { commitWidgetStep } from "../helpers/widget-step-commit.mjs";
+import { syncWidgetQuickGraph, widgetGraphHandlesClick } from "../builder/widget-quick-graph.mjs";
+import { bindProgressionValuePickers } from "../helpers/progression-values.mjs";
 import { wireSheetTabClick } from "../builder/sheet-tab-controls.mjs";
 import { bindCardHands } from "../helpers/card-hand.mjs";
 import { bindModelWidgets } from "../three/model-widget.mjs";
@@ -492,7 +495,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         return;
       }
       const control=sheetWidgetClickControl(cell,event);
-      if(!control)return;
+      if(!control || control.matches("[data-step], [data-action='widgetNumStep']"))return;
       emit("click",event,{elementKey:control.closest("[data-element-key]")?.dataset?.elementKey??""});
       if(String(w.type)==="toggle"&&!widgetCommitEventsInstalled())emit("toggle",event);
     },true);
@@ -1154,6 +1157,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     panel.querySelectorAll(".cls-choice-fc-variable").forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "variableId")));
     panel.querySelectorAll(".cls-choice-fc-mode").forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "mode")));
     panel.querySelectorAll(".cls-choice-fc-val" ).forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "value")));
+    bindProgressionValuePickers(panel);
   }
 
   _buildSkilltreePanel(isActive) {
@@ -2412,6 +2416,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     con.querySelectorAll("[data-action='widgetRoll']").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
+        if (widgetGraphHandlesClick(this.document, btn)) return;
         let formula = btn.dataset.formulaRaw || btn.dataset.formula || "";
         if (!String(formula).trim()) return;
         if (formula.trim().startsWith("[")) {
@@ -2458,6 +2463,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
     con.querySelectorAll("[data-action='widgetButton']").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
+        if (widgetGraphHandlesClick(this.document, btn)) return;
         const rawFormula = btn.dataset.formulaRaw || btn.dataset.formula;
         if (!rawFormula) {
           if (btn.dataset.flavor) {
@@ -2693,17 +2699,17 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const path  = btn.dataset.path;
         if (!path || !Number.isFinite(step)) return;
         const root  = btn.closest(".widget") ?? con;
-        const cur   = _numberForPath(path, root);
         const dsMin = btn.dataset.min;
         const dsMax = btn.dataset.max;
         const rawMin = (dsMin !== undefined && dsMin !== "") ? parseFloat(dsMin) : -Infinity;
         const rawMax = (dsMax !== undefined && dsMax !== "") ? parseFloat(dsMax) :  Infinity;
         const min   = Number.isFinite(rawMin) ? rawMin : -Infinity;
         const max   = Number.isFinite(rawMax) ? rawMax :  Infinity;
-        const next  = Math.clamp(cur + step, min, max);
         const field = _fieldForPath(path, root);
-        if (field && "value" in field) field.value = String(next);
-        await this.document.update({ [path]: next });
+        const cell = btn.closest("[data-widget-id]") ?? btn.closest(".sd-widget-cell") ?? root.parentElement;
+        await commitWidgetStep(this.document, {path, step, min, max,
+          readCurrent:()=>_numberForPath(path, root), onValue:value=>{if(field)field.value=String(value);},
+          emit:(...args)=>cell?._sdEmitWidgetEvent?.(...args), emitChange:!widgetCommitEventsInstalled()});
       });
     });
 
@@ -3177,6 +3183,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       else row.widgets.push(widget);
     } else { tab.rows??=[]; tab.rows.push({id:foundry.utils.randomID(8),cols:3,widgets:[widget]}); }
     await this.document.update({"system.customTabs":tabs, ...buildWidgetPathRegistryUpdate(this.document, tabs)});
+    await syncWidgetQuickGraph(this.document);
   }
   async _cycleSpan(tab,row,w){
     const cols = Math.max(1, Math.min(9, Number(row.cols) || 3));
@@ -3236,7 +3243,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const r=tabs.find(t=>t.id===tab.id)?.rows?.find(r=>r.id===row.id);
     if(!r) return;
     const removed=this._removeWidgetDeep(r.widgets, w.id);
-    if (removed) await this.document.update({"system.customTabs":tabs});
+    if (removed) { await this.document.update({"system.customTabs":tabs}); await syncWidgetQuickGraph(this.document); }
   }
   async _configRow(tabId, rowId) {
     const row = this.document.system.customTabs?.find(t => t.id === tabId)?.rows?.find(r => r.id === rowId);

@@ -1,4 +1,5 @@
 import { resolveNodeFormulaToken } from "./node-runtime-api.mjs";
+import { resolveDatabaseSource } from "./database-source.mjs";
 import { readDatabaseValue } from "./value-database.mjs";
 
 export class FormulaEngine {
@@ -1732,12 +1733,10 @@ export class FormulaEngine {
       const parts=token.slice("sdValue:".length).split("|");
       const source=String(this._resolveArrayArg(parts[0]??"",doc)??"self");
       const variableId=String(this._resolveArrayArg(parts[1]??"",doc)??"");
-      const ref=String(this._resolveArrayArg(parts.slice(2).join("|")??"",doc)??"");
-      let target=doc;
-      if(source==="first target") target=game?.user?.targets?.first?.()?.actor??canvas?.tokens?.controlled?.[0]?.actor??null;
-      else if(source==="token by id") target=canvas?.tokens?.get?.(ref)?.actor??null;
-      else if(source==="by uuid") target=this._docByUuidSync(ref);
-      const value=readDatabaseValue(target,variableId);
+      const ref=this._resolveArrayArg(parts[2]??"",doc)??"";
+      const itemId=String(this._resolveArrayArg(parts[3]??"",doc)??"");
+      const target=resolveDatabaseSource(doc,source,ref,itemId);
+      const value=target ? readDatabaseValue(target,variableId) : undefined;
       return value===undefined||value===null?0:value;
     }
 

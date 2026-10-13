@@ -1,3 +1,5 @@
+import { commitWidgetStep } from "./widget-step-commit.mjs";
+import { widgetGraphHandlesClick } from "../builder/widget-quick-graph.mjs";
 import { WidgetRenderer }  from "../builder/widget-renderer.mjs";
 import { bindCardHands } from "./card-hand.mjs";
 import { bindModelWidgets } from "../three/model-widget.mjs";
@@ -300,7 +302,7 @@ function wireHudWidget(cell, widgetDef, actor) {
     const pip=event.target?.closest?.(".skill-pip[data-rank]");
     if(pip){emitHudWidgetEvent("pip",event,{value:Number(pip.dataset.rank)||0});return;}
     const control = sheetWidgetClickControl(cell, event);
-    if (!control) return;
+    if (!control || control.matches("[data-step], [data-action='widgetNumStep']")) return;
     emitHudWidgetEvent("click", event, { elementKey: control.closest("[data-element-key]")?.dataset?.elementKey ?? "" });
     if (String(widgetDef?.type) === "toggle"&&!widgetCommitEventsInstalled()) emitHudWidgetEvent("toggle", event);
   }, true);
@@ -381,17 +383,18 @@ function wireHudWidget(cell, widgetDef, actor) {
       const step = parseFloat(btn.dataset.step);
       const path = btn.dataset.path;
       if (!path || !Number.isFinite(step)) return;
-      const cur = _numberForPath(path);
       const dsMin = btn.dataset.min;
       const dsMax = btn.dataset.max;
       const rawMin = dsMin !== undefined && dsMin !== "" ? parseFloat(dsMin) : -Infinity;
       const rawMax = dsMax !== undefined && dsMax !== "" ? parseFloat(dsMax) :  Infinity;
       const min = Number.isFinite(rawMin) ? rawMin : -Infinity;
       const max = Number.isFinite(rawMax) ? rawMax :  Infinity;
-      const next = Math.clamp(cur + step, min, max);
       const field = _fieldForPath(path);
-      if (field && "value" in field) field.value = String(next);
-      try { await actor.update({ [path]: next }); } catch(e) {}
+      try {
+        await commitWidgetStep(actor, {path, step, min, max,
+          readCurrent:()=>_numberForPath(path), onValue:value=>{if(field)field.value=String(value);},
+          emit:emitHudWidgetEvent, emitChange:!widgetCommitEventsInstalled()});
+      } catch(error) { console.error("SD | step update failed", error); }
     });
   });
 
@@ -774,7 +777,8 @@ function wireHudWidget(cell, widgetDef, actor) {
 
   cell.querySelectorAll("[data-action='widgetButton']").forEach(btn => {
     btn.addEventListener("click", async () => {
-      const raw = btn.dataset.formulaRaw || btn.dataset.formula;
+      if (widgetGraphHandlesClick(actor, widgetDef)) return;
+        const raw = btn.dataset.formulaRaw || btn.dataset.formula;
       const flavor = btn.dataset.flavor ?? "";
       // No formula: the button is event-only. Its click was already emitted in
       // the capture phase, so nothing is posted or rolled implicitly.
@@ -791,6 +795,7 @@ function wireHudWidget(cell, widgetDef, actor) {
 
   cell.querySelectorAll("[data-action='widgetRoll']").forEach(btn => {
     btn.addEventListener("click", async () => {
+      if (widgetGraphHandlesClick(actor, widgetDef)) return;
       const raw = btn.dataset.formulaRaw || btn.dataset.formula || "";
       if (!String(raw).trim()) return;
       const flavor = btn.dataset.flavor ?? "";
