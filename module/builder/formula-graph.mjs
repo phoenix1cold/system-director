@@ -575,7 +575,7 @@ export const NODE_DEFS = {
       {key:"source",label:"Target",type:"select",default:"self",hint:"A connected Actor / Item Ref overrides this choice.",options:[{value:"self",label:"Auto — graph owner"},{value:"actor",label:"Actor — self / item owner"},{value:"item",label:"Item — current graph item"},{value:"owned item",label:"Owned Item — from current actor"},{value:"first target",label:"First Target"},{value:"token by id",label:"Token by ID"},{value:"by uuid",label:"By UUID"}]},
       {key:"itemId",label:"Owned Item",type:"select",default:"",options:(_node,graph)=>[{value:"",label:"Choose owned Item…"},...((graph?.doc?.documentName==="Actor"?graph.doc:graph?.doc?.actor)?.items??[]).map(entry=>({value:entry.id,label:entry.name??entry.id}))],noPin:true},
       {key:"variableId",label:"Variable",type:"select",default:"",options:(node,graph)=>{const source=String(node?.data?.source??"self");const scope=source==="item"||source==="owned item"?"item":source==="actor"||source==="first target"||source==="token by id"?"actor":graph?.doc?.documentName==="Item"?"item":graph?.doc?.documentName==="Actor"?"actor":"";return valueSelectOptionsForScope(scope);},noPin:true},
-      {key:"operation",label:"Operation",type:"select",default:"set",options:[{value:"set",label:"Set value"},{value:"add",label:"Add"},{value:"subtract",label:"Subtract"},{value:"multiply",label:"Multiply"},{value:"toggle",label:"Toggle"},{value:"1",label:"Set value (legacy)"},{value:"2",label:"Add (legacy)"},{value:"3",label:"Subtract (legacy)"},{value:"4",label:"Multiply (legacy)"},{value:"5",label:"Toggle (legacy)"}]},
+      {key:"operation",label:"Operation",type:"select",default:"set",displayValue:value=>({1:"set",2:"add",3:"subtract",4:"multiply",5:"toggle"})[value]??value,options:[{value:"set",label:"Set value"},{value:"add",label:"Add"},{value:"subtract",label:"Subtract"},{value:"multiply",label:"Multiply"},{value:"toggle",label:"Toggle"}]},
       {key:"value",label:"Value",type:"text",default:"0"}
     ],isAction:true,
     toAction:(n,inp)=>({type:"setDatabaseValue",source:n.data?.source??"self",itemId:n.data?.itemId??"",variableId:n.data?.variableId??"",operation:n.data?.operation??"set",ref:inp.ref??"",value:inp.value??n.data?.value??0})
@@ -5363,12 +5363,12 @@ export const NODE_DEFS = {
 
   database_effects: {
     title:"Database Effects", color:"#68449a", cat:"Effects", wideNode:true,
-    desc:"Loads usable effect definitions from Database > Effects. Connect Effects to Select Database Effect or an array selection node, then Apply Effect.",
+    desc:"Loads the Database effect pool and a chosen effect. Connect Effect directly to Apply Effect, or Effects to an array selection node.",
     inputs:[{id:"exec",label:"",type:"exec"}],
-    outputs:[{id:"exec",label:"Loaded",type:"exec"},{id:"effects",label:"Effects",type:"value.array"}],
-    fields:[],isGenericBranch:true,
-    dynamicBranchToken:(n,p)=>p==="effects"?`{__nodeResult:${n.id}|effects}`:null,
-    toAction:n=>({type:"databaseEffects",runtimeKey:n.id})
+    outputs:[{id:"exec",label:"Loaded",type:"exec"},{id:"effects",label:"Effects",type:"value.array"},{id:"effect",label:"Effect",type:"value.effect"}],
+    fields:[{key:"presetId",label:"Database Effect",type:"select",default:"",options:()=>NODE_DEFS.database_effect_select.fields[0].options(),noPin:true}],isGenericBranch:true,
+    dynamicBranchToken:(n,p)=>["effects","effect"].includes(p)?`{__nodeResult:${n.id}|${p}}`:null,
+    toAction:n=>({type:"databaseEffects",runtimeKey:n.id,presetId:n.data?.presetId??""})
   },
 
   database_effect_select: {
@@ -15293,7 +15293,8 @@ export class FormulaGraph {
       inp=document.createElement("select");
       inp.classList.add("gn-ctl");inp.style.cssText="cursor:pointer";
 
-      const cur = node.data[field.key]??field.default;
+      const saved = node.data[field.key]??field.default;
+      const cur = field.displayValue ? field.displayValue(saved) : saved;
       const fieldOptions = typeof field.options === "function" ? (field.options(node, this) ?? []) : (field.options ?? []);
       for(const o of fieldOptions){
         const oel=document.createElement("option");

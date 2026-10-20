@@ -5547,7 +5547,10 @@ export class ButtonExecutor {
           } catch { return null; }
         };
         let outputs;
-        if(action.type === "databaseEffects") outputs={effects:listEffectPresets().map(definitionOf).filter(Boolean)};
+        if(action.type === "databaseEffects") {
+          const preset=getEffectPreset(String(action.presetId??""));
+          outputs={effects:listEffectPresets().map(definitionOf).filter(Boolean),effect:preset?definitionOf(preset):null};
+        }
         else {
           let effect=null;
           if(action.effects != null) {

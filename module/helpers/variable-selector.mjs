@@ -11,11 +11,15 @@ export function enhanceVariableSelect(select,{ownerType="actor",types=null,stora
   let initialValues=select.multiple?[...select.selectedOptions].map(option=>option.value):[initial];
   if(select.multiple&&select.dataset.variableRefs){try{const values=JSON.parse(select.dataset.variableRefs);if(Array.isArray(values))initialValues=values.map(String);}catch{}}
   const ref=decodeVariableRef(initial);
+  const group=document.createElement("span");group.className="sd-variable-selector";
+  group.style.cssText="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:0;max-width:100%;width:100%;box-sizing:border-box";
   const controls=document.createElement("span");controls.className="sd-variable-selector-controls";
-  controls.style.cssText="display:flex;gap:4px;flex-wrap:wrap;align-items:center";
+  controls.style.cssText="display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0;width:100%";
   const makeControl=label=>{
     const wrapper=document.createElement("label");wrapper.textContent=label;
+    wrapper.style.cssText="display:flex;flex-direction:column;gap:2px;min-width:0;max-width:100%;width:100%;margin:0;white-space:normal;line-height:1.3";
     const control=document.createElement("select");control.setAttribute("aria-label",label);
+    control.style.cssText="box-sizing:border-box;flex:none;min-width:0;max-width:100%;width:100%;margin:0";
     wrapper.append(control);controls.append(wrapper);return control;
   };
   const database=makeControl("Database");const owner=makeControl("Actor/Item");
@@ -45,7 +49,9 @@ export function enhanceVariableSelect(select,{ownerType="actor",types=null,stora
   };
   // Hydration must not rewrite persisted legacy IDs or fire application handlers.
   populate(select.multiple?initialValues:initial,true);
-  select.before(controls);
+  const originalStyle=select.getAttribute("style");
+  select.before(group);group.append(controls,select);
+  Object.assign(select.style,{boxSizing:"border-box",flex:"none",minWidth:"0",maxWidth:"100%",width:"100%",margin:"0"});
   const changed=()=>{
     const selectedValues=select.multiple?[...select.selectedOptions].map(option=>option.value):null;
     const previous=decodeVariableRef(select.value);
@@ -64,7 +70,9 @@ export function enhanceVariableSelect(select,{ownerType="actor",types=null,stora
   select.addEventListener("change",sync);
   const binding={database,owner,select,refresh:()=>populate(select.multiple?[...select.selectedOptions].map(option=>option.value):select.value,true),destroy:()=>{
     database.removeEventListener("change",changed);owner.removeEventListener("change",changed);
-    select.removeEventListener("change",sync);controls.remove();bindings.delete(select);
+    select.removeEventListener("change",sync);group.before(select);group.remove();
+    if(originalStyle===null)select.removeAttribute("style");else select.setAttribute("style",originalStyle);
+    bindings.delete(select);
   }};
   bindings.set(select,binding);return binding;
 }
