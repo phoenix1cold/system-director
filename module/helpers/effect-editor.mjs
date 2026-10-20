@@ -1,4 +1,5 @@
-import { getValueDefinitions, valueStoragePath } from "./value-database.mjs";
+import { getValueDefinitions, valueStoragePath, decodeVariableRef } from "./value-database.mjs";
+import { enhanceVariableSelectors } from "./variable-selector.mjs";
 
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const MODE_OPTIONS=[
@@ -33,7 +34,7 @@ function variableIdFromChange(change,definitions){
 function changeRow(change={},definitions=[]){
   const variableId=variableIdFromChange(change,definitions);
   return `<div class="sd-ve-change" style="display:grid;grid-template-columns:minmax(180px,1fr) 110px minmax(100px,1fr) 70px 30px;gap:6px;align-items:end;margin:6px 0">
-    <label><span>Database variable</span><select name="variableId"><option value="">Select value…</option>${definitions.map(v=>`<option value="${esc(v.id)}" ${variableId===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join("")}</select></label>
+    <label><span>Database variable</span><select name="variableId" data-variable-ref="${esc(variableId)}"><option value="">Select value…</option>${definitions.map(v=>`<option value="${esc(v.id)}" ${variableId===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join("")}</select></label>
     <label><span>Operation</span><select name="mode">${MODE_OPTIONS.map(m=>`<option value="${m.value}" ${Number(change.mode??2)===m.value?"selected":""}>${m.label}</option>`).join("")}</select></label>
     <label><span>Value</span><input name="value" value="${esc(change.value??"")}" placeholder="Value or formula"></label>
     <label><span>Priority</span><input type="number" name="priority" value="${Number(change.priority??20)}"></label>
@@ -45,9 +46,8 @@ function changeRow(change={},definitions=[]){
 export async function editVariableEffect(snapshot, { parent, title } = {}) {
   if (!parent || !["Actor","Item"].includes(parent.documentName)) return null;
   const definitions=getValueDefinitions();
-  if(!definitions.length){ui.notifications?.warn?.("Add at least one value to Settings → Database first.");return null;}
   const data=foundry.utils.deepClone(snapshot??{});
-  const rows=(data.changes??[]).map(c=>changeRow(c,definitions)).join("")||changeRow({},definitions);
+  const rows=(data.changes??[]).map((c,index)=>changeRow({...c,variableId:data.flags?.sd?.variableReferences?.[index]||c.variableId},definitions)).join("")||changeRow({},definitions);
   const content=`<form class="sd-variable-effect-editor" style="display:flex;flex-direction:column;gap:10px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label><span>Name</span><input name="name" value="${esc(data.name??"Effect")}"></label><label><span>Icon</span><input name="icon" value="${esc(data.img??data.icon??"icons/svg/aura.svg")}"></label></div>
     <div style="display:grid;grid-template-columns:100px 100px 1fr 1fr;gap:8px"><label><span>Rounds</span><input type="number" min="0" name="rounds" value="${Number(data.duration?.rounds??0)}"></label><label><span>Seconds</span><input type="number" min="0" name="seconds" value="${Number(data.duration?.seconds??0)}"></label><label><input type="checkbox" name="disabled" ${data.disabled?"checked":""}> Start disabled</label><label><input type="checkbox" name="transfer" ${data.transfer?"checked":""}> Transfer</label></div>
@@ -61,9 +61,11 @@ export async function editVariableEffect(snapshot, { parent, title } = {}) {
   };
   document.addEventListener("click",onClick,true);
   let result;
+  let disposeVariables;
   try{
     result=await foundry.applications.api.DialogV2.prompt({
       window:{title:title??"Variable Effect Editor",resizable:true},position:{width:800,height:"auto"},content,
+      render: (_event, dialog) => { disposeVariables?.(); disposeVariables = enhanceVariableSelectors(dialog.element, { selector: 'select[name="variableId"]', ownerType: parent.documentName === "Item" ? "item" : "actor", allowWorld: false }); },
       ok:{label:"Save effect",icon:"fas fa-floppy-disk",callback:(_event,button)=>{
         const form=button.form;
         const changes=[...form.querySelectorAll(".sd-ve-change")].map(row=>({
@@ -71,11 +73,16 @@ export async function editVariableEffect(snapshot, { parent, title } = {}) {
           mode:Number(row.querySelector('[name="mode"]')?.value??2),
           value:String(row.querySelector('[name="value"]')?.value??""),
           priority:Number(row.querySelector('[name="priority"]')?.value??20)
-        })).filter(c=>c.variableId).map(c=>({key:valueStoragePath(c.variableId),mode:c.mode,value:c.value,priority:c.priority}));
+        })).filter(c=>c.variableId);
+        const expectedOwner=parent.documentName === "Item" && !form.elements.transfer?.checked ? "item" : "actor";
+        if(changes.some(c=>{const ref=decodeVariableRef(c.variableId);return ref?.qualified&&ref.ownerType!=="auto"&&ref.ownerType!==expectedOwner;}))throw new Error(`Effect changes must target ${expectedOwner} values.`);
+        data.flags ??= {}; data.flags.sd ??= {};
+        data.flags.sd.variableReferences=changes.map(c=>c.variableId);
+        for(const change of changes){change.key=valueStoragePath(change.variableId);delete change.variableId;}
         return {...data,name:String(form.elements.name?.value??"Effect"),img:String(form.elements.icon?.value??"icons/svg/aura.svg"),icon:String(form.elements.icon?.value??"icons/svg/aura.svg"),disabled:!!form.elements.disabled?.checked,transfer:!!form.elements.transfer?.checked,duration:{rounds:Number(form.elements.rounds?.value??0),seconds:Number(form.elements.seconds?.value??0)},changes};
       }}
     });
-  }catch{return null;}finally{document.removeEventListener("click",onClick,true);}
+  }catch{return null;}finally{disposeVariables?.();document.removeEventListener("click",onClick,true);}
   return result??null;
 }
 

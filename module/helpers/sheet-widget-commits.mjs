@@ -1,6 +1,7 @@
 import { forEachWidget, WIDGET_NODE_CONTRACTS, attributeGroupEntries } from "../builder/widget-nodes.mjs";
 import { emitSheetWidgetEvent } from "./sheet-widget-events.mjs";
 import { WIDGET_VARIABLES } from "./widget-variables.mjs";
+import { mediaSource } from "./media-widget.mjs";
 
 let installed=false;
 export const widgetCommitEventsInstalled=()=>installed;
@@ -27,7 +28,7 @@ export function widgetValueSnapshot(doc) {
         const cards=[...(stack?.cards??[])].map(card=>({id:card.id,name:card.name,face:card.face,sort:card.sort,drawn:card.drawn}));
         result.push({...base,elementKey:"",value:cards,state:[cards]});
       } else if(widget.type==="image") {
-        const src=widget.staticSrc||(widget.path?foundry.utils.getProperty(doc,widget.path):"")||"";
+        const src=mediaSource(widget,doc);
         result.push({...base,elementKey:"",value:src,state:[src]});
       } else {
         const contract=WIDGET_NODE_CONTRACTS[widget.type];

@@ -174,8 +174,8 @@ async function resolveDocumentRef(value) {
   if(!value)return null;
   if(value.documentName)return value;
   const raw=String(value);
-  if(raw.startsWith("Actor."))return game.actors?.get?.(raw.split(".").at(-1))??(typeof fromUuid==="function"?fromUuid(raw):null);
-  if(raw.startsWith("Item."))return game.items?.get?.(raw.split(".").at(-1))??(typeof fromUuid==="function"?fromUuid(raw):null);
+  if(raw.startsWith("Actor."))return (raw.split(".").length===2?game.actors?.get?.(raw.split(".")[1]):null)??(typeof fromUuid==="function"?fromUuid(raw):null);
+  if(raw.startsWith("Item."))return (raw.split(".").length===2?game.items?.get?.(raw.split(".")[1]):null)??(typeof fromUuid==="function"?fromUuid(raw):null);
   return game.actors?.get?.(raw)??game.items?.get?.(raw)??(typeof fromUuid==="function"?fromUuid(raw):null);
 }
 
@@ -183,13 +183,19 @@ export async function resolveDatabaseOwner({databaseId,ownerMode="auto",owner=nu
   const db=getDatabase(databaseId);
   if(!db)return {database:null,kind:"missing",document:null};
   if(db.storage==="world")return {database:db,kind:"world",document:null};
+  if(ownerMode==="world")return {database:db,kind:"missing",document:null};
   let doc=owner?.documentName?owner:null;
   if(!doc&&owner)doc=await resolveDocumentRef(owner);
+  if(ownerMode==="actor"&&doc?.documentName==="Item")doc=doc.actor??null;
+  if(doc&&((ownerMode==="actor"&&doc.documentName!=="Actor")||(ownerMode==="item"&&doc.documentName!=="Item")))return {database:db,kind:"missing",document:null};
   if(!doc){
     if(ownerMode==="actor")doc=actor??item?.actor??null;
     else if(ownerMode==="item")doc=item??null;
     else doc=item??actor??null;
   }
+  if(doc&&!["Actor","Item"].includes(doc.documentName))doc=null;
+  if(doc&&ownerMode==="actor"&&doc.documentName!=="Actor")doc=null;
+  if(doc&&ownerMode==="item"&&doc.documentName!=="Item")doc=null;
   return {database:db,kind:doc?"document":"missing",document:doc};
 }
 
@@ -205,6 +211,7 @@ export async function readDatabaseValue({databaseId,recordId,ownerMode="auto",ow
   const record=getDatabaseRecord(databaseId,recordId);
   if(!record)throw new Error(`Database record not found: ${databaseId}.${recordId}`);
   const resolved=await resolveDatabaseOwner({databaseId,ownerMode,owner,item,actor});
+  if(resolved.kind==="missing")return undefined;
   let value;
   if(resolved.kind==="world"){
     const values=game.settings.get("sd","sharedDatabaseWorldValues")??{};

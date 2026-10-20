@@ -512,19 +512,26 @@ export const WIDGET_TYPES = {
 
   image: {
     id:    "image",
-    label: "Image",
+    label: "Media",
     icon:  "fa-image",
-    desc:  "Static image",
+    desc:  "Images, GIFs and video",
     defaultSpan: 1,
     defaults: {
       label:       "",
       staticSrc:   "",
+      autoplay:    false,
+      loop:        false,
+      replaceOnClick: false,
       width:       64,
       height:      64,
       borderRadius: 4
     },
     configFields: [
-      { key: "staticSrc", type: "text", label: "Image" }
+      { key: "staticSrc", type: "media-pick", label: "SD.Media.Source" },
+      { key: "path", type: "path", label: "SD.Media.Path" },
+      { key: "autoplay", type: "boolean", label: "SD.Media.Autoplay" },
+      { key: "loop", type: "boolean", label: "SD.Media.Loop" },
+      { key: "replaceOnClick", type: "boolean", label: "SD.Media.ReplaceOnClick" }
     ]
   },
 

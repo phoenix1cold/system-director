@@ -17,7 +17,7 @@ function FieldChangeField(opts = {}) {
       choices: { add: "Add (+)", set: "Set (=)", multiply: "Multiply (×)" },
       blank: false
     }),
-    value: new StringField({ initial: "1", blank: false })
+    value: new StringField({ initial: "1", blank: true })
   }, opts);
 }
 

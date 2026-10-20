@@ -1,4 +1,5 @@
-import { getValueDefinitions, getValueDefinition, valueStoragePath } from "./value-database.mjs";
+import { getValueDefinitions, getValueDefinition, valueStoragePath, decodeVariableRef } from "./value-database.mjs";
+import { enhanceVariableSelectors } from "./variable-selector.mjs";
 
 /**
  * SD Active Effect window.
@@ -62,6 +63,7 @@ export function effectTransferMode(ef) {
 }
 
 export class SDEffectSheet extends DocumentSheetV2 {
+  async close(options) { this._disposeVariableSelectors?.(); return super.close(options); }
   static DEFAULT_OPTIONS = {
     classes: ["sd", "sd-effect-sheet"],
     tag: "div",
@@ -89,8 +91,8 @@ export class SDEffectSheet extends DocumentSheetV2 {
       mode: effectTransferMode(ef),
       rounds: Number(ef?.duration?.rounds ?? 0) || 0,
       seconds: Number(ef?.duration?.seconds ?? 0) || 0,
-      changes: (ef?.changes ?? []).map(c => ({
-        variableId: changeVariableId(c, defs),
+      changes: (ef?.changes ?? []).map((c, index) => ({
+        variableId: ef?.flags?.sd?.variableReferences?.[index] || changeVariableId(c, defs),
         legacyKey: changeVariableId(c, defs) ? "" : String(c?.key ?? ""),
         mode: changeMode(c),
         value: String(c?.value ?? ""),
@@ -148,7 +150,7 @@ export class SDEffectSheet extends DocumentSheetV2 {
       const legacy = !c.variableId && c.legacyKey;
       return `<div class="sd-table-row sd-es-change ${legacy ? "is-legacy" : ""}" data-index="${i}" title="${esc(legacy ? t("SD.Effects.LegacyKeyHint", "This change still points at a raw path. Pick a variable to migrate it.") + ` (${c.legacyKey})` : path)}">
         <div class="sd-es-var">
-          <select class="sd-select" data-change="variableId" ${lock}>${options}</select>
+          <select class="sd-select" data-change="variableId" data-variable-ref="${esc(c.variableId)}" ${lock}>${options}</select>
           ${legacy ? `<span class="sd-es-legacy"><i class="fas fa-triangle-exclamation"></i> ${esc(c.legacyKey)}</span>` : ""}
         </div>
         <select class="sd-select" data-change="mode" ${lock}>${SD_EFFECT_MODES.map(m => `<option value="${m.value}" ${Number(c.mode) === m.value ? "selected" : ""}>${esc(t(m.label, m.fallback))}</option>`).join("")}</select>
@@ -254,6 +256,14 @@ export class SDEffectSheet extends DocumentSheetV2 {
 
   async _save({ close = false } = {}) {
     const d = this._collect();
+    const expectedOwner=this.document?.parent?.documentName === "Item" && d.mode === "item" ? "item" : "actor";
+    for(const change of d.changes) {
+      const ref=decodeVariableRef(change.variableId);
+      if(ref?.qualified && ref.ownerType !== "auto" && ref.ownerType !== expectedOwner) {
+        ui.notifications?.warn?.(`This effect applies to ${expectedOwner === "item" ? "Item" : "Actor"} values. Select a matching object type.`);
+        return false;
+      }
+    }
     const changes = d.changes
       .map(c => {
         const key = c.variableId ? valueStoragePath(c.variableId) : String(c.legacyKey ?? "");
@@ -274,6 +284,7 @@ export class SDEffectSheet extends DocumentSheetV2 {
       disabled: d.disabled,
       transfer: d.transfer,
       changes,
+      "flags.sd.variableReferences": d.changes.filter(c=>c.variableId ? valueStoragePath(c.variableId) : c.legacyKey).map(c=>c.variableId||""),
       "duration.rounds": d.rounds || null,
       "duration.seconds": d.seconds || null
     };
@@ -312,6 +323,8 @@ export class SDEffectSheet extends DocumentSheetV2 {
 
   _onRender(context, options) {
     super._onRender?.(context, options);
+    this._disposeVariableSelectors?.();
+    this._disposeVariableSelectors = enhanceVariableSelectors(this.element, { selector: 'select[data-change="variableId"]', ownerType: this.document?.parent?.documentName === "Item" ? "item" : "actor", allowWorld: false });
     const root = this.element;
     if (!root) return;
 

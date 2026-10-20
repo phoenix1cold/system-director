@@ -1,5 +1,5 @@
 import { FormulaEngine } from "./formula-engine.mjs";
-import { getValueDefinitions, getValueDefinition, readDatabaseValue } from "./value-database.mjs";
+import { getValueDefinitions, getValueDefinition, readDatabaseValue, listVariableDatabases, variableReferenceOptions } from "./value-database.mjs";
 
 /** Shared sources for widget and 3D point visibility editors. */
 export function showIfSources(doc, excludeKey = "") {
@@ -11,6 +11,11 @@ export function showIfSources(doc, excludeKey = "") {
   };
   visit(doc?.system?.customTabs ?? []);
   for (const variable of getValueDefinitions()) sources.set(variable.id, {value:variable.id, label:`Database: ${variable.name} · ${variable.type} [${variable.id}]`});
+  for (const database of listVariableDatabases()) {
+    for (const ownerType of database.storage === "world" ? ["world"] : ["actor", "item"]) {
+      for (const option of variableReferenceOptions({databaseId:database.id,ownerType})) sources.set(option.value, {...option,label:`${database.name} / ${ownerType}: ${option.label}`});
+    }
+  }
   return [...sources.values()];
 }
 

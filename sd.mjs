@@ -1062,31 +1062,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
         if (icon) icon.className = "fas fa-spinner fa-spin";
 
         try {
-          if (!composerConfig.reusable) {
-            usedButtons.add(buttonId);
-            const nextUsed = Array.from(usedButtons);
-            const canUpdate = game.user.isGM || message.isOwner || message.canUserModify?.(game.user, "update");
-            if (canUpdate) {
-              try {
-                await message.update({"flags.sd.messageComposer.usedButtons": nextUsed});
-              } catch {
-                game.socket.emit("system.sd", {
-                  type:"messageComposer.used",
-                  messageId:message.id,
-                  buttonId,
-                  userId:game.user.id
-                });
-              }
-            } else {
-              game.socket.emit("system.sd", {
-                type:"messageComposer.used",
-                messageId:message.id,
-                buttonId,
-                userId:game.user.id
-              });
-            }
-          }
-
           let item = null;
           if (composerConfig.itemUuid) {
             try { item = await fromUuid(composerConfig.itemUuid); }
@@ -1102,7 +1077,25 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
           runtime.__messageFields = { ...(runtime.__messageFields ?? {}), ...messageFields };
           if (composerConfig.rollResult && !runtime.__rollResult) runtime.__rollResult = foundry.utils.deepClone(composerConfig.rollResult);
           for (const action of (buttonConfig.actions ?? [])) {
-            await ButtonExecutor._runAction(action, item, actionActor, buttonDef, runtime);
+            const result = await ButtonExecutor._runAction(action, item, actionActor, buttonDef, runtime);
+            if (action.type === "placeAoeTemplateV2" && action.direct && result === false) {
+              btn.disabled = false;
+              btn.classList.remove("is-running");
+              if (icon) icon.className = previousIcon;
+              return;
+            }
+          }
+          if (!composerConfig.reusable) {
+            usedButtons.add(buttonId);
+            const nextUsed = Array.from(usedButtons);
+            const canUpdate = game.user.isGM || message.isOwner || message.canUserModify?.(game.user, "update");
+            const notifyUsed = () => game.socket.emit("system.sd", {
+              type:"messageComposer.used",messageId:message.id,buttonId,userId:game.user.id
+            });
+            if (canUpdate) {
+              try { await message.update({"flags.sd.messageComposer.usedButtons": nextUsed}); }
+              catch { notifyUsed(); }
+            } else notifyUsed();
           }
 
           btn.classList.remove("is-running");
@@ -1672,44 +1665,18 @@ html.querySelectorAll(".sd-spell-v2-cast-btn[data-spell-v2-cfg]").forEach(btn =>
     const templates = Array.isArray(cfg.templates) ? cfg.templates : [];
     let selectedTemplate = templates[0] ?? null;
 
-    if (cfg.isAoe && templates.length > 1) {
-      const { DialogV2 } = foundry.applications.api;
-      const options = templates.map((t,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:7px;border-bottom:1px solid var(--color-border-light-2);cursor:pointer"><input type="radio" name="sd-spell-template" value="${i}" ${i===0?"checked":""}><strong>${esc(t.name ?? `Template ${i+1}`)}</strong><span style="margin-left:auto">${t.kind === "region-v14" ? `Region · ${Number(t.shapeCount ?? t.shapes?.length ?? 0)} shape(s)` : `${esc(t.t ?? "circle")} · ${Number(t.distance ?? 0)} ft`}</span></label>`).join("");
-      const picked = await DialogV2.wait({
-        window:{title:cfg.title ?? "Choose AOE Template"},modal:true,
-        content:`<div style="max-height:360px;overflow:auto">${options}</div>`,
-        buttons:[
-          {action:"ok",label:"Place",icon:"fas fa-crosshairs",default:true,callback:(ev,b,dlg)=>Number(dlg?.element?.querySelector?.('input[name="sd-spell-template"]:checked')?.value ?? 0)},
-          {action:"cancel",label:"Cancel",icon:"fas fa-times",callback:()=>null}
-        ],rejectClose:false
-      }).catch(()=>null);
-      if (picked === null) return;
-      selectedTemplate = templates[picked] ?? templates[0];
-    }
-
     btn.disabled=true;btn.style.opacity="0.55";btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Working…';
     let regionDoc=null;
     let tokenIds=[];
     try {
       if (cfg.isAoe) {
-        if (!selectedTemplate) throw new Error("No AOE template supplied");
-        const { buildShape, placeRegionInteractive, getRegionTokens } = await import("./module/helpers/sd-region.mjs");
-        const isV14Region = selectedTemplate.kind === "region-v14" && Array.isArray(selectedTemplate.shapes) && selectedTemplate.shapes.length;
-        const shape = isV14Region ? null : buildShape(selectedTemplate.t ?? selectedTemplate.shape ?? "circle", Number(selectedTemplate.distance ?? selectedTemplate.size ?? 20) || 20, Number(selectedTemplate.angle ?? 53.13) || 53.13);
-        regionDoc = await placeRegionInteractive({
-          name:selectedTemplate.name ?? cfg.title ?? "Spell AOE",
-          shape,
-          shapes:isV14Region ? selectedTemplate.shapes : null,
-          appearance:isV14Region ? (selectedTemplate.appearance ?? {}) : {},
-          flags:{sd:{spellV2:true,templateSnapshot:selectedTemplate,srcActorId:cfg.srcActorId ?? ""}}
-        });
-        if (!regionDoc) {
+        const { placeAoePreset } = await import("./module/helpers/aoe-placement.mjs");
+        const placed = await placeAoePreset({templates,title:cfg.title ?? "Spell AOE",actorId:cfg.srcActorId ?? "",persist:!!cfg.persist});
+        if (!placed) {
           btn.disabled=false;btn.style.opacity="1";btn.innerHTML=`<i class="fas fa-wand-magic-sparkles"></i> ${esc(cfg.buttonLabel ?? "Cast")}`;
           return;
         }
-        await new Promise(r=>setTimeout(r,250));
-        tokenIds=getRegionTokens(regionDoc).map(t=>t.id).filter(Boolean);
-        if (!cfg.persist) { try { await regionDoc.delete(); } catch {} }
+        ({regionDoc,selectedTemplate,tokenIds}=placed);
       } else if (cfg.hasTarget) {
         const raw=String(cfg.targets ?? "").split(",").map(x=>x.trim()).filter(Boolean);
         tokenIds=raw.length ? raw : [

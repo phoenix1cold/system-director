@@ -2,7 +2,7 @@ export function durationForRounds(rounds) {
   const value = Number(rounds);
   if (!Number.isFinite(value) || value <= 0) return {};
   const duration = { rounds: Math.trunc(value) };
-  const combat = game?.combat ?? null;
+  const combat = globalThis.game?.combat ?? null;
   if (combat?.started || Number(combat?.round) > 0) {
     const round = Number(combat.round);
     const turn = Number(combat.turn);
@@ -15,8 +15,9 @@ export function durationForRounds(rounds) {
 function _durationWithCombatStart(duration) {
   const rounds = Number(duration?.rounds);
   if (!Number.isFinite(rounds) || rounds <= 0) return duration ?? {};
-  if (duration?.startRound != null && duration?.startTurn != null) return duration;
-  return { ...(duration ?? {}), ...durationForRounds(rounds) };
+  const normalized = duration?.seconds === 0 ? { ...duration, seconds: null } : duration;
+  if (duration?.startRound != null && duration?.startTurn != null) return normalized;
+  return { ...normalized, ...durationForRounds(rounds) };
 }
 
 export function registerEffectDurationHooks() {
@@ -32,19 +33,48 @@ export function registerEffectDurationHooks() {
 
   Hooks.on("updateCombat", async (combat, changed) => {
     if (!game.user?.isGM) return;
+    if (game.users?.activeGM && game.users.activeGM.id !== game.user.id) return;
     if (!("round" in (changed ?? {})) && !("turn" in (changed ?? {}))) return;
+    if (!(Number(combat?.round) > 0)) return;
     const updates = [];
+    const seen = new Set();
     for (const combatant of combat?.combatants ?? []) {
       const actor = combatant?.actor;
-      if (!actor) continue;
+      if (!actor || seen.has(actor)) continue;
+      seen.add(actor);
       for (const effect of actor.effects ?? []) {
-        const d = effect.duration ?? {};
-        if (!(Number(d.rounds) > 0)) continue;
-        if (d.startRound != null && d.startTurn != null) continue;
-        updates.push(effect.update({ duration: _durationWithCombatStart(d) }).catch(() => null));
+        if (effect.disabled) continue;
+        const d = effect._source?.duration ?? effect.duration ?? {};
+        if (!(Number(d.rounds) > 0 || Number(d.turns) > 0)) continue;
+        const update = d.seconds === 0 ? { "duration.seconds": null } : {};
+        if (d.startRound == null || d.startTurn == null) {
+          updates.push(effect.update({ ...update, "duration.startRound": Number(combat.round), "duration.startTurn": Number(combat.turn ?? 0) }).catch(() => null));
+          continue;
+        }
+        const turns = Math.max(1, combat.turns?.length ?? combat.combatants?.size ?? 1);
+        const elapsed = (Number(combat.round) - Number(d.startRound)) * turns
+          + Number(combat.turn ?? 0) - Number(d.startTurn);
+        if (elapsed >= (Number(d.rounds) || 0) * turns + (Number(d.turns) || 0)) {
+          update.disabled = true;
+        }
+        if (Object.keys(update).length) updates.push(effect.update(update).catch(() => null));
       }
     }
     if (updates.length) await Promise.all(updates);
+  });
+
+  Hooks.on("updateWorldTime", async worldTime => {
+    if (!game.user?.isGM) return;
+    if (game.users?.activeGM && game.users.activeGM.id !== game.user.id) return;
+    const actors = new Set(game.actors ?? []);
+    for (const scene of game.scenes ?? []) for (const token of scene.tokens ?? []) if (token.actor) actors.add(token.actor);
+    for (const actor of actors) for (const effect of actor.effects ?? []) {
+      const d = effect._source?.duration ?? effect.duration ?? {};
+      if (effect.disabled || Number(d.rounds) > 0 || Number(d.turns) > 0) continue;
+      if (Number(d.seconds) > 0 && d.startTime != null && Number(worldTime) >= Number(d.startTime) + Number(d.seconds)) {
+        await effect.update({ disabled: true }).catch(() => null);
+      }
+    }
   });
 }
 

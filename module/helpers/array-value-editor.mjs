@@ -4,6 +4,7 @@
 // their current value or a `{system.values.<id>}` reference that resolves at run time.
 import { openFoundryWindow } from "./foundry-window-host.mjs";
 import { getValueDefinitions, readDatabaseValue, valueStoragePath } from "./value-database.mjs";
+import { enhanceVariableSelect } from "./variable-selector.mjs";
 
 const esc = value => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const randomId = () => (globalThis.foundry?.utils?.randomID?.(8) ?? Math.random().toString(36).slice(2, 10));
@@ -144,6 +145,7 @@ export function openArrayValueEditor(value, options = {}) {
       render();
     };
     const bind = () => {
+      enhanceVariableSelect(root.querySelector('[data-variable]'), { ownerType: scope || "actor" });
       const zone = root.querySelector("[data-drop]");
       zone.addEventListener("dragover", event => { event.preventDefault(); zone.querySelector(".sdar-drop")?.classList.add("is-over"); });
       zone.addEventListener("dragleave", () => zone.querySelector(".sdar-drop")?.classList.remove("is-over"));
@@ -175,7 +177,7 @@ export function openArrayValueEditor(value, options = {}) {
       });
       root.querySelector("[data-add-var-ref]")?.addEventListener("click", () => {
         const id = root.querySelector("[data-variable]")?.value; if (!id) return;
-        sync(); items.push({ id: randomId(), value: `{${valueStoragePath(id)}}` }); selected = items.length - 1; render();
+        sync(); items.push({ id: randomId(), value: `{${id.startsWith("sdvar:") ? `dbvalue:self|${id}|` : valueStoragePath(id)}}` }); selected = items.length - 1; render();
       });
       root.querySelector("[data-clear]")?.addEventListener("click", () => { items.length = 0; selected = -1; render(); });
       root.querySelector("[data-cancel]")?.addEventListener("click", () => finish(null));

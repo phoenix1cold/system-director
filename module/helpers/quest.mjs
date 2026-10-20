@@ -1,4 +1,15 @@
-import { fieldChangeStoragePath, getValueDefinition } from "./value-database.mjs";
+import { fieldChangeStoragePath, getValueDefinition, resolveVariableReference } from "./value-database.mjs";
+
+function rewardTarget(change, document) {
+  const ref = String(change?.variableId || change?.path || "");
+  if (!ref.trim()) return { document, path: "" };
+  if (!ref.startsWith("sdvar:")) return { document, path: fieldChangeStoragePath(change) };
+  const resolved = resolveVariableReference(ref, { document });
+  if (resolved?.kind !== "document" || !resolved.document || !resolved.path) {
+    throw new Error("Reward variable requires a matching document owner.");
+  }
+  return resolved;
+}
 
 
 const SOCKET_NS = "system.sd";
@@ -341,6 +352,11 @@ export class SDQuest {
   static async _payoutReward(reward, actor, source) {
     const errors = [];
     if (!reward || !actor) return { ok:false, errors:["missing reward or actor"] };
+    try {
+      for (const change of [...(reward.currency ?? []), ...(reward.pathChanges ?? [])]) rewardTarget(change, actor);
+    } catch (error) {
+      return { ok: false, errors: [error?.message ?? String(error)] };
+    }
 
     try {
       const docs = [];
@@ -363,12 +379,12 @@ export class SDQuest {
 
     for (const c of (reward.currency ?? [])) {
       try {
-        const path = fieldChangeStoragePath(c);
+        const { path, document } = rewardTarget(c, actor);
         if (!path) continue;
         const amount = await SDQuest._evaluateAmount(c.amount, actor);
         if (!Number.isFinite(amount)) { errors.push(`currency ${path}: invalid amount`); continue; }
-        const cur = Number(foundry.utils.getProperty(actor, path) ?? 0);
-        await actor.update({ [path]: cur + amount });
+        const cur = Number(foundry.utils.getProperty(document, path) ?? 0);
+        await document.update({ [path]: cur + amount });
       } catch (e) { errors.push(`currency: ${e?.message ?? e}`); }
     }
 
@@ -405,10 +421,10 @@ export class SDQuest {
   }
 
   static async _applyPathChange(pc, actor) {
-    const path = fieldChangeStoragePath(pc);
+    const { path, document } = rewardTarget(pc, actor);
     if (!path || !actor) return;
     const amount = await SDQuest._evaluateAmount(pc.value, actor);
-    const cur = Number(foundry.utils.getProperty(actor, path) ?? 0);
+    const cur = Number(foundry.utils.getProperty(document, path) ?? 0);
     let next = cur;
     switch (pc.op) {
       case "set": next = amount; break;
@@ -419,7 +435,7 @@ export class SDQuest {
       case "max": next = Math.max(cur, amount); break;
       default:    next = cur + amount;
     }
-    await actor.update({ [path]: next });
+    await document.update({ [path]: next });
   }
 
 

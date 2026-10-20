@@ -1,9 +1,10 @@
 import { FormulaEngine } from "./formula-engine.mjs";
 import { getValueDefinitions, getValueDefinition, readDatabaseValue } from "./value-database.mjs";
+import { enhanceVariableSelect } from "./variable-selector.mjs";
 
 export function resolveProgressionValue(actor, value, pending = {}) {
   const system = foundry.utils.deepClone(actor?.system ?? {});
-  const view = { system, name: actor?.name, documentName: actor?.documentName, actor: actor?.actor };
+  const view = { system, flags:foundry.utils.deepClone(actor?.flags ?? {}), name: actor?.name, documentName: actor?.documentName, actor: actor?.actor };
   for (const [path, val] of Object.entries(pending)) {
     const keys = path.split("."); let current = view;
     for (const key of keys.slice(0,-1)) current = current[key] ??= {};
@@ -33,7 +34,7 @@ export function bindProgressionValuePickers(root) {
     }
     select.addEventListener("change", () => {
       if (!select.value) return;
-      input.value = `{system.values.${select.value}}`;
+      input.value = select.value.startsWith("sdvar:") ? `{dbvalue:self|${select.value}|}` : `{system.values.${select.value}}`;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     const wrapper = document.createElement("span");
@@ -51,11 +52,18 @@ export function bindProgressionValuePickers(root) {
     input.style.removeProperty("width");
     const reflectValue = () => {
       const match = input.value.trim().match(/^\{system\.values\.([^{}]+)\}$/);
-      const id = match?.[1] ?? (getValueDefinition(input.value.trim())?.id || "");
+      const qualified = input.value.trim().match(/^\{dbvalue:self\|(sdvar:[^{}|]+)\|\}$/);
+      const id = qualified?.[1] ?? match?.[1] ?? (getValueDefinition(input.value.trim())?.reference || "");
+      if(id&&!Array.from(select.options).some(option=>option.value===id)){const option=document.createElement("option");option.value=id;option.textContent=getValueDefinition(id)?.name??id;select.append(option);}
       select.value = [...select.options].some(option => option.value === id) ? id : "";
     };
     input.addEventListener("input", reflectValue);
     input.addEventListener("change", reflectValue);
     reflectValue();
+    const destination=row?.querySelector(":is(.sd-prog-fc-variable,.nc-variable,.cls-fc-variable,.cls-choice-fc-variable)");
+    const reflectType=()=>{const text=getValueDefinition(destination?.value)?.type==="text";select.disabled=text;input.title=text?"Literal text; use Set (=).":"Number or formula, e.g. {system.values.strength} * 2";};
+    destination?.addEventListener("change",reflectType);reflectType();
+    const binding=enhanceVariableSelect(select,{ownerType:"actor",types:["number","integer"]});
+    destination?.addEventListener("change",()=>binding?.refresh());
   }
 }

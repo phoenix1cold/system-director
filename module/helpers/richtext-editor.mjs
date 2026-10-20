@@ -1,8 +1,14 @@
 
+import { readDatabaseValue, writeDatabaseValue } from "./value-database.mjs";
+
 export class RichTextEditor {
 
   static wire(cell, doc) {
     if (!cell || !doc) return;
+
+    cell.querySelectorAll('.widget-richtext .richtext-display, .widget-richtext .editor-content').forEach(content => {
+      this._enrichDisplay(content, doc);
+    });
 
     cell.querySelectorAll('.widget-richtext').forEach(widget => this._wireAutoHeight(widget));
     cell.querySelectorAll('prose-mirror.sd-richtext-native[data-path]').forEach(editorEl => this._wireNativeEditor(editorEl, doc));
@@ -43,6 +49,29 @@ export class RichTextEditor {
     });
   }
 
+  static async _enrichDisplay(content, doc) {
+    const editor = globalThis.foundry?.applications?.ux?.TextEditor?.implementation
+      ?? globalThis.TextEditor?.implementation ?? globalThis.TextEditor;
+    if (!content || typeof editor?.enrichHTML !== "function") return;
+    const html = content.innerHTML;
+    if (!html || content._sdEnrichedHTML === html) return;
+    content._sdEnrichedHTML = html;
+    try {
+      const enriched = await editor.enrichHTML(html, {
+        async: true, documents: true, links: true, rolls: true,
+        secrets: !!doc?.isOwner, relativeTo: doc, rollData: doc?.getRollData?.() ?? {}
+      });
+      // Do not replace an editor opened or updated while enrichment was pending.
+      if (content.innerHTML !== html || content.closest?.('[data-sd-richtext-active="1"], [contenteditable="true"]')) return;
+      content.innerHTML = enriched;
+      content._sdEnrichedHTML = enriched;
+      this._requestAutoHeight(content);
+    } catch (error) {
+      // Invalid inline rolls must not interrupt wiring the rest of the sheet.
+      console.warn("SD | Rich Text enrichment failed", error);
+    }
+  }
+
   static _wireNativeEditor(editorEl, doc) {
     if (!editorEl || editorEl.dataset.sdRichtextNativeWired === "1") return;
     const path = editorEl.dataset.path || editorEl.getAttribute("name");
@@ -56,7 +85,7 @@ export class RichTextEditor {
     editorEl.addEventListener("save", ev => {
       ev.stopPropagation();
       const value = String(editorEl.value ?? editorEl.getAttribute("value") ?? "");
-      Promise.resolve(doc.update({ [path]: value })).then(() => {
+      Promise.resolve(this._writePath(doc, path, value)).then(() => {
         editorEl.setAttribute("value", value);
         resize();
       }).catch(err => {
@@ -268,12 +297,13 @@ export class RichTextEditor {
       try { editor?.destroy?.(); } catch {}
       editor = null;
       this._deactivateHtmlEditor(editorEl, restoreValue);
+      this._enrichDisplay(editorEl.querySelector(".editor-content"), doc);
     };
 
     const save = async () => {
       const value = this._extractEditorValue(editor, content, initial);
       try {
-        await doc.update({ [path]: value });
+        await this._writePath(doc, path, value);
       } catch (err) {
         console.error("SD | richtext save failed:", err);
         ui.notifications?.error?.("Failed to save Rich Text content.");
@@ -482,7 +512,7 @@ export class RichTextEditor {
     const commit = async () => {
       const value = ta.value;
       try {
-        await doc.update({ [path]: value });
+        await this._writePath(doc, path, value);
       } catch (err) {
         console.error("SD | richtext (raw) save failed:", err);
         ui.notifications?.error?.("Failed to save Rich Text content.");
@@ -507,11 +537,17 @@ export class RichTextEditor {
 
   static _readPath(doc, path) {
     if (!path) return "";
+    if (String(path).startsWith("sdvar:")) return String(readDatabaseValue(doc, path) ?? "");
     try {
       return String(foundry.utils.getProperty(doc, path) ?? "");
     } catch {
       return "";
     }
+  }
+
+  static async _writePath(doc, path, value) {
+    if (!String(path).startsWith("sdvar:")) return doc.update({ [path]: value });
+    if (!await writeDatabaseValue(doc, path, value)) throw new Error("Rich Text variable owner is unavailable.");
   }
 
   static _normaliseForEditor(raw) {

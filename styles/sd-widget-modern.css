@@ -273,8 +273,8 @@
 .sd-w-section .sec-divider { opacity:.85; }
 .sd-w-vsection { padding:10px !important; gap:9px !important; }
 .sd-w-vsection > .vsection-title { padding-bottom:7px !important; border-bottom:1px solid var(--sd-accent-dim); }
-.sd-w-image img { box-shadow:0 8px 22px rgba(0,0,0,.48); transition:transform .16s,box-shadow .16s,filter .16s !important; }
-.sd-w-image:hover img { transform:translateY(-1px); box-shadow:0 12px 28px rgba(0,0,0,.55); }
+.sd-w-image :is(img, video) { box-shadow:0 8px 22px rgba(0,0,0,.48); transition:transform .16s,box-shadow .16s,filter .16s !important; }
+.sd-w-image:hover :is(img, video) { transform:translateY(-1px); box-shadow:0 12px 28px rgba(0,0,0,.55); }
 .sd-w-questmarker .qm-row,
 .sd-w-questmarker .qm-open { min-height:38px !important; padding:7px 9px !important; border-radius:var(--sd-control-radius) !important; background:color-mix(in srgb,var(--sd-bg-2) 88%,var(--sd-accent) 12%) !important; }
 .sd-w-questmarker .qm-open:hover { border-color:var(--sd-accent) !important; background:var(--sd-accent-glow) !important; }
@@ -372,8 +372,8 @@
 .sd-w-attributegroup.sd-v-character .attr-item { flex-direction:column; text-align:center; padding:9px; }
 
 .sd-w-tags.sd-v-rarity .sd-tag-pill { background:linear-gradient(135deg,var(--sd-accent-glow),var(--sd-bg-3)) !important; border-color:var(--sd-accent) !important; box-shadow:0 0 10px var(--sd-accent-glow); }
-.sd-w-image.sd-v-portrait img { border:3px double var(--sd-accent) !important; border-radius:calc(var(--sd-widget-radius) * 1.4) !important; background:var(--sd-bg); padding:3px; }
-.sd-w-image.sd-v-hologram img { border:1px solid var(--sd-accent) !important; filter:saturate(.8) hue-rotate(8deg) contrast(1.1); box-shadow:0 0 20px var(--sd-accent-glow),inset 0 0 20px var(--sd-accent-glow) !important; }
+.sd-w-image.sd-v-portrait :is(img, video) { border:3px double var(--sd-accent) !important; border-radius:calc(var(--sd-widget-radius) * 1.4) !important; background:var(--sd-bg); padding:3px; }
+.sd-w-image.sd-v-hologram :is(img, video) { border:1px solid var(--sd-accent) !important; filter:saturate(.8) hue-rotate(8deg) contrast(1.1); box-shadow:0 0 20px var(--sd-accent-glow),inset 0 0 20px var(--sd-accent-glow) !important; }
 .sd-w-section.sd-v-quest .sec-title { color:var(--sd-warn) !important; }
 .sd-w-section.sd-v-quest .sec-divider { border-top:2px solid var(--sd-warn) !important; box-shadow:0 0 8px color-mix(in srgb,var(--sd-warn) 35%,transparent); }
 .sd-w-section.sd-v-gothic .sec-title { font-family:Georgia,serif; font-size:14px; letter-spacing:.14em; color:var(--sd-accent) !important; text-align:center; }

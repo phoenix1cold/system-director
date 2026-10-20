@@ -6,6 +6,7 @@ import { bindCardHands } from "../helpers/card-hand.mjs";
 import { bindModelWidgets } from "../three/model-widget.mjs";
 import { WIDGET_TYPES } from "../builder/widget-registry.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
+import { bindMediaWidgets } from "../helpers/media-widget.mjs";
 import { GridManager }    from "../builder/grid-manager.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
@@ -21,9 +22,10 @@ import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { persistWidgetValue } from "../helpers/widget-fields.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "../builder/widget-paths.mjs";
-import { promptWidgetIdentity } from "../builder/widget-identity.mjs";
+import { collectWidgetKeys, promptWidgetIdentity } from "../builder/widget-identity.mjs";
 import { openEasyButtonWizard } from "../builder/easy-button-wizard.mjs";
 import { getValueDefinition, getValueDefinitions, readDatabaseValue } from "../helpers/value-database.mjs";
+import { readVariablePath, updateVariablePaths } from "../helpers/variable-binding.mjs";
 import {
   applySheetStyle, normalizeSheetStyle, sheetStyleFromPreset,
   SHEET_LAYOUTS, SHEET_HEADER_STYLES, SHEET_DENSITIES, SHEET_STYLE_PRESETS
@@ -166,6 +168,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       console.debug("SD | _processFormData raw object →", raw);
     } catch {}
     const data = super._processFormData(event, form, formData);
+    // Qualified fields are persisted by their owner-aware change handlers.
+    for (const key of Object.keys(data ?? {})) if (key.startsWith("sdvar:")) delete data[key];
     const schema = this.document.system?.schema ?? this.document.system?.constructor?.schema;
     if (schema && data && typeof data === "object" && data.system) {
       _stripInvalidNumbers(data.system, schema);
@@ -243,6 +247,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   _onChangeForm(formConfig, event) {
     const t = event?.target;
+    if (String(t?.name ?? t?.dataset?.path ?? "").startsWith("sdvar:")) return;
 
     if (t?.closest?.(".richtext-editor, .richtext-edit-wrap, .sd-wcfg-popup, prose-mirror, .sd-richtext-pm-target, .sd-richtext-editor, .editor.prosemirror, .ProseMirror, .prosemirror-menu")) return;
     if (t?.tagName?.toLowerCase?.() === "prose-mirror") return;
@@ -298,7 +303,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (!root || root.dataset.sdTrackerDelegated === "1") return;
     root.dataset.sdTrackerDelegated = "1";
 
-    const _readPath = p => foundry.utils.getProperty(this.document, p);
+    const _readPath = p => readVariablePath(this.document, p);
 
     const _applyFill = async (el, maxDataKey) => {
       const path  = el.dataset.path;
@@ -307,7 +312,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       if (!path) return;
       const cur  = Number(_readPath(path)) || 0;
       const next = cur > index ? index : index + 1;
-      await this.document.update({ [path]: Math.min(max, Math.max(0, next)) });
+      await updateVariablePaths(this.document, { [path]: Math.min(max, Math.max(0, next)) });
     };
 
     root.addEventListener("click", async ev => {
@@ -320,7 +325,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const reset = ev.target.closest(".sd-tracker-reset[data-path]");
       if (reset && !reset.dataset.sdDirect) {
         ev.stopPropagation();
-        await this.document.update({ [reset.dataset.path]: 0 });
+        await updateVariablePaths(this.document, { [reset.dataset.path]: 0 });
         return;
       }
       const seg = ev.target.closest(".sd-clock-segment[data-path]");
@@ -332,7 +337,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       const cReset = ev.target.closest(".sd-clock-reset[data-path]");
       if (cReset && !cReset.dataset.sdDirect) {
         ev.stopPropagation();
-        await this.document.update({ [cReset.dataset.path]: 0 });
+        await updateVariablePaths(this.document, { [cReset.dataset.path]: 0 });
         return;
       }
       const skillPip = ev.target.closest(".skill-pip[data-path][data-rank]");
@@ -342,7 +347,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const r    = Number(skillPip.dataset.rank) || 0;
         const cur  = Number(_readPath(path)) || 0;
         const next = cur === r ? r - 1 : r;
-        await this.document.update({ [path]: Math.max(0, next) });
+        await updateVariablePaths(this.document, { [path]: Math.max(0, next) });
       }
     });
 
@@ -351,7 +356,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       if (pipRow) {
         ev.preventDefault();
         ev.stopPropagation();
-        await this.document.update({ [pipRow.dataset.path]: 0 });
+        await updateVariablePaths(this.document, { [pipRow.dataset.path]: 0 });
       }
     });
   }
@@ -787,7 +792,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const key = path.slice("system.hiddenFields.".length);
         return this.document?.system?.hiddenFields?.[key] ?? 0;
       }
-      return foundry.utils.getProperty(this.document, path) ?? 0;
+      return readVariablePath(this.document, path) ?? 0;
     };
 
     const _fieldForPath = (path) => {
@@ -875,7 +880,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           v = Number.isFinite(n) ? n : 0;
         } else v = inp.value;
         if (String(w.type ?? "") === "select") await persistWidgetValue(doc, w, v);
-        else await doc.update({ [path]: v });
+        else await updateVariablePaths(doc, { [path]: v });
       });
     });
 
@@ -994,7 +999,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     });
     cell.querySelectorAll("[data-action='widgetToggle']").forEach(btn => {
       btn.addEventListener("click", async () => {
-        await doc.update({ [btn.dataset.path]: !_readPath(btn.dataset.path) });
+        await updateVariablePaths(doc, { [btn.dataset.path]: !_readPath(btn.dataset.path) });
       });
     });
 
@@ -1966,7 +1971,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         if (!path) return;
         const cur   = Number(_readPath(path)) || 0;
         const next  = cur > index ? index : index + 1;
-        await this.document.update({ [path]: Math.min(segs, Math.max(0, next)) });
+        await updateVariablePaths(this.document, { [path]: Math.min(segs, Math.max(0, next)) });
       });
     });
 
@@ -1975,7 +1980,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         ev.stopPropagation();
         const path = btn.dataset.path;
         if (!path) return;
-        await this.document.update({ [path]: 0 });
+        await updateVariablePaths(this.document, { [path]: 0 });
       });
     });
 
@@ -1984,7 +1989,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         ev.stopPropagation();
         const path = btn.dataset.path;
         if (!path) return;
-        await this.document.update({ [path]: 0 });
+        await updateVariablePaths(this.document, { [path]: 0 });
       });
     });
 
@@ -1999,11 +2004,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           ok:      { callback: (_ev, _btn, dlg) => dlg.element.querySelector("[name=tag]")?.value?.trim() ?? null }
         }).catch(() => null);
         if (!tag) return;
-        const cur = String(foundry.utils.getProperty(this.document, path) ?? "");
+        const cur = String(readVariablePath(this.document, path) ?? "");
         const tags = cur.split(",").map(t => t.trim()).filter(Boolean);
         if (!tags.includes(tag)) {
           tags.push(tag);
-          await this.document.update({ [path]: tags.join(", ") });
+          await updateVariablePaths(this.document, { [path]: tags.join(", ") });
         }
       });
     });
@@ -2014,12 +2019,13 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         const path = btn.dataset.path;
         const tag  = btn.dataset.tag;
         if (!path || !tag) return;
-        const cur  = String(foundry.utils.getProperty(this.document, path) ?? "");
+        const cur  = String(readVariablePath(this.document, path) ?? "");
         const tags = cur.split(",").map(t => t.trim()).filter(t => t && t !== tag);
-        await this.document.update({ [path]: tags.join(", ") });
+        await updateVariablePaths(this.document, { [path]: tags.join(", ") });
       });
     });
 
+    bindMediaWidgets(cell, doc, { disabled: () => this._editMode || this.isEditable === false });
     cell.querySelectorAll(".sd-img-pick").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -2061,11 +2067,11 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
         const path = btn.dataset.path;
         if (!path) return;
-        const cur  = String(foundry.utils.getProperty(this.document, path) ?? "");
+        const cur  = String(readVariablePath(this.document, path) ?? "");
         new FP({
           type:     "image",
           current:  cur,
-          callback: src => this.document.update({ [path]: src })
+          callback: src => updateVariablePaths(this.document, { [path]: src })
         }).render(true);
       });
     });
@@ -2453,17 +2459,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   _refreshWidgetIdsDeep(widget) {
-    if (!widget) return;
-    widget.id = foundry.utils.randomID(8);
-    if (widget.type === "vsection" && Array.isArray(widget.widgets)) {
-      for (const child of widget.widgets) this._refreshWidgetIdsDeep(child);
-    }
-    if (widget.type === "widgetBuilder" && Array.isArray(widget.elements)) {
-      for (const element of widget.elements) {
-        element.id = foundry.utils.randomID(6);
-        if (element?.widget) this._refreshWidgetIdsDeep(element.widget);
-      }
-    }
+    return GridManager._refreshWidgetIds(widget, collectWidgetKeys(this.document.system.customTabs ?? []));
   }
 
   async _duplicateWidget(tab, row, w, parentVS = null) {

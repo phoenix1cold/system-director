@@ -3,6 +3,7 @@ import {
   createDatabaseVariables, removeDatabaseVariable, VALUE_DATABASE_TYPES, VALUE_DATABASE_SCOPES,
   valueTypeFormat, valueTypePlaceholder, valueTypeFormatHint, isAoeValueType
 } from "./value-database.mjs";
+import { EffectPresetEditor } from "./effect-applier.mjs";
 
 const { ApplicationV2 } = foundry.applications.api;
 const esc = value => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -61,6 +62,10 @@ export class ValueDatabaseApp extends ApplicationV2 {
     this.drafts = [];
     this._filter = "";
     this._focusDraft = null;
+    this._tab = "variables";
+    this._effectEditor = new EffectPresetEditor();
+    this._effectEditor.host = this;
+    this._pendingValues = {};
   }
 
   static open(options = {}) {
@@ -149,6 +154,8 @@ export class ValueDatabaseApp extends ApplicationV2 {
   }
 
   async _renderHTML() {
+    const tabs = `<nav class="sd-db-stats" aria-label="Database sections"><button type="button" class="sd-db-btn ${this._tab === "variables" ? "primary" : ""}" data-db-tab="variables">Variables</button><button type="button" class="sd-db-btn ${this._tab === "effects" ? "primary" : ""}" data-db-tab="effects">Effects</button></nav>`;
+    if (this._tab === "effects") return `<div class="sd-db-app">${tabs}${await this._effectEditor._renderHTML()}</div>`;
     const defs = this.definitions;
     const isGM = !!game.user?.isGM;
     const counts = { actor: 0, item: 0, both: 0 };
@@ -160,6 +167,7 @@ export class ValueDatabaseApp extends ApplicationV2 {
       : "Declared default values of every typed variable. New Actors and Items start from these.";
 
     return `<div class="sd-db-app">
+      ${tabs}
       <header class="sd-db-head">
         <span class="sd-db-head-icon"><i class="fas fa-database"></i></span>
         <div class="sd-db-head-text">
@@ -275,6 +283,19 @@ export class ValueDatabaseApp extends ApplicationV2 {
   _onRender() {
     super._onRender?.();
     const root = this.element;
+    root.querySelectorAll('[data-db-tab]').forEach(button => button.addEventListener("click", async () => {
+      if (this._tab === "variables") { this._syncDrafts(); this._pendingValues = this._collectValues(); }
+      else { if (game.user?.isGM) this._effectEditor._collect(); await this._effectEditor.flush(); this._effectEditor._selectorCleanup?.(); }
+      this._tab = button.dataset.dbTab;
+      this.render();
+    }));
+    if (this._tab === "effects") { this._effectEditor._onRender(); return; }
+    for (const [id, value] of Object.entries(this._pendingValues)) {
+      const input = root.querySelector(`[data-value-id="${CSS.escape(id)}"]`);
+      if (!input) continue;
+      if (input.type === "checkbox") input.checked = !!value;
+      else input.value = typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+    }
 
     root.querySelectorAll('[data-action="addVariable"]').forEach(button => button.addEventListener("click", () => {
       this._syncDrafts();
@@ -394,6 +415,7 @@ export class ValueDatabaseApp extends ApplicationV2 {
         await updateDatabaseInitialValues(values);
       }
       this.drafts = [];
+      this._pendingValues = {};
       ui.notifications?.info?.(created.length
         ? `Database saved. Created ${created.length} variable(s).`
         : "Database saved.");
@@ -403,6 +425,8 @@ export class ValueDatabaseApp extends ApplicationV2 {
     }
     this.render();
   }
+
+  async close(options) { this._effectEditor._selectorCleanup?.(); await this._effectEditor.flush(); return super.close(options); }
 }
 
 export function openValueDatabaseApp(options = {}) { return ValueDatabaseApp.open(options); }

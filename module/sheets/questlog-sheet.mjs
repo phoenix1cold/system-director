@@ -2,6 +2,7 @@ const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
+import { enhanceVariableSelect } from "../helpers/variable-selector.mjs";
 
 function _gid(prefix) {
   return `${prefix}${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36).slice(-3)}`;
@@ -1542,10 +1543,12 @@ export class SDQuestLogSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       if (isGM) {
         const path = document.createElement("select");
         const selected=pc.variableId||variableIdForLegacyPath(pc.path);
+        path.dataset.variableRef=selected||"";
         path.innerHTML=`<option value="">Select Database variable…</option>${getValueDefinitions().map(v=>`<option value="${_esc(v.id)}" ${selected===v.id?"selected":""}>${_esc(v.name)} · ${_esc(v.type)} [${_esc(v.id)}]</option>`).join("")}`;
         path.style.cssText = "background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text);border-radius:3px;padding:2px 6px;font-size:11px";
         path.addEventListener("change", () => this._patchRewardPathChange(q.id, r.id, pc.id, { variableId: path.value }));
         row.appendChild(path);
+        enhanceVariableSelect(path, { ownerType: "actor", allowWorld: false });
 
         const op = document.createElement("select");
         op.style.cssText = "background:var(--sd-bg-3);border:1px solid var(--sd-border);color:var(--sd-text);border-radius:3px;padding:2px 4px;font-size:11px;width:60px";

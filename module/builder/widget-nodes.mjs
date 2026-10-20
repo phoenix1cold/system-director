@@ -15,7 +15,9 @@
 
 import { WIDGET_TYPES } from "./widget-registry.mjs";
 import { modelWidgetPoints, modelPointValuePins, readModelPointPin } from "../three/model-point-data.mjs";
-import { WIDGET_VARIABLES, widgetVarKey, widgetVarPath, widgetBindingPath, coerceWidgetValue } from "../helpers/widget-variables.mjs";
+import { WIDGET_VARIABLES, widgetVarKey, widgetVarPath, widgetBindingPath, widgetBindingTarget, coerceWidgetValue, readWidgetVar, writeWidgetVar } from "../helpers/widget-variables.mjs";
+import { updateVariablePaths } from "../helpers/variable-binding.mjs";
+import { mediaSource } from "../helpers/media-widget.mjs";
 import { getValueDefinition, readDatabaseValue, variableIdForLegacyPath, valueStoragePath } from "../helpers/value-database.mjs";
 import { attributeGroupModifier, attributeGroupModifierPath } from "../helpers/attribute-group-value.mjs";
 
@@ -78,6 +80,7 @@ export function findWidget(doc, key, { widgetType = "" } = {}) {
 /** Current value of one widget variable. */
 export function readWidgetValue(doc, widget, field = "value") {
   if (!widget) return undefined;
+  if (widgetBindingTarget(widget, field).mode === "variable") return readWidgetVar(doc, widget, field);
   const descriptor = (WIDGET_VARIABLES[widget.type] ?? []).find(entry => entry.field === field);
   const stored = doc ? foundry.utils.getProperty(doc, widgetBindingPath(widget, field)) : undefined;
   if (stored !== undefined) return stored;
@@ -134,9 +137,10 @@ export function attributeGroupEntries(widget, doc) {
     const def = getValueDefinition(raw) ?? getValueDefinition(variableIdForLegacyPath(raw));
     let score, name, scorePath;
     if (def) {
-      score = readDatabaseValue(doc, def.id);
+      const ref = String(raw).startsWith("sdvar:") ? raw : def.id;
+      score = readDatabaseValue(doc, ref);
       name = def.name;
-      scorePath = valueStoragePath(def.id);
+      scorePath = String(ref).startsWith("sdvar:") ? ref : valueStoragePath(ref);
     } else {
       const path = String(raw).includes(".") ? String(raw) : `system.attributes.${raw}.value`;
       scorePath = path;
@@ -145,7 +149,7 @@ export function attributeGroupEntries(widget, doc) {
     }
     if (score && typeof score === "object") {const field="value" in score?"value":"score";scorePath+=`.${field}`;score=score[field]??0;}
     const value = num(score);
-    const key=def?.id ?? String(raw);
+    const key=String(raw).startsWith("sdvar:") ? raw : def?.id ?? String(raw);
     return { key, name: String(name ?? raw), score: value, scorePath, mod: num(attributeGroupModifier(widget,doc,key,value)) };
   });
 }
@@ -222,7 +226,7 @@ export const WIDGET_NODE_CONTRACTS = Object.freeze({
   tokenPool: [["value", "Tokens", "value.number", (w, d) => num(readWidgetValue(d, w, "path"))],
               ["max", "Max", "value.number", (w, d) => num(readWidgetValue(d, w, "maxPath"))]],
   derived:   [["value", "Result", "value.any", (w, d) => readWidgetValue(d, w, "path") ?? ""]],
-  image:     [["src", "Image", "value.string", w => String(w.img ?? w.src ?? "")]],
+  image:     [["src", "Media", "value.string", (w, d) => mediaSource(w, d)]],
   model3d:   [["points", "Points", "value.array", (w,d) => modelWidgetPoints(w,d)],
               ["count", "Point count", "value.number", (w,d) => modelWidgetPoints(w,d).length],
               ["src", "Model", "value.string", w => String(w.src??"")]],
@@ -305,7 +309,7 @@ export function installWidgetActions() {
       const current=entry[field];
       const mode=String(action.mode||"set");
       const next=mode==="add"?current+num(raw):mode==="sub"?current-num(raw):mode==="clear"?0:num(raw);
-      await doc.update({[path]:next});
+      await updateVariablePaths(doc, {[path]:next});
       return;
     }
     const current = readWidgetValue(doc, widget, field);
@@ -318,7 +322,7 @@ export function installWidgetActions() {
       case "clear":  next = descriptor?.type === "array" ? [] : descriptor?.type === "number" ? 0 : ""; break;
       default:       next = raw;
     }
-    await doc.update({ [widgetBindingPath(widget, field)]: coerceWidgetValue(next, descriptor?.type ?? "text") });
+    await writeWidgetVar(doc, widget, field, coerceWidgetValue(next, descriptor?.type ?? "text"));
   }, { owner: OWNER });
 }
 

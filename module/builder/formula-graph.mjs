@@ -17,6 +17,7 @@ import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { databaseSelectOptions, databaseRecordSelectOptions, databaseTypeOptions, databaseTypePin, getDatabaseRecord } from "../helpers/shared-database.mjs";
 import { valueSelectOptions, valueSelectOptionsForScope, getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
+import { enhanceVariableSelect } from "../helpers/variable-selector.mjs";
 import { deletionUpdate, dialogText, dialogValue } from "../helpers/foundry-compat.mjs";
 
 function uid() { return Math.random().toString(36).slice(2,9); }
@@ -61,6 +62,7 @@ function _messageComposerButtons(data = {}) {
       enabled: source.enabled === undefined ? fallback.enabled : !!source.enabled,
       label: String(source.label ?? fallback.label).trim() || fallback.label,
       icon: String(source.icon ?? fallback.icon).trim() || fallback.icon,
+      kind: ["custom","placeAoe","placeAura","applyEffect"].includes(source.kind)?source.kind:"custom",
       variant
     };
   });
@@ -573,7 +575,7 @@ export const NODE_DEFS = {
       {key:"source",label:"Target",type:"select",default:"self",hint:"A connected Actor / Item Ref overrides this choice.",options:[{value:"self",label:"Auto — graph owner"},{value:"actor",label:"Actor — self / item owner"},{value:"item",label:"Item — current graph item"},{value:"owned item",label:"Owned Item — from current actor"},{value:"first target",label:"First Target"},{value:"token by id",label:"Token by ID"},{value:"by uuid",label:"By UUID"}]},
       {key:"itemId",label:"Owned Item",type:"select",default:"",options:(_node,graph)=>[{value:"",label:"Choose owned Item…"},...((graph?.doc?.documentName==="Actor"?graph.doc:graph?.doc?.actor)?.items??[]).map(entry=>({value:entry.id,label:entry.name??entry.id}))],noPin:true},
       {key:"variableId",label:"Variable",type:"select",default:"",options:(node,graph)=>{const source=String(node?.data?.source??"self");const scope=source==="item"||source==="owned item"?"item":source==="actor"||source==="first target"||source==="token by id"?"actor":graph?.doc?.documentName==="Item"?"item":graph?.doc?.documentName==="Actor"?"actor":"";return valueSelectOptionsForScope(scope);},noPin:true},
-      {key:"operation",label:"Operation",type:"select",default:"set",options:["set","add","subtract","multiply","toggle"]},
+      {key:"operation",label:"Operation",type:"select",default:"set",options:[{value:"set",label:"Set value"},{value:"add",label:"Add"},{value:"subtract",label:"Subtract"},{value:"multiply",label:"Multiply"},{value:"toggle",label:"Toggle"},{value:"1",label:"Set value (legacy)"},{value:"2",label:"Add (legacy)"},{value:"3",label:"Subtract (legacy)"},{value:"4",label:"Multiply (legacy)"},{value:"5",label:"Toggle (legacy)"}]},
       {key:"value",label:"Value",type:"text",default:"0"}
     ],isAction:true,
     toAction:(n,inp)=>({type:"setDatabaseValue",source:n.data?.source??"self",itemId:n.data?.itemId??"",variableId:n.data?.variableId??"",operation:n.data?.operation??"set",ref:inp.ref??"",value:inp.value??n.data?.value??0})
@@ -2255,7 +2257,11 @@ export const NODE_DEFS = {
       {id:"value",      label:"Value",       type:"value.any"},
       {id:"valueLabel", label:"Value label", type:"value.string"},
       {id:"image",      label:"Image",       type:"value.string"},
-      {id:"rollResult", label:"Roll Result", type:"value.roll_result"}
+      {id:"rollResult", label:"Roll Result", type:"value.roll_result"},
+      {id:"templates",label:"Button AOE Templates[]",type:"value.aoe_templates"},
+      {id:"aura",label:"Button Aura",type:"value.aura"},
+      {id:"effect",label:"Button Effect",type:"value.effect"},
+      {id:"targets",label:"Button Targets",type:"value.token_pool"}
     ],
     outputs:[{id:"posted",label:"Posted ->",type:"exec"},{id:"rollResult",label:"Roll Result",type:"value.roll_result"}],
     catalogOutputs:[
@@ -2310,7 +2316,8 @@ export const NODE_DEFS = {
         includeRoll:!!n.data?.includeRoll, rollResult:inp.rollResult ?? "{__rollResult}",
         access:String(n.data?.access ?? "actorOwner"), buttonUse:String(n.data?.buttonUse ?? "once"), visibility:String(n.data?.visibility ?? "public"),
         controls:controls.map(({id,label,type,defaultValue,placeholder,options,required}) => ({id,label,type,defaultValue,placeholder,options,required})),
-        buttons:buttons.map(({id,label,icon,variant}) => ({id,label,icon,variant}))
+        templates:inp.templates??null,aura:inp.aura??null,effect:inp.effect??null,targets:inp.targets??"token_target",
+        buttons:buttons.map(({id,label,icon,variant,kind}) => ({id,label,icon,variant,kind}))
       };
     }
   },
@@ -4913,6 +4920,7 @@ export const NODE_DEFS = {
 
 
   act_damage_simple: {
+    hidden:true,
     title:"Damage", color:"#8a1a1a", cat:"Combat", wideNode:true,
     desc:"Final damage delivery only. Supply an already-calculated Value and a Token Pool. This node does not select targets, calculate saves, critical hits, resistances, or damage types.",
     inputs:[
@@ -5321,7 +5329,7 @@ export const NODE_DEFS = {
 
   act_place_aura_zone: {
     title:"Place Aura", color:"#2f7d5c", cat:"Effects", wideNode:true,
-    desc:"Places an Aura definition on its owner. Each matching enter/turn event forwards a Token Pool to the downstream graph; it does not roll, damage, heal, or apply effects. An AOE Template wired here overrides the definition's shape.",
+    desc:"Places an Aura definition on its owner. Token Event runs only when a token enters or a configured turn event occurs, not immediately after placement. Each event forwards a Token Pool; this node does not roll, damage, heal, or apply effects. An AOE Template wired here overrides the definition's shape.",
     inputs:[
       {id:"exec",label:"",type:"exec"},
       {id:"aura",label:"Aura",type:"value.object"},
@@ -5351,6 +5359,29 @@ export const NODE_DEFS = {
     ],
     fields:[],isGenericBranch:true,
     toAction:(n,inp)=>({type:"tokensFromAura",aura:inp.aura??null})
+  },
+
+  database_effects: {
+    title:"Database Effects", color:"#68449a", cat:"Effects", wideNode:true,
+    desc:"Loads usable effect definitions from Database > Effects. Connect Effects to Select Database Effect or an array selection node, then Apply Effect.",
+    inputs:[{id:"exec",label:"",type:"exec"}],
+    outputs:[{id:"exec",label:"Loaded",type:"exec"},{id:"effects",label:"Effects",type:"value.array"}],
+    fields:[],isGenericBranch:true,
+    dynamicBranchToken:(n,p)=>p==="effects"?`{__nodeResult:${n.id}|effects}`:null,
+    toAction:n=>({type:"databaseEffects",runtimeKey:n.id})
+  },
+
+  database_effect_select: {
+    title:"Select Database Effect", color:"#7650a8", cat:"Effects", wideNode:true,
+    desc:"Choose a saved Database effect directly, or connect an Effects array and select its zero-based index. The Effect output connects directly to Apply Effect.",
+    inputs:[{id:"exec",label:"",type:"exec"},{id:"effects",label:"Effects (optional)",type:"value.array"}],
+    outputs:[{id:"exec",label:"Selected",type:"exec"},{id:"effect",label:"Effect",type:"value.effect"}],
+    fields:[
+      {key:"presetId",label:"Database Effect",type:"select",default:"",options:()=>{let presets={};try{presets=game.settings.get("sd","effectPresets")??{};}catch{}return [{value:"",label:"Choose effect"},...Object.entries(presets).map(([id,p])=>({value:p.id??id,label:p.name??id}))];},noPin:true},
+      {key:"index",label:"Array index",type:"number",default:0}
+    ],isGenericBranch:true,
+    dynamicBranchToken:(n,p)=>p==="effect"?`{__nodeResult:${n.id}|effect}`:null,
+    toAction:(n,i)=>({type:"databaseEffectSelect",runtimeKey:n.id,presetId:n.data.presetId??"",effects:i.effects??null,index:i.index??n.data.index??0})
   },
 
   act_effect_definition: {
@@ -5394,7 +5425,7 @@ export const NODE_DEFS = {
     fields:[
       {key:"path",label:"Default path",type:"path",default:"system.attributes.ac.bonus"},
       {key:"value",label:"Default value",type:"text",default:"0"},
-      {key:"mode",label:"Mode",type:"select",default:"2",options:["0","1","2","3","4","5"]},
+      {key:"mode",label:"Mode",type:"select",default:"2",options:[{value:"0",label:"Custom"},{value:"1",label:"Multiply"},{value:"2",label:"Add"},{value:"3",label:"Downgrade (minimum)"},{value:"4",label:"Upgrade (maximum)"},{value:"5",label:"Override"}]},
       {key:"priority",label:"Default priority",type:"number",default:20}
     ],
     isGenericBranch:true,
@@ -8942,9 +8973,9 @@ const WIDGET_CONFIG_NODES = {
     inputs:[_mkPin("label","Label"),_mkPin("path","Path"),_mkPin("color","Color")],
     outputs:[], fields:[{key:"label",label:"Label",type:"text",default:"Tags"},{key:"path",label:"Data Path",type:"path",default:"system.flags.myTags"},{key:"color",label:"Pill Color",type:"text",default:"#5a6a9a"}]
   },
-  wcfg_image:     { title:"Image",           color:"#2a3a3a", isWidgetConfig:true, widgetType:"image",
-    inputs:[_mkPin("path","Image Path"),_mkPin("width","Width"),_mkPin("height","Height")],
-    outputs:[], fields:[{key:"path",label:"Image Path",type:"path",default:""},{key:"staticSrc",label:"Static URL",type:"text",default:""},{key:"width",label:"Width px",type:"number",default:64},{key:"height",label:"Height px",type:"number",default:64},{key:"borderRadius",label:"Border Radius px",type:"number",default:4}]
+  wcfg_image:     { title:"Media",           color:"#2a3a3a", isWidgetConfig:true, widgetType:"image",
+    inputs:[_mkPin("path","Media Path"),_mkPin("width","Width"),_mkPin("height","Height")],
+    outputs:[], fields:[{key:"path",label:"Media Path",type:"path",default:""},{key:"staticSrc",label:"Media URL (image/video)",type:"text",default:""},{key:"autoplay",label:"Autoplay (muted)",type:"boolean",default:false},{key:"loop",label:"Loop video",type:"boolean",default:false},{key:"replaceOnClick",label:"Offer media replacement on click",type:"boolean",default:false},{key:"width",label:"Width px",type:"number",default:64},{key:"height",label:"Height px",type:"number",default:64},{key:"borderRadius",label:"Border Radius px",type:"number",default:4}]
   },
   wcfg_richtext:  { title:"Rich Text",       color:"#2a2a4a", isWidgetConfig:true, widgetType:"richtext",
     inputs:[_mkPin("label","Label"),_mkPin("path","Path")],
@@ -8996,6 +9027,7 @@ for (const [type, def] of Object.entries(WIDGET_CONFIG_NODES)) {
     field.label = /max/i.test(field.key) ? "Max Variable" : "Database Variable";
     field.default = "";
     field.options = valueSelectOptions;
+    field.variableSelector = true;
     field.noPin = true;
   }
   for (const pin of (def.inputs ?? [])) {
@@ -9028,10 +9060,11 @@ Object.assign(NODE_DEFS, WIDGET_CONFIG_NODES);
 // Public graphs are Database-variable only. Legacy path fields remain readable
 // internally, but every visible editor control and pin now works with Variable IDs.
 for (const [type, definition] of Object.entries(NODE_DEFS)) {
-  if (definition?.hidden || definition?.internal || definition?.isWidgetConfig) continue;
   for (const field of (definition.fields ?? [])) {
+    if (field.key === "variableId" || field.options === valueSelectOptions) field.variableSelector = true;
     if (field.type !== "path") continue;
     field.type="select";
+    field.variableSelector=true;
     field.label=String(field.label??"Variable").replace(/\bpath\b/ig,"Variable").replace(/\bfield\b/ig,"Variable");
     field.options=valueSelectOptions;
     field.default=variableIdForLegacyPath(field.default)??getValueDefinition(field.default)?.id??"";
@@ -11747,6 +11780,8 @@ export class FormulaGraph {
       return "0";
     }
     if (def?.isMacroInput) return `{__macroArg:${fromPin ?? "a"}}`;
+    if (["act_roll_v2", "act_analyze_roll", "act_compare_roll", "act_present_roll"].includes(node.type)
+        && BRANCH_PIN_TOKENS[node.type]?.[fromPin]) return `{__nodeResult:${node.id}|${fromPin}}`;
     if (typeof def?.dynamicBranchToken === "function") {
       const token = def.dynamicBranchToken(node, fromPin);
       if (token != null) return token;
@@ -11921,6 +11956,7 @@ export class FormulaGraph {
         }
         const act = def.toAction?.(node, ins) ?? {};
         const _outs = def.computeDynamicOutputs ? def.computeDynamicOutputs(node) : (def.outputs ?? []);
+        if (["act_roll_v2", "act_analyze_roll", "act_compare_roll", "act_present_roll"].includes(node.type)) act.__resultNodeId = node.id;
         for (const pin of _outs) {
           if (pin.type !== "exec") continue;
           const edge = this.edges.find(e=>e.fromNode===node.id&&e.fromPin===pin.id);
@@ -14639,6 +14675,7 @@ export class FormulaGraph {
       const dot=ev.target.closest?.(".gpin");
       if(dot){
         ev.stopPropagation();
+        if(ev.button!==0) return;
         const hit=this._pinFromEl(dot);
         if(hit && hit.side==="output") this._startConn(hit.node.id,hit.pin.id,hit.isExec,ev,hit.pin.type);
         return;
@@ -14775,6 +14812,7 @@ export class FormulaGraph {
         <select name="variant${index}" style="width:100%;height:30px;box-sizing:border-box;background:var(--sd-bg-3);border:1px solid var(--sd-border);border-radius:6px;color:var(--sd-text);padding:0 6px">
           ${variants.map(([value, label]) => `<option value="${value}" ${button.variant === value ? "selected" : ""}>${label}</option>`).join("")}
         </select>
+        <label style="grid-column:2/-1">Button action <select name="kind${index}">${[["custom","Custom graph branch"],["placeAoe","Place AOE"],["placeAura","Place Aura"],["applyEffect","Apply Effect"]].map(([value,label])=>`<option value="${value}" ${button.kind===value?"selected":""}>${label}</option>`).join("")}</select></label>
       </div>`).join("");
 
     const DialogV2 = foundry.applications.api.DialogV2;
@@ -14800,6 +14838,7 @@ export class FormulaGraph {
               label:root?.querySelector?.(`[name="label${index}"]`)?.value?.trim() || existing.label,
               icon:root?.querySelector?.(`[name="icon${index}"]`)?.value?.trim() || existing.icon,
               variant:root?.querySelector?.(`[name="variant${index}"]`)?.value || existing.variant
+              ,kind:root?.querySelector?.(`[name="kind${index}"]`)?.value || existing.kind
             }));
           }
         },
@@ -15265,6 +15304,11 @@ export class FormulaGraph {
         if(val === String(cur ?? "")) oel.selected = true;
         inp.appendChild(oel);
       }
+      if (cur && !Array.from(inp.options).some(o => o.value === String(cur))) {
+        const option=document.createElement("option");
+        option.value=String(cur); option.textContent=String(cur)+" (saved)"; option.selected=true;
+        inp.appendChild(option);
+      }
     } else if (field.type === "textarea") {
       inp = document.createElement("textarea");
       inp.value = node.data[field.key] ?? field.default ?? "";
@@ -15321,6 +15365,17 @@ export class FormulaGraph {
       }
     });
     wrap.appendChild(inp);
+
+    if (field.variableSelector) {
+      inp.addEventListener("change",()=>{
+        node.data[field.key]=inp.value;
+        this._schedulePreview();
+        _fullRerenderIfDynamic();
+      });
+      const binding=enhanceVariableSelect(inp,{ownerType:this.doc?.documentName==="Item"?"item":"actor",allowWorld:["get_value","set_value"].includes(node.type)||!!NODE_DEFS[node.type]?.isWidgetConfig});
+      binding?.database.classList.add("gn-ctl");
+      binding?.owner.classList.add("gn-ctl");
+    }
 
     const fileType = nodeFileType(field, node.type);
     if (fileType) addFilePicker(inp, fileType);

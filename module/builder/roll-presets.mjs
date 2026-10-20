@@ -1,5 +1,6 @@
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { getValueDefinitions, valueStoragePath } from "../helpers/value-database.mjs";
+import { enhanceVariableSelect } from "../helpers/variable-selector.mjs";
 
 const clone = value => foundry.utils.deepClone(value);
 const esc = value => String(value ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -27,7 +28,7 @@ export function buildRollPresetFormula(source) {
   if(p.mode==="formula")return p.formula.trim() || "1d20";
   let formula=p.diceTerms.map(diceTermFormula).join(" + ");
   if(p.flatModifier)formula+=` ${p.flatModifier<0?"-":"+"} ${Math.abs(p.flatModifier)}`;
-  for(const term of p.variableTerms)formula+=` ${term.operator} {${valueStoragePath(term.variableId)}}`;
+  for(const term of p.variableTerms)formula+=` ${term.operator} {${term.variableId.startsWith("sdvar:") ? `dbvalue:self|${term.variableId}|` : valueStoragePath(term.variableId)}}`;
   for(const term of p.widgetTerms)formula+=` ${term.operator} {widget:${term.widgetKey}}`;
   return formula;
 }
@@ -42,8 +43,9 @@ export function rollPresetFromFormula(formula = "1d20") {
     const operator=part.trim().startsWith("-")?"-":"+",text=part.trim().replace(/^[+-]\s*/,"");
     const dice=text.match(/^(\d+)d(\d+)(?:(kh|kl)(\d*))?$/i);
     if(dice){if(operator==="-")return normalizeRollPreset({mode:"formula",formula:raw});diceTerms.push({count:Number(dice[1]),sides:Number(dice[2]),keep:dice[3]?.toLowerCase()==="kh"?"highest":dice[3]?"lowest":"all",keepCount:Number(dice[4] || 1)});continue;}
-    const db=text.match(/^\{system\.values\.([^{}]+)\}$/),widget=text.match(/^\{widget:([^{}]+)\}$/);
+    const db=text.match(/^\{system\.values\.([^{}]+)\}$/),qualified=text.match(/^\{dbvalue:self\|(sdvar:[^{}|]+)\|\}$/),widget=text.match(/^\{widget:([^{}]+)\}$/);
     if(db)variableTerms.push({variableId:db[1],operator});
+    else if(qualified)variableTerms.push({variableId:qualified[1],operator});
     else if(widget)widgetTerms.push({widgetKey:widget[1],operator});
     else if(/^\d+(?:\.\d+)?$/.test(text))flatModifier+=(operator==="-"?-1:1)*Number(text);
     else return normalizeRollPreset({mode:"formula",formula:raw});
@@ -102,7 +104,7 @@ export function openRollPresetsEditor(source = null, doc = null, seed = {}) {
         <h4>Modifiers</h4><label>Constant modifier<input type="number" data-preset-field="flatModifier" step="any" value="${p.flatModifier}"></label>
         ${p.variableTerms.map((term,i)=>`<div class="sdrp-mod" data-preset-variable="${i}"><select data-mod-operator aria-label="Operator"><option ${term.operator!=="-"?"selected":""}>+</option><option ${term.operator==="-"?"selected":""}>-</option></select>
         <select data-mod-variable aria-label="Database modifier"><option value="">Select Database variable…</option>${!variables.some(v=>v.id===term.variableId)?`<option value="${esc(term.variableId)}" selected>${esc(term.variableId)} (missing)</option>`:""}${variables.map(v=>`<option value="${esc(v.id)}" ${v.id===term.variableId?"selected":""}>${esc(v.name)} [${esc(v.id)}]</option>`).join("")}</select><button type="button" data-remove-preset-variable="${i}" aria-label="Remove modifier">×</button></div>`).join("")}
-        <button type="button" data-add-preset-variable ${variables.length?"":"disabled"}>+ Database modifier</button>
+         <button type="button" data-add-preset-variable>+ Database modifier</button>
         ${active!=="normal"?'<button type="button" data-copy-normal-modifiers>Copy normal modifiers</button>':""}
         ${p.widgetTerms.length?`<small>Also includes ${p.widgetTerms.length} widget modifier(s) from Easy Button.</small>`:""}`}</main>
         <div class="sdrp-preview"><span>${ROLL_PRESET_LABELS[active]}</span><code data-preset-preview>${esc(buildRollPresetFormula(p))}</code></div>
@@ -111,9 +113,13 @@ export function openRollPresetsEditor(source = null, doc = null, seed = {}) {
       root.querySelector('[data-preset-field="mode"]')?.addEventListener("change",event=>{sync();if(event.target.value==="formula")state[active].formula=buildRollPresetFormula({...state[active],mode:"constructor"});render();});
       root.querySelectorAll('[data-die-field="keep"]').forEach(input=>input.addEventListener("change",()=>{sync();render();}));
       root.querySelectorAll("input,select,textarea").forEach(input=>input.addEventListener("input",()=>{sync();preview();}));
+      root.querySelectorAll("[data-mod-variable]").forEach(select=>{
+        select.addEventListener("change",()=>{sync();preview();});
+        enhanceVariableSelect(select,{ownerType:doc?.documentName==="Item"?"item":"actor",types:["number","integer"]});
+      });
       root.querySelector("[data-add-preset-die]")?.addEventListener("click",()=>{sync();state[active].diceTerms.push(normalizeDiceTerm({count:1,sides:6}));render();});
       root.querySelectorAll("[data-remove-preset-die]").forEach(button=>button.addEventListener("click",()=>{sync();if(state[active].diceTerms.length>1)state[active].diceTerms.splice(Number(button.dataset.removePresetDie),1);render();}));
-      root.querySelector("[data-add-preset-variable]")?.addEventListener("click",()=>{sync();state[active].variableTerms.push({operator:"+",variableId:variables[0].id});render();});
+      root.querySelector("[data-add-preset-variable]")?.addEventListener("click",()=>{sync();state[active].variableTerms.push({operator:"+",variableId:variables[0]?.id??""});render();});
       root.querySelectorAll("[data-remove-preset-variable]").forEach(button=>button.addEventListener("click",()=>{sync();state[active].variableTerms.splice(Number(button.dataset.removePresetVariable),1);render();}));
       root.querySelector("[data-copy-normal-modifiers]")?.addEventListener("click",()=>{sync();for(const key of ["variableTerms","widgetTerms","flatModifier"])state[active][key]=clone(state.normal[key]);render();});
       root.querySelector("[data-cancel-presets]").addEventListener("click",()=>finish(null));

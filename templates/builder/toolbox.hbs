@@ -91,6 +91,8 @@
     </div>
 
     <div id="tb-panel-paths" style="display:none">
+      <select data-variable-picker aria-label="Database variable"></select>
+      <div data-selected-variable data-drag-type="path" data-action="copyPath" style="padding:8px;margin:6px 0;border:1px solid var(--sd-border);cursor:grab">Select a variable above</div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
         <p style="font-size:11px;color:var(--sd-text-3);margin:0;flex:1;line-height:1.5">
           {{#if knownPaths.length}}Database variables available to this sheet — drag one onto a variable binding.{{else}}No sheet open — showing Database variables for both scopes.{{/if}}

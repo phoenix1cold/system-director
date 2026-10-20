@@ -1,3 +1,5 @@
+import { getSharedDatabaseConfig, getDatabase, getDatabaseRecord, writeDatabaseValue as writeSharedValue } from "./shared-database.mjs";
+
 // `aoe_template` / `aoe_templates` share their ids with the Shared Database so
 // `databaseTypePin()` maps them to the AOE pins used by Place AOE Template / Spell.
 const TYPES = new Set(["number","integer","text","boolean","color","array","object","aoe_template","aoe_templates"]);
@@ -95,7 +97,71 @@ export function getValueDefinitions(settings=null) {
     : definitions;
 }
 
-export function getValueDefinition(id, settings=null){return getValueDefinitions(settings).find(v=>v.id===String(id??""))??null;}
+/** Qualified strings fit existing variableId/path fields without a data migration. */
+export function encodeVariableRef({databaseId="",ownerType="auto",variableId,recordId}={}) {
+  const id=String(variableId??recordId??"");
+  if(!id)return "";
+  if(!["auto","actor","item","world"].includes(ownerType))throw new Error("Invalid variable owner type");
+  return `sdvar:${ownerType}:${encodeURIComponent(databaseId)}:${encodeURIComponent(id)}`;
+}
+
+export function decodeVariableRef(value) {
+  const raw=String(value??"");
+  if(raw.startsWith("sdvar:")){
+    const match=raw.match(/^sdvar:(auto|actor|item|world):([^:]*):([^:]+)$/);
+    if(!match)return null;
+    try{return {databaseId:decodeURIComponent(match[2]),ownerType:match[1],variableId:decodeURIComponent(match[3]),qualified:true};}catch{return null;}
+  }
+  const shared=raw.match(/^flags\.sd\.databaseValues\.([^.]+)\.([^.]+)$/);
+  if(shared)return {databaseId:shared[1],ownerType:"auto",variableId:shared[2],qualified:false};
+  const id=raw.replace(/^system\.values\./,"");
+  return id?{databaseId:"",ownerType:"auto",variableId:id,qualified:false}:null;
+}
+
+export function getValueDefinition(id, settings=null){
+  const ref=decodeVariableRef(id);if(!ref)return null;
+  if(ref.databaseId){
+    const record=getDatabaseRecord(ref.databaseId,ref.variableId);
+    return record?{...record,initial:record.default,scope:"both",databaseId:ref.databaseId,reference:String(id)}:null;
+  }
+  const definition=getValueDefinitions(settings).find(v=>v.id===ref.variableId);
+  return definition?{...definition,reference:String(id)}:null;
+}
+
+export function listVariableDatabases(){
+  return [{id:"",name:"Main Database",storage:"document",kind:"variables"},...getSharedDatabaseConfig().databases];
+}
+
+export function variableReferenceOptions({databaseId="",ownerType="actor",types=null,storagePath=false}={}){
+  const db=listVariableDatabases().find(db=>db.id===databaseId);if(!db)return [];
+  const allowed=types==null?null:new Set(Array.isArray(types)?types:[types]);
+  const records=databaseId?db.records:getValueDefinitions();
+  return records.filter(def=>(!allowed||allowed.has(def.type))&&(!def.scope||def.scope==="both"||ownerType==="auto"||def.scope===ownerType)).map(def=>{
+    const ref=encodeVariableRef({databaseId,ownerType:db.storage==="world"?"world":ownerType,variableId:def.id});
+    return {value:ref,label:`${def.name} (${def.type})`,type:def.type,id:def.id,storagePath:storagePath?valueStoragePath(ref):undefined};
+  });
+}
+
+/** Resolve synchronously for formula evaluation; never substitute Actor for Item. */
+export function resolveVariableReference(value,{document=null,actor=null,item=null}={}){
+  const ref=decodeVariableRef(value);if(!ref)return null;
+  const definition=getValueDefinition(value);if(!definition)return null;
+  const database=ref.databaseId?getDatabase(ref.databaseId):listVariableDatabases()[0];
+  if(database.storage==="world"){
+    if(ref.qualified&&ref.ownerType!=="world"&&ref.ownerType!=="auto")return null;
+    return {...ref,definition,database,kind:"world",document:null,path:"",settingPath:`${ref.databaseId}.${ref.variableId}`};
+  }
+  if(ref.ownerType==="world")return null;
+  let target=document;
+  if(ref.ownerType==="actor")target=document?.documentName==="Actor"?document:document?.actor??actor??item?.actor??null;
+  else if(ref.ownerType==="item")target=document?.documentName==="Item"?document:item??null;
+  else target=document??item??actor;
+  const type=target?.documentName?.toLowerCase();
+  if(type&&!["actor","item"].includes(type))return null;
+  if(ref.ownerType!=="auto"&&type!==ref.ownerType)return null;
+  if(definition.scope!=="both"&&type&&definition.scope!==type)return null;
+  return {...ref,definition,database,kind:target?"document":"missing",document:target,path:valueStoragePath(value)};
+}
 export function valueSelectOptionsForScope(scope=""){
   const wanted=SCOPES.has(String(scope))?String(scope):"";
   return [{value:"",label:"Select value…"},...getValueDefinitions()
@@ -106,7 +172,11 @@ export function valueSelectOptions(_node=null, graph=null){
   const scope=graph?.doc?.documentName==="Item"?"item":graph?.doc?.documentName==="Actor"?"actor":"";
   return valueSelectOptionsForScope(scope);
 }
-export function valueStoragePath(id){return `system.values.${normalizeValueId(id)}`;}
+export function valueStoragePath(id){
+  const ref=decodeVariableRef(id);if(!ref)return "";
+  if(ref.ownerType==="world"||(ref.databaseId&&getDatabase(ref.databaseId)?.storage==="world"))return "";
+  return ref.databaseId?`flags.sd.databaseValues.${ref.databaseId}.${ref.variableId}`:`system.values.${normalizeValueId(ref.variableId)}`;
+}
 
 /** Parse JSON text leniently; non-string input is returned unchanged. */
 function parseJsonLoose(value){
@@ -148,11 +218,18 @@ export function coerceDatabaseValue(value, definition){
   return String(value??"");
 }
 
-export function readDatabaseValue(doc,id,{fallback=true}={}){
-  const def=getValueDefinition(id); if(!def)return undefined;
-  const direct=foundry.utils.getProperty(doc,valueStoragePath(def.id));
+export function readDatabaseValue(doc,id,{fallback=true,actor=null,item=null}={}){
+  const resolved=resolveVariableReference(id,{document:doc,actor,item});if(!resolved)return undefined;
+  const def=resolved.definition;
+  if(resolved.kind==="world"){
+    const values=game.settings.get("sd","sharedDatabaseWorldValues")??{};
+    const stored=foundry.utils.getProperty(values,resolved.settingPath);
+    return stored===undefined?clone(def.initial):stored;
+  }
+  if(resolved.kind==="missing"&&resolved.qualified)return undefined;
+  const direct=foundry.utils.getProperty(resolved.document,resolved.path);
   if(direct!==undefined)return direct;
-  if(fallback&&def.legacyPath){const legacy=foundry.utils.getProperty(doc,def.legacyPath);if(legacy!==undefined)return legacy;}
+  if(fallback&&def.legacyPath){const legacy=foundry.utils.getProperty(resolved.document,def.legacyPath);if(legacy!==undefined)return legacy;}
   return clone(def.initial);
 }
 
@@ -201,9 +278,15 @@ export function databaseValueMatchesAny(doc,id,accepted,{emptyMatchesAll=true}={
   return own.some(entry=>wanted.includes(entry));
 }
 
-export async function writeDatabaseValue(doc,id,value){
-  const def=getValueDefinition(id); if(!doc||!def)return false;
-  await doc.update({[valueStoragePath(def.id)]:coerceDatabaseValue(value,def)});
+export async function writeDatabaseValue(doc,id,value,context={}){
+  const resolved=resolveVariableReference(id,{...context,document:doc});if(!resolved)return false;
+  if(resolved.kind==="missing")return false;
+  if(resolved.databaseId){
+    await writeSharedValue({databaseId:resolved.databaseId,recordId:resolved.variableId,value,ownerMode:resolved.ownerType,owner:resolved.document});
+    return true;
+  }
+  if(!resolved.document?.update)return false;
+  await resolved.document.update({[resolved.path]:coerceDatabaseValue(value,resolved.definition)});
   return true;
 }
 
@@ -223,6 +306,7 @@ export function variableLabelForChange(change={}){
 
 
 export function variableIdForLegacyPath(path,settings=null){
+  if(String(path??"").startsWith("sdvar:"))return getValueDefinition(path,settings)?String(path):"";
   return getValueDefinitions(settings).find(v=>v.legacyPath===String(path??"")||valueStoragePath(v.id)===String(path??""))?.id??"";
 }
 
@@ -257,6 +341,8 @@ export function remapVariableIdsInObject(source, renameMap={}) {
     if(Array.isArray(value))return value.map(entry=>walk(entry,key));
     if(!value||typeof value!=="object"){
       if(typeof value!=="string")return value;
+      const reference=value.startsWith("sdvar:")?decodeVariableRef(value):null;
+      if(reference&&!reference.databaseId&&map.has(reference.variableId))return encodeVariableRef({...reference,variableId:map.get(reference.variableId)});
       if(VARIABLE_REFERENCE_KEYS.has(key)&&map.has(value))return map.get(value);
       const active=value.match(/^system\.values\.([^.]+)$/);
       if(active&&map.has(active[1]))return `system.values.${map.get(active[1])}`;

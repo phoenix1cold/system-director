@@ -7,6 +7,7 @@
 import { openRollPresetsEditor, normalizeRollPresets, buildRollPresetFormula, rollPresetFromFormula, applyRollPresetsToStep } from "./roll-presets.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { getValueDefinitions } from "../helpers/value-database.mjs";
+import { enhanceVariableSelect } from "../helpers/variable-selector.mjs";
 
 const esc = value => String(value ?? "")
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -418,6 +419,10 @@ export function openQuickActionsEditor(config = {}, doc = null, options = {}) {
       bind();
     };
     const bind = () => {
+      root.querySelectorAll('select[data-step-field="variableId"]').forEach(select => {
+        select.dataset.variableRef = state.steps[Number(select.closest('[data-step-index]').dataset.stepIndex)]?.variableId ?? "";
+        enhanceVariableSelect(select, { ownerType: ctx.scope });
+      });
       root.querySelectorAll("[data-add]").forEach(button => button.addEventListener("click", () => {
         sync(); state.steps.push(normalizeQuickStep({ kind: button.dataset.add })); render();
       }));

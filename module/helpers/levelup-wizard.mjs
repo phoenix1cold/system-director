@@ -1,5 +1,5 @@
-import { resolveProgressionValue } from "./progression-values.mjs";
-import { fieldChangeStoragePath, getValueDefinition, variableIdForLegacyPath } from "./value-database.mjs";
+import { progressionFieldValue } from "./progression-fields.mjs";
+import { fieldChangeStoragePath, getValueDefinition, readDatabaseValue, resolveVariableReference, variableIdForLegacyPath } from "./value-database.mjs";
 const { ApplicationV2 } = foundry.applications.api;
 
 function esc(str) {
@@ -81,16 +81,16 @@ export class LevelUpWizard extends ApplicationV2 {
   /* Reward helpers                                                      */
   /* ------------------------------------------------------------------ */
 
-  _fcDiff(fc) {
-    let cur = Number(foundry.utils.getProperty(this._actor, fieldChangeStoragePath(fc)));
-    if (isNaN(cur)) cur = 0;
-    const safe = resolveProgressionValue(this._actor, fc.value);
-    let to;
-    switch (fc.mode) {
-      case "set":      to = safe; break;
-      case "multiply": to = cur * safe; break;
-      default:         to = cur + safe; break;
+  _fcDiff(fc, pending = {}) {
+    const ref = String(fc?.variableId || fc?.path || "");
+    const resolved = ref.startsWith("sdvar:") ? resolveVariableReference(ref, { document: this._actor }) : null;
+    if (ref.startsWith("sdvar:") && (resolved?.kind !== "document" || resolved.document !== this._actor || !resolved.path)) {
+      throw new Error("Progression variable owner does not match the target document.");
     }
+    const path = resolved?.path || (ref.trim() ? fieldChangeStoragePath(fc) : "");
+    const cur = Object.hasOwn(pending, path) ? pending[path] : resolved ? readDatabaseValue(this._actor, ref) : (path ? foundry.utils.getProperty(this._actor, path) : undefined) ?? readDatabaseValue(this._actor, ref);
+    const to = progressionFieldValue(fc, cur, this._actor, pending);
+    if (path) pending[path] = to;
     const sym = fc.mode === "set" ? "=" : fc.mode === "multiply" ? "×" : "+";
     return { from: cur, to, sym };
   }
@@ -195,14 +195,15 @@ export class LevelUpWizard extends ApplicationV2 {
     }
 
     if (fcs.length) {
+      const pending = {};
       html += `<div class="sd-luw-panel"><div class="sd-luw-sec"><i class="fas fa-sliders-h"></i> ${loc("SD.Progression.WizardStats") || "Stat changes"}</div><ul class="sd-luw-fcs">`;
       for (const fc of fcs) {
-        if (!fc?.path) continue;
-        const d = this._fcDiff(fc);
+        if (!fc?.variableId && !fc?.path) continue;
+        const d = this._fcDiff(fc, pending);
         html += `<li class="${fc.__chosen ? "chosen" : ""}">
           <code>${esc(getValueDefinition(fc.variableId)?.name ?? variableIdForLegacyPath(fc.path) ?? "Database value")}</code>
           <span class="sd-luw-fc-op">${d.sym} ${esc(String(fc.value ?? ""))}</span>
-          <span class="sd-luw-fc-diff">${d.from} <i class="fas fa-arrow-right"></i> <strong>${d.to}</strong></span>
+          <span class="sd-luw-fc-diff">${esc(d.from)} <i class="fas fa-arrow-right"></i> <strong>${esc(d.to)}</strong></span>
           ${fc.__chosen && markChoice ? `<i class="fas fa-hand-pointer" title="${loc("SD.Progression.WizardYourChoice") || "Your choice"}"></i>` : ""}
         </li>`;
       }
@@ -271,12 +272,12 @@ export class LevelUpWizard extends ApplicationV2 {
         const cnt = Array.isArray(opt.changes) ? opt.changes.length : 0;
         if (cnt) body = `<div class="sd-luw-card-sub">${cnt} ${loc("SD.Progression.EffectChanges")}</div>`;
       } else {
-        title = opt.path ?? "(field)";
+        title = getValueDefinition(opt.variableId || opt.path)?.name ?? opt.variableId ?? opt.path ?? "(field)";
         icon  = "icons/svg/upgrade.svg";
         const d = (opt.variableId || opt.path) ? this._fcDiff(opt) : null;
         body = `<div class="sd-luw-card-sub">
-          <code>${esc(opt.path ?? "")}</code>
-          ${d ? `<strong>${d.from} → ${d.to}</strong>` : `<strong>${esc(String(opt.value ?? ""))}</strong>`}
+          <code>${esc(title)}</code>
+          ${d ? `<strong>${esc(d.from)} → ${esc(d.to)}</strong>` : `<strong>${esc(String(opt.value ?? ""))}</strong>`}
         </div>`;
       }
       html += `<button type="button" class="sd-luw-card ${sel.includes(oi) ? "is-selected" : ""}" data-action="pick" data-opt="${oi}">

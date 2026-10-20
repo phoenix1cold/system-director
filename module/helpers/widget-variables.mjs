@@ -9,7 +9,7 @@
 
 import {
   getValueDefinition, valueStoragePath, variableIdForLegacyPath,
-  readDatabaseValue, coerceDatabaseValue
+  readDatabaseValue, writeDatabaseValue
 } from "./value-database.mjs";
 
 const ROOT = "widgetVars";
@@ -49,7 +49,7 @@ export function widgetVarBinding(widget, field = "value") {
   const resolve = raw => {
     const value = String(raw ?? "").trim();
     if (!value || isWidgetVarPath(value)) return "";
-    return getValueDefinition(value)?.id || variableIdForLegacyPath(value) || "";
+    return value.startsWith("sdvar:") ? value : getValueDefinition(value)?.id || variableIdForLegacyPath(value) || "";
   };
   return resolve(widget?.varBindings?.[field]) || resolve(widget?.[field]);
 }
@@ -204,9 +204,7 @@ export async function writeWidgetVar(doc, widget, field, value) {
   const descriptor = (WIDGET_VARIABLES[String(widget?.type ?? "")] ?? []).find(entry => entry.field === field);
   const target = widgetBindingTarget(widget, field);
   if (target.mode === "variable") {
-    const definition = getValueDefinition(target.variableId) ?? { id: target.variableId, type: descriptor?.type ?? "text" };
-    await doc.update({ [target.path]: coerceDatabaseValue(value, definition) });
-    return true;
+    return writeDatabaseValue(doc, target.variableId, value);
   }
   await doc.update({ [target.path]: coerceWidgetValue(value, descriptor?.type ?? "text") });
   return true;

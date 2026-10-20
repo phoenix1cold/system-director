@@ -48,6 +48,8 @@ export function normalizeAoePreset(source = {}) {
     name:String(preset.name ?? "Region"),
     t: shapes.length === 1 ? String(shapes[0].type ?? "region") : "region",
     shapes, shapeCount:shapes.length,
+    behaviors: Array.isArray(preset.behaviors) ? preset.behaviors : [],
+    flags: preset.flags && typeof preset.flags === "object" ? preset.flags : {},
     appearance:{ color:String(preset.appearance?.color ?? "#ff0000"), displayMeasurements:preset.appearance?.displayMeasurements !== false,
       ...(preset.appearance?.highlightMode !== undefined ? { highlightMode:preset.appearance.highlightMode } : {}),
       ...(preset.appearance?.elevation !== undefined ? { elevation:preset.appearance.elevation } : {}) }
@@ -139,8 +141,17 @@ export function snapshotRegionDocument(doc) {
   for (const shape of shapes) { const c = shapeCenter(shape); sx += c.x; sy += c.y; n++; }
   const cx = n ? sx / n : 0, cy = n ? sy / n : 0;
   for (const shape of shapes) moveShape(shape, -cx, -cy);
-  return normalizeAoePreset({ kind:"region-v14", name:doc.name || "Region", shapes,
-    appearance:{ color:String(doc.color ?? "#ff0000"), displayMeasurements:doc.displayMeasurements !== false } });
+  const flags = clone(raw?.flags ?? doc.flags ?? {});
+  // These describe a live placement, not the reusable interaction configuration.
+  if (flags.sd) { delete flags.sd.aura; delete flags.sd.applyEffect; }
+  const behaviors = Array.from(raw?.behaviors ?? doc.behaviors ?? []).map(behavior => {
+    const data = clone(behavior?.toObject?.() ?? behavior);
+    delete data._id;
+    return data;
+  });
+  return normalizeAoePreset({ kind:"region-v14", name:doc.name || "Region", shapes, flags, behaviors,
+    appearance:{ color:String(doc.color ?? "#ff0000"), displayMeasurements:doc.displayMeasurements !== false,
+      highlightMode:raw?.highlightMode ?? doc.highlightMode, elevation:raw?.elevation ?? doc.elevation } });
 }
 
 export function snapshotSelectedRegion() {
@@ -378,7 +389,9 @@ export function openAoePresetEditor(value = null, options = {}) {
         const preset = current();
         preset.shapes = snapshot.shapes; preset.shapeCount = snapshot.shapes.length;
         if (!preset.name || /^Template \d*$/.test(preset.name)) preset.name = snapshot.name;
-        preset.appearance.color = snapshot.appearance.color;
+        preset.appearance = snapshot.appearance;
+        preset.behaviors = snapshot.behaviors;
+        preset.flags = snapshot.flags;
         state.selected = -1; render();
       });
       root.querySelectorAll("[data-preset]").forEach(button => button.addEventListener("click", () => { state.index = Number(button.dataset.preset); state.selected = -1; state.polygon = []; render(); }));

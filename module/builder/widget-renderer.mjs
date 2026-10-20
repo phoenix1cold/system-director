@@ -1,4 +1,5 @@
 import { renderCardHand } from "../helpers/card-hand.mjs";
+import { isVideoMedia, mediaEnabled, mediaSource } from "../helpers/media-widget.mjs";
 import { renderModelWidget } from "../three/model-widget.mjs";
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { showIfSelectionVisible } from "../helpers/show-if.mjs";
@@ -90,6 +91,7 @@ export class WidgetRenderer {
 
   static _bindingPath(variableId) {
     const raw=String(variableId??"");
+    if (raw.startsWith("sdvar:")) return raw;
     const id=getValueDefinition(raw)?.id ?? variableIdForLegacyPath(raw);
     return id ? valueStoragePath(id) : raw;
   }
@@ -97,6 +99,7 @@ export class WidgetRenderer {
   static _get(doc, variableId, fallback = "") {
     if (!variableId) return fallback;
     const raw=String(variableId);
+    if (raw.startsWith("sdvar:")) return readDatabaseValue(doc, raw) ?? fallback;
     const id=getValueDefinition(raw)?.id ?? variableIdForLegacyPath(raw);
     if(id){const value=readDatabaseValue(doc,id);return value??fallback;}
     // Private compatibility fallback for unresolved pre-1.8 worlds.
@@ -983,7 +986,7 @@ export class WidgetRenderer {
   static _sdFilterValues(item, variableId, legacyValue) {
     const id = String(variableId ?? "").trim();
     if (id) {
-      const resolved = getValueDefinition(id)?.id || variableIdForLegacyPath(id) || id;
+      const resolved = id.startsWith("sdvar:") ? id : getValueDefinition(id)?.id || variableIdForLegacyPath(id) || id;
       const list = readDatabaseValueList(item, resolved);
       if (list.length) return list;
     }
@@ -1009,7 +1012,7 @@ export class WidgetRenderer {
     const cols = [];
     for (const entry of pick(w?.columnVariables)) {
       const def = getValueDefinition(entry) ?? getValueDefinition(variableIdForLegacyPath(entry));
-      cols.push(def ? { id: def.id, label: def.name, type: def.type, variable: true } : { id: entry, label: entry, variable: false });
+      cols.push(def ? { id: String(entry).startsWith("sdvar:") ? entry : def.id, label: def.name, type: def.type, variable: true } : { id: entry, label: entry, variable: false });
     }
     if (cols.length) return cols;
     return pick(w?.columns).map(entry => ({ id: entry, label: entry, variable: false }));
@@ -1410,7 +1413,7 @@ export class WidgetRenderer {
       return `<div class="widget widget-richtext widget-richtext--native" data-richtext-widget="1" data-richtext-mode="native">
   <div class="widget-label">${e(w.label)}</div>
   <prose-mirror class="sd-richtext-native" name="${path}" data-path="${path}" data-widget-id="${wid}"
-      button="true" editable="true" toggled="true" value="${safeVal}">${display || empty}</prose-mirror>
+      button="true" editable="true" toggled="true" value="${safeVal}"><div class="richtext-display">${display || empty}</div></prose-mirror>
 </div>`;
     }
 
@@ -2312,8 +2315,8 @@ export class WidgetRenderer {
 
   static _render_image(w, doc) {
     const esc = this._esc.bind(this);
-    const fromPath = w.path ? String(this._get(doc, w.path, "")) : "";
-    const src = esc(w.staticSrc || fromPath || "");
+    const source = mediaSource(w, doc);
+    const src = esc(source);
     const lbl = esc(w.label ?? "");
     const ww  = Number(w.width)        || 64;
     const hh  = Number(w.height)       || 64;
@@ -2324,12 +2327,14 @@ export class WidgetRenderer {
     const borderCSS = bd ? `border:${bw}px solid ${esc(bd)};` : "";
     const imgStyle  = `width:${ww}px;height:${hh}px;object-fit:cover;${brCSS}display:block;${borderCSS}box-sizing:border-box`;
     const imgEl     = src
-      ? `<img src="${src}" style="${imgStyle}" alt="${lbl || "image"}">`
+      ? (isVideoMedia(source)
+        ? `<video src="${src}" style="${imgStyle}" aria-label="${lbl || "Media"}" ${mediaEnabled(w.replaceOnClick) ? "" : "controls"} playsinline preload="metadata" ${mediaEnabled(w.autoplay) ? "autoplay muted" : ""} ${mediaEnabled(w.loop) ? "loop" : ""}></video>`
+        : `<img src="${src}" style="${imgStyle}" alt="${lbl || "Media"}">`)
       : `<div style="${imgStyle};background:var(--sd-bg);${bd ? "" : "border:1px dashed var(--sd-border);"}display:flex;align-items:center;justify-content:center;color:var(--sd-border);font-size:20px"><i class="fas fa-image"></i></div>`;
 
-    const pencilBtn = `<button type="button" class="sd-img-pick sd-img-pencil"
+    const pencilBtn = `<button type="button" class="sd-media-pick sd-img-pencil"
          data-static="1" data-current="${src}"
-         title="Выбрать изображение"
+         title="${esc(this._sdLoc("SD.Media.Pick", "Choose media"))}" aria-label="${esc(this._sdLoc("SD.Media.Pick", "Choose media"))}"
          style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);
                 border:none;border-radius:3px;color:var(--sd-text-2);cursor:pointer;
                 padding:1px 5px;font-size:11px;line-height:16px;opacity:0;
@@ -2341,7 +2346,7 @@ export class WidgetRenderer {
   ${imgEl}${pencilBtn}
 </div>`;
 
-    return `<div class="widget widget-image" style="display:flex;flex-direction:column;align-items:center;gap:3px">
+    return `<div class="widget widget-image widget-media" data-sd-media="${esc(w.id ?? "")}" style="display:flex;flex-direction:column;align-items:center;gap:3px">
   ${lbl ? `<span class="widget-label">${lbl}</span>` : ""}
   ${wrapper}
 </div>`;
@@ -2750,7 +2755,7 @@ export class WidgetRenderer {
       // Database variables win: read them from their own storage path and reuse
       // their display name instead of guessing a system.attributes.* path.
       const dbDef = getValueDefinition(s) ?? getValueDefinition(variableIdForLegacyPath(s));
-      if (dbDef) return { key: dbDef.id, scorePath: valueStoragePath(dbDef.id), name: dbDef.name };
+      if (dbDef) return { key: dbDef.id, scorePath: s.startsWith("sdvar:") ? s : valueStoragePath(dbDef.id), name: dbDef.name };
 
       if (s.includes(".")) {
         let p = s.replace(/^\.+|\.+$/g, "");
@@ -2787,7 +2792,7 @@ export class WidgetRenderer {
 
     const items = tokens.map(({ key, scorePath, name: dbName }) => {
 
-      let score = foundry.utils.getProperty(doc, scorePath);
+      let score = this._get(doc, scorePath, undefined);
       if (score && typeof score === "object") {
         if ("value" in score) { scorePath = `${scorePath}.value`; score = score.value; }
         else if ("score" in score) { scorePath = `${scorePath}.score`; score = score.score; }

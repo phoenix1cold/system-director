@@ -1,5 +1,13 @@
 {
   "SD": {
+    "Media": {
+      "Source": "Media (image, GIF or video)",
+      "Path": "Bound media path (optional, overrides file)",
+      "Autoplay": "Autoplay video (muted)",
+      "Loop": "Loop video",
+      "ReplaceOnClick": "Offer media replacement on click",
+      "Pick": "Choose media"
+    },
     "ModelWidget": {
       "Source": "3D model (.glb / .gltf)",
       "PreviewImage": "Preview image",
@@ -697,7 +705,7 @@
       "Spellbook": "Spellbook",
       "Select": "Select",
       "Tags": "Tags",
-      "Image": "Image",
+      "Image": "Media",
       "Section": "Section",
       "Richtext": "Rich Text",
       "LastRollEmpty": "no rolls yet",

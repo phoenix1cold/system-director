@@ -1,4 +1,4 @@
-import { readDatabaseValue, valueStoragePath, variableIdForLegacyPath } from "./value-database.mjs";
+import { readDatabaseValue, resolveVariableReference, valueStoragePath, variableIdForLegacyPath } from "./value-database.mjs";
 export const SD_SLOT_EFFECT_FLAG = "slotEffect";
 
 const _AE_MODES = {
@@ -130,6 +130,19 @@ function _buildTransferredSnapshotEffect({ host, marker, snapshot, effect, effec
   // driven by the equipment state, matching live SDItem behaviour.
   if (mode === "always" && effect?.disabled === true) return null;
 
+  const actor = _resolveHostActor(host);
+  const effectChanges = _clone(effect?.changes ?? effect?.system?.changes ?? []);
+  for (const [index, change] of effectChanges.entries()) {
+    const ref = effect?.flags?.sd?.variableReferences?.[index]
+      || effect?.flags?.sd?.effectVariables?.[index]?.variableId || change.variableId || change.key;
+    if (String(ref).startsWith("sdvar:")) {
+      const resolved = resolveVariableReference(ref, { document: actor });
+      if (resolved?.kind !== "document" || resolved.document !== actor || !resolved.path) return null;
+      change.key = resolved.path;
+    }
+    if (!change.key) return null;
+  }
+
   const sourceEffectId = String(effect?._id ?? effect?.id ?? `effect${effectIndex}`);
   const tag = `${marker.hostDocumentName}:${marker.hostId}|${path}|effect:${sourceEffectId}`;
   const flags = _clone(effect?.flags ?? {});
@@ -150,7 +163,7 @@ function _buildTransferredSnapshotEffect({ host, marker, snapshot, effect, effec
     name: String(effect?.name ?? snapshot?.name ?? "Item Effect"),
     img,
     icon: img,
-    changes: _clone(effect?.changes ?? effect?.system?.changes ?? []),
+    changes: effectChanges,
     disabled: false,
     transfer: false,
     flags,
@@ -196,18 +209,27 @@ export function collectExpectedSlotEffects(host) {
         if (contentsActive && changes.length) {
           const tag = `${marker.hostDocumentName}:${marker.hostId}|${itemPath}|mapped`;
           const mappedChanges = changes.map(change => {
-            const itemVariableId=change.itemVariableId||variableIdForLegacyPath(change.itemFieldPath);
-            const actorVariableId=change.actorVariableId||variableIdForLegacyPath(change.actorFieldPath);
-            const raw = itemVariableId?readDatabaseValue(snapshot,itemVariableId):foundry.utils.getProperty(snapshot,change.itemFieldPath);
+            const itemVariableId=change.itemVariableId||(String(change.itemFieldPath).startsWith("sdvar:") ? change.itemFieldPath : variableIdForLegacyPath(change.itemFieldPath));
+            const actorVariableId=change.actorVariableId||(String(change.actorFieldPath).startsWith("sdvar:") ? change.actorFieldPath : variableIdForLegacyPath(change.actorFieldPath));
+            const item = { ...snapshot, documentName: "Item", actor };
+            let key = actorVariableId ? valueStoragePath(actorVariableId) : String(change.actorFieldPath || "");
+            if (String(actorVariableId).startsWith("sdvar:")) {
+              const resolved = resolveVariableReference(actorVariableId, { document: actor, item });
+              if (resolved?.kind !== "document" || resolved.document !== actor) return null;
+              key = resolved.path;
+            }
+            if (!key) return null;
+            if (String(itemVariableId).startsWith("sdvar:") && !resolveVariableReference(itemVariableId, { document: item, actor })) return null;
+            const raw = itemVariableId?readDatabaseValue(String(itemVariableId).startsWith("sdvar:") ? item : snapshot,itemVariableId,{actor,item}):foundry.utils.getProperty(snapshot,change.itemFieldPath);
             return {
-              key: actorVariableId?valueStoragePath(actorVariableId):String(change.actorFieldPath),
+              key,
               mode: Number.isFinite(Number(change.mode)) ? Number(change.mode) : _AE_MODES.ADD,
               value: raw === undefined || raw === null ? "0" : String(raw),
               priority: Number.isFinite(Number(change.priority)) ? Number(change.priority) : 20
             };
-          });
+          }).filter(Boolean);
           const img = snapshot?.img ?? "icons/svg/aura.svg";
-          out.push({
+          if (mappedChanges.length) out.push({
             tag,
             data: {
               name: `[Slot: ${def.label ?? slotId}] ${snapshot?.name ?? "Item"}`,

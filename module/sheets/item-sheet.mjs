@@ -9,6 +9,7 @@ import { SlotManager }    from "../data/item-slots.mjs";
 import { ButtonExecutor } from "../helpers/button-executor.mjs";
 import { decodeMacroScript } from "../helpers/widget-macro.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
+import { bindMediaWidgets } from "../helpers/media-widget.mjs";
 import { editEffectViaStandardConfig, openItemSheetFromSnapshot } from "../helpers/effect-editor.mjs";
 import { SkillTree3D } from "../helpers/skilltree-3d.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
@@ -21,15 +22,20 @@ import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { SheetTabReorder } from "../builder/sheet-tab-reorder.mjs";
 import { persistWidgetValue } from "../helpers/widget-fields.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "../builder/widget-paths.mjs";
-import { promptWidgetIdentity } from "../builder/widget-identity.mjs";
+import { collectWidgetKeys, promptWidgetIdentity } from "../builder/widget-identity.mjs";
 import { openEasyButtonWizard } from "../builder/easy-button-wizard.mjs";
 import { getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
+import { enhanceVariableSelectors, enhanceVariableSelect } from "../helpers/variable-selector.mjs";
+import { bindProgressionFieldMode } from "../helpers/progression-fields.mjs";
+import { readVariablePath, updateVariablePaths } from "../helpers/variable-binding.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 
 function _sdDbOptions(selected="", scope="item") {
-  return `<option value="">Select Database variable…</option>`+getValueDefinitions(scope).map(v=>`<option value="${String(v.id).replace(/"/g,"&quot;")}" ${selected===v.id?"selected":""}>${String(v.name).replace(/</g,"&lt;")} · ${v.type} [${v.id}]</option>`).join("");
+  const esc=value=>String(value??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+  const defs=getValueDefinitions(scope);
+  return `<option value="">Select Database variable…</option>`+(selected&&!defs.some(v=>v.id===selected)?`<option value="${esc(selected)}" selected>${esc(getValueDefinition(selected)?.name||selected)}</option>`:"")+defs.map(v=>`<option value="${esc(v.id)}" ${selected===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join("");
 }
 
 function _sdLoc(key, fallback, data = null) {
@@ -160,6 +166,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   _onRender(context, options) {
+    this._disposeActorSelectors?.();
+    this._disposeItemSelectors?.();
+    this._disposeActorSelectors = enhanceVariableSelectors(this.element, { selector: '.cls-fc-variable, .cls-choice-fc-variable, select[data-sys-slot-change="actorVariableId"]', ownerType: "actor", allowWorld: false });
+    this._disposeItemSelectors = enhanceVariableSelectors(this.element, { selector: 'select[data-sys-slot-change="itemVariableId"]', ownerType: "item", allowWorld: false });
     if (this.document.type !== "skilltree") this._disposeSkilltree3D();
     this._captureScrollMemory();
     this._buildTabNav();
@@ -174,10 +184,24 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
   _onChangeForm(formConfig, event) {
     const t = event?.target;
+    if (String(t?.name ?? t?.dataset?.path ?? "").startsWith("sdvar:")) return;
 
     if (t?.closest?.(".richtext-editor, .richtext-edit-wrap, .sd-wcfg-popup, prose-mirror, .sd-richtext-pm-target, .sd-richtext-editor, .editor.prosemirror, .ProseMirror, .prosemirror-menu")) return;
     if (t?.tagName?.toLowerCase?.() === "prose-mirror") return;
     return super._onChangeForm(formConfig, event);
+  }
+
+  _processFormData(event, form, formData) {
+    const data = super._processFormData(event, form, formData);
+    // Qualified fields are persisted by their owner-aware change handlers.
+    for (const key of Object.keys(data ?? {})) if (key.startsWith("sdvar:")) delete data[key];
+    return data;
+  }
+
+  async close(options) {
+    this._disposeActorSelectors?.();
+    this._disposeItemSelectors?.();
+    return super.close(options);
   }
 
   _scrollKey(panel) {
@@ -681,6 +705,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           <strong style="font-size:11px">${e(fc.value)}</strong>`;
       }
       fcList.appendChild(row);
+      bindProgressionFieldMode(row.querySelector('.cls-fc-variable'), row.querySelector('.cls-fc-mode'));
     });
     if (!(lv.fieldChanges ?? []).length) fcList.innerHTML = `<span style="font-size:10px;color:var(--sd-text-3);font-style:italic">—</span>`;
     fcCol.appendChild(fcList);
@@ -1158,6 +1183,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     panel.querySelectorAll(".cls-choice-fc-mode").forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "mode")));
     panel.querySelectorAll(".cls-choice-fc-val" ).forEach(el => el.addEventListener("change", () => _saveChoiceFcField(el, "value")));
     bindProgressionValuePickers(panel);
+    panel.querySelectorAll('.cls-choice-fc-variable').forEach(select => bindProgressionFieldMode(select, select.closest('.sd-field-change-row')?.querySelector('.cls-choice-fc-mode')));
   }
 
   _buildSkilltreePanel(isActive) {
@@ -1602,6 +1628,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
         const root = dlg?.element ?? dlg;
         root.addEventListener("click", ev => { if (ev.target.closest(".stn-del-fc")) ev.target.closest(".stn-fc-row")?.remove(); });
+        root.querySelectorAll('.stn-fc-variable').forEach(select => enhanceVariableSelect(select, { ownerType: "actor", allowWorld: false }));
+        root.querySelectorAll('.stn-fc-variable').forEach(select => bindProgressionFieldMode(select, select.closest('.stn-fc-row')?.querySelector('.stn-fc-mode')));
         root.querySelector("#stn-add-fc")?.addEventListener("click", () => {
           const div = document.createElement("div");
           div.className = "stn-fc-row";
@@ -1614,6 +1642,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
             <input type="text" class="stn-fc-val" value="1" style="width:40px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:3px;color:var(--sd-text);font-size:10px;padding:2px 3px;text-align:center">
             <button type="button" class="stn-del-fc" style="background:none;border:none;color:var(--sd-text-3);cursor:pointer;font-size:11px">✕</button>`;
           root.querySelector("#stn-fcs")?.appendChild(div);
+          enhanceVariableSelect(div.querySelector('.stn-fc-variable'), { ownerType: "actor", allowWorld: false });
+          bindProgressionFieldMode(div.querySelector('.stn-fc-variable'), div.querySelector('.stn-fc-mode'));
         });
 
         const refreshEffects = () => {
@@ -2131,9 +2161,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       ev.stopPropagation();
       const path = skillPip.dataset.path;
       const r    = Number(skillPip.dataset.rank) || 0;
-      const cur  = Number(foundry.utils.getProperty(this.document, path)) || 0;
+      const cur  = Number(readVariablePath(this.document, path)) || 0;
       const next = cur === r ? r - 1 : r;
-      await this.document.update({ [path]: Math.max(0, next) });
+      await updateVariablePaths(this.document, { [path]: Math.max(0, next) });
     });
 
     con.addEventListener("contextmenu", async ev => {
@@ -2141,7 +2171,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       if (!pipRow) return;
       ev.preventDefault();
       ev.stopPropagation();
-      await this.document.update({ [pipRow.dataset.path]: 0 });
+      await updateVariablePaths(this.document, { [pipRow.dataset.path]: 0 });
     });
 
     con.addEventListener("click", async ev => {
@@ -2444,7 +2474,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     });
     con.querySelectorAll("[data-action='widgetToggle']").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
-        await this.document.update({ [btn.dataset.path]: !foundry.utils.getProperty(this.document,btn.dataset.path) });
+        await updateVariablePaths(this.document, { [btn.dataset.path]: !readVariablePath(this.document,btn.dataset.path) });
       });
     });
 
@@ -2531,7 +2561,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           val = Number.isFinite(n) ? n : 0;
         } else val = inp.value;
         if(w&&String(w.type??"")==="select")await persistWidgetValue(this.document,w,val);
-        else await this.document.update({[path]:val});
+        else await updateVariablePaths(this.document, {[path]:val});
       });
     });
 
@@ -2542,9 +2572,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const index = Number(seg.dataset.index);
         const segs  = Number(seg.dataset.segs ?? 4);
         if (!path) return;
-        const cur   = Number(foundry.utils.getProperty(this.document, path)) || 0;
+        const cur   = Number(readVariablePath(this.document, path)) || 0;
         const next  = cur > index ? index : index + 1;
-        await this.document.update({ [path]: Math.min(segs, Math.max(0, next)) });
+        await updateVariablePaths(this.document, { [path]: Math.min(segs, Math.max(0, next)) });
       });
     });
 
@@ -2554,12 +2584,12 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const index = Number(pip.dataset.index);
         const max   = Number(pip.dataset.max ?? 6);
         if (!path) return;
-        const cur   = Number(foundry.utils.getProperty(this.document, path)) || 0;
+        const cur   = Number(readVariablePath(this.document, path)) || 0;
         let next;
         if (mode === "jump")     next = cur > index ? index : index + 1;
         else if (mode === "dec") next = Math.max(0, cur - 1);
         else                     next = cur > index ? cur - 1 : cur + 1;
-        await this.document.update({ [path]: Math.min(max, Math.max(0, next)) });
+        await updateVariablePaths(this.document, { [path]: Math.min(max, Math.max(0, next)) });
       };
       pip.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -2577,7 +2607,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         ev.stopPropagation();
         const path = btn.dataset.path;
         if (!path) return;
-        await this.document.update({ [path]: 0 });
+        await updateVariablePaths(this.document, { [path]: 0 });
       });
     });
 
@@ -2586,7 +2616,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         ev.stopPropagation();
         const path = btn.dataset.path;
         if (!path) return;
-        await this.document.update({ [path]: 0 });
+        await updateVariablePaths(this.document, { [path]: 0 });
       });
     });
 
@@ -2601,9 +2631,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
           ok:      { callback: (_ev, _btn, dlg) => dlg.element.querySelector("[name=tag]")?.value?.trim() ?? null }
         }).catch(() => null);
         if (!tag) return;
-        const cur  = String(foundry.utils.getProperty(this.document, path) ?? "");
+        const cur  = String(readVariablePath(this.document, path) ?? "");
         const tags = cur.split(",").map(t => t.trim()).filter(Boolean);
-        if (!tags.includes(tag)) { tags.push(tag); await this.document.update({ [path]: tags.join(", ") }); }
+        if (!tags.includes(tag)) { tags.push(tag); await updateVariablePaths(this.document, { [path]: tags.join(", ") }); }
       });
     });
 
@@ -2613,12 +2643,13 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const path = btn.dataset.path;
         const tag  = btn.dataset.tag;
         if (!path || !tag) return;
-        const cur  = String(foundry.utils.getProperty(this.document, path) ?? "");
+        const cur  = String(readVariablePath(this.document, path) ?? "");
         const tags = cur.split(",").map(t => t.trim()).filter(t => t && t !== tag);
-        await this.document.update({ [path]: tags.join(", ") });
+        await updateVariablePaths(this.document, { [path]: tags.join(", ") });
       });
     });
 
+    bindMediaWidgets(con, this.document, { disabled: () => this._editMode || this.isEditable === false });
     con.querySelectorAll(".sd-img-pick").forEach(btn => {
       btn.addEventListener("click", async ev => {
         ev.stopPropagation();
@@ -2660,9 +2691,9 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
 
         const path = btn.dataset.path;
         if (!path) return;
-        const cur  = String(foundry.utils.getProperty(this.document, path) ?? "");
+        const cur  = String(readVariablePath(this.document, path) ?? "");
         new FP({ type: "image", current: cur,
-          callback: src => this.document.update({ [path]: src }) }).render(true);
+          callback: src => updateVariablePaths(this.document, { [path]: src }) }).render(true);
       });
     });
 
@@ -2674,7 +2705,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
         const key = path.slice("system.hiddenFields.".length);
         return this.document?.system?.hiddenFields?.[key] ?? 0;
       }
-      return foundry.utils.getProperty(this.document, path) ?? 0;
+      return readVariablePath(this.document, path) ?? 0;
     };
 
     const _fieldForPath = (path, root = con) => {
@@ -3196,17 +3227,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     if(ww){ww.span=s; await this.document.update({"system.customTabs":tabs});}
   }
   _refreshWidgetIdsDeep(widget) {
-    if (!widget || typeof widget !== "object") return;
-    widget.id = foundry.utils.randomID(8);
-    if (Array.isArray(widget.widgets)) {
-      for (const child of widget.widgets) this._refreshWidgetIdsDeep(child);
-    }
-    if (Array.isArray(widget.elements)) {
-      for (const element of widget.elements) {
-        element.id = foundry.utils.randomID(6);
-        if (element?.widget) this._refreshWidgetIdsDeep(element.widget);
-      }
-    }
+    return GridManager._refreshWidgetIds(widget, collectWidgetKeys(this.document.system.customTabs ?? []));
   }
 
   async _duplicateWidget(tab, row, w, parentVS = null) {

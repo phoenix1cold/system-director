@@ -1,5 +1,7 @@
 import { localizeTree, getLanguages, translationEditLanguage, setTranslationEditLanguage, setLocalizedField } from "./localization.mjs";
-import { getValueDefinitions, getValueDefinition, valueStoragePath } from "./value-database.mjs";
+import { getValueDefinitions, getValueDefinition, valueStoragePath, resolveVariableReference } from "./value-database.mjs";
+import { enhanceVariableSelectors } from "./variable-selector.mjs";
+import { durationForRounds } from "./effect-duration.mjs";
 import { effectTargetVariables } from "./effects.mjs";
 
 const { ApplicationV2, DialogV2 } = globalThis.foundry?.applications?.api ?? {};
@@ -12,10 +14,11 @@ const MODES=[
 
 function normalizePreset(p={}){
   return {
+    ...clone(p),
     id:String(p.id||foundry.utils.randomID(10)),name:String(p.name||"New Effect"),description:String(p.description||""),
     icon:String(p.icon||p.img||"icons/svg/aura.svg"),disabled:!!p.disabled,transfer:!!p.transfer,
-    duration:{rounds:Number(p.duration?.rounds||0),seconds:Number(p.duration?.seconds||0)},
-    changes:Array.isArray(p.changes)?p.changes.map(c=>{const key=String(c.key||"");const def=getValueDefinitions().find(v=>v.id===c.variableId||valueStoragePath(v.id)===key||v.legacyPath===key);return {variableId:String(c.variableId||def?.id||""),legacyKey:def?"":key,mode:Number(c.mode??2),value:String(c.value??""),priority:Number(c.priority??20)}}):[],
+    duration:{...clone(p.duration??{}),rounds:Number(p.duration?.rounds||0),seconds:Number(p.duration?.seconds||0)},
+    changes:Array.isArray(p.changes)?p.changes.map(c=>{const key=String(c.legacyKey||c.key||"");const def=getValueDefinitions().find(v=>v.id===c.variableId||valueStoragePath(v.id)===key||v.legacyPath===key);return {...clone(c),variableId:String(c.variableId||def?.id||""),legacyKey:key,mode:Number(c.mode??2),value:String(c.value??""),priority:Number(c.priority??20)}}):[],
     i18n:p.i18n&&typeof p.i18n==="object"?clone(p.i18n):{}
   };
 }
@@ -50,16 +53,25 @@ export function resolveEffectTargets(scope = "selected", { actor = null } = {}) 
 }
 
 /** Build the ActiveEffect payload of a preset. Changes always point at Database variables. */
-export function presetToEffectData(rawPreset) {
+export function presetToEffectData(rawPreset, { document = null } = {}) {
   const preset = normalizePreset(rawPreset ?? {});
+  for(const change of preset.changes){
+    if(!change.variableId)continue;
+    if(!valueStoragePath(change.variableId))throw new Error("Active Effects cannot modify world-stored Database values.");
+    if(document){const resolved=resolveVariableReference(change.variableId,{document});if(!resolved||resolved.document!==document)throw new Error("Effect variable owner does not match the target document.");}
+  }
   const known = effectTargetVariables();
   return {
     name: localizeTree(preset).name,
     img: preset.icon, icon: preset.icon,
     disabled: preset.disabled, transfer: preset.transfer,
-    duration: clone(preset.duration),
+    duration: preset.duration.rounds > 0
+      ? { startRound: null, startTurn: null, ...durationForRounds(preset.duration.rounds), turns: null, seconds: null, startTime: null }
+      : { rounds: null, turns: null, startRound: null, startTurn: null,
+          seconds: preset.duration.seconds > 0 ? preset.duration.seconds : null,
+          startTime: preset.duration.seconds > 0 ? (game.time?.worldTime ?? 0) : null },
     changes: preset.changes
-      .filter(change => (change.variableId && getValueDefinition(change.variableId)) || change.legacyKey)
+      .filter(change => (change.variableId && getValueDefinition(change.variableId) && valueStoragePath(change.variableId)) || (!change.variableId && change.legacyKey))
       .map(change => ({
         key: change.variableId ? valueStoragePath(change.variableId) : change.legacyKey,
         mode: Number(change.mode ?? 2),
@@ -85,6 +97,7 @@ const presetEffectsOf = (actor, presetId) => [...(actor?.effects ?? [])]
 /** Apply / remove / toggle one preset on a set of actors. Returns the number of actors touched. */
 export async function runEffectPreset({ preset, actors = [], operation = "apply" } = {}) {
   const data = presetToEffectData(preset);
+  if(operation==="apply")for(const actor of actors)presetToEffectData(preset,{document:actor});
   const presetId = data.flags.sd.effectPresetId;
   let touched = 0;
   for (const actor of actors) {
@@ -116,6 +129,8 @@ export async function runEffectPreset({ preset, actors = [], operation = "apply"
 
 /** Presets available to graphs and macros. */
 export function effectPresets() { return Object.values(getPresetMap()); }
+export function listEffectPresets() { return effectPresets(); }
+export function getEffectPreset(id) { return listEffectPresets().find(preset => preset.id === String(id ?? "")) ?? null; }
 export function findEffectPreset(idOrName) {
   const wanted = String(idOrName ?? "").trim().toLowerCase();
   if (!wanted) return null;
@@ -125,7 +140,10 @@ export function findEffectPreset(idOrName) {
       ?? null;
 }
 
-export class EffectApplierApp extends ApplicationV2 {
+export class EffectPresetEditor extends ApplicationV2 {
+  get element(){return this.host?.element ?? super.element ?? this._editorElement;}
+  set element(value){this._editorElement=value;}
+  render(...args){return this.host ? this.host.render(...args) : super.render(...args);}
   static DEFAULT_OPTIONS={
     id:"sd-effect-applier",classes:["sd","sd-effect-applier"],
     window:{title:"Effect Applier",icon:"fa-solid fa-wand-magic-sparkles",resizable:true,minimizable:true},
@@ -134,7 +152,7 @@ export class EffectApplierApp extends ApplicationV2 {
   static _instance=null;
   static open(){
     if(!game.user?.isGM&&!game.settings.get("sd","allowPlayerEffectApplier")){ui.notifications?.warn?.("Effect Applier is disabled for players.");return null;}
-    if(!this._instance)this._instance=new EffectApplierApp();
+    if(!this._instance)this._instance=new this();
     else if(!this._instance.rendered){this._instance._presets=getPresetMap();this._instance._selected=Object.keys(this._instance._presets)[0]||null;}
     this._instance.render(true);return this._instance;
   }
@@ -150,7 +168,7 @@ export class EffectApplierApp extends ApplicationV2 {
         ${canEdit?`<span class="sd-row-actions"><button type="button" data-row-action="duplicate" title="Duplicate"><i class="fas fa-copy"></i></button><button type="button" class="danger" data-row-action="delete" title="Delete"><i class="fas fa-trash"></i></button></span>`:""}
       </div>`).join("");
     const changeRows=p?.changes?.map((c,i)=>`<div class="sd-table-row sd-ea-change" data-index="${i}">
-        <select class="sd-select" data-change="variableId" ${lock}><option value="">Select variable…</option>${variables.map(v=>`<option value="${esc(v.id)}" ${c.variableId===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)}</option>`).join("")}</select>
+        <div><select class="sd-select" data-change="variableId" data-variable-ref="${esc(c.variableId)}" ${lock}><option value="">${esc(c.legacyKey||"Select variable…")}</option>${variables.map(v=>`<option value="${esc(v.id)}" ${c.variableId===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)}</option>`).join("")}</select>${c.legacyKey?`<small>Legacy: ${esc(c.legacyKey)}</small>`:""}</div>
         <select class="sd-select" data-change="mode" ${lock}>${MODES.map(m=>`<option value="${m.value}" ${Number(c.mode)===m.value?"selected":""}>${m.label}</option>`).join("")}</select>
         <input class="sd-input" data-change="value" value="${esc(c.value)}" placeholder="Value or formula" ${lock}>
         <input class="sd-input" type="number" data-change="priority" value="${Number(c.priority??20)}" title="Priority" ${lock}>
@@ -190,24 +208,34 @@ export class EffectApplierApp extends ApplicationV2 {
         </aside>
         <main class="sd-detail">${editor}</main>
       </div>
-      <footer class="sd-footer">
-        <label class="sd-form-row"><span class="sd-field-label">Targets</span><select class="sd-select" style="width:auto" data-action="targetScope">${EFFECT_TARGET_SCOPES.map(s=>`<option value="${s.value}" ${s.value===this._scope?"selected":""}>${esc(s.label)}</option>`).join("")}</select></label>
-        <div class="sd-toolbar-spacer"></div>
-        ${p?`<button type="button" class="sd-btn sd-btn-ghost" data-action="toggle"><i class="fas fa-toggle-on"></i> Toggle</button>
-        <button type="button" class="sd-btn sd-btn-danger-ghost" data-action="remove"><i class="fas fa-eraser"></i> Remove</button>
-        <button type="button" class="sd-btn sd-btn-primary" data-action="apply"><i class="fas fa-wand-magic-sparkles"></i> Apply</button>`:""}
-      </footer>
+      <footer class="sd-footer">${canEdit?"Effect edits are saved automatically.":"Only the GM can edit effect presets."}</footer>
     </div>`;
   }
   _replaceHTML(html,content){content.innerHTML=html;content.style.padding="0";}
-  async close(options){clearTimeout(this._saveTimer);if(this._saveTimer!==undefined){const snap=clone(this._presets);for(const p of Object.values(snap))p.changes=p.changes.filter(c=>c.variableId.trim()||c.legacyKey);await savePresetMap(snap).catch(()=>{});}return super.close(options);}
-  _collect(){const p=this._selectedPreset();if(!p||!this.element)return p;const lang=translationEditLanguage();const name=this.element.querySelector('[name="name"]')?.value??p.name;const description=this.element.querySelector('[name="description"]')?.value??p.description;setLocalizedField(p,"name",name,lang);setLocalizedField(p,"description",description,lang);p.icon=this.element.querySelector('[name="icon"]')?.value??p.icon;p.disabled=!!this.element.querySelector('[name="disabled"]')?.checked;p.transfer=!!this.element.querySelector('[name="transfer"]')?.checked;p.duration={rounds:Number(this.element.querySelector('[name="rounds"]')?.value||0),seconds:Number(this.element.querySelector('[name="seconds"]')?.value||0)};p.changes=[...this.element.querySelectorAll('.sd-ea-change')].map(r=>({variableId:r.querySelector('[data-change="variableId"]')?.value||"",mode:Number(r.querySelector('[data-change="mode"]')?.value??2),value:r.querySelector('[data-change="value"]')?.value||"",priority:Number(r.querySelector('[data-change="priority"]')?.value??20)}));return p;}
+  async flush(){clearTimeout(this._saveTimer);if(this._saveTimer!==undefined&&game.user?.isGM){const snap=clone(this._presets);for(const p of Object.values(snap))p.changes=p.changes.filter(c=>c.variableId.trim()||c.legacyKey);await savePresetMap(snap);this._saveTimer=undefined;}}
+  async close(options){this._selectorCleanup?.();await this.flush();return super.close(options);}
+  _collect(){
+    const p=this._selectedPreset();if(!p||!this.element||!game.user?.isGM)return p;
+    const root=this.element,lang=translationEditLanguage();
+    setLocalizedField(p,"name",root.querySelector('[name="name"]')?.value??p.name,lang);
+    setLocalizedField(p,"description",root.querySelector('[name="description"]')?.value??p.description,lang);
+    p.icon=root.querySelector('[name="icon"]')?.value??p.icon;
+    p.disabled=!!root.querySelector('[name="disabled"]')?.checked;p.transfer=!!root.querySelector('[name="transfer"]')?.checked;
+    p.duration={...p.duration,rounds:Number(root.querySelector('[name="rounds"]')?.value||0),seconds:Number(root.querySelector('[name="seconds"]')?.value||0)};
+    p.changes=[...root.querySelectorAll('.sd-ea-change')].map(r=>{
+      const old=p.changes[Number(r.dataset.index)]??{},select=r.querySelector('[data-change="variableId"]');
+      const variableId=select?.value||select?.dataset.variableRef||"";
+      return {...old,variableId,legacyKey:variableId!==old.variableId?"":old.legacyKey??"",mode:Number(r.querySelector('[data-change="mode"]')?.value??2),value:r.querySelector('[data-change="value"]')?.value??"",priority:Number(r.querySelector('[data-change="priority"]')?.value??20)};
+    });return p;
+  }
   _onRender(){
     super._onRender?.();
     const root=this.element;if(!root)return;
     const canEdit=!!game.user?.isGM;
+    this._selectorCleanup?.();
+    this._selectorCleanup=enhanceVariableSelectors(root,{selector:'select[data-change="variableId"]',ownerType:"actor",allowWorld:false});
     root.querySelectorAll('[data-preset]').forEach(row=>{
-      const pick=()=>{this._collect();this._selected=row.dataset.preset;this.render();};
+      const pick=()=>{if(canEdit)this._collect();this._selected=row.dataset.preset;this.render();};
       row.addEventListener('click',ev=>{if(ev.target.closest('[data-row-action]'))return;pick();});
       row.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();pick();}});
       row.querySelector('[data-row-action="duplicate"]')?.addEventListener('click',ev=>{ev.stopPropagation();this._collect();const src=this._presets[row.dataset.preset];if(!src)return;const p=normalizePreset({...clone(src),id:foundry.utils.randomID(10),name:`${src.name} Copy`});this._presets[p.id]=p;this._selected=p.id;this._persist();this.render();});
@@ -243,6 +271,7 @@ export class EffectApplierApp extends ApplicationV2 {
     root.querySelector('[data-action="toggle"]')?.addEventListener('click',()=>this._run("toggle"));
   }
   _persist(){
+    if(!game.user?.isGM)return;
     clearTimeout(this._saveTimer);
     this._saveTimer=setTimeout(async()=>{
       const snapshot=clone(this._presets);
@@ -265,4 +294,41 @@ export class EffectApplierApp extends ApplicationV2 {
     ui.notifications?.info?.(`${verb} \u201c${name}\u201d on ${touched} actor${touched===1?"":"s"}.`);
   }
   async _apply(){return this._run("apply");}
+}
+
+/** Select and apply existing Database effects; never writes preset storage. */
+export class EffectApplierApp extends ApplicationV2 {
+  static DEFAULT_OPTIONS={id:"sd-effect-applier",classes:["sd","sd-effect-applier"],window:{title:"Effect Applier",icon:"fa-solid fa-wand-magic-sparkles",resizable:true,minimizable:true},position:{width:700,height:520}};
+  static _instance=null;
+  static open(){
+    if(!game.user?.isGM&&!game.settings.get("sd","allowPlayerEffectApplier")){ui.notifications?.warn?.("Effect Applier is disabled for players.");return null;}
+    this._instance??=new this();this._instance.render(true);return this._instance;
+  }
+  constructor(options={}){super(options);this._selected=null;this._scope="selected";this._filter="";}
+  async _renderHTML(){
+    const presets=listEffectPresets();
+    if(!presets.some(p=>p.id===this._selected))this._selected=presets[0]?.id??null;
+    const p=presets.find(p=>p.id===this._selected),localized=p?localizeTree(p):null;
+    return `<div class="sd-shell sd-ea-root"><div class="sd-master-detail"><aside class="sd-master">
+      <div class="sd-master-search"><input class="sd-input" data-action="filter" placeholder="Search effects" value="${esc(this._filter)}"></div>
+      <nav class="sd-list">${presets.map(p=>`<div class="sd-list-row ${p.id===this._selected?"active":""}" data-preset="${esc(p.id)}" role="button" tabindex="0"><img src="${esc(p.icon)}" alt=""><span class="sd-list-name">${esc(localizeTree(p).name)}</span></div>`).join("")}</nav></aside>
+      <main class="sd-detail">${p?`<h2>${esc(localized.name)}</h2><p>${esc(localized.description)}</p><p>${p.changes.length} changes · ${p.duration.rounds?`${p.duration.rounds} rounds`:p.duration.seconds?`${p.duration.seconds} seconds`:"No duration"}</p>${p.disabled?"<p>This preset starts disabled.</p>":""}`:"<p>No effects available. Create presets in Database > Effects.</p>"}<p>Manage effect presets in Database &gt; Effects.</p></main></div>
+      <footer class="sd-footer"><label>Targets <select class="sd-select" data-action="targetScope">${EFFECT_TARGET_SCOPES.map(s=>`<option value="${s.value}" ${s.value===this._scope?"selected":""}>${esc(s.label)}</option>`).join("")}</select></label><div class="sd-toolbar-spacer"></div>${p?'<button type="button" class="sd-btn sd-btn-primary" data-action="apply">Apply</button>':""}</footer></div>`;
+  }
+  _replaceHTML(html,content){content.innerHTML=html;content.style.padding="0";}
+  _onRender(){
+    super._onRender?.();const root=this.element;if(!root)return;
+    root.querySelectorAll('[data-preset]').forEach(row=>{const pick=()=>{this._selected=row.dataset.preset;this.render();};row.addEventListener("click",pick);row.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();pick();}});});
+    const filter=root.querySelector('[data-action="filter"]');const applyFilter=()=>{this._filter=filter?.value??"";for(const row of root.querySelectorAll('[data-preset]'))row.hidden=!row.textContent.toLowerCase().includes(this._filter.toLowerCase());};filter?.addEventListener("input",applyFilter);applyFilter();
+    root.querySelector('[data-action="targetScope"]')?.addEventListener("change",event=>{this._scope=event.target.value;});
+    root.querySelector('[data-action="apply"]')?.addEventListener("click",()=>this._apply());
+  }
+  async _apply(){
+    const preset=getEffectPreset(this._selected);if(!preset)return;
+    const actors=resolveEffectTargets(this._scope);if(!actors.length)return ui.notifications?.warn?.("No target found for this scope.");
+    try{
+      const touched=await runEffectPreset({preset,actors,operation:"apply"});
+      ui.notifications?.info?.(`Applied "${localizeTree(preset).name}" on ${touched} actor${touched===1?"":"s"}.`);
+    }catch(error){ui.notifications?.error?.(`Effect could not be applied: ${error.message}`);}
+  }
 }

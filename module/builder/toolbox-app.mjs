@@ -1,6 +1,7 @@
 import { BLUEPRINT_NODES, BLUEPRINT_CATS } from "../helpers/formula-engine.mjs";
 import { loadSettings } from "../helpers/system-config.mjs";
 import { getValueDefinitions } from "../helpers/value-database.mjs";
+import { enhanceVariableSelect } from "../helpers/variable-selector.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
 import { getLanguages, saveLanguages } from "../helpers/localization.mjs";
 
@@ -106,6 +107,15 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   _onRender(context, options) {
+    const picker = this.element?.querySelector('[data-variable-picker]');
+    if (picker) {
+      picker.dataset.variableRef = this._variableRef ?? "";
+      enhanceVariableSelect(picker, { ownerType: this._getFocusedSheet()?.document?.documentName === "Item" ? "item" : "actor" });
+      const drag = this.element.querySelector('[data-selected-variable]');
+      const sync = () => { this._variableRef = picker.value; if (drag) { drag.dataset.path = picker.value; drag.dataset.pathLabel = picker.selectedOptions[0]?.textContent ?? ""; drag.textContent = drag.dataset.pathLabel || "Select a variable above"; drag.draggable = !!picker.value; } };
+      picker.addEventListener('change', sync);
+      sync();
+    }
     this._wireTabBar();
     this._wireDrag();
     this._wireTemplateActions();

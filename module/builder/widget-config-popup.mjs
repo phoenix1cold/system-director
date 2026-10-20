@@ -8,7 +8,9 @@ import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./wi
 import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 import { getConfiguredDataPathEntries, getSystemPathEntries, isConfiguredSettingsPath } from "../helpers/system-config.mjs";
 import { getValueDefinitions, getValueDefinition, variableIdForLegacyPath } from "../helpers/value-database.mjs";
+import { enhanceVariableSelectors } from "../helpers/variable-selector.mjs";
 import { SDOnboarding } from "../helpers/onboarding.mjs";
+import { mediaFilePickerClass, mediaPickerType, isVideoMedia } from "../helpers/media-widget.mjs";
 import { widgetVariables, widgetVarPath, coerceWidgetValue, widgetDataMode, widgetVarBinding, WIDGET_VARIABLES } from "../helpers/widget-variables.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { getLanguages, translationEditLanguage, setTranslationEditLanguage, localizedField, setLocalizedField, TRANSLATABLE_KEYS } from "../helpers/localization.mjs";
@@ -77,7 +79,7 @@ const FIELD_DEFS = {
   clock:    [["Label","label"],["Widget Key","widgetKey","text"],["Filled count path","path","path"],["Segments (2–12)","segments","number"]],
   tracker:  [["Label","label"],["Widget Key","widgetKey","text"],["Value Variable","path","path"],["Max","maxPath","path"],["FA icon (filled)","icon","text"],["FA icon (empty, blank = same)","emptyIcon","text"],["Glow on filled","glow","boolean"]],
   tags:     [["Label","label"],["Widget Key","widgetKey","text"],["Data path","path","path"]],
-  image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["Image","staticSrc","image-pick"]],
+  image:    [["Label (optional)","label"],["Widget Key","widgetKey","text"],["SD.Media.Source","staticSrc","media-pick"],["SD.Media.Path","path","path"],["SD.Media.Autoplay","autoplay","boolean"],["SD.Media.Loop","loop","boolean"],["SD.Media.ReplaceOnClick","replaceOnClick","boolean"]],
   derived:  [["Label","label"],["Widget Key","widgetKey","text"],["Value","path","path"],["Decimal places","decimalPlaces","number"],["Value font size (px, 0 = default)","valueFontSize","number"]],
 
   widgetBuilder: [["Display Name","label"],["Widget Key","widgetKey","text"],["Layout","wbLayout","select",["grid","free"]],["Columns (grid layout)","columns","number"],["Gap (px, grid layout)","gap","number"],["Canvas width (px, free layout; 0 = full width)","canvasW","number"],["Canvas height (px, free layout)","canvasH","number"],["Visual grid size (px)","gridSize","number"],["Snap step (px; 0 = off)","snap","number"],["Clip elements outside canvas","clipOverflow","boolean"],["Elements","elements","wbElements"],["Scoped CSS","customCss","css"]],
@@ -228,7 +230,7 @@ const FIELD_HINTS = {
   segments:     "Number of clock segments (2–12). The path stores the filled count as an integer.",
   icon:         "FontAwesome icon class. Examples: fa-circle, fa-heart, fa-star",
   bgColor:      "Colour of empty/unfilled segments",
-  staticSrc:    "Path to the image. Click the folder to pick via FilePicker.",
+  staticSrc:    "Image, GIF or video path. Click the folder to pick via FilePicker. A bound path takes priority.",
   modSource:    "derived = the modifier is computed from the score with the world modifier formula. " +
                 "own = the modifier is a second value you set yourself, on the sheet, from a Database variable, or from this widget's node.",
   pathMod:      "The modifier's own value, stored apart from the score. Only used when Modifier source is «own».",
@@ -289,7 +291,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   const esc      = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
   const editLanguage = translationEditLanguage();
   const languages = getLanguages();
-  const _dbOptions = selected => { const resolved=getValueDefinition(selected)?.id||variableIdForLegacyPath(selected); return `<option value="">— Select Database variable —</option>` + getValueDefinitions().map(v=>`<option value="${esc(v.id)}" ${resolved===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join(""); };
+  const _dbOptions = selected => { const resolved=String(selected??"").startsWith("sdvar:")?selected:getValueDefinition(selected)?.id||variableIdForLegacyPath(selected)||selected; const defs=getValueDefinitions(); return `<option value="">— Select Database variable —</option>` + (resolved&&!defs.some(v=>v.id===resolved)?`<option value="${esc(resolved)}" selected>${esc(getValueDefinition(resolved)?.name||resolved)}</option>`:"") + defs.map(v=>`<option value="${esc(v.id)}" ${resolved===v.id?"selected":""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join(""); };
 
   const IS = "width:100%;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:12px;padding:5px 8px;box-sizing:border-box;outline:none;transition:border-color .15s";
   const MONO = ";font-family:'Courier New',monospace;font-size:11px";
@@ -428,7 +430,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     <div class="wcfg-f" style="margin-top:10px;border-top:1px solid var(--sd-bg-3);padding-top:10px">
       <label class="wcfg-lbl" style="margin-bottom:4px;display:block">Show if…</label>
       <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:5px;align-items:center">
-        <select id="wcfg-showif-key" data-field="showIfKey" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px">
+        <select id="wcfg-showif-key" data-variable-ref="${esc(_showIfKey)}" data-field="showIfKey" style="background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-text);font-size:11px;padding:4px 6px">
           <option value="">— Always show —</option>
           ${_showIfSources.map(s => `<option value="${esc(s.value)}" ${_showIfKey===s.value?"selected":""}>${esc(s.label)}</option>`).join("")}
         </select>
@@ -507,9 +509,9 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     if (type === "dbvarlist") {
       const rawList = Array.isArray(w[key]) ? w[key] : String(w[key] ?? "").split(",");
       const selected = rawList.map(entry => String(entry ?? "").trim()).filter(Boolean)
-        .map(entry => getValueDefinition(entry)?.id || variableIdForLegacyPath(entry) || entry);
+        .map(entry => entry.startsWith("sdvar:") ? entry : getValueDefinition(entry)?.id || variableIdForLegacyPath(entry) || entry);
       const defs = getValueDefinitions();
-      const options = defs.map(v => `<option value="${esc(v.id)}" ${selected.includes(v.id) ? "selected" : ""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join("");
+      const options = selected.filter(id=>!defs.some(v=>v.id===id)).map(id=>`<option value="${esc(id)}" selected>${esc(getValueDefinition(id)?.name||id)}</option>`).join("") + defs.map(v => `<option value="${esc(v.id)}" ${selected.includes(v.id) ? "selected" : ""}>${esc(v.name)} · ${esc(v.type)} [${esc(v.id)}]</option>`).join("");
       return `
       <div class="wcfg-f" style="margin-bottom:10px">
         <label class="wcfg-lbl">${esc(lbl)} <span style="background:var(--sd-mp);color:#10131a;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:600;text-transform:none">database</span></label>
@@ -556,19 +558,20 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       <input type="hidden" data-field="hotspots" data-ftype="json" value="${esc(JSON.stringify(typeof w.hotspots === "string" ? JSON.parse(w.hotspots || "[]") : w.hotspots ?? []))}">
       <button type="button" data-edit-model-points>${game.i18n?.lang === "ru" ? "Задать точки" : "Set points"}</button></div>`;
 
-    if (type === "image-pick" || type === "model-pick") return `
+    if (type === "image-pick" || type === "model-pick" || type === "media-pick") return `
       <div class="wcfg-f" style="margin-bottom:10px">
         <label class="wcfg-lbl">${esc(lbl)}</label>
         <div style="display:flex;gap:5px;align-items:center">
           <input type="text" data-field="${esc(key)}" data-ftype="text"
             value="${esc(cur ?? "")}" placeholder="${type === "model-pick" ? "path/to/model.glb" : "path/to/image.png"}"
             style="${IS}flex:1">
-          <button type="button" class="wcfg-fp-btn" data-fp-target="${esc(key)}" data-fp-type="${type === "model-pick" ? "any" : "image"}"
+          <button type="button" class="wcfg-fp-btn" data-fp-target="${esc(key)}" data-fp-type="${type === "model-pick" ? "any" : type === "media-pick" ? "imagevideo" : "image"}"
             title="Pick file"
             style="height:28px;padding:0 9px;background:var(--sd-bg);border:1px solid var(--sd-border);border-radius:4px;color:var(--sd-accent);cursor:pointer;font-size:11px;flex-shrink:0">
             <i class="fas fa-folder-open"></i>
           </button>
           ${cur && type === "image-pick" ? `<img src="${esc(cur)}" alt="preview" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid var(--sd-border);flex-shrink:0">` : ""}
+          ${cur && type === "media-pick" ? (isVideoMedia(cur) ? `<video src="${esc(cur)}" muted preload="metadata" style="width:28px;height:28px;object-fit:cover"></video>` : `<img src="${esc(cur)}" alt="Media" style="width:28px;height:28px;object-fit:cover">`) : ""}
         </div>
       </div>`;
 
@@ -835,6 +838,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   }
 
   let windowApp = null;
+  const disposeVariables = enhanceVariableSelectors(popup, { selector: 'select[data-ftype="dbvar"], select[data-ftype="dbvarlist"], .wcfg-slot-maxpath, .wcfg-slot-valpath', ownerType: doc?.documentName === "Item" ? "item" : "actor" });
+  const disposeShowIf = enhanceVariableSelectors(popup, { selector: '#wcfg-showif-key', ownerType: doc?.documentName === "Item" ? "item" : "actor", preserveOptions: true });
   const _closePopup = () => windowApp?.close?.() ?? popup.remove();
   windowApp = openFoundryWindow({
     id:`sd-widget-config-${foundry.utils.randomID(8)}`,
@@ -846,7 +851,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     minHeight:280,
     classes:["sd-widget-config-window"],
     content:popup,
-    onClose:()=>{ _wcfgApps.delete(_appKey); popup.remove(); }
+    onClose:()=>{ disposeVariables?.(); disposeShowIf?.(); _wcfgApps.delete(_appKey); popup.remove(); }
   });
   _wcfgApps.set(_appKey, windowApp);
 
@@ -1087,10 +1092,10 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const key = btn.dataset.fpTarget;
       const inp = popup.querySelector(`input[data-field="${CSS.escape(key)}"]`);
       if (!inp) return;
-      const FP = foundry.applications?.apps?.FilePicker ?? globalThis.FilePicker;
+      const FP = mediaFilePickerClass();
       if (!FP) { ui.notifications?.error?.("FilePicker is not available"); return; }
       new FP({
-        type: btn.dataset.fpType || "image",
+        type: btn.dataset.fpType === "imagevideo" ? mediaPickerType(FP) : btn.dataset.fpType || "image",
         current: inp.value || "",
         callback: src => {
           inp.value = src;

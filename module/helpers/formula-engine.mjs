@@ -174,7 +174,7 @@ export class FormulaEngine {
 
   static _readDocProperty(doc, path) {
     const databaseDefinition=getValueDefinition(path);
-    if(databaseDefinition)path=valueStoragePath(databaseDefinition.id);
+    if(databaseDefinition)return readDatabaseValue(doc,path);
     if (typeof path === "string" && path.startsWith("system.widgetFields.")) {
       const rest   = path.slice("system.widgetFields.".length);
       const dotIdx = rest.indexOf(".");
@@ -290,7 +290,7 @@ export class FormulaEngine {
     }
 
     if (t === "image") {
-      return String(w.staticSrc ?? "");
+      return String((w.path ? this._readDocProperty(owner, w.path) : w.staticSrc) ?? "");
     }
 
     if (t === "inventory") {
@@ -1238,6 +1238,7 @@ export class FormulaEngine {
   }
 
   static _resolveToken(token, doc) {
+    if(token.startsWith("sdvar:"))return readDatabaseValue(doc,token);
     const rollRuntimeValue = this._sdRollRuntimeValue(token);
     if (rollRuntimeValue !== undefined) return rollRuntimeValue;
     const extensionToken = resolveNodeFormulaToken(token, { doc, engine: this });
@@ -1340,10 +1341,12 @@ export class FormulaEngine {
       // literal token text and returns an empty string.
       if (ref.includes("{") && ref.includes("}")) {
         try {
-          const resolvedRef = this._resolveRefs(ref, doc);
+          const resolvedRef = this.evaluate(ref, doc);
           if (resolvedRef !== ref) ref = resolvedRef;
         } catch {}
       }
+      if(ref && typeof ref === "object") return String(ref.name??ref.label??ref.document?.name??"");
+      ref=String(ref??"");
       // `_resolveRefs` safely quotes text values so they can be embedded in
       // larger formulas.  Here the result is a lookup key, not an expression;
       // remove that transport quoting before trying UUIDs, ids or names.
@@ -1358,9 +1361,15 @@ export class FormulaEngine {
       const _byUuid = (s) => {
         try { return fromUuidSync?.(s) ?? null; } catch { return null; }
       };
-      const actor = (typeof Actor !== "undefined" && doc instanceof Actor)
+      const actor = (doc?.documentName === "Actor" || (typeof Actor !== "undefined" && doc instanceof Actor))
         ? doc
         : (doc?.actor ?? null);
+      const context=ref==="actor"?actor:ref==="self"?doc:ref==="token_target"?Array.from(game.user?.targets??[])[0]?.actor:ref==="selected_token"?globalThis.canvas?.tokens?.controlled?.[0]?.actor:null;
+      if(context) {
+        if(kind==="item" && context.documentName!=="Item")return "";
+        if(kind==="actor" && context.documentName!=="Actor")return "";
+        return String(context.name??"");
+      }
 
       const _tryItem = () => {
         if (ref.includes(".")) {
@@ -1403,7 +1412,7 @@ export class FormulaEngine {
       const _tryActor = () => {
         if (ref.includes(".")) {
           const d = _byUuid(ref);
-          if (d) return d?.name ?? "";
+          if (d?.documentName === "Actor") return d?.name ?? "";
         }
         try {
           const a = game?.actors?.get?.(ref) ?? game?.actors?.getName?.(ref);
@@ -1729,14 +1738,14 @@ export class FormulaEngine {
       return path?this._readDocField(target,path):0;
     }
 
-    if (token.startsWith("sdValue:")) {
-      const parts=token.slice("sdValue:".length).split("|");
+    if (token.startsWith("sdValue:") || token.startsWith("dbvalue:")) {
+      const parts=token.slice(token.indexOf(":")+1).split("|");
       const source=String(this._resolveArrayArg(parts[0]??"",doc)??"self");
       const variableId=String(this._resolveArrayArg(parts[1]??"",doc)??"");
       const ref=this._resolveArrayArg(parts[2]??"",doc)??"";
       const itemId=String(this._resolveArrayArg(parts[3]??"",doc)??"");
       const target=resolveDatabaseSource(doc,source,ref,itemId);
-      const value=target ? readDatabaseValue(target,variableId) : undefined;
+      const value=readDatabaseValue(target,variableId);
       return value===undefined||value===null?0:value;
     }
 

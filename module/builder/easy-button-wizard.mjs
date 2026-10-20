@@ -1,6 +1,7 @@
 import { openRollPresetsEditor, normalizeRollPresets, buildRollPresetFormula } from "./roll-presets.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
 import { getValueDefinitions, valueStoragePath } from "../helpers/value-database.mjs";
+import { enhanceVariableSelect } from "../helpers/variable-selector.mjs";
 import { collectWidgetKeys, normalizeWidgetKey, uniqueWidgetKey } from "./widget-identity.mjs";
 import { compileQuickActions, normalizeQuickActions, openQuickActionsEditor, QUICK_ACTION_STEPS } from "./quick-actions.mjs";
 
@@ -57,7 +58,7 @@ export function buildEasyButtonFormula(source = {}) {
   if (state.easyMode === "formula") return state.customFormula || "1d20";
   const parts = state.diceTerms.map((term, index) => `${index ? "+ " : ""}${term.count}d${term.sides}${term.keep && term.keep !== "all" ? `${term.keep === "highest" ? "kh" : "kl"}${term.keepCount || 1}` : ""}`);
   for (const term of state.variableTerms) {
-    parts.push(`${term.operator} {${valueStoragePath(term.variableId)}}`);
+    parts.push(`${term.operator} {${term.variableId.startsWith("sdvar:") ? `dbvalue:self|${term.variableId}|` : valueStoragePath(term.variableId)}}`);
   }
   for (const term of state.widgetTerms) parts.push(`${term.operator} {widget:${term.widgetKey}}`);
   return parts.join(" ") || "1d20";
@@ -214,7 +215,7 @@ export function openEasyButtonWizard(widget = {}, doc = null, options = {}) {
       const label = kind === "variable" ? "Select Database variable…" : "Select widget value…";
       return `<div class="sdew-row sdew-modifier" data-${kind}-row="${index}">
         <select data-term="operator" aria-label="Operator"><option value="+" ${term.operator !== "-" ? "selected" : ""}>+</option><option value="-" ${term.operator === "-" ? "selected" : ""}>−</option></select>
-        <select data-term="${key}">${selectOptions(list, term[key], label)}</select>
+        <select data-term="${key}" data-variable-ref="${esc(term[key])}">${selectOptions(list, term[key], label)}</select>
         <button type="button" class="sdew-remove" data-remove-${kind}="${index}" title="Remove modifier"><i class="fas fa-trash"></i></button>
       </div>`;
     };
@@ -223,7 +224,7 @@ export function openEasyButtonWizard(widget = {}, doc = null, options = {}) {
       <div class="sdew-section">
         <div class="sdew-section-title"><i class="fas fa-database"></i><div><b>Database variables</b><small>Add as many variable modifiers as you need.</small></div></div>
         <div class="sdew-list">${state.variableTerms.map((term, index) => modifierRow("variable", term, index)).join("") || '<div class="sdew-empty">No Database variable modifiers.</div>'}</div>
-        <button type="button" class="sdew-add" data-add-variable ${variables.length ? "" : "disabled"}><i class="fas fa-plus"></i> Add variable</button>
+        <button type="button" class="sdew-add" data-add-variable><i class="fas fa-plus"></i> Add variable</button>
       </div>
       <div class="sdew-section">
         <div class="sdew-section-title"><i class="fas fa-puzzle-piece"></i><div><b>Widget values</b><small>The selected widget's current value becomes a roll modifier.</small></div></div>
@@ -271,6 +272,7 @@ export function openEasyButtonWizard(widget = {}, doc = null, options = {}) {
       <div class="sdew-preview"><span>Formula preview</span><code>${esc(buildEasyButtonFormula(state))}</code></div>
       <footer class="sdew-footer"><button type="button" data-cancel>Cancel</button>${index > 0 ? '<button type="button" data-back>Back</button>' : ""}<button type="button" class="is-primary" data-next>${index === sequence.length - 1 ? '<i class="fas fa-check"></i> Save Easy Button' : 'Next <i class="fas fa-arrow-right"></i>'}</button></footer>`;
 
+      root.querySelectorAll('select[data-term="variableId"]').forEach(select => enhanceVariableSelect(select, { ownerType: scope, types: ["number", "integer"] }));
       root.querySelector("[data-edit-roll-presets]")?.addEventListener("click", async () => {
         syncInputs();
         const presets=await openRollPresetsEditor(state.rollPresets,doc,{formula:buildEasyButtonFormula(state),advFormula:state.advFormula,disFormula:state.disFormula,id:state.id});
@@ -295,6 +297,9 @@ export function openEasyButtonWizard(widget = {}, doc = null, options = {}) {
       root.querySelector("[data-add-widget]")?.addEventListener("click", () => { syncInputs(); state.widgetTerms.push({ operator: "+", widgetKey: widgets[0]?.value ?? "" }); render(); });
       root.querySelectorAll("[data-remove-widget]").forEach(button => button.addEventListener("click", () => { syncInputs(); state.widgetTerms.splice(Number(button.dataset.removeWidget), 1); render(); }));
       root.querySelectorAll("input,select,textarea").forEach(input => input.addEventListener("input", () => {
+        syncInputs(); const preview = root.querySelector(".sdew-preview code"); if (preview) preview.textContent = buildEasyButtonFormula(state);
+      }));
+      root.querySelectorAll('select[data-term="variableId"]').forEach(select => select.addEventListener("change", () => {
         syncInputs(); const preview = root.querySelector(".sdew-preview code"); if (preview) preview.textContent = buildEasyButtonFormula(state);
       }));
       root.querySelector("[data-cancel]")?.addEventListener("click", () => finish(null));

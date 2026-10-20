@@ -1,20 +1,22 @@
 import { editEffectViaStandardConfig as _sharedEditEffect, openItemSheetFromSnapshot as _sharedOpenItem } from "./effect-editor.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { LevelUpWizard } from "./levelup-wizard.mjs";
-import { fieldChangeStoragePath, getValueDefinition, getValueDefinitions, readDatabaseValue, valueStoragePath, variableIdForLegacyPath } from "./value-database.mjs";
-import { resolveProgressionValue, bindProgressionValuePickers } from "./progression-values.mjs";
+import { fieldChangeStoragePath, getValueDefinition, getValueDefinitions, readDatabaseValue, resolveVariableReference, valueStoragePath, variableIdForLegacyPath } from "./value-database.mjs";
+import { bindProgressionValuePickers } from "./progression-values.mjs";
+import { enhanceVariableSelectors, enhanceVariableSelect } from "./variable-selector.mjs";
+import { progressionFieldValue, bindProgressionFieldMode } from "./progression-fields.mjs";
 import { SkillTree3D } from "./skilltree-3d.mjs";
 
 const { ApplicationV2 } = foundry.applications.api;
 
 function rndId()      { return foundry.utils.randomID(8); }
 function dc(obj)      { return foundry.utils.deepClone(obj); }
-function e(str)       { return String(str ?? "").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+function e(str)       { return String(str ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
 function loc(key)     { return game.i18n.localize(key); }
 
 function dbVariableId(value) {
   const raw=String(value??"").trim();
-  return getValueDefinition(raw)?.id ?? variableIdForLegacyPath(raw) ?? "";
+  return raw.startsWith("sdvar:") ? raw : getValueDefinition(raw)?.id ?? variableIdForLegacyPath(raw) ?? "";
 }
 function dbVariableLabel(change) {
   const id=String(change?.variableId||dbVariableId(change?.path)||"");
@@ -22,7 +24,8 @@ function dbVariableLabel(change) {
 }
 function dbVariableOptions(selected="", scope="both") {
   const id=dbVariableId(selected)||String(selected??"");
-  return `<option value="">Select Database variable…</option>`+getValueDefinitions(scope).map(v=>`<option value="${e(v.id)}" ${id===v.id?"selected":""}>${e(v.name)} · ${e(v.type)} [${e(v.id)}]</option>`).join("");
+  const defs=getValueDefinitions(scope);
+  return `<option value="">Select Database variable…</option>`+(id&&!defs.some(v=>v.id===id)?`<option value="${e(id)}" selected>${e(getValueDefinition(id)?.name||id)}</option>`:"")+defs.map(v=>`<option value="${e(v.id)}" ${id===v.id?"selected":""}>${e(v.name)} · ${e(v.type)} [${e(v.id)}]</option>`).join("");
 }
 function preferredVariableId(id="level") {
   return getValueDefinition(id)?.id ?? getValueDefinitions("actor").find(v=>String(v.name).trim().toLowerCase()===id)?.id ?? "";
@@ -44,6 +47,13 @@ function saveSkilltreeView(view) {
 function normalizeActorPath(actor, path) {
   let raw = String(path ?? "").trim().replace(/^\{(.+)\}$/, "$1");
   if (!raw) return "";
+  if (raw.startsWith("sdvar:")) {
+    const resolved = resolveVariableReference(raw, { document: actor });
+    if (resolved?.kind !== "document" || resolved.document !== actor || !resolved.path) {
+      throw new Error("Progression variable owner does not match the target document.");
+    }
+    return resolved.path;
+  }
   if (getValueDefinition(raw)) return valueStoragePath(raw);
   if (/^(?:system|flags|name|img|prototypeToken|ownership)\./.test(raw)) return raw;
   try {
@@ -65,20 +75,15 @@ function getNestedValue(obj, path) {
 }
 
 function buildFieldUpdate(actor, change, pending = {}) {
-  let { mode, value }=change??{};
-  let path = fieldChangeStoragePath(change);
+  if (!String(change?.variableId || change?.path || "").trim()) return {};
+  let path = String(change?.variableId || change?.path || "").startsWith("sdvar:")
+    ? (change.variableId || change.path) : fieldChangeStoragePath(change);
   path = normalizeActorPath(actor, path);
   if (!path) return {};
-  const safe = resolveProgressionValue(actor, value, pending);
   const current = Object.hasOwn(pending, path)
-    ? Number(pending[path] ?? 0)
-    : Number(getNestedValue(actor, path) ?? 0);
-  let newVal;
-  switch (mode) {
-    case "set":      newVal = safe; break;
-    case "multiply": newVal = current * safe; break;
-    default:         newVal = current + safe; break;
-  }
+    ? pending[path]
+    : getNestedValue(actor, path) ?? readDatabaseValue(actor, change.variableId || change.path);
+  const newVal = progressionFieldValue(change, current, actor, pending);
   return { [path]: newVal };
 }
 
@@ -89,6 +94,30 @@ function _readActorPath(actor, path, fallback = 0) {
     const v = foundry.utils.getProperty(actor, path);
     return (v === undefined || v === null) ? fallback : v;
   } catch { return fallback; }
+}
+
+function numericProgressionPath(actor, ref) {
+  if (!ref) return "";
+  const path = normalizeActorPath(actor, ref);
+  const type = getValueDefinition(ref)?.type;
+  if (type && !["number", "integer"].includes(type)) {
+    throw new Error("Level and skill point variables must be numeric.");
+  }
+  return path;
+}
+
+function prepareRewardEffect(actor, effect) {
+  const data = dc(effect);
+  delete data._id;
+  if (data.icon && !data.img) data.img = data.icon;
+  delete data.icon;
+  for (const [index, change] of (data.changes ?? []).entries()) {
+    const ref = data.flags?.sd?.variableReferences?.[index]
+      || data.flags?.sd?.effectVariables?.[index]?.variableId || change.variableId || change.key;
+    if (String(ref).startsWith("sdvar:")) change.key = normalizeActorPath(actor, ref);
+    if (!change.key) throw new Error("Reward effect requires a non-empty document path.");
+  }
+  return data;
 }
 
 const _openItemSheetFromSnapshot   = _sharedOpenItem;
@@ -230,15 +259,15 @@ export class ProgressionApp extends ApplicationV2 {
     return Number.isFinite(Number(value)) ? Number(value) : 1;
   }
 
-  get _levelPath() { return this._levelVariableId ? valueStoragePath(this._levelVariableId) : ""; }
+  get _levelPath() { return numericProgressionPath(this._actor, this._levelVariableId); }
 
   get _spMaxId() {
     const tab=this._getActiveTab();
     return tab?.skillPointsMaxId ?? dbVariableId(tab?.skillPointsPathMax) ?? DEFAULT_SP_MAX_ID;
   }
 
-  get _spValuePath() { return this._spValueId ? valueStoragePath(this._spValueId) : ""; }
-  get _spMaxPath() { return this._spMaxId ? valueStoragePath(this._spMaxId) : ""; }
+  get _spValuePath() { return numericProgressionPath(this._actor, this._spValueId); }
+  get _spMaxPath() { return numericProgressionPath(this._actor, this._spMaxId); }
 
   async _renderHTML(context, options) {
     return this._buildHTML();
@@ -1510,6 +1539,10 @@ export class ProgressionApp extends ApplicationV2 {
   _onRender(context, options) {
     bindProgressionValuePickers(this.element);
     const el = this.element;
+    this._disposeVariableSelectors?.();
+    this._disposeVariableSelectors = enhanceVariableSelectors(el, { selector: '.sd-prog-fc-variable', ownerType: "actor", allowWorld: false });
+    el.querySelectorAll('select[data-action="spSetValueVariable"], select[data-action="spSetMaxVariable"], select[data-action="changeLevelVariable"]').forEach(select => enhanceVariableSelect(select, { ownerType: "actor", allowWorld: false, types: ["number", "integer"] }));
+    el.querySelectorAll('.sd-prog-fc-variable').forEach(select => bindProgressionFieldMode(select, select.closest('.sd-prog-fc-row')?.querySelector('.sd-prog-fc-mode')));
 
     const slot3d = el.querySelector("[data-st-3d]");
     if (slot3d) {
@@ -2160,6 +2193,7 @@ export class ProgressionApp extends ApplicationV2 {
       level:            lv.level,
       prevAppliedLevel: this._state.appliedLevel ?? 0,
       prevValues:       {},
+      absentPaths:      [],
       grantedItemIds:   [],
       grantedEffectIds: []
     };
@@ -2167,12 +2201,15 @@ export class ProgressionApp extends ApplicationV2 {
     const updates = {};
     const collectFieldChange = (fc) => {
       if (!fc || (!fc.variableId && !fc.path)) return;
-      const path = normalizeActorPath(actor, fieldChangeStoragePath(fc));
+      const ref = fc.variableId || fc.path || "";
+      const path = normalizeActorPath(actor, ref.startsWith("sdvar:") ? ref : fieldChangeStoragePath(fc));
       if (!path) return;
       if (!(path in snapshot.prevValues)) {
-        snapshot.prevValues[path] = getNestedValue(actor, path);
+        const previous = getNestedValue(actor, path);
+        if (previous === undefined) snapshot.absentPaths.push(path);
+        snapshot.prevValues[path] = previous ?? null;
       }
-      Object.assign(updates, buildFieldUpdate(actor, { ...fc, path }, updates));
+      Object.assign(updates, buildFieldUpdate(actor, fc, updates));
     };
     for (const fc of (lv.fieldChanges ?? [])) collectFieldChange(fc);
 
@@ -2205,10 +2242,15 @@ export class ProgressionApp extends ApplicationV2 {
 
     const levelPath=this._levelPath;
     if (levelPath) {
-      if (!(levelPath in snapshot.prevValues)) snapshot.prevValues[levelPath]=getNestedValue(actor,levelPath);
+      if (!(levelPath in snapshot.prevValues)) {
+        const previous = getNestedValue(actor, levelPath);
+        if (previous === undefined) snapshot.absentPaths.push(levelPath);
+        snapshot.prevValues[levelPath] = previous ?? null;
+      }
       updates[levelPath]=lv.level;
     }
 
+    const effectDatas = [...(lv.effects ?? []), ...extraEffects].map(ef => prepareRewardEffect(actor, ef));
     if (Object.keys(updates).length) await actor.update(updates);
 
     const itemDatas = [...(lv.items ?? []), ...extraItems].map(snap => { const d = dc(snap); delete d._id; return d; });
@@ -2217,7 +2259,6 @@ export class ProgressionApp extends ApplicationV2 {
       snapshot.grantedItemIds = (created ?? []).map(d => d.id);
     }
 
-    const effectDatas = [...(lv.effects ?? []), ...extraEffects].map(ef => { const d = dc(ef); delete d._id; if (d.icon && !d.img) d.img = d.icon; delete d.icon; return d; });
     if (effectDatas.length) {
       const created = await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
       snapshot.grantedEffectIds = (created ?? []).map(d => d.id);
@@ -2309,6 +2350,12 @@ export class ProgressionApp extends ApplicationV2 {
       for (const [path, value] of Object.entries(snapshot.prevValues ?? {})) {
         restore[path] = value;
       }
+      for (const path of snapshot.absentPaths ?? []) {
+        delete restore[path];
+        const parts = path.split(".");
+        const key = parts.pop();
+        restore[[...parts, `-=${key}`].join(".")] = null;
+      }
       if (Object.keys(restore).length) await actor.update(restore);
 
       const itemIds = (snapshot.grantedItemIds ?? []).filter(id => actor.items.has(id));
@@ -2398,9 +2445,12 @@ export class ProgressionApp extends ApplicationV2 {
 
     const updates = {};
     // Validate all reward expressions before spending skill points.
-    if (nodeCost > 0) updates[valPath] = curSP - nodeCost;
+    let effectDatas;
     try {
+      if (nodeCost > 0 && !valPath) throw new Error("Skill point cost requires a document path.");
+      if (nodeCost > 0) updates[valPath] = curSP - nodeCost;
       for (const fc of (node.fieldChanges ?? [])) Object.assign(updates, buildFieldUpdate(this._actor, fc, updates));
+      effectDatas = (node.effects ?? []).map(ef => prepareRewardEffect(this._actor, ef));
     } catch (error) {
       ui.notifications?.error?.(error.message); return;
     }
@@ -2412,7 +2462,6 @@ export class ProgressionApp extends ApplicationV2 {
       await actor.createEmbeddedDocuments("Item", [d]);
     }
 
-    const effectDatas = (node.effects ?? []).map(ef => { const d = dc(ef); delete d._id; if (d.icon && !d.img) d.img = d.icon; delete d.icon; return d; });
     if (effectDatas.length) await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
 
     state.acquiredNodes[nodeId] = count + 1;
@@ -2430,7 +2479,7 @@ export class ProgressionApp extends ApplicationV2 {
 
     const fcRows = (node.fieldChanges ?? []).map((fc, j) => { const selected=fc.variableId||variableIdForLegacyPath(fc.path); return `
       <div class="sd-prog-fc-row" data-idx="${j}">
-        <select class="nc-variable" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;"><option value="">Select Database variable…</option>${getValueDefinitions().map(v=>`<option value="${e(v.id)}" ${selected===v.id?"selected":""}>${e(v.name)} · ${e(v.type)} [${e(v.id)}]</option>`).join("")}</select>
+        <select class="nc-variable" data-variable-ref="${e(selected)}" style="flex:1 1 100%;min-width:0;width:100%;box-sizing:border-box;">${dbVariableOptions(selected,"actor")}</select>
         <select class="nc-mode">
           <option value="add"      ${fc.mode === "add"      ? "selected" : ""}>+</option>
           <option value="set"      ${fc.mode === "set"      ? "selected" : ""}>=</option>
@@ -2516,6 +2565,8 @@ export class ProgressionApp extends ApplicationV2 {
         const el = dialog.element;
         bindProgressionValuePickers(el);
         const safeNodeMaxId = defaultMaxId;
+        el.querySelectorAll('.nc-variable').forEach(select => enhanceVariableSelect(select, { ownerType: "actor", allowWorld: false }));
+        el.querySelectorAll('.nc-variable').forEach(select => bindProgressionFieldMode(select, select.closest('.sd-prog-fc-row')?.querySelector('.nc-mode')));
 
         el.addEventListener("click", async ev => {
           if (ev.target.closest(".nc-del-fc")) {
@@ -2565,6 +2616,8 @@ export class ProgressionApp extends ApplicationV2 {
         <button type="button" class="nc-del-fc"><i class="fas fa-times"></i></button>`;
           container.appendChild(div);
           bindProgressionValuePickers(div);
+          enhanceVariableSelect(div.querySelector('.nc-variable'), { ownerType: "actor", allowWorld: false });
+          bindProgressionFieldMode(div.querySelector('.nc-variable'), div.querySelector('.nc-mode'));
         });
 
         el.querySelector("#nc-add-eff")?.addEventListener("click", async () => {
@@ -2841,6 +2894,7 @@ export class ProgressionApp extends ApplicationV2 {
   }
 
   async close(options) {
+    this._disposeVariableSelectors?.();
     ProgressionApp._instances.delete(this._actor?.id);
     this._tree3d?.dispose();
     this._tree3d = null;

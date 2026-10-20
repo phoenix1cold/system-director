@@ -3,7 +3,8 @@ import { WIDGET_TYPES, WIDGET_PALETTE_ORDER, getWidgetPaletteOrder, createWidget
 import { WidgetRenderer } from "./widget-renderer.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
 import { getValueDefinitions, getValueDefinition, createDatabaseVariable } from "../helpers/value-database.mjs";
-import { widgetVariables, widgetVarPath, coerceWidgetValue, ensureWidgetVariables } from "../helpers/widget-variables.mjs";
+import { widgetVariables, widgetVarPath, coerceWidgetValue, ensureWidgetVariables, readWidgetVar, writeWidgetVar } from "../helpers/widget-variables.mjs";
+import { enhanceVariableSelect } from "../helpers/variable-selector.mjs";
 import { mountDesignerWorkspace } from "../helpers/designer-workspace.mjs";
 import { openEasyButtonWizard } from "./easy-button-wizard.mjs";
 
@@ -161,7 +162,7 @@ export class SheetWidgetDesigner extends ApplicationV2 {
     const vars=widgetVariables(widget)??[];
     if(!vars.length)return '<div class="sdsw-var-note">This widget has no editable value. Drive it from its Blueprint node.</div>';
     return `<div class="sdsw-var-block"><span class="sdsw-var-head"><i class="fas fa-cube"></i> WIDGET VALUES</span>${vars.map(entry=>{
-      const stored=this.doc?foundry.utils.getProperty(this.doc,widgetVarPath(widget,entry.field)):undefined;
+      const stored=this.doc?readWidgetVar(this.doc,widget,entry.field):undefined;
       const current=stored!==undefined?stored:(widget.varDefaults?.[entry.field]??entry.initial);
       if(entry.type==='boolean')return `<label class="sdsw-var-row">${esc(entry.label)}<input type="checkbox" data-widget-var="${esc(entry.field)}" ${current?'checked':''}></label>`;
       const shown=Array.isArray(current)?current.join(', '):current;
@@ -170,13 +171,23 @@ export class SheetWidgetDesigner extends ApplicationV2 {
   }
 
   async _writeWidgetVar(widget,field,value){
+    if(widget.dataMode === 'variable') { await writeWidgetVar(this.doc,widget,field,value); return; }
     widget.varDefaults={...(widget.varDefaults??{}),[field]:value};
     widget[field]=widgetVarPath(widget,field);
     try{await this.doc?.update?.({[widgetVarPath(widget,field)]:value});}catch(error){console.warn('[sd] widget value write failed',error);}
   }
 
   async _detailAction(action,element){if(action==='delete'){this.elements=this.elements.filter(e=>e.id!==element.id);this.selectedId=this.elements[0]?.id??null;this._refresh();return;}if(action==='front')element.z=Math.max(0,...this.elements.map(e=>Number(e.z)||0))+1;if(action==='back')element.z=Math.min(0,...this.elements.map(e=>Number(e.z)||0))-1;if(action==='configure'&&element.widget){const {openWidgetConfigPopup}=await import('./widget-config-popup.mjs');await openWidgetConfigPopup(element.widget,this.tab,this.row,this.doc,{embedded:true,onSave:updated=>{element.widget=updated;this._refresh();}});return;}this._refresh();}
-  _renderVariables(){const scope=this.doc?.documentName==='Item'?'item':'actor';const defs=getValueDefinitions().filter(v=>v.scope==='both'||v.scope===scope);this.regions.variables.innerHTML=defs.map(v=>`<div class="sdsw-variable" draggable="true" data-variable-id="${esc(v.id)}"><i class="fas fa-cube"></i><span><b>${esc(v.name)}</b><small>${esc(v.id)}</small></span><em>${esc(v.type)}</em></div>`).join('')||'<div class="sduw-empty">Press + to create a typed Database variable.</div>';this.regions.variables.querySelectorAll('[data-variable-id]').forEach(row=>row.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',JSON.stringify({sdType:'path',path:row.dataset.variableId}));event.dataTransfer.effectAllowed='copy';}));}
+  _renderVariables(){
+    const scope=this.doc?.documentName==='Item'?'item':'actor';
+    this.regions.variables.innerHTML=`<select data-variable-picker data-variable-ref="${esc(this._variableRef??'')}" aria-label="Database variable"></select><div class="sdsw-variable" data-variable-drag draggable="true">Select a variable above</div>`;
+    const select=this.regions.variables.querySelector('select');
+    enhanceVariableSelect(select,{ownerType:scope});
+    const row=this.regions.variables.querySelector('[data-variable-drag]');
+    const sync=()=>{this._variableRef=select.value;row.textContent=select.selectedOptions[0]?.textContent||'Select a variable above';row.draggable=!!select.value;};
+    select.addEventListener('change',sync);sync();
+    row.addEventListener('dragstart',event=>{if(!select.value){event.preventDefault();return;}event.dataTransfer.setData('text/plain',JSON.stringify({sdType:'path',path:select.value}));event.dataTransfer.effectAllowed='copy';});
+  }
   async _createVariable(){const scope=this.doc?.documentName==='Item'?'item':'actor';const created=await createDatabaseVariable({scope});if(created)this._renderVariables();}
   _selectElement(id){this.selectedId=id;for(const node of this.regions.canvas.querySelectorAll('[data-element-id]'))node.classList.toggle('is-selected',node.dataset.elementId===id);for(const node of this.regions.hierarchy.querySelectorAll('[data-element-id]'))node.classList.toggle('is-selected',node.dataset.elementId===id);this._renderDetails();}
   _updateElementView(element){const box=[...this.regions.canvas.children].find(node=>node.dataset.elementId===element.id);if(!box)return;const free=this.widget.wbLayout!=='grid';if(free){box.style.left=`${element.x}px`;box.style.top=`${element.y}px`;box.style.width=`${Math.max(28,element.w)}px`;box.style.height=`${Math.max(24,element.h)}px`;}else box.style.minHeight=`${Math.max(24,element.h)}px`;const caption=box.querySelector('.sdsw-element-caption');if(caption)caption.textContent=element.name;const row=[...this.regions.hierarchy.querySelectorAll('[data-element-id]')].find(node=>node.dataset.elementId===element.id);const label=row?.querySelector('.sduw-tree-name');if(label)label.textContent=element.name;}

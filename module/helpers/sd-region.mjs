@@ -66,7 +66,7 @@ function _cloneRegionData(value) {
   catch { try { return JSON.parse(JSON.stringify(value)); } catch { return value; } }
 }
 
-function _regionData({ name, shape, shapes = null, flags = {}, hidden = false, appearance = {} }) {
+function _regionData({ name, shape, shapes = null, behaviors = [], flags = {}, hidden = false, appearance = {} }) {
   const V = CONST?.REGION_VISIBILITY ?? {};
   const visibility = hidden
     ? (V.GAMEMASTER ?? 0)
@@ -76,21 +76,25 @@ function _regionData({ name, shape, shapes = null, flags = {}, hidden = false, a
   const data = {
     name:       name ?? "SD Region",
     shapes:     regionShapes,
-    behaviors:  [],
+    behaviors:  (Array.isArray(behaviors) ? behaviors : []).map(behavior => {
+      const data = _cloneRegionData(behavior);
+      delete data._id;
+      return data;
+    }),
     visibility,
     ownership:  { [game.user.id]: CONST?.DOCUMENT_OWNERSHIP_LEVELS?.OWNER ?? 3 },
-    flags
+    flags: _cloneRegionData(flags)
   };
-  // Preserve portable appearance only. Behaviors, ownership, attachment and source IDs are intentionally not copied.
+  // Ownership, attachment and source document IDs belong to the new placement.
   for (const key of ["color", "displayMeasurements", "highlightMode", "elevation"]) {
     if (appearance?.[key] !== undefined && appearance?.[key] !== null) data[key] = _cloneRegionData(appearance[key]);
   }
   return data;
 }
 
-export async function placeRegionInteractive({ name, shape = null, shapes = null, flags = {}, hidden = false, appearance = {} }) {
+export async function placeRegionInteractive({ name, shape = null, shapes = null, behaviors = [], flags = {}, hidden = false, appearance = {} }) {
   if (!canvas?.scene) return null;
-  const data = _regionData({ name, shape, shapes, flags, hidden, appearance });
+  const data = _regionData({ name, shape, shapes, behaviors, flags, hidden, appearance });
   if (!data.shapes.length) return null;
 
   const layer = canvas.regions;
@@ -121,10 +125,10 @@ export async function placeRegionInteractive({ name, shape = null, shapes = null
   }
 }
 
-export async function placeAuraRegion({ ownerToken, shape, shapes = null, appearance = {}, flags = {}, name }) {
+export async function placeAuraRegion({ ownerToken, shape, shapes = null, behaviors = [], appearance = {}, flags = {}, name }) {
   if (!canvas?.scene || !ownerToken) return null;
   // `shapes` (an AOE preset drawn with the Region tools) takes precedence over the single generated `shape`.
-  const data = _regionData({ name: name ?? "SD Aura", shape, shapes, flags, appearance });
+  const data = _regionData({ name: name ?? "SD Aura", shape, shapes, behaviors, flags, appearance });
 
   const layer = canvas.regions;
   let doc = null;

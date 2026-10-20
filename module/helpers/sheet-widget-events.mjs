@@ -192,15 +192,15 @@ function quickActionsMatch(config, payload) {
 export async function runWidgetQuickActions(doc, payload = {}) {
   if (!doc) return 0;
   const key = normId(payload?.widgetKey), id = normId(payload?.widgetId);
-  const widget = collectSheetWidgets(doc).find(w => {
-    const steps = w?.quickActions?.steps;
-    if (!Array.isArray(steps) || !steps.length) return false;
-    return (key && normId(w.widgetKey) === key) || (id && normId(w.id) === id);
-  });
-  if (!widget || !quickActionsMatch(widget.quickActions, payload)) return 0;
+  const widgets = collectSheetWidgets(doc);
+  // Copies from older sheets can share a public key. The clicked instance wins,
+  // including when its steps were cleared (never fall back to the original).
+  const widget = id ? widgets.find(w => normId(w.id) === id)
+    : key ? widgets.find(w => normId(w.widgetKey) === key) : null;
+  if (!widget?.quickActions?.steps?.length || !quickActionsMatch(widget.quickActions, payload)) return 0;
   const eventName = normId(payload?.event ?? "click") || "click";
   if (sheetWidgetGraphEvents(doc).some(entry => entry.data?.__quickSource === "quick" && matchesSheetWidgetEvent(entry.data, payload))) return 0;
-  if (eventName === "click" && ["button", "easyButton", "dice"].includes(String(widget.type)) && String(widget.formula ?? "").trim()) return 0;
+  if (eventName === "click" && ["easyButton", "dice"].includes(String(widget.type)) && String(widget.formula ?? "").trim()) return 0;
 
   let ButtonExecutor = null, compileQuickActions = null;
   try {

@@ -1,4 +1,5 @@
 import { FormulaEngine } from "./formula-engine.mjs";
+import { readDatabaseValue, writeDatabaseValue, resolveVariableReference } from "./value-database.mjs";
 
 /** Recursively collect every widget which can expose a Widget Key. */
 export function collectDocumentWidgets(doc, tabsOverride = null) {
@@ -24,6 +25,15 @@ function _hasOwn(obj, key) {
 function _pendingValue(doc, changed, path) {
   if (!path) return undefined;
   if (_hasOwn(changed, path)) return changed[path];
+  if (String(path).startsWith("sdvar:")) {
+    const resolved = resolveVariableReference(path, { document: doc });
+    if (resolved?.document === doc && resolved.path) {
+      if (_hasOwn(changed, resolved.path)) return changed[resolved.path];
+      const pending = foundry.utils.getProperty(changed, resolved.path);
+      if (pending !== undefined) return pending;
+    }
+    return readDatabaseValue(doc, path);
+  }
   try {
     const nested = foundry.utils.getProperty(changed, path);
     if (nested !== undefined) return nested;
@@ -32,9 +42,13 @@ function _pendingValue(doc, changed, path) {
   catch { return undefined; }
 }
 
-function _hasPendingValue(changed, path) {
+function _hasPendingValue(changed, path, doc = null) {
   if (!path) return false;
   if (_hasOwn(changed, path)) return true;
+  if (String(path).startsWith("sdvar:")) {
+    const resolved = resolveVariableReference(path, { document: doc });
+    return resolved?.document === doc && resolved.path ? _hasPendingValue(changed, resolved.path) : false;
+  }
   try { return foundry.utils.getProperty(changed, path) !== undefined; }
   catch { return false; }
 }
@@ -81,7 +95,7 @@ function _readSelectValue(w, doc, changed, key) {
   }
 
   // A valid external update to Data Path still participates in two-way binding.
-  if (_hasPendingValue(changed, boundPath)) {
+  if (_hasPendingValue(changed, boundPath, doc)) {
     const value = _pendingValue(doc, changed, boundPath);
     if (!options.length || options.includes(String(value))) return value;
   }
@@ -190,7 +204,10 @@ export async function persistWidgetValue(doc, widget, value) {
   if (canonicalPath) await doc.update({ [canonicalPath]: value });
 
   if (boundPath && boundPath !== canonicalPath) {
-    try { await doc.update({ [boundPath]: value }); }
+    try {
+      if (String(boundPath).startsWith("sdvar:")) await writeDatabaseValue(doc, boundPath, value);
+      else await doc.update({ [boundPath]: value });
+    }
     catch (error) {
       console.warn(`SD | Widget ${key || widget.id || "?"}: Data Path rejected value; widget value was still saved.`, error);
     }

@@ -884,13 +884,13 @@
   border: 1px solid var(--sd-accent-dim) !important;
 }
 
-.sd-w-image.sd-v-framed img {
+.sd-w-image.sd-v-framed :is(img, video) {
   padding: 4px !important;
   border: 3px solid var(--sd-accent) !important;
   background: var(--sd-bg-2) !important;
   box-shadow: var(--sd-shadow) !important;
 }
-.sd-w-image.sd-v-circle img {
+.sd-w-image.sd-v-circle :is(img, video) {
   border-radius: 50% !important;
   border: 2px solid var(--sd-accent) !important;
   padding: 2px !important;
@@ -906,13 +906,13 @@
   display: inline-block !important;
   position: relative;
 }
-.sd-w-image.sd-v-polaroid img { display: block !important; }
+.sd-w-image.sd-v-polaroid :is(img, video) { display: block !important; }
 .sd-w-image.sd-v-polaroid::after {
   content: attr(data-label);
   position: absolute; left: 0; right: 0; bottom: 4px;
   text-align: center; color: #222; font-family: "Caveat", cursive, serif;
 }
-.sd-w-image.sd-v-token img {
+.sd-w-image.sd-v-token :is(img, video) {
   border-radius: 50% !important;
   border: 2px solid var(--sd-accent) !important;
   padding: 2px !important;

@@ -13,6 +13,6 @@ export function sheetWidgetClickControl(root, event) {
   if (control.matches(":disabled") || control.getAttribute("aria-disabled") === "true") return null;
   if (control.closest("[data-cardhand], .sd-model-widget")) return null;
   if (control.closest("[data-action='wbElement']")) return null;
-  if (control.closest(".sd-img-pick, .widget-copy-macro, [data-copy-macro-b64]")) return null;
+  if (control.closest("[data-sd-media], .sd-img-pick, .widget-copy-macro, [data-copy-macro-b64]")) return null;
   return control;
 }

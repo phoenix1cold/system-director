@@ -191,7 +191,9 @@ export async function captureAoeFromScene(value = null, options = {}) {
       root.querySelector("[data-cancel]")?.addEventListener("click", () => finish(null));
       root.querySelector("[data-save]")?.addEventListener("click", () => {
         const out = entries().map(entry => {
-          const preset = normalizeAoePreset(entry.preset);
+          // Embedded RegionBehavior edits need not emit updateRegion.
+          const live = entry.id ? snapshotRegionDocument(scene.regions?.get?.(entry.id)) : null;
+          const preset = normalizeAoePreset(live ? { ...live, name:entry.preset.name } : entry.preset);
           preset.t = preset.shapes.length === 1 ? String(preset.shapes[0].type) : "region";
           return preset;
         }).filter(preset => preset.shapes.length);

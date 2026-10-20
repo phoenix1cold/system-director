@@ -1,6 +1,7 @@
 import { createWidget } from "./widget-registry.mjs";
 import { assignUniqueWidgetDataPaths, buildWidgetPathRegistryUpdate } from "./widget-paths.mjs";
 import { openEasyButtonWizard } from "./easy-button-wizard.mjs";
+import { collectWidgetKeys, normalizeWidgetKey } from "./widget-identity.mjs";
 
 export class GridManager {
 
@@ -138,16 +139,23 @@ export class GridManager {
     await doc.update({ "system.customTabs": tabs });
   }
 
-  static _refreshWidgetIds(widget) {
+  static _refreshWidgetIds(widget, usedKeys = new Set()) {
     if (!widget || typeof widget !== "object") return widget;
     widget.id = foundry.utils.randomID(8);
+    if (widget.widgetKey) {
+      const base = normalizeWidgetKey(widget.widgetKey);
+      let key = base, index = 2;
+      while (usedKeys.has(key)) key = `${base}_${index++}`;
+      widget.widgetKey = key;
+      usedKeys.add(key);
+    }
     if (Array.isArray(widget.widgets)) {
-      for (const child of widget.widgets) this._refreshWidgetIds(child);
+      for (const child of widget.widgets) this._refreshWidgetIds(child, usedKeys);
     }
     if (Array.isArray(widget.elements)) {
       for (const element of widget.elements) {
         element.id = foundry.utils.randomID(6);
-        if (element?.widget) this._refreshWidgetIds(element.widget);
+        if (element?.widget) this._refreshWidgetIds(element.widget, usedKeys);
       }
     }
     return widget;
@@ -162,7 +170,7 @@ export class GridManager {
     const idx  = row.widgets.findIndex(w => w.id === widgetId);
     if (idx < 0) return null;
     const clone = foundry.utils.deepClone(row.widgets[idx]);
-    this._refreshWidgetIds(clone);
+    this._refreshWidgetIds(clone, collectWidgetKeys(tabs));
     assignUniqueWidgetDataPaths(clone, doc, { tabs });
     row.widgets.splice(idx + 1, 0, clone);
     await doc.update({ "system.customTabs": tabs, ...buildWidgetPathRegistryUpdate(doc, tabs) });
@@ -177,7 +185,7 @@ export class GridManager {
     const row  = tab.rows.find(r => r.id === rowId);
     if (!row) return null;
     const clone = foundry.utils.deepClone(widgetData);
-    this._refreshWidgetIds(clone);
+    this._refreshWidgetIds(clone, collectWidgetKeys(tabs));
     assignUniqueWidgetDataPaths(clone, doc, { tabs });
     if (atIndex == null || atIndex < 0 || atIndex > row.widgets.length) {
       row.widgets.push(clone);

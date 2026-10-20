@@ -3,7 +3,7 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const INLINE_TYPES = [
   { value: "section", label: "Section / Header" },
   { value: "text",    label: "Text"             },
-  { value: "image",   label: "Image"            },
+  { value: "image",   label: "Media"            },
   { value: "button",  label: "Button"           },
   { value: "richtext",label: "Rich Text"        }
 ];
@@ -21,7 +21,9 @@ const FIELDS = {
   image: [
     ["Label",       "label",      "text"],
     ["Widget Key",  "widgetKey",  "text"],
-    ["Image URL",   "staticSrc",  "text"],
+    ["Media URL",   "staticSrc",  "text"],
+    ["Autoplay (muted)", "autoplay", "boolean"],
+    ["Loop video", "loop", "boolean"],
     ["Width (px)",  "boxW",       "number"],
     ["Height (px)", "boxH",       "number"]
   ],

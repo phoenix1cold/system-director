@@ -5,7 +5,7 @@ import { durationForRounds } from "./effect-duration.mjs";
 import { SDDialogueBuilder } from "./dialogue-builder.mjs";
 import { materializeDeferredActionSnapshot } from "./deferred-action-snapshot.mjs";
 import { runNodeActionHandler, storeNodeResult, readNodeResult } from "./node-runtime-api.mjs";
-import { getValueDefinition, readDatabaseValue, valueStoragePath, coerceDatabaseValue } from "./value-database.mjs";
+import { getValueDefinition, readDatabaseValue, writeDatabaseValue, resolveVariableReference, valueStoragePath, coerceDatabaseValue } from "./value-database.mjs";
 import {
   addActorAIInteraction,
   addActorAIMemory,
@@ -795,17 +795,24 @@ export class ButtonExecutor {
   }
 
   static async _runAction(action, item, actor, buttonDef = null, runtime = {}) {
+    // Resolve only this invocation. Deferred branches must retain qualified refs
+    // until they execute with their own document context.
+    action={...action};
     const variablePathKeys=new Set(["path","hpPath","rerollPath","historyPath","modifierPath","acPath","saveAttr","distPath","anglePath","costPath","valuePath","maxPath","pathValue","pathMax"]);
-    const resolveVariablePaths=value=>{
-      if(Array.isArray(value)){for(const entry of value)resolveVariablePaths(entry);return value;}
-      if(!value||typeof value!=="object")return value;
-      for(const [key,entry] of Object.entries(value)){
-        if(variablePathKeys.has(key)&&typeof entry==="string"&&getValueDefinition(entry))value[key]=valueStoragePath(entry);
-        else if(entry&&typeof entry==="object")resolveVariablePaths(entry);
+    for(const [key,entry] of Object.entries(action)) {
+      if(!variablePathKeys.has(key)||typeof entry!=="string"||!getValueDefinition(entry))continue;
+      if(entry.startsWith("sdvar:")) {
+        const resolved=resolveVariableReference(entry,{document:item??actor,actor,item});
+        if(!resolved || resolved.kind!=="document") {
+          ui.notifications?.warn?.("This graph path action requires an available Actor/Item variable; use Get/Set Value for world values."); return;
+        }
+        if(action.type==="addEffectDefinitionChange") action.variableRef=entry;
+        else if(resolved.ownerType==="item" && resolved.document!==actor) {
+          ui.notifications?.warn?.("This graph path action operates on Actors. Use Get/Set Value for an Item variable."); return;
+        }
       }
-      return value;
-    };
-    resolveVariablePaths(action);
+      action[key]=valueStoragePath(entry);
+    }
     const _sanitizeRollData = (data) => Object.fromEntries(
       Object.entries(data ?? {}).map(([k, v]) =>
         [k, (typeof v === "string" && /^\s*\d*d\d+/i.test(v)) ? 0 : v]
@@ -822,7 +829,7 @@ export class ButtonExecutor {
       exactMatch = exact.match(/^\{__dbRecordId:([A-Za-z0-9_-]+)\}$/);
       if (exactMatch) return runtime.__databaseRecordIds?.[exactMatch[1]] ?? "";
       exactMatch = exact.match(/^\{__nodeResult:([^|}]+)\|([^}]*)\}$/);
-      if (exactMatch) return readNodeResult(runtime, exactMatch[1], exactMatch[2] || "value") ?? "";
+      if (exactMatch) return readNodeResult(runtime, exactMatch[1], exactMatch[2] || "value") ?? formula;
       const exactStructuredValues = {
         "{__aoeTemplates}": runtime.__aoeTemplates ?? buttonDef?.__aoeTemplates,
         "{__aoeTemplate}": runtime.__aoeTemplate ?? buttonDef?.__aoeTemplate,
@@ -1072,6 +1079,8 @@ export class ButtonExecutor {
       if (runtime.__nodeResults && formula.includes("{__nodeResult:")) {
         formula = formula.replace(/\{__nodeResult:([^|}]+)\|([^}]*)\}/g, (_m, nodeId, pin) => {
           const v = readNodeResult(runtime, nodeId, pin || "value");
+          if (v === undefined) return _m;
+          if (v?.type === "sd.roll-result") return String(Number(v.total) || 0);
           return (v === undefined || v === null || typeof v === "object") ? "0" : String(v);
         });
       }
@@ -1379,12 +1388,16 @@ export class ButtonExecutor {
           if(!resolved){ try{ resolved=game?.actors?.getName?.(ref)??null; }catch{} }
           if(resolved?.update) target=resolved;
         }
-        if(!target){ui.notifications?.warn?.("Database target was not found. Target a token, or wire an Actor / Item Ref.");break;}
+        const resolved=resolveVariableReference(variableId,{document:target,actor,item});
+        if(!resolved || resolved.kind==="missing"){ui.notifications?.warn?.("Database target was not found. Target a token, or wire an Actor / Item Ref.");break;}
+        target=resolved.document;
+        if(resolved.kind!=="world") {
         const targetScope=target.documentName==="Actor"?"actor":target.documentName==="Item"?"item":"";
         if(targetScope&&definition.scope!=="both"&&definition.scope!==targetScope){
           ui.notifications?.warn?.(`Variable "${definition.name}" is ${definition.scope}-scoped and cannot be written to this ${targetScope}.`);break;
         }
         if(target.isOwner===false){ui.notifications?.warn?.(`You do not have permission to change "${target.name??"this document"}".`);break;}
+        }
         // Resolve the value pin first, then unwrap it: a Roll Result carries its
         // total, so stringifying it before injection used to yield [object Object].
         // A single structured token (AOE preset from Get Value / Templates[], arrays,
@@ -1399,16 +1412,17 @@ export class ButtonExecutor {
           }catch{ incoming=asText; }
         }
         incoming=_SDFormula.unwrapStructured(incoming);
-        const current=readDatabaseValue(target,variableId);
+        const current=readDatabaseValue(target,variableId,{actor,item});
         let next=incoming;
-        switch(String(action.operation??"set")){
+        const operation=({1:"set",2:"add",3:"subtract",4:"multiply",5:"toggle"})[action.operation]??String(action.operation??"set");
+        switch(operation){
           case "add": next=_SDFormula.valueToNumber(current)+_SDFormula.valueToNumber(incoming); break;
           case "subtract": next=_SDFormula.valueToNumber(current)-_SDFormula.valueToNumber(incoming); break;
           case "multiply": next=_SDFormula.valueToNumber(current)*_SDFormula.valueToNumber(incoming); break;
           case "toggle": next=!current; break;
         }
         if(definition.type==="number"||definition.type==="integer") next=_SDFormula.valueToNumber(next);
-        await target.update({[valueStoragePath(variableId)]:coerceDatabaseValue(next,definition)});
+        await writeDatabaseValue(target,variableId,next,{actor,item});
         break;
       }
 
@@ -3549,10 +3563,17 @@ export class ButtonExecutor {
 
         const variants = new Set(["primary","secondary","success","danger","warning"]);
         const sourceButtons = Array.isArray(action.buttons) ? action.buttons.slice(0,6) : [];
+        const payloads={};
+        for(const key of ["templates","aura","effect","targets"]) payloads[key]=action[key]==null?null:await _resolveStructuredPin(action[key]);
         const flagButtons = sourceButtons.map((button,index) => {
           const id=/^btn[0-5]$/.test(String(button?.id??""))?String(button.id):`btn${index}`;
           const variant=variants.has(String(button?.variant??""))?String(button.variant):"secondary";
-          return {id,label:resolveText(button?.label??`Button ${index+1}`),icon:_sdSafeIcon(button?.icon,"fas fa-circle"),variant,actions:materializeDeferredActionSnapshot(action[`${id}Actions`]??[],_injectRuntime)};
+          const branch=action[`${id}Actions`]??[];
+          const builtIn=button.kind==="placeAoe"?{type:"placeAoeTemplateV2",direct:true,templates:payloads.templates,title:resolveText(button.label),postActions:branch}
+            :button.kind==="placeAura"?{type:"placeAuraComposite",definition:payloads.aura,postActions:branch}
+            :button.kind==="applyEffect"?{type:"applyEffectDefinition",operation:"apply",effect:payloads.effect,targets:payloads.targets??"token_target"}:null;
+          const actions=builtIn?[builtIn,...(button.kind==="applyEffect"?branch:[])]:branch;
+          return {id,label:resolveText(button?.label??`Button ${index+1}`),icon:_sdSafeIcon(button?.icon,"fas fa-circle"),variant,kind:button.kind??"custom",actions:materializeDeferredActionSnapshot(actions,_injectRuntime)};
         });
         const buttonsHtml = flagButtons.length ? `<div class="sd-message-composer-actions">${flagButtons.map(button=>`<button type="button" class="sd-message-composer-btn is-${button.variant}" data-sd-message-button="${button.id}"><i class="${button.icon}"></i><span>${_sdEscapeHtml(button.label)}</span></button>`).join("")}</div>` : "";
         const imageHtml=image?`<img class="sd-message-composer-image" src="${_sdEscapeHtml(image)}" alt="">`:"";
@@ -4210,7 +4231,8 @@ export class ButtonExecutor {
           ? String(action.critAmount).trim()
           : _useFumble
             ? String(action.fumbleAmount).trim()
-            : String(action.amount ?? "0");
+             : (action.amount && typeof action.amount === "object"
+               ? String(FormulaEngine.valueToNumber(action.amount)) : String(action.amount ?? "0"));
 
         let amount = 0;
         const amtStr = _amtForRoll;
@@ -5352,6 +5374,7 @@ export class ButtonExecutor {
           isCrit,isFumble,actorUuid:actor?.uuid??null,itemUuid:item?.uuid??null,createdAt:Date.now(),roll
         };
         runtime.__rollResult=result; await _sdPublishRollRuntime(result);
+        if (action.__resultNodeId) storeNodeResult(runtime, action.__resultNodeId, { ...result, result });
         if (buttonDef) {
           buttonDef.__rollResult=result;
           buttonDef.__lastRoll=total;
@@ -5367,6 +5390,7 @@ export class ButtonExecutor {
         const result=_injectRuntime(action.result??"{__rollResult}");
         if (!result || typeof result!=="object") { ui.notifications?.warn?.("SD | Analyze Roll requires a Roll Result."); break; }
         runtime.__rollResult=result; await _sdPublishRollRuntime(result);
+        if (action.__resultNodeId) storeNodeResult(runtime, action.__resultNodeId, { ...result, result });
         if (buttonDef) buttonDef.__rollResult=result;
         for (const sub of (action.execActions??[])) await this._runAction(sub,item,actor,buttonDef,runtime);
         break;
@@ -5387,6 +5411,7 @@ export class ButtonExecutor {
         runtime.__rollTarget=target;
         runtime.__rollMargin=compared-target;
         runtime.__rollPassed=passed;
+        if (action.__resultNodeId) storeNodeResult(runtime, action.__resultNodeId, { result, compared, target, margin:compared-target, passed });
         if (buttonDef) { buttonDef.__rollResult=result; buttonDef.__lastMargin=runtime.__rollMargin; }
         const branch=passed?(action.passActions??[]):(action.failActions??[]);
         for (const sub of branch) await this._runAction(sub,item,actor,buttonDef,runtime);
@@ -5398,6 +5423,7 @@ export class ButtonExecutor {
         const result=_injectRuntime(action.result??"{__rollResult}");
         if (!result || typeof result!=="object") { ui.notifications?.warn?.("SD | Present Roll requires a Roll Result."); break; }
         runtime.__rollResult=result; await _sdPublishRollRuntime(result);
+        if (action.__resultNodeId) storeNodeResult(runtime, action.__resultNodeId, { result });
         const resolveText=raw=>{const value=_injectRuntime(raw??"");if(value&&typeof value==="object")return FormulaEngine.valueToText(value);let text=String(value??"");try{text=text.replace(/\{([^{}]+)\}/g,(match,inner)=>{const resolved=FormulaEngine.evaluate(`{${inner}}`,item??actor??{});return resolved===match?match:FormulaEngine.valueToText(resolved);});}catch{}return String(_sdStripQuotedString(text));};
         const destination=String(action.destination??"chat");
         const label=resolveText(action.label)||String(result.flavor||"Roll");
@@ -5449,7 +5475,7 @@ export class ButtonExecutor {
       }
 
       case "placeAuraComposite": {
-        let definition = action.definition;
+        let definition = await _resolveStructuredPin(action.definition);
         if(definition === "{__auraDefinition}") definition=runtime.__auraDefinition;
         if(!definition && buttonDef?.__auraDefinition) definition=buttonDef.__auraDefinition;
         if(typeof definition === "string") {
@@ -5511,6 +5537,35 @@ export class ButtonExecutor {
         break;
       }
 
+      case "databaseEffects":
+      case "databaseEffectSelect": {
+        const { listEffectPresets, getEffectPreset, presetToEffectData } = await import("./effect-applier.mjs");
+        const definitionOf = preset => {
+          try {
+            const data=presetToEffectData(preset);
+            return {...data,id:preset.id,icon:data.img??preset.icon,effectDuration:data.duration,duration:Number(data.duration?.rounds??0)};
+          } catch { return null; }
+        };
+        let outputs;
+        if(action.type === "databaseEffects") outputs={effects:listEffectPresets().map(definitionOf).filter(Boolean)};
+        else {
+          let effect=null;
+          if(action.effects != null) {
+            const effects=await _resolveStructuredPin(action.effects);
+            const index=Number(await _resolveStructuredPin(action.index??0));
+            if(Array.isArray(effects) && Number.isInteger(index) && index>=0) effect=effects[index]??null;
+          } else {
+            const preset=getEffectPreset(String(action.presetId??""));
+            if(preset) effect=definitionOf(preset);
+          }
+          outputs={effect};
+        }
+        storeNodeResult(runtime,action.runtimeKey,outputs);
+        if(buttonDef) storeNodeResult(buttonDef,action.runtimeKey,outputs);
+        for(const sub of (action.execActions??[])) await this._runAction(sub,item,actor,buttonDef,runtime);
+        break;
+      }
+
       case "buildEffectDefinition": {
         const definition={
           name:String(_injectRuntime(String(action.name ?? "Effect"))),
@@ -5527,15 +5582,16 @@ export class ButtonExecutor {
       }
 
       case "addEffectDefinitionChange": {
-        let definition=action.effect;
+        let definition=await _resolveStructuredPin(action.effect);
         if(definition === "{__effectDefinition}") definition=runtime.__effectDefinition;
-        if(!definition && buttonDef?.__effectDefinition) definition=buttonDef.__effectDefinition;
+        if(!action.effect && !definition && buttonDef?.__effectDefinition) definition=buttonDef.__effectDefinition;
         if(typeof definition === "string") { try{definition=JSON.parse(definition);}catch{definition=null;} }
         definition=foundry.utils.deepClone(definition && typeof definition === "object" ? definition : {name:"Effect",icon:"icons/svg/aura.svg",duration:0,disabled:false,transfer:false,changes:[]});
         definition.changes=Array.isArray(definition.changes)?definition.changes:[];
         const key=_sdStripQuotes(_injectRuntime(String(action.path ?? "")));
         if(key) definition.changes.push({
           key,
+          ...(action.variableRef?{variableRef:action.variableRef}:{}),
           value:String(_injectRuntime(String(action.value ?? "0"))),
           mode:Number(action.mode ?? 2),
           priority:Number(_injectRuntime(String(action.priority ?? 20))) || 20
@@ -5547,11 +5603,11 @@ export class ButtonExecutor {
       }
 
       case "applyEffectDefinition": {
-        let definition=action.effect;
+        let definition=await _resolveStructuredPin(action.effect);
         if(definition === "{__effectDefinition}") definition=runtime.__effectDefinition;
-        if(!definition && buttonDef?.__effectDefinition) definition=buttonDef.__effectDefinition;
+        if(!action.effect && !definition && buttonDef?.__effectDefinition) definition=buttonDef.__effectDefinition;
         if(typeof definition === "string") { try{definition=JSON.parse(definition);}catch{definition=null;} }
-        if(!definition || typeof definition !== "object") {
+        if(!definition || typeof definition !== "object" || Array.isArray(definition)) {
           ui.notifications?.warn?.("SD | Effect: connect an Effect Definition.");
           break;
         }
@@ -5562,6 +5618,27 @@ export class ButtonExecutor {
         }
         if(!targets.length) { ui.notifications?.warn?.("SD | Effect: Token Pool is empty."); break; }
         const op=action.operation ?? "apply";
+        if((definition.changes??[]).some(change=>change.variableRef && targets.some(target=>resolveVariableReference(change.variableRef,{document:target})?.document!==target))) {
+          ui.notifications?.warn?.("Effect variable owner does not match the target document."); break;
+        }
+        if(definition.flags?.sd?.effectPresetId) {
+          for(const target of targets) {
+            if(!game.user.isGM && !target.isOwner) continue;
+            const matches=(target.effects??[]).filter(effect=>effect.flags?.sd?.effectPresetId===definition.flags.sd.effectPresetId);
+            if(op==="remove") { if(matches.length)await target.deleteEmbeddedDocuments("ActiveEffect",matches.map(effect=>effect.id)); continue; }
+            if(op==="toggle" && matches.length) { for(const effect of matches)await effect.update({disabled:!effect.disabled}); continue; }
+            const refs=definition.flags.sd.effectVariables??[];
+            if(refs.some(change=>change.variableId && resolveVariableReference(change.variableId,{document:target})?.document!==target)) {
+              ui.notifications?.warn?.("Effect variable owner does not match the target document."); continue;
+            }
+            const data={name:definition.name,img:definition.icon,disabled:!!definition.disabled,transfer:!!definition.transfer,
+              duration:definition.duration>0?durationForRounds(definition.duration):{...definition.effectDuration,startTime:game.time?.worldTime??0},flags:definition.flags,
+              changes:(definition.changes??[]).map(change=>({...change,value:String(_injectRuntime(String(change.value??"0")))}))};
+            if(matches.length)await matches[0].update(data);
+            else await target.createEmbeddedDocuments("ActiveEffect",[data]);
+          }
+          break;
+        }
         if(op === "apply") {
           await this._runAction({
             type:"applyEffect",effectName:definition.name ?? "Effect",icon:definition.icon ?? "icons/svg/aura.svg",
@@ -5744,7 +5821,8 @@ export class ButtonExecutor {
           const first = game.user?.targets ? [...game.user.targets][0] : null;
           ownerToken = first ?? null;
         } else {
-          ownerToken = actor?.getActiveTokens?.()?.[0] ?? canvas.tokens?.controlled?.[0] ?? null;
+          const ownerActor = action.owner && action.owner !== "actor" ? _sdResolveActor(action.owner, actor) : actor;
+          ownerToken = ownerActor?.getActiveTokens?.()?.[0] ?? canvas.tokens?.controlled?.[0] ?? null;
         }
         if (!ownerToken) {
           ui.notifications?.warn?.("Place Aura: no owner token found.");
@@ -5831,9 +5909,12 @@ export class ButtonExecutor {
             shape,
             shapes: presetShapes.length ? presetShapes : null,
             appearance: auraAppearance,
+            behaviors: auraPreset?.behaviors ?? [],
             name: effName || "SD Aura",
             flags: {
+              ...(auraPreset?.flags ?? {}),
               sd: {
+                ...(auraPreset?.flags?.sd ?? {}),
                 aura: {
                   key:          auraKey,
                   ownerTokenId: ownerToken.id,
@@ -6511,6 +6592,7 @@ export class ButtonExecutor {
 
     case "aoeTemplateSaver": {
       const { DialogV2 } = foundry.applications.api;
+      const { snapshotRegionDocument } = await import("./aoe-preset-editor.mjs");
       const esc = (v) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
       const clone = (v) => {
         try { return foundry.utils.deepClone?.(v) ?? structuredClone(v); }
@@ -6551,21 +6633,7 @@ export class ButtonExecutor {
         if (!d) return null;
         const shapes = regionShapes(d);
         if (d.documentName === "Region" || shapes.length) {
-          const firstType = shapes[0]?.type ?? "region";
-          return {
-            id:foundry.utils.randomID(12),
-            kind:"region-v14",version:14,
-            name:d.name || `Region ${templates.length+1}`,
-            t:shapes.length === 1 ? firstType : "region",
-            shapes,
-            shapeCount:shapes.length,
-            appearance:{
-              color:String(d.color ?? d._source?.color ?? "#ff0000"),
-              displayMeasurements:Boolean(d.displayMeasurements ?? d._source?.displayMeasurements ?? true),
-              highlightMode:d.highlightMode ?? d._source?.highlightMode ?? undefined,
-              elevation:clone(d.elevation ?? d._source?.elevation ?? undefined)
-            }
-          };
+          return snapshotRegionDocument(d);
         }
         return {
           id:foundry.utils.randomID(12),kind:"measured-template-v13",version:13,
@@ -6748,6 +6816,17 @@ export class ButtonExecutor {
           const parsed=JSON.parse(rawTemplates);
           templates=Array.isArray(parsed) ? parsed.filter(templateLike) : templateLike(parsed) ? [parsed] : [];
         } catch {}
+      }
+      if(action.direct && !isSpell) {
+        if(!templates.length) {ui.notifications?.warn?.("Place AOE: connect an AOE template.");return false;}
+        const {placeAoePreset}=await import("./aoe-placement.mjs");
+        const placed=await placeAoePreset({templates,title:action.title,actorId:actor?.id??"",persist:action.persist!==false});
+        if(!placed)return false;
+        runtime.allTargets=placed.tokenIds;
+        runtime.savedTargets=[];runtime.failedTargets=[];
+        runtime.__targetCount=runtime.allTargets.length;runtime.__aoeTemplate=placed.regionDoc;
+        for(const sub of (action.postActions??[]))await this._runAction(sub,item,actor,buttonDef,runtime);
+        return true;
       }
       const targetsRaw = action.targets != null ? _injectRuntime(String(action.targets)) : "";
       const effectValue = action.effect === "{__choiceSelected}" ? runtime.__choiceSelected
