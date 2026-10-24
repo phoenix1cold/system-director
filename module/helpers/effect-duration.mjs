@@ -1,105 +1,92 @@
-export function durationForRounds(rounds) {
-  const value = Number(rounds);
-  if (!Number.isFinite(value) || value <= 0) return {};
-  const duration = { rounds: Math.trunc(value) };
-  const combat = globalThis.game?.combat ?? null;
-  if (combat?.started || Number(combat?.round) > 0) {
-    const round = Number(combat.round);
-    const turn = Number(combat.turn);
-    if (Number.isFinite(round)) duration.startRound = round;
-    if (Number.isFinite(turn)) duration.startTurn = turn;
+export const EFFECT_DURATION_UNITS = ["rounds", "turns", "seconds", "minutes", "hours", "days", "months", "years"];
+
+/** Convert stored SD/v13 durations; native durations never read deprecated seconds. */
+export function effectDurationData(input = {}, { start, renew = false } = {}) {
+  const d = typeof input === "number" || typeof input === "string" ? { rounds: input } : (input ?? {});
+  const native = "value" in d || "units" in d;
+  let units = native && EFFECT_DURATION_UNITS.includes(d.units) ? d.units : "seconds";
+  let value = null;
+  if (native) {
+    if (d.value != null && d.value !== "" && Number.isFinite(Number(d.value))) value = Math.max(0, Number(d.value));
+  } else {
+    for (const unit of ["rounds", "turns", "seconds"]) {
+      if (Number.isFinite(Number(d[unit])) && Number(d[unit]) > 0) {
+        units = unit;
+        value = Number(d[unit]);
+        break;
+      }
+    }
   }
-  return duration;
+  const duration = { value, units, expiry: d.expiry || null, expired: renew ? false : !!d.expired };
+  let initial = start ? { ...start } : undefined;
+  if (!native) {
+    for (const [oldKey, key] of [["startTime", "time"], ["startRound", "round"], ["startTurn", "turn"], ["combat", "combat"]]) {
+      if (d[oldKey] != null && initial?.[key] == null) (initial ??= {})[key] = d[oldKey];
+    }
+  }
+  if (renew) {
+    // Public v14 API supplies the world time and current combat/initiative anchor.
+    const cls = globalThis.CONFIG?.ActiveEffect?.documentClass ?? globalThis.ActiveEffect;
+    initial = cls.getEffectStart();
+  }
+  return { duration, ...(initial ? { start: initial } : {}) };
 }
 
-function _durationWithCombatStart(duration) {
-  const rounds = Number(duration?.rounds);
-  if (!Number.isFinite(rounds) || rounds <= 0) return duration ?? {};
-  const normalized = duration?.seconds === 0 ? { ...duration, seconds: null } : duration;
-  if (duration?.startRound != null && duration?.startTurn != null) return normalized;
-  return { ...normalized, ...durationForRounds(rounds) };
+/** Kept duration-only for existing create payloads; core supplies their start. */
+export function durationForRounds(rounds) {
+  return effectDurationData(rounds).duration;
+}
+
+/** Ordinary duration edits are not a reapplication of the effect. */
+export function editEffectDuration(effect, input) {
+  const source = effect?._source ?? effect ?? {};
+  const previous = effectDurationData(source.duration, { start: source.start });
+  const next = effectDurationData({ ...previous.duration, ...input });
+  const temporary = next.duration.value != null || next.duration.expiry != null;
+  if (!temporary) next.duration.expired = false;
+  return effectDurationData(next.duration, {
+    start: previous.start,
+    renew: temporary && (previous.duration.units !== next.duration.units || (previous.duration.value == null && previous.duration.expiry == null))
+  });
 }
 
 export function registerEffectDurationHooks() {
   if (globalThis.__sdEffectDurationHooksInstalled) return;
   globalThis.__sdEffectDurationHooksInstalled = true;
 
+  // v14's registry alone decides when effects expire. Its global delete policy
+  // would also remove Item definitions, so scope removal after its native update.
+  CONFIG.ActiveEffect.expiryAction ??= "update";
   Hooks.on("preCreateActiveEffect", (effect, data) => {
-    const duration = _durationWithCombatStart(data?.duration ?? effect?.duration ?? {});
-    if (duration !== data?.duration) {
-      try { effect.updateSource({ duration }); } catch {  }
-    }
+    if (!data?.duration) return;
+    const converted = effectDurationData(data.duration, { start: data.start });
+    if (converted.start) converted.start = { ...effect._source?.start, ...converted.start };
+    effect.updateSource(converted);
   });
-
-  Hooks.on("updateCombat", async (combat, changed) => {
-    if (!game.user?.isGM) return;
-    if (game.users?.activeGM && game.users.activeGM.id !== game.user.id) return;
-    if (!("round" in (changed ?? {})) && !("turn" in (changed ?? {}))) return;
-    if (!(Number(combat?.round) > 0)) return;
-    const updates = [];
-    const seen = new Set();
-    for (const combatant of combat?.combatants ?? []) {
-      const actor = combatant?.actor;
-      if (!actor || seen.has(actor)) continue;
-      seen.add(actor);
-      for (const effect of actor.effects ?? []) {
-        if (effect.disabled) continue;
-        const d = effect._source?.duration ?? effect.duration ?? {};
-        if (!(Number(d.rounds) > 0 || Number(d.turns) > 0)) continue;
-        const update = d.seconds === 0 ? { "duration.seconds": null } : {};
-        if (d.startRound == null || d.startTurn == null) {
-          updates.push(effect.update({ ...update, "duration.startRound": Number(combat.round), "duration.startTurn": Number(combat.turn ?? 0) }).catch(() => null));
-          continue;
-        }
-        const turns = Math.max(1, combat.turns?.length ?? combat.combatants?.size ?? 1);
-        const elapsed = (Number(combat.round) - Number(d.startRound)) * turns
-          + Number(combat.turn ?? 0) - Number(d.startTurn);
-        if (elapsed >= (Number(d.rounds) || 0) * turns + (Number(d.turns) || 0)) {
-          update.disabled = true;
-        }
-        if (Object.keys(update).length) updates.push(effect.update(update).catch(() => null));
-      }
-    }
-    if (updates.length) await Promise.all(updates);
-  });
-
-  Hooks.on("updateWorldTime", async worldTime => {
-    if (!game.user?.isGM) return;
-    if (game.users?.activeGM && game.users.activeGM.id !== game.user.id) return;
-    const actors = new Set(game.actors ?? []);
-    for (const scene of game.scenes ?? []) for (const token of scene.tokens ?? []) if (token.actor) actors.add(token.actor);
-    for (const actor of actors) for (const effect of actor.effects ?? []) {
-      const d = effect._source?.duration ?? effect.duration ?? {};
-      if (effect.disabled || Number(d.rounds) > 0 || Number(d.turns) > 0) continue;
-      if (Number(d.seconds) > 0 && d.startTime != null && Number(worldTime) >= Number(d.startTime) + Number(d.seconds)) {
-        await effect.update({ disabled: true }).catch(() => null);
-      }
-    }
+  Hooks.on("updateActiveEffect", (effect, changed, _options, userId) => {
+    if (globalThis.game?.user?.id !== userId) return;
+    if (changed?.duration?.expired !== true && changed?.["duration.expired"] !== true) return;
+    if (effect.parent?.documentName !== "Actor" || effect.inCompendium) return;
+    const { duration } = effectDurationData(effect._source?.duration ?? effect.duration);
+    if (!duration.expired || (duration.value == null && duration.expiry == null)) return;
+    return effect.delete().catch(error => console.error("SD | Failed to remove expired effect:", error));
   });
 }
 
 export function effectDurationLabel(effect) {
   const d = effect?.duration ?? {};
-
-  // Permanent effects: Foundry reports duration.label === "None", which used to
-  // leak into every effect row as an ugly "None" badge. Passive effects get no
-  // badge at all.
-  const hasRounds  = Number(d.rounds)  > 0;
-  const hasSeconds = Number(d.seconds) > 0;
-  const hasTurns   = Number(d.turns)   > 0;
-  if (!hasRounds && !hasSeconds && !hasTurns) return "";
-
-  const rawLabel = (typeof d.label === "string") ? d.label.trim() : "";
-  if (rawLabel && rawLabel.toLowerCase() !== "none") return rawLabel;
-
-  const remaining = Number(d.remaining);
-  if (Number.isFinite(remaining) && remaining >= 0) {
-    if (Number(d.rounds) > 0) return `${Math.ceil(remaining)}r`;
-    if (Number(d.seconds) > 0) return `${Math.ceil(remaining)}s`;
+  const { duration } = effectDurationData(d);
+  if (duration.expired) {
+    const key = "SD.Effects.Expired";
+    const label = globalThis.game?.i18n?.localize?.(key);
+    return label && label !== key ? label : "Expired";
   }
-
-  if (hasRounds) return `${Number(d.rounds)}r`;
-  if (hasSeconds) return `${Number(d.seconds)}s`;
-  if (hasTurns) return `${Number(d.turns)}t`;
-  return "";
+  if (duration.value == null && duration.expiry == null) return "";
+  const label = typeof d.label === "string" ? d.label.trim() : "";
+  if (label && label.toLowerCase() !== "none") return label;
+  if (duration.value == null) return duration.expiry;
+  const remaining = d.remaining == null ? NaN : Number(d.remaining);
+  const value = Number.isFinite(remaining) && remaining >= 0 ? Math.ceil(remaining) : duration.value;
+  const suffix = { rounds: "r", turns: "t", seconds: "s", minutes: "m", hours: "h", days: "d", months: "mo", years: "y" };
+  return `${value}${suffix[duration.units]}`;
 }

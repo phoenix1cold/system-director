@@ -1,5 +1,6 @@
 import { getValueDefinitions, valueStoragePath, decodeVariableRef } from "./value-database.mjs";
 import { enhanceVariableSelectors } from "./variable-selector.mjs";
+import { EFFECT_DURATION_UNITS, effectDurationData, editEffectDuration } from "./effect-duration.mjs";
 
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const MODE_OPTIONS=[
@@ -47,10 +48,11 @@ export async function editVariableEffect(snapshot, { parent, title } = {}) {
   if (!parent || !["Actor","Item"].includes(parent.documentName)) return null;
   const definitions=getValueDefinitions();
   const data=foundry.utils.deepClone(snapshot??{});
+  const { duration }=effectDurationData(data.duration);
   const rows=(data.changes??[]).map((c,index)=>changeRow({...c,variableId:data.flags?.sd?.variableReferences?.[index]||c.variableId},definitions)).join("")||changeRow({},definitions);
   const content=`<form class="sd-variable-effect-editor" style="display:flex;flex-direction:column;gap:10px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label><span>Name</span><input name="name" value="${esc(data.name??"Effect")}"></label><label><span>Icon</span><input name="icon" value="${esc(data.img??data.icon??"icons/svg/aura.svg")}"></label></div>
-    <div style="display:grid;grid-template-columns:100px 100px 1fr 1fr;gap:8px"><label><span>Rounds</span><input type="number" min="0" name="rounds" value="${Number(data.duration?.rounds??0)}"></label><label><span>Seconds</span><input type="number" min="0" name="seconds" value="${Number(data.duration?.seconds??0)}"></label><label><input type="checkbox" name="disabled" ${data.disabled?"checked":""}> Start disabled</label><label><input type="checkbox" name="transfer" ${data.transfer?"checked":""}> Transfer</label></div>
+    <div style="display:grid;grid-template-columns:100px 100px 1fr 1fr;gap:8px"><label><span>Duration</span><input type="number" min="0" step="any" name="durationValue" value="${duration.value ?? ""}" placeholder="Permanent"></label><label><span>Units</span><select name="durationUnits">${EFFECT_DURATION_UNITS.map(unit=>`<option value="${unit}" ${duration.units===unit?"selected":""}>${unit}</option>`).join("")}</select></label><label><input type="checkbox" name="disabled" ${data.disabled?"checked":""}> Start disabled</label><label><input type="checkbox" name="transfer" ${data.transfer?"checked":""}> Transfer</label></div>
     <section><div style="display:flex;justify-content:space-between;align-items:center"><b>Variable changes</b><button type="button" data-sd-ve-add><i class="fas fa-plus"></i> Add change</button></div><div data-sd-ve-rows>${rows}</div></section>
     <p style="font-size:11px;color:var(--color-text-subtle)">Effects operate only on typed Database variables. Paths and Active Effect keys are internal.</p>
   </form>`;
@@ -79,7 +81,9 @@ export async function editVariableEffect(snapshot, { parent, title } = {}) {
         data.flags ??= {}; data.flags.sd ??= {};
         data.flags.sd.variableReferences=changes.map(c=>c.variableId);
         for(const change of changes){change.key=valueStoragePath(change.variableId);delete change.variableId;}
-        return {...data,name:String(form.elements.name?.value??"Effect"),img:String(form.elements.icon?.value??"icons/svg/aura.svg"),icon:String(form.elements.icon?.value??"icons/svg/aura.svg"),disabled:!!form.elements.disabled?.checked,transfer:!!form.elements.transfer?.checked,duration:{rounds:Number(form.elements.rounds?.value??0),seconds:Number(form.elements.seconds?.value??0)},changes};
+        const value=form.elements.durationValue?.value??"";
+        const timing=editEffectDuration(data,{value:value===""?null:Number(value),units:form.elements.durationUnits?.value??duration.units});
+        return {...data,name:String(form.elements.name?.value??"Effect"),img:String(form.elements.icon?.value??"icons/svg/aura.svg"),icon:String(form.elements.icon?.value??"icons/svg/aura.svg"),disabled:!!form.elements.disabled?.checked,transfer:!!form.elements.transfer?.checked,...timing,changes};
       }}
     });
   }catch{return null;}finally{disposeVariables?.();document.removeEventListener("click",onClick,true);}

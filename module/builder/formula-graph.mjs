@@ -1273,7 +1273,7 @@ export const NODE_DEFS = {
   },
 
   act_heal: {
-    hidden:true, replacement:"act_heal_simple",
+    hidden:true, replacement:"act_message_composer + get_value + set_value",
     title:"Heal", color:"#1a7a2a", cat:"Combat", wideNode:true,
     desc:"Apply healing to target HP. postToChat:yes → chat card with Apply button. autoApply:yes → post to chat AND immediately heal (no click). postToChat:no → silent direct HP write. Three amount slots — Amount (base), Crit Amount (used when Is Crit? truthy), Fumble Amount (used when Is Fumble? truthy). Connect Targets pin from AoE Save to apply to specific tokens.",
     inputs:[
@@ -2259,7 +2259,7 @@ export const NODE_DEFS = {
       {id:"image",      label:"Image",       type:"value.string"},
       {id:"rollResult", label:"Roll Result", type:"value.roll_result"},
       {id:"templates",label:"Button AOE Templates[]",type:"value.aoe_templates"},
-      {id:"aura",label:"Button Aura",type:"value.aura"},
+      {id:"aura",label:"Button Aura",type:"value.object"},
       {id:"effect",label:"Button Effect",type:"value.effect"},
       {id:"targets",label:"Button Targets",type:"value.token_pool"}
     ],
@@ -4094,7 +4094,7 @@ export const NODE_DEFS = {
   },
 
   act_place_aura_heal: {
-    hidden:true, replacement:"act_place_aura_zone + act_heal_simple",
+    hidden:true, replacement:"act_place_aura_zone + get_value + set_value",
     title:"Place Aura — Heal", color:"#1a6a3a", cat:"Effects", wideNode:true,
     desc:"Attaches a region to the owner; heals tokens inside (onEnter / eachTurn / both). HP path configurable. Chat card + visibility configurable.",
     inputs:[
@@ -4950,6 +4950,7 @@ export const NODE_DEFS = {
   },
 
   act_heal_simple: {
+    hidden:true, replacement:"act_message_composer + get_value + set_value",
     title:"Heal", color:"#1a7a2a", cat:"Combat", wideNode:true,
     desc:"Final healing delivery only. Supply an already-calculated Value and a Token Pool. All target selection and calculations stay in the graph.",
     inputs:[
@@ -9081,6 +9082,9 @@ for (const [type, definition] of Object.entries(NODE_DEFS)) {
 // composable nodes. Saved legacy graphs remain executable; tooling can now
 // validate and present the exact replacement chain instead of parsing prose.
 export const COMPOSITE_NODE_REPLACEMENTS = Object.freeze({
+  act_heal:["act_message_composer","get_value","set_value"],
+  act_heal_simple:["act_message_composer","get_value","set_value"],
+  quick_heal:["act_message_composer","get_value","set_value"],
   act_roll_value:["act_roll_v2","act_analyze_roll","act_present_roll"],
   act_effect:["act_effect_definition","act_effect_apply_v2"],
   act_effect_uuid:["act_effect_definition","act_effect_apply_v2"],
@@ -9094,7 +9098,7 @@ export const COMPOSITE_NODE_REPLACEMENTS = Object.freeze({
   act_create_effect:["act_effect_definition","act_effect_apply_v2"],
   act_place_aura:["act_aura_definition","act_place_aura_zone"],
   act_place_aura_damage:["act_place_aura_zone","act_damage_simple"],
-  act_place_aura_heal:["act_place_aura_zone","act_heal_simple"],
+  act_place_aura_heal:["act_place_aura_zone","get_value","set_value"],
   act_place_aura_save_effect:["act_place_aura_zone","act_save_dc","act_effect_apply_v2"],
   act_place_aura_save_branch:["act_place_aura_zone","act_save_dc"],
   on_event:["on_update","on_create","on_delete","on_turn_start","on_turn_end","on_combat_start","on_combat_end","on_effect_apply","on_damage_taken","on_rest","on_equip","on_unequip"],
@@ -10018,7 +10022,7 @@ export class FormulaGraph {
       "on_click", "branch", "if_node", "gate", "sequence",
       "get_value", "set_value", "literal", "literal_str",
       "lt", "lte", "gt", "gte", "eq", "neq", "and", "or", "not",
-      "act_message", "act_message_composer", "act_notify", "act_roll_v2", "act_analyze_roll", "act_compare_roll", "act_present_roll", "act_damage_simple", "act_heal_simple", "act_save_dc", "act_spell", "act_aura_definition", "act_place_aura_zone", "act_effect_definition", "act_effect_add_change", "act_effect_apply_v2", "act_modify",
+      "act_message", "act_message_composer", "act_notify", "act_roll_v2", "act_analyze_roll", "act_compare_roll", "act_present_roll", "act_damage_simple", "act_save_dc", "act_spell", "act_aura_definition", "act_place_aura_zone", "act_effect_definition", "act_effect_add_change", "act_effect_apply_v2", "act_modify",
       "act_ai_request", "act_ai_assistant", "ai_dialogue_choices", "act_dialog_builder",
       "actor_token_info", "arr_get", "arr_aggregate", "arr_random_from",
       "var_read", "var_write", "quest_set_state"
@@ -10044,7 +10048,6 @@ export class FormulaGraph {
       act_notify: ["notification", "toast", "уведомление"],
       act_roll_value: ["roll value", "roll -> value", "бросок", "ролл"],
       act_damage_simple: ["damage", "урон"],
-      act_heal_simple: ["heal", "healing", "лечение"],
       act_save_dc: ["save", "dc", "saving throw", "спасбросок", "проверка сложности"],
       act_spell: ["spell", "aoe spell", "заклинание"],
       act_aoe_template_saver: ["aoe template saver", "template array", "шаблоны aoe"],
@@ -10182,8 +10185,6 @@ export class FormulaGraph {
       roll_value: "act_roll_value",
       roll: "act_roll_value",
       damage: "act_damage_simple",
-      heal: "act_heal_simple",
-      healing: "act_heal_simple",
       save: "act_save_dc",
       save_dc: "act_save_dc",
       dc: "act_save_dc",

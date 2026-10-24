@@ -1,4 +1,6 @@
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
+import { effectDurationLabel } from "./effect-duration.mjs";
+import { effectPresentationState } from "./effects.mjs";
 
 function _esc(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -454,14 +456,14 @@ export class ItemPreviewPopup {
     let html = `<div class="sd-prog-preview-effects-list">`;
     for (const ef of effects) {
       const changes  = Array.isArray(ef.changes) ? ef.changes : [];
-      const disabled = !!ef.disabled;
-      html += `<div class="sd-prog-preview-effect-card${disabled ? " is-disabled" : ""}">
+      const state = effectPresentationState(ef);
+      const dur = effectDurationLabel(ef);
+      html += `<div class="sd-prog-preview-effect-card${state.inactive ? " is-disabled" : ""}">
         <div class="sd-prog-preview-effect-hdr">
           <img src="${_esc(ef.icon ?? ef.img ?? "icons/svg/aura.svg")}" alt="">
           <span class="sd-prog-preview-effect-name">${_esc(ef.name ?? "Effect")}</span>
-          ${disabled
-            ? `<span class="sd-prog-preview-pill is-off">${_esc(_loc("SD.Progression.EffectDisabled", "Disabled"))}</span>`
-            : `<span class="sd-prog-preview-pill is-on">${_esc(_loc("SD.Progression.Enabled", "Enabled"))}</span>`}
+          <span class="sd-prog-preview-pill ${state.inactive ? "is-off" : "is-on"}">${_esc(state.label)}</span>
+          ${dur ? `<span class="sd-prog-preview-pill">${_esc(dur)}</span>` : ""}
         </div>`;
       if (changes.length) {
         html += `<div class="sd-prog-preview-changes">`;
@@ -487,15 +489,15 @@ export class ItemPreviewPopup {
     const name = ef.name || "Effect";
     const img  = ef.icon || ef.img || "icons/svg/aura.svg";
     const changes  = Array.isArray(ef.changes) ? ef.changes : [];
-    const disabled = !!ef.disabled;
+    const state = effectPresentationState(ef);
+    const dur = effectDurationLabel(ef);
 
     let body = `<div class="sd-prog-preview-body">`;
     body += `<div class="sd-prog-preview-section">
       <div class="sd-prog-preview-section-title"><i class="fas fa-magic"></i> ${_esc(_loc("SD.Progression.Effects", "Effect"))}</div>
       <div class="sd-prog-preview-meta">
-        <span class="sd-prog-preview-pill ${disabled ? "is-off" : "is-on"}">${_esc(disabled
-          ? _loc("SD.Progression.EffectDisabled", "Disabled")
-          : _loc("SD.Progression.EffectEnabled", "Enabled"))}</span>
+        <span class="sd-prog-preview-pill ${state.inactive ? "is-off" : "is-on"}">${_esc(state.label)}</span>
+        ${dur ? `<span class="sd-prog-preview-pill">${_esc(dur)}</span>` : ""}
         <span class="sd-prog-preview-pill">${changes.length} ${_esc(_loc("SD.Progression.EffectChanges", "changes"))}</span>
       </div>
     </div>`;
@@ -568,7 +570,8 @@ export class ItemPreviewPopup {
     const name = ef.name || "Effect";
     const img  = ef.icon || ef.img || "icons/svg/aura.svg";
     const changes  = Array.isArray(ef.changes) ? ef.changes : [];
-    const disabled = !!ef.disabled;
+    const state = effectPresentationState(ef);
+    const dur = effectDurationLabel(ef);
 
     const header = `<header class="sd-item-card-hdr">
       <div class="sd-item-card-img"><img src="${_esc(img)}" alt=""></div>
@@ -580,9 +583,8 @@ export class ItemPreviewPopup {
 
     let body = `<div class="sd-item-card-body">
       <div class="sd-prog-preview-meta">
-        <span class="sd-prog-preview-pill ${disabled ? "is-off" : "is-on"}">${_esc(disabled
-          ? _loc("SD.Progression.EffectDisabled", "Disabled")
-          : _loc("SD.Progression.EffectEnabled", "Enabled"))}</span>
+        <span class="sd-prog-preview-pill ${state.inactive ? "is-off" : "is-on"}">${_esc(state.label)}</span>
+        ${dur ? `<span class="sd-prog-preview-pill">${_esc(dur)}</span>` : ""}
         <span class="sd-prog-preview-pill">${changes.length} ${_esc(_loc("SD.Progression.EffectChanges", "changes"))}</span>
       </div>`;
     if (changes.length) {

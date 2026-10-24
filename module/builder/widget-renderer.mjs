@@ -7,7 +7,7 @@ import { attributeGroupModifier } from "../helpers/attribute-group-value.mjs";
 import { buildWidgetMacroScript, encodeMacroScript } from "../helpers/widget-macro.mjs";
 import { ItemPreviewPopup } from "../helpers/item-preview-popup.mjs";
 import { effectDurationLabel } from "../helpers/effect-duration.mjs";
-import { effectChangeLabel } from "../helpers/effects.mjs";
+import { effectChangeLabel, effectPresentationState } from "../helpers/effects.mjs";
 import { sanitizeWidgetCss, widgetBuilderScopeId } from "./widget-css.mjs";
 import { localizeTree } from "../helpers/localization.mjs";
 import {
@@ -1509,7 +1509,7 @@ export class WidgetRenderer {
     const showDisabled = w.showDisabled !== false;
     const filtered = effects.filter(ef => {
       if (!showPassive  && ef.transfer)  return false;
-      if (!showDisabled && ef.disabled)  return false;
+      if (!showDisabled && effectPresentationState(ef).inactive) return false;
       return true;
     });
 
@@ -1524,17 +1524,22 @@ export class WidgetRenderer {
       return this._render_effects_cards(w, doc, filtered, canEdit, variantId);
     }
 
+    // Icon variants otherwise hide or clip the duration with their fixed-size rows.
+    const iconOnly = variantId === "icons" || variantId === "buffbar";
+    const durationStyle = iconOnly ? ' style="display:block;position:absolute;bottom:0;left:0;right:0;padding:0 1px;font-size:9px;overflow:hidden;text-overflow:ellipsis;text-align:center"' : "";
     let rows = "";
     for (const ef of filtered) {
-      const disabled = ef.disabled ? "effect-disabled" : "";
+      const state    = effectPresentationState(ef);
+      const disabled = state.inactive ? "effect-disabled" : "";
       const dur      = effectDurationLabel(ef);
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
       const uuid     = e(ef.uuid ?? "");
       rows += `
-      <li class="effect-row ${disabled}" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" data-sd-preview-ref="effect:${e(ef.id)}">
+      <li class="effect-row ${disabled}"${iconOnly ? ' style="position:relative"' : ""} title="${e([ef.name, state.label, dur].filter(Boolean).join(' - '))}" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" data-sd-preview-ref="effect:${e(ef.id)}">
         <img class="effect-img" src="${e(ef.img ?? ef.icon ?? 'icons/svg/aura.svg')}" alt="${e(ef.name)}">
         <span class="effect-name">${e(ef.name)}${w.showVariables === false ? "" : this._sdEffectVarChips(ef)}</span>
-        ${dur ? `<span class="effect-dur">${e(dur)}</span>` : ""}
+        ${state.inactive && !iconOnly ? `<span class="effect-dur">${e(state.label)}</span>` : ""}
+        ${dur ? `<span class="effect-dur"${durationStyle}>${e(dur)}</span>` : ""}
         <div class="effect-controls">
           ${canEdit ? this._sdEffectModeBtn(ef, uuid, "effect-btn") : ""}
           ${canEdit ? `<button type="button" class="effect-btn" data-action="effectToggle" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
@@ -1744,13 +1749,11 @@ export class WidgetRenderer {
     let inner = "";
     for (const ef of effects) {
       const cardBody = this._renderEffectCardSafe(ef);
-      const disabled = ef.disabled ? " is-disabled" : "";
+      const disabled = effectPresentationState(ef).inactive ? " is-disabled" : "";
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
       const uuid     = e(ef.uuid ?? "");
 
-      const dur = effectDurationLabel(ef);
       const metaPills = `<div class="sd-item-card-meta">
-        ${dur ? `<span class="sd-item-card-pill">${e(dur)}</span>` : ""}
         ${ef.transfer ? `<span class="sd-item-card-pill">passive</span>` : ""}
       </div>`;
 
@@ -2624,11 +2627,15 @@ export class WidgetRenderer {
     let rows = "";
     for (const ef of effects) {
       const eyeIcon  = ef.disabled ? "fa-eye-slash" : "fa-eye";
-      const offCls   = ef.disabled ? "sd-hud-pop-row--off" : "";
+      const state    = effectPresentationState(ef);
+      const offCls   = state.inactive ? "sd-hud-pop-row--off" : "";
+      const dur      = effectDurationLabel(ef);
       const uuid     = e(ef.uuid ?? "");
       rows += `<li class="sd-hud-pop-row ${offCls}" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" data-sd-preview-ref="effect:${e(ef.id)}">
         <img src="${e(ef.img ?? ef.icon ?? 'icons/svg/aura.svg')}" alt="${e(ef.name)}">
         <span class="sd-hud-pop-name" title="${e(ef.name)}">${e(ef.name)}</span>
+        ${state.inactive ? `<span class="sd-hud-pop-qty">${e(state.label)}</span>` : ""}
+        ${dur ? `<span class="sd-hud-pop-qty effect-dur">${e(dur)}</span>` : ""}
         ${canEdit ? this._sdEffectModeBtn(ef, uuid, "") : ""}
         ${canEdit ? `<button type="button" data-action="effectToggle" data-effect-id="${e(ef.id)}" data-effect-uuid="${uuid}" title="${ef.disabled ? 'Enable' : 'Disable'}"><i class="fas ${eyeIcon}"></i></button>` : ""}
       </li>`;

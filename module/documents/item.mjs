@@ -1,5 +1,5 @@
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
-import { durationForRounds } from "../helpers/effect-duration.mjs";
+import { effectDurationData } from "../helpers/effect-duration.mjs";
 import { injectWidgetFieldsSnapshot, refreshWidgetFieldsRuntime } from "../helpers/widget-fields.mjs";
 import { getValueDefinition, valueStoragePath } from "../helpers/value-database.mjs";
 import { isEquipToggleUpdate, stripEquipToggleNoise } from "../helpers/equip-guard.mjs";
@@ -334,7 +334,7 @@ export class SDItem extends Item {
         name,
         img: icon,
         disabled:  false,
-        duration:  durationForRounds(rounds),
+        ...effectDurationData(rounds, { renew: true }),
         changes,
         origin:    this.uuid,
         flags:     { sd: { sourceItemId: this.id } }

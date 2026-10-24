@@ -124,6 +124,7 @@ export const QUICK_ACTION_STEPS = {
       customText:"", buttonLabel:"Apply Damage", hpPath:"system.resources.hp.value", postToChat:true, autoApply:!!step.autoApply, showApply:true }]
   },
   heal: {
+    hidden:true, replacement:"act_message_composer + get_value + set_value",
     label:"Heal", icon:"fa-heart-pulse",
     hint:"Posts a healing card (or applies it directly) to the chosen tokens.",
     fields:[
@@ -391,7 +392,7 @@ export function openQuickActionsEditor(config = {}, doc = null, options = {}) {
         <div class="sdqa-step-head">
           <span class="sdqa-index">${index + 1}</span>
           <i class="fas ${esc(def.icon)}"></i>
-          <select data-step-kind>${Object.entries(QUICK_ACTION_STEPS).map(([kind, entry]) => `<option value="${kind}" ${kind === step.kind ? "selected" : ""}>${esc(entry.label)}</option>`).join("")}</select>
+          <select data-step-kind>${Object.entries(QUICK_ACTION_STEPS).filter(([kind, entry]) => !entry.hidden || kind === step.kind).map(([kind, entry]) => `<option value="${kind}" ${kind === step.kind ? "selected" : ""}>${esc(entry.label)}</option>`).join("")}</select>
           <button type="button" data-move="-1" ${index === 0 ? "disabled" : ""} title="Move up"><i class="fas fa-arrow-up"></i></button>
           <button type="button" data-move="1" ${index === state.steps.length - 1 ? "disabled" : ""} title="Move down"><i class="fas fa-arrow-down"></i></button>
           <button type="button" data-duplicate title="Duplicate"><i class="fas fa-clone"></i></button>
@@ -409,7 +410,7 @@ export function openQuickActionsEditor(config = {}, doc = null, options = {}) {
         </div>
         <div class="sdqa-body">
           ${state.steps.length ? state.steps.map(stepCard).join("") : `<div class="sdqa-empty"><i class="fas fa-wand-magic-sparkles"></i><br>No steps yet. Add one below — roll dice, open a window, post a message…</div>`}
-          <div class="sdqa-add-row">${Object.entries(QUICK_ACTION_STEPS).map(([kind, entry]) => `<button type="button" class="sdqa-add" data-add="${kind}"><i class="fas ${esc(entry.icon)}"></i>${esc(entry.label)}</button>`).join("")}</div>
+          <div class="sdqa-add-row">${Object.entries(QUICK_ACTION_STEPS).filter(([, entry]) => !entry.hidden).map(([kind, entry]) => `<button type="button" class="sdqa-add" data-add="${kind}"><i class="fas ${esc(entry.icon)}"></i>${esc(entry.label)}</button>`).join("")}</div>
         </div>
         <div class="sdqa-foot">
           <button type="button" class="sdqa-btn" data-cancel>Cancel</button>

@@ -1,7 +1,7 @@
 import { localizeTree, getLanguages, translationEditLanguage, setTranslationEditLanguage, setLocalizedField } from "./localization.mjs";
 import { getValueDefinitions, getValueDefinition, valueStoragePath, resolveVariableReference } from "./value-database.mjs";
 import { enhanceVariableSelectors } from "./variable-selector.mjs";
-import { durationForRounds } from "./effect-duration.mjs";
+import { effectDurationData } from "./effect-duration.mjs";
 import { effectTargetVariables } from "./effects.mjs";
 
 const { ApplicationV2, DialogV2 } = globalThis.foundry?.applications?.api ?? {};
@@ -61,15 +61,13 @@ export function presetToEffectData(rawPreset, { document = null } = {}) {
     if(document){const resolved=resolveVariableReference(change.variableId,{document});if(!resolved||resolved.document!==document)throw new Error("Effect variable owner does not match the target document.");}
   }
   const known = effectTargetVariables();
+  const localized = localizeTree(preset);
   return {
-    name: localizeTree(preset).name,
+    name: localized.name,
+    description: localized.description,
     img: preset.icon, icon: preset.icon,
     disabled: preset.disabled, transfer: preset.transfer,
-    duration: preset.duration.rounds > 0
-      ? { startRound: null, startTurn: null, ...durationForRounds(preset.duration.rounds), turns: null, seconds: null, startTime: null }
-      : { rounds: null, turns: null, startRound: null, startTurn: null,
-          seconds: preset.duration.seconds > 0 ? preset.duration.seconds : null,
-          startTime: preset.duration.seconds > 0 ? (game.time?.worldTime ?? 0) : null },
+    ...effectDurationData(preset.duration, { renew: true }),
     changes: preset.changes
       .filter(change => (change.variableId && getValueDefinition(change.variableId) && valueStoragePath(change.variableId)) || (!change.variableId && change.legacyKey))
       .map(change => ({

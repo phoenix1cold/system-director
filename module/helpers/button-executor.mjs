@@ -1,7 +1,7 @@
 import { SlotManager } from "../data/item-slots.mjs";
 import { formulaBounds, doubleDice, leadingD20Natural } from "../builder/formula-utils.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
-import { durationForRounds } from "./effect-duration.mjs";
+import { effectDurationData } from "./effect-duration.mjs";
 import { SDDialogueBuilder } from "./dialogue-builder.mjs";
 import { materializeDeferredActionSnapshot } from "./deferred-action-snapshot.mjs";
 import { runNodeActionHandler, storeNodeResult, readNodeResult } from "./node-runtime-api.mjs";
@@ -2477,7 +2477,7 @@ export class ButtonExecutor {
             name:     action.effectName || "Effect",
             img:      action.icon ?? "icons/svg/aura.svg",
             disabled: false,
-            duration: durationForRounds(rounds),
+            ...effectDurationData(rounds, { renew: true }),
             changes,
             origin:   item?.uuid ?? null,
             flags:    { sd: { sourceItemId: item?.id } }
@@ -2537,7 +2537,7 @@ export class ButtonExecutor {
               disabled: false,
               origin:   item?.uuid ?? sourceEffect.parent?.uuid ?? null,
               flags:    { sd: { sourceItemId: item?.id ?? null } },
-              duration: durationForRounds(_aeuRounds)
+              ...effectDurationData(_aeuRounds > 0 ? _aeuRounds : sourceEffect.duration, { renew: true })
             },
             { inplace: false }
           );
@@ -3365,7 +3365,7 @@ export class ButtonExecutor {
           name:     tpl.name     || "Effect",
           img:      tpl.icon     || "icons/svg/aura.svg",
           disabled: false,
-          duration: durationForRounds(rounds),
+          ...effectDurationData(rounds, { renew: true }),
           changes,
           origin:   item.uuid,
           flags:    { sd: { sourceItemId: item.id } }
@@ -5543,7 +5543,7 @@ export class ButtonExecutor {
         const definitionOf = preset => {
           try {
             const data=presetToEffectData(preset);
-            return {...data,id:preset.id,icon:data.img??preset.icon,effectDuration:data.duration,duration:Number(data.duration?.rounds??0)};
+            return {...data,id:preset.id,icon:data.img??preset.icon,effectDuration:data.duration,duration:data.duration?.units==="rounds"?Number(data.duration.value):0};
           } catch { return null; }
         };
         let outputs;
@@ -5634,8 +5634,8 @@ export class ButtonExecutor {
             if(refs.some(change=>change.variableId && resolveVariableReference(change.variableId,{document:target})?.document!==target)) {
               ui.notifications?.warn?.("Effect variable owner does not match the target document."); continue;
             }
-            const data={name:definition.name,img:definition.icon,disabled:!!definition.disabled,transfer:!!definition.transfer,
-              duration:definition.duration>0?durationForRounds(definition.duration):{...definition.effectDuration,startTime:game.time?.worldTime??0},flags:definition.flags,
+            const data={name:definition.name,description:definition.description??"",img:definition.icon,disabled:!!definition.disabled,transfer:!!definition.transfer,
+              ...effectDurationData(definition.duration>0?{...definition.effectDuration,value:definition.duration,units:"rounds"}:definition.effectDuration,{renew:true}),flags:definition.flags,
               changes:(definition.changes??[]).map(change=>({...change,value:String(_injectRuntime(String(change.value??"0")))}))};
             if(matches.length)await matches[0].update(data);
             else await target.createEmbeddedDocuments("ActiveEffect",[data]);
@@ -5673,7 +5673,7 @@ export class ButtonExecutor {
           img:      action.icon     ?? "icons/svg/aura.svg",
           disabled: !!action.disabled,
           transfer: action.transfer !== false,
-          duration: durationForRounds(rounds),
+          ...effectDurationData(rounds, { renew: true }),
           changes:  (action.changes ?? []).filter(c => c.key),
           origin:   item?.uuid ?? actor?.uuid ?? "",
           flags:    { sd: { sourceItemId: item?.id ?? "" } }

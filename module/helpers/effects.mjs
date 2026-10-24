@@ -1,5 +1,16 @@
 import { getValueDefinitions, valueStoragePath } from "./value-database.mjs";
 
+/** Presentation only: suppression and expiry must not change the user's toggle. */
+export function effectPresentationState(effect) {
+  const status = effect?.duration?.expired ? "Expired"
+    : effect?.isSuppressed ? "Suppressed"
+    : effect?.disabled ? "Disabled"
+    : effect?.active === false ? "Inactive" : "Enabled";
+  const key = `SD.Effects.${status === "Inactive" ? "StatusInactive" : status}`;
+  const localized = globalThis.game?.i18n?.localize?.(key);
+  return { status, inactive: status !== "Enabled", label: localized && localized !== key ? localized : status };
+}
+
 export function prepareActiveEffectCategories(doc) {
   const categories = {
     temporary: {
@@ -21,7 +32,7 @@ export function prepareActiveEffectCategories(doc) {
 
   for (const effect of doc.allApplicableEffects?.() ?? doc.effects) {
     effect.sourceName;
-    if (effect.disabled) {
+    if (effectPresentationState(effect).inactive) {
       categories.inactive.effects.push(effect);
     } else if (effect.isTemporary) {
       categories.temporary.effects.push(effect);

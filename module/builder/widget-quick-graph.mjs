@@ -15,6 +15,7 @@ export function registerQuickActionGraphNodes(definitions) {
     definitions[`quick_${kind}`] = {
       title:step.label, color:"#7356a3", cat:"Flow Control", wideNode:true,
       desc:step.hint, isAction:true,
+      hidden:step.hidden === true, replacement:step.replacement,
       inputs:[{id:"exec",label:"",type:"exec"}], outputs:[{id:"exec",label:"Done →",type:"exec"}],
       fields:step.fields.map(field=>({...field, type:field.type === "checkbox" ? "bool" : ["uuid","file"].includes(field.type) ? "text" : field.type,
         options:typeof field.options === "function" ? (node,graph)=>field.options({scope:graph?.doc?.documentName==="Item"?"item":"actor"}) : field.options})),

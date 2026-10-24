@@ -1,5 +1,6 @@
 import { getValueDefinitions, getValueDefinition, valueStoragePath, decodeVariableRef } from "./value-database.mjs";
 import { enhanceVariableSelectors } from "./variable-selector.mjs";
+import { EFFECT_DURATION_UNITS, effectDurationData, editEffectDuration, effectDurationLabel } from "./effect-duration.mjs";
 
 /**
  * SD Active Effect window.
@@ -82,6 +83,7 @@ export class SDEffectSheet extends DocumentSheetV2 {
     if (this._sdDraft) return this._sdDraft;
     const ef = this.document;
     const defs = getValueDefinitions();
+    const { duration } = effectDurationData(ef?._source?.duration ?? ef?.duration);
     this._sdDraft = {
       name: String(ef?.name ?? ""),
       img: String(ef?.img ?? ef?.icon ?? "icons/svg/aura.svg"),
@@ -89,8 +91,9 @@ export class SDEffectSheet extends DocumentSheetV2 {
       disabled: !!ef?.disabled,
       transfer: !!ef?.transfer,
       mode: effectTransferMode(ef),
-      rounds: Number(ef?.duration?.rounds ?? 0) || 0,
-      seconds: Number(ef?.duration?.seconds ?? 0) || 0,
+      durationValue: duration.value,
+      durationUnits: duration.units,
+      expired: duration.expired,
       changes: (ef?.changes ?? []).map((c, index) => ({
         variableId: ef?.flags?.sd?.variableReferences?.[index] || changeVariableId(c, defs),
         legacyKey: changeVariableId(c, defs) ? "" : String(c?.key ?? ""),
@@ -125,15 +128,12 @@ export class SDEffectSheet extends DocumentSheetV2 {
       ? "fa-shield-halved"
       : (d.mode === "item" ? "fa-lock" : "fa-arrow-right-to-bracket");
 
-    const roundsLabel  = t("SD.Effects.Rounds", "Rounds");
-    const secondsLabel = t("SD.Effects.Seconds", "Seconds");
-    const duration = d.rounds
-      ? `${d.rounds} ${roundsLabel.toLowerCase()}`
-      : (d.seconds ? `${d.seconds} ${secondsLabel.toLowerCase()}` : t("SD.Effects.Permanent", "Permanent"));
+    const duration = effectDurationLabel({ duration: { value: d.durationValue, units: d.durationUnits, expired: d.expired } }) || t("SD.Effects.Permanent", "Permanent");
+    const unitLabel = unit => t(`SD.Effects.${unit[0].toUpperCase()}${unit.slice(1)}`, unit[0].toUpperCase() + unit.slice(1));
 
     const chip = (cls, icon, text) => `<span class="sd-chip sd-es-chip ${cls}"><i class="fas ${icon}"></i>${esc(text)}</span>`;
     const chips = [
-      d.disabled ? chip("is-off", "fa-circle-pause", t("SD.Effects.Disabled", "Disabled")) : chip("is-on", "fa-circle-play", t("SD.Effects.Active", "Active")),
+      d.expired ? chip("is-off", "fa-hourglass-end", t("SD.Effects.Expired", "Expired")) : d.disabled ? chip("is-off", "fa-circle-pause", t("SD.Effects.Disabled", "Disabled")) : chip("is-on", "fa-circle-play", t("SD.Effects.Active", "Active")),
       chip("", "fa-hourglass-half", duration),
       chip("active", "fa-sliders", `${d.changes.length} ${t("SD.Effects.Changes", "Changes")}`),
       isItem
@@ -195,8 +195,8 @@ export class SDEffectSheet extends DocumentSheetV2 {
         <div class="sd-form-grid">
           <label class="sd-span-2"><span>${esc(t("SD.Effects.Description", "Description"))}</span><textarea class="sd-textarea" name="description" rows="3" placeholder="${esc(t("SD.Effects.DescriptionPlaceholder", "What does this effect do?"))}" ${canEdit ? "" : "readonly"}>${esc(d.description)}</textarea></label>
           <div class="sd-form-row">
-            <label>${esc(roundsLabel)} <input class="sd-input" type="number" min="0" name="rounds" value="${d.rounds}" ${lock}></label>
-            <label>${esc(secondsLabel)} <input class="sd-input" type="number" min="0" name="seconds" value="${d.seconds}" ${lock}></label>
+            <label>${esc(t("SD.Effects.Duration", "Duration"))} <input class="sd-input" type="number" min="0" step="any" name="durationValue" value="${d.durationValue ?? ""}" placeholder="${esc(t("SD.Effects.Permanent", "Permanent"))}" ${lock}></label>
+            <label>${esc(t("SD.Effects.Units", "Units"))} <select class="sd-select" name="durationUnits" ${lock}>${EFFECT_DURATION_UNITS.map(unit => `<option value="${unit}" ${unit === d.durationUnits ? "selected" : ""}>${esc(unitLabel(unit))}</option>`).join("")}</select></label>
             ${sw("disabled", t("SD.Effects.Disabled", "Disabled"), t("SD.Effects.DisabledHint", "Keeps the effect on the document but stops applying it."), d.disabled)}
           </div>
           ${transferBlock}
@@ -229,8 +229,9 @@ export class SDEffectSheet extends DocumentSheetV2 {
     const val = (sel, fb) => root.querySelector(sel)?.value ?? fb;
     d.name = String(val('[name="name"]', d.name));
     d.description = String(val('[name="description"]', d.description));
-    d.rounds = Number(val('[name="rounds"]', d.rounds)) || 0;
-    d.seconds = Number(val('[name="seconds"]', d.seconds)) || 0;
+    const durationValue = val('[name="durationValue"]', d.durationValue ?? "");
+    d.durationValue = durationValue === "" ? null : Math.max(0, Number(durationValue) || 0);
+    d.durationUnits = val('[name="durationUnits"]', d.durationUnits);
     d.disabled = !!root.querySelector('[name="disabled"]')?.checked;
     const modeEl = root.querySelector('[name="transferMode"]');
     if (modeEl) {
@@ -285,8 +286,7 @@ export class SDEffectSheet extends DocumentSheetV2 {
       transfer: d.transfer,
       changes,
       "flags.sd.variableReferences": d.changes.filter(c=>c.variableId ? valueStoragePath(c.variableId) : c.legacyKey).map(c=>c.variableId||""),
-      "duration.rounds": d.rounds || null,
-      "duration.seconds": d.seconds || null
+      ...editEffectDuration(this.document, { value: d.durationValue, units: d.durationUnits })
     };
 
     const parentDoc = this.document?.parent ?? null;
@@ -340,7 +340,7 @@ export class SDEffectSheet extends DocumentSheetV2 {
     });
 
     // Keep the header chips (Active / duration / change count) in sync while editing.
-    root.querySelectorAll('[name="disabled"], [name="transfer"], [name="transferMode"], [name="rounds"], [name="seconds"]').forEach(el => {
+    root.querySelectorAll('[name="disabled"], [name="transfer"], [name="transferMode"], [name="durationValue"], [name="durationUnits"]').forEach(el => {
       el.addEventListener("change", async () => {
         this._collect();
         await this.render();
