@@ -1656,6 +1656,7 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
       scope.addEventListener("change", async () => {
         const list = foundry.utils.deepClone(variables);
         list[index].scope = scope.value;
+        if (scope.value !== "instance") list[index].exposeOnSpawn = false;
         await save(list);
       });
 
@@ -1675,7 +1676,7 @@ export class SDUIWidgetEditor extends HandlebarsApplicationMixin(ItemSheetV2) {
         await save(list);
       }, "is-danger");
 
-      const expose=document.createElement("label"),check=document.createElement("input");check.type="checkbox";check.checked=!!variable.exposeOnSpawn;check.addEventListener("change",async()=>{const list=foundry.utils.deepClone(variables);list[index].exposeOnSpawn=check.checked;await save(list)});expose.append(check,document.createTextNode("Spawn"));
+      const expose=document.createElement("label"),check=document.createElement("input");check.type="checkbox";check.disabled=variable.scope!=="instance";check.title="Spawn inputs are instance-only; use Set Blueprint Variable for persistent scopes";check.checked=variable.scope==="instance"&&!!variable.exposeOnSpawn;check.addEventListener("change",async()=>{const list=foundry.utils.deepClone(variables);list[index].exposeOnSpawn=check.checked;await save(list)});expose.append(check,document.createTextNode("Spawn"));
       row.append(name, type, scope, dflt, expose, remove);
       host.appendChild(row);
     }

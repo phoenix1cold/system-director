@@ -29,7 +29,7 @@ import { resolveAudienceUsers, dispatchOpen, dispatchClose, dispatchSetVar, disp
 import { resolveEventPin } from "./ui-widget-events.mjs";
 
 const OWNER = MODULE_ID;
-const CATEGORY = "UI Widget";
+const CATEGORY = "UI Widget (Advanced)";
 
 let _lastInstanceId = "";
 
@@ -253,7 +253,10 @@ export function installActionHandlers() {
       ui.notifications?.warn?.(game.i18n.format("SDUI.Runtime.MissingWidget", { key }));
       return "";
     }
-    const actor = resolveActor(action.owningActor, ctx.actor ?? ctx.item);
+    const actor = resolveActor(await ctx.resolveValue(action.owningActor), ctx.actor ?? ctx.item);
+    const vars = {};
+    for (const [name, value] of Object.entries(parseVars(action.vars))) vars[name] = await ctx.resolveValue(value);
+    const contextItem = await ctx.resolveValue(action.contextItem);
     const targets = resolveAudienceUsers(action.audience ?? AUDIENCES.self, {
       actor,
       userList: action.users ?? "",
@@ -263,9 +266,9 @@ export function installActionHandlers() {
       widgetKey: key,
       targets,
       actorUuid: actor?.uuid ?? "",
-      itemUuid: String(action.contextItem ?? "").replace(/^['"]|['"]$/g, ""),
+      itemUuid: contextItem?.uuid ?? String(contextItem ?? "").replace(/^['"]|['"]$/g, ""),
       mode: action.mode ?? "",
-      vars: parseVars(action.vars),
+      vars,
       unique: action.unique !== "no",
       title: action.title ?? ""
     });

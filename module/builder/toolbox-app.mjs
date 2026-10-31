@@ -53,8 +53,8 @@ export class Toolbox extends HandlebarsApplicationMixin(ApplicationV2) {
   async _prepareContext(options) {
     const base = await super._prepareContext(options);
 
-    const { WIDGET_TYPES: _WR, WIDGET_PALETTE_ORDER } = await import("./widget-registry.mjs");
-    const WIDGET_TYPES = WIDGET_PALETTE_ORDER
+    const { WIDGET_TYPES: _WR, getWidgetPaletteOrder } = await import("./widget-registry.mjs");
+    const WIDGET_TYPES = getWidgetPaletteOrder()
       .map(id => _WR[id])
       .filter(Boolean)
       .map(w => ({ id: w.id, label: w.label, icon: "fas " + w.icon, desc: w.desc ?? "" }));

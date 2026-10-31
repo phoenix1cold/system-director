@@ -56,7 +56,7 @@ const FIELD_DEFS = {
   text:      [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["Value Formula","valueFormula","formula"],["Read Only","readOnly","boolean"]],
   number:    [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["Min","min","text"],["Max","max","text"],["Step","step","number"]],
   resource:  [["Display Name","label"],["Widget Key","widgetKey","text"],["Value Property","pathValue","path"],["Maximum Property","pathMax","path"]],
-  button:    [["Label","label"],["Widget Key","widgetKey","text"],["FA Icon (e.g. fa-bolt)","icon","text"],["Chat Flavor / Message","flavor","text"]],
+  button:    [["Label","label"],["Widget Key","widgetKey","text"],["Roll / Actions","easyConfig","easybutton"],["FA Icon (e.g. fa-bolt)","icon","text"],["Chat Flavor / Message","flavor","text"]],
   toggle:    [["Display Name","label"],["Widget Key","widgetKey","text"],["Bound Property","path","path"],["On Label","onLabel","text"],["Off Label","offLabel","text"]],
   section:   [["Section Title","label"],["Widget Key","widgetKey","text"]],
   vsection:  [["Title","label"],["Widget Key","widgetKey","text"]],
@@ -521,28 +521,8 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       </div>`;
     }
 
-    if (type === "easybutton") {
-      const diceCount = Array.isArray(w.diceTerms) ? w.diceTerms.length : 0;
-      const modifierCount = (Array.isArray(w.variableTerms) ? w.variableTerms.length : 0)
-        + (Array.isArray(w.widgetTerms) ? w.widgetTerms.length : 0);
-      return `
-      <div class="wcfg-f wcfg-easy-button-block" style="margin-bottom:10px;padding:10px;border:1px solid var(--sd-border);border-radius:6px;background:var(--sd-bg-2)">
-        <label class="wcfg-lbl">${esc(lbl)}</label>
-        <div style="font-size:10px;color:var(--sd-text-3);margin:3px 0 8px;line-height:1.45">Edit the custom formula or rebuild the roll from any number of dice, Database variables and widget values.</div>
-        <div class="wcfg-easy-summary" style="padding:7px 9px;margin-bottom:8px;border-radius:4px;background:var(--sd-bg);font:11px 'Courier New',monospace;color:var(--sd-accent-2);overflow:auto;white-space:nowrap">${esc(w.formula ?? w.customFormula ?? "1d20")}</div>
-        <div class="wcfg-easy-meta" style="font-size:9px;color:var(--sd-text-3);margin-bottom:8px">${w.easyMode === "actions" ? `Actions · ${(w.actionSteps ?? []).length} step${(w.actionSteps ?? []).length === 1 ? "" : "s"}` : w.easyMode === "formula" ? "Custom Formula" : `Constructor · ${diceCount} dice group${diceCount === 1 ? "" : "s"} · ${modifierCount} modifier${modifierCount === 1 ? "" : "s"}`}</div>
-        <button type="button" data-open-easy-button style="width:100%;padding:7px 10px;border:1px solid var(--sd-accent);border-radius:5px;background:color-mix(in srgb,var(--sd-accent) 14%,var(--sd-bg));color:var(--sd-accent);cursor:pointer;font-weight:700"><i class="fas fa-dice-d20"></i> OPEN EASY BUTTON CONSTRUCTOR</button>
-        <input type="hidden" data-easy-field="easyMode" data-field="easyMode" data-ftype="text" value="${esc(w.easyMode ?? "constructor")}">
-        ${["advFormula","disFormula","rollDialogue","rollMode","rollComposer","composerTitle","composerMessage"].map(key=>`<input type="hidden" data-easy-field="${key}" data-field="${key}" data-ftype="${["rollDialogue","rollComposer"].includes(key)?"boolean":"text"}" value="${esc(w[key] ?? (["rollDialogue","rollComposer"].includes(key)?false:""))}">`).join("")}
-        <input type="hidden" data-easy-field="customFormula" data-field="customFormula" data-ftype="text" value="${esc(w.customFormula ?? w.formula ?? "1d20")}">
-        <input type="hidden" data-easy-field="formula" data-field="formula" data-ftype="text" value="${esc(w.formula ?? "1d20")}">
-        <input type="hidden" data-easy-field="diceTerms" data-field="diceTerms" data-ftype="json" value="${esc(JSON.stringify(w.diceTerms ?? [{count:1,sides:20}]))}">
-        <input type="hidden" data-easy-field="variableTerms" data-field="variableTerms" data-ftype="json" value="${esc(JSON.stringify(w.variableTerms ?? []))}">
-        <input type="hidden" data-easy-field="widgetTerms" data-field="widgetTerms" data-ftype="json" value="${esc(JSON.stringify(w.widgetTerms ?? []))}">
-        <input type="hidden" data-easy-field="rollPresets" data-field="rollPresets" data-ftype="jsonobj" value="${esc(JSON.stringify(w.rollPresets ?? null))}">
-        <input type="hidden" data-easy-field="actionSteps" data-field="actionSteps" data-ftype="json" value="${esc(JSON.stringify(w.actionSteps ?? []))}">
-      </div>`;
-    }
+    // Button behaviour is configured exclusively by the shared Quick Actions row.
+    if (type === "easybutton") return "";
 
     if (type === "color") {
       const safeColor = _isHexColor(cur) ? cur.trim() : "var(--sd-accent)";
@@ -742,8 +722,11 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     return "main";
   };
   const _rowsFor = (tabId) => fields.filter(f => _tabForField(f) === tabId).map(_renderFieldRow).join("");
-  const sharedGraphRow = `<div class="wcfg-shared-blueprint"><div><b><i class="fas fa-diagram-project"></i> Sheet Blueprint</b><small>One graph for every widget and event on this sheet.</small></div><button type="button" data-open-sheet-blueprint title="Open Sheet Blueprint" aria-label="Open Sheet Blueprint"><i class="fas fa-arrow-up-right-from-square"></i></button></div>`;
-  const _quickCfg = (w.quickActions && typeof w.quickActions === "object") ? w.quickActions : { event: "click", steps: [] };
+  // The Sheet Blueprint graph button is a Nexus surface; Lite keeps Quick Actions only.
+  const sharedGraphRow = globalThis.CONFIG?.SD?.liteMode ? "" : `<div class="wcfg-shared-blueprint"><div><b><i class="fas fa-diagram-project"></i> Sheet Blueprint</b><small>One graph for every widget and event on this sheet.</small></div><button type="button" data-open-sheet-blueprint title="Open Sheet Blueprint" aria-label="Open Sheet Blueprint"><i class="fas fa-arrow-up-right-from-square"></i></button></div>`;
+  const { buttonQuickActions, applyButtonQuickActions } = await import("./easy-button-wizard.mjs");
+  const isActionButton = ["button", "easyButton"].includes(w.type);
+  const _quickCfg = isActionButton ? buttonQuickActions(w) : (w.quickActions && typeof w.quickActions === "object") ? w.quickActions : { event: "click", steps: [] };
   const _quickCount = Array.isArray(_quickCfg.steps) ? _quickCfg.steps.length : 0;
   const quickActionsRow = `<div class="wcfg-shared-blueprint wcfg-quick-actions">
     <div><b><i class="fas fa-wand-magic-sparkles"></i> Quick Actions</b><small class="wcfg-quick-summary">${_quickCount ? `${esc(_quickCfg.event || "click")} · ${_quickCount} step${_quickCount === 1 ? "" : "s"}` : "Roll, message, damage… saved as connected Sheet Blueprint nodes."}</small></div>
@@ -802,6 +785,14 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
   const ICON_MAP = { text:"fa-font", number:"fa-hashtag", resource:"fa-heart-pulse", dice:"fa-dice-d20", easyButton:"fa-dice-d20", button:"fa-square-bolt", toggle:"fa-toggle-on", section:"fa-minus", richtext:"fa-align-left", attribute:"fa-chart-bar", skill:"fa-list-check", slot:"fa-layer-group", inventory:"fa-backpack", effects:"fa-sparkles", spellbook:"fa-book-sparkles" };
 
   popup.innerHTML = `
+    <style>
+      .sd-wcfg-popup .wcfg-panel-fields{min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable}
+      .sd-wcfg-popup .wcfg-tabpane{flex:none;min-width:0}
+      .sd-wcfg-popup .wcfg-f{min-width:0;flex:none}
+      .sd-wcfg-popup .wcfg-f>label{display:block;text-align:left;white-space:normal;text-transform:none}
+      .sd-wcfg-popup input:not([type=checkbox]),.sd-wcfg-popup select,.sd-wcfg-popup textarea{box-sizing:border-box;max-width:100%;min-width:0;border-radius:6px;padding:6px 8px}
+      .sd-wcfg-popup .wcfg-footer{flex:none;gap:8px}
+    </style>
     <!-- Header -->
     <div id="wcfg-hdr" class="wcfg-hero" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--sd-popover-bg,var(--sd-bg));border-bottom:1px solid var(--sd-border);flex-shrink:0;cursor:move">
       <span style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--sd-accent)">
@@ -1543,7 +1534,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
         row2.querySelector(".wb-widget-type")?.addEventListener("change", async ev2 => {
           const oldLabel = wbEls[idx].widget?.label || wbEls[idx].label || "";
           let nested = createWidget(ev2.target.value, oldLabel ? { label: oldLabel } : {});
-          if (ev2.target.value === "easyButton") {
+          if (["button", "easyButton"].includes(ev2.target.value)) {
             const { openEasyButtonWizard } = await import("./easy-button-wizard.mjs");
             const configured = await openEasyButtonWizard(nested, doc, { tabs: doc?.system?.customTabs ?? [], additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
             if (!configured) { wbRender(); return; }
@@ -1600,7 +1591,7 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
       const rect = surface.getBoundingClientRect();
       const def = WIDGET_TYPES[type];
       let nested = createWidget(type);
-      if (type === "easyButton") {
+      if (["button", "easyButton"].includes(type)) {
         const { openEasyButtonWizard } = await import("./easy-button-wizard.mjs");
         const configured = await openEasyButtonWizard(nested, doc, { tabs: doc?.system?.customTabs ?? [], additionalWidgets: wbEls.map(el => el?.widget).filter(Boolean) });
         if (!configured) return;
@@ -1653,38 +1644,15 @@ export async function openWidgetConfigPopup(w, tab, row, doc, options = {}) {
     const edited = await openQuickActionsEditor(current, doc, { title: `${labelField?.value || w.label || "Widget"} — quick actions`, label: labelField?.value || w.label || "", id: w.id });
     if (!edited) return;
     if (hidden) hidden.value = JSON.stringify(edited);
-    await saveWidgetQuickSettings(doc,w,{quickActions:edited});
-    w.quickActions=foundry.utils.deepClone(edited);
+    const changes = isActionButton ? applyButtonQuickActions(w, edited) : {quickActions:edited};
+    await saveWidgetQuickSettings(doc,w,changes);
+    Object.assign(w, foundry.utils.deepClone(changes));
     const summary = popup.querySelector(".wcfg-quick-summary");
     if (summary) summary.textContent = edited.steps.length ? `${edited.event} · ${edited.steps.length} step${edited.steps.length === 1 ? "" : "s"}` : "Roll, message, damage… saved as connected Sheet Blueprint nodes.";
     const icon = popup.querySelector("[data-open-quick-actions] i");
     if (icon) icon.className = `fas ${edited.steps.length ? "fa-pen" : "fa-plus"}`;
   });
 
-  popup.querySelector("[data-open-easy-button]")?.addEventListener("click", async () => {
-    const { openEasyButtonWizard } = await import("./easy-button-wizard.mjs");
-    const updated = await openEasyButtonWizard(w, doc, {
-      tabs: doc?.system?.customTabs ?? [],
-      edit: true,
-      startPage: "mode"
-    });
-    if (!updated) return;
-    await saveWidgetQuickSettings(doc,w,updated);
-    Object.assign(w, updated);
-    for (const key of ["easyMode", "customFormula", "formula", "diceTerms", "variableTerms", "widgetTerms", "actionSteps", "rollPresets", "advFormula", "disFormula", "rollDialogue", "rollMode", "rollComposer", "composerTitle", "composerMessage"]) {
-      const input = popup.querySelector(`[data-easy-field="${key}"]`);
-      if (!input) continue;
-      input.value = ["diceTerms", "variableTerms", "widgetTerms", "actionSteps", "rollPresets"].includes(key) ? JSON.stringify(updated[key] ?? (key === "rollPresets" ? null : [])) : String(updated[key] ?? "");
-    }
-    const summary = popup.querySelector(".wcfg-easy-summary");
-    if (summary) summary.textContent = updated.formula ?? "1d20";
-    const meta = popup.querySelector(".wcfg-easy-meta");
-    if (meta) {
-      const diceCount = updated.diceTerms?.length ?? 0;
-      const modifierCount = (updated.variableTerms?.length ?? 0) + (updated.widgetTerms?.length ?? 0);
-      meta.textContent = updated.easyMode === "actions" ? `Actions · ${(updated.actionSteps ?? []).length} step${(updated.actionSteps ?? []).length === 1 ? "" : "s"}` : updated.easyMode === "formula" ? "Custom Formula" : `Constructor · ${diceCount} dice group${diceCount === 1 ? "" : "s"} · ${modifierCount} modifier${modifierCount === 1 ? "" : "s"}`;
-    }
-  });
 
   popup.querySelector("#wcfg-open-widget-designer")?.addEventListener("click", async () => {
     const { openSheetWidgetDesigner } = await import("./widget-builder-designer.mjs");

@@ -5,8 +5,9 @@
 // "Actions" mode and stores the compiled list in `formula` (a JSON action array
 // is already understood by the widget button click handler).
 import { openRollPresetsEditor, normalizeRollPresets, buildRollPresetFormula, rollPresetFromFormula, applyRollPresetsToStep } from "./roll-presets.mjs";
+import { normalizeRollOptionals, openRollOptionalsEditor } from "../helpers/roll-optionals.mjs";
 import { openFoundryWindow } from "../helpers/foundry-window-host.mjs";
-import { getValueDefinitions } from "../helpers/value-database.mjs";
+import { getValueDefinitions, decodeVariableRef } from "../helpers/value-database.mjs";
 import { enhanceVariableSelect } from "../helpers/variable-selector.mjs";
 
 const esc = value => String(value ?? "")
@@ -20,6 +21,13 @@ const TARGET_OPTIONS = [
   { value:"all_targets",    label:"All targeted tokens" },
   { value:"selected_token", label:"First selected token" }
 ];
+const DOCUMENT_FIELDS = [
+  { key:"target", label:"Actor", type:"select", default:"actor", options:TARGET_OPTIONS },
+  { key:"ownerType", label:"Variable owner", type:"select", default:"actor", options:optsOwner() },
+  { key:"itemId", label:"Owned item ID / UUID (empty = context item)", type:"text", default:"" },
+  { key:"variableId", label:"Database variable", type:"select", default:"", options:ctx=>variableOptions(ctx.step?.ownerType || "actor"), emptyLabel:"Select variable…" }
+];
+function optsOwner() { return [{value:"actor",label:"Actor Database"},{value:"item",label:"Item Database"}]; }
 const LEVELS = [["info","Info"],["warn","Warning"],["error","Error"]];
 const ROLL_MODES = [["default","Default"],["publicroll","Public"],["gmroll","GM"],["blindroll","Blind"],["selfroll","Self"]];
 const opts = pairs => pairs.map(([value, label]) => ({ value, label }));
@@ -37,6 +45,12 @@ const macroOptions = () => [...(globalThis.game?.macros ?? [])].map(entry => ({ 
 
 /** Step catalog. `fields` drives the editor; `compile(step, ctx)` returns executor actions. */
 export const QUICK_ACTION_STEPS = {
+  legacyActions: {
+    label:"Saved actions (compatibility)", icon:"fa-box-archive", hidden:true,
+    hint:"Original executor actions are preserved. Add new Quick Actions before or after this step.",
+    fields:[{key:"actions",label:"Saved action data",type:"textarea",default:"[]"}],
+    compile:step=>{ const actions=JSON.parse(step.actions); if(!Array.isArray(actions)) throw new Error("Expected an action array"); return actions; }
+  },
   roll: {
     label:"Roll dice", icon:"fa-dice-d20",
     hint:"Rolls a formula and posts the result. Tokens like {system.values.strength} and @attributes work.",
@@ -47,11 +61,12 @@ export const QUICK_ACTION_STEPS = {
       { key:"advFormula", label:"Advantage formula", type:"text", default:"", placeholder:"2d20kh + {system.values.str}" },
       { key:"disFormula", label:"Disadvantage formula", type:"text", default:"", placeholder:"2d20kl + {system.values.str}" },
       { key:"rollMode", label:"Visibility", type:"select", default:"default", options:opts(ROLL_MODES) },
-      { key:"dialog", label:"Ask for modifiers (roll dialog)", type:"checkbox", default:false }
+      { key:"dialog", label:"Ask for modifiers (roll dialog)", type:"checkbox", default:false },
+      { key:"rollOptionals", label:"Optional roll fields", type:"roll-optionals", default:[] }
     ],
     compile:(step, ctx)=>[
       { type:"rollResultV2", mode:"formula", formula:String(step.formula || "1d20"), flavor:String(step.label || ctx.label || "Roll"),
-        rollDialogue:!!step.dialog, advFormula:String(step.advFormula || ""), disFormula:String(step.disFormula || ""), critOn:20, fumbleOn:1,
+        rollDialogue:!!step.dialog || step.rollOptionals.length > 0, rollOptionals:step.rollOptionals, advFormula:String(step.advFormula || ""), disFormula:String(step.disFormula || ""), critOn:20, fumbleOn:1,
         execActions:[{ type:"presentRollResult", result:"{__rollResult}", destination:"chat", label:String(step.label || ctx.label || ""), text:"", rollMode:String(step.rollMode || "default"), area:300, duration:6 }] }
     ]
   },
@@ -105,36 +120,37 @@ export const QUICK_ACTION_STEPS = {
     label:"Set Database variable", icon:"fa-database",
     hint:"Writes, adds to or subtracts from a Database variable of this sheet.",
     fields:[
-      { key:"variableId", label:"Variable", type:"select", default:"", options:(ctx)=>variableOptions(ctx.scope), emptyLabel:"Select variable…" },
+      ...DOCUMENT_FIELDS,
       { key:"operation", label:"Operation", type:"select", default:"set", options:opts([["set","Set to"],["add","Add"],["sub","Subtract"],["toggle","Toggle (boolean)"]]) },
       { key:"value", label:"Value", type:"text", default:"1", placeholder:"1, text, {system.values.other}" }
     ],
-    compile:(step)=>[{ type:"setDatabaseValue", source:"self", itemId:"", variableId:String(step.variableId ?? ""), operation:String(step.operation || "set"), ref:"", value:String(step.value ?? "") }]
+    compile:(step)=> step.target === "actor" && step.ownerType === "actor" && !step.itemId ? [{type:"setDatabaseValue",source:"actor",itemId:"",variableId:step.variableId,operation:step.operation === "sub" ? "subtract" : step.operation,ref:"",value:step.value}] : [{ ...step, type:"quickDocument", operation:step.operation === "sub" ? "subtract" : step.operation, mode:"variable" }]
   },
   damage: {
     label:"Damage", icon:"fa-burst",
     hint:"Posts a damage card (or applies it directly) to the chosen tokens.",
     fields:[
       { key:"amount", label:"Amount", type:"text", default:"1d6", placeholder:"1d6 + 2" },
-      { key:"target", label:"Targets", type:"select", default:"all_targets", options:TARGET_OPTIONS },
+      ...DOCUMENT_FIELDS,
+      { key:"hpPath", label:"Legacy resource path (when no Database variable)", type:"text", default:"system.resources.hp.value" },
       { key:"label", label:"Title", type:"text", default:"Damage" },
       { key:"autoApply", label:"Apply automatically", type:"checkbox", default:false }
     ],
-    compile:(step)=>[{ type:"chatDamage", amount:String(step.amount || "0"), target:String(step.target || "all_targets"), targets:null, label:String(step.label || "Damage"),
-      customText:"", buttonLabel:"Apply Damage", hpPath:"system.resources.hp.value", postToChat:true, autoApply:!!step.autoApply, showApply:true }]
+    compile:(step)=> step.variableId || step.ownerType === "item" ? [{...step,type:"quickDocument",mode:"damage"}] : [{ type:"chatDamage", amount:String(step.amount || "0"), target:String(step.target || "all_targets"), targets:null, label:String(step.label || "Damage"),
+      customText:"", buttonLabel:"Apply Damage", hpPath:step.hpPath || "system.resources.hp.value", postToChat:true, autoApply:!!step.autoApply, showApply:true }]
   },
   heal: {
-    hidden:true, replacement:"act_message_composer + get_value + set_value",
     label:"Heal", icon:"fa-heart-pulse",
     hint:"Posts a healing card (or applies it directly) to the chosen tokens.",
     fields:[
       { key:"amount", label:"Amount", type:"text", default:"1d8", placeholder:"1d8 + 2" },
-      { key:"target", label:"Targets", type:"select", default:"actor", options:TARGET_OPTIONS },
+      ...DOCUMENT_FIELDS,
+      { key:"hpPath", label:"Legacy resource path (when no Database variable)", type:"text", default:"system.resources.hp.value" },
       { key:"label", label:"Title", type:"text", default:"Heal" },
       { key:"autoApply", label:"Apply automatically", type:"checkbox", default:false }
     ],
-    compile:(step)=>[{ type:"chatHeal", amount:String(step.amount || "0"), target:String(step.target || "actor"), targets:null, label:String(step.label || "Heal"),
-      customText:"", buttonLabel:"Apply Healing", hpPath:"system.resources.hp.value", postToChat:true, autoApply:!!step.autoApply, showApply:true }]
+    compile:(step)=> step.variableId || step.ownerType === "item" ? [{...step,type:"quickDocument",mode:"heal"}] : [{ type:"chatHeal", amount:String(step.amount || "0"), target:String(step.target || "actor"), targets:null, label:String(step.label || "Heal"),
+      customText:"", buttonLabel:"Apply Healing", hpPath:step.hpPath || "system.resources.hp.value", postToChat:true, autoApply:!!step.autoApply, showApply:true }]
   },
   status: {
     label:"Status condition", icon:"fa-skull",
@@ -151,9 +167,24 @@ export const QUICK_ACTION_STEPS = {
     hint:"Adds an item to this actor. Drag the item from the sidebar or a compendium into the field.",
     fields:[
       { key:"uuid", label:"Item", type:"uuid", default:"", placeholder:"Drop an item here", accept:["Item"] },
-      { key:"qty", label:"Quantity", type:"number", default:1, min:1 }
+      { key:"qty", label:"Quantity", type:"number", default:1, min:1 },
+      { key:"target", label:"Recipient actor", type:"select", default:"actor", options:TARGET_OPTIONS }
     ],
-    compile:(step)=>[{ type:"createItemArray", items:String(step.uuid ?? ""), qty:Math.max(1, Number(step.qty) || 1), inventoryWidget:"" }]
+    compile:(step)=>[{ ...step, type:"quickDocument", mode:"items", itemOperation:"add" }]
+  },
+  itemOperation: {
+    label:"Item operation", icon:"fa-boxes-stacked",
+    hint:"Add, remove, transfer, use or equip an item. Transfer requires ownership of both actors; use an embedded item UUID to disambiguate duplicates.",
+    fields:[
+      {key:"mode",label:"Operation",type:"select",default:"add",options:opts([["add","Add"],["remove","Remove"],["transfer","Transfer"],["use","Use"],["equip","Equip / unequip"]])},
+      {key:"target",label:"Source / owner actor",type:"select",default:"actor",options:TARGET_OPTIONS},
+      {key:"destination",label:"Transfer recipient",type:"select",default:"token_target",options:TARGET_OPTIONS},
+      {key:"uuid",label:"Item",type:"uuid",default:"",accept:["Item"],placeholder:"Drop item (empty = context item)"},
+      {key:"itemId",label:"Embedded item ID / UUID",type:"text",default:""},
+      {key:"qty",label:"Quantity",type:"number",default:1,min:1},
+      {key:"equipped",label:"Equipped",type:"checkbox",default:true}
+    ],
+    compile:step=>[{...step,type:"quickDocument",mode:"items",itemOperation:step.mode}]
   },
   journal: {
     label:"Show journal", icon:"fa-book-open",
@@ -190,6 +221,21 @@ export const QUICK_ACTION_STEPS = {
     hint:"Pauses before the next step.",
     fields:[{ key:"ms", label:"Milliseconds", type:"number", default:500, min:0, max:60000 }],
     compile:(step)=>[{ type:"delay", duration:String(Math.max(0, Number(step.ms) || 0)) }]
+  },
+  condition: {
+    label:"Condition", icon:"fa-code-branch",
+    hint:"Run different steps depending on a formula. Empty or false runs the Else branch. The formula sees Database variables and runtime tokens.",
+    fields:[
+      { key:"formula", label:"Condition formula (true ≠ 0)", type:"text", default:"", placeholder:"{hp} < 5" },
+      { key:"thenSteps", label:"Then — condition true", type:"substeps" },
+      { key:"elseSteps", label:"Else — condition false", type:"substeps" }
+    ],
+    compile:(step)=>[{
+      type:"runIf",
+      condition:String(step.formula ?? ""),
+      thenActions:compileQuickActions(step.thenSteps ?? []),
+      elseActions:compileQuickActions(step.elseSteps ?? [])
+    }]
   }
 };
 
@@ -207,12 +253,16 @@ export function normalizeQuickStep(source = {}) {
   const step = { id: String(source?.id ?? "") || randomId(), kind };
   for (const field of def.fields) {
     const raw = source?.[field.key];
-    if (field.type === "roll-presets") step[field.key] = raw?.normal && !Array.isArray(raw) ? normalizeRollPresets(raw) : null;
+    if (field.type === "roll-optionals") step[field.key] = normalizeRollOptionals(raw);
+    else if (field.type === "roll-presets") step[field.key] = raw?.normal && !Array.isArray(raw) ? normalizeRollPresets(raw) : null;
+    else if (field.type === "substeps") step[field.key] = (Array.isArray(raw) ? raw : []).map(entry => clone(entry));
     else if (["controls", "buttons"].includes(field.type)) step[field.key] = (Array.isArray(raw) ? raw : []).map((entry,index) => ({...clone(entry), id:String(entry.id || `${field.type === "buttons" ? "btn" : "field"}${index}`), enabled:entry.enabled!==false}));
     else if (field.type === "checkbox") step[field.key] = raw === true || raw === "true" || raw === "yes";
     else if (field.type === "number") step[field.key] = raw === undefined || raw === null || raw === "" ? field.default : Number(raw);
     else step[field.key] = raw === undefined || raw === null ? field.default : String(raw);
   }
+  const variableOwner = decodeVariableRef(step.variableId)?.ownerType;
+  if (["actor", "item"].includes(variableOwner) && "ownerType" in step) step.ownerType = variableOwner;
   return kind === "roll" ? applyRollPresetsToStep(step) : step;
 }
 
@@ -264,12 +314,12 @@ export function uuidFromDrop(event, accept = []) {
 /* ------------------------------------------------------------------ editor */
 
 const STYLE = `
-.sd-quick-actions{height:100%;min-height:0;display:flex;flex-direction:column;background:var(--sd-popover-bg,var(--sd-bg,#171b2b));color:var(--sd-text,#eee);font:13px Signika,sans-serif}
+.sd-quick-actions{height:100%;min-height:0;display:flex;flex-direction:column;background:var(--sd-popover-bg,var(--sd-bg,#171b2b));color:var(--sd-text,#eee);font:13px Arial,sans-serif;overflow:hidden}
 .sdqa-head{padding:14px 18px 10px;border-bottom:1px solid var(--sd-border,#3a4260);background:linear-gradient(120deg,color-mix(in srgb,var(--sd-accent,#7775ff) 18%,transparent),transparent);display:flex;gap:14px;align-items:center}
 .sdqa-head b{display:block;font-size:16px;color:var(--sd-accent,#9290ff)}.sdqa-head small{display:block;color:var(--sd-text-3,#8f96aa);font-size:11px;margin-top:2px}
 .sdqa-head label{margin-left:auto;display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--sd-text-3)}
 .sdqa-body{flex:1;min-height:0;overflow:auto;padding:12px 18px;display:flex;flex-direction:column;gap:10px}
-.sdqa-step{border:1px solid var(--sd-border,#3a4260);border-radius:9px;background:var(--sd-bg-2,#1d2235);overflow:hidden}
+.sdqa-step{flex:0 0 auto;min-width:0;border:1px solid var(--sd-border,#3a4260);border-radius:9px;background:var(--sd-bg-2,#1d2235);overflow:hidden}
 .sdqa-step-head{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sd-bg-3,#232a40);border-bottom:1px solid var(--sd-border,#3a4260)}
 .sdqa-step-head .sdqa-index{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--sd-accent,#7775ff);color:#fff}
 .sdqa-step-head select{flex:1;min-width:0}
@@ -277,7 +327,16 @@ const STYLE = `
 .sdqa-step-head button:hover{background:var(--sd-bg);color:var(--sd-text)}
 .sdqa-step-head button:disabled{opacity:.3;cursor:default}
 .sdqa-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 12px;padding:10px}
-.sdqa-fields label{display:flex;flex-direction:column;gap:3px;min-width:0;font-size:11px;color:var(--sd-text-3,#8f96aa)}
+.sd-quick-actions .sdqa-fields label{display:flex;flex-direction:column;align-items:stretch;text-align:left;white-space:normal;text-transform:none;letter-spacing:normal;gap:4px;min-width:0;margin:0;font-size:12px;color:var(--sd-text-3,#8f96aa)}
+.sd-quick-actions .sdqa-fields label.check{flex-direction:row;align-items:center}
+.sd-quick-actions .sdqa-fields label>span{line-height:1.4}
+.sd-quick-actions .sdqa-fields input:not([type=checkbox]),.sd-quick-actions .sdqa-fields select,.sd-quick-actions .sdqa-fields textarea{width:100%;margin:0}
+.sd-quick-actions .sdqa-fields input[type=checkbox]{flex:0 0 16px;width:16px;height:16px;margin:0}
+.sdqa-file{display:flex;align-items:center;gap:6px;min-width:0}.sdqa-file input{flex:1}.sdqa-file button{flex:0 0 36px}
+.sd-quick-actions .sdqa-head,.sd-quick-actions .sdqa-foot{flex:0 0 auto}
+.sd-quick-actions .sdqa-body{flex:1 1 0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.sd-quick-actions .sdqa-add-row{flex:0 0 auto}
+.sd-quick-actions .sdqa-fields{grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr))}
 .sdqa-fields label.wide{grid-column:1/-1}
 .sdqa-fields label.check{flex-direction:row;align-items:center;gap:8px;color:var(--sd-text);min-width:0;min-height:28px;cursor:pointer}.sdqa-fields label.check>span{min-width:0;flex:1;line-height:1.35}
 .sdqa-fields input:not([type="checkbox"]),.sdqa-fields select,.sdqa-fields textarea,.sdqa-head select{box-sizing:border-box;background:var(--sd-bg,#171b2b);border:1px solid var(--sd-border,#3a4260);border-radius:6px;color:var(--sd-text,#eee);padding:6px 8px;font:inherit;min-width:0;max-width:100%}
@@ -299,6 +358,7 @@ const STYLE = `
 function fieldControl(step, field, ctx) {
   const value = step[field.key];
   const name = `data-step-field="${esc(field.key)}"`;
+  if (field.type === "roll-optionals") return `<div style="grid-column:1/-1"><button type="button" class="sdqa-btn" data-edit-optionals>Optional roll fields (${value.length})</button></div>`;
   if (field.type === "roll-presets") return `<div class="wide" style="grid-column:1/-1"><button type="button" class="sdqa-btn" data-edit-roll-presets>Configure dice & Database modifiers — Normal / Advantage / Disadvantage</button><small style="display:block;margin-top:4px">Choose dice count/sides, keep highest or lowest results, and separate Database modifiers.</small></div>`;
   if (["controls", "buttons"].includes(field.type)) {
     const buttons = field.type === "buttons";
@@ -311,8 +371,9 @@ function fieldControl(step, field, ctx) {
       <button type="button" class="sdqa-btn" data-entry-add="${field.key}">+ Add ${buttons?"button":"field"}</button></div>`;
   }
   if (field.type === "checkbox") return `<label class="check"><input type="checkbox" ${name} ${value ? "checked" : ""}><span>${esc(field.label)}</span></label>`;
+  if (field.type === "substeps") return `<div class="wide" style="grid-column:1/-1;display:flex;align-items:center;gap:8px"><b style="flex:1">${esc(field.label)}</b><button type="button" class="sdqa-btn" data-substeps-edit="${esc(field.key)}">Steps (${(value ?? []).length})</button></div>`;
   if (field.type === "select") {
-    const options = typeof field.options === "function" ? field.options(ctx) : field.options;
+    const options = typeof field.options === "function" ? field.options({...ctx, step}) : field.options;
     const known = options.some(option => String(option.value) === String(value ?? ""));
     return `<label><span>${esc(field.label)}</span><select ${name}>
       ${field.emptyLabel ? `<option value="">${esc(field.emptyLabel)}</option>` : ""}
@@ -332,7 +393,7 @@ function fieldControl(step, field, ctx) {
         ${value ? `<button type="button" data-clear-field="${esc(field.key)}" title="Clear"><i class="fas fa-xmark"></i></button>` : ""}
       </div></label>`;
   }
-  if (field.type === "file") return `<label class="wide"><span>${esc(field.label)}</span><div style="display:flex;gap:6px"><input type="text" ${name} value="${esc(value)}" style="flex:1"><button type="button" class="sdqa-btn" data-pick-file="${esc(field.key)}" data-file-type="${esc(field.fileType ?? "audio")}" title="Browse"><i class="fas fa-folder-open"></i></button></div></label>`;
+  if (field.type === "file") return `<label class="wide"><span>${esc(field.label)}</span><div class="sdqa-file"><input type="text" ${name} value="${esc(value)}" style="flex:1"><button type="button" class="sdqa-btn" data-pick-file="${esc(field.key)}" data-file-type="${esc(field.fileType ?? "audio")}" title="Browse"><i class="fas fa-folder-open"></i></button></div></label>`;
   if (field.type === "number") return `<label><span>${esc(field.label)}</span><input type="number" ${name} value="${esc(value)}" step="${esc(field.step ?? 1)}" ${field.min !== undefined ? `min="${field.min}"` : ""} ${field.max !== undefined ? `max="${field.max}"` : ""}></label>`;
   return `<label><span>${esc(field.label)}</span><input type="text" ${name} value="${esc(value)}" placeholder="${esc(field.placeholder ?? "")}"></label>`;
 }
@@ -403,7 +464,8 @@ export function openQuickActionsEditor(config = {}, doc = null, options = {}) {
       </div>`;
     };
     const render = () => {
-      root.innerHTML = `<style>${STYLE}</style>
+      const scrollTop = root.querySelector(".sdqa-body")?.scrollTop ?? 0;
+      root.innerHTML = `<style>${STYLE.replaceAll(".sdqa", ".sd-quick-actions .sdqa").replaceAll(".sd-quick-actions .sd-quick-actions ", ".sd-quick-actions ")}</style>
         <div class="sdqa-head">
           <div><b>${esc(options.title ?? "Quick Actions")}</b><small>Steps run top to bottom. Saving the widget creates connected nodes in the Sheet Blueprint.</small></div>
           ${showEvent ? `<label><span>Run on</span><select data-event>${QUICK_ACTION_EVENTS.map(e => `<option value="${e.value}" ${e.value === state.event ? "selected" : ""}>${esc(e.label)}</option>`).join("")}</select></label>` : ""}
@@ -418,17 +480,24 @@ export function openQuickActionsEditor(config = {}, doc = null, options = {}) {
           <button type="button" class="sdqa-btn primary" data-save><i class="fas fa-check"></i> Save</button>
         </div>`;
       bind();
+      root.querySelector(".sdqa-body").scrollTop = scrollTop;
     };
     const bind = () => {
       root.querySelectorAll('select[data-step-field="variableId"]').forEach(select => {
         select.dataset.variableRef = state.steps[Number(select.closest('[data-step-index]').dataset.stepIndex)]?.variableId ?? "";
-        enhanceVariableSelect(select, { ownerType: ctx.scope });
+        const binding = enhanceVariableSelect(select, { ownerType: state.steps[Number(select.closest('[data-step-index]').dataset.stepIndex)]?.ownerType || ctx.scope, allowWorld:false });
+        if (binding) select.addEventListener("change", () => {
+          const owner = select.closest('[data-step-index]').querySelector('[data-step-field="ownerType"]');
+          if (owner && ["actor","item"].includes(binding.owner.value)) owner.value = binding.owner.value;
+        });
       });
       root.querySelectorAll("[data-add]").forEach(button => button.addEventListener("click", () => {
         sync(); state.steps.push(normalizeQuickStep({ kind: button.dataset.add })); render();
       }));
       root.querySelectorAll("[data-step-index]").forEach(card => {
         const index = Number(card.dataset.stepIndex);
+        card.querySelector('[data-edit-optionals]')?.addEventListener('click', async () => { sync(); const result=await openRollOptionalsEditor(state.steps[index].rollOptionals); if(result) state.steps[index].rollOptionals=result; render(); });
+        card.querySelector('[data-step-field="ownerType"]')?.addEventListener("change", () => { sync(); state.steps[index].variableId=""; render(); });
         card.querySelector("[data-step-kind]")?.addEventListener("change", event => {
           sync(); state.steps[index] = normalizeQuickStep({ id: state.steps[index].id, kind: event.target.value }); render();
         });
@@ -460,6 +529,11 @@ export function openQuickActionsEditor(config = {}, doc = null, options = {}) {
           sync(); const entry=state.steps[index].buttons[Number(button.dataset.entryActions)];
           const result=await openQuickActionsEditor({steps:entry.steps},doc,{showEvent:false,title:`${entry.label} — actions`});
           if (result) entry.steps=result.steps; render();
+        }));
+        card.querySelectorAll("[data-substeps-edit]").forEach(button => button.addEventListener("click", async () => {
+          sync(); const key=button.dataset.substepsEdit;
+          const result=await openQuickActionsEditor({steps:state.steps[index][key] ?? []},doc,{showEvent:false,title:key==="thenSteps"?"Condition — Then":"Condition — Else"});
+          if (result) state.steps[index][key]=result.steps; render();
         }));
         card.querySelectorAll("[data-clear-field]").forEach(button => button.addEventListener("click", () => {
           sync(); state.steps[index][button.dataset.clearField] = ""; render();

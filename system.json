@@ -2,7 +2,7 @@
   "id": "sd",
   "title": "System Director",
   "description": "System Director Nexus - create your own system.",
-  "version": "2.4.7",
+  "version": "2.5.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
@@ -25,6 +25,7 @@
     "styles/sd-widget-modern.css",
     "styles/sd-native-ui.css",
     "styles/shared-database.css",
+    "styles/trading.css",
     "styles/ui-blueprint.css",
     "styles/model-viewer.css",
     "styles/editor-shell.css",

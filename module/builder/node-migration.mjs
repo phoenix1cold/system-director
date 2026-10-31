@@ -399,9 +399,12 @@ const NODE_CUSTOM_MIGRATIONS = {
       if (!edge) continue;
       edge.toNode = make.id; edge.toPin = `v${index++}`;
     }
-    edges.push({ fromNode: make.id, fromPin: "v", toNode: node.id, toPin: "a" });
+    edges.push({ fromNode: make.id, fromPin: "v", toNode: node.id, toPin: "a0" });
+    for (const edge of edges) {
+      if (edge.fromNode === node.id && edge.fromPin === "v") edge.fromPin = "arr";
+    }
     node.type = "arr_random_from";
-    node.data = {};
+    node.data = { n: 1 };
     return 1;
   },
 

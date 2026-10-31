@@ -61,7 +61,9 @@
 }
 
 .sd .window-content,
-.sd .window-content * { box-sizing: border-box; margin: 0; padding: 0; }
+.sd .window-content * { box-sizing: border-box; }
+/* A zero-specificity reset must never override editor/card spacing. */
+:where(.sd .window-content, .sd .window-content *) { margin: 0; padding: 0; }
 
 .sd {
   font-family: var(--sd-font);
@@ -398,7 +400,9 @@ button:not(:where(.window-header button, .window-controls button, .header-contro
   zoom: var(--sd-ui-scale, 1);
 }
 
-.sd .window-content > div { display: contents; }
+/* Only sheet template wrappers are flattened, never standalone editors. */
+.sd.sheet .window-content > div[data-part],
+.sd.item-sheet .window-content > div[data-part] { display: contents; }
 
 .sd .sheet-header {
   display: flex;

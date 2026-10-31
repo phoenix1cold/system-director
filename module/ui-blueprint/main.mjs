@@ -14,7 +14,7 @@ import {
   resolveInstance, setInstanceField, snapshotRegistry
 } from "./ui-widget-registry.mjs";
 import { installSocket, setNetHandlers, resolveAudienceUsers, dispatchOpen, dispatchClose, dispatchSetVar, dispatchBroadcast } from "./ui-widget-net.mjs";
-import { BLUEPRINT_SCHEMA_VERSION, migrateBlueprintData } from "./ui-widget-blueprint.mjs";
+import { BLUEPRINT_SCHEMA_VERSION, migrateBlueprintData, normalizeSpawnValues } from "./ui-widget-blueprint.mjs";
 import { initBlueprintNodes } from "./ui-widget-blueprint-nodes.mjs";
 
 globalThis.SD ??= {};
@@ -62,6 +62,7 @@ async function openLocal({ widgetKey, actorUuid = "", itemUuid = "", mode = "", 
     ui.notifications?.warn?.(game.i18n.format("SDUI.Runtime.MissingWidget", { key: widgetKey }));
     return null;
   }
+  vars = normalizeSpawnValues(item.system, vars);
   if (unique) {
     const existing = findInstancesByKey(item.system.blueprintId ?? item.system.widgetKey)[0];
     if (existing) {

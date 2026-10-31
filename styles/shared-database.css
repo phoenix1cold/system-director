@@ -11,7 +11,7 @@
 .sd-db-app .sd-db-input:focus, .sd-db-app textarea:focus { outline:none; border-color:var(--sd-accent,#8b7cff); box-shadow:0 0 0 3px var(--sd-accent-glow,rgba(139,124,255,.18)); }
 .sd-db-app .sd-db-input::placeholder, .sd-db-app textarea::placeholder { color:var(--sd-text-3,#7f8ba8); opacity:.8; }
 
-.sd-db-head { display:flex; align-items:center; gap:14px; padding:14px 18px; border-bottom:1px solid var(--sd-border,#35425f); background:linear-gradient(180deg, var(--sd-bg-2,#171c2a), var(--sd-bg,#10131d)); }
+.sd-db-head { display:flex; flex-wrap:wrap; align-items:center; gap:14px; padding:14px 18px; border-bottom:1px solid var(--sd-border,#35425f); background:linear-gradient(180deg, var(--sd-bg-2,#171c2a), var(--sd-bg,#10131d)); }
 .sd-db-head-icon { width:40px; height:40px; flex:none; display:grid; place-items:center; border-radius:12px; font-size:17px; color:var(--sd-accent-text,#10131d); background:linear-gradient(135deg, var(--sd-accent,#8b7cff), var(--sd-accent-alt,#4fd5c7)); box-shadow:0 6px 18px var(--sd-accent-glow,rgba(139,124,255,.18)); }
 .sd-db-head-text { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .sd-db-head-text h2 { margin:0; font-size:16px; font-weight:700; letter-spacing:.01em; color:var(--sd-text,#f2f4ff); border:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -85,7 +85,7 @@
 .sd-db-draft-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .sd-db-badge { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 9px; border-radius:999px; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
 .sd-db-badge-new { color:var(--sd-accent,#8b7cff); background:var(--sd-bg,#10131d); border:1px solid var(--sd-accent-dim,rgba(139,124,255,.46)); }
-.sd-db-draft-grid { display:grid; grid-template-columns:minmax(150px,1.5fr) 150px 130px minmax(160px,1.3fr); gap:10px; align-items:end; }
+.sd-db-draft-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr)); gap:10px; align-items:end; }
 .sd-db-draft-grid label { display:flex; flex-direction:column; gap:4px; min-width:0; }
 .sd-db-draft-grid label > span { font-size:10px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--sd-label,#9ba7c3); }
 .sd-db-draft-grid .sd-db-complex { height:30px; }
@@ -115,6 +115,22 @@
   .sd-db-row { grid-template-columns:34px minmax(120px,1fr) 28px; }
   .sd-db-row-control { grid-column:1 / -1; }
   .sd-db-draft-grid { grid-template-columns:1fr 1fr; }
+}
+
+/* Local editor geometry must not inherit the sheet's centered uppercase labels. */
+.sd-value-database-app .sd-db-app { display:flex; container-type:inline-size; }
+.sd-db-app :is(.sd-db-head,.sd-db-stats,.sd-db-foot) { flex:none; }
+.sd-db-app .sd-db-head-text { flex:1 1 220px; }
+.sd-db-app label { text-transform:none;letter-spacing:normal;white-space:normal;text-align:left;align-items:stretch; }
+.sd-db-app label.sd-db-search { align-items:center;text-align:left; }
+.sd-db-app .sd-db-draft-grid label { gap:6px; }
+.sd-db-app input.sd-db-input { height:32px;padding:6px 9px;text-align:left; }
+.sd-db-app .sd-db-section { flex:none; }
+.sd-db-app .sd-db-foot { flex-wrap:wrap; }
+@container (max-width:600px) {
+  .sd-db-app .sd-db-row { grid-template-columns:34px minmax(0,1fr) 28px; }
+  .sd-db-app .sd-db-row-control { grid-column:1/-1;grid-row:2; }
+  .sd-db-app .sd-db-search { width:auto;flex:1 1 180px; }
 }
 
 /* ---- AOE capture companion panel (Region tools / Measured Template Mode) ---- */

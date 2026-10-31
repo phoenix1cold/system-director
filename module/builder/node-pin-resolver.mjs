@@ -6,10 +6,12 @@
  * debugger and AI assistant from disagreeing about the graph contract.
  */
 
-function _appendUnique(target, values) {
+function _appendUnique(target, values, override = false) {
   for (const pin of (Array.isArray(values) ? values : [])) {
-    if (!pin?.id || target.some(existing => existing.id === pin.id)) continue;
-    target.push(pin);
+    if (!pin?.id) continue;
+    const index = target.findIndex(existing => existing.id === pin.id);
+    if (index < 0) target.push(pin);
+    else if (override) target[index] = { ...target[index], ...pin };
   }
 }
 
@@ -46,7 +48,7 @@ export function resolveNodePins(definition, node, side, options = {}) {
   const computed = side === "output"
     ? definition.computeDynamicOutputs
     : definition.computeDynamicInputs;
-  _appendUnique(pins, _evaluatePins(computed, node, context));
+  _appendUnique(pins, _evaluatePins(computed, node, context), true);
 
   if (side === "output" && options.includeCatalogOutputs) {
     _appendUnique(pins, _evaluatePins(definition.catalogOutputs, node, context));

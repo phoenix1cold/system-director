@@ -1,3 +1,4 @@
+import { sdFlags } from "./document-flags.mjs";
 const applicationApi = globalThis.foundry?.applications?.api ?? {};
 const ApplicationV2 = applicationApi.ApplicationV2 ?? class ApplicationV2Fallback {};
 const HandlebarsApplicationMixin = applicationApi.HandlebarsApplicationMixin ?? (Base => Base);
@@ -235,7 +236,7 @@ export async function writeDatabaseValue({databaseId,recordId,value,ownerMode="a
     await game.settings.set("sd","sharedDatabaseWorldValues",values);
   }else if(resolved.document){
     if(!resolved.document.isOwner&&!game.user?.isGM)throw new Error("You do not own the database document.");
-    await resolved.document.setFlag("sd",`databaseValues.${databaseSafeId(databaseId)}.${databaseSafeId(recordId)}`,stored);
+    await sdFlags(resolved.document).setFlag("sd",`databaseValues.${databaseSafeId(databaseId)}.${databaseSafeId(recordId)}`,stored);
   }else throw new Error("No Actor or Item is available for this document database.");
   return hydrateValue(stored,record.type);
 }

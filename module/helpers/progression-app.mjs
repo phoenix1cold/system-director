@@ -1,3 +1,4 @@
+import { sdFlags } from "./document-flags.mjs";
 import { editEffectViaStandardConfig as _sharedEditEffect, openItemSheetFromSnapshot as _sharedOpenItem } from "./effect-editor.mjs";
 import { WidgetRenderer } from "../builder/widget-renderer.mjs";
 import { LevelUpWizard } from "./levelup-wizard.mjs";
@@ -180,11 +181,11 @@ export class ProgressionApp extends ApplicationV2 {
   }
 
   get _config() {
-    return this._actor.getFlag("sd", "progression.config") ?? {};
+    return sdFlags(this._actor).getFlag("sd", "progression.config") ?? {};
   }
 
   get _state() {
-    return this._actor.getFlag("sd", "progression.state") ?? { appliedLevel: 0, acquiredNodes: {} };
+    return sdFlags(this._actor).getFlag("sd", "progression.state") ?? { appliedLevel: 0, acquiredNodes: {} };
   }
 
   _normalizeTabs(cfg) {
@@ -1556,7 +1557,7 @@ export class ProgressionApp extends ApplicationV2 {
     el.querySelectorAll("[data-action='selectTrackSelect']").forEach(sel => sel.addEventListener("change", async () => {
       this._activeTabId = sel.value;
       const cfg = dc(this._config); cfg.activeTabId = sel.value;
-      await this._actor.setFlag("sd", "progression.config", cfg).catch(() => {});
+      await sdFlags(this._actor).setFlag("sd", "progression.config", cfg).catch(() => {});
       this.render();
     }));
     el.querySelectorAll(".sd-prog-track-name").forEach(inp => inp.addEventListener("click", ev => ev.stopPropagation()));
@@ -2268,7 +2269,7 @@ export class ProgressionApp extends ApplicationV2 {
     state.appliedLevel = lv.level;
     state.history ??= {};
     state.history[String(lv.level)] = snapshot;
-    await actor.setFlag("sd", "progression.state", state);
+    await sdFlags(actor).setFlag("sd", "progression.state", state);
 
     ui.notifications.info(loc("SD.Progression.LevelApplied").replace("{level}", lv.level));
     await this._postLevelUpChat(lv, {
@@ -2371,7 +2372,7 @@ export class ProgressionApp extends ApplicationV2 {
       state.appliedLevel = Math.max(0, lv.level - 1);
     }
 
-    await actor.setFlag("sd", "progression.state", state);
+    await sdFlags(actor).setFlag("sd", "progression.state", state);
 
     ui.notifications.info((loc("SD.Progression.LevelRolledBack") || "Level {level} rolled back").replace("{level}", lv.level));
     this.render();
@@ -2465,7 +2466,7 @@ export class ProgressionApp extends ApplicationV2 {
     if (effectDatas.length) await actor.createEmbeddedDocuments("ActiveEffect", effectDatas);
 
     state.acquiredNodes[nodeId] = count + 1;
-    await actor.setFlag("sd", "progression.state", state);
+    await sdFlags(actor).setFlag("sd", "progression.state", state);
 
     ui.notifications.info(loc("SD.Progression.NodeAcquired"));
     this.render();
@@ -2782,8 +2783,8 @@ export class ProgressionApp extends ApplicationV2 {
     if (!out.activeTabId || !tabs.find(t => t.id === out.activeTabId)) {
       out.activeTabId = tabs[0]?.id ?? null;
     }
-    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
-    await this._actor.setFlag("sd", "progression.config", out);
+    await sdFlags(this._actor).unsetFlag("sd", "progression.config").catch(() => {});
+    await sdFlags(this._actor).setFlag("sd", "progression.config", out);
     return out;
   }
 
@@ -2802,8 +2803,8 @@ export class ProgressionApp extends ApplicationV2 {
     delete cfg.inlineSkilltree;
     delete cfg.skillPointsPathValue;
     delete cfg.skillPointsPathMax;
-    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
-    await this._actor.setFlag("sd", "progression.config", cfg);
+    await sdFlags(this._actor).unsetFlag("sd", "progression.config").catch(() => {});
+    await sdFlags(this._actor).setFlag("sd", "progression.config", cfg);
     this._activeTabId = tabs[idx].id;
   }
 
@@ -2830,8 +2831,8 @@ export class ProgressionApp extends ApplicationV2 {
     delete cfg.inlineSkilltree;
     delete cfg.skillPointsPathValue;
     delete cfg.skillPointsPathMax;
-    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
-    await this._actor.setFlag("sd", "progression.config", cfg);
+    await sdFlags(this._actor).unsetFlag("sd", "progression.config").catch(() => {});
+    await sdFlags(this._actor).setFlag("sd", "progression.config", cfg);
     this._activeTabId = id;
     this.render();
   }
@@ -2861,8 +2862,8 @@ export class ProgressionApp extends ApplicationV2 {
     delete cfg.inlineSkilltree;
     delete cfg.skillPointsPathValue;
     delete cfg.skillPointsPathMax;
-    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
-    await this._actor.setFlag("sd", "progression.config", cfg);
+    await sdFlags(this._actor).unsetFlag("sd", "progression.config").catch(() => {});
+    await sdFlags(this._actor).setFlag("sd", "progression.config", cfg);
     this.render();
   }
 
@@ -2880,8 +2881,8 @@ export class ProgressionApp extends ApplicationV2 {
     delete cfg.inlineSkilltree;
     delete cfg.skillPointsPathValue;
     delete cfg.skillPointsPathMax;
-    await this._actor.unsetFlag("sd", "progression.config").catch(() => {});
-    await this._actor.setFlag("sd", "progression.config", cfg);
+    await sdFlags(this._actor).unsetFlag("sd", "progression.config").catch(() => {});
+    await sdFlags(this._actor).setFlag("sd", "progression.config", cfg);
   }
 
   async _promptString(title, initial = "") {

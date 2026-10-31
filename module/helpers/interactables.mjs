@@ -1,3 +1,4 @@
+import { sdFlags } from "./document-flags.mjs";
 import { openFoundryWindow } from "./foundry-window-host.mjs";
 
 const FLAG_SCOPE = "sd";
@@ -57,12 +58,13 @@ function _normalizeButton(b) {
     visibility,
     color:           HEX_RE.test(String(b?.color || "")) ? b.color : "#d4b15a",
     graphData:       (b?.graphData && typeof b.graphData === "object") ? b.graphData : null,
+    quickActions: b?.quickActions && typeof b.quickActions === "object" ? foundry.utils.deepClone(b.quickActions) : null,
     compiledFormula: String(b?.compiledFormula ?? "")
   };
 }
 
 export function getInteractables(doc) {
-  const raw = doc?.getFlag?.(FLAG_SCOPE, FLAG_KEY) ?? {};
+  const raw = sdFlags(doc).getFlag(FLAG_SCOPE, FLAG_KEY) ?? {};
   return {
     enabled: raw?.enabled !== false,
     buttons: Array.isArray(raw?.buttons) ? raw.buttons.map(_normalizeButton) : []
@@ -76,7 +78,7 @@ export async function setInteractables(doc, data) {
     buttons: Array.isArray(data?.buttons) ? data.buttons.map(_normalizeButton) : []
   };
   try {
-    await doc.setFlag(FLAG_SCOPE, FLAG_KEY, norm);
+    await sdFlags(doc).setFlag(FLAG_SCOPE, FLAG_KEY, norm);
   } catch (e) {
     console.warn("SD | setInteractables failed:", e);
   }
@@ -607,7 +609,7 @@ function _renderEditorHTML(state) {
       </div>
       <div class="sd-detail-actions">
         <label class="sd-switch" title="Enable this button"><input type="checkbox" class="sd-iep-f-enabled" ${sel.enabled ? "checked" : ""}><span class="sd-switch-track"></span><span>Enabled</span></label>
-        <button type="button" class="sd-btn sd-btn-primary sd-iep-graph-btn" title="Interaction Blueprint"><i class="fas fa-diagram-project"></i> Blueprint</button>
+        <button type="button" class="sd-btn sd-btn-primary sd-iep-graph-btn" title="Interaction Blueprint"><i class="fas fa-wand-magic-sparkles"></i> ${globalThis.CONFIG?.SD?.liteMode ? "Quick Actions" : "Blueprint"}</button>
       </div>
     </div>
     <div class="sd-form-grid sd-iep-form">
@@ -856,6 +858,21 @@ export function openInteractablesEditor(doc) {
       const sel = state.buttons[state.selIdx];
       if (!sel) return;
       try {
+        if (globalThis.CONFIG?.SD?.liteMode) {
+          const { openQuickActionsEditor, compileQuickActions } = await import("../builder/quick-actions.mjs");
+          if (!sel.quickActions && sel.compiledFormula && sel.compiledFormula !== "0") {
+            const confirmed = await foundry.applications.api.DialogV2.confirm({window:{title:"Replace legacy interaction?"},content:"<p>This interaction has graph actions. Saving Quick Actions replaces its executable actions; the original graph is retained.</p>"});
+            if (!confirmed) return;
+          }
+          const config = await openQuickActionsEditor(sel.quickActions ?? {steps:[]}, doc, {showEvent:false,title:sel.label,windowTitle:"Interaction · Quick Actions"});
+          if (!config) return;
+          sel.quickActions = config;
+          sel.compiledFormula = JSON.stringify(compileQuickActions(config.steps));
+          await setInteractables(doc, {enabled:state.enabled,buttons:state.buttons});
+          _Overlay.scheduleRefresh();
+          _rerender();
+          return;
+        }
         const { FormulaGraph } = await import("../builder/formula-graph.mjs");
         const graph = new FormulaGraph(null, doc, null, null, null, {
           mode: "actionGraph",

@@ -1,3 +1,4 @@
+import { sdFlags } from "./document-flags.mjs";
 const MODULE_ID = "sd";
 const AI_SETTINGS_KEY = "aiSettings";
 const AI_BIO_FLAG = "aiBio";
@@ -201,9 +202,9 @@ export async function requestAIChat({
 export function getActorAIProfile(actor) {
   if (!actor) return _normalizeAIProfile({});
   let legacy = "";
-  try { legacy = String(actor.getFlag(MODULE_ID, AI_BIO_FLAG) ?? ""); } catch { }
+  try { legacy = String(sdFlags(actor).getFlag(MODULE_ID, AI_BIO_FLAG) ?? ""); } catch { }
   try {
-    return _normalizeAIProfile(actor.getFlag(MODULE_ID, AI_PROFILE_FLAG) ?? {}, legacy);
+    return _normalizeAIProfile(sdFlags(actor).getFlag(MODULE_ID, AI_PROFILE_FLAG) ?? {}, legacy);
   } catch {
     return _normalizeAIProfile({}, legacy);
   }
@@ -213,7 +214,7 @@ export async function setActorAIProfile(actor, value) {
   if (!actor) return _normalizeAIProfile({});
   const clean = _normalizeAIProfile(value);
   try {
-    await actor.setFlag(MODULE_ID, AI_PROFILE_FLAG, clean);
+    await sdFlags(actor).setFlag(MODULE_ID, AI_PROFILE_FLAG, clean);
   } catch (e) {
     console.warn("SD | Could not save actor AI Profile:", e);
     ui.notifications?.error?.("SD | Could not save AI Bio for this actor.");
@@ -238,8 +239,8 @@ export async function setActorAIBio(actor, value) {
   const text = String(value ?? "");
   try {
     const cur = getActorAIProfile(actor);
-    await actor.setFlag(MODULE_ID, AI_PROFILE_FLAG, { ...cur, background: text });
-    await actor.setFlag(MODULE_ID, AI_BIO_FLAG, text);
+    await sdFlags(actor).setFlag(MODULE_ID, AI_PROFILE_FLAG, { ...cur, background: text });
+    await sdFlags(actor).setFlag(MODULE_ID, AI_BIO_FLAG, text);
     return text;
   } catch (e) {
     console.warn("SD | Could not save actor AI Bio:", e);
@@ -250,7 +251,7 @@ export async function setActorAIBio(actor, value) {
 
 export function getActorAIMemory(actor) {
   if (!actor) return _normalizeAIMemory({});
-  try { return _normalizeAIMemory(actor.getFlag(MODULE_ID, AI_MEMORY_FLAG) ?? {}); }
+  try { return _normalizeAIMemory(sdFlags(actor).getFlag(MODULE_ID, AI_MEMORY_FLAG) ?? {}); }
   catch { return _normalizeAIMemory({}); }
 }
 
@@ -258,7 +259,7 @@ export async function setActorAIMemory(actor, value) {
   if (!actor) return _normalizeAIMemory({});
   const clean = _normalizeAIMemory(value);
   try {
-    await actor.setFlag(MODULE_ID, AI_MEMORY_FLAG, clean);
+    await sdFlags(actor).setFlag(MODULE_ID, AI_MEMORY_FLAG, clean);
   } catch (e) {
     console.warn("SD | Could not save actor AI Memory:", e);
     ui.notifications?.error?.("SD | Could not save AI Memory for this actor.");

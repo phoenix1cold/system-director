@@ -6,6 +6,7 @@ import { CORE_EXTRA_NODES, SCENE_PROPERTY_MIGRATIONS } from "./core-nodes.mjs";
 import { GraphRenderView } from "./graph-render-view.mjs";
 import { pinSubtype, pinTypeMeta, subtypeColor, arePinsCompatible, automaticPinConverter, canConnectPins } from "./pin-types.mjs";
 import { resolveNodePins, resolveNodePin } from "./node-pin-resolver.mjs";
+import { compileGraphValue } from "./graph-value-compiler.mjs";
 import { lintGraph, lintSummary } from "./graph-linter.mjs";
 import {
   formulaBounds, clampFormula, multiplyFormula, addMod, doubleDice,
@@ -5435,10 +5436,11 @@ export const NODE_DEFS = {
 
   act_effect_apply_v2: {
     title:"Apply Effect", color:"#4f3b91", cat:"Effects", wideNode:true,
-    desc:"Applies a prepared Effect definition to a Token Pool.",
+    desc:"Applies a prepared Effect definition to a Token Pool. The Effect UUID output holds the created/updated effect UUID (a single UUID for one target, an array for several).",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"effect",label:"Effect",type:"value.effect"},{id:"targets",label:"Token Pool",type:"value.token_pool"}],
-    outputs:[{id:"exec",label:"Done →",type:"exec"}],fields:[],isAction:true,
-    toAction:(n,inp)=>({type:"applyEffectDefinition",operation:"apply",effect:inp.effect??null,targets:inp.targets??null})
+    outputs:[{id:"exec",label:"Done →",type:"exec"},{id:"effectUuid",label:"Effect UUID",type:"value.string"}],fields:[],isAction:true,
+    compilePin:(n,_i,p)=>p==="effectUuid"?`{__nodeResult:${n.id}|effectUuid}`:"0",
+    toAction:(n,inp)=>({type:"applyEffectDefinition",__resultNodeId:n.id,operation:"apply",effect:inp.effect??null,targets:inp.targets??null})
   },
 
   act_effect_remove_v2: {
@@ -6110,6 +6112,7 @@ export const NODE_DEFS = {
   var_read: {
     title:"Read Variable", color:"#2a6a9a", cat:"Variables",
     desc:"Reads a typed variable. Local lasts for one graph pass; Actor and Item persist on that document; World is shared by the world.",
+    keywords:"variable read scope local actor item world state get",
     inputs:[],
     outputs:[{id:"v",label:"Value",type:"value.any"}],
     computeDynamicOutputs:(n)=>[{id:"v",label:"Value",type:databaseTypePin(n.data?.valueType ?? "any")}],
@@ -6131,6 +6134,7 @@ export const NODE_DEFS = {
   var_write: {
     title:"Write Variable", color:"#2a6a9a", cat:"Variables",
     desc:"Writes a typed variable. Actor/Item flags and World values persist between executions.",
+    keywords:"variable write scope local actor item world state set",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"name",label:"Name",type:"value.string"},{id:"value",label:"Value",type:"value.any"},{id:"scope",label:"Scope",type:"value.string"}],
     computeDynamicInputs:(n)=>[{id:"exec",label:"",type:"exec"},{id:"name",label:"Name",type:"value.string"},{id:"value",label:"Value",type:databaseTypePin(n.data?.valueType??"any")},{id:"scope",label:"Scope",type:"value.string"}],
     outputs:[{id:"exec",label:"→",type:"exec"}],
@@ -6146,6 +6150,7 @@ export const NODE_DEFS = {
   database_get: {
     title:"Database Get",color:"#236b63",cat:"Database",wideNode:true,
     desc:"Reads a typed record from a shared world database. Document databases use the selected/current Actor or Item; World databases are global.",
+    keywords:"database record world shared storage read get",
     inputs:[{id:"exec",label:"",type:"exec"},{id:"owner",label:"Owner",type:"value.any"}],
     outputs:[{id:"exec",label:"→",type:"exec"},{id:"value",label:"Value",type:"value.any"}],
     computeDynamicOutputs:(n)=>[{id:"exec",label:"→",type:"exec"},{id:"value",label:"Value",type:databaseTypePin(getDatabaseRecord(n.data?.databaseId,n.data?.recordId)?.type??"any")}],
@@ -7197,15 +7202,15 @@ export const NODE_DEFS = {
       {key:"requireLOS",  label:"Require Line of Sight",                          type:"select", default:"yes", options:["yes","no"]}
     ],
     isAction:true,
-    compilePin:(_n, _ins, fromPin)=>{
-      if (fromPin === "v")      return `{__visionLast}`;
-      if (fromPin === "actors") return `{__visionLastActors}`;
+    compilePin:(n, _ins, fromPin)=>{
+      if (fromPin === "v" || fromPin === "actors") return `{__nodeResult:${n.id}|${fromPin}}`;
       return "0";
     },
     toAction:(n,inp)=>{
       const _wired = (v) => v !== undefined && v !== null && v !== "" && v !== "0" && v !== `"0"`;
       return {
         type:        "visionScan",
+        __resultNodeId: n.id,
         actorOverride: _wired(inp.actor) ? String(inp.actor) : null,
         distance:    _wired(inp.distance) ? String(inp.distance) : String(n.data?.distance ?? 30),
         angle:       _wired(inp.angle)    ? String(inp.angle)    : String(n.data?.angle    ?? 360),
@@ -7412,8 +7417,8 @@ export const NODE_DEFS = {
       {key:"target", label:"Speak on",                         type:"select", default:"all", options:["all","gm","players","self"]}
     ],
     isAction:true,
-    compilePin:(_n, ins, fromPin)=>{
-      if (fromPin === "text") return ins.text ?? `""`;
+    compilePin:(n, ins, fromPin)=>{
+      if (fromPin === "text") return ins.text ?? JSON.stringify(n.data?.text ?? "");
       return "0";
     },
     toAction:(n,inp)=>{
@@ -11354,6 +11359,10 @@ export class FormulaGraph {
   }
 
   open() {
+    if (globalThis.CONFIG?.SD?.liteMode) {
+      ui.notifications?.warn?.("The node graph editor is a System Director Nexus feature. Lite configures behaviour with forms and buttons.");
+      return;
+    }
     if (this._quickGraphChanged) void this._saveGraph().then(()=>{this._quickGraphChanged=false;}).catch(error=>ui.notifications?.error?.(`Quick graph: ${error.message}`));
     // Drop focus from the button that opened the editor (e.g. "Edit graph" in
     // system settings) so Space/Delete/Ctrl+Z immediately work in the editor.
@@ -11721,38 +11730,11 @@ export class FormulaGraph {
   }
 
   _compileValue(node, vis, fromPin = null) {
-    let index=this._compileValueIndexes?.get(this.nodes);
-    if(!index||index.edges!==this.edges){
-      const nodes=new Map(this.nodes.map(n=>[n.id,n])),incoming=new Map();
-      for(const edge of this.edges){let pins=incoming.get(edge.toNode);if(!pins)incoming.set(edge.toNode,pins=new Map());pins.set(edge.toPin,edge);}
-      index={nodes,incoming,edges:this.edges};this._compileValueIndexes?.set(this.nodes,index);
-    }
-    const {nodes,incoming}=index;
-    const active=new Set(vis),memo=new Map(),stack=[{node,pin:fromPin}];
-    let result;
-    const finish=(frame,value)=>{
-      stack.pop();if(frame.entered)active.delete(frame.node.id);
-      if(!frame.cyclic){let pins=memo.get(frame.node.id);if(!pins)memo.set(frame.node.id,pins=new Map());pins.set(frame.pin,value);}
-      if(stack.length)stack.at(-1).inputs[frame.target]=value;else result=value;
-    };
-    while(stack.length){
-      const frame=stack.at(-1),n=frame.node,def=NODE_DEFS[n.type];
-      if(!frame.entered){
-        if(active.has(n.id)){for(const entry of stack)entry.cyclic=true;finish(frame,"0");continue;}
-        const cached=memo.get(n.id);if(cached?.has(frame.pin)){finish(frame,cached.get(frame.pin));continue;}
-        const terminal=!def||def.isFunctionInputs||def.isFunctionCall||def.isEvent||def.isMacroInput||def.isAction
-          ||typeof def.dynamicBranchToken==='function'||def.isAttackBranch||def.isBranch||def.isSaveBranch||def.isTieredBranch
-          ||def.isGenericBranch||def.isProgressionBranch||def.isAoeSave||def.isAiBranch||BRANCH_PIN_TOKENS[n.type]?.[frame.pin];
-        if(terminal){finish(frame,this._compileValueRecursive(n,active,frame.pin));continue;}
-        frame.entered=true;active.add(n.id);frame.inputs={};frame.dependencies=[];frame.index=0;
-        const add=pin=>{const edge=incoming.get(n.id)?.get(pin),source=nodes.get(edge?.fromNode);if(source)frame.dependencies.push({node:source,pin:edge.fromPin,target:pin});};
-        for(const pin of def.inputs??[])if(pin.type!=='exec')add(pin.id);
-        for(const group of Array.isArray(def.dynamicPins)?def.dynamicPins:def.dynamicPins?[def.dynamicPins]:[])for(let i=0;i<group.max;i++)add(`${group.base}${i}`);
-      }
-      if(frame.index<frame.dependencies.length){stack.push(frame.dependencies[frame.index++]);continue;}
-      finish(frame,def.compilePin?def.compilePin(n,frame.inputs,frame.pin):(def.compile?.(n,frame.inputs)??"0"));
-    }
-    return result;
+    return compileGraphValue(this, node, vis, fromPin, NODE_DEFS, (n, def, pin) =>
+      def.isFunctionInputs || def.isFunctionCall || def.isEvent || def.isMacroInput
+      || typeof def.dynamicBranchToken === "function" || def.isAttackBranch || def.isBranch
+      || def.isSaveBranch || def.isTieredBranch || def.isGenericBranch || def.isProgressionBranch
+      || def.isAoeSave || def.isAiBranch || BRANCH_PIN_TOKENS[n.type]?.[pin]);
   }
 
   _compileValueRecursive(node, vis, fromPin = null) {

@@ -1,4 +1,7 @@
+import { normalizeRollOptionals, applyRollOptionals, rollOptionalsInputs, collectRollOptionalValues } from "./roll-optionals.mjs";
+import { sdFlags } from "./document-flags.mjs";
 import { SlotManager } from "../data/item-slots.mjs";
+import { withLoopContext, loopItems } from "./loop-context.mjs";
 import { formulaBounds, doubleDice, leadingD20Natural } from "../builder/formula-utils.mjs";
 import { AutoanimationsIntegration } from "../integrations/autoanimations.mjs";
 import { effectDurationData } from "./effect-duration.mjs";
@@ -822,6 +825,7 @@ export class ButtonExecutor {
     const _injectRuntime = (formula) => {
       if (typeof formula !== "string") return formula;
       const exact = formula;
+      if (exact === "{__loopItem}" || exact === "{raw:__loopItem}") return runtime.__loopItem;
       let exactMatch = exact.match(/^\{__messageField:([A-Za-z0-9_-]+)\}$/);
       if (exactMatch) return runtime.__messageFields?.[exactMatch[1]] ?? "";
       exactMatch = exact.match(/^\{__dbValue:([A-Za-z0-9_-]+)\}$/);
@@ -1021,7 +1025,7 @@ export class ButtonExecutor {
         formula = formula.replace(/\{__loopIndex\}/g, String(runtime.__loopIndex));
       }
       if (runtime.__loopItem !== undefined) {
-        formula = formula.replace(/\{__loopItem\}/g, String(runtime.__loopItem));
+        formula = formula.replace(/\{__loopItem\}/g, () => typeof runtime.__loopItem === "object" ? JSON.stringify(runtime.__loopItem) : String(runtime.__loopItem));
       }
 
       const _tokList = (arr) => Array.isArray(arr) ? arr.join(",") : String(arr ?? "");
@@ -1167,7 +1171,7 @@ export class ButtonExecutor {
                 || (Number.isFinite(total) && (injected.formula !== undefined || injected.dice !== undefined
                   || injected.roll !== undefined || injected._formula !== undefined || injected.terms !== undefined));
               if (isRollResult && Number.isFinite(total)) encodedValue = total;
-              else return match; // Never degrade another structured value to [object Object].
+              else encodedValue = JSON.stringify(injected); // Preserve typed collection arguments.
             }
             const encoded = btoa(unescape(encodeURIComponent(String(encodedValue ?? ""))));
             return `${prefix}${encoded}`;
@@ -1222,7 +1226,7 @@ export class ButtonExecutor {
       action, item, actor, buttonDef, runtime,
       injectRuntime: _injectRuntime,
       resolveValue: async (value) => {
-        const injected = typeof value === "string" ? _injectRuntime(value) : value;
+        const injected = await _resolveStructuredPin(value);
         if (typeof injected !== "string") return injected;
         try {
           const { FormulaEngine } = await import("./formula-engine.mjs");
@@ -1338,7 +1342,7 @@ export class ButtonExecutor {
         _writeRollMeta(buttonDef, { roll, formula, rollData, minValueCount, maxValueCount });
         if (safeActor) {
           try {
-            await safeActor.setFlag("sd", "lastRoll", {
+            await sdFlags(safeActor).setFlag("sd", "lastRoll", {
               total:   roll.total,
               formula: formula,
               flavor:  flavorLabel,
@@ -1356,6 +1360,12 @@ export class ButtonExecutor {
             ...(_rrFlag ? { flags: { sd: { reroll: _rrFlag } } } : {})
           });
         }
+        break;
+      }
+
+      case "quickDocument": {
+        const { runQuickDocumentAction } = await import("./quick-document-actions.mjs");
+        await runQuickDocumentAction(action, { actor, item, resolve: value => _injectRuntime(value), run: next => ButtonExecutor._runAction(next, item, actor, buttonDef, runtime) });
         break;
       }
 
@@ -2462,6 +2472,7 @@ export class ButtonExecutor {
           priority: Number(c.priority ?? 20)
         }));
 
+        const _appliedUuids = [];
         for (const effectActor of _aeTargets) {
           const existing = effectActor.effects.find(e => e.name === action.effectName);
           const mode     = action.toggleMode ?? "create";
@@ -2485,9 +2496,14 @@ export class ButtonExecutor {
 
           if (existing && (mode === "create" || mode === "ensure_on")) {
             await existing.update({ ...effectData, disabled: false });
+            if (existing.uuid) _appliedUuids.push(existing.uuid);
           } else {
-            await effectActor.createEmbeddedDocuments("ActiveEffect", [effectData]);
+            const created = await effectActor.createEmbeddedDocuments("ActiveEffect", [effectData]);
+            if (created?.[0]?.uuid) _appliedUuids.push(created[0].uuid);
           }
+        }
+        if (_appliedUuids.length && action.__resultNodeId) {
+          storeNodeResult(runtime, action.__resultNodeId, { effectUuid: _appliedUuids.length === 1 ? _appliedUuids[0] : _appliedUuids });
         }
         break;
       }
@@ -2555,22 +2571,18 @@ export class ButtonExecutor {
       case "forEachTarget": {
         const targets = [...(game.user.targets ?? [])];
         let _i = 0;
-        const _prevCT = runtime.currentTarget;
-        const _prevLI = runtime.__loopIndex;
-        const _prevLT = runtime.__loopItem;
-        for (const token of targets) {
-          const tActor = token.actor;
-          if (!tActor) continue;
-          runtime.currentTarget = token.id;
-          runtime.__loopItem    = token.id;
-          runtime.__loopIndex   = _i++;
-          for (const sub of (action.loopActions ?? [])) {
-            await this._runAction(sub, item, tActor, buttonDef, runtime);
+        await withLoopContext(runtime, ["currentTarget", "__loopIndex", "__loopItem"], async () => {
+          for (const token of targets) {
+            const tActor = token.actor;
+            if (!tActor) continue;
+            runtime.currentTarget = token.id;
+            runtime.__loopItem    = token.id;
+            runtime.__loopIndex   = _i++;
+            for (const sub of (action.loopActions ?? [])) {
+              await this._runAction(sub, item, tActor, buttonDef, runtime);
+            }
           }
-        }
-        if (_prevCT !== undefined) runtime.currentTarget = _prevCT; else delete runtime.currentTarget;
-        if (_prevLI !== undefined) runtime.__loopIndex   = _prevLI; else delete runtime.__loopIndex;
-        if (_prevLT !== undefined) runtime.__loopItem    = _prevLT; else delete runtime.__loopItem;
+        });
         for (const sub of (action.doneActions ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
         }
@@ -2585,30 +2597,20 @@ export class ButtonExecutor {
             raw = FormulaEngine._resolveRefs(raw, item ?? actor ?? {});
           } catch {}
         }
-        if (typeof raw === "string") {
-          const t = raw.trim();
-          if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
-            try { raw = JSON.parse(t); } catch { raw = t.slice(1, -1); }
+        const ids = loopItems(raw);
+        await withLoopContext(runtime, ["currentTarget", "__loopIndex", "__loopItem"], async () => {
+          for (let i = 0; i < ids.length; i++) {
+            const tid     = String(ids[i]);
+            const tk      = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
+            const tActor  = tk?.actor ?? null;
+            runtime.currentTarget = tid;
+            runtime.__loopItem    = tid;
+            runtime.__loopIndex   = i;
+            for (const sub of (action.loopActions ?? [])) {
+              await this._runAction(sub, item, tActor ?? actor, buttonDef, runtime);
+            }
           }
-        }
-        const ids = String(raw).split(",").map(s => s.trim()).filter(Boolean);
-        const _prevCT = runtime.currentTarget;
-        const _prevLI = runtime.__loopIndex;
-        const _prevLT = runtime.__loopItem;
-        for (let i = 0; i < ids.length; i++) {
-          const tid     = ids[i];
-          const tk      = (typeof canvas !== "undefined") ? canvas?.tokens?.get?.(tid) : null;
-          const tActor  = tk?.actor ?? null;
-          runtime.currentTarget = tid;
-          runtime.__loopItem    = tid;
-          runtime.__loopIndex   = i;
-          for (const sub of (action.loopActions ?? [])) {
-            await this._runAction(sub, item, tActor ?? actor, buttonDef, runtime);
-          }
-        }
-        if (_prevCT !== undefined) runtime.currentTarget = _prevCT; else delete runtime.currentTarget;
-        if (_prevLI !== undefined) runtime.__loopIndex   = _prevLI; else delete runtime.__loopIndex;
-        if (_prevLT !== undefined) runtime.__loopItem    = _prevLT; else delete runtime.__loopItem;
+        });
         for (const sub of (action.doneActions ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
         }
@@ -2616,31 +2618,23 @@ export class ButtonExecutor {
       }
 
       case "forEachItem": {
-        let raw = _injectRuntime(String(action.items ?? ""));
+        let raw = await _resolveStructuredPin(action.items ?? "");
         if (typeof raw === "string" && raw.includes("{")) {
           try {
             const { FormulaEngine } = await import("./formula-engine.mjs");
             raw = FormulaEngine._resolveRefs(raw, item ?? actor ?? {});
           } catch {}
         }
-        if (typeof raw === "string") {
-          const t = raw.trim();
-          if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
-            try { raw = JSON.parse(t); } catch { raw = t.slice(1, -1); }
+        const items = loopItems(raw);
+        await withLoopContext(runtime, ["__loopIndex", "__loopItem"], async () => {
+          for (let i = 0; i < items.length; i++) {
+            runtime.__loopIndex = i;
+            runtime.__loopItem = items[i];
+            for (const sub of (action.loopActions ?? [])) {
+              await this._runAction(sub, item, actor, buttonDef, runtime);
+            }
           }
-        }
-        const items = String(raw ?? "").split(",").map(s => s.trim()).filter(Boolean);
-        const _prevLI = runtime.__loopIndex;
-        const _prevLT = runtime.__loopItem;
-        for (let i = 0; i < items.length; i++) {
-          runtime.__loopIndex = i;
-          runtime.__loopItem  = items[i];
-          for (const sub of (action.loopActions ?? [])) {
-            await this._runAction(sub, item, actor, buttonDef, runtime);
-          }
-        }
-        if (_prevLI !== undefined) runtime.__loopIndex = _prevLI; else delete runtime.__loopIndex;
-        if (_prevLT !== undefined) runtime.__loopItem  = _prevLT; else delete runtime.__loopItem;
+        });
         for (const sub of (action.doneActions ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
         }
@@ -2715,6 +2709,7 @@ export class ButtonExecutor {
             includeHidden: false
           }) ?? []);
           const actorUuids = result?.actorUuids ?? [];
+          storeNodeResult(runtime, action.__resultNodeId, { v: ids, actors: actorUuids });
 
           const joined       = ids.join(",");
           const joinedActors = actorUuids.join(",");
@@ -4517,11 +4512,11 @@ export class ButtonExecutor {
           }
         } else if (action.scope === "item") {
           if (!item) console.warn(`SD | setVar(${varName}) skipped — no item available.`);
-          else await item.setFlag("sd", `vars.${varName}`, val);
+          else await sdFlags(item).setFlag("sd", `vars.${varName}`, val);
         } else {
           const a = actor ?? item?.actor;
           if (!a) console.warn(`SD | setVar(${varName}) skipped — no actor available.`);
-          else await a.setFlag("sd", `vars.${varName}`, val);
+          else await sdFlags(a).setFlag("sd", `vars.${varName}`, val);
         }
         runtime.__lastVariableValue=val;
         break;
@@ -4614,12 +4609,14 @@ export class ButtonExecutor {
         const last = _evalInt(action.last, 0);
         const delay = Math.max(0, Math.min(60000, _evalInt(action.delay, 0)));
         const count = first <= last ? Math.min(1000, last - first + 1) : 0;
-        for (let offset = 0; offset < count; offset++) {
-          runtime.__loopIndex = first + offset;
-          for (const sub of (action.loopActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
-          if (delay > 0 && offset < count - 1) await new Promise(resolve => setTimeout(resolve, delay));
-        }
-        runtime.__loopIndex = undefined;
+        if (last - first + 1 > 1000) ui.notifications?.warn?.("For Loop: range truncated at 1000 iterations.");
+        await withLoopContext(runtime, ["__loopIndex"], async () => {
+          for (let offset = 0; offset < count; offset++) {
+            runtime.__loopIndex = first + offset;
+            for (const sub of (action.loopActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
+            if (delay > 0 && offset < count - 1) await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        });
         for (const sub of (action.doneActions ?? [])) await this._runAction(sub, item, actor, buttonDef, runtime);
         break;
       }
@@ -4636,14 +4633,15 @@ export class ButtonExecutor {
         const count = _evalNum(action.count ?? 3, 0);
         const delay = _evalNum(action.delay ?? 0, 0);
         const bodyKey = Array.isArray(action.bodyActions) ? "bodyActions" : "loopActions";
-        for (let i = 0; i < count; i++) {
-          runtime.__loopIndex = i;
-          for (const sub of (action[bodyKey] ?? [])) {
-            await this._runAction(sub, item, actor, buttonDef, runtime);
+        await withLoopContext(runtime, ["__loopIndex"], async () => {
+          for (let i = 0; i < count; i++) {
+            runtime.__loopIndex = i;
+            for (const sub of (action[bodyKey] ?? [])) {
+              await this._runAction(sub, item, actor, buttonDef, runtime);
+            }
+            if (delay > 0 && i < count - 1) await new Promise(r => setTimeout(r, delay));
           }
-          if (delay > 0 && i < count - 1) await new Promise(r => setTimeout(r, delay));
-        }
-        runtime.__loopIndex = undefined;
+        });
         for (const sub of (action.doneActions ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
         }
@@ -4714,7 +4712,7 @@ export class ButtonExecutor {
         if (targetDoc && castPath) {
           const _safeSeg = s => String(s).replace(/[^a-zA-Z0-9_-]/g, "_");
           const stateKey = `castState.${_safeSeg(action.castId ?? "cast")}_${_safeSeg(castPath)}`;
-          const state = targetDoc.getFlag?.("sd", stateKey) ?? null;
+          const state = sdFlags(targetDoc).getFlag("sd", stateKey) ?? null;
           let boolOk = true;
           if (action.revertByBool) {
             const b = _evalExpr(action.revert ?? "");
@@ -4724,7 +4722,7 @@ export class ButtonExecutor {
             if (state?.done) {
               try {
                 await targetDoc.update({ [castPath]: state.prev ?? null });
-                await targetDoc.unsetFlag("sd", stateKey);
+                await sdFlags(targetDoc).unsetFlag("sd", stateKey);
               } catch (err) { console.warn("SD | castTo revert failed", err); }
             }
           } else if (action.castOnce && state?.done) {
@@ -4749,7 +4747,7 @@ export class ButtonExecutor {
               await targetDoc.update({ [castPath]: newVal });
               didCast = true;
               if (action.castOnce || action.revertByBool) {
-                await targetDoc.setFlag("sd", stateKey, { done: true, prev: (prev === undefined ? null : prev) });
+                await sdFlags(targetDoc).setFlag("sd", stateKey, { done: true, prev: (prev === undefined ? null : prev) });
               }
             } catch (err) { console.warn("SD | castTo failed", err); }
           }
@@ -4803,23 +4801,34 @@ export class ButtonExecutor {
         const { FormulaEngine } = await import("./formula-engine.mjs");
         const maxIter = Math.max(1, Math.min(100, Math.round(Number(action.maxIter) || 20)));
         let i = 0;
-        while (i < maxIter) {
-          let condVal;
-          try {
-            let s = _injectRuntime(String(action.condition ?? "0"));
-            s = FormulaEngine.resolveForRoll(s, item ?? actor ?? {});
-            condVal = FormulaEngine.evaluate(s, item ?? actor ?? {});
-          } catch { condVal = 0; }
-          const isFalsy = !condVal || condVal === "false" || condVal === "0" || condVal === 0 || condVal === false;
-          if (isFalsy) break;
-          runtime.__loopIndex = i;
-          for (const sub of (action.loopActions ?? [])) {
-            await this._runAction(sub, item, actor, buttonDef, runtime);
+        await withLoopContext(runtime, ["__loopIndex"], async () => {
+          while (i < maxIter) {
+            let condVal;
+            try {
+              let s = _injectRuntime(String(action.condition ?? "0"));
+              s = FormulaEngine.resolveForRoll(s, item ?? actor ?? {});
+              condVal = FormulaEngine.evaluate(s, item ?? actor ?? {});
+            } catch { condVal = 0; }
+            const isFalsy = !condVal || condVal === "false" || condVal === "0" || condVal === 0 || condVal === false;
+            if (isFalsy) break;
+            runtime.__loopIndex = i;
+            for (const sub of (action.loopActions ?? [])) {
+              await this._runAction(sub, item, actor, buttonDef, runtime);
+            }
+            i++;
           }
-          i++;
-        }
-        runtime.__loopIndex = undefined;
+          if (i === maxIter) ui.notifications?.warn?.(`While Loop: iteration limit (${maxIter}) reached.`);
+        });
         for (const sub of (action.doneActions ?? [])) {
+          await this._runAction(sub, item, actor, buttonDef, runtime);
+        }
+        break;
+      }
+
+      case "runIf": {
+        // Conditional branch: the Quick Actions "Condition" step compiles here.
+        const truthy = await _resolveBoolPin(action.condition ?? "0");
+        for (const sub of ((truthy ? action.thenActions : action.elseActions) ?? [])) {
           await this._runAction(sub, item, actor, buttonDef, runtime);
         }
         break;
@@ -5336,8 +5345,9 @@ export class ButtonExecutor {
           dieFaces = Math.max(2, Math.floor(Number(action.die ?? 10) || 10));
           successTarget = Number(FormulaEngine.evaluate(String(_injectRuntime(action.successTarget ?? "0")),doc)) || 0;
           formula = `${count}d${dieFaces}`;
-        } else if (action.rollDialogue) {
-          const dlg = await ButtonExecutor._showRollDialogue({flavor:action.flavor??"Roll",baseFormula:formula,advFormula,disFormula,actor});
+        } else if (action.rollDialogue || action.rollOptionals?.length) {
+          const rollOptionals=normalizeRollOptionals(action.rollOptionals).map(option=>({...option,value:String(FormulaEngine.evaluate(String(_injectRuntime(option.value)),doc))}));
+          const dlg = await ButtonExecutor._showRollDialogue({flavor:action.flavor??"Roll",baseFormula:formula,advFormula,disFormula,actor,rollOptionals});
           if (dlg.cancelled) break;
           formula=dlg.formula;
         }
@@ -5621,6 +5631,7 @@ export class ButtonExecutor {
         }
         if(!targets.length) { ui.notifications?.warn?.("SD | Effect: Token Pool is empty."); break; }
         const op=action.operation ?? "apply";
+        const _appliedUuids=[];
         if((definition.changes??[]).some(change=>change.variableRef && targets.some(target=>resolveVariableReference(change.variableRef,{document:target})?.document!==target))) {
           ui.notifications?.warn?.("Effect variable owner does not match the target document."); break;
         }
@@ -5637,14 +5648,15 @@ export class ButtonExecutor {
             const data={name:definition.name,description:definition.description??"",img:definition.icon,disabled:!!definition.disabled,transfer:!!definition.transfer,
               ...effectDurationData(definition.duration>0?{...definition.effectDuration,value:definition.duration,units:"rounds"}:definition.effectDuration,{renew:true}),flags:definition.flags,
               changes:(definition.changes??[]).map(change=>({...change,value:String(_injectRuntime(String(change.value??"0")))}))};
-            if(matches.length)await matches[0].update(data);
-            else await target.createEmbeddedDocuments("ActiveEffect",[data]);
+            if(matches.length){await matches[0].update(data); if(matches[0].uuid)_appliedUuids.push(matches[0].uuid);}
+            else { const created=await target.createEmbeddedDocuments("ActiveEffect",[data]); if(created?.[0]?.uuid)_appliedUuids.push(created[0].uuid); }
           }
+          if(_appliedUuids.length && action.__resultNodeId)storeNodeResult(runtime,action.__resultNodeId,{effectUuid:_appliedUuids.length===1?_appliedUuids[0]:_appliedUuids});
           break;
         }
         if(op === "apply") {
           await this._runAction({
-            type:"applyEffect",effectName:definition.name ?? "Effect",icon:definition.icon ?? "icons/svg/aura.svg",
+            type:"applyEffect",__resultNodeId:action.__resultNodeId,effectName:definition.name ?? "Effect",icon:definition.icon ?? "icons/svg/aura.svg",
             duration:Number(definition.duration ?? 0)||0,changes:(definition.changes ?? []).map(c=>({...c,value:String(_injectRuntime(String(c.value ?? "0")))})),
             targets:rawTargets,toggleMode:"create"
           },item,actor,buttonDef,runtime);
@@ -5657,9 +5669,10 @@ export class ButtonExecutor {
             const ids=matches.map(e=>e.id).filter(Boolean);
             if(ids.length) await tActor.deleteEmbeddedDocuments("ActiveEffect",ids);
           } else if(op === "toggle") {
-            for(const ef of matches) await ef.update({disabled:!ef.disabled});
+            for(const ef of matches) { await ef.update({disabled:!ef.disabled}); if(ef.uuid)_appliedUuids.push(ef.uuid); }
           }
         }
+        if(_appliedUuids.length && action.__resultNodeId)storeNodeResult(runtime,action.__resultNodeId,{effectUuid:_appliedUuids.length===1?_appliedUuids[0]:_appliedUuids});
         break;
       }
 
@@ -6695,7 +6708,7 @@ export class ButtonExecutor {
                 await game.settings.set("sd","systemSettings",current);
               } else ui.notifications?.warn?.("Only a GM can persist AOE presets in World storage.");
             } else if (storageOwner?.setFlag) {
-              await storageOwner.setFlag("sd",`aoeRegionPresets.${storageKey}`,clone(templates));
+              await sdFlags(storageOwner).setFlag("sd",`aoeRegionPresets.${storageKey}`,clone(templates));
             } else {
               ui.notifications?.warn?.(`AOE preset storage "${storageMode}" has no matching Actor or Item.`);
             }
@@ -7319,7 +7332,7 @@ export class ButtonExecutor {
     });
   }
 
-  static async _showRollDialogue({ flavor, baseFormula, advFormula, disFormula, actor }) {
+  static async _showRollDialogue({ flavor, baseFormula, advFormula, disFormula, actor, rollOptionals = [] }) {
     const { DialogV2 } = foundry.applications.api;
     let mode = "normal";
 
@@ -7330,7 +7343,7 @@ export class ButtonExecutor {
     : baseFormula;
 
     const renderTpl = foundry.applications.handlebars.renderTemplate;
-    const content = await renderTpl("systems/sd/templates/dialog/roll-mode-dialog.hbs", {
+    const content = rollOptionalsInputs(rollOptionals) + await renderTpl("systems/sd/templates/dialog/roll-mode-dialog.hbs", {
       baseFormula,
       baseShort: fmtShort(baseFormula),
       advShort:  fmtShort(advFormula),
@@ -7348,8 +7361,10 @@ export class ButtonExecutor {
       const updateDisplay = () => {
         const bonus = (bonusEl?.value ?? "").trim();
         const base  = getBase(mode);
-        const display = bonus ? `${base} + ${bonus}` : base;
-        if (formulaEl) formulaEl.textContent = display;
+        try {
+          const selected=applyRollOptionals(base,rollOptionals,collectRollOptionalValues(root));
+          if (formulaEl) formulaEl.textContent = bonus ? `(${selected}) + ${bonus}` : selected;
+        } catch(error) { if(formulaEl) formulaEl.textContent=error.message; }
 
         for (const btn of modeBtns) {
           const m = btn.dataset.mode;
@@ -7378,6 +7393,7 @@ export class ButtonExecutor {
           updateDisplay();
         });
       }
+      root.querySelectorAll('[data-roll-optional]').forEach(input=>input.addEventListener('input',updateDisplay));
       bonusEl?.addEventListener("input", updateDisplay);
       updateDisplay();
     };
@@ -7425,7 +7441,9 @@ export class ButtonExecutor {
               default: true,
               callback: (event, button, dialog) => {
                 const bonus = extractBonus(dialog);
-                const base  = getBase(mode);
+                let base;
+                try { base=applyRollOptionals(getBase(mode),rollOptionals,collectRollOptionalValues(dialog.element)); }
+                catch(error) { ui.notifications?.error?.(error.message); return {cancelled:true}; }
                 const formula = bonus ? `(${base}) + ${bonus}` : base;
                 return { formula, mode, cancelled: false };
               }

@@ -1,3 +1,4 @@
+import { sdFlags } from "./module/helpers/document-flags.mjs";
 import "./module/helpers/editor-controls.mjs";
 import "./module/builder/hover-nodes.mjs";
 function _sanitizeRollData(data) {
@@ -44,6 +45,7 @@ import { migrateDocumentDatabaseValues } from "./module/helpers/value-database.m
 import { SharedDatabaseApp, registerSharedDatabaseSettings } from "./module/helpers/shared-database.mjs";
 import "./module/helpers/data-asset-nodes.mjs";
 import "./module/three/model-nodes.mjs";
+import "./module/trading/main.mjs";
 import "./module/builder/lifecycle-nodes.mjs";
 import "./module/builder/music-nodes.mjs";
 import { initWidgetNodes } from "./module/builder/widget-nodes.mjs";
@@ -1825,7 +1827,7 @@ html.addEventListener("click", async (e) => {
       };
 
       const lastMsg = [...game.messages].reverse().find(m => m.author?.id === game.user.id);
-      if (lastMsg && _rrFlag.formula) await lastMsg.setFlag("sd", "reroll", _rrFlag);
+      if (lastMsg && _rrFlag.formula) await sdFlags(lastMsg).setFlag("sd", "reroll", _rrFlag);
     } catch (e) { console.warn("SD | save-button: failed to attach reroll flag", e); }
   }
 
@@ -1867,16 +1869,16 @@ html.addEventListener("click", async (e) => {
     const msgId = message.dataset.messageId;
     chatMsg = game.messages.get(msgId);
     if (chatMsg) {
-      const existing = chatMsg.getFlag("sd", "saveResult") ?? {};
+      const existing = sdFlags(chatMsg).getFlag("sd", "saveResult") ?? {};
       existing[saveActor.id] = { total: rollTotal, pass, actorId: saveActor.id, userId: game.user.id };
       aggregateResults = existing;
-      await chatMsg.setFlag("sd", "saveResult", existing);
+      await sdFlags(chatMsg).setFlag("sd", "saveResult", existing);
     }
   }
 
   try {
-    const passActions = chatMsg?.getFlag("sd", "passActions") ?? [];
-    const failActions = chatMsg?.getFlag("sd", "failActions") ?? [];
+    const passActions = sdFlags(chatMsg).getFlag("sd", "passActions") ?? [];
+    const failActions = sdFlags(chatMsg).getFlag("sd", "failActions") ?? [];
     const branch = pass ? passActions : failActions;
     if (Array.isArray(branch) && branch.length) {
       const { ButtonExecutor } = await import("./module/helpers/button-executor.mjs");
@@ -2017,7 +2019,7 @@ html.querySelectorAll(".sd-rollcheck-btn").forEach(btn => {
     const chatMsg = msgId ? game.messages.get(msgId) : null;
     if (!card || !chatMsg) return;
 
-    const payload = foundry.utils.deepClone(chatMsg.getFlag("sd", "rollCheck") ?? {});
+    const payload = foundry.utils.deepClone(sdFlags(chatMsg).getFlag("sd", "rollCheck") ?? {});
     if (payload.resolved) return;
 
     const formula = btn.dataset.sdRcFormula ?? "1d20";
@@ -2036,7 +2038,7 @@ html.querySelectorAll(".sd-rollcheck-btn").forEach(btn => {
     payload.rollerId = game.user?.id ?? null;
     payload.rollerName = game.user?.name ?? null;
     if (game.user.isGM) {
-      await chatMsg.setFlag("sd", "rollCheck", payload);
+      await sdFlags(chatMsg).setFlag("sd", "rollCheck", payload);
     }
     game.socket.emit("system.sd", { type: "rollCheckResult", cardId, total: r.total });
     if (payload.requesterId === game.user?.id) {
@@ -2049,7 +2051,7 @@ html.querySelectorAll(".sd-rollcheck-btn").forEach(btn => {
 });
 
 {
-  const rc = message.getFlag?.("sd", "rollCheck");
+  const rc = sdFlags(message).getFlag("sd", "rollCheck");
   if (rc?.cardId && rc.resolved) {
     html.querySelectorAll(`.sd-rollcheck-card[data-sd-rc-card="${rc.cardId}"]`).forEach(card => {
       const btn = card.querySelector(".sd-rollcheck-btn");
@@ -2073,7 +2075,7 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
 
     const idx     = Number(btn.dataset.sdOpposedIdx ?? 0);
     const formula = btn.dataset.sdOpposedFormula ?? "1d20";
-    const payload = foundry.utils.deepClone(chatMsg.getFlag("sd", "opposed") ?? {});
+    const payload = foundry.utils.deepClone(sdFlags(chatMsg).getFlag("sd", "opposed") ?? {});
     if (!payload.opponents) payload.opponents = [];
     if (payload.opponents[idx]) return;
 
@@ -2090,12 +2092,12 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
       actorId: actor?.id ?? null,
       actorName: actor?.name ?? game.user.name
     };
-    await chatMsg.setFlag("sd", "opposed", payload);
+    await sdFlags(chatMsg).setFlag("sd", "opposed", payload);
   });
 });
 
 {
-  const opp = message.getFlag?.("sd", "opposed");
+  const opp = sdFlags(message).getFlag("sd", "opposed");
   if (opp?.cardId) {
     html.querySelectorAll(`.sd-opposed-card[data-sd-opposed-card="${opp.cardId}"]`).forEach(card => {
       card.querySelectorAll(".sd-opposed-btn").forEach(btn => {
@@ -2141,9 +2143,9 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
                 console.error("SD | opposed dispatch failed:", e);
               }
             }
-            const payload = foundry.utils.deepClone(message.getFlag("sd", "opposed") ?? {});
+            const payload = foundry.utils.deepClone(sdFlags(message).getFlag("sd", "opposed") ?? {});
             payload.resolved = true;
-            await message.setFlag("sd", "opposed", payload);
+            await sdFlags(message).setFlag("sd", "opposed", payload);
           })();
         }
       }
@@ -2152,7 +2154,7 @@ html.querySelectorAll(".sd-opposed-btn").forEach(btn => {
 }
 
 {
-  const saveResult = message.getFlag?.("sd", "saveResult");
+  const saveResult = sdFlags(message).getFlag("sd", "saveResult");
   if (saveResult && typeof saveResult === "object") {
     html.querySelectorAll(".sd-save-card").forEach(card => {
       const dc = Number(card.dataset.saveDc ?? 15);
@@ -2353,7 +2355,7 @@ Hooks.on("renderTokenHUD", (hud, html) => {
     for (const ef of (actor.allApplicableEffects?.() ?? actor.effects ?? [])) {
       if (!ef?.id || _sdIsStatusBackedEffect(ef)) continue;
       let hidden = false;
-      try { hidden = ef.getFlag?.("sd", "hideOnToken") === true; } catch { hidden = false; }
+      try { hidden = sdFlags(ef).getFlag("sd", "hideOnToken") === true; } catch { hidden = false; }
       if (hidden) continue;
       own.push(ef);
     }

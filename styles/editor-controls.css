@@ -103,13 +103,18 @@
 :is(.sd,.sd-quick-actions,.sd-easy-button-wizard,.sd-wcfg-popup) input[type="checkbox"]:not(:is(.sd-switch,.sd-db-switch) input):disabled { opacity: .55; cursor: not-allowed; }
 
 .sd-roll-presets-editor { display:flex;flex-direction:column;height:100%;min-height:0;background:var(--sd-bg,#171b2b);color:var(--sd-text,#eee);font:13px var(--sd-font,Arial,sans-serif); }
+.sd-quick-actions :is(input,select,textarea,button), .sd-roll-presets-editor :is(input,select,textarea,button) { font-family:Arial,sans-serif; }
 .sd-roll-presets-editor header { padding:14px 16px;display:flex;flex-direction:column;gap:4px;border-bottom:1px solid var(--sd-border,#3a4260); }
 .sd-roll-presets-editor header b { font-size:16px;color:var(--sd-accent,#9290ff); }
 .sd-roll-presets-editor small { color:var(--sd-text-3,#8f96aa);font-size:11px; }
 .sd-roll-presets-editor nav { display:flex;gap:6px;padding:10px 16px;flex-wrap:wrap; }
 .sd-roll-presets-editor nav .active { border-color:var(--sd-accent,#9290ff);color:var(--sd-accent,#9290ff); }
 .sd-roll-presets-editor main { flex:1;min-height:0;overflow:auto;padding:0 16px 14px; }
-.sd-roll-presets-editor label { display:flex;flex-direction:column;gap:4px;min-width:0;font-size:11px; }
+.sd-roll-presets-editor label { display:flex;flex-direction:column;align-items:stretch;text-align:left;white-space:normal;text-transform:none;letter-spacing:normal;gap:6px;min-width:0;font-size:12px; }
+.sd-roll-presets-editor .sdrp-die,.sd-roll-presets-editor .sdrp-mod { padding:12px;border:1px solid var(--sd-border,#3a4260);border-radius:8px;background:var(--sd-bg-2,#1d2235); }
+.sd-roll-presets-editor :is(header,nav,footer,.sdrp-preview) { flex:none; }
+.sd-roll-presets-editor main { container-type:inline-size; }
+@container (max-width:520px) { .sd-roll-presets-editor .sdrp-die { grid-template-columns:1fr 1fr; } }
 .sd-roll-presets-editor :is(input,select,textarea) { width:100%;min-width:0;box-sizing:border-box;height:28px;padding:0 6px;border:1px solid var(--sd-border,#3a4260);border-radius:5px;background:var(--sd-bg-3,#242a40);color:inherit; }
 .sd-roll-presets-editor textarea { height:120px;padding:8px; }
 .sd-roll-presets-editor button { width:auto;padding:5px 9px;cursor:pointer; }

@@ -797,7 +797,7 @@ for (const type of CLICKABLE_WIDGET_TYPES) {
 }
 
 export const WIDGET_PALETTE_ORDER = [
-  "text", "richtext", "image", "model3d", "button", "easyButton", "number", "toggle", "select", "tags",
+  "text", "richtext", "image", "model3d", "button", "number", "toggle", "select", "tags",
   "attribute", "skill", "attributeGroup",
   "resource", "progress", "counter", "tokenPool", "clock", "derived", "diceTray",
   "section", "vsection", "widgetBuilder",
@@ -813,7 +813,7 @@ export function getWidgetPaletteOrder({ includeLegacy = false } = {}) {
   const seen = new Set();
   const order = [];
   for (const id of WIDGET_PALETTE_ORDER) {
-    if (!WIDGET_TYPES[id] || seen.has(id)) continue;
+    if (!WIDGET_TYPES[id] || seen.has(id) || (!includeLegacy && LEGACY_WIDGET_TYPES.has(id))) continue;
     seen.add(id); order.push(id);
   }
   for (const id of Object.keys(WIDGET_TYPES)) {
@@ -828,7 +828,7 @@ export function getWidgetPaletteOrder({ includeLegacy = false } = {}) {
 export const REMOVED_WIDGET_TYPES = Object.freeze({ dice: "easyButton" });
 
 /** Imported sheets may still contain these widgets; they render normally but new layouts use Meter/UI Components. */
-export const LEGACY_WIDGET_TYPES = new Set(["tracker", "cardDrawButton"]);
+export const LEGACY_WIDGET_TYPES = new Set(["tracker", "cardDrawButton", "easyButton"]);
 
 export function createWidget(type, overrides = {}) {
   const def = WIDGET_TYPES[type];

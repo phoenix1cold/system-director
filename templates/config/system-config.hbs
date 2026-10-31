@@ -3,6 +3,14 @@
   <div class="config-body">
     {{#if isGM}}
     <div class="config-section">
+      <h3 class="config-section-title"><i class="fas fa-bolt"></i> Initiative · world</h3>
+      <p>One formula for all combatants. Actor Database values are resolved for each actor.</p>
+      <label style="display:flex;flex-direction:column;gap:6px">Formula<input name="initiativeFormula" value="{{initiative.formula}}" placeholder="1d20 + @system.values.dex"></label>
+      <button type="button" data-action="configureInitiative">Dice &amp; Database constructor</button>
+      {{#unless liteMode}}<label><input type="checkbox" name="initiativeUseGraph" {{#if initiative.useGraph}}checked{{/if}}> Use initiative graph</label>
+      <button type="button" data-action="editInitiativeGraph">Initiative graph</button>{{/unless}}
+    </div>
+    <div class="config-section">
       <h3 class="config-section-title">
         <i class="fas fa-database"></i> Database
         <span class="section-hint">Typed variables shared by Actors, Items, widgets, effects and graphs</span>

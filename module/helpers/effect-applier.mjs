@@ -1,3 +1,4 @@
+import { sdFlags } from "./document-flags.mjs";
 import { localizeTree, getLanguages, translationEditLanguage, setTranslationEditLanguage, setLocalizedField } from "./localization.mjs";
 import { getValueDefinitions, getValueDefinition, valueStoragePath, resolveVariableReference } from "./value-database.mjs";
 import { enhanceVariableSelectors } from "./variable-selector.mjs";
@@ -90,7 +91,7 @@ export function presetToEffectData(rawPreset, { document = null } = {}) {
 }
 
 const presetEffectsOf = (actor, presetId) => [...(actor?.effects ?? [])]
-  .filter(effect => effect.getFlag?.("sd", "effectPresetId") === presetId || effect.flags?.sd?.effectPresetId === presetId);
+  .filter(effect => sdFlags(effect).getFlag("sd", "effectPresetId") === presetId || effect.flags?.sd?.effectPresetId === presetId);
 
 /** Apply / remove / toggle one preset on a set of actors. Returns the number of actors touched. */
 export async function runEffectPreset({ preset, actors = [], operation = "apply" } = {}) {

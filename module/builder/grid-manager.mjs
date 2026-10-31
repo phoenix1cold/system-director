@@ -106,7 +106,7 @@ export class GridManager {
     const row = tab.rows.find(r => r.id === rowId);
     if (!row) return;
     let widget  = createWidget(widgetType, overrides);
-    if (widgetType === "easyButton") {
+    if (["button", "easyButton"].includes(widgetType)) {
       const configured = await openEasyButtonWizard(widget, doc, { tabs });
       if (!configured) return null;
       widget = configured;

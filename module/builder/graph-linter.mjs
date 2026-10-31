@@ -1,4 +1,5 @@
 import { pinSubtype, arePinsCompatible } from "./pin-types.mjs";
+import { lintGraphFlow } from "./graph-flow-linter.mjs";
 import { isLegacyNodeType }              from "./node-migration.mjs";
 import { resolveNodePin, resolveNodePins } from "./node-pin-resolver.mjs";
 
@@ -93,7 +94,7 @@ export function lintGraph(graph, NODE_DEFS, options = {}) {
     const fromPin = resolveNodePin(fromDef, from, "output", e.fromPin, pinOptions);
     const toPin   = resolveNodePin(toDef, to, "input", e.toPin, pinOptions);
     if (!fromPin || !toPin) {
-      out.push({ severity:"warn", code:"E004", nodeId:to.id,
+      out.push({ severity:"error", code:"E004", nodeId:to.id,
         message:`Edge references missing pin: ${from.type}.${e.fromPin} → ${to.type}.${e.toPin}` });
       continue;
     }
@@ -153,6 +154,17 @@ export function lintGraph(graph, NODE_DEFS, options = {}) {
       message:`Action node "${def.title ?? node.type}" is not reachable from an execution entry.` });
   }
 
+  for (const node of nodes) {
+    const def = NODE_DEFS[node.type];
+    if (!def?.isAction || def.compilePin || def.compile || def.dynamicBranchToken || def.runtimeValuePins) continue;
+    const connected = new Set(edges.filter(edge => edge.fromNode === node.id).map(edge => edge.fromPin));
+    for (const pin of resolveNodePins(def, node, "output")) {
+      if (pin.type === "exec" || !connected.has(pin.id)) continue;
+      out.push({ severity:"error", code:"E005", nodeId:node.id,
+        message:`Action output ${node.type}.${pin.id} has no value compiler or runtime token contract.` });
+    }
+  }
+  out.push(...lintGraphFlow(nodes, edges, NODE_DEFS));
   return out;
 }
 

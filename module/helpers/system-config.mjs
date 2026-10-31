@@ -236,7 +236,7 @@ export function applyCalculationsToActor(actor) {
 
 export function loadSettings() {
   let stored = {};
-  try { stored = game.settings.get("sd", "systemSettings") ?? {}; } catch {}
+  try { stored = game.settings.get(systemScope(), "systemSettings") ?? {}; } catch {}
   const defaults = getDefaultSettings();
   const result = foundry.utils.deepClone(Object.keys(stored).length ? stored : defaults);
   for (const [key, val] of Object.entries(defaults)) if (result[key] === undefined) result[key] = foundry.utils.deepClone(val);
@@ -266,7 +266,7 @@ export async function saveSettings(data) {
   delete clean.__onboardingEnabled;
   delete clean.__helperTooltips;
   delete clean.__variableIdRenames;
-  await game.settings.set("sd", "systemSettings", clean);
+  await game.settings.set(systemScope(), "systemSettings", clean);
 }
 
 export function buildActorBaseDefaults(actorType) {
@@ -300,14 +300,17 @@ export function compileModifierExpr(scoreExpr) {
   }
 }
 
+// Both forks register world settings under the shared namespace (unlike Document flags).
+const systemScope = () => "sd";
+
 export function applyInitiativeFormulaFromSettings() {
   if (!game?.settings) return;
   let formula = "1d20";
   let useGraph = false;
   let compiled = "";
-  try { formula  = String(game.settings.get("sd", "initiativeFormula") ?? "1d20"); } catch {}
-  try { useGraph = !!game.settings.get("sd", "initiativeUseGraph"); } catch {}
-  try { compiled = String(game.settings.get("sd", "initiativeGraphCompiled") ?? ""); } catch {}
+  try { formula  = String(game.settings.get(systemScope(), "initiativeFormula") ?? "1d20"); } catch {}
+  try { useGraph = !!game.settings.get(systemScope(), "initiativeUseGraph"); } catch {}
+  try { compiled = String(game.settings.get(systemScope(), "initiativeGraphCompiled") ?? ""); } catch {}
   const effective = (useGraph && compiled.trim()) ? compiled.trim() : formula;
   if (!effective) return;
   try {
@@ -390,6 +393,12 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       addCalcPart:      SystemConfig._onAddCalcPart,
       removeCalcPart:   SystemConfig._onRemoveCalcPart,
       editCalcGraph:    SystemConfig._onEditCalcGraph,
+      configureInitiative: async function() {
+        const { openRollPresetsEditor, buildRollPresetFormula } = await import("../builder/roll-presets.mjs");
+        const input = this.element.querySelector('[name="initiativeFormula"]');
+        const result = await openRollPresetsEditor(null, null, {formula:input?.value || "1d20",id:"world-initiative"});
+        if (result && input) { input.value = buildRollPresetFormula(result.normal); const graph = this.element.querySelector('[name="initiativeUseGraph"]'); if (graph) graph.checked = false; }
+      },
       editInitiativeGraph: SystemConfig._onEditInitiativeGraph,
       openAISettings:   SystemConfig._onOpenAISettings,
       startOnboarding:  SystemConfig._onStartOnboarding,
@@ -537,10 +546,10 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     let initUseGraph = false;
     let initCompiled = "";
     let initGraph = null;
-    try { initFormula  = String(game.settings.get("sd", "initiativeFormula") ?? "1d20"); } catch {}
-    try { initUseGraph = !!game.settings.get("sd", "initiativeUseGraph"); } catch {}
-    try { initCompiled = String(game.settings.get("sd", "initiativeGraphCompiled") ?? ""); } catch {}
-    try { initGraph    = game.settings.get("sd", "initiativeGraph") ?? null; } catch {}
+    try { initFormula  = String(game.settings.get(systemScope(), "initiativeFormula") ?? "1d20"); } catch {}
+    try { initUseGraph = !!game.settings.get(systemScope(), "initiativeUseGraph"); } catch {}
+    try { initCompiled = String(game.settings.get(systemScope(), "initiativeGraphCompiled") ?? ""); } catch {}
+    try { initGraph    = game.settings.get(systemScope(), "initiativeGraph") ?? null; } catch {}
     const initNodeCount = (initGraph && Array.isArray(initGraph.nodes)) ? initGraph.nodes.length : 0;
     const aiSettings = getAISettings();
     const worldKnowledge = String(aiSettings.worldKnowledge ?? "");
@@ -572,6 +581,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
           return flat.length > 140 ? `${flat.slice(0, 140)}...` : flat;
         })()
       },
+      liteMode: !!globalThis.CONFIG?.SD?.liteMode,
       initiative: {
         formula:        initFormula,
         useGraph:       initUseGraph,
@@ -729,7 +739,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     if (raw.modifierFormula !== undefined) cfg.modifierFormula = raw.modifierFormula;
 
     cfg.__initiativeFormula  = raw.initiativeFormula  !== undefined ? String(raw.initiativeFormula) : null;
-    cfg.__initiativeUseGraph = !!raw.initiativeUseGraph;
+    cfg.__initiativeUseGraph = raw.initiativeFormula !== undefined ? !!raw.initiativeUseGraph : null;
     cfg.__onboardingEnabled  = !!raw.onboardingEnabled;
     cfg.__helperTooltips     = !!raw.helperTooltips;
 
@@ -923,16 +933,19 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
     try {
       if (typeof initFormula === "string") {
-        await game.settings.set("sd", "initiativeFormula", initFormula || "1d20");
+        await game.settings.set(systemScope(), "initiativeFormula", initFormula || "1d20");
       }
-      await game.settings.set("sd", "initiativeUseGraph", !!initUseGraph);
+      if (initUseGraph !== null) await game.settings.set(systemScope(), "initiativeUseGraph", !!initUseGraph);
       await game.settings.set("sd", "onboardingEnabled", !!onboardingEnabled);
       await game.settings.set("sd", "helperTooltips", !!helperTooltips);
     } catch(e) {
       console.warn("SD | Could not save client/system settings:", e);
+      ui.notifications?.error?.("Could not save initiative settings. Check permissions and console.");
+      return;
     }
 
     applySettings(cfg);
+    applyInitiativeFormulaFromSettings();
 
     ui.notifications.info(game.i18n.localize("SD.Settings.Saved"));
     this.close();
@@ -950,7 +963,7 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
     try {
       const cfg = this._collectFormCfg();
-      const before = await game.settings.get("sd", "initiativeUseGraph").catch(() => false);
+      const before = game.settings.get(systemScope(), "initiativeUseGraph");
       delete cfg.__initiativeFormula;
       delete cfg.__initiativeUseGraph;
       await saveSettings(cfg);
@@ -964,15 +977,15 @@ export class SystemConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       mode: "initiative",
       customLoad: () => {
         try {
-          const g = game.settings.get("sd", "initiativeGraph");
+          const g = game.settings.get(systemScope(), "initiativeGraph");
           return g ?? null;
         } catch { return null; }
       },
       customSave: async (data, compiled) => {
         try {
-          await game.settings.set("sd", "initiativeGraph", data);
-          await game.settings.set("sd", "initiativeGraphCompiled", String(compiled ?? ""));
-          await game.settings.set("sd", "initiativeUseGraph", true);
+          await game.settings.set(systemScope(), "initiativeGraph", data);
+          await game.settings.set(systemScope(), "initiativeGraphCompiled", String(compiled ?? ""));
+          await game.settings.set(systemScope(), "initiativeUseGraph", true);
           if (CONFIG?.Combat?.initiative) CONFIG.Combat.initiative.formula = String(compiled ?? "1d20") || "1d20";
           if (game.system) game.system.initiative = String(compiled ?? "1d20") || "1d20";
           ui.notifications?.info?.(game.i18n.localize("SD.Settings.InitiativeGraphSaved"));

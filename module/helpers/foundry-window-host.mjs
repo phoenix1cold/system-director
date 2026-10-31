@@ -57,6 +57,9 @@ export class SDFoundryWindowHost extends ApplicationV2 {
     content.style.flexDirection = "column";
     content.style.minWidth = "0";
     content.style.minHeight = "0";
+    content.style.flex = "1 1 0";
+    const slotStyle = content.querySelector(".sd-foundry-window-slot")?.style;
+    if (slotStyle) slotStyle.flex = "1 1 0";
     const slot = content.querySelector(".sd-foundry-window-slot") ?? content;
     if (this._sdContent) slot.appendChild(this._sdContent);
     const frame = content.closest?.(".window-app,.application");

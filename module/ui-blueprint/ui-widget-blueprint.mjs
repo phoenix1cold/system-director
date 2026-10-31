@@ -104,7 +104,7 @@ export function normalizeVariable(raw = {}, index = 0, used = new Set()) {
     type,
     scope,
     default: raw.default === undefined ? defaultForType(type) : coerceBlueprintValue(raw.default, type),
-    exposeOnSpawn: !!(raw.exposeOnSpawn ?? raw.spawn),
+    exposeOnSpawn: scope === "instance" && !!(raw.exposeOnSpawn ?? raw.spawn),
     readOnly: !!raw.readOnly,
     category: String(raw.category ?? "Default"),
     description: String(raw.description ?? raw.desc ?? ""),
@@ -117,6 +117,23 @@ export function normalizeVariable(raw = {}, index = 0, used = new Set()) {
 export function normalizeVariables(raw = []) {
   const used = new Set();
   return (Array.isArray(raw) ? raw : []).map((variable, index) => normalizeVariable(variable, index, used));
+}
+
+/** Spawn inputs initialize only local instance state. Persistent scopes must use
+ * explicit setters so permissions and asynchronous writes remain observable.
+ * Validate the entire payload before applying any values (including unique reopen).
+ */
+export function normalizeSpawnValues(system, initial = {}) {
+  const variables = normalizeVariables(system?.variables);
+  const result = {};
+  for (const [ref, value] of Object.entries(initial ?? {})) {
+    if (value === undefined) continue;
+    const variable = variables.find(entry => entry.id === ref || entry.name === ref);
+    if (!variable) throw new Error(`Unknown spawn variable '${ref}'`);
+    if (variable.scope !== "instance") throw new Error(`Spawn variable '${variable.name}' uses ${variable.scope} scope; use Set Blueprint Variable instead`);
+    result[variable.id] = coerceBlueprintValue(value, variable.type);
+  }
+  return result;
 }
 
 export function variableByRef(system, ref) {

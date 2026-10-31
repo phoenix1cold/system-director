@@ -1,8 +1,9 @@
+import { sdFlags } from "../helpers/document-flags.mjs";
 import { MODULE_ID } from "./ui-widget-const.mjs";
 import { requestWorldWrite } from "./ui-widget-net.mjs";
 import {
   VARIABLE_SCOPES, VARIABLE_TYPES, coerceBlueprintValue, defaultForType,
-  normalizeVariables, variableByRef, widgetByRef, safeId
+  normalizeVariables, normalizeSpawnValues, variableByRef, widgetByRef, safeId
 } from "./ui-widget-blueprint.mjs";
 
 export const VAR_SCOPES = VARIABLE_SCOPES;
@@ -49,7 +50,7 @@ export class UIWidgetState {
     for (const variable of this._defs) {
       if (variable.scope === "instance") this._instance[variable.id] = coerceBlueprintValue(variable.default, variable.type);
     }
-    for (const [ref, value] of Object.entries(initial ?? {})) {
+    for (const [ref, value] of Object.entries(normalizeSpawnValues(blueprint?.system, initial))) {
       const variable = this.variableDef(ref);
       if (variable) this._instance[variable.id] = coerceBlueprintValue(value, variable.type);
     }
@@ -83,7 +84,7 @@ export class UIWidgetState {
     if (!variable) return this._instance[String(ref)];
     let value;
     switch (variable.scope) {
-      case "user": value = game.user?.getFlag?.(MODULE_ID, this._userFlag(variable)); break;
+      case "user": value = sdFlags(game.user).getFlag(MODULE_ID, this._userFlag(variable)); break;
       case "actor": {
         value = getProperty(this.actor, this._documentPath(variable));
         if (value === undefined) value = this.actor?.system?.hiddenFields?.[variable.id] ?? this.actor?.system?.hiddenFields?.[variable.name];
@@ -111,7 +112,7 @@ export class UIWidgetState {
 
     switch (variable.scope) {
       case "user":
-        await game.user?.setFlag?.(MODULE_ID, this._userFlag(variable), value);
+        await sdFlags(game.user).setFlag(MODULE_ID, this._userFlag(variable), value);
         break;
       case "actor":
         if (!this.actor) throw new Error(`Variable '${variable.name}' requires an Actor context`);

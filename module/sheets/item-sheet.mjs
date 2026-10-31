@@ -121,6 +121,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
       controls: [
         { icon: "fas fa-toolbox",   label: "Sheet Builder",    action: "openBuilder"       },
         { icon: "fas fa-bolt",      label: "Sheet Triggers",   action: "openSheetTriggers" },
+        { icon: "fas fa-wand-magic-sparkles", label: "On Use · Quick Actions", action: "configureUse" },
         { icon: "fas fa-database",    label: "Database",         action: "openDatabase"     },
         { icon: "fas fa-pen-ruler", label: "Toggle Edit Mode", action: "toggleEditMode"    }
       ]
@@ -128,6 +129,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     actions: {
       openBuilder:       SDItemSheet._onOpenBuilder,
       openSheetTriggers: SDItemSheet._onOpenSheetTriggers,
+      configureUse: async function() { const { openItemUseActions } = await import("../builder/trigger-manager.mjs"); return openItemUseActions(this.document); },
       openDatabase:      SDItemSheet._onOpenDatabase,
       openEffectApplier: SDItemSheet._onOpenEffectApplier,
       toggleEditMode:    SDItemSheet._onToggleEditMode,
@@ -180,6 +182,7 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     this._wireAllInteractions();
     this._wireScrollMemory();
     this._restoreScrollMemory();
+    globalThis.SD?.lite?.bindSheet?.(this);
   }
 
   _onChangeForm(formConfig, event) {
@@ -251,6 +254,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   _buildTabNav() {
     const root = this.element;
     if (!root) return;
+    if (!this.__easyMigrationChecked) {
+      this.__easyMigrationChecked = true;
+      import("../builder/easy-widget-migration.mjs").then(m => m.maybeOfferEasyWidgetMigration(this.document)).catch(() => {});
+    }
     let nav = root.querySelector(".sd-tab-nav");
     if (!nav) {
       nav = document.createElement("nav");
@@ -312,7 +319,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const sysNavItems = [
       ...(this.document.type === "class"     ? [{id:"_sys_class",label:"<i class='fas fa-arrow-circle-up' style='margin-right:4px'></i>Levels"}] : []),
       ...(this.document.type === "skilltree" ? [{id:"_sys_skilltree",label:"<i class='fas fa-project-diagram' style='margin-right:4px'></i>Skill Tree"}] : []),
-      {id:"_sys_graph",label:"<i class='fas fa-diagram-project' style='margin-right:4px'></i>Item Blueprint"}
+      // The Item Blueprint graph is a Nexus editor surface; Lite configures items by forms.
+      ...(globalThis.CONFIG?.SD?.liteMode ? [] : [{id:"_sys_graph",label:"<i class='fas fa-diagram-project' style='margin-right:4px'></i>Item Blueprint"}])
     ];
     if (this.document.type === "ability" || this.document.type === "inventory") {
       sysNavItems.push({id:"_sys_effects", label:"<i class='fas fa-sparkles' style='margin-right:4px'></i>Effects"});
@@ -3194,8 +3202,8 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
     const tabs=foundry.utils.deepClone(this.document.system.customTabs??[]); const tab=tabs.find(t=>t.id===tabId); if(!tab) return;
     const baseDefaults=defaults[widgetType]??foundry.utils.deepClone(WIDGET_TYPES[widgetType]?.defaults??{label:widgetType});
     let widget={id:foundry.utils.randomID(8),span:1,...baseDefaults,type:widgetType};
-    if (widgetType === "easyButton" || widgetType === "dice") {
-      widget.type = "easyButton";
+    if (["button", "easyButton", "dice"].includes(widgetType)) {
+      widget.type = widgetType === "dice" ? "easyButton" : widgetType;
       const configured = await openEasyButtonWizard(widget, this.document, { tabs });
       if (!configured) return;
       widget = configured;
@@ -3409,6 +3417,10 @@ export class SDItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   }
 
   static async _onOpenSheetTriggers() {
+    if (globalThis.CONFIG?.SD?.liteMode) {
+      const { openTriggerManager } = await import("../builder/trigger-manager.mjs");
+      return openTriggerManager(this.document);
+    }
     await this._ensureCommonItemGraph();
     const { FormulaGraph } = await import("../builder/formula-graph.mjs");
     const graph = new FormulaGraph(null, this.document, null, null, null,

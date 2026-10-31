@@ -1,3 +1,4 @@
+import { sdFlags } from "../helpers/document-flags.mjs";
 import { commitWidgetStep } from "../helpers/widget-step-commit.mjs";
 import { syncWidgetQuickGraph, widgetGraphHandlesClick } from "../builder/widget-quick-graph.mjs";
 import { wireSheetTabClick } from "../builder/sheet-tab-controls.mjs";
@@ -182,7 +183,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const base   = await super._prepareContext(options);
     const actor  = this.document;
     const system = actor.system;
-    const progCfg=actor.getFlag?.("sd","progression.config")??{};
+    const progCfg=sdFlags(actor).getFlag("sd","progression.config")??{};
     const progTabs=Array.isArray(progCfg.tabs)?progCfg.tabs:[];
     const progTab=progTabs.find(t=>t.id===progCfg.activeTabId)??progTabs[0]??progCfg;
     const levelId=getValueDefinition(progTab?.levelVariableId)?.id??getValueDefinition("level")?.id??getValueDefinitions("actor").find(v=>String(v.name).toLowerCase()==="level")?.id??"";
@@ -214,6 +215,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     ItemPreviewPopup.attach(this.element, this.document);
     TabManager.activate(this);
     SDOnboarding.bindCharacterSheet(this.element);
+    globalThis.SD?.lite?.bindSheet?.(this);
     this._wireScrollMemory();
     this._restoreScrollMemory();
     queueMicrotask(() => this._maybeChooseInitialLayout());
@@ -364,6 +366,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   _buildTabNav() {
     const root = this.element;
     if (!root) return;
+    if (!this.__easyMigrationChecked) {
+      this.__easyMigrationChecked = true;
+      import("../builder/easy-widget-migration.mjs").then(m => m.maybeOfferEasyWidgetMigration(this.document)).catch(() => {});
+    }
 
     let nav = root.querySelector(".sd-tab-nav");
     if (!nav) {
@@ -2146,7 +2152,7 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   async _maybeChooseInitialLayout() {
     if (this._layoutChoiceOpen || !this.document?.isOwner) return;
-    if (this.document.getFlag?.("sd", "chooseSheetLayout") !== true) return;
+    if (sdFlags(this.document).getFlag("sd", "chooseSheetLayout") !== true) return;
     this._layoutChoiceOpen = true;
     try {
       const presets = Object.values(SHEET_STYLE_PRESETS);
@@ -2337,8 +2343,8 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       ...baseDefaults,
       type: widgetType
     };
-    if (widgetType === "easyButton" || widgetType === "dice") {
-      widget.type = "easyButton";
+    if (["button", "easyButton", "dice"].includes(widgetType)) {
+      widget.type = widgetType === "dice" ? "easyButton" : widgetType;
       const configured = await openEasyButtonWizard(widget, this.document, { tabs });
       if (!configured) return;
       widget = configured;
@@ -2717,6 +2723,10 @@ export class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   static async _onOpenSheetTriggers(event, target) {
+    if (globalThis.CONFIG?.SD?.liteMode) {
+      const { openTriggerManager } = await import("../builder/trigger-manager.mjs");
+      return openTriggerManager(this.document);
+    }
     const { FormulaGraph } = await import("../builder/formula-graph.mjs");
     const graph = new FormulaGraph(null, this.document, null, null, null,
       { mode: "sheetTrigger" });

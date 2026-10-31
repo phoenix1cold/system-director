@@ -133,16 +133,17 @@ export class SDItem extends Item {
     const events = payload?._events;
     if (!events || typeof events !== "object") return [];
     const pick = (entry) => Array.isArray(entry) ? entry : (Array.isArray(entry?.actions) ? entry.actions : []);
+    const managed = Object.values(events).filter(entry => entry?._quickActions && entry.hook === "onClick").flatMap(pick);
     const direct = pick(events.onClick);
-    if (direct.length) return direct;
+    if (direct.length) return [...direct, ...managed];
     for (const [key, entry] of Object.entries(events)) {
-      if (key === "onClick") continue;
+      if (key === "onClick" || entry?._quickActions) continue;
       const hook = entry?.hook ?? key;
       if (hook !== "onClick" && !String(key).startsWith("on_click")) continue;
       const actions = pick(entry);
-      if (actions.length) return actions;
+      if (actions.length) return [...actions, ...managed];
     }
-    return [];
+    return managed;
   }
 
   /** True when the stored common graph contains a Use / On Click entry node. */

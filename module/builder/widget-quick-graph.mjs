@@ -17,7 +17,9 @@ export function registerQuickActionGraphNodes(definitions) {
       desc:step.hint, isAction:true,
       hidden:step.hidden === true, replacement:step.replacement,
       inputs:[{id:"exec",label:"",type:"exec"}], outputs:[{id:"exec",label:"Done →",type:"exec"}],
-      fields:step.fields.map(field=>({...field, type:field.type === "checkbox" ? "bool" : ["uuid","file"].includes(field.type) ? "text" : field.type,
+      // Nested step lists (Condition branches) stay in the node data: the graph
+      // node shows only scalar fields, the steps compile through toAction.
+      fields:step.fields.filter(field=>field.type!=="substeps").map(field=>({...field, type:field.type === "checkbox" ? "bool" : ["uuid","file"].includes(field.type) ? "text" : field.type,
         options:typeof field.options === "function" ? (node,graph)=>field.options({scope:graph?.doc?.documentName==="Item"?"item":"actor"}) : field.options})),
       toAction:(node,inputs)=>compileQuickActions([{...node.data,...inputs,kind}])[0]
     };
@@ -28,7 +30,10 @@ function widgetSpecs(widget) {
   const specs=[];
   const quick=normalizeQuickActions(widget.quickActions);
   if (quick.steps.length) specs.push({source:"quick",event:quick.event,steps:quick.steps});
-  if ((widget.type === "easyButton" || widget.type === "dice") && !(quick.steps.length && ["click","any"].includes(quick.event))) {
+  if ((widget.type === "easyButton" || widget.type === "dice" || (widget.type === "button" && widget.easyMode)) && !(quick.steps.length && ["click","any"].includes(quick.event))) {
+    // Old regular buttons can carry an opaque executor array or an external graph
+    // binding. Merely saving appearance must not turn either into a dice roll.
+    if (widget.type === "button" && widget.easyMode === "formula" && (!widget.formula || String(widget.formula).trim().startsWith("["))) return specs;
     let steps;
     if (widget.easyMode === "actions") steps=normalizeQuickActions({steps:widget.actionSteps}).steps;
     else {

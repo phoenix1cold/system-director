@@ -1,3 +1,4 @@
+import { sdFlags } from "../helpers/document-flags.mjs";
 import { FormulaEngine } from "../helpers/formula-engine.mjs";
 import { injectWidgetFieldsSnapshot, refreshWidgetFieldsRuntime } from "../helpers/widget-fields.mjs";
 
@@ -254,7 +255,7 @@ export class SDActor extends Actor {
       if (!ef || (ef.id && seen.has(ef.id))) continue;
       if (ef.active === false || ef.disabled || ef.isSuppressed) continue;
       let hidden = false;
-      try { hidden = ef.getFlag?.("sd", "hideOnToken") === true; } catch { hidden = false; }
+      try { hidden = sdFlags(ef).getFlag("sd", "hideOnToken") === true; } catch { hidden = false; }
       if (hidden) continue;
       const img = ef.img ?? ef.icon ?? null;
       if (!img) continue;

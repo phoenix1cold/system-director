@@ -1,3 +1,4 @@
+import { sdFlags } from "./document-flags.mjs";
 import { resolveNodeFormulaToken } from "./node-runtime-api.mjs";
 import { resolveDatabaseSource } from "./database-source.mjs";
 import { readDatabaseValue } from "./value-database.mjs";
@@ -2493,7 +2494,7 @@ export class FormulaEngine {
     if (token.startsWith("var:")) {
       const varName = token.slice("var:".length).trim();
       const a = doc instanceof Actor ? doc : (doc.actor ?? null);
-      return a?.getFlag?.("sd", `vars.${varName}`) ?? 0;
+      return sdFlags(a).getFlag("sd", `vars.${varName}`) ?? 0;
     }
 
     if (token.startsWith("hasCondition:")) {
